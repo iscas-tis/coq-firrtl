@@ -1,0 +1,10 @@
+circuit Foo :
+module Foo :
+skip
+module Bar :
+input a : UInt < 32 >
+output b : UInt < 1 >
+when a :
+b <= a
+else :
+b <= not ( a )

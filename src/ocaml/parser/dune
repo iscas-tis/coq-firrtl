@@ -1,0 +1,14 @@
+(ocamllex
+  (modules         firrtlLexer)
+)
+
+(ocamlyacc
+  (modules         firrtlParser)
+)
+
+(library
+  (name            firrtl_lang)
+  (libraries       str zarith)
+  (flags           (:standard -w -3-32-33-27-39))
+  (modules         firrtlLexer firrtlParser ast parser)
+)

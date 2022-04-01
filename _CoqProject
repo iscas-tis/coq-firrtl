@@ -1,1 +1,13 @@
+-Q lib simplssrlib
+lib/Types.v
+lib/Tactics.v
+lib/Lists.v
+lib/SsrOrder.v
+lib/Seqs.v
+lib/FSets.v
+lib/FMaps.v
+lib/Nats.v
+lib/ZAriths.v
+lib/Var.v
+-Q src firrtl
 src/Firrtl.v

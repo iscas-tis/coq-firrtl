@@ -1,0 +1,10 @@
+(env
+  (dev
+    (flags         (:standard -w +42)))
+  (release
+    (flags         (:standard -O3))))
+
+(executables
+ (names            pparser)
+ (libraries        firrtl_lang)
+)
