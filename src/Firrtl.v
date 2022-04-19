@@ -176,8 +176,8 @@ Section RawFirrtl.
   | Econst : bits -> fexpr
   | Eref : var -> fexpr
   | Edeclare : var -> fgtyp -> fexpr
-  | Efield : fexpr -> fexpr -> fexpr
-  | Esubfield : var -> nat -> fexpr
+  (* | Efield : fexpr -> fexpr -> fexpr *) (* HiFirrtl *)
+  (* | Esubfield : var -> nat -> fexpr *) (* HiFirrtl *)
   | Ecast : ucast -> fexpr -> fexpr
   | Eprim_unop : eunop -> fexpr -> fexpr
   | Eprim_binop : ebinop -> fexpr -> fexpr -> fexpr
@@ -228,9 +228,9 @@ Section RawFirrtl.
   (* | Sattach : seq var -> fstmt *)
   | Swhen : fexpr -> fstmt -> fstmt -> fstmt
   | Sstop : fexpr -> fexpr -> nat -> fstmt
-  | Sprintf (* TBD *)
-  | Sassert (* TBD *)
-  | Sassume (* TBD *)
+  (* | Sprintf (* TBD *) *)
+  (* | Sassert (* TBD *) *)
+  (* | Sassume (* TBD *) *)
   (* | Sdefname : var -> fstmt *) (* TBD *)
   (* | Sparam : var -> fexpr -> fstmt *) (* TBD *)
   .
@@ -690,7 +690,8 @@ Module MakeFirrtl
     | Eprim_unop u e => (eunop_op u) (eval_fexpr e s)
     | Emux c e1 e2 => if (Z.gtb 0 (to_Z (eval_fexpr c s))) then (eval_fexpr e1 s) else (eval_fexpr e2 s)
     | Evalidif c e => if (Z.gtb 0 (to_Z (eval_fexpr c s))) then (eval_fexpr e s) else [::]
-    | _ => [::]
+    | Edeclare _ _ => [::]
+    | Ecast _ _ => [::]
     end.
 
   Definition upd_typenv_fexpr (e : fexpr) (te : TE.env) : TE.env :=
@@ -732,10 +733,8 @@ Module MakeFirrtl
                              end
     | Emux c e1 e2 => if (Z.gtb 0 (to_Z (eval_fexpr c s)))
                       then (type_of_fexpr e1 te s) else (type_of_fexpr e2 te s)
-    | Evalidif c e => if (Z.gtb 0 (to_Z (eval_fexpr c s)))
-                      then (type_of_fexpr e te s) else TE.deftyp
-                                                                                          
-    | _ => TE.deftyp
+    | Evalidif c e => (* if (Z.gtb 0 (to_Z (eval_fexpr c s))) then *)
+                      (type_of_fexpr e te s)
     end.
   
   Definition freg := freg V.t.
@@ -824,11 +823,48 @@ Module MakeFirrtl
     | _ => te
     end.
 
-  (* Well-formness *)
+  (* fexpr eqn , TBD *)
 
+
+  (* Well-typed *)
+
+  (* well typed expr *)
+  
+  Fixpoint well_typed_fexpr (e : fexpr) (te : TE.env) : bool :=
+    match e with
+    | Econst _ => true
+    | Eref v => 0 < sizeof_fgtyp (TE.vtyp v te)
+    | Edeclare v t => 0 < sizeof_fgtyp t
+    | Ecast _ _ => true
+    | Eprim_unop _ e1 => well_typed_fexpr e1 te
+    | Eprim_binop _ e1 e2 => (well_typed_fexpr e1 te) && (well_typed_fexpr e2 te)
+    | Emux c e1 e2 => (well_typed_fexpr c te) && (well_typed_fexpr e1 te) && (well_typed_fexpr e2 te)
+    | Evalidif c e1 => (well_typed_fexpr c te) && (well_typed_fexpr e1 te)
+    end.
+
+
+  (* Well-formness, is defined && well-typed *)
+  
+  (* Use TE.mem v te to determine if v is defined *)
+  Definition is_defined (v : var) (te : TE.env) : bool :=
+    TE.mem v te.
+
+  Fixpoint is_defined_fexpr (e : fexpr) (te : TE.env) : bool :=
+    match e with
+    | Econst _ => true
+    | Eref v => is_defined v te
+    | Edeclare v t => true
+    | Ecast _ e1 => is_defined_fexpr e1 te
+    | Eprim_unop _ e1 => is_defined_fexpr e1 te
+    | Eprim_binop _ e1 e2 => (is_defined_fexpr e1 te) && (is_defined_fexpr e2 te)
+    | Emux c e1 e2 => (is_defined_fexpr c te) && (is_defined_fexpr e1 te) && (is_defined_fexpr e2 te)
+    | Evalidif c e1 => (is_defined_fexpr c te) && (is_defined_fexpr e1 te)
+    end.
+
+  Definition well_formed_fexpr e te := well_typed_fexpr e te && is_defined_fexpr e te.
+  
   (* well formed expr *)
   
-
 
 
   
