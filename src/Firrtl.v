@@ -22,9 +22,9 @@ Section RawFirrtl.
   Inductive fgtyp : Set :=
     Fuint : nat -> fgtyp
   | Fsint : nat -> fgtyp
-  (* | Fanalog : nat -> fgtyp *)
   | Fclock.
-  (*| Fvector : fgtyp -> nat -> fgtyp*)
+  (* | Fanalog : nat -> fgtyp *) (* TBD, HiFirrtl *)
+  (* | Fvector : fgtyp -> nat -> fgtyp *) (* TBD, HiFirrtl *)
 
   (* Size of types *)
 
@@ -135,8 +135,7 @@ Section RawFirrtl.
   | AsUInt | AsSInt (*| AsFixed*) | AsClock.
 
   Inductive eunop : Set :=
-  | Upadding : nat -> eunop
-  (* | Ucast : ucast -> eunop *)
+  | Upad : nat -> eunop
   | Ushl : nat -> eunop
   | Ushr : nat -> eunop
   | Ucvt
@@ -162,8 +161,8 @@ Section RawFirrtl.
   | Bdiv
   | Brem
   | Bcomp: bcmp -> ebinop
-  (* | Bdshl *)
-  (* | Bdshr *)
+  | Bdshl
+  | Bdshr
   | Band
   | Bor
   | Bxor
@@ -211,7 +210,7 @@ Section RawFirrtl.
     mk_freg
       {
         rid : var;
-        type : fexpr;
+        type : fgtyp;
         clock : fexpr;
         reset : rst
       }.
@@ -232,8 +231,8 @@ Section RawFirrtl.
   | Sprintf (* TBD *)
   | Sassert (* TBD *)
   | Sassume (* TBD *)
-  | Sdefname : var -> fstmt (* TBD *)
-  | Sparam : var -> fexpr -> fstmt (* TBD *)
+  (* | Sdefname : var -> fstmt *) (* TBD *)
+  (* | Sparam : var -> fexpr -> fstmt *) (* TBD *)
   .
 
   Inductive fport : Type :=
@@ -640,7 +639,7 @@ Module MakeFirrtl
 
   Definition eunop_op (o : eunop ) : bits -> bits :=
     match o with
-    | Upadding n => fun b => if msb b then scastB b n else ucastB b n
+    | Upad n => fun b => if msb b then scastB b n else ucastB b n
     | Ushl n => shlB n
     | Ushr n => shrB n
     | Ucvt =>  fun b => if msb b then b else ucastB b (size b + 1)
@@ -676,6 +675,8 @@ Module MakeFirrtl
     | Bor => orB
     | Bxor => xorB
     | Bcat => cat
+    | Bdshl => fun a b => shlB (to_nat b) a
+    | Bdshr => fun a b => shrB (to_nat b) a
     end.
 
   
@@ -683,7 +684,6 @@ Module MakeFirrtl
     match e with
     | Econst c => c
     | Eref v => SV.acc v s
-    | Edeclare v t => SV.acc v s
     (* | Efield *)
     (* | Esubfield  *)
     | Eprim_binop b e1 e2 => (ebinop_op b) (eval_fexpr e1 s) (eval_fexpr e2 s)
@@ -691,6 +691,51 @@ Module MakeFirrtl
     | Emux c e1 e2 => if (Z.gtb 0 (to_Z (eval_fexpr c s))) then (eval_fexpr e1 s) else (eval_fexpr e2 s)
     | Evalidif c e => if (Z.gtb 0 (to_Z (eval_fexpr c s))) then (eval_fexpr e s) else [::]
     | _ => [::]
+    end.
+
+  Definition upd_typenv_fexpr (e : fexpr) (te : TE.env) : TE.env :=
+    match e with
+    | Edeclare v t => TE.add v t te
+    | Ecast AsUInt (Eref v) => TE.add v (Fuint (sizeof_fgtyp (TE.vtyp v te))) te
+    | Ecast AsSInt (Eref v) => TE.add v (Fsint (sizeof_fgtyp (TE.vtyp v te))) te
+    | Ecast AsClock (Eref v) => TE.add v (Fuint 1) te
+    | _ => te
+    end.
+
+  Fixpoint type_of_fexpr (e : fexpr) (te : TE.env) (s : vstate) : fgtyp :=
+    match e with
+    | Econst c => Fuint (size c)
+    | Eref v => TE.vtyp v te
+    | Edeclare v t => t
+    | Ecast AsUInt e => Fuint (sizeof_fgtyp (type_of_fexpr e te s))
+    | Ecast AsSInt e => Fsint (sizeof_fgtyp (type_of_fexpr e te s))
+    | Ecast AsClock e => Fuint 1
+    | Eprim_unop u e => match u with
+                        | Upad n => match (type_of_fexpr e te s) with
+                                    | Fuint _ => Fuint n
+                                    | Fsint _ => Fsint n
+                                    | Fclock => Fuint n
+                                    end
+                        | Uandr | Uorr | Uxorr => Fuint 1
+                        | Uextr n1 n2 => Fuint (n2 - n1 + 1)
+                        | Uhead n => Fuint n
+                        | Utail n => Fuint n
+                        | _ => type_of_fexpr e te s
+                        end
+    | Eprim_binop b e1 e2 => match b with
+                             | Bdshl | Bdshr => match (type_of_fexpr e1 te s) with
+                                                | Fuint n => Fuint (n + sizeof_fgtyp (type_of_fexpr e2 te s))
+                                                | Fsint n => Fsint (n + sizeof_fgtyp (type_of_fexpr e2 te s))
+                                                | Fclock => TE.deftyp
+                                                end
+                             | _ => type_of_fexpr e1 te s
+                             end
+    | Emux c e1 e2 => if (Z.gtb 0 (to_Z (eval_fexpr c s)))
+                      then (type_of_fexpr e1 te s) else (type_of_fexpr e2 te s)
+    | Evalidif c e => if (Z.gtb 0 (to_Z (eval_fexpr c s)))
+                      then (type_of_fexpr e te s) else TE.deftyp
+                                                                                          
+    | _ => TE.deftyp
     end.
   
   Definition freg := freg V.t.
@@ -710,13 +755,13 @@ Module MakeFirrtl
                                  else SV.upd (rid r) [::] s
                 end
     | Smem m => s (* TBD *)
-    | Sinst v1 v2 => s (* TBD *)
-    | Snode v e => SV.upd v (eval_fexpr e s) s
+    | Sinst v1 v2 => s (* TBD, HiFirrtl *)
+    | Snode v e => SV.upd v (eval_fexpr e s) s (* must be initialized *)
     | Sfcnct e1 e2 => match e1 with
                       | Eref v => SV.upd v (eval_fexpr e2 s) s
                       | _ => s (* TBD *)
                       end
-    | Spcnct _ _ => s (* TBD *)
+    | Spcnct _ _ => s (* TBD, HiFirrtl *)
     | Sinvalid _ => s (* TBD *)
     | Swhen e st1 st2 => if (Z.gtb 0 (to_Z (eval_fexpr e s))) then eval_fstmt st1 s
                          else eval_fstmt st2 s
@@ -729,24 +774,64 @@ Module MakeFirrtl
     | h :: tl => eval_fstmts tl (eval_fstmt h s)
     end.
 
-  Fixpoint eval_fport (p : fport) (s : vstate) : vstate :=
+  Definition upd_typenv_fstmt (s : fstmt) (te : TE.env) (st : vstate) : TE.env :=
+    match s with
+    | Swire v t  => TE.add v t te
+    | Sreg r => TE.add (rid r) (type r) te
+    | Snode v e => TE.add v (type_of_fexpr e te st) te
+    | _ => te
+    end.
+
+  Fixpoint upd_typenv_fstmts (ss : seq fstmt) (te : TE.env) (s : vstate) : TE.env :=
+    match ss with
+    | [::] => te
+    | h :: tl => upd_typenv_fstmts tl (upd_typenv_fstmt h te s) s
+    end.
+
+  Definition eval_fport (p : fport) (s : vstate) : vstate :=
     match p with
     | Finput v t => SV.upd v [::] s
     | Foutput v t => SV.upd v [::] s
     end.
-
+  
   Fixpoint eval_fports (ps : seq fport) (s : vstate) : vstate :=
     match ps with
     | [::] => s
     | h :: tl => eval_fports tl (eval_fport h s)
     end.
 
+  Definition upd_typenv_fport (p : fport) (te : TE.env) : TE.env :=
+    match p with
+    | Finput v t => TE.add v t te
+    | Foutput v t => TE.add v t te
+    end.
+
+  Fixpoint upd_typenv_fports (ps : seq fport) (te : TE.env) : TE.env :=
+    match ps with
+    | [::] => te
+    | h :: tl => upd_typenv_fports tl (upd_typenv_fport h te)
+    end.
+  
   Fixpoint eval_fmodule (m : fmodule) (s : vstate) : vstate :=
     match m with
     | FInmod v ps st => eval_fstmts st (eval_fports ps (SV.upd v [::] s))
     | _ => s
     end.
 
+  Definition upd_typenv_fmodule (m : fmodule) (te : TE.env) (s : vstate) : TE.env :=
+    match m with
+    | FInmod v ps ss => upd_typenv_fstmts ss (upd_typenv_fports ps te) s
+    | _ => te
+    end.
+
+  (* Well-formness *)
+
+  (* well formed expr *)
+  
+
+
+
+  
 End MakeFirrtl.
   
   (* Record fmod_state : Type := *)
