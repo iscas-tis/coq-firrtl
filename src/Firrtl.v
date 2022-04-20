@@ -690,7 +690,7 @@ Module MakeFirrtl
     | Eprim_unop u e => (eunop_op u) (eval_fexpr e s)
     | Emux c e1 e2 => if (Z.gtb 0 (to_Z (eval_fexpr c s))) then (eval_fexpr e1 s) else (eval_fexpr e2 s)
     | Evalidif c e => if (Z.gtb 0 (to_Z (eval_fexpr c s))) then (eval_fexpr e s) else [::]
-    | Edeclare _ _ => [::]
+    | Edeclare v t => [::]
     | Ecast _ _ => [::]
     end.
 
@@ -751,19 +751,22 @@ Module MakeFirrtl
                   | NRst => SV.upd (rid r) [::] s
                   | Rst e1 e2 => if (Z.gtb 0 (to_Z (eval_fexpr e1 s)))
                                  then SV.upd (rid r) (eval_fexpr e2 s) s
-                                 else SV.upd (rid r) [::] s
+                                 else s
                 end
     | Smem m => s (* TBD *)
     | Sinst v1 v2 => s (* TBD, HiFirrtl *)
     | Snode v e => SV.upd v (eval_fexpr e s) s (* must be initialized *)
     | Sfcnct e1 e2 => match e1 with
-                      | Eref v => SV.upd v (eval_fexpr e2 s) s
+                      | Eref v => match (eval_fexpr e2 s) with
+                                  | [::] => s
+                                  | _ => SV.upd v (eval_fexpr e2 s) s
+                                  end
                       | _ => s (* TBD *)
                       end
     | Spcnct _ _ => s (* TBD, HiFirrtl *)
     | Sinvalid _ => s (* TBD *)
-    | Swhen e st1 st2 => if (Z.gtb 0 (to_Z (eval_fexpr e s))) then eval_fstmt st1 s
-                         else eval_fstmt st2 s
+    (* | Swhen e st1 st2 => if (Z.gtb 0 (to_Z (eval_fexpr e s))) then eval_fstmt st1 s *)
+    (*                      else eval_fstmt st2 s *) (* TBD, HiFirrtl *)
     | _ => s
     end.
 
@@ -860,10 +863,10 @@ Module MakeFirrtl
     | Emux c e1 e2 => (is_defined_fexpr c te) && (is_defined_fexpr e1 te) && (is_defined_fexpr e2 te)
     | Evalidif c e1 => (is_defined_fexpr c te) && (is_defined_fexpr e1 te)
     end.
-
-  Definition well_formed_fexpr e te := well_typed_fexpr e te && is_defined_fexpr e te.
   
   (* well formed expr *)
+  Definition well_formed_fexpr e te := well_typed_fexpr e te && is_defined_fexpr e te.
+
   
 
 
