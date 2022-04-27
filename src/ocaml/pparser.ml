@@ -3,7 +3,8 @@ open Firrtl_lang
 
   
 let output_file = ref None
-let file = "./demo/demo"
+let file = "./demo/Accumulator.lo.fir"
+(*let file = "./demo/demo"*)
                 
 let pparse file =
   let f = (Parser.parse file) in

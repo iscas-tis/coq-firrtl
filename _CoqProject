@@ -18,4 +18,5 @@ lib/nbits/NBitsDef.v
 lib/nbits/NBitsOp.v
 lib/nbits/NBits.v
 -Q src firrtl
+src/Env.v
 src/Firrtl.v

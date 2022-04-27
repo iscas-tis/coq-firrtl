@@ -1,9 +1,8 @@
-(*From Coq Require Import ZArith Arith RelationClasses OrderedType FMaps FSets FunInd FMapAVL.*)
-
-From Coq Require Import FunInd FMaps FMapAVL OrderedType.
+From Coq Require Import FunInd FMaps FMapAVL OrderedType ZArith.
 From mathcomp Require Import ssreflect ssrbool ssrnat ssrint eqtype seq.
 From simplssrlib Require Import Types SsrOrder FSets FMaps Tactics Var Store.
 From nbits Require Import NBits.
+From firrtl Require Import Env.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -13,119 +12,6 @@ Import Prenex Implicits.
 Delimit Scope firrtl with firrtl.
 
 Section RawFirrtl.
-  (****** Types Environment ******)
-
-  (****** Ground Types ******)
-
-  From Coq Require Import ZArith.
-
-  Inductive fgtyp : Set :=
-    Fuint : nat -> fgtyp
-  | Fsint : nat -> fgtyp
-  | Fclock.
-  (* | Fanalog : nat -> fgtyp *) (* TBD, HiFirrtl *)
-  (* | Fvector : fgtyp -> nat -> fgtyp *) (* TBD, HiFirrtl *)
-
-  (* Size of types *)
-
-  Definition sizeof_fgtyp (t : fgtyp) : nat :=
-    match t with
-    | Fuint w => w
-    | Fsint w => w
-    (* | Fanalog w => w *)
-    | Fclock => 1
-    end.
-
-  Definition ftcast (bs : bits) (fty : fgtyp) (tty : fgtyp) : bits :=
-    match fty with
-    | Fuint w => ucastB bs (sizeof_fgtyp tty)
-    | Fsint w => scastB bs (sizeof_fgtyp tty)
-    | Fclock => ucastB bs 1
-    end.
-  
-  (* Equality of types *)
-
-  Lemma fgtyp_eq_dec (x y : fgtyp) : {x = y} + {x <> y}.
-  Proof.
-    destruct x; destruct y; try (intros; right; move=> []; discriminate).
-    - intros; case: (Nat.eq_dec n n0) => H.
-      + left; rewrite H; reflexivity.
-      + right; move=> []; auto.
-    - intros; case: (Nat.eq_dec n n0) => H.
-      + left; rewrite H; reflexivity.
-      + right; move=> []; auto.
-    (* - intros; case: (Nat.eq_dec n n0) => H. *)
-    (*   + left; rewrite H; reflexivity. *)
-    (*   + right; move=> []; auto. *)
-    - left; done.
-  Qed.
-
-  Definition fgtyp_eqn (x y : fgtyp) : bool :=
-    match x, y with
-    | Fuint wx, Fuint wy => wx == wy
-    | Fsint wx, Fsint wy => wx == wy
-    (* | Fanalog wx, Fanalog wy => wx == wy *)
-    | Fclock, Fclock => true
-    | _, _ => false
-    end.
-
-  Notation "x =? y" := (fgtyp_eqn x y).
-
-  Lemma fgtyp_eqn_refl (x : fgtyp) : x =? x.
-  Proof.
-    destruct x; try (exact: eqxx).
-    - done.
-  Qed.
-
-  Lemma fgtyp_eqn_eq (x y : fgtyp) : x =? y <-> x = y.
-  Proof.
-    split; first (destruct x; destruct y; move=> /= H);
-      try (discriminate|| rewrite (eqP H); reflexivity).
-    - done.
-    - move=> ->. exact: fgtyp_eqn_refl.
-  Qed.
-
-  Lemma fgtyp_eqn_sym (x y : fgtyp) : x =? y -> y =? x.
-  Proof.
-    move/fgtyp_eqn_eq => H. apply/fgtyp_eqn_eq. symmetry. assumption.
-  Qed.
-
-  Lemma fgtyp_eqn_trans (x y z : fgtyp) : x =? y -> y =? z -> x =? z.
-  Proof.
-    move/fgtyp_eqn_eq => Hxy. move/fgtyp_eqn_eq => Hyz. apply/fgtyp_eqn_eq.
-    rewrite Hxy. assumption.
-  Qed.
-
-  Instance fgtyp_eqn_Reflexive : Reflexive (@fgtyp_eqn) := @fgtyp_eqn_refl.
-  Instance fgtyp_eqn_Symmetric : Symmetric (@fgtyp_eqn) := @fgtyp_eqn_sym.
-  Instance fgtyp_eqn_Transitive : Transitive (@fgtyp_eqn) := @fgtyp_eqn_trans.
-  Instance fgtyp_eqn_Equivalence : Equivalence (@fgtyp_eqn) :=
-    { Equivalence_Reflexive := fgtyp_eqn_Reflexive;
-      Equivalence_Symmetric := fgtyp_eqn_Symmetric;
-      Equivalence_Transitive := fgtyp_eqn_Transitive }.
-
-  Lemma fgtyp_eqP : forall (x y : fgtyp), reflect (x = y) (x =? y).
-  Proof.
-    move=> x y. case H: (x =? y).
-    - apply: ReflectT. apply/fgtyp_eqn_eq. assumption.
-    - apply: ReflectF. move=> Heq. move/fgtyp_eqn_eq: Heq => Heq. rewrite Heq in H.
-      discriminate.
-  Qed.
-
-  Definition fgtyp_eqMixin := EqMixin fgtyp_eqP.
-  Canonical fgtyp_eqType := Eval hnf in EqType fgtyp fgtyp_eqMixin.
-
-
-  (*Delimit Scope fgtyp_scope with fgtyp.*)
-
-  (* Integer, bitvector or ssrint, TBD *)
-
-  (* Fix-point, TBD *)
-
-  (* Analog, TBD *)
-
-  (* Vector, TBD *)
-
 
   (****** Syntax ******)
 
@@ -160,6 +46,8 @@ Section RawFirrtl.
   | Bmul
   | Bdiv
   | Brem
+  | Bsdiv
+  | Bsrem
   | Bcomp: bcmp -> ebinop
   | Bdshl
   | Bdshr
@@ -168,8 +56,7 @@ Section RawFirrtl.
   | Bxor
   | Bcat .
 
-  (*From simplssrlib Require Import Var.*)
-  Variable var : Type.
+  Variable var : eqType.
 
   (* mux, valid, sub-xxx, TBD *)
   Inductive fexpr : Type :=
@@ -223,7 +110,7 @@ Section RawFirrtl.
   | Sinst : var -> var -> fstmt
   | Snode : var -> fexpr -> fstmt
   | Sfcnct : fexpr -> fexpr -> fstmt
-  | Spcnct : fexpr -> fexpr -> fstmt
+  (*| Spcnct : fexpr -> fexpr -> fstmt*)
   | Sinvalid : var -> fstmt
   (* | Sattach : seq var -> fstmt *)
   | Swhen : fexpr -> fstmt -> fstmt -> fstmt
@@ -246,390 +133,69 @@ Section RawFirrtl.
   | FExmod : var -> seq fport -> seq fstmt -> fmodule
   .
 
-  Definition fcircuit := var -> seq fmodule.
+  Inductive fcircuit : Type := Fcircuit : var -> seq fmodule -> fcircuit.
 
 End RawFirrtl.
 
 
-(* A typing environment is a map from a variable to its type *)
-
-Module Type TypEnv <: SsrFMap.
-
-  Include SsrFMap.
-
-  Definition env : Type := t fgtyp.
-
-  (* The default type of a variable not in the typing environment *)
-  Parameter deftyp : fgtyp.
-
-  (* Find the type of a variable in a typing environment.
-     If a variable is not in the typing environment, return the default type. *)
-  Parameter vtyp : SE.t -> env -> fgtyp.
-
-  (* Return the size of a variable in a typing environment.
-     If a variable is not in the typing environment, return the size of the
-     default type. *)
-  Parameter vsize : SE.t -> env -> nat.
-
-  Axiom find_some_vtyp :
-    forall {x : SE.t} {ty : fgtyp} {e : env}, find x e = Some ty -> vtyp x e = ty.
-  Axiom find_none_vtyp :
-    forall {x : SE.t} {e : env}, find x e = None -> vtyp x e = deftyp.
-  Axiom vtyp_find :
-    forall {x : SE.t} {ty : fgtyp} {e : env},
-      (vtyp x e == ty) = (find x e == Some ty) || ((find x e == None) && (ty == deftyp)).
-  Axiom vtyp_add_eq :
-    forall {x y : SE.t} {ty : fgtyp} {e : env}, x == y -> vtyp x (add y ty e) = ty.
-  Axiom vtyp_add_neq :
-    forall {x y : SE.t} {ty : fgtyp} {e : env},
-      x != y -> vtyp x (add y ty e) = vtyp x e.
-  Axiom vsize_add_eq :
-    forall {x y : SE.t} {ty : fgtyp} {e : env},
-      x == y -> vsize x (add y ty e) = sizeof_fgtyp ty.
-  Axiom vsize_add_neq :
-    forall {x y : SE.t} {ty : fgtyp} {e : env},
-      x != y -> vsize x (add y ty e) = vsize x e.
-  Axiom not_mem_vtyp :
-    forall {v : SE.t} {e : env}, ~~ mem v e -> vtyp v e = deftyp.
-  Axiom vtyp_vsize :
-    forall {x : SE.t} {e : env} {ty : fgtyp},
-      vtyp x e = ty -> vsize x e = sizeof_fgtyp ty.
-
-End TypEnv.
-
-Module MakeTypEnv (V : SsrOrder) (VM : SsrFMap with Module SE := V) <:
-  TypEnv with Module SE := V.
-
-  Include VM.
-  Module Lemmas := FMapLemmas VM.
-
-  Definition env : Type := t fgtyp.
-
-  (* The default type of a variable not in the typing environment *)
-  Definition deftyp : fgtyp := Fuint 0.
-
-  (* Find the type of a variable in a typing environment.
-     If a variable is not in the typing environment, return the default type. *)
-  Definition vtyp (v : V.t) (e : env) : fgtyp :=
-    match VM.find v e with
-    | None => deftyp
-    | Some ty => ty
-    end.
-
-  (* Return the size of a variable in a typing environment.
-     If a variable is not in the typing environment, return the size of the
-     default type. *)
-  Definition vsize (v : V.t) (e : env) : nat := sizeof_fgtyp (vtyp v e).
-
-  Lemma find_some_vtyp {x ty e} : find x e = Some ty -> vtyp x e = ty.
-  Proof. move=> H. rewrite /vtyp H. reflexivity. Qed.
-
-  Lemma find_none_vtyp {x e} : find x e = None -> vtyp x e = deftyp.
-  Proof. move=> H. rewrite /vtyp H. reflexivity. Qed.
-
-  Lemma vtyp_find {x ty e} :
-    (vtyp x e == ty) = (find x e == Some ty) || ((find x e == None) && (ty == deftyp)).
-  Proof.
-    dcase (find x e); case.
-    - move=> a Hfind. rewrite (find_some_vtyp Hfind) /= orbF. case Heq: (a == ty).
-      + by rewrite (eqP Heq) eqxx.
-      + symmetry. apply/eqP => H. case: H => H. rewrite H eqxx in Heq. discriminate.
-    - move=> Hnone. rewrite (find_none_vtyp Hnone) eqxx /=. rewrite eq_sym.
-      reflexivity.
-  Qed.
-
-  Lemma vtyp_add_eq {x y ty e} : x == y -> vtyp x (add y ty e) = ty.
-  Proof. rewrite /vtyp /add => H. by rewrite (Lemmas.find_add_eq H). Qed.
-
-  Lemma vtyp_add_neq {x y ty e} : x != y -> vtyp x (add y ty e) = vtyp x e.
-  Proof.
-    move/negP=> Hxy. rewrite /vtyp /add. by rewrite (Lemmas.find_add_neq Hxy).
-  Qed.
-
-  Lemma vsize_add_eq {x y ty e} : x == y -> vsize x (add y ty e) = sizeof_fgtyp ty.
-  Proof. rewrite /vsize=> H. by rewrite (vtyp_add_eq H). Qed.
-
-  Lemma vsize_add_neq {x y ty e} : x != y -> vsize x (add y ty e) = vsize x e.
-  Proof. rewrite /vsize => H. by rewrite (vtyp_add_neq H). Qed.
-
-  Lemma not_mem_vtyp v e : ~~ mem v e -> vtyp v e = deftyp.
-  Proof. rewrite /vtyp => H. by rewrite Lemmas.not_mem_find_none. Qed.
-
-  Lemma vtyp_vsize x e ty : vtyp x e = ty -> vsize x e = sizeof_fgtyp ty.
-  Proof. rewrite /vsize /vtyp. move=> ->. reflexivity. Qed.
-
-End MakeTypEnv.
-
-Module TE <: TypEnv := MakeTypEnv VarOrder VM.
-
-(* TBD *)
-Variable structure : Type.
-
-Module Type StrStore (V : SsrOrder) (TE : TypEnv with Module SE := V).
-  Module Lemmas := FMapLemmas TE.
-
-  Local Notation var := V.t.
-  Local Notation value := structure.
-
-  Parameter t : Type.
-  Parameter acc : var -> t -> value.
-  Parameter upd : var -> value -> t -> t.
-  Parameter upd2 : var -> value -> var -> value -> t -> t.
-  
-End StrStore.
-
-(* Module MakeStrStore (V : SsrOrder) (TE : TypEnv with Module SE := V) <: *)
-(*   StrStore V TE. *)
-(*   Module Lemmas := FMapLemmas TE. *)
-
-(* End MakeStrStore. *)
-
-(* Module StrStore := MakeStrStore VarOrder TE. *)
-
-Module Type ValStore (V : SsrOrder) (TE : TypEnv with Module SE := V).
-  Module Lemmas := FMapLemmas TE.
-
-  Local Notation var := V.t.
-  Local Notation value := bits.
-
-  Parameter t : Type.
-  Parameter acc : var -> t -> value.
-  Parameter upd : var -> value -> t -> t.
-  Parameter upd2 : var -> value -> var -> value -> t -> t.
-    Parameter acc_upd_eq : forall {x y v s}, x == y -> acc x (upd y v s) = v.
-  Parameter acc_upd_neq : forall {x y v s}, x != y -> acc x (upd y v s) = acc x s.
-  Parameter acc_upd2_eq1 :
-    forall {x y1 v1 y2 v2 s},
-      x == y1 -> x != y2 -> acc x (upd2 y1 v1 y2 v2 s) = v1.
-  Parameter acc_upd2_eq2 :
-    forall {x y1 v1 y2 v2 s},
-      x == y2 -> acc x (upd2 y1 v1 y2 v2 s) = v2.
-  Parameter acc_upd2_neq :
-    forall {x y1 v1 y2 v2 s},
-      x != y1 -> x != y2 -> acc x (upd2 y1 v1 y2 v2 s) = acc x s.
-  Parameter Upd : var -> value -> t -> t -> Prop.
-  Definition Upd2 x1 v1 x2 v2 (s1 s2 : t) : Prop :=
-    forall y, acc y s2 = acc y (upd x2 v2 (upd x1 v1 s1)).
-  Parameter Equal : t -> t -> Prop.
-  Parameter Upd_upd : forall x v s, Upd x v s (upd x v s).
-  Parameter Upd2_upd :
-    forall x1 v1 x2 v2 s, Upd2 x1 v1 x2 v2 s (upd x2 v2 (upd x1 v1 s)).
-  Parameter Upd2_upd2 : forall x1 v1 x2 v2 s, Upd2 x1 v1 x2 v2 s (upd2 x1 v1 x2 v2 s).
-  Parameter acc_Upd_eq : forall x y v s1 s2, x == y -> Upd y v s1 s2 -> acc x s2 = v.
-  Parameter acc_Upd_neq :
-    forall x y v s1 s2, x != y -> Upd y v s1 s2 -> acc x s2 = acc x s1.
-  Parameter acc_Upd2_eq1 :
-    forall x y1 v1 y2 v2 s1 s2,
-      x == y1 -> x != y2 -> Upd2 y1 v1 y2 v2 s1 s2 -> acc x s2 = v1.
-  Parameter acc_Upd2_eq2 :
-    forall x y1 v1 y2 v2 s1 s2, x == y2 -> Upd2 y1 v1 y2 v2 s1 s2 -> acc x s2 = v2.
-  Parameter acc_Upd2_neq :
-    forall x y1 v1 y2 v2 s1 s2,
-      x != y1 -> x != y2 -> Upd2 y1 v1 y2 v2 s1 s2 -> acc x s2 = acc x s1.
-  Parameter Equal_def :
-    forall s1 s2,
-      Equal s1 s2 <-> (forall v, acc v s1 = acc v s2).
-  Parameter Equal_refl : forall s, Equal s s.
-  Parameter Equal_sym : forall s1 s2, Equal s1 s2 -> Equal s2 s1.
-  Parameter Equal_trans : forall s1 s2 s3, Equal s1 s2 -> Equal s2 s3 -> Equal s1 s3.
-  Parameter Equal_ST : RelationClasses.Equivalence Equal.
-  Parameter Equal_upd_Equal :
-    forall v e s1 s2, Equal s1 s2 -> Equal (upd v e s1) (upd v e s2).
-  Parameter Equal_Upd_Equal :
-    forall v e s1 s2 s3 s4,
-      Upd v e s1 s2 -> Upd v e s3 s4 -> Equal s1 s3 -> Equal s2 s4.
-  Parameter Upd_pred_Equal :
-    forall v e s1 s2 s, Upd v e s1 s2 -> Equal s1 s -> Upd v e s s2.
-  Parameter Upd_succ_Equal :
-    forall v e s1 s2 s, Upd v e s1 s2 -> Equal s2 s -> Upd v e s1 s.
-
-  Parameter conform : t -> TE.env -> Prop.
-  Parameter conform_def :
-    forall (s : t) (E : TE.env),
-      (forall (v : V.t), TE.mem v E -> TE.vsize v E = size (acc v s)) ->
-      conform s E.
-  Parameter conform_mem :
-    forall v s te, conform s te -> TE.mem v te -> TE.vsize v te = size (acc v s).
-  Parameter conform_Upd :
-    forall x ty v s1 s2 te,
-      sizeof_fgtyp ty = size v -> Upd x v s1 s2 -> conform s1 te ->
-      conform s2 (TE.add x ty te).
-  Parameter conform_Upd2 :
-    forall te s1 s2 ty1 ty2 x1 x2 v1 v2,
-      x1 != x2 -> sizeof_fgtyp ty1 = size v1 -> sizeof_fgtyp ty2 = size v2 ->
-      Upd2 x2 v2 x1 v1 s1 s2 -> conform s1 te ->
-      conform s2 (TE.add x1 ty1 (TE.add x2 ty2 te)).
-  Parameter conform_upd :
-    forall x ty v s te,
-      sizeof_fgtyp ty = size v -> conform s te -> conform (upd x v s) (TE.add x ty te).
-  Parameter conform_upd2 :
-    forall te s ty1 ty2 x1 x2 v1 v2,
-      x1 != x2 -> sizeof_fgtyp ty1 = size v1 -> sizeof_fgtyp ty2 = size v2 ->
-      conform s te ->
-      conform (upd2 x2 v2 x1 v1 s) (TE.add x1 ty1 (TE.add x2 ty2 te)).
-  Parameter conform_add_not_mem :
-    forall E s x ty,
-      conform s (TE.add x ty E) -> ~~ TE.mem x E -> conform s E.
-  Parameter conform_submap :
-    forall E1 E2 s,
-      Lemmas.submap E1 E2 -> conform s E2 -> conform s E1.
-  Parameter conform_equal :
-    forall E1 E2 s,
-      TE.Equal E1 E2 -> conform s E1 <-> conform s E2.
-  Parameter equal_conform :
-    forall E s1 s2,
-      Equal s1 s2 -> conform s1 E <-> conform s2 E.
-End ValStore.
-
-Module BValueType <: HasDefaultTyp.
-  Definition t : Type := bits.
-  Definition default : t := [::].
-End BValueType.
-
-Module MakeValStore (V : SsrOrder) (TE : TypEnv with Module SE := V) <:
-  ValStore V TE.
-
-  Include MakeTStoreMap V BValueType.
-  Module Lemmas := FMapLemmas TE.
-
-  (* A store conforms to a typing environment if for every variable in the typing
-     environment, the size of its type in the typing environment is the same as
-     the size of its value in the store *)
-  Definition conform (s : t) (te : TE.env) : Prop :=
-    forall (v : V.t),
-      TE.mem v te -> TE.vsize v te = size (acc v s).
-
-  Lemma conform_def :
-    forall (s : t) (E : TE.env),
-      (forall (v : V.t), TE.mem v E -> TE.vsize v E = size (acc v s)) ->
-      conform s E.
-  Proof. move=> s E H. assumption. Qed.
-
-  Lemma conform_mem v s te :
-    conform s te -> TE.mem v te -> TE.vsize v te = size (acc v s).
-  Proof. move=> H1 H2; exact: (H1 _ H2). Qed.
-
-  Lemma conform_Upd x ty v s1 s2 te :
-    sizeof_fgtyp ty = size v -> Upd x v s1 s2 -> conform s1 te ->
-    conform s2 (TE.add x ty te).
-  Proof.
-    move=> Hs Hupd Hcon y. case Hyx: (y == x).
-    - by rewrite (TE.vsize_add_eq Hyx) (acc_Upd_eq Hyx Hupd).
-    - move/negP: Hyx => Hyx. rewrite (Lemmas.mem_add_neq Hyx) => Hmem.
-      move/negP: Hyx => Hyx. rewrite (acc_Upd_neq Hyx Hupd) (TE.vsize_add_neq Hyx).
-      exact: (Hcon _ Hmem).
-  Qed.
-
-  Lemma conform_Upd2 te s1 s2 ty1 ty2 x1 x2 v1 v2 :
-    x1 != x2 -> sizeof_fgtyp ty1 = size v1 -> sizeof_fgtyp ty2 = size v2 ->
-    Upd2 x2 v2 x1 v1 s1 s2 -> conform s1 te ->
-    conform s2 (TE.add x1 ty1 (TE.add x2 ty2 te)).
-  Proof.
-    move => Hneq Hty1 Hty2 HUpd2 Hcon y Hmem .
-    case Heq1 : (y == x1); case Heq2 : (y == x2) .
-    - rewrite -(eqP Heq1) -(eqP Heq2) in Hneq . move : Hneq => /eqP // .
-    - rewrite (acc_Upd2_eq2 Heq1 HUpd2) (TE.vsize_add_eq Heq1) // .
-    - move/idP/negP: Heq1 => Hneq1.
-      rewrite (acc_Upd2_eq1 Heq2 Hneq1 HUpd2)
-              (TE.vsize_add_neq Hneq1) (TE.vsize_add_eq Heq2) // .
-    - move/idP/negP: Heq1 => Hneq1.
-      move/idP/negP: Heq2 => Hneq2.
-      rewrite (acc_Upd2_neq Hneq2 Hneq1 HUpd2)
-              (TE.vsize_add_neq Hneq1) (TE.vsize_add_neq Hneq2) Hcon // .
-      move/negP: Hneq1 => Hneq1. move/negP: Hneq2 => Hneq2.
-      rewrite (Lemmas.mem_add_neq Hneq1) (Lemmas.mem_add_neq Hneq2) in Hmem.
-      assumption.
-  Qed.
-
-  Lemma conform_upd x ty v s te :
-    sizeof_fgtyp ty = size v ->
-    conform s te -> conform (upd x v s) (TE.add x ty te).
-  Proof. move=> Hs Hcon. exact: (conform_Upd Hs (Upd_upd x v s) Hcon). Qed.
-
-  Lemma conform_upd2 te s ty1 ty2 x1 x2 v1 v2 :
-    x1 != x2 -> sizeof_fgtyp ty1 = size v1 -> sizeof_fgtyp ty2 = size v2 ->
-    conform s te ->
-    conform (upd2 x2 v2 x1 v1 s) (TE.add x1 ty1 (TE.add x2 ty2 te)).
-  Proof.
-    move=> Hne Hs1 Hs2 Hcon.
-    exact: (conform_Upd2 Hne Hs1 Hs2 (Upd2_upd2 x2 v2 x1 v1 s) Hcon).
-  Qed.
-
-  Lemma conform_add_not_mem E s x ty :
-    conform s (TE.add x ty E) -> ~~ TE.mem x E -> conform s E.
-  Proof.
-    move=> Hco Hmem y Hmemy. move: (Hco y). rewrite Lemmas.OP.P.F.add_b Hmemy orbT.
-    move=> <-; last by exact: is_true_true. case Hyx: (y == x).
-    - rewrite (eqP Hyx) in Hmemy. rewrite Hmemy in Hmem. discriminate.
-    - move/idP/negP: Hyx => Hyx. rewrite (TE.vsize_add_neq Hyx). reflexivity.
-  Qed.
-
-  Lemma conform_submap E1 E2 s :
-    Lemmas.submap E1 E2 -> conform s E2 -> conform s E1.
-  Proof.
-    move=> Hsubm Hco x Hmem1. move: (Lemmas.submap_mem Hsubm Hmem1) => Hmem2.
-    move: (Lemmas.mem_find_some Hmem1) => [ty Hfind1].
-    move: (Hsubm x ty Hfind1) => Hfind2. move: (TE.find_some_vtyp Hfind1) => Hty1.
-     move: (TE.find_some_vtyp Hfind2) => Hty2. rewrite -(Hco _ Hmem2).
-    rewrite (TE.vtyp_vsize Hty1) (TE.vtyp_vsize Hty2). reflexivity.
-  Qed.
-
-  Lemma conform_equal E1 E2 s :
-    TE.Equal E1 E2 -> conform s E1 <-> conform s E2.
-  Proof.
-    move=> Heq. move: (Lemmas.Equal_submap Heq) => H12.
-    move: (Lemmas.Equal_sym Heq) => {Heq} Heq.
-    move: (Lemmas.Equal_submap Heq) => H21. split.
-    - exact: (conform_submap H21).
-    - exact: (conform_submap H12).
-  Qed.
-
-  Lemma equal_conform E s1 s2 :
-    Equal s1 s2 -> conform s1 E <-> conform s2 E.
-  Proof.
-    move=> Heq. split.
-    - move=> H1. apply: conform_def. move=> v Hmem.
-      rewrite (conform_mem H1 Hmem). rewrite (Heq v). reflexivity.
-    - move=> H2. apply: conform_def. move=> v Hmem.
-      rewrite (conform_mem H2 Hmem). rewrite (Heq v). reflexivity.
-  Qed.
-
-End MakeValStore.
-
-Module Store := MakeValStore VarOrder TE.
-
-Section State.
-  Variable t : Type.
-  Inductive state : Type :=
-  | OK of t
-  | ERR.
-End State.
-
-Module State.
-  Definition t : Type := state Store.t.
-End State.
-
 Module MakeFirrtl
        (V : SsrOrder)
        (VS : SsrFSet with Module SE := V)
-       (VM : SsrFMap with Module SE := V)
        (TE : TypEnv with Module SE := V)
-       (SS : StrStore V TE)
        (SV : ValStore V TE).
   Local Open Scope firrtl.
-  Module TELemmas := FMapLemmas TE.
+  Local Open Scope bits.
+  
   Module VSLemmas := SsrFSetLemmas VS.
+
   Local Notation var := V.t.
   
   Local Notation vstate := SV.t.
   
 (****** Semantics ******)
 
-  (* small-step *)
-  Definition fexpr := fexpr V.t.
+  (* Small-step *)
 
-  Definition to_Clock bs := Z.b2z (lsb bs).
+  Definition fexpr := fexpr V.T.
+  Definition econst c := @Econst V.T c.
+  Definition eref v := @Eref V.T v.
+  Definition edeclare v t := @Edeclare V.T v t.
+  Definition ecast u e := @Ecast V.T u e.
+  Definition eprim_unop u e := @Eprim_unop V.T u e.
+  Definition eprim_binop b e1 e2 := @Eprim_binop V.T b e1 e2.
+  Definition emux c e1 e2 := @Emux V.T c e1 e2.
+  Definition evalidif c e := @Evalidif V.T c e.
+
+  Definition fstmt := fstmt V.T.
+  Definition sskip := @Sskip V.T.
+  Definition swire v t := @Swire v t.  
+  Definition sreg r := @Sreg V.T r.
+  (* Definition smem m := @Smem V.T m. *)
+  (* Definition sinst v1 v2 := @Sinst V.T v1 v2. *)
+  Definition snode v e := @Snode V.T v e.
+  Definition sfcnct v1 v2 := @Sfcnct V.T v1 v2.
+    
+  Definition freg := @freg V.T.
+  Definition mk_freg := @mk_freg V.T.
+  Definition nrst := @NRst V.T.
+  Definition rrst e1 e2 := @Rst V.T e1 e2.
+  Definition fmem := @fmem V.T.
+  Definition fport := @fport V.T.
+  Definition fmodule := @fmodule V.T.
+  Definition fcircuit := @fcircuit V.T.
   
+  (* From Coq Require Import ZArith. *)
+  
+  Definition ftcast (bs : bits) (fty : fgtyp) (tty : fgtyp) : bits :=
+    match fty with
+    | Fuint w => ucastB bs (sizeof_fgtyp tty)
+    | Fsint w => scastB bs (sizeof_fgtyp tty)
+    | Fclock => ucastB bs 1
+    end.
+  
+  Definition to_Clock bs := Z.b2z (lsb bs).
+
+  (* Casting operations *)
   Definition eunop_ucast (o : ucast) : bits -> Z :=
     match o with
     | AsUInt => to_Zpos
@@ -637,6 +203,7 @@ Module MakeFirrtl
     | AsClock => to_Clock
     end.
 
+  (* Unary operations *)
   Definition eunop_op (o : eunop ) : bits -> bits :=
     match o with
     | Upad n => fun b => if msb b then scastB b n else ucastB b n
@@ -650,9 +217,10 @@ Module MakeFirrtl
     | Uxorr => fun b => [::foldr xorb b0 b]
     | Uextr n1 n2 => extract n1 n2
     | Uhead n => high n
-    | Utail n => low n
+    | Utail n => fun b => low (size b - n) b
     end.
 
+  (* Comparison operations *)
   Definition binop_bcmp (o : bcmp) : bits -> bits -> bits :=
     match o with
     | Blt => fun b1 b2 => [::ltB b1 b2]
@@ -662,13 +230,16 @@ Module MakeFirrtl
     | Beq => fun b1 b2 => [::b1 == b2]
     | Bneq => fun b1 b2 => [::(~~ (b1 == b2))]
     end.
-  
+
+  (* Binary operations *)
   Definition ebinop_op (o : ebinop) : bits -> bits -> bits :=
     match o with
     | Badd => addB
     | Bsub => subB
     | Bdiv => udivB'
     | Brem => uremB
+    | Bsdiv => sdivB
+    | Bsrem => sremB
     | Bmul => mulB
     | Bcomp c => binop_bcmp c
     | Band => andB
@@ -679,21 +250,47 @@ Module MakeFirrtl
     | Bdshr => fun a b => shrB (to_nat b) a
     end.
 
-  
-  Fixpoint eval_fexpr (e : fexpr) (s : vstate): bits :=
+  Fixpoint type_of_fexpr (e : fexpr) (te : TE.env) : fgtyp :=
     match e with
-    | Econst c => c
-    | Eref v => SV.acc v s
-    (* | Efield *)
-    (* | Esubfield  *)
-    | Eprim_binop b e1 e2 => (ebinop_op b) (eval_fexpr e1 s) (eval_fexpr e2 s)
-    | Eprim_unop u e => (eunop_op u) (eval_fexpr e s)
-    | Emux c e1 e2 => if (Z.gtb 0 (to_Z (eval_fexpr c s))) then (eval_fexpr e1 s) else (eval_fexpr e2 s)
-    | Evalidif c e => if (Z.gtb 0 (to_Z (eval_fexpr c s))) then (eval_fexpr e s) else [::]
-    | Edeclare v t => [::]
-    | Ecast _ _ => [::]
+    | Econst c => Fuint (size c)
+    | Eref v => TE.vtyp v te
+    | Edeclare v t => t
+    | Ecast AsUInt e => Fuint (sizeof_fgtyp (type_of_fexpr e te))
+    | Ecast AsSInt e => Fsint (sizeof_fgtyp (type_of_fexpr e te))
+    | Ecast AsClock e => Fuint 1
+    | Eprim_unop u e => match u with
+                        | Upad n => match (type_of_fexpr e te) with
+                                    | Fuint _ => Fuint n
+                                    | Fsint _ => Fsint n
+                                    | Fclock => Fuint n
+                                    end
+                        | Uandr | Uorr | Uxorr => Fuint 1
+                        | Uextr n1 n2 => Fuint (n2 - n1 + 1)
+                        | Uhead n => Fuint n
+                        | Utail n => Fuint ((sizeof_fgtyp (type_of_fexpr e te)) - n)
+                        | _ => type_of_fexpr e te
+                        end
+    | Eprim_binop b e1 e2 => match b with
+                             | Bdshl | Bdshr => match (type_of_fexpr e1 te) with
+                                                | Fuint n => Fuint (n + sizeof_fgtyp (type_of_fexpr e2 te))
+                                                | Fsint n => Fsint (n + sizeof_fgtyp (type_of_fexpr e2 te))
+                                                | Fclock => TE.deftyp
+                                                end
+                             | Badd | Bsub => match type_of_fexpr e1 te with
+                                              | Fuint s => Fuint (s+1)
+                                              | Fsint s => Fsint (s+1)
+                                              | _ => type_of_fexpr e1 te
+                                              end
+                             | _ => type_of_fexpr e1 te
+                             end
+    | Emux c e1 e2 => let t1 := (type_of_fexpr e1 te) in
+                      let t2 := (type_of_fexpr e2 te) in
+                      if sizeof_fgtyp t1 < sizeof_fgtyp t2 then t2 else t1
+    | Evalidif c e => (* if (Z.gtb 0 (to_Z (eval_fexpr c s))) then *)
+                      (type_of_fexpr e te)
     end.
 
+  (* Expression evaluation, type env *)
   Definition upd_typenv_fexpr (e : fexpr) (te : TE.env) : TE.env :=
     match e with
     | Edeclare v t => TE.add v t te
@@ -702,85 +299,45 @@ Module MakeFirrtl
     | Ecast AsClock (Eref v) => TE.add v (Fuint 1) te
     | _ => te
     end.
-
-  Fixpoint type_of_fexpr (e : fexpr) (te : TE.env) (s : vstate) : fgtyp :=
-    match e with
-    | Econst c => Fuint (size c)
-    | Eref v => TE.vtyp v te
-    | Edeclare v t => t
-    | Ecast AsUInt e => Fuint (sizeof_fgtyp (type_of_fexpr e te s))
-    | Ecast AsSInt e => Fsint (sizeof_fgtyp (type_of_fexpr e te s))
-    | Ecast AsClock e => Fuint 1
-    | Eprim_unop u e => match u with
-                        | Upad n => match (type_of_fexpr e te s) with
-                                    | Fuint _ => Fuint n
-                                    | Fsint _ => Fsint n
-                                    | Fclock => Fuint n
-                                    end
-                        | Uandr | Uorr | Uxorr => Fuint 1
-                        | Uextr n1 n2 => Fuint (n2 - n1 + 1)
-                        | Uhead n => Fuint n
-                        | Utail n => Fuint n
-                        | _ => type_of_fexpr e te s
-                        end
-    | Eprim_binop b e1 e2 => match b with
-                             | Bdshl | Bdshr => match (type_of_fexpr e1 te s) with
-                                                | Fuint n => Fuint (n + sizeof_fgtyp (type_of_fexpr e2 te s))
-                                                | Fsint n => Fsint (n + sizeof_fgtyp (type_of_fexpr e2 te s))
-                                                | Fclock => TE.deftyp
-                                                end
-                             | _ => type_of_fexpr e1 te s
-                             end
-    | Emux c e1 e2 => if (Z.gtb 0 (to_Z (eval_fexpr c s)))
-                      then (type_of_fexpr e1 te s) else (type_of_fexpr e2 te s)
-    | Evalidif c e => (* if (Z.gtb 0 (to_Z (eval_fexpr c s))) then *)
-                      (type_of_fexpr e te s)
-    end.
   
-  Definition freg := freg V.t.
-  Definition fmem := fmem V.t.
-  Definition fstmt := fstmt V.t.
-  Definition fport := fport V.t.
-  Definition fmodule := fmodule V.t.
-
-  Fixpoint eval_fstmt (st : fstmt) (s : vstate) : vstate :=
-    match st with
-    | Sskip => s
-    | Swire v t => SV.upd v [::] s
-    | Sreg r => match reset r with
-                  | NRst => SV.upd (rid r) [::] s
-                  | Rst e1 e2 => if (Z.gtb 0 (to_Z (eval_fexpr e1 s)))
-                                 then SV.upd (rid r) (eval_fexpr e2 s) s
-                                 else s
-                end
-    | Smem m => s (* TBD *)
-    | Sinst v1 v2 => s (* TBD, HiFirrtl *)
-    | Snode v e => SV.upd v (eval_fexpr e s) s (* must be initialized *)
-    | Sfcnct e1 e2 => match e1 with
-                      | Eref v => match (eval_fexpr e2 s) with
-                                  | [::] => s
-                                  | _ => SV.upd v (eval_fexpr e2 s) s
-                                  end
-                      | _ => s (* TBD *)
-                      end
-    | Spcnct _ _ => s (* TBD, HiFirrtl *)
-    | Sinvalid _ => s (* TBD *)
-    (* | Swhen e st1 st2 => if (Z.gtb 0 (to_Z (eval_fexpr e s))) then eval_fstmt st1 s *)
-    (*                      else eval_fstmt st2 s *) (* TBD, HiFirrtl *)
-    | _ => s
+  (* Expression evaluation, value *)
+  Fixpoint eval_fexpr (e : fexpr) (s : vstate) (te : TE.env) : bits :=
+    match e with
+    | Econst c => c
+    | Eref v => SV.acc v s
+    (* | Efield *)
+    (* | Esubfield  *)
+    | Eprim_binop b e1 e2 =>
+      let ve1 := (eval_fexpr e1 s te) in
+      let ve2 := (eval_fexpr e2 s te) in
+      let t1 := (type_of_fexpr e1 te) in
+      let t2 := (type_of_fexpr e2 te) in
+      match t1, t2 with
+      | Fuint s1, Fuint s2 => 
+        if s2 < s1 then
+          (ebinop_op b) (zext 1 ve1) (zext (s1 - s2 +1) ve2)
+        else (ebinop_op b) (zext (s2 - s1 +1) ve1) (zext 1 ve2)
+      | Fsint s1, Fsint s2 =>
+        if s2 < s1 then
+          (ebinop_op b) (sext 1 ve1) (sext (s1 - s2 +1) ve2)
+        else (ebinop_op b) (sext (s2 - s1 +1) ve2) (sext 1 ve2)
+      | _, _ => (ebinop_op b) ve1 ve2
+      end
+    | Eprim_unop u e => (eunop_op u) (eval_fexpr e s te)
+    | Emux c e1 e2 => if (Z.gtb 0 (to_Z (eval_fexpr c s te))) then (eval_fexpr e1 s te) else (eval_fexpr e2 s te)
+    | Evalidif c e => if (Z.gtb 0 (to_Z (eval_fexpr c s te))) then (eval_fexpr e s te) else [::]
+    | Edeclare v t => [::]
+    | Ecast AsUInt e => eval_fexpr e s te
+    | Ecast AsSInt e => eval_fexpr e s te
+    | Ecast AsClock e => [::lsb (eval_fexpr e s te)]
     end.
 
-  Fixpoint eval_fstmts st s :=
-    match st with
-    | [::] => s
-    | h :: tl => eval_fstmts tl (eval_fstmt h s)
-    end.
-
+  (* Expression statement, type env *)
   Definition upd_typenv_fstmt (s : fstmt) (te : TE.env) (st : vstate) : TE.env :=
     match s with
     | Swire v t  => TE.add v t te
     | Sreg r => TE.add (rid r) (type r) te
-    | Snode v e => TE.add v (type_of_fexpr e te st) te
+    | Snode v e => TE.add v (type_of_fexpr e (upd_typenv_fexpr e te)) (upd_typenv_fexpr e te)
     | _ => te
     end.
 
@@ -789,18 +346,46 @@ Module MakeFirrtl
     | [::] => te
     | h :: tl => upd_typenv_fstmts tl (upd_typenv_fstmt h te s) s
     end.
-
-  Definition eval_fport (p : fport) (s : vstate) : vstate :=
-    match p with
-    | Finput v t => SV.upd v [::] s
-    | Foutput v t => SV.upd v [::] s
-    end.
   
-  Fixpoint eval_fports (ps : seq fport) (s : vstate) : vstate :=
-    match ps with
-    | [::] => s
-    | h :: tl => eval_fports tl (eval_fport h s)
+  Fixpoint eval_fstmt (st : fstmt) (s : vstate) (te : TE.env) : vstate :=
+    match st with
+    | Sskip => s
+    | Swire v t => SV.upd v (from_Z (sizeof_fgtyp t) 0) s
+    | Sreg r => match reset r with
+                | NRst => s
+                | Rst e1 e2 => if (Z.gtb 0 (to_Z (eval_fexpr e1 s te)))
+                               then SV.upd (rid r) (eval_fexpr e2 s te) s
+                               else if SV.acc (rid r) s == [::b0] then
+                                      SV.upd (rid r) (from_Z (sizeof_fgtyp (type r)) 0) s
+                                    else s
+                end
+    | Smem m => s (* TBD *)
+    | Sinst v1 v2 => s (* TBD, HiFirrtl *)
+    | Snode v e => SV.upd v (eval_fexpr e s te) s (* must be initialized *)
+    | Sfcnct (Eref v) e2 => SV.upd v (eval_fexpr e2 s te) s
+    (*| Spcnct _ _ => s*) (* TBD, HiFirrtl *)
+    | Sinvalid _ => s (* TBD *)
+    (* | Swhen e st1 st2 => if (Z.gtb 0 (to_Z (eval_fexpr e s))) then eval_fstmt st1 s *)
+    (*                      else eval_fstmt st2 s *) (* TBD, HiFirrtl *)
+    | _ => s
     end.
+
+  Fixpoint eval_fstmts st s te :=
+    match st with
+    | [::] => s
+    | h :: tl => eval_fstmts tl (eval_fstmt h s (upd_typenv_fstmt h te s)) (upd_typenv_fstmt h te s)
+    end.
+
+  (* Definition eval_fport (p : fport) (s : vstate) : vstate := *)
+  (*   match p with *)
+  (*   | Finput v t => SV.upd v [::] s *)
+  (*   | Foutput v t => SV.upd v [::] s *)
+  (*   end.   *)
+  (* Fixpoint eval_fports (ps : seq fport) (s : vstate) : vstate := *)
+  (*   match ps with *)
+  (*   | [::] => s *)
+  (*   | h :: tl => eval_fports tl (eval_fport h s) *)
+  (*   end. *)
 
   Definition upd_typenv_fport (p : fport) (te : TE.env) : TE.env :=
     match p with
@@ -814,9 +399,21 @@ Module MakeFirrtl
     | h :: tl => upd_typenv_fports tl (upd_typenv_fport h te)
     end.
   
-  Fixpoint eval_fmodule (m : fmodule) (s : vstate) : vstate :=
+  Definition eval_fport_init (p : fport) (s : vstate) : vstate :=
+    match p with
+    | Finput v t => if SV.acc v s == [::] then SV.upd v (from_Z (sizeof_fgtyp t) 0) s else s
+    | Foutput v t => if SV.acc v s == [::] then SV.upd v (from_Z (sizeof_fgtyp t) 0) s else s
+    end.
+
+  Fixpoint eval_fports_init (ps : seq fport) (s : vstate) : vstate :=
+    match ps with
+    | [::] => s
+    | h :: tl => eval_fports_init tl (eval_fport_init h s)
+    end.
+  
+  Fixpoint eval_fmodule (m : fmodule) (s : vstate) (te : TE.env) : vstate :=
     match m with
-    | FInmod v ps st => eval_fstmts st (eval_fports ps (SV.upd v [::] s))
+    | FInmod v ps st => eval_fstmts st ((eval_fports_init ps s)) te
     | _ => s
     end.
 
@@ -826,8 +423,20 @@ Module MakeFirrtl
     | _ => te
     end.
 
-  (* fexpr eqn , TBD *)
+  Fixpoint run_fstmts (st : seq fstmt) (s : vstate) (te : TE.env) (n : nat) :=
+    match n with
+    | 0 => s
+    | S n => run_fstmts st (eval_fstmts st s te) te n
+    end.
 
+  Definition run_fmodule (m : fmodule) (s : vstate) (te : TE.env) (n : nat) : vstate :=
+    match m with
+    | FInmod v ps st => run_fstmts st (eval_fports_init ps s) (upd_typenv_fports ps te) n
+    | _ => s
+    end.
+  
+  (* fexpr eqn , TBD *)
+  
 
   (* Well-typed *)
 
@@ -844,7 +453,6 @@ Module MakeFirrtl
     | Emux c e1 e2 => (well_typed_fexpr c te) && (well_typed_fexpr e1 te) && (well_typed_fexpr e2 te)
     | Evalidif c e1 => (well_typed_fexpr c te) && (well_typed_fexpr e1 te)
     end.
-
 
   (* Well-formness, is defined && well-typed *)
   
@@ -868,9 +476,6 @@ Module MakeFirrtl
   Definition well_formed_fexpr e te := well_typed_fexpr e te && is_defined_fexpr e te.
 
   
-
-
-  
 End MakeFirrtl.
   
   (* Record fmod_state : Type := *)
@@ -882,4 +487,83 @@ End MakeFirrtl.
 
 (* TBD *)
   (*Parameter eval_fstmt : fstate -> fstmt -> fstate.*)
-  (* Module FIRRTL := MakeFirrtl VarOrder VS VM TE Store. *)
+Module LoFirrtl := MakeFirrtl VarOrder VS TE Store.
+
+Section Examples.
+  Import LoFirrtl.
+  
+  (* Variable Accumulator : var. *)
+  (* Variable accumulator : var. *)
+  (* Variable io_out : var. *)
+  (* Variable io_in : var. *)
+  (* Variable _T_11 : var. *)
+  (* Variable _T_12 : var. *)
+  (* Variable clk : var. *)
+  (* Variable rst1 : var. *)
+  Definition st0 := Store.empty.
+  Definition te0 := TE.empty fgtyp. Check te0.
+  Definition Accumulator := VarOrder.default. 
+  Definition accumulator := VarOrder.succ Accumulator.
+  Definition io_out := VarOrder.succ accumulator.
+  Definition io_in := VarOrder.succ io_out.
+  Definition _T_11 := VarOrder.succ io_in.
+  Definition _T_12 := VarOrder.succ _T_11.
+  Definition clk := VarOrder.succ _T_12.
+  Definition rst1 := VarOrder.succ clk.
+  
+  Definition fpts := [::(Finput clk Fclock);
+                     (Finput rst1 (Fuint 1));
+                     (Finput io_in (Fuint 1));
+                     (Foutput io_out (Fuint 8))].
+  Definition te1 := upd_typenv_fports fpts te0. 
+  Definition st1 := Store.upd clk [::b0] (Store.upd rst1 [::b0] (Store.upd io_in [::b1] (Store.upd io_out (from_nat 8 0) st0))).
+  Definition fst1 := sreg (mk_freg accumulator (Fuint 8) (eref clk)
+                                   (rrst (econst [::b0]) (eref accumulator))).
+  Definition te2 := upd_typenv_fstmt fst1 te1 st1.
+  Definition st2 := eval_fstmt fst1 st1 te2.
+  Eval compute in (Store.acc accumulator st2).
+  Eval compute in (TE.vtyp accumulator te2).
+  Definition fst2 := (snode _T_11 (eprim_binop Badd (eref accumulator) (eref io_in))).
+  Definition te3 := upd_typenv_fstmt fst2 te2 st2.
+  Definition st3 := eval_fstmt fst2 st2 te3.
+  Eval compute in (Store.acc _T_11 st3).
+  Eval compute in (TE.vtyp _T_11 te3).
+  Definition fst3 := (Snode _T_12 (Eprim_unop (Utail 1) (Eref _T_11))).
+  Definition te4 := upd_typenv_fstmt fst3 te3 st3.
+  Definition st4 := eval_fstmt fst3 st3 te4.
+  Eval compute in (Store.acc _T_12 st4).
+  Eval compute in (TE.vtyp _T_12 te4).
+  Definition fst4 := (Sfcnct (Eref io_out ) (Eref accumulator)).
+  Definition te5 := upd_typenv_fstmt fst4 te4 st4.
+  Definition st5 := eval_fstmt fst4 st4 te5.
+  Eval compute in (Store.acc io_out st5).
+  Eval compute in (TE.vtyp io_out te5).
+  Definition fst5 := (Sfcnct (Eref accumulator) (Emux (Eref rst1) (Econst _ [::b0]) (Eref _T_12))).
+  Definition te6 := upd_typenv_fstmt fst5 te5 st5.
+  Definition st6 := eval_fstmt fst5 st5 te6.
+  Eval compute in (Store.acc accumulator st6).
+  Eval compute in (TE.vtyp accumulator te6).
+  Definition fst6 := sskip.
+  Definition te7 := upd_typenv_fstmt fst6 te6 st6.
+  Definition st7 := eval_fstmt fst6 st6 te7.
+  Eval compute in (Store.acc accumulator st7).
+
+  Definition fm1 :=(FInmod Accumulator
+                      [::(Finput clk Fclock);
+                      (Finput rst1 (Fuint 1));
+                      (Finput io_in (Fuint 1));
+                      (Foutput io_out (Fuint 8))]
+                      [::sreg (mk_freg accumulator (Fuint 8) (eref clk)
+                                                 (rrst (econst [::b0]) (eref accumulator)));
+                      (snode _T_11 (eprim_binop Badd (eref accumulator) (eref io_in)));
+                      (snode _T_12 (eprim_unop (Utail 1) (eref _T_11)));
+                      (sfcnct (eref io_out ) (eref accumulator));
+                      (sfcnct (eref accumulator) (emux (eref rst1) (econst [::b0]) (eref _T_12)));
+                      sskip
+                      ]
+              
+                   ). 
+  Compute (Store.acc accumulator (run_fstmts [::fst1;fst2;fst3;fst4;fst5;fst6] st1 te1 10)).
+  Compute (Store.acc accumulator (run_fmodule fm1 st1 te1 10)).
+
+End Examples.

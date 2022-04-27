@@ -21,11 +21,17 @@ let letter = ['a'-'z' 'A'-'Z' '_']
 let number = ['0'-'9']
 let hex = ['0'-'9' 'a'-'f' 'A'-'F']
 let identity = letter (letter | number)*
-let comment_line = ("//"([^ '\n' ]+))|('#'([^ '\n' ]+))
+let comment_line = ("@"([^ '\n' ]+))|('#'([^ '\n' ]+))
 
-rule token = parse
+rule line_comment = parse
+ ("\r\n"|'\n'|'\r')                     { reset_cnum(); incr lnum; token lexbuf }
+| _                                     { upd_cnum lexbuf; line_comment lexbuf }
+                                   
+and token = parse
+
 | [' ' '\t']                            { upd_cnum lexbuf; token lexbuf }
 | ("\r\n"|'\n'|'\r')                    { reset_cnum(); incr lnum; token lexbuf }
+| "@"                                   { upd_cnum lexbuf; line_comment lexbuf }
 | '('                                   { upd_cnum lexbuf; PAR_OPEN }
 | ')'                                   { upd_cnum lexbuf; PAR_CLOSE }
 | '<'                                   { upd_cnum lexbuf; ANG_OPEN }
@@ -57,8 +63,14 @@ rule token = parse
 | "add"                                 { upd_cnum lexbuf; EXPR_ADD}
 | "not"                                 { upd_cnum lexbuf; EXPR_NOT}
 | "wire"                                { upd_cnum lexbuf; STM_WIRE }
-(*
+
 | "reg"                                 { upd_cnum lexbuf; STM_REG }
+| "with"                                { upd_cnum lexbuf; REG_WITH }
+| "reset"                               { upd_cnum lexbuf; REG_RST }
+| "=>"                                  { upd_cnum lexbuf; REG_RSTARR }
+| "node"                                { upd_cnum lexbuf; STM_NODE }
+| "="                                   { upd_cnum lexbuf; STM_NASS }
+(*
 | "mem"                                 { upd_cnum lexbuf; STM_MEM }
  *)
 (* Types *)
@@ -66,9 +78,10 @@ rule token = parse
 | "SInt"                                { upd_cnum lexbuf; SINT }
 | "Int"                                 { upd_cnum lexbuf; SINT }
 (*
-| "Analog"                       { upd_cnum lexbuf; ANALOG }
-| "Clock"                        { upd_cnum lexbuf; CLOCK }
-| "Fixed"                        { upd_cnum lexbuf; FIXED }
+| "Analog"                              { upd_cnum lexbuf; ANALOG } *)
+| "Clock"                               { upd_cnum lexbuf; CLOCK }
+(* 
+| "Fixed"                               { upd_cnum lexbuf; FIXED }
  *)
 | symbol as str                         { upd_cnum lexbuf; SYMBOL str }
-| eof                            { EOF }
+| eof                                   { EOF }

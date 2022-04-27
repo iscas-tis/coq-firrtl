@@ -7,7 +7,8 @@
 %token<string> BINARY HEX_DECIMAL OCTAL DECIMAL NUMERAL STRING SYMBOL
 %token PAR_OPEN PAR_CLOSE ANG_OPEN ANG_CLOSE SQR_OPEN SQR_CLOSE UNDERSCORE QUOT SPRT KEYWORD
 %token CIRCUIT STM_MODULE STM_SKIP STM_INPUT STM_OUTPUT STM_WHEN STM_ELSE  STM_CONNECT STM_PCONNECT
-%token STM_WIRE STM_REG STM_MEM EXPR_ADD EXPR_NOT SUB_FIELD UINT SINT INT
+%token STM_NODE STM_NASS
+%token STM_WIRE STM_REG REG_WITH REG_RST REG_RSTARR STM_MEM EXPR_ADD EXPR_NOT SUB_FIELD UINT SINT INT CLOCK
 %token EOF
 
 %start file
@@ -47,14 +48,15 @@ ports
 
 port
   : STM_INPUT symbol KEYWORD typ_def
-                                         { Finput (Eref ($2, $4)) }
+                                         { Finput ($2, $4) }
   | STM_OUTPUT symbol KEYWORD typ_def
-                                         { Foutput (Eref ($2, $4)) }
+                                         { Foutput ($2, $4) }
 ;
 
 typ_def
-  :  UINT ANG_OPEN numeral ANG_CLOSE      { Tuint $3 }
+  : UINT ANG_OPEN numeral ANG_CLOSE      { Tuint $3 }
   | SINT ANG_OPEN numeral ANG_CLOSE      { Tsint $3 }
+  | CLOCK                                { Clock }
 ;
 
 /* statement */
@@ -74,17 +76,22 @@ statement
   | expr STM_PCONNECT expr
                                             { Spcnct ( $1, $3) } 
   | STM_WIRE symbol KEYWORD typ_def 
-                                            { Swire ($2, $4) } 
+                                            { Swire ($2, $4) }
+  | STM_NODE symbol STM_NASS expr           { Snode ($2, $4) }
+  | STM_REG symbol KEYWORD typ_def SPRT expr REG_WITH KEYWORD REG_RST REG_RSTARR PAR_OPEN expr SPRT expr PAR_CLOSE
+                                            { Sreg (mkfreg $2 $4 $6 $12 $14) }
 ;
   
 /* expression */
   
 expr
-:   symbol                                  { Evar $1 }
-  | EXPR_ADD PAR_OPEN symbol SPRT symbol PAR_CLOSE
-                                            { Eprim_binop (Badd, (Evar $3), (Evar $5))}
-  | EXPR_NOT PAR_OPEN symbol PAR_CLOSE
-                                            { Eprim_unop (Unot, (Evar $3))}
+:   symbol                                  { Eref $1 }
+
+
+    | EXPR_ADD PAR_OPEN symbol SPRT symbol PAR_CLOSE
+                                            { Eprim_binop (Badd, (Eref $3), (Eref $5))}
+    | EXPR_NOT PAR_OPEN symbol PAR_CLOSE
+                                            { Eprim_unop (Unot, (Eref $3))}
 ;  
 
 /* Symbols */
