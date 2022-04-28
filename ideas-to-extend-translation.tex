@@ -1,0 +1,99 @@
+\documentclass[a4paper]{article}
+\usepackage{a4wide}
+\usepackage{amsmath}
+
+\title{Ideas for a High-Level FIRRTL semantics in Coq}
+\author{David N. Jansen}
+
+\begin{document}
+\maketitle
+
+This note builds upon the file \texttt{Firrtl.v} written by Xiaomu Shi
+and proposes a plan to extend the semantics to high-level FIRRTL
+in a way that catches the ``last connect wins'' correctly.
+(In low-level FIRRTL, every signal is allowed to be connected only once,
+so this principle is not necessary.)
+
+An internal module in FIRRTL consists of a name, a list of ports, and a single statement.
+This statement typically is a statement group.
+
+The translation of a module first reads all ports (input and output) and defines based on that the type $\mathtt{input}$ and $\mathtt{output}$ of the translation of the module.
+
+The translation of the statements of a module is a tuple consisting of
+\begin{description}
+
+\item[The state,]
+	a description of the registers and memory defined in the module, together with their types.
+	The state can probably be modelled as the \emph{type of} a value store.
+
+\item[The wires] defined in the module.
+	They can be modelled similar to states, with the difference that wires are not stored over time.
+
+\item[The nodes] defined in the module.
+	A node is just a shorthand for a certain expression;
+	likely this is a value store.
+
+\item[The transition function]
+	calculates the new value assigned to registers/memories upon the next rising clock edge, together with the output signals.
+	The type of the transition function is something like
+	\texttt{tr :} \textit{readables} $\to$ \textit{writables}.
+
+	The readables are the input signals, wires, nodes, registers and memories;
+	the writables are wires, output signals, and new values of registers and memories.
+\end{description}
+A single statement transforms this tuple to another one.
+\begin{description}
+
+\item[The empty statement] \texttt{skip} applies identity transform.
+
+\item[A wire definition] \texttt{wire} \textit{name}\texttt{:} \textit{type}
+	extends the wires by $\mathit{name}$.
+
+\item[A node definition]
+	extends the nodes, similar to a wire definition.
+
+\item[A register definition] $\mathtt{reg~}\mathit{name}\mathtt{: }\mathit{type}$]
+	extends $\mathtt{state}$ by $\mathit{name}$
+	and initializes $(\mathtt{newtr~}\mathit{input}\mathtt{~}\mathit{state})_\mathit{name}$ to $\mathit{name}$.
+
+	(Page 24, subsection 5.9.3 of the FIRRTL specification:
+	``Registers do not need to be connected to under all conditions,
+	as it will keep its previous value if unconnected.'')
+
+\item[A memory definition] has a similar effect as register definitions.
+
+\item[A full connect] $\mathit{var}\mathtt{~<=~}\mathit{expression}$
+	replaces function $\mathtt{tr}$ by the one where $\mathit{var}$ is assigned $\mathit{expression}$ and for the rest is identical with $\mathtt{tr}$.
+
+\item[A conditional statement]
+	\texttt{when} \textit{condition} \texttt{:} \textit{true-statement} \texttt{else :} \textit{false-statement}.
+	Note that components (in particular registers and memories, but also wires and nodes) defined in the branches
+	should always be included in the result.
+	Connections to such objects are always made, even when the condition is not satisfied.
+
+	To translate this statement, first find $\mathtt{state}_\mathit{true}$ and $\mathtt{tr}_\mathit{true}$, the transformation of $\mathtt{state}$ and $\mathtt{tr}$ under $\textit{\textmd{true-statement}}$,
+	and $\mathtt{state}_\mathit{true}$ and $\mathtt{tr}_\mathit{false}$, the corresponding transformation under $\textit{\textmd{false-statement}}$.
+	Then we set
+	\begin{align*}
+	\mathtt{newstate} & := \mathtt{state}_\mathit{true} \cup \mathtt{state}_\mathit{false} \\
+	\mathtt{newtr~}\mathit{input}\mathtt{~}\mathit{state}\mathtt{~}v & :=
+	\begin{cases}
+		\mathtt{tr}_\mathit{true} \mathtt{~}v & \text{if } v \in \mathtt{state}_\mathit{true} \setminus \mathtt{state} \\
+		\mathtt{tr}_\mathit{false}\mathtt{~}v & \text{if } v \in \mathtt{state}_\mathit{false} \setminus \mathtt{state} \\
+		\mathtt{mux~}\mathit{condition}\mathtt{~(tr}_\mathit{true}\mathtt{~}v\mathtt{)~(tr}_\mathit{false}\mathtt{~}v\mathtt{)} & \text{if } v \in \mathtt{state}
+	\end{cases}
+	\end{align*}
+	Wires and nodes defined in the branches are handled similarly.
+	I think it is an error if both branches define the same element (or different elements with the same name);
+	we should have $\mathtt{state}_\mathit{true} \cap \mathtt{state}_\mathit{false} = \mathtt{state}$.
+
+\item[Statement groups]
+	are translated by transforming the state, named signals and transition function in order.
+	Because a later connect overwrites an earlier one,
+	we automatically get ``last connect wins''.
+\end{description}
+
+To translate the statements in a module,
+one initializes the state, wires, and nodes to empty, and the transition function to the function that is undefined everywhere,
+and then transforms these by the statement (group) in the module.
+\end{document}
