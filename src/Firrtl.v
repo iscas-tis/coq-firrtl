@@ -33,9 +33,6 @@ Section RawFirrtl.
   | Uextr : nat -> nat -> eunop
   | Uhead : nat -> eunop
   | Utail : nat -> eunop.
-  (* | Uincp *)
-  (* | Udecp *)
-  (* | Usetp . *)
 
   Inductive bcmp : Set :=
   | Blt | Bleq | Bgt | Bgeq | Beq | Bneq.
@@ -326,7 +323,7 @@ Module MakeFirrtl
     | Eprim_unop u e => (eunop_op u) (eval_fexpr e s te)
     | Emux c e1 e2 => if (Z.gtb 0 (to_Z (eval_fexpr c s te))) then (eval_fexpr e1 s te) else (eval_fexpr e2 s te)
     | Evalidif c e => if (Z.gtb 0 (to_Z (eval_fexpr c s te))) then (eval_fexpr e s te) else [::]
-    | Edeclare v t => [::]
+    | Edeclare v t => zeros (sizeof_fgtyp t)
     | Ecast AsUInt e => eval_fexpr e s te
     | Ecast AsSInt e => eval_fexpr e s te
     | Ecast AsClock e => [::lsb (eval_fexpr e s te)]
@@ -355,7 +352,7 @@ Module MakeFirrtl
                 | NRst => s
                 | Rst e1 e2 => if (Z.gtb 0 (to_Z (eval_fexpr e1 s te)))
                                then SV.upd (rid r) (eval_fexpr e2 s te) s
-                               else if SV.acc (rid r) s == [::b0] then
+                               else if SV.acc (rid r) s == [::] then
                                       SV.upd (rid r) (from_Z (sizeof_fgtyp (type r)) 0) s
                                     else s
                 end
@@ -436,7 +433,6 @@ Module MakeFirrtl
     end.
   
   (* fexpr eqn , TBD *)
-  
 
   (* Well-typed *)
 
@@ -452,6 +448,20 @@ Module MakeFirrtl
     | Eprim_binop _ e1 e2 => (well_typed_fexpr e1 te) && (well_typed_fexpr e2 te)
     | Emux c e1 e2 => (well_typed_fexpr c te) && (well_typed_fexpr e1 te) && (well_typed_fexpr e2 te)
     | Evalidif c e1 => (well_typed_fexpr c te) && (well_typed_fexpr e1 te)
+    end.
+
+  Definition well_typed_fstmt (s : fstmt) (te : TE.env) : bool :=
+    match s with
+    | Sskip => true
+    | Swire v t => 0 < sizeof_fgtyp t
+    | Sreg r => (0 < sizeof_fgtyp (type r)) &&
+                (match (reset r) with
+                 | NRst => true
+                 | Rst e1 e2 => (well_typed_fexpr e1 te) && (well_typed_fexpr e2 te)
+                 end)
+    | Snode v e => well_typed_fexpr e te
+    | Sfcnct (Eref v) e => (0 < sizeof_fgtyp (TE.vtyp v te)) && well_typed_fexpr e te
+    | _ => true
     end.
 
   (* Well-formness, is defined && well-typed *)
@@ -471,10 +481,71 @@ Module MakeFirrtl
     | Emux c e1 e2 => (is_defined_fexpr c te) && (is_defined_fexpr e1 te) && (is_defined_fexpr e2 te)
     | Evalidif c e1 => (is_defined_fexpr c te) && (is_defined_fexpr e1 te)
     end.
-  
-  (* well formed expr *)
-  Definition well_formed_fexpr e te := well_typed_fexpr e te && is_defined_fexpr e te.
 
+  Definition is_defined_fstmt (s : fstmt) (te : TE.env) : bool :=
+    match s with
+    | Sskip => true
+    | Swire v t => true
+    | Sreg r => is_defined (rid r) te
+    | Snode v e => is_defined_fexpr e te
+    | Sfcnct (Eref v) e => is_defined v te && is_defined_fexpr e te
+    | _ => true
+    end.
+  
+  (* well formed expression *)
+  Definition well_formed_fexpr e te := well_typed_fexpr e te && is_defined_fexpr e te.
+  (* well formed statement *)
+  Definition well_formed_fstmt s te := well_typed_fstmt s te && is_defined_fstmt s te.
+
+  (* conform lemmas *)
+  Lemma conform_eval_swire_upd_env s1 s2 te v t :
+    SV.conform s1 te ->
+    well_formed_fstmt (Swire v t) te ->
+    eval_fstmt (Swire v t) s1 te = s2 ->
+    SV.conform s2 (upd_typenv_fstmt (Swire v t) te s1).
+  Proof.
+    rewrite /= => Hcf1 Hwf <-/=.
+    apply SV.conform_Upd with (zeros (sizeof_fgtyp t)) s1.
+    rewrite size_zeros//.
+    apply SV.Upd_upd.
+    done.
+  Qed.
+
+  Lemma conform_eval_node_upd_env s1 s2 te v e :
+    SV.conform s1 te ->
+    well_formed_fstmt (Snode v e) te ->
+    eval_fstmt (Snode v e) s1 te = s2 ->
+    SV.conform s2 (upd_typenv_fstmt (Snode v e) te s1).
+  Proof.
+    rewrite /= => Hcf Hwf <-.
+    apply SV.conform_Upd with (eval_fexpr e s1 te) s1;
+    [ |apply SV.Upd_upd | ].
+    move : Hwf.
+    case e; try by done.
+    - (* case eref *)
+      move => v1.
+      rewrite /well_formed_fstmt/= /is_defined.
+      move/andP => [Hszv1 Hmv1].
+      rewrite -(SV.conform_mem Hcf)//.
+      rewrite (TE.vtyp_vsize (eqP(eqxx (TE.vtyp v1 te))))//.
+    - (* case edeclare *)
+      move => v1 t1.
+      rewrite /well_formed_fstmt/= andbT size_zeros//.
+    - (* case ecast *)
+      move => u e1.
+      rewrite /well_formed_fstmt.
+      case u. admit. admit. admit.
+    - (* case eunop *)  
+      admit.
+    - (* case ecast *)
+      admit.
+    - (* case emux *)
+      admit.
+    - (* case evalidif *)
+      admit.
+      (* upd env expr e *)
+      admit.
+  Admitted.
   
 End MakeFirrtl.
   

@@ -338,7 +338,7 @@ End ValStore.
 
 Module BValueType <: HasDefaultTyp.
   Definition t : Type := bits.
-  Definition default : t := [::b0].
+  Definition default : t := [::].
 End BValueType.
 
 Module MakeValStore (V : SsrOrder) (TE : TypEnv with Module SE := V) <:
