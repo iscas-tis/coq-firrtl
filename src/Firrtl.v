@@ -229,15 +229,61 @@ Module MakeFirrtl
     end.
 
   (* Binary operations *)
+
+  (* addition with extended bits *)
+  Definition full_adder_ext c bs1 bs2 : bool * bits := full_adder_zip c (extzip0 bs1 bs2).
+  Definition adcB_ext c bs1 bs2 := full_adder_ext c bs1 bs2.
+  Definition addB_ext bs1 bs2 : bits := let (c, r) := (adcB_ext false bs1 bs2) in c::r.
+
+  Lemma size_full_adder_ext c bs1 bs2 : size (snd (full_adder_ext c bs1 bs2)) = maxn (size bs1) (size bs2).
+  Proof.
+    rewrite /full_adder_ext.
+    dcase (extzip0 bs1 bs2) => [zp Hzp].
+    rewrite -(size_extzip b0 b0 bs1 bs2) -/extzip0 Hzp.
+    elim : zp bs1 bs2 Hzp c => [|zh zt IH] bs1 bs2 Hzp c //.
+    dcase zh => [[hd1 hd2] Hz]. rewrite Hz in Hzp => {Hz zh}.
+    dcase (bool_adder c hd1 hd2) => [[c0 hd] Hadder].
+    dcase (full_adder_zip c0 zt) => [[c1 tl] Hfull]. move: Hzp.
+    case: bs1; case: bs2 => //.
+    - move=> b bs Hzs. case: Hzs => H1 H2.
+      have ->: zip (copy (size bs) b0) bs = extzip0 [::] bs by rewrite /extzip0/=; elim bs =>//.
+      move => H3.
+      move: (IH _ _ H3 c0). rewrite /=Hadder Hfull/=; by move=> ->.
+    - move => b bs Hzs. case : Hzs => H1 H2.
+      have ->: zip bs (copy (size bs) b0) = extzip0 bs [::] by rewrite /extzip0/=; elim bs =>//.
+      move => H3.
+      move: (IH _ _ H3 c0). rewrite /=Hadder Hfull/=; by move=> ->.
+    - move => b11 bs1 b21 bs2 Hzs. case: Hzs => H1 H2 H3.
+      move : (IH _ _ H3 c0). rewrite /=Hadder Hfull/=; by move => ->.
+  Qed.
+      
+  Lemma size_adcB_ext bs1 bs2: size (snd (adcB_ext false bs1 bs2)) = maxn (size bs1) (size bs2).
+  Proof.
+    rewrite /adcB_ext size_full_adder_ext//.
+  Qed.
+
+  Lemma size_addB_ext bs1 bs2 : size (addB_ext bs1 bs2) = (maxn (size bs1) (size bs2)).+1.
+  Proof.
+    rewrite /addB_ext. case Hadc : (adcB_ext false bs1 bs2) => [c r].
+    rewrite /=-size_adcB_ext Hadc//.
+  Qed.
+  
+  (* subtraction with extended bits *)
+  Definition sbbB_ext b bs1 bs2 : bool * bits := adcB_ext (~~ b) bs1 (~~# bs2).
+  Definition subB_ext bs1 bs2 := snd (sbbB_ext false bs1 bs2).
+
+  Lemma size_subB_ext bs1 bs2 : size (subB_ext bs1 bs2) = max (size bs1) (size bs2).
+  Proof. Admitted.
+  
   Definition ebinop_op (o : ebinop) : bits -> bits -> bits :=
     match o with
-    | Badd => addB
-    | Bsub => subB
+    | Badd => addB_ext
+    | Bsub => subB_ext
     | Bdiv => udivB'
     | Brem => uremB
     | Bsdiv => sdivB
     | Bsrem => sremB
-    | Bmul => mulB
+    | Bmul => full_mul
     | Bcomp c => binop_bcmp c
     | Band => andB
     | Bor => orB
@@ -273,10 +319,15 @@ Module MakeFirrtl
                                                 | Fsint n => Fsint (n + sizeof_fgtyp (type_of_fexpr e2 te))
                                                 | Fclock => TE.deftyp
                                                 end
-                             | Badd | Bsub => match type_of_fexpr e1 te with
-                                              | Fuint s => Fuint (s+1)
-                                              | Fsint s => Fsint (s+1)
-                                              | _ => type_of_fexpr e1 te
+                             | Badd | Bsub => match type_of_fexpr e1 te, type_of_fexpr e2 te with
+                                              | Fuint s1, Fuint s2 => Fuint (maxn s1 s2).+1
+                                              | Fsint s1, Fsint s2 => Fsint (maxn s1 s2).+1
+                                              | _, _ => TE.deftyp
+                                              end
+                             | Bmul => match type_of_fexpr e1 te, type_of_fexpr e2 te with
+                                              | Fuint s1, Fuint s2 => Fuint (s1 + s2)
+                                              | Fsint s1, Fsint s2 => Fsint (s1 + s2)
+                                              | _, _ => TE.deftyp
                                               end
                              | _ => type_of_fexpr e1 te
                              end
@@ -307,19 +358,19 @@ Module MakeFirrtl
     | Eprim_binop b e1 e2 =>
       let ve1 := (eval_fexpr e1 s te) in
       let ve2 := (eval_fexpr e2 s te) in
-      let t1 := (type_of_fexpr e1 te) in
-      let t2 := (type_of_fexpr e2 te) in
-      match t1, t2 with
-      | Fuint s1, Fuint s2 => 
-        if s2 < s1 then
-          (ebinop_op b) (zext 1 ve1) (zext (s1 - s2 +1) ve2)
-        else (ebinop_op b) (zext (s2 - s1 +1) ve1) (zext 1 ve2)
-      | Fsint s1, Fsint s2 =>
-        if s2 < s1 then
-          (ebinop_op b) (sext 1 ve1) (sext (s1 - s2 +1) ve2)
-        else (ebinop_op b) (sext (s2 - s1 +1) ve2) (sext 1 ve2)
-      | _, _ => (ebinop_op b) ve1 ve2
-      end
+      (* let t1 := (type_of_fexpr e1 te) in *)
+      (* let t2 := (type_of_fexpr e2 te) in *)
+      (* match t1, t2 with *)
+      (* | Fuint s1, Fuint s2 =>  *)
+      (*   if s2 < s1 then *)
+      (*     (ebinop_op b) (zext 1 ve1) (zext (s1 - s2 +1) ve2) *)
+      (*   else (ebinop_op b) (zext (s2 - s1 +1) ve1) (zext 1 ve2) *)
+      (* | Fsint s1, Fsint s2 => *)
+      (*   if s2 < s1 then *)
+      (*     (ebinop_op b) (sext 1 ve1) (sext (s1 - s2 +1) ve2) *)
+      (*   else (ebinop_op b) (sext (s2 - s1 +1) ve2) (sext 1 ve2) *)
+      (* | _, _ =>  *)
+      (ebinop_op b) ve1 ve2
     | Eprim_unop u e => (eunop_op u) (eval_fexpr e s te)
     | Emux c e1 e2 => if (Z.gtb 0 (to_Z (eval_fexpr c s te))) then (eval_fexpr e1 s te) else (eval_fexpr e2 s te)
     | Evalidif c e => if (Z.gtb 0 (to_Z (eval_fexpr c s te))) then (eval_fexpr e s te) else [::]
