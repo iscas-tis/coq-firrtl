@@ -21,7 +21,7 @@ let letter = ['a'-'z' 'A'-'Z' '_']
 let number = ['0'-'9']
 let hex = ['0'-'9' 'a'-'f' 'A'-'F']
 let identity = letter (letter | number)*
-let comment_line = ("@"([^ '\n' ]+))|('#'([^ '\n' ]+))
+let comment_line = ('@'([^ '\n' ]+))|('#'([^ '\n' ]+))
 
 rule line_comment = parse
  ("\r\n"|'\n'|'\r')                     { reset_cnum(); incr lnum; token lexbuf }
@@ -31,7 +31,7 @@ and token = parse
 
 | [' ' '\t']                            { upd_cnum lexbuf; token lexbuf }
 | ("\r\n"|'\n'|'\r')                    { reset_cnum(); incr lnum; token lexbuf }
-| "@"                                   { upd_cnum lexbuf; line_comment lexbuf }
+| '@'                                   { upd_cnum lexbuf; line_comment lexbuf }
 | '('                                   { upd_cnum lexbuf; PAR_OPEN }
 | ')'                                   { upd_cnum lexbuf; PAR_CLOSE }
 | '<'                                   { upd_cnum lexbuf; ANG_OPEN }

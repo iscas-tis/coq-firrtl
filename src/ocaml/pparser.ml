@@ -1,20 +1,19 @@
-
+open Arg
 open Firrtl_lang
 
   
-let output_file = ref None
-let file = "./demo/Accumulator.lo.fir"
+(*let output_file = ref None*)
+(*let file = "./demo/Accumulator.lo.fir"*)
 (*let file = "./demo/demo"*)
-                
-let pparse file =
+
+let args = [
+  ]
+
+let usage = "Usage: pparse FILE\n"
+
+let anon file =
   let f = (Parser.parse file) in
-  let out =
-    match !output_file with
-    | None -> stdout
-    | Some fn -> open_out fn in
-  let _ = Ast.pp_file out f in
-  let _ = flush out in
-  close_out out
+  let _ = Ast.pp_file stdout f in
+  ()
 
-
-let _ =  pparse file
+let _ = parse args anon usage

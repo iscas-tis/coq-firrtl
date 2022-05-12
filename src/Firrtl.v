@@ -8,10 +8,9 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Import Prenex Implicits.
 
-
 Delimit Scope firrtl with firrtl.
 
-Section RawFirrtl.
+Section LoFirrtl.
 
   (****** Syntax ******)
 
@@ -132,7 +131,8 @@ Section RawFirrtl.
 
   Inductive fcircuit : Type := Fcircuit : var -> seq fmodule -> fcircuit.
 
-End RawFirrtl.
+End LoFirrtl.
+
 
 
 Module MakeFirrtl
@@ -165,7 +165,7 @@ Module MakeFirrtl
 
   Definition fstmt := fstmt V.T.
   Definition sskip := @Sskip V.T.
-  Definition swire v t := @Swire v t.  
+  Definition swire v t := @Swire V.T v t.  
   Definition sreg r := @Sreg V.T r.
   (* Definition smem m := @Smem V.T m. *)
   (* Definition sinst v1 v2 := @Sinst V.T v1 v2. *)
@@ -233,7 +233,7 @@ Module MakeFirrtl
   (* addition with extended bits *)
   Definition full_adder_ext c bs1 bs2 : bool * bits := full_adder_zip c (extzip0 bs1 bs2).
   Definition adcB_ext c bs1 bs2 := full_adder_ext c bs1 bs2.
-  Definition addB_ext bs1 bs2 : bits := let (c, r) := (adcB_ext false bs1 bs2) in c::r.
+  Definition addB_ext bs1 bs2 : bits := let (c, r) := (adcB_ext false bs1 bs2) in rcons r c.
 
   Lemma size_full_adder_ext c bs1 bs2 : size (snd (full_adder_ext c bs1 bs2)) = maxn (size bs1) (size bs2).
   Proof.
@@ -265,14 +265,19 @@ Module MakeFirrtl
   Lemma size_addB_ext bs1 bs2 : size (addB_ext bs1 bs2) = (maxn (size bs1) (size bs2)).+1.
   Proof.
     rewrite /addB_ext. case Hadc : (adcB_ext false bs1 bs2) => [c r].
-    rewrite /=-size_adcB_ext Hadc//.
+    rewrite /=-size_adcB_ext Hadc size_rcons//.
   Qed.
-  
+
+  Lemma to_Zpos_addB_ext bs1 bs2 :
+    to_Zpos (addB_ext bs1 bs2) = Z.add (to_Zpos bs1) (to_Zpos bs2).
+  Proof.
+  Admitted.
+    
   (* subtraction with extended bits *)
   Definition sbbB_ext b bs1 bs2 : bool * bits := adcB_ext (~~ b) bs1 (~~# bs2).
   Definition subB_ext bs1 bs2 := snd (sbbB_ext false bs1 bs2).
 
-  Lemma size_subB_ext bs1 bs2 : size (subB_ext bs1 bs2) = max (size bs1) (size bs2).
+  Lemma size_subB_ext bs1 bs2 : size (subB_ext bs1 bs2) = maxn (size bs1) (size bs2).
   Proof. Admitted.
   
   Definition ebinop_op (o : ebinop) : bits -> bits -> bits :=
@@ -334,7 +339,7 @@ Module MakeFirrtl
     | Emux c e1 e2 => let t1 := (type_of_fexpr e1 te) in
                       let t2 := (type_of_fexpr e2 te) in
                       if sizeof_fgtyp t1 < sizeof_fgtyp t2 then t2 else t1
-    | Evalidif c e => (* if (Z.gtb 0 (to_Z (eval_fexpr c s))) then *)
+    | Evalidif c e => (* if (Z.ltb 0 (to_Z (eval_fexpr c s))) then *)
                       (type_of_fexpr e te)
     end.
 
@@ -358,22 +363,10 @@ Module MakeFirrtl
     | Eprim_binop b e1 e2 =>
       let ve1 := (eval_fexpr e1 s te) in
       let ve2 := (eval_fexpr e2 s te) in
-      (* let t1 := (type_of_fexpr e1 te) in *)
-      (* let t2 := (type_of_fexpr e2 te) in *)
-      (* match t1, t2 with *)
-      (* | Fuint s1, Fuint s2 =>  *)
-      (*   if s2 < s1 then *)
-      (*     (ebinop_op b) (zext 1 ve1) (zext (s1 - s2 +1) ve2) *)
-      (*   else (ebinop_op b) (zext (s2 - s1 +1) ve1) (zext 1 ve2) *)
-      (* | Fsint s1, Fsint s2 => *)
-      (*   if s2 < s1 then *)
-      (*     (ebinop_op b) (sext 1 ve1) (sext (s1 - s2 +1) ve2) *)
-      (*   else (ebinop_op b) (sext (s2 - s1 +1) ve2) (sext 1 ve2) *)
-      (* | _, _ =>  *)
       (ebinop_op b) ve1 ve2
     | Eprim_unop u e => (eunop_op u) (eval_fexpr e s te)
-    | Emux c e1 e2 => if (Z.gtb 0 (to_Z (eval_fexpr c s te))) then (eval_fexpr e1 s te) else (eval_fexpr e2 s te)
-    | Evalidif c e => if (Z.gtb 0 (to_Z (eval_fexpr c s te))) then (eval_fexpr e s te) else [::]
+    | Emux c e1 e2 => if (Z.ltb 0 (to_Z (eval_fexpr c s te))) then (eval_fexpr e1 s te) else (eval_fexpr e2 s te)
+    | Evalidif c e => if (Z.ltb 0 (to_Z (eval_fexpr c s te))) then (eval_fexpr e s te) else [::]
     | Edeclare v t => zeros (sizeof_fgtyp t)
     | Ecast AsUInt e => eval_fexpr e s te
     | Ecast AsSInt e => eval_fexpr e s te
@@ -401,7 +394,7 @@ Module MakeFirrtl
     | Swire v t => SV.upd v (from_Z (sizeof_fgtyp t) 0) s
     | Sreg r => match reset r with
                 | NRst => s
-                | Rst e1 e2 => if (Z.gtb 0 (to_Z (eval_fexpr e1 s te)))
+                | Rst e1 e2 => if (Z.ltb 0 (to_Z (eval_fexpr e1 s te)))
                                then SV.upd (rid r) (eval_fexpr e2 s te) s
                                else if SV.acc (rid r) s == [::] then
                                       SV.upd (rid r) (from_Z (sizeof_fgtyp (type r)) 0) s
@@ -413,9 +406,59 @@ Module MakeFirrtl
     | Sfcnct (Eref v) e2 => SV.upd v (eval_fexpr e2 s te) s
     (*| Spcnct _ _ => s*) (* TBD, HiFirrtl *)
     | Sinvalid _ => s (* TBD *)
-    (* | Swhen e st1 st2 => if (Z.gtb 0 (to_Z (eval_fexpr e s))) then eval_fstmt st1 s *)
+    (* | Swhen e st1 st2 => if (Z.ltb 0 (to_Z (eval_fexpr e s))) then eval_fstmt st1 s *)
     (*                      else eval_fstmt st2 s *) (* TBD, HiFirrtl *)
     | _ => s
+    end.
+
+  (** repr for a hifirrtl semantics *)
+  Inductive assgn : Type :=
+  | Reg_as of var * freg
+  | Wire_as of var * fgtyp
+  | Node_as of var * fexpr
+  | Cnct_as of var * fexpr
+  | NAssign.
+
+  (** eq dec *)
+  Axiom assgn_eq_dec : forall {x y : assgn}, {x = y} + {x <> y}.
+  Parameter assgn_eqn : forall (x y : assgn), bool.
+  Axiom assgn_eqP : Equality.axiom assgn_eqn. 
+  Canonical assgn_eqMixin := EqMixin assgn_eqP.
+  Canonical assgn_eqType := Eval hnf in EqType assgn assgn_eqMixin.
+
+  (** using assgn to explain hifirrtl statement semantics *)
+  Inductive eval_fstmt_group : fstmt -> assgn -> Type :=
+  | Gsskip : eval_fstmt_group sskip NAssign
+  | Gswire v t : eval_fstmt_group (swire v t) (Wire_as (v, t))
+  | Gsnode v e : eval_fstmt_group (snode v e) (Node_as (v, e))
+  | Gsfcnct v e : eval_fstmt_group (sfcnct (Eref v) e) (Cnct_as (v, e))
+  | Gsreg r : eval_fstmt_group (sreg r) (Reg_as (rid r, r)).
+
+  (** using assgn to explain statement group semantics, including last cnct *)
+  Inductive eval_fstmts_group : seq fstmt -> seq assgn -> Type :=
+  | Gnil : eval_fstmts_group [::] [::]
+  | Gfstmts_lst_cncts v e tf a:
+      forall e1, In (Cnct_as (v, e1)) a -> 
+                 eval_fstmts_group tf ((Cnct_as (v, e)):: (rem (Cnct_as (v, e1)) a)) ->
+                 eval_fstmts_group ((sfcnct (Eref v) e)::tf) a
+  | Gfstmts_cncts_0 v e tf a :
+      forall e1, ~ In (Cnct_as (v, e1)) a ->
+                 eval_fstmts_group tf ((Cnct_as (v, e))::a) ->
+                 eval_fstmts_group ((sfcnct (Eref v) e)::tf) a
+  | Gfstmts hf tf ha a :
+      eval_fstmt_group hf ha ->
+      eval_fstmts_group tf (ha::a) ->
+      eval_fstmts_group (hf::tf) a
+  .
+
+  (** translate from assgn to lofirrtl *)
+  Definition hi2lo_trans (h : assgn) : fstmt :=
+    match h with
+    | NAssign => sskip
+    | Wire_as (v, t) => swire v t
+    | Node_as (v, e) => snode v e
+    | Cnct_as (v, e) => sfcnct (Eref v) e
+    | Reg_as (v, s) => sreg s
     end.
 
   Fixpoint eval_fstmts st s te :=
