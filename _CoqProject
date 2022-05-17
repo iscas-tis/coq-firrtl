@@ -20,3 +20,4 @@ lib/nbits/NBits.v
 -Q src firrtl
 src/Env.v
 src/Firrtl.v
+src/Extract.v

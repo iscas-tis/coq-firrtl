@@ -138,6 +138,7 @@ End LoFirrtl.
 Module MakeFirrtl
        (V : SsrOrder)
        (VS : SsrFSet with Module SE := V)
+       (VM : SsrFMap with Module SE := V)
        (TE : TypEnv with Module SE := V)
        (SV : ValStore V TE).
   Local Open Scope firrtl.
@@ -411,7 +412,8 @@ Module MakeFirrtl
     | _ => s
     end.
 
-  (** repr for a hifirrtl semantics *)
+  (*
+  (** repr for a hifirrtl semantics  *)
   Inductive assgn : Type :=
   | Reg_as of var * freg
   | Wire_as of var * fgtyp
@@ -460,7 +462,8 @@ Module MakeFirrtl
     | Cnct_as (v, e) => sfcnct (Eref v) e
     | Reg_as (v, s) => sreg s
     end.
-
+   *)
+  
   Fixpoint eval_fstmts st s te :=
     match st with
     | [::] => s
@@ -652,7 +655,13 @@ End MakeFirrtl.
 
 (* TBD *)
   (*Parameter eval_fstmt : fstate -> fstmt -> fstate.*)
-Module LoFirrtl := MakeFirrtl VarOrder VS TE Store.
+Module LoFirrtl := MakeFirrtl VarOrder VS VM TE Store.
+
+Definition init_vm := VM.empty.
+Definition init_vs := VS.empty.
+Definition init_env : TE.env := TE.empty fgtyp.
+Definition init_store := Store.empty.
+
 
 Section Examples.
   Import LoFirrtl.
@@ -666,7 +675,7 @@ Section Examples.
   (* Variable clk : var. *)
   (* Variable rst1 : var. *)
   Definition st0 := Store.empty.
-  Definition te0 := TE.empty fgtyp. Check te0.
+  Definition te0 := TE.empty fgtyp. 
   Definition Accumulator := VarOrder.default. 
   Definition accumulator := VarOrder.succ Accumulator.
   Definition io_out := VarOrder.succ accumulator.
@@ -727,8 +736,10 @@ Section Examples.
                       sskip
                       ]
               
-                   ). 
+                   ).
+  Definition eval_fm1 := Store.acc accumulator (run_fmodule fm1 st1 te1 10).
   Compute (Store.acc accumulator (run_fstmts [::fst1;fst2;fst3;fst4;fst5;fst6] st1 te1 10)).
   Compute (Store.acc accumulator (run_fmodule fm1 st1 te1 10)).
 
 End Examples.
+
