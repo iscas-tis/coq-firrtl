@@ -5,6 +5,6 @@
     (flags         (:standard -O3))))
 
 (executables
- (names            pparser)
- (libraries        firrtl_lang)
+ (names            main)
+ (libraries        firrtl_lang interpreter)
 )
