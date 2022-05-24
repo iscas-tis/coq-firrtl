@@ -76,7 +76,7 @@ Section LoFirrtl.
     mk_fmem
       {
         mid : var;
-        data_type : fexpr;
+        data_type : fgtyp;
         depth : nat;
         reader : seq var;
         writer : seq var;                    
@@ -168,7 +168,7 @@ Module MakeFirrtl
   Definition sskip := @Sskip V.T.
   Definition swire v t := @Swire V.T v t.  
   Definition sreg r := @Sreg V.T r.
-  (* Definition smem m := @Smem V.T m. *)
+  Definition smem m := @Smem V.T m.
   (* Definition sinst v1 v2 := @Sinst V.T v1 v2. *)
   Definition snode v e := @Snode V.T v e.
   Definition sfcnct v1 v2 := @Sfcnct V.T v1 v2.
@@ -178,6 +178,7 @@ Module MakeFirrtl
   Definition nrst := @NRst V.T.
   Definition rrst e1 e2 := @Rst V.T e1 e2.
   Definition fmem := @fmem V.T.
+  Definition mk_fmem := @mk_fmem V.T.
   Definition fport := @fport V.T.
   Definition fmodule := @fmodule V.T.
   Definition fcircuit := @fcircuit V.T.
@@ -411,58 +412,6 @@ Module MakeFirrtl
     (*                      else eval_fstmt st2 s *) (* TBD, HiFirrtl *)
     | _ => s
     end.
-
-  (*
-  (** repr for a hifirrtl semantics  *)
-  Inductive assgn : Type :=
-  | Reg_as of var * freg
-  | Wire_as of var * fgtyp
-  | Node_as of var * fexpr
-  | Cnct_as of var * fexpr
-  | NAssign.
-
-  (** eq dec *)
-  Axiom assgn_eq_dec : forall {x y : assgn}, {x = y} + {x <> y}.
-  Parameter assgn_eqn : forall (x y : assgn), bool.
-  Axiom assgn_eqP : Equality.axiom assgn_eqn. 
-  Canonical assgn_eqMixin := EqMixin assgn_eqP.
-  Canonical assgn_eqType := Eval hnf in EqType assgn assgn_eqMixin.
-
-  (** using assgn to explain hifirrtl statement semantics *)
-  Inductive eval_fstmt_group : fstmt -> assgn -> Type :=
-  | Gsskip : eval_fstmt_group sskip NAssign
-  | Gswire v t : eval_fstmt_group (swire v t) (Wire_as (v, t))
-  | Gsnode v e : eval_fstmt_group (snode v e) (Node_as (v, e))
-  | Gsfcnct v e : eval_fstmt_group (sfcnct (Eref v) e) (Cnct_as (v, e))
-  | Gsreg r : eval_fstmt_group (sreg r) (Reg_as (rid r, r)).
-
-  (** using assgn to explain statement group semantics, including last cnct *)
-  Inductive eval_fstmts_group : seq fstmt -> seq assgn -> Type :=
-  | Gnil : eval_fstmts_group [::] [::]
-  | Gfstmts_lst_cncts v e tf a:
-      forall e1, In (Cnct_as (v, e1)) a -> 
-                 eval_fstmts_group tf ((Cnct_as (v, e)):: (rem (Cnct_as (v, e1)) a)) ->
-                 eval_fstmts_group ((sfcnct (Eref v) e)::tf) a
-  | Gfstmts_cncts_0 v e tf a :
-      forall e1, ~ In (Cnct_as (v, e1)) a ->
-                 eval_fstmts_group tf ((Cnct_as (v, e))::a) ->
-                 eval_fstmts_group ((sfcnct (Eref v) e)::tf) a
-  | Gfstmts hf tf ha a :
-      eval_fstmt_group hf ha ->
-      eval_fstmts_group tf (ha::a) ->
-      eval_fstmts_group (hf::tf) a
-  .
-
-  (** translate from assgn to lofirrtl *)
-  Definition hi2lo_trans (h : assgn) : fstmt :=
-    match h with
-    | NAssign => sskip
-    | Wire_as (v, t) => swire v t
-    | Node_as (v, e) => snode v e
-    | Cnct_as (v, e) => sfcnct (Eref v) e
-    | Reg_as (v, s) => sreg s
-    end.
-   *)
   
   Fixpoint eval_fstmts st s te :=
     match st with
