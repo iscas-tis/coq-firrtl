@@ -21,3 +21,4 @@ lib/nbits/NBits.v
 src/Env.v
 src/Firrtl.v
 src/Extract.v
+src/HiFirrtl.v
