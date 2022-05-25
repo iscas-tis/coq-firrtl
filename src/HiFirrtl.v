@@ -35,14 +35,16 @@ Section HiFirrtl.
   Inductive fflip : Type := Flipped | Nflip.
 
   Inductive ftype : Type :=
-  | Atyp : ffields -> ftype
+  | Btyp : ffields -> ftype
   | Gtyp : fgtyp -> ftype
-  | Vtyp : fgtyp -> nat -> ftype
+  | Atyp : fgtyp -> nat -> ftype
   
   with ffields : Type :=
   | Fflips : var -> fflip -> ftype -> ffields -> ffields
   | Fnil : ffields
   .
+
+
   
   (****** Syntax ******)
 
@@ -71,8 +73,8 @@ Section HiFirrtl.
   .
 
   Inductive hfport : Type :=
-  | Finput : var -> fgtyp -> hfport
-  | Foutput : var -> fgtyp -> hfport
+  | Finput : var -> ftype -> hfport
+  | Foutput : var -> ftype -> hfport
   .
 
   Inductive hfmodule : Type :=
@@ -174,19 +176,19 @@ End HiFirrtl.
                  eval_fstmts_group_branch c [::] ((Lfstmt (sfcnct (eref v) e)) :: hstg2) hstg_tl
                                           ((Cnct_as v e1) :: asgn_ls)
   (** connect to dst in then branch which has been connected previously *)
-  | Gthen_cnct c v vn e r hstg1 hstg2 hstg_tl asgn_ls :
-      forall e1, In (Cnct_as v e1) asgn_ls \/ In (Reg_init v r) asgn_ls ->
-                 eval_fstmts_group_branch c hstg1 hstg2 hstg_tl asgn_ls ->
+  | Gthen_cnct c v vn e hstg1 hstg2 hstg_tl asgn_ls :
+      forall e1, In (Cnct_as v e1) asgn_ls ->
+                 eval_fstmts_group_branch c hstg1 hstg2 hstg_tl (rem (Cnct_as v e1) asgn_ls) ->
                  new_var vn ->
                  eval_fstmts_group_branch c ((Lfstmt (sfcnct (eref v) e)) :: hstg1) hstg2 hstg_tl
-                                          ([::(Node_as vn (emux c e e1)); (Cnct_as v (eref vn))]++asgn_ls)
+                                          ([::(Node_as vn (emux c e e1)); (Cnct_as v (eref vn))]++(rem (Cnct_as v e1) asgn_ls))
   (** connect to dst in else branch which has been connected previously *)
-  | Gelse_cnct c v vn e r hstg1 hstg2 hstg_tl asgn_ls :
-      forall e1, In (Cnct_as v e1) asgn_ls \/ In (Reg_init v r) asgn_ls ->
-                 eval_fstmts_group_branch c hstg1 hstg2 hstg_tl asgn_ls ->
+  | Gelse_cnct c v vn e hstg1 hstg2 hstg_tl asgn_ls :
+      forall e1, In (Cnct_as v e1) asgn_ls ->
+                 eval_fstmts_group_branch c hstg1 hstg2 hstg_tl (rem (Cnct_as v e1) asgn_ls) ->
                  new_var vn ->
                  eval_fstmts_group_branch c [::] ((Lfstmt (sfcnct (eref v) e)) :: hstg2) hstg_tl
-                                          ([::(Node_as vn (emux c e1 e)); (Cnct_as v (eref vn))]++asgn_ls)
+                                          ([::(Node_as vn (emux c e1 e)); (Cnct_as v (eref vn))]++(rem (Cnct_as v e1) asgn_ls))
   (** claim a sreg in then branch *)
   | Gthen_reg c r hstg1 hstg2 hstg_tl asgn_ls :
       eval_fstmts_group_branch c hstg1 hstg2 hstg_tl asgn_ls ->
@@ -197,6 +199,16 @@ End HiFirrtl.
       eval_fstmts_group_branch c [::] hstg2 hstg_tl asgn_ls ->
       eval_fstmts_group_branch c [::] (Lfstmt (sreg r) :: hstg2) hstg_tl
                                (Reg_init (rid r) r :: asgn_ls)
+  (** claim a node in then branch *)
+  | Gthen_node c v e hstg1 hstg2 hstg_tl asgn_ls :
+      eval_fstmts_group_branch c hstg1 hstg2 hstg_tl asgn_ls ->
+      eval_fstmts_group_branch c (Lfstmt (snode v e) :: hstg1) hstg2 hstg_tl
+                               (Node_as v e :: asgn_ls)
+  (** claim a node in else branch *)
+  | Gelse_node c v e hstg2 hstg_tl asgn_ls :
+      eval_fstmts_group_branch c [::] hstg2 hstg_tl asgn_ls ->
+      eval_fstmts_group_branch c [::] (Lfstmt (snode v e) :: hstg2) hstg_tl
+                               (Node_as v e :: asgn_ls)
   .
 
 
