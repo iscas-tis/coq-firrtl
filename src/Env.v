@@ -217,29 +217,6 @@ End MakeTypEnv.
 
 Module TE <: TypEnv := MakeTypEnv VarOrder VM.
 
-(* TBD *)
-(* Variable structure : Type. *)
-
-(* Module Type StrStore (V : SsrOrder) (TE : TypEnv with Module SE := V). *)
-(*   Module Lemmas := FMapLemmas TE. *)
-
-(*   Local Notation var := V.t. *)
-(*   Local Notation value := structure. *)
-
-(*   Parameter t : Type. *)
-(*   Parameter acc : var -> t -> value. *)
-(*   Parameter upd : var -> value -> t -> t. *)
-(*   Parameter upd2 : var -> value -> var -> value -> t -> t. *)
-  
-(* End StrStore. *)
-
-(* Module MakeStrStore (V : SsrOrder) (TE : TypEnv with Module SE := V) <: *)
-(*   StrStore V TE. *)
-(*   Module Lemmas := FMapLemmas TE. *)
-
-(* End MakeStrStore. *)
-
-(* Module StrStore := MakeStrStore VarOrder TE. *)
 
 Module Type ValStore (V : SsrOrder) (TE : TypEnv with Module SE := V).
   Module Lemmas := FMapLemmas TE.
@@ -463,3 +440,5 @@ End State.
 Module State.
   Definition t : Type := state Store.t.
 End State.
+
+

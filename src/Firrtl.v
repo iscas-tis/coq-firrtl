@@ -58,7 +58,7 @@ Section LoFirrtl.
   Inductive fexpr : Type :=
   | Econst : bits -> fexpr
   | Eref : var -> fexpr
-  | Edeclare : var -> fgtyp -> fexpr
+  (* | Edeclare : var -> fgtyp -> fexpr *)
   (* | Efield : fexpr -> fexpr -> fexpr *) (* HiFirrtl *)
   (* | Esubfield : var -> nat -> fexpr *) (* HiFirrtl *)
   | Ecast : ucast -> fexpr -> fexpr
@@ -147,17 +147,17 @@ Module MakeFirrtl
   Module VSLemmas := SsrFSetLemmas VS.
 
   Local Notation var := V.t.
-  
+
   Local Notation vstate := SV.t.
   
 (****** Semantics ******)
 
-  (* Small-step *)
+  (* Small-step *) 
 
   Definition fexpr := fexpr V.T.
   Definition econst c := @Econst V.T c.
   Definition eref v := @Eref V.T v.
-  Definition edeclare v t := @Edeclare V.T v t.
+  (* Definition edeclare v t := @Edeclare V.T v t. *)
   Definition ecast u e := @Ecast V.T u e.
   Definition eprim_unop u e := @Eprim_unop V.T u e.
   Definition eprim_binop b e1 e2 := @Eprim_binop V.T b e1 e2.
@@ -172,7 +172,7 @@ Module MakeFirrtl
   (* Definition sinst v1 v2 := @Sinst V.T v1 v2. *)
   Definition snode v e := @Snode V.T v e.
   Definition sfcnct v1 v2 := @Sfcnct V.T v1 v2.
-    
+
   Definition freg := @freg V.T.
   Definition mk_freg := @mk_freg V.T.
   Definition nrst := @NRst V.T.
@@ -304,7 +304,7 @@ Module MakeFirrtl
     match e with
     | Econst c => Fuint (size c)
     | Eref v => TE.vtyp v te
-    | Edeclare v t => t
+    (* | Edeclare v t => t *)
     | Ecast AsUInt e => Fuint (sizeof_fgtyp (type_of_fexpr e te))
     | Ecast AsSInt e => Fsint (sizeof_fgtyp (type_of_fexpr e te))
     | Ecast AsClock e => Fuint 1
@@ -348,7 +348,7 @@ Module MakeFirrtl
   (* Expression evaluation, type env *)
   Definition upd_typenv_fexpr (e : fexpr) (te : TE.env) : TE.env :=
     match e with
-    | Edeclare v t => TE.add v t te
+    (* | Edeclare v t => TE.add v t te *)
     | Ecast AsUInt (Eref v) => TE.add v (Fuint (sizeof_fgtyp (TE.vtyp v te))) te
     | Ecast AsSInt (Eref v) => TE.add v (Fsint (sizeof_fgtyp (TE.vtyp v te))) te
     | Ecast AsClock (Eref v) => TE.add v (Fuint 1) te
@@ -369,7 +369,7 @@ Module MakeFirrtl
     | Eprim_unop u e => (eunop_op u) (eval_fexpr e s te)
     | Emux c e1 e2 => if (Z.ltb 0 (to_Z (eval_fexpr c s te))) then (eval_fexpr e1 s te) else (eval_fexpr e2 s te)
     | Evalidif c e => if (Z.ltb 0 (to_Z (eval_fexpr c s te))) then (eval_fexpr e s te) else [::]
-    | Edeclare v t => zeros (sizeof_fgtyp t)
+    (* | Edeclare v t => zeros (sizeof_fgtyp t) *)
     | Ecast AsUInt e => eval_fexpr e s te
     | Ecast AsSInt e => eval_fexpr e s te
     | Ecast AsClock e => [::lsb (eval_fexpr e s te)]
@@ -488,7 +488,7 @@ Module MakeFirrtl
     match e with
     | Econst _ => true
     | Eref v => 0 < sizeof_fgtyp (TE.vtyp v te)
-    | Edeclare v t => 0 < sizeof_fgtyp t
+    (* | Edeclare v t => 0 < sizeof_fgtyp t *)
     | Ecast _ _ => true
     | Eprim_unop _ e1 => well_typed_fexpr e1 te
     | Eprim_binop _ e1 e2 => (well_typed_fexpr e1 te) && (well_typed_fexpr e2 te)
@@ -520,7 +520,7 @@ Module MakeFirrtl
     match e with
     | Econst _ => true
     | Eref v => is_defined v te
-    | Edeclare v t => true
+    (* | Edeclare v t => true *)
     | Ecast _ e1 => is_defined_fexpr e1 te
     | Eprim_unop _ e1 => is_defined_fexpr e1 te
     | Eprim_binop _ e1 e2 => (is_defined_fexpr e1 te) && (is_defined_fexpr e2 te)
@@ -574,9 +574,9 @@ Module MakeFirrtl
       move/andP => [Hszv1 Hmv1].
       rewrite -(SV.conform_mem Hcf)//.
       rewrite (TE.vtyp_vsize (eqP(eqxx (TE.vtyp v1 te))))//.
-    - (* case edeclare *)
-      move => v1 t1.
-      rewrite /well_formed_fstmt/= andbT size_zeros//.
+    (* - (* case edeclare *) *)
+    (*   move => v1 t1. *)
+    (*   rewrite /well_formed_fstmt/= andbT size_zeros//. *)
     - (* case ecast *)
       move => u e1.
       rewrite /well_formed_fstmt.
