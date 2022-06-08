@@ -12,6 +12,8 @@ Import Prenex Implicits.
 
 
 (****** Bundle type ******)
+
+
 Inductive fflip : Type := Flipped | Nflip.
 
 Inductive ftype : Type :=
@@ -112,20 +114,25 @@ Definition ffield_eqMixin := EqMixin ffield_eqP.
 Canonical ftype_eqType := Eval hnf in EqType ftype ftype_eqMixin.
 Canonical ffield_eqType := Eval hnf in EqType ffield ffield_eqMixin.
 
-
-(* Inductive fcomponent : Type := *)
-(* | In_port : var -> fcomponent *)
-(* | Instanceof : var -> fcomponent *)
-(* | Memory : var -> fcomponent *)
-(* | Node : var -> fcomponent *)
-(* | Out_port : var -> fcomponent *)
-(* | Register : var -> fcomponent *)
-(* | Wire : var -> fcomponent *)
-(* . *)
-
 Inductive fcomponent : Set :=
-| In_port | Instanceof | Memory | Node | Out_port
-| Register | Wire.
+| In_port
+| Instanceof
+| Memory
+| Node
+| Out_port
+| Register
+| Wire
+.
+
+(* Inductive fcomponent : Set := *)
+(* | In_port : ftype -> fcomponent *)
+(* | Instanceof : ftype -> fcomponent *)
+(* | Memory : ftype -> fcomponent *)
+(* | Node : ftype -> fcomponent *)
+(* | Out_port : ftype -> fcomponent *)
+(* | Register : ftype -> fcomponent *)
+(* | Wire : ftype -> fcomponent *)
+(* . *)
 
 (** eq dec *)
 Axiom component_eq_dec : forall {x y : fcomponent}, {x = y} + {x <> y}.
@@ -134,21 +141,20 @@ Axiom component_eqP : Equality.axiom component_eqn.
 Canonical component_eqMixin := EqMixin component_eqP.
 Canonical component_eqType := Eval hnf in EqType fcomponent component_eqMixin.
 
-
 (* A mapping from a variable to its component type *)
 
 Module Type CmpntEnv <: SsrFMap.
 
   Include SsrFMap.
 
-  Definition env : Type := t fcomponent.
+  Definition env : Type := t (fgtyp * fcomponent).
 
   (* The default type of a variable not in the typing environment *)
-  Parameter deftyp : fcomponent.
+  Parameter deftyp : fgtyp * fcomponent.
 
   (* Find the type of a variable in a typing environment.
      If a variable is not in the typing environment, return the default type. *)
-  Parameter vtyp : SE.t -> env -> fcomponent.
+  Parameter vtyp : SE.t -> env -> (fgtyp * fcomponent).
 
   (* Return the size of a variable in a typing environment.
      If a variable is not in the typing environment, return the size of the
@@ -156,16 +162,16 @@ Module Type CmpntEnv <: SsrFMap.
   (* Parameter vsize : SE.t -> env -> nat. *)
 
   Axiom find_some_vtyp :
-    forall {x : SE.t} {ty : fcomponent} {e : env}, find x e = Some ty -> vtyp x e = ty.
+    forall {x : SE.t} {ty : fgtyp * fcomponent} {e : env}, find x e = Some ty -> vtyp x e = ty.
   Axiom find_none_vtyp :
     forall {x : SE.t} {e : env}, find x e = None -> vtyp x e = deftyp.
   Axiom vtyp_find :
-    forall {x : SE.t} {ty : fcomponent} {e : env},
+    forall {x : SE.t} {ty : fgtyp * fcomponent} {e : env},
       (vtyp x e == ty) = (find x e == Some ty) || ((find x e == None) && (ty == deftyp)).
   Axiom vtyp_add_eq :
-    forall {x y : SE.t} {ty : fcomponent} {e : env}, x == y -> vtyp x (add y ty e) = ty.
+    forall {x y : SE.t} {ty : fgtyp * fcomponent} {e : env}, x == y -> vtyp x (add y ty e) = ty.
   Axiom vtyp_add_neq :
-    forall {x y : SE.t} {ty : fcomponent} {e : env},
+    forall {x y : SE.t} {ty : fgtyp * fcomponent} {e : env},
       x != y -> vtyp x (add y ty e) = vtyp x e.
   (* Axiom vsize_add_eq : *)
   (*   forall {x y : SE.t} {ty : fgtyp} {e : env}, *)
@@ -187,14 +193,14 @@ Module MakeCmpntEnv (V : SsrOrder) (VM : SsrFMap with Module SE := V) <:
   Include VM.
   Module Lemmas := FMapLemmas VM.
 
-  Definition env : Type := t fcomponent.
+  Definition env : Type := t (fgtyp * fcomponent).
 
   (* The default type of a variable not in the typing environment *)
-  Definition deftyp : fcomponent := Node.
+  Definition deftyp := (Fuint 0, Node).
 
   (* Find the type of a variable in a typing environment.
      If a variable is not in the typing environment, return the default type. *)
-  Definition vtyp (v : V.t) (e : env) : fcomponent :=
+  Definition vtyp (v : V.t) (e : env) : fgtyp * fcomponent :=
     match VM.find v e with
     | None => deftyp
     | Some ty => ty
