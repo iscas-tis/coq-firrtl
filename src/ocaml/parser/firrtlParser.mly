@@ -6,10 +6,12 @@
 %token<string> COMMENT
 %token<string> BINARY HEX_DECIMAL OCTAL DECIMAL NUMERAL STRING SYMBOL
 %token PAR_OPEN PAR_CLOSE ANG_OPEN ANG_CLOSE SQR_OPEN SQR_CLOSE UNDERSCORE QUOT SPRT KEYWORD
-%token CIRCUIT STM_MODULE STM_SKIP STM_INPUT STM_OUTPUT STM_WHEN STM_ELSE  STM_CONNECT STM_PCONNECT
-%token STM_NODE STM_NASS
-%token STM_WIRE STM_REG REG_WITH REG_RST REG_RSTARR STM_MEM EXPR_ADD EXPR_NOT SUB_FIELD UINT SINT INT CLOCK
+%token CIRCUIT STM_MODULE STM_EXTMODULE STM_SKIP STM_INPUT STM_OUTPUT STM_WHEN STM_ELSE  STM_CONNECT STM_PCONNECT
+%token STM_NODE STM_NASS STM_INST KEYWORD_OF STM_DEFNAME STM_INVALID STM_PARAM STM_DATATYPE STM_DEPTH STM_READ STM_READ_L STM_WRITE STM_WRITE_L STM_READWRITE
+%token STM_WIRE STM_REG REG_WITH REG_RST REG_RSTARR STM_MEM SUB_FIELD UINT SINT INT CLOCK 
+%token EXPR_VALIDIF EXPR_ADD EXPR_AND EXPR_ANDR EXPR_ASCLOCK EXPR_ASFIXED EXPR_ASSINT EXPR_ASUINT EXPR_CAT EXPR_CVT EXPR_DIV EXPR_DSHL EXPR_DSHR EXPR_EQ EXPR_GEQ EXPR_GT EXPR_HEAD EXPR_LEQ EXPR_LT EXPR_MUL EXPR_MUX EXPR_NEG EXPR_NEQ EXPR_NOT EXPR_OR EXPR_ORR EXPR_PAD EXPR_REM EXPR_SHL EXPR_SHR EXPR_SUB EXPR_TAIL EXPR_XOR EXPR_XORR EXPR_BITS
 %token EOF
+%token M_OLD M_NEW M_UNDEFINED
 
 %start file
 %type <Ast.file> file
@@ -35,10 +37,12 @@ fmodules
     
 fmodule
   : mdl ports statements                 { FInmod ($1, $2, $3) }
+  | mdl ports statements                 { FExmod ($1, $2, $3) }
   ;
 
 mdl 
   : STM_MODULE symbol KEYWORD            { $2 }
+  | STM_EXTMODULE symbol KEYWORD            { $2 }
   ;
 
 ports
@@ -54,10 +58,15 @@ port
 ;
 
 typ_def
-  : UINT ANG_OPEN numeral ANG_CLOSE      { Tuint $3 }
-  | SINT ANG_OPEN numeral ANG_CLOSE      { Tsint $3 }
-  | CLOCK                                { Clock }
+  : UINT ANG_OPEN numeral ANG_CLOSE      { Fuint $3 }
+  | SINT ANG_OPEN numeral ANG_CLOSE      { Fsint $3 }
+  | CLOCK                                { Fclock }
 ;
+
+ruw
+  : M_OLD      { Mold}
+  | M_NEW     { Mnew}
+  | M_UNDEFINED     { Mundefined}
 
 /* statement */
 
@@ -78,27 +87,119 @@ statement
   | STM_WIRE symbol KEYWORD typ_def 
                                             { Swire ($2, $4) }
   | STM_NODE symbol STM_NASS expr           { Snode ($2, $4) }
+  | STM_INST symbol KEYWORD_OF symbol           { Sinst ($2, $4) }
   | STM_REG symbol KEYWORD typ_def SPRT expr REG_WITH KEYWORD REG_RST REG_RSTARR PAR_OPEN expr SPRT expr PAR_CLOSE
-                                            { Sreg (mkfreg $2 $4 $6 $12 $14) }
+                                            { Sreg (mk_freg $2 $4 $6 $12 $14) }
+  | STM_DEFNAME STM_NASS symbol            { Sdefname ($3) }
+  | STM_PARAM symbol STM_NASS expr              { Sparam ($2, $4) }
+  | symbol STM_INVALID                { Sinvalid ($1) }
+  | STM_MEM symbol KEYWORD STM_DATATYPE REG_RSTARR typ_def STM_DEPTH REG_RSTARR numeral STM_READ_L REG_RSTARR numeral STM_WRITE_L REG_RSTARR numeral STM_READ REG_RSTARR symbols STM_WRITE REG_RSTARR symbols STM_READWRITE REG_RSTARR ruw
+                                           { Smem (mk_fmem $2 $6 $9 $12 $15 $18 $21 $24)}
+  | STM_MEM symbol KEYWORD STM_DATATYPE REG_RSTARR typ_def STM_DEPTH REG_RSTARR numeral STM_READ_L REG_RSTARR numeral STM_WRITE_L REG_RSTARR numeral STM_READWRITE REG_RSTARR ruw
+                                           { Smem (mk_fmem_non $2 $6 $9 $12 $15 $18)}
+  | STM_MEM symbol KEYWORD STM_DATATYPE REG_RSTARR typ_def STM_DEPTH REG_RSTARR numeral STM_READ_L REG_RSTARR numeral STM_WRITE_L REG_RSTARR numeral STM_READ REG_RSTARR symbols STM_READWRITE REG_RSTARR ruw
+                                           { Smem (mk_fmem_r $2 $6 $9 $12 $15 $18 $21)}
 ;
   
 /* expression */
   
 expr
 :   symbol                                  { Eref $1 }
+/*
+    | UINT ANG_OPEN numeral ANG_CLOSE PAR_OPEN QUOT hexadecimal QUOT PAR_CLOSE
+                                            { Econst (Fuint($3), $7)}
+    | SINT ANG_OPEN numeral ANG_CLOSE PAR_OPEN QUOT hexadecimal QUOT PAR_CLOSE
+                                            { Econst (Fsint($3), $7)}
+                                            */
+    | typ_def PAR_OPEN QUOT hexadecimal QUOT PAR_CLOSE
+                                              { Econst ($1, $4)}
+    | EXPR_ADD PAR_OPEN expr SPRT expr PAR_CLOSE
+                                            { Eprim_binop (Badd, $3, $5)}
+    | EXPR_SUB PAR_OPEN expr SPRT expr PAR_CLOSE
+                                            { Eprim_binop (Bsub, $3 , $5)}
+    | EXPR_MUL PAR_OPEN expr SPRT expr PAR_CLOSE
+                                            { Eprim_binop (Bmul, $3 , $5)}
+    | EXPR_DIV PAR_OPEN expr SPRT expr PAR_CLOSE
+                                            { Eprim_binop (Bdiv, $3 , $5)}
+    | EXPR_REM PAR_OPEN expr SPRT expr PAR_CLOSE
+                                            { Eprim_binop (Brem, $3 , $5)}
+    | EXPR_DSHL PAR_OPEN expr SPRT expr PAR_CLOSE
+                                            { Eprim_binop (Bdshl, $3, $5)}
+    | EXPR_DSHR PAR_OPEN expr SPRT expr PAR_CLOSE
+                                            { Eprim_binop (Bdshr, $3, $5)}
+    | EXPR_AND PAR_OPEN expr SPRT expr PAR_CLOSE
+                                            { Eprim_binop (Band, $3, $5)}
+    | EXPR_OR PAR_OPEN expr SPRT expr PAR_CLOSE
+                                            { Eprim_binop (Bor, $3, $5)}
+    | EXPR_XOR PAR_OPEN expr SPRT expr PAR_CLOSE
+                                            { Eprim_binop (Bxor, $3, $5)}
+    | EXPR_CAT PAR_OPEN expr SPRT expr PAR_CLOSE
+                                            { Eprim_binop (Bcat, $3, $5)}
+                                            
+    | EXPR_CVT PAR_OPEN expr PAR_CLOSE
+                                            { Eprim_unop (Ucvt, $3)}
+    | EXPR_NEG PAR_OPEN expr PAR_CLOSE
+                                            { Eprim_unop (Uneg, $3)}
+    | EXPR_NOT PAR_OPEN expr PAR_CLOSE
+                                            { Eprim_unop (Unot, $3)}
+    | EXPR_ANDR PAR_OPEN expr PAR_CLOSE
+                                            { Eprim_unop (Uandr, $3)}
+    | EXPR_ORR PAR_OPEN expr PAR_CLOSE
+                                            { Eprim_unop (Uorr, $3)}
+    | EXPR_XORR PAR_OPEN expr PAR_CLOSE
+                                            { Eprim_unop (Uxorr, $3)}
+    | EXPR_TAIL PAR_OPEN expr SPRT numeral PAR_CLOSE
+                                            { Eprim_unop (Utail ($5), $3)}
+    | EXPR_HEAD PAR_OPEN expr SPRT numeral PAR_CLOSE
+                                            { Eprim_unop ( Uhead ($5), $3)}
+    | EXPR_PAD PAR_OPEN expr SPRT numeral PAR_CLOSE
+                                            { Eprim_unop ( Uhead ($5), $3)}
+    | EXPR_SHL PAR_OPEN expr SPRT numeral PAR_CLOSE
+                                            { Eprim_unop ( Ushl ($5), $3)}
+    | EXPR_SHR PAR_OPEN expr SPRT numeral PAR_CLOSE
+                                            { Eprim_unop ( Ushr ($5), $3)}
+     | EXPR_BITS PAR_OPEN expr SPRT numeral SPRT numeral PAR_CLOSE
+                                            { Eprim_unop ( Ubits ($5, $7), $3)}
 
+    | EXPR_ASUINT PAR_OPEN expr PAR_CLOSE
+                                            { Eprim_unop (Ucast (AsUInt), $3)}
+    | EXPR_ASSINT PAR_OPEN expr PAR_CLOSE
+                                            { Eprim_unop (Ucast (AsSInt), $3)}
+    | EXPR_ASFIXED PAR_OPEN expr PAR_CLOSE
+                                            { Eprim_unop (Ucast (AsFixed), $3)}
+    | EXPR_ASCLOCK PAR_OPEN expr PAR_CLOSE
+                                            { Eprim_unop (Ucast (AsClock), $3)}
 
-    | EXPR_ADD PAR_OPEN symbol SPRT symbol PAR_CLOSE
-                                            { Eprim_binop (Badd, (Eref $3), (Eref $5))}
-    | EXPR_NOT PAR_OPEN symbol PAR_CLOSE
-                                            { Eprim_unop (Unot, (Eref $3))}
+    | EXPR_GT PAR_OPEN expr SPRT expr PAR_CLOSE
+                                            { Eprim_binop (Bcomp (Bgt), $3, $5)}
+    | EXPR_LT PAR_OPEN expr SPRT expr PAR_CLOSE
+                                            { Eprim_binop (Bcomp (Blt), $3, $5)}
+    | EXPR_LEQ PAR_OPEN expr SPRT expr PAR_CLOSE
+                                            { Eprim_binop (Bcomp (Bleq), $3, $5)}
+    | EXPR_GEQ PAR_OPEN expr SPRT expr PAR_CLOSE
+                                            { Eprim_binop (Bcomp (Bgeq), $3, $5)}
+    | EXPR_EQ PAR_OPEN expr SPRT expr PAR_CLOSE
+                                            { Eprim_binop (Bcomp (Beq), $3, $5)}
+    | EXPR_NEQ PAR_OPEN expr SPRT expr PAR_CLOSE
+                                            { Eprim_binop (Bcomp (Bneq), $3, $5)}
+
+    | EXPR_MUX PAR_OPEN expr SPRT expr SPRT expr PAR_CLOSE
+                                            { Emux ($3, $5, $7)}
+    |  EXPR_VALIDIF PAR_OPEN expr SPRT expr PAR_CLOSE
+                                            { Evalidif ($3, $5)}
 ;  
+
 
 /* Symbols */
 
 symbol
   : SYMBOL                              { $1 }
 ;
+
+symbols
+  :                                      { [] }
+  | symbol symbols                 { $1::$2 }
+  ;    
 
 
 /* spec_constant */
@@ -112,13 +213,16 @@ decimal
 ;
 
 hexadecimal
-  : HEX_DECIMAL                         { String.uppercase_ascii $1 }
+  : HEX_DECIMAL                         { Z.of_string_base 16 $1 }
 ;
 
 binary
-  : BINARY                              { $1 }
+  : BINARY                              { Z.of_string $1 }
 ;
 
+octal 
+  : OCTAL                                { Z.of_string $1 }
+
 string
-  : STRING                              { $1 }
+  : STRING                              { Z.of_string $1 }
 ;

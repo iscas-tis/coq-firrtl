@@ -38,7 +38,7 @@ and token = parse
 | '>'                                   { upd_cnum lexbuf; ANG_CLOSE }
 | '['                                   { upd_cnum lexbuf; SQR_OPEN }
 | ']'                                   { upd_cnum lexbuf; SQR_CLOSE }
-| '"'                                   { upd_cnum lexbuf; QUOT }
+| '"'                                  { upd_cnum lexbuf; QUOT } 
 | '_'                                   { upd_cnum lexbuf; UNDERSCORE }
 | "b" (binary_digit+ as str)            { upd_cnum lexbuf; BINARY str }
 | "o" (numeral+ as str)                 { upd_cnum lexbuf; OCTAL str }
@@ -49,10 +49,13 @@ and token = parse
                                         { upd_cnum lexbuf; HEX_DECIMAL str }
 | numeral '.' '0'* numeral as str       { upd_cnum lexbuf; DECIMAL str }
 | numeral as str                        { upd_cnum lexbuf; NUMERAL str }
-| '"' (([^'"']|escape_space)* as str) '"'
-                                        { upd_cnum lexbuf; STRING str }
+(* | '"' (([^'"']|escape_space)* as str) '"'
+ *                                         { upd_cnum lexbuf; STRING str } *)
 | "circuit"                             { upd_cnum lexbuf; CIRCUIT }
 | "module"                              { upd_cnum lexbuf; STM_MODULE }
+| "extmodule"                   { upd_cnum lexbuf; STM_EXTMODULE }
+| "defname"                   { upd_cnum lexbuf; STM_DEFNAME }
+| "parameter"                  { upd_cnum lexbuf; STM_PARAM }
 | "skip"                                { upd_cnum lexbuf; STM_SKIP }
 | "input"                               { upd_cnum lexbuf; STM_INPUT }
 | "output"                              { upd_cnum lexbuf; STM_OUTPUT }
@@ -60,19 +63,70 @@ and token = parse
 | "else"                                { upd_cnum lexbuf; STM_ELSE }
 | "<="                                  { upd_cnum lexbuf; STM_CONNECT }
 | "<-"                                  { upd_cnum lexbuf; STM_PCONNECT}
-| "add"                                 { upd_cnum lexbuf; EXPR_ADD}
-| "not"                                 { upd_cnum lexbuf; EXPR_NOT}
-| "wire"                                { upd_cnum lexbuf; STM_WIRE }
 
+| "add"                                 { upd_cnum lexbuf; EXPR_ADD}
+| "sub"                                 { upd_cnum lexbuf; EXPR_SUB}
+| "mul"                                 { upd_cnum lexbuf; EXPR_MUL}
+| "div"                                 { upd_cnum lexbuf; EXPR_DIV}
+| "rem"                                 { upd_cnum lexbuf; EXPR_REM}
+| "dshl"                                 { upd_cnum lexbuf; EXPR_DSHL}
+| "dshr"                                 { upd_cnum lexbuf; EXPR_DSHR}
+| "and"                                 { upd_cnum lexbuf; EXPR_AND}
+| "or"                                 { upd_cnum lexbuf; EXPR_OR}
+| "xor"                                 { upd_cnum lexbuf; EXPR_XOR}
+| "not"                                 { upd_cnum lexbuf; EXPR_NOT}
+| "cvt"                                 { upd_cnum lexbuf; EXPR_CVT}
+| "neg"                                 { upd_cnum lexbuf; EXPR_NEG}
+| "andr"                                 { upd_cnum lexbuf; EXPR_ANDR}
+| "orr"                                 { upd_cnum lexbuf; EXPR_ORR}
+| "xorr"                                 { upd_cnum lexbuf; EXPR_XORR}
+| "tail"                                 { upd_cnum lexbuf; EXPR_TAIL}
+| "head"                                 { upd_cnum lexbuf; EXPR_HEAD}
+| "pad"                                 { upd_cnum lexbuf; EXPR_PAD}
+| "shl"                                 { upd_cnum lexbuf; EXPR_SHL}
+| "shr"                                 { upd_cnum lexbuf; EXPR_SHR}
+| "mux"                                 { upd_cnum lexbuf; EXPR_MUX}
+| "validif"                                 { upd_cnum lexbuf; EXPR_VALIDIF}
+
+| "cat"                                 { upd_cnum lexbuf; EXPR_CAT}
+| "bits"                                { upd_cnum lexbuf; EXPR_BITS}
+
+| "asUInt"                                       { upd_cnum lexbuf;  EXPR_ASUINT}
+| "asSInt"                                       { upd_cnum lexbuf; EXPR_ASSINT }
+| "asFixed"                                       { upd_cnum lexbuf; EXPR_ASFIXED }
+| "asClock"                                       { upd_cnum lexbuf; EXPR_ASCLOCK }
+
+| "wire"                                { upd_cnum lexbuf; STM_WIRE }
 | "reg"                                 { upd_cnum lexbuf; STM_REG }
 | "with"                                { upd_cnum lexbuf; REG_WITH }
 | "reset"                               { upd_cnum lexbuf; REG_RST }
 | "=>"                                  { upd_cnum lexbuf; REG_RSTARR }
 | "node"                                { upd_cnum lexbuf; STM_NODE }
 | "="                                   { upd_cnum lexbuf; STM_NASS }
-(*
+| "inst"                                { upd_cnum lexbuf; STM_INST }
+| "of"                                   { upd_cnum lexbuf; KEYWORD_OF }
+| "is invalid"                      { upd_cnum lexbuf; STM_INVALID}
+| "data-type"                      { upd_cnum lexbuf; STM_DATATYPE}
+| "depth"                      { upd_cnum lexbuf; STM_DEPTH}
+| "read-latency"                      { upd_cnum lexbuf; STM_READ_L}
+| "write-latency"                      { upd_cnum lexbuf; STM_WRITE_L}
+| "reader"                      { upd_cnum lexbuf; STM_READ}
+| "writer"                      { upd_cnum lexbuf; STM_WRITE}
+| "read-under-write"                      { upd_cnum lexbuf; STM_READWRITE}
+| "new"                      { upd_cnum lexbuf; M_NEW}
+| "old"                      { upd_cnum lexbuf; M_OLD}
+| "undefined"                      { upd_cnum lexbuf; M_UNDEFINED}
+
+| "gt"                                       { upd_cnum lexbuf; EXPR_GT }
+| "lt"                                       { upd_cnum lexbuf; EXPR_LT }
+| "geq"                                       { upd_cnum lexbuf; EXPR_GEQ }
+| "leq"                                       { upd_cnum lexbuf; EXPR_LEQ }
+| "eq"                                       { upd_cnum lexbuf; EXPR_EQ }
+| "neq"                                       { upd_cnum lexbuf; EXPR_NEQ }
+
+
 | "mem"                                 { upd_cnum lexbuf; STM_MEM }
- *)
+ 
 (* Types *)
 | "UInt"                                { upd_cnum lexbuf; UINT }
 | "SInt"                                { upd_cnum lexbuf; SINT }
