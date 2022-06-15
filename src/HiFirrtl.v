@@ -435,7 +435,24 @@ Module MakeHiFirrtl
            (v1 == v2) && ftype_equiv t1 t2 && fbtyp_equiv fs1 fs2
          | _, _ => false
          end.
-  
+
+  Fixpoint ftype_weak_equiv t1 t2 :=
+    match t1, t2 with
+    | Gtyp gt1, Gtyp gt2 => fgtyp_equiv gt1 gt2
+    | Atyp t1 n1, Atyp t2 n2 => ftype_equiv t1 t2
+    | Btyp bt1, Btyp bt2 => fbtyp_weak_equiv bt1 bt2
+    | _, _ => false
+    end
+  with fbtyp_weak_equiv b1 b2 :=
+         match b1, b2 with
+         | Fflips v1 Flipped t1 fs1, Fflips v2 Flipped t2 fs2 =>
+           (v1 == v2) && ftype_equiv t1 t2 && fbtyp_equiv fs1 fs2
+         | Fflips v1 Nflip t1 fs1, Fflips v2 Nflip t2 fs2 =>
+           (v1 == v2) && ftype_equiv t1 t2 && fbtyp_equiv fs1 fs2
+         | _, Fnil => true
+         | Fnil, _ => true
+         | _, _ => false
+         end.
 
   (** Pass Resolvekinds *)
   (** Pass InferType *)
@@ -508,6 +525,33 @@ Module MakeHiFirrtl
     | Aggr_typ t => t
     | Reg_typ r => @type V.T r
     | Mem_typ m => @data_type V.T m
+    end.
+
+  Fixpoint type_of_ref r ce : ftype :=
+    match r with
+    | Eid v => type_of_cmpnttyp (fst (CE.vtyp v ce))
+    | Esubfield r v => let t := type_of_ref r ce in
+                       match t with
+                       | Btyp fs => let fix aux fx := (
+                                          match fx with
+                                          | Fflips v' f t fxs => 
+                                            if (v2var v == v') then t
+                                            else aux fxs
+                                          | Fnil => def_ftype
+                                          end )
+                                    in aux fs
+                       | _ => def_ftype
+                       end
+    | Esubindex r n => let t := type_of_ref r ce in
+                       match t with
+                       | Atyp ty n => ty
+                       | _ => def_ftype
+                       end
+    | Esubaccess r e => let t := type_of_ref r ce in
+                        match t with
+                        | Atyp ty n => ty
+                        | _ => def_ftype
+                        end
     end.
   
   Fixpoint type_of_hfexpr (e : hfexpr) (ce : cenv) : ftype :=
@@ -658,33 +702,8 @@ Module MakeHiFirrtl
                       let t2 := type_of_hfexpr e2 ce in
                       mux_types t1 t2 
     | Evalidif c e1 => type_of_hfexpr e1 ce
-    end
-  with type_of_ref r ce : ftype :=
-         match r with
-         | Eid v => type_of_cmpnttyp (fst (CE.vtyp v ce))
-         | Esubfield r v => let t := type_of_ref r ce in
-                            match t with
-                            | Btyp fs => let fix aux fx := (
-                                               match fx with
-                                               | Fflips v' f t fxs => 
-                                                 if (v2var v == v') then t
-                                                 else aux fxs
-                                               | Fnil => def_ftype
-                                               end )
-                                         in aux fs
-                            | _ => def_ftype
-                            end
-         | Esubindex r n => let t := type_of_ref r ce in
-                            match t with
-                            | Atyp ty n => ty
-                            | _ => def_ftype
-                            end
-         | Esubaccess r e => let t := type_of_ref r ce in
-                            match t with
-                            | Atyp ty n => ty
-                            | _ => def_ftype
-                            end
-         end.
+    end.
+
 
   Definition upd_regtyp t r :=
     mk_hfreg t (clock r) (reset r).
@@ -698,6 +717,21 @@ Module MakeHiFirrtl
   Definition is_vector t :=
     match t with Atyp _ _ => true | _ => false end.
 
+  Fixpoint is_deftyp t :=
+    match t with
+    | Gtyp (Fsint 0)
+    | Gtyp (Fuint 0) => true
+    | Atyp tn _ => is_deftyp tn
+    | Btyp bt => is_deftyp_f bt
+    | _ => false
+    end
+  with is_deftyp_f bt :=
+         match bt with
+         | Fnil => false
+         | Fflips v f tv fs => is_deftyp tv
+         end
+           .
+
   Fixpoint max_width t1 t2 :=
     match t1, t2 with
     | Gtyp (Fsint w1), Gtyp (Fsint w2) => Gtyp (Fsint (maxn w1 w2))
@@ -709,13 +743,13 @@ Module MakeHiFirrtl
     end
   with max_width_f bt1 bt2 :=
          match bt1, bt2 with
-         | Fnil, Fnil => Fnil
+         | Fnil, Fnil => bt1
          | Fflips v1 ft1 t1 fs1, Fflips v2 ft2 t2 fs2 =>
            Fflips v1 ft1 (max_width t1 t2) (max_width_f fs1 fs2)
          | Fnil, _ => bt1
          | f, Fnil => f
          end.
-
+  
   Fixpoint upd_name_ftype ft v t : ftype :=
     match ft with
     | Gtyp gt => ft
@@ -729,12 +763,14 @@ Module MakeHiFirrtl
                                  else Fflips v1 ft (upd_name_ftype t1 v t)
                                              (upd_name_ffield fs v t)
          end.
+
+
   
   Definition upd_cmpnttyp_field ft v t :=
     match ft with
-    | Reg_typ r => Reg_typ (upd_regtyp (upd_name_ftype (type r) v t) r)
-    | Mem_typ m => Mem_typ (upd_memtyp (upd_name_ftype (data_type m) v t) m)
-    | Aggr_typ ft => @Aggr_typ V.T (upd_name_ftype ft v t)
+    | Reg_typ r => reg_typ (upd_regtyp (upd_name_ftype (type r) v t) r)
+    | Mem_typ m => mem_typ (upd_memtyp (upd_name_ftype (data_type m) v t) m)
+    | Aggr_typ ft => aggr_typ (upd_name_ftype ft v t)
     end.
   
   (* esubfield r v , type_of_ref *)
@@ -744,8 +780,22 @@ Module MakeHiFirrtl
     | Eid v1 => CE.add v1 (upd_cmpnttyp_field (fst (CE.vtyp v1 ce)) v t, snd (CE.vtyp v1 ce)) ce
     (* r1.v1.v *)
     | Esubfield r1 v1 => upd_subfield_typ r1 v t ce
-    | _ => ce
+    | Esubindex r1 n => upd_subfield_typ r1 v t ce
+    | Esubaccess r1 n => upd_subfield_typ r1 v t ce
     end.
+
+  Fixpoint upd_eref_ftype r t ce :=
+    match r with
+    | Eid v => CE.add v (upd_cmpnttyp_field (fst (CE.vtyp v ce)) (v2var v) t, snd (CE.vtyp v ce)) ce
+    | Esubfield r v => upd_subfield_typ r (v2var v) t ce
+    | Esubindex r1 n => upd_eref_ftype r1 t ce
+    | Esubaccess r1 n =>  upd_eref_ftype r1 t ce
+    end.
+
+  Lemma upd_eref_ftype_equiv r t ce :
+    type_of_ref r ce = type_of_ref r (upd_eref_ftype r t ce).
+  Proof.
+  Admitted.
   
   (** Pass InferTypes & InferWidth *)
   
@@ -758,30 +808,33 @@ Module MakeHiFirrtl
   | Infer_connect_reg v ty e ce ce' :
       CE.find v ce = Some (reg_typ ty, Register) ->
       ftype_equiv (type ty) (type_of_hfexpr e ce) ->
+      is_deftyp (type ty) ->
       CELemmas.P.Add v (reg_typ (upd_regtyp (type_of_hfexpr e ce) ty), Register) ce ce' ->
       inferTypeAndWidth (sfcnct (eid v) e) ce ce'
   (* full connect to mem *)
   | Infer_connect_mem v ty e ce ce' :
       CE.find v ce = Some (mem_typ ty, Memory) ->
       ftype_equiv (data_type ty) (type_of_hfexpr e ce) ->
+      is_deftyp (data_type ty) ->
       CELemmas.P.Add v (mem_typ (upd_memtyp (type_of_hfexpr e ce) ty), Memory) ce ce' ->
       inferTypeAndWidth (sfcnct (eid v) e) ce ce'
   (* full connect to ref of ports, wire and node *)
   | Infer_connect v ty c e ce ce' :
       CE.find v ce = Some (aggr_typ ty, c) ->
       ftype_equiv ty (type_of_hfexpr e ce) ->
+      is_deftyp (ty) ->
       CELemmas.P.Add v (aggr_typ (type_of_hfexpr e ce), Wire) ce ce' ->
       inferTypeAndWidth (sfcnct (eid v) e) ce ce'
-  (* full connect to subfield of _ *)
-  | Infer_connect_subfield r v e ce :
+  (* full connect to of eref *)
+  | Infer_connect_subfield r e ce :
       is_bundle (type_of_ref r ce) ->
-      ftype_equiv (type_of_ref (esubfield r v) ce) (type_of_hfexpr e ce) ->
-      inferTypeAndWidth (sfcnct (esubfield r v) e) ce (upd_subfield_typ r (v2var v) (type_of_hfexpr e ce) ce)
-  (* full connect to subindex of _  *)
-  | Infer_connect_subindex r n e ce ce' :                 
+      ftype_equiv (type_of_ref r ce) (type_of_hfexpr e ce) ->
+      inferTypeAndWidth (sfcnct r e) ce (upd_eref_ftype r (type_of_hfexpr e ce) ce)
+  (* partial connect to eref of _  *)
+  | Infer_connect_subindex r e ce :                 
       is_vector (type_of_ref r ce) ->
-      ftype_equiv (type_of_ref (esubindex r n) ce) (type_of_hfexpr e ce) ->
-      inferTypeAndWidth (sfcnct (esubindex r n) e) ce ce'
+      ftype_weak_equiv (type_of_ref r ce) (type_of_hfexpr e ce) ->
+      inferTypeAndWidth (spcnct r e) ce (upd_eref_ftype r (type_of_hfexpr e ce) ce)
   .
 
   (* TBD *)
