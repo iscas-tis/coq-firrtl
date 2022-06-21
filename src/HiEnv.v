@@ -127,7 +127,7 @@ Inductive fcomponent : Set :=
 | Out_port
 | Register
 | Wire
-(* | Fmodule *)
+| Fmodule
 .
 
 
