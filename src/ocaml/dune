@@ -6,6 +6,6 @@
 
 (executables
 ; (names            main)
- (names            pparser)
+ (names            pparser main)
  (libraries        firrtl_lang interpreter)
 )
