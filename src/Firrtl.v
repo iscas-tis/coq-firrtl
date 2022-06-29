@@ -56,7 +56,7 @@ Section LoFirrtl.
 
   (* mux, valid, sub-xxx, TBD *)
   Inductive fexpr : Type :=
-  | Econst : bits -> fexpr
+  | Econst : fgtyp -> bits -> fexpr
   | Eref : var -> fexpr
   (* | Edeclare : var -> fgtyp -> fexpr *)
   (* | Efield : fexpr -> fexpr -> fexpr *) (* HiFirrtl *)
@@ -302,7 +302,7 @@ Module MakeFirrtl
 
   Fixpoint type_of_fexpr (e : fexpr) (te : TE.env) : fgtyp :=
     match e with
-    | Econst c => Fuint (size c)
+    | Econst t c => t
     | Eref v => TE.vtyp v te
     (* | Edeclare v t => t *)
     | Ecast AsUInt e => Fuint (sizeof_fgtyp (type_of_fexpr e te))
@@ -358,7 +358,7 @@ Module MakeFirrtl
   (* Expression evaluation, value *)
   Fixpoint eval_fexpr (e : fexpr) (s : vstate) (te : TE.env) : bits :=
     match e with
-    | Econst c => c
+    | Econst t c => c
     | Eref v => SV.acc v s
     (* | Efield *)
     (* | Esubfield  *)
@@ -486,7 +486,7 @@ Module MakeFirrtl
   
   Fixpoint well_typed_fexpr (e : fexpr) (te : TE.env) : bool :=
     match e with
-    | Econst _ => true
+    | Econst t c => (sizeof_fgtyp t) == (size c)
     | Eref v => 0 < sizeof_fgtyp (TE.vtyp v te)
     (* | Edeclare v t => 0 < sizeof_fgtyp t *)
     | Ecast _ _ => true
@@ -518,7 +518,7 @@ Module MakeFirrtl
 
   Fixpoint is_defined_fexpr (e : fexpr) (te : TE.env) : bool :=
     match e with
-    | Econst _ => true
+    | Econst _ _ => true
     | Eref v => is_defined v te
     (* | Edeclare v t => true *)
     | Ecast _ e1 => is_defined_fexpr e1 te
@@ -568,7 +568,11 @@ Module MakeFirrtl
     [ |apply SV.Upd_upd | ].
     move : Hwf.
     case e; try by done.
-    - (* case eref *)
+    - (* case const *)
+      move => v1.
+      rewrite /well_formed_fstmt/= /is_defined.
+      move => b /andP[/eqP H _]; done.
+    - (* case ref *)
       move => v1.
       rewrite /well_formed_fstmt/= /is_defined.
       move/andP => [Hszv1 Hmv1].
@@ -641,7 +645,7 @@ Section Examples.
   Definition te1 := upd_typenv_fports fpts te0. 
   Definition st1 := Store.upd clk [::b0] (Store.upd rst1 [::b0] (Store.upd io_in [::b1] (Store.upd io_out (from_nat 8 0) st0))).
   Definition fst1 := sreg (mk_freg accumulator (Fuint 8) (eref clk)
-                                   (rrst (econst [::b0]) (eref accumulator))).
+                                   (rrst (econst (Fuint 1) [::b0]) (eref accumulator))).
   Definition te2 := upd_typenv_fstmt fst1 te1 st1.
   Definition st2 := eval_fstmt fst1 st1 te2.
   Eval compute in (Store.acc accumulator st2).
@@ -661,7 +665,7 @@ Section Examples.
   Definition st5 := eval_fstmt fst4 st4 te5.
   Eval compute in (Store.acc io_out st5).
   Eval compute in (TE.vtyp io_out te5).
-  Definition fst5 := (Sfcnct (Eref accumulator) (Emux (Eref rst1) (Econst _ [::b0]) (Eref _T_12))).
+  Definition fst5 := (Sfcnct (Eref accumulator) (Emux (Eref rst1) (Econst _ (Fuint 1) [::b0]) (Eref _T_12))).
   Definition te6 := upd_typenv_fstmt fst5 te5 st5.
   Definition st6 := eval_fstmt fst5 st5 te6.
   Eval compute in (Store.acc accumulator st6).
@@ -677,11 +681,11 @@ Section Examples.
                       (Finput io_in (Fuint 1));
                       (Foutput io_out (Fuint 8))]
                       [::sreg (mk_freg accumulator (Fuint 8) (eref clk)
-                                                 (rrst (econst [::b0]) (eref accumulator)));
+                                                 (rrst (econst (Fuint 1) [::b0]) (eref accumulator)));
                       (snode _T_11 (eprim_binop Badd (eref accumulator) (eref io_in)));
                       (snode _T_12 (eprim_unop (Utail 1) (eref _T_11)));
                       (sfcnct (eref io_out ) (eref accumulator));
-                      (sfcnct (eref accumulator) (emux (eref rst1) (econst [::b0]) (eref _T_12)));
+                      (sfcnct (eref accumulator) (emux (eref rst1) (econst (Fuint 1) [::b0]) (eref _T_12)));
                       sskip
                       ]
               

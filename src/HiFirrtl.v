@@ -21,7 +21,7 @@ Section HiFirrtl.
   Inductive sign := Unsigned | Signed.
   
   Inductive hfexpr : Type :=
-  | Econst : sign -> bits -> hfexpr
+  | Econst : fgtyp -> bits -> hfexpr
   | Ecast : ucast -> hfexpr -> hfexpr
   | Eprim_unop : eunop -> hfexpr -> hfexpr
   | Eprim_binop : ebinop -> hfexpr -> hfexpr -> hfexpr
@@ -569,7 +569,7 @@ Module MakeHiFirrtl
   Parameter v2var : V.t -> Var.var.
 
   Definition def_ftype := Gtyp (Fuint 0).
-
+  
   (* type of mux expression *)
   Fixpoint mux_types t1 t2 : ftype :=
       match t1, t2 with
@@ -578,7 +578,10 @@ Module MakeHiFirrtl
       | Gtyp Fclock, Gtyp Fclock => (Gtyp Fclock)
       | Atyp t1 n1, Atyp t2 n2 => if n1 == n2 then (Atyp (mux_types t1 t2) n1)
                                   else def_ftype
-      | Btyp bs1, Btyp bs2 => Btyp (mux_btyps bs1 bs2)
+      | Btyp bs1, Btyp bs2 => match mux_btyps bs1 bs2 with
+                              | Fnil => def_ftype
+                              | t => Btyp t
+                              end
       | _, _ => def_ftype
       end
   with mux_btyps bs1 bs2 : ffield :=
@@ -588,10 +591,10 @@ Module MakeHiFirrtl
            if v1 == v2 then
              (Fflips v1 Flipped (mux_types t1 t2) (mux_btyps fs1 fs2))
            else Fnil
-         | Fflips v1 Nflip t1 fs1, Fflips v2 Nflip t2 fs2 =>
-           if v1 == v2 then
-             (Fflips v1 Flipped (mux_types t1 t2) (mux_btyps fs1 fs2))
-           else Fnil
+         (* | Fflips v1 Nflip t1 fs1, Fflips v2 Nflip t2 fs2 => *)
+         (*   if v1 == v2 then *)
+         (*     (Fflips v1 Flipped (mux_types t1 t2) (mux_btyps fs1 fs2)) *)
+         (*   else Fnil *)
          | _, _ => Fnil
     end.
 
@@ -642,8 +645,7 @@ Module MakeHiFirrtl
   (* type of expression *)
   Fixpoint type_of_hfexpr (e : hfexpr) (ce : cenv) : ftype :=
     match e with
-    | Econst Signed bs => Gtyp (Fsint (size bs))
-    | Econst Unsigned bs => Gtyp (Fuint (size bs))
+    | Econst t bs => Gtyp t
     | Eref r => type_of_ref r ce
     | Ecast AsUInt e1 => let t := type_of_hfexpr e1 ce in
                          match t with
@@ -676,8 +678,10 @@ Module MakeHiFirrtl
                                 end
     | Eprim_unop (Ushr n) e1 => let t := type_of_hfexpr e1 ce in
                                 match t with
-                                | Gtyp (Fsint w) => Gtyp (Fsint (maxn (w - n) 1))
-                                | Gtyp (Fuint w) => Gtyp (Fuint (maxn (w - n) 1))
+                                | Gtyp (Fsint w) => if n < w then Gtyp (Fsint (maxn (w - n) 1))
+                                                    else Gtyp (Fuint 1)
+                                | Gtyp (Fuint w) => if n < w then Gtyp (Fuint (maxn (w - n) 1))
+                                                    else Gtyp (Fuint 1)
                                 | _ => def_ftype
                                 end
     | Eprim_unop Ucvt e1 => let t := type_of_hfexpr e1 ce in
@@ -708,7 +712,9 @@ Module MakeHiFirrtl
                                  end
     | Eprim_unop (Utail n) e1 => let t := type_of_hfexpr e1 ce in
                                  match t with
-                                 | Gtyp (Fsint w) | Gtyp (Fuint w) => Gtyp (Fuint (w - n))
+                                 | Gtyp (Fsint w) | Gtyp (Fuint w) =>
+                                                    if n <= w then Gtyp (Fuint (w - n))
+                                                    else def_ftype
                                  | _ => def_ftype
                                  end
     | Eprim_unop _ e1 => let t := type_of_hfexpr e1 ce in
@@ -844,6 +850,12 @@ Module MakeHiFirrtl
                    end
     end.
 
+  Definition inst_type_of_ports' ps :=
+    match ps with
+    | Btyp Fnil => def_ftype
+    | ps => ps
+    end.
+
   (* infer type of module according to ports declaration *)
   Inductive inferType_module : hfmodule -> cenv -> cenv -> Prop :=
   | infertype_inmod vm ps ss ce ce' :
@@ -870,13 +882,14 @@ Module MakeHiFirrtl
     | Gtyp (Fsint 0)
     | Gtyp (Fuint 0) => true
     | Atyp tn _ => is_deftyp tn
+    | Btyp Fnil => true
     | Btyp bt => is_deftyp_f bt
     | _ => false
     end
   with is_deftyp_f bt :=
          match bt with
          | Fnil => false
-         | Fflips v f tv fs => is_deftyp tv
+         | Fflips v f tv fs => is_deftyp tv && (is_deftyp_f fs)
          end.
   
   (* given 2 equivalent types, return the one with larger width *)
@@ -984,9 +997,9 @@ Module MakeHiFirrtl
    *  Note that this means that dummy assignments that are overwritten by last-connect-semantics
    *  can still influence width inference *)
 
-   Definition wmap := VM.t (seq ftype).
-   Definition empty_wmap : wmap := VM.empty (seq ftype).
-   Definition finds (v:var) (w:wmap) := match VM.find v w with Some t => t | None => [::] end.
+   Definition wmap := CE.t (seq ftype).
+   Definition empty_wmap : wmap := CE.empty (seq ftype).
+   Definition finds (v:var) (w:wmap) := match CE.find v w with Some t => t | None => [::] end.
 
    Fixpoint get_field_name r : var :=
      match r with
@@ -998,32 +1011,31 @@ Module MakeHiFirrtl
 
    Fixpoint add_ref_wmap r t ce w : wmap :=
      match r with
-     | Eid v => VM.add v (cons t (finds v w)) w
+     | Eid v => CE.add v (cons t (finds v w)) w
      | Esubfield r f =>
        let br := base_ref r in
-       VM.add br (cons (upd_name_ftype (base_type_of_ref r ce) (v2var f) t) (finds br w)) w
+       CE.add br (cons (upd_name_ftype (base_type_of_ref r ce) (v2var f) t) (finds br w)) w
      | Esubindex rs n =>
        let br := base_ref rs in
        let vt := type_of_cmpnttyp (fst (CE.vtyp br ce)) in
        match vt with
        | Gtyp gt => w
-       | Atyp ta na => VM.add br (cons (upd_vectyp vt t) (finds br w)) w
-       | Btyp _ => VM.add br (cons (upd_name_ftype vt (v2var (get_field_name rs)) t) (finds br w)) w
+       | Atyp ta na => CE.add br (cons (upd_vectyp vt t) (finds br w)) w
+       | Btyp _ => CE.add br (cons (upd_name_ftype vt (v2var (get_field_name rs)) t) (finds br w)) w
        end
      | Esubaccess rs n => 
        let br := base_ref rs in
        let vt := type_of_cmpnttyp (fst (CE.vtyp br ce)) in
        match vt with
        | Gtyp gt => w
-       | Atyp ta na => VM.add br (cons (upd_vectyp vt t) (finds br w)) w
+       | Atyp ta na => CE.add br (cons (upd_vectyp vt t) (finds br w)) w
        | Btyp Fnil => w
        | Btyp (Fflips v _ tf fs) =>
-         VM.add br (cons (upd_name_ftype vt (v2var (get_field_name rs)) t) (finds br w)) w
+         CE.add br (cons (upd_name_ftype vt (v2var (get_field_name rs)) t) (finds br w)) w
        end
      end.
 
    (* TODO : Resolve flow need to be add before *)
-   
    
    Definition inferWidth_wmap (s : hfstmt) (ce : cenv) (w : wmap) : wmap :=
      match s with
@@ -1041,19 +1053,46 @@ Module MakeHiFirrtl
      | Spcnct r e => 
        let w1 := add_ref_wmap r (type_of_hfexpr e ce) ce w in
        if is_deftyp (type_of_ref r ce) then w1 else w
+     | Swhen (Eref rs) e1 e2 =>
+       if (is_deftyp (type_of_ref rs ce))
+       then add_ref_wmap rs (Gtyp (Fuint 1)) ce w
+       else w
      | _ => w 
      end
    .
-
-   Definition max_width_of_wmap ts : ftype :=
-     List.fold_left max_width ts (Gtyp (Fuint 0)).
 
    Fixpoint inferWidth_stmts_wmap ss ce w: wmap :=
      match ss with
      | nil => w
      | s :: sts => inferWidth_stmts_wmap sts ce (inferWidth_wmap s ce w)
      end.
-  
+
+   Definition max_width_of_wmap ts : ftype :=
+     List.fold_left max_width ts (Gtyp (Fuint 0)).
+
+   Definition wmap0 := CE.t (ftype).
+   Definition empty_wmap0 : wmap0 := CE.empty (ftype).
+   
+   Definition map_max_width_wmap (w : wmap) : wmap0 :=
+     CE.map max_width_of_wmap w .
+
+   Definition add_width_2_cenv (w : option ftype) (t : option (cmpnt_init_typs * fcomponent)) :=
+     match t, w with
+     | Some (Aggr_typ (Gtyp (Fuint 0)), c), Some w => Some (aggr_typ w, c)
+     | Some (Reg_typ (mk_freg (Gtyp (Fuint 0)) _ _), c), Some w => Some (aggr_typ w, c)
+     | t , _ => t
+     end.
+   
+   (* overwirte types width in ce by wmap with the same index *)
+
+   Definition wmap_map2_cenv w ce : CE.env :=
+     CE.map2 add_width_2_cenv w ce.
+
+   Definition inferWidth_fun ss ce :=
+    wmap_map2_cenv (map_max_width_wmap (inferWidth_stmts_wmap ss ce empty_wmap)) ce.
+   
+
+   
   (* TBD *)
   Parameter new_vecvar : var -> nat -> var.
   Parameter new_bdvar : var -> Var.var -> var.
