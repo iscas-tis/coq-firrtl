@@ -236,8 +236,8 @@ Section Rhs_expr.
   Variable tmp : eqType.
   Inductive rhs_expr : Type :=
   | R_fexpr : hfexpr tmp -> rhs_expr
-  | R_ftype : ftype -> rhs_expr
-  | R_fstmt : hfstmt tmp -> rhs_expr
+  (*| R_ftype : ftype -> rhs_expr*)
+  (*| R_fstmt : hfstmt tmp -> rhs_expr*)
   | R_default
   .
 
@@ -257,6 +257,7 @@ Module Type StructStore (V : SsrOrder) (CE : CmpntEnv V with Module SE := V).
   Local Notation value := (rhs_expr V.T).
 
   Parameter t : Type.
+  (* Parameter map2 : (value -> value -> value) -> t -> t ->t. *)
   Parameter acc : var -> t -> value.
   Parameter upd : var -> value -> t -> t.
   Parameter upd2 : var -> value -> var -> value -> t -> t.
@@ -318,7 +319,6 @@ Module MakeStructStore (V : SsrOrder) (CE : CmpntEnv V with Module SE := V) <:
   Module StructTypeV := StructType V.
   Include MakeTStoreMap V StructTypeV. 
   Module Lemmas := FMapLemmas CE.
-
 End MakeStructStore.
 
 Module StructState := MakeStructStore VarOrder CE.
@@ -382,8 +382,8 @@ Module MakeHiFirrtl
   
   Definition rhs_expr := rhs_expr V.T.
   Definition r_fexpr e := @R_fexpr V.T e.
-  Definition r_ftype t := @R_ftype V.T t.
-  Definition r_fstmt s := @R_fstmt V.T s.
+  (* Definition r_ftype t := @R_ftype V.T t. *)
+  (* Definition r_fstmt s := @R_fstmt V.T s. *)
   Definition r_default := @R_default V.T.
 
   (****** Oriented type ******)
@@ -439,12 +439,12 @@ Module MakeHiFirrtl
   Definition valid_rhs (re : rhs_expr) (ce : cenv) : bool :=
     match re with
     | R_default => true
-    | R_ftype t => is_passive t
+    (* | R_ftype t => is_passive t *)
     | R_fexpr e => valid_rhs_fexpr e ce
-    | R_fstmt s => match s with
-                   | Sreg _ _ | Smem _ _ => true
-                   | _ => false
-                   end
+    (* | R_fstmt s => match s with *)
+    (*                | Sreg _ _ | Smem _ _ => true *)
+    (*                | _ => false *)
+    (*                end *)
     end.
   
   (****** Semantics ******)
@@ -563,7 +563,7 @@ Module MakeHiFirrtl
       resolveKinds_module p ce ce' ->
       resolveKinds_modules ps ce' ce'' ->
       resolveKinds_modules (p::ps) ce ce''.
-  
+
   (** decide the type and width of hifirrtl expressions *)
 
   Parameter v2var : V.t -> Var.var.
@@ -897,7 +897,7 @@ Module MakeHiFirrtl
     match t1, t2 with
     | Gtyp (Fsint w1), Gtyp (Fsint w2) => Gtyp (Fsint (maxn w1 w2))
     | Gtyp (Fuint w1), Gtyp (Fuint w2) => Gtyp (Fuint (maxn w1 w2))
-    | Atyp tn1 n1, Atyp tn2 n2 => if n2 <= n1 then Atyp (max_width tn1 tn2) n1
+    | Atyp tn1 n1, Atyp tn2 n2 => if n2 == n1 then Atyp (max_width tn1 tn2) n1
                                   else t1
     | Btyp bt1, Btyp bt2 => Btyp (max_width_f bt1 bt2)
     | _, _ => t1
@@ -911,6 +911,45 @@ Module MakeHiFirrtl
          | f, Fnil => f
          end.
 
+  Lemma max_width_ftype_equiv :
+    forall t1 t2,
+      ftype_equiv t1 t2 ->
+      ftype_equiv t1 (max_width t1 t2)
+  with max_width_ffield_equiv :
+         forall f1 f2,
+           fbtyp_equiv f1 f2 ->
+           fbtyp_equiv f1 (max_width_f f1 f2).
+  Proof.
+    elim.
+    - move => f . elim; try discriminate.
+      elim f;
+       try (intro; elim; try done).
+    - move => t1 Hm n.
+      elim; try done. move => t2 Hn n2.
+      move => Heqt; rewrite /= in Heqt.
+      move : Heqt =>/andP[Hteq Heq12]. 
+      rewrite (eqP Hteq) /= !eq_refl andTb.
+      by apply Hm.
+    - move => f1. elim; try discriminate.
+      move => f2. apply max_width_ffield_equiv.
+    elim.
+    - elim; try done.
+    - move => v1 fp1 t1 ff1 Hm.
+      elim. case fp1 => //.
+      move => v2 fp2 t2 ff2 Hn.
+      case fp1; case fp2; try discriminate.
+      + move =>/= /andP[/andP [Heq1 Heq2] Heq3].
+        rewrite eq_refl andTb.
+        apply /andP; split.
+        * apply max_width_ftype_equiv; done.
+        * apply Hm; done.
+      + move =>/= /andP[/andP [Heq1 Heq2] Heq3].
+        rewrite eq_refl andTb.
+        apply /andP; split.
+        * apply max_width_ftype_equiv; done.
+        * apply Hm; done.
+  Qed.
+        
   (* directly upd a field of a ftype with name 'v' with given type t, the field width upd to larger one *)
   (* if it has no such field, return itself *)
   Fixpoint upd_name_ftype ft v t : ftype :=
@@ -922,47 +961,57 @@ Module MakeHiFirrtl
   with upd_name_ffield bt v t : ffield :=
          match bt with
          | Fnil => Fnil
-         | Fflips v1 ft t1 fs => if v1 == v then Fflips v1 ft (max_width t1 t) fs
-                                 else Fflips v1 ft (upd_name_ftype t1 v t)
+         | Fflips v1 fp t1 fs => if v1 == v then Fflips v1 fp (max_width t1 t) fs
+                                 else Fflips v1 fp (upd_name_ftype t1 v t)
                                              (upd_name_ffield fs v t)
          end.
-
+  
+  Lemma upd_type_equiv :
+    forall t r v ce, ~~ is_deftyp (type_of_hfexpr (eref (esubfield r v)) ce) ->
+                     ftype_equiv (type_of_hfexpr (eref (esubfield r v)) ce) t ->
+                     ftype_equiv (base_type_of_ref r ce)
+                                 (upd_name_ftype (base_type_of_ref r ce) (v2var v) t).
+  Proof.
+  Admitted.
+    
   Fixpoint upd_vectyp vt t : ftype :=
     match vt with
     | Gtyp gt => t
     | Atyp tn n => Atyp (upd_vectyp tn t) n
     | Btyp bt => Btyp bt
     end.
-  
-  Definition upd_cmpnttyp_field ft v t : cmpnt_init_typs :=
-    match ft with
-    | Reg_typ r => reg_typ (upd_regtyp (upd_name_ftype (type r) v t) r)
-    | Mem_typ m => mem_typ (upd_memtyp (upd_name_ftype (data_type m) v t) m)
-    | Aggr_typ ft => aggr_typ (upd_name_ftype ft v t)
-    | Unknown_typ => unknown_typ
-    end.
-  
-  (* upd a field 'v' according to the ref expression 'r', find and upd the corresponding type from ce *)
-  Fixpoint upd_subfield_typ r v t ce : CE.env :=
-    match r with
-    | Eid v1 => CE.add v1 (upd_cmpnttyp_field (fst (CE.vtyp v1 ce)) v t, snd (CE.vtyp v1 ce)) ce
-    | Esubfield r1 v1 => upd_subfield_typ r1 v t ce
-    | Esubindex r1 n => upd_subfield_typ r1 v t ce
-    | Esubaccess r1 n => upd_subfield_typ r1 v t ce
-    end.
 
-  Fixpoint upd_eref_ftype r t ce :=
-    match r with
-    | Eid v => CE.add v (upd_cmpnttyp_field (fst (CE.vtyp v ce)) (v2var v) t, snd (CE.vtyp v ce)) ce
-    | Esubfield r v => upd_subfield_typ r (v2var v) t ce
-    | Esubindex r1 n => upd_eref_ftype r1 t ce
-    | Esubaccess r1 n =>  upd_eref_ftype r1 t ce
-    end.
-
-  Lemma upd_eref_ftype_equiv r t ce :
-    ftype_equiv (type_of_ref r ce) (type_of_ref r (upd_eref_ftype r t ce)).
+  Lemma upd_vectyp_equiv :
+    forall t r n ce, ftype_equiv (type_of_hfexpr (eref (esubaccess r n)) ce) t ->
+                     ftype_equiv (base_type_of_ref r ce)
+                                 (upd_vectyp (base_type_of_ref r ce) t).
   Proof.
   Admitted.
+  
+  (* Definition upd_cmpnttyp_field ft v t : cmpnt_init_typs := *)
+  (*   match ft with *)
+  (*   | Reg_typ r => reg_typ (upd_regtyp (upd_name_ftype (type r) v t) r) *)
+  (*   | Mem_typ m => mem_typ (upd_memtyp (upd_name_ftype (data_type m) v t) m) *)
+  (*   | Aggr_typ ft => aggr_typ (upd_name_ftype ft v t) *)
+  (*   | Unknown_typ => unknown_typ *)
+  (*   end. *)
+  
+  (* (* upd a field 'v' according to the ref expression 'r', find and upd the corresponding type from ce *) *)
+  (* Fixpoint upd_subfield_typ r v t ce : CE.env := *)
+  (*   match r with *)
+  (*   | Eid v1 => CE.add v1 (upd_cmpnttyp_field (fst (CE.vtyp v1 ce)) v t, snd (CE.vtyp v1 ce)) ce *)
+  (*   | Esubfield r1 v1 => upd_subfield_typ r1 v t ce *)
+  (*   | Esubindex r1 n => upd_subfield_typ r1 v t ce *)
+  (*   | Esubaccess r1 n => upd_subfield_typ r1 v t ce *)
+  (*   end. *)
+
+  (* Fixpoint upd_eref_ftype r t ce := *)
+  (*   match r with *)
+  (*   | Eid v => CE.add v (upd_cmpnttyp_field (fst (CE.vtyp v ce)) (v2var v) t, snd (CE.vtyp v ce)) ce *)
+  (*   | Esubfield r v => upd_subfield_typ r (v2var v) t ce *)
+  (*   | Esubindex r1 n => upd_eref_ftype r1 t ce *)
+  (*   | Esubaccess r1 n =>  upd_eref_ftype r1 t ce *)
+  (*   end. *)
 
   Fixpoint typeConstraints (f1 f2 : nat -> nat -> bool) (t1 t2 : ftype) : bool :=
     match t1, t2 with
@@ -997,84 +1046,160 @@ Module MakeHiFirrtl
    *  Note that this means that dummy assignments that are overwritten by last-connect-semantics
    *  can still influence width inference *)
 
+
+   (* A map to store candidate types *)
    Definition wmap := CE.t (seq ftype).
    Definition empty_wmap : wmap := CE.empty (seq ftype).
    Definition finds (v:var) (w:wmap) := match CE.find v w with Some t => t | None => [::] end.
 
-   Fixpoint get_field_name r : var :=
+   Definition wmap0 := CE.t (ftype).
+   Definition empty_wmap0 : wmap0 := CE.empty (ftype).
+   Definition finds0 (v:var) (w:wmap0) := match CE.find v w with Some t => t | None => def_ftype end.
+
+   Fixpoint get_field_name r : V.t :=
      match r with
      | Eid v => v
-     | Esubfield rs f => f
-     | Esubindex rs n => get_field_name rs
-     | Esubaccess rs n => get_field_name rs
+     | Esubfield r v =>  v
+     | Esubindex r n => get_field_name r
+     | Esubaccess r n => get_field_name r
      end.
-
-   Fixpoint add_ref_wmap r t ce w : wmap :=
+   
+   (* store the larger width *)
+   Fixpoint add_ref_wmap0 r t ce (w:wmap0) : wmap0 :=
      match r with
-     | Eid v => CE.add v (cons t (finds v w)) w
+     | Eid v => CE.add v t w
      | Esubfield r f =>
        let br := base_ref r in
-       CE.add br (cons (upd_name_ftype (base_type_of_ref r ce) (v2var f) t) (finds br w)) w
+       CE.add br (upd_name_ftype (base_type_of_ref r ce) (v2var f) t) w
      | Esubindex rs n =>
        let br := base_ref rs in
        let vt := type_of_cmpnttyp (fst (CE.vtyp br ce)) in
        match vt with
        | Gtyp gt => w
-       | Atyp ta na => CE.add br (cons (upd_vectyp vt t) (finds br w)) w
-       | Btyp _ => CE.add br (cons (upd_name_ftype vt (v2var (get_field_name rs)) t) (finds br w)) w
+       | Atyp ta na => CE.add br (upd_vectyp vt t) w
+       | Btyp _ => CE.add br (upd_name_ftype vt (v2var (get_field_name rs)) t) w
        end
      | Esubaccess rs n => 
        let br := base_ref rs in
        let vt := type_of_cmpnttyp (fst (CE.vtyp br ce)) in
        match vt with
        | Gtyp gt => w
-       | Atyp ta na => CE.add br (cons (upd_vectyp vt t) (finds br w)) w
+       | Atyp ta na => CE.add br (upd_vectyp vt t) w
        | Btyp Fnil => w
        | Btyp (Fflips v _ tf fs) =>
-         CE.add br (cons (upd_name_ftype vt (v2var (get_field_name rs)) t) (finds br w)) w
+         CE.add br (upd_name_ftype vt (v2var (get_field_name rs)) t) w
        end
      end.
 
    (* TODO : Resolve flow need to be add before *)
-   
-   Definition inferWidth_wmap (s : hfstmt) (ce : cenv) (w : wmap) : wmap :=
-     match s with
+
+   Fixpoint inferWidth_wmap0 (s : hfstmt) (ce : cenv) (w : wmap0) {struct s}: wmap0 :=
+       match s with
      | Snode v e => w
-     | Swire v t => if is_deftyp t then add_ref_wmap (Eid v) t ce w else w
+     | Swire v t => if is_deftyp t then add_ref_wmap0 (Eid v) t ce w else w
      | Sreg v (mk_freg t cl (Rst (Eref rs) e)) =>
-       let w1 w := add_ref_wmap (Eid v) (type_of_hfexpr e ce) ce w in
-       let w2 w:= add_ref_wmap rs (Gtyp (Fuint 1)) ce w in 
+       let w1 w := add_ref_wmap0 (Eid v) (type_of_hfexpr e ce) ce w in
+       let w2 w:= add_ref_wmap0 rs (Gtyp (Fuint 1)) ce w in 
        if (is_deftyp t) && (is_deftyp (type_of_ref rs ce)) then (w2 (w1 w))
        else if (is_deftyp t) then (w1 w)
             else if (is_deftyp (type_of_ref rs ce)) then (w2 w) else w
      | Sfcnct r e =>
-       let w1 := add_ref_wmap r (type_of_hfexpr e ce) ce w in
+       let w1 := add_ref_wmap0 r (type_of_hfexpr e ce) ce w in
        if is_deftyp (type_of_ref r ce) then w1 else w
      | Spcnct r e => 
-       let w1 := add_ref_wmap r (type_of_hfexpr e ce) ce w in
+       let w1 := add_ref_wmap0 r (type_of_hfexpr e ce) ce w in
        if is_deftyp (type_of_ref r ce) then w1 else w
-     | Swhen (Eref rs) e1 e2 =>
+     | Swhen (Eref rs) s1 s2 =>
+       let w1 w := add_ref_wmap0 rs (Gtyp (Fuint 1)) ce w in
+       let fix aux ss ce w :=
+           match ss with
+           | nil => w
+           | s :: ss => aux ss ce (inferWidth_wmap0 s ce w)
+           end
+       in
        if (is_deftyp (type_of_ref rs ce))
-       then add_ref_wmap rs (Gtyp (Fuint 1)) ce w
-       else w
+       then aux s2 ce (aux s1 ce (w1 w))
+       else aux s2 ce (aux s1 ce w)
      | _ => w 
      end
    .
+   
+   (* store a list of types, and compare width later *)
+   (* Fixpoint add_ref_wmap r t ce w : wmap := *)
+   (*   match r with *)
+   (*   | Eid v => CE.add v (cons t (finds v w)) w *)
+   (*   | Esubfield r f => *)
+   (*     let br := base_ref r in *)
+   (*     CE.add br (cons (upd_name_ftype (base_type_of_ref r ce) (v2var f) t) (finds br w)) w *)
+   (*   | Esubindex rs n => *)
+   (*     let br := base_ref rs in *)
+   (*     let vt := type_of_cmpnttyp (fst (CE.vtyp br ce)) in *)
+   (*     match vt with *)
+   (*     | Gtyp gt => w *)
+   (*     | Atyp ta na => CE.add br (cons (upd_vectyp vt t) (finds br w)) w *)
+   (*     | Btyp _ => CE.add br (cons (upd_name_ftype vt (v2var (get_field_name rs)) t) (finds br w)) w *)
+   (*     end *)
+   (*   | Esubaccess rs n =>  *)
+   (*     let br := base_ref rs in *)
+   (*     let vt := type_of_cmpnttyp (fst (CE.vtyp br ce)) in *)
+   (*     match vt with *)
+   (*     | Gtyp gt => w *)
+   (*     | Atyp ta na => CE.add br (cons (upd_vectyp vt t) (finds br w)) w *)
+   (*     | Btyp Fnil => w *)
+   (*     | Btyp (Fflips v _ tf fs) => *)
+   (*       CE.add br (cons (upd_name_ftype vt (v2var (get_field_name rs)) t) (finds br w)) w *)
+   (*     end *)
+   (*   end. *)
 
-   Fixpoint inferWidth_stmts_wmap ss ce w: wmap :=
+   (* Fixpoint inferWidth_wmap (s : hfstmt) (ce : cenv) (w : wmap) : wmap := *)
+   (*   match s with *)
+   (*   | Snode v e => w *)
+   (*   | Swire v t => if is_deftyp t then add_ref_wmap (Eid v) t ce w else w *)
+   (*   | Sreg v (mk_freg t cl (Rst (Eref rs) e)) => *)
+   (*     let w1 w := add_ref_wmap (Eid v) (type_of_hfexpr e ce) ce w in *)
+   (*     let w2 w:= add_ref_wmap rs (Gtyp (Fuint 1)) ce w in  *)
+   (*     if (is_deftyp t) && (is_deftyp (type_of_ref rs ce)) then (w2 (w1 w)) *)
+   (*     else if (is_deftyp t) then (w1 w) *)
+   (*          else if (is_deftyp (type_of_ref rs ce)) then (w2 w) else w *)
+   (*   | Sfcnct r e => *)
+   (*     let w1 := add_ref_wmap r (type_of_hfexpr e ce) ce w in *)
+   (*     if is_deftyp (type_of_ref r ce) then w1 else w *)
+   (*   | Spcnct r e =>  *)
+   (*     let w1 := add_ref_wmap r (type_of_hfexpr e ce) ce w in *)
+   (*     if is_deftyp (type_of_ref r ce) then w1 else w *)
+   (*   | Swhen (Eref rs) s1 s2 => *)
+   (*     let w1 w := add_ref_wmap rs (Gtyp (Fuint 1)) ce w in *)
+   (*     if (is_deftyp (type_of_ref rs ce)) *)
+   (*     then inferWidth_wmap s2 ce (inferWidth_wmap s1 ce (w1 w)) *)
+   (*     else w *)
+   (*   | _ => w  *)
+   (*   end *)
+   (* . *)
+
+   (* Fixpoint inferWidth_stmts_wmap ss ce w: wmap := *)
+   (*   match ss with *)
+   (*   | nil => w *)
+   (*   | s :: sts => inferWidth_stmts_wmap sts ce (inferWidth_wmap s ce w) *)
+   (*   end. *)
+
+   (* Definition max_width_of_wmap ts : ftype := *)
+   (*   List.fold_left max_width ts (Gtyp (Fuint 0)). *)
+   
+   (* Definition map_max_width_wmap (w : wmap) : wmap0 := *)
+   (*   CE.map max_width_of_wmap w . *)
+
+   Lemma inferWidth_deftyp :
+     forall s ce w w',
+       inferWidth_wmap0 s ce w = w' ->
+       forall v, ~~ is_deftyp (finds0 v w).
+   Proof.
+   Admitted.
+
+   Fixpoint inferWidth_stmts_wmap0 ss ce w: wmap0 :=
      match ss with
      | nil => w
-     | s :: sts => inferWidth_stmts_wmap sts ce (inferWidth_wmap s ce w)
+     | s :: sts => inferWidth_stmts_wmap0 sts ce (inferWidth_wmap0 s ce w)
      end.
-
-   Definition max_width_of_wmap ts : ftype :=
-     List.fold_left max_width ts (Gtyp (Fuint 0)).
-
-   Definition wmap0 := CE.t (ftype).
-   Definition empty_wmap0 : wmap0 := CE.empty (ftype).
-   
-   Definition map_max_width_wmap (w : wmap) : wmap0 :=
-     CE.map max_width_of_wmap w .
 
    Definition add_width_2_cenv (w : option ftype) (t : option (cmpnt_init_typs * fcomponent)) :=
      match t, w with
@@ -1088,152 +1213,180 @@ Module MakeHiFirrtl
    Definition wmap_map2_cenv w ce : CE.env :=
      CE.map2 add_width_2_cenv w ce.
 
-   Definition inferWidth_fun ss ce :=
-    wmap_map2_cenv (map_max_width_wmap (inferWidth_stmts_wmap ss ce empty_wmap)) ce.
-   
+   Definition inferWidth_fun ss ce : CE.env :=
+    wmap_map2_cenv (inferWidth_stmts_wmap0 ss ce empty_wmap0) ce.
 
+   (** Pass ExpandConnect *)
+
+   (** TBD *)
+   Parameter expandConnect_fun : hfstmt -> CE.env -> cstate -> hfstmt.
+
+   (** Pass ExpandWhens *)
    
-  (* TBD *)
+   (* Definition expandWhens_fun s ce cs : hfstmt := *)
+   (*   match s with *)
+   (*   | Swhen c (Sfcnct r e) s2 =>  *)
+
+   (* TBD *)
   Parameter new_vecvar : var -> nat -> var.
   Parameter new_bdvar : var -> Var.var -> var.
   
-  (** semantics of declaim  ports *)
-  (* Inductive eval_port : hfport -> CE.env -> cstate -> CE.env -> cstate -> Prop := *)
-  (* (* in, ground type *) *)
-  (* | Eval_inport_gt v t ce cs ce' cs':  *)
-  (*     CELemmas.P.Add v (t, In_port) ce ce' -> *)
-  (*     SV.Upd v (r_ftype (Gtyp t)) cs cs' -> *)
-  (*     eval_port (Finput v (Gtyp t)) ce cs ce' cs' *)
-  (* (* in, vector type *) *)
-  (* | Eval_inport_at v t n ce cs ce' cs' ce'' cs'':  *)
-  (*     0 < n -> *)
-  (*     eval_port (Finput (new_vecvar v n) t) ce cs ce'' cs'' -> *)
-  (*     eval_port (Finput v (Atyp t n.-1)) ce' cs' ce'' cs'' -> *)
-  (*     eval_port (Finput v (Atyp t n)) ce cs ce'' cs'' *)
-  (* (* in, bundle type non flip *) *)
-  (* | Eval_inport_bt_nf v vt t fs n ce cs ce' cs' ce'' cs'':  *)
-  (*     0 < n -> *)
-  (*     eval_port (Finput (new_bdvar v vt) t) ce cs ce'' cs'' -> *)
-  (*     eval_port (Finput v (Btyp fs)) ce' cs' ce'' cs'' -> *)
-  (*     eval_port (Finput v (Btyp (Fflips vt Nflip t fs))) ce cs ce'' cs'' *)
-  (* (* in, bundle type flip *) *)
-  (* | Eval_inport_bt_f v vt t fs n ce cs ce' cs' ce'' cs'':  *)
-  (*     0 < n -> *)
-  (*     eval_port (Foutput (new_bdvar v vt) t) ce cs ce'' cs'' -> *)
-  (*     eval_port (Finput v (Btyp fs)) ce' cs' ce'' cs'' -> *)
-  (*     eval_port (Finput v (Btyp (Fflips vt Flipped t fs))) ce cs ce'' cs'' *)
-  (* (* out, ground type *) *)
-  (* | Eval_outport_gt v t ce cs ce' cs':  *)
-  (*     CELemmas.P.Add v (t, In_port) ce ce' -> *)
-  (*     SV.Upd v (r_ftype (Gtyp t)) cs cs' -> *)
-  (*     eval_port (Foutput v (Gtyp t)) ce cs ce' cs' *)
-  (* (* out, vector type *) *)
-  (* | Eval_outport_at v t n ce cs ce' cs' ce'' cs'':  *)
-  (*     0 < n -> *)
-  (*     eval_port (Foutput (new_vecvar v n) t) ce cs ce'' cs'' -> *)
-  (*     eval_port (Foutput v (Atyp t n.-1)) ce' cs' ce'' cs'' -> *)
-  (*     eval_port (Foutput v (Atyp t n)) ce cs ce'' cs'' *)
-  (* (* out, bundle type *) *)
-  (* | Eval_outport_bt_nf v vt t fs n ce cs ce' cs' ce'' cs'':  *)
-  (*     0 < n -> *)
-  (*     eval_port (Foutput (new_bdvar v vt) t) ce cs ce'' cs'' -> *)
-  (*     eval_port (Foutput v (Btyp fs)) ce' cs' ce'' cs'' -> *)
-  (*     eval_port (Foutput v (Btyp (Fflips vt Nflip t fs))) ce cs ce'' cs'' *)
-  (* (* out, bundle type flip *) *)
-  (* | Eval_outport_bt_f v vt t fs n ce cs ce' cs' ce'' cs'':  *)
-  (*     0 < n -> *)
-  (*     eval_port (Finput (new_bdvar v vt) t) ce cs ce'' cs'' -> *)
-  (*     eval_port (Foutput v (Btyp fs)) ce' cs' ce'' cs'' -> *)
-  (*     eval_port (Foutput v (Btyp (Fflips vt Flipped t fs))) ce cs ce'' cs'' *)
-  (* . *)
+  (** Semantics of declaim  ports*)
+  Inductive eval_port : hfport -> CE.env -> cstate -> CE.env -> cstate -> Prop :=
+  (* in, ground type *)
+  | Eval_inport_gt v t ce cs ce' cs':
+      CELemmas.P.Add v (aggr_typ (Gtyp t), In_port) ce ce' ->
+      (* SV.Upd v (r_ftype (Gtyp t)) cs cs' -> *)
+      SV.Upd v (r_default) cs cs' ->
+      eval_port (Finput v (Gtyp t)) ce cs ce' cs'
+  (* in, vector type *)
+  | Eval_inport_at v t n ce cs ce' cs' ce'' cs'':
+      0 < n ->
+      eval_port (Finput (new_vecvar v n) t) ce cs ce'' cs'' ->
+      eval_port (Finput v (Atyp t n.-1)) ce' cs' ce'' cs'' ->
+      eval_port (Finput v (Atyp t n)) ce cs ce'' cs''
+  (* in, bundle type non flip *)
+  | Eval_inport_bt_nf v vt t fs n ce cs ce' cs' ce'' cs'':
+      0 < n ->
+      eval_port (Finput (new_bdvar v vt) t) ce cs ce'' cs'' ->
+      eval_port (Finput v (Btyp fs)) ce' cs' ce'' cs'' ->
+      eval_port (Finput v (Btyp (Fflips vt Nflip t fs))) ce cs ce'' cs''
+  (* in, bundle type flip *)
+  | Eval_inport_bt_f v vt t fs n ce cs ce' cs' ce'' cs'':
+      0 < n ->
+      eval_port (Foutput (new_bdvar v vt) t) ce cs ce'' cs'' ->
+      eval_port (Finput v (Btyp fs)) ce' cs' ce'' cs'' ->
+      eval_port (Finput v (Btyp (Fflips vt Flipped t fs))) ce cs ce'' cs''
+  (* out, ground type *)
+  | Eval_outport_gt v t ce cs ce' cs':
+      CELemmas.P.Add v (aggr_typ (Gtyp t), In_port) ce ce' ->
+      (* SV.Upd v (r_ftype (Gtyp t)) cs cs' -> *)
+      SV.Upd v r_default cs cs' ->
+      eval_port (Foutput v (Gtyp t)) ce cs ce' cs'
+  (* out, vector type *)
+  | Eval_outport_at v t n ce cs ce' cs' ce'' cs'':
+      0 < n ->
+      eval_port (Foutput (new_vecvar v n) t) ce cs ce'' cs'' ->
+      eval_port (Foutput v (Atyp t n.-1)) ce' cs' ce'' cs'' ->
+      eval_port (Foutput v (Atyp t n)) ce cs ce'' cs''
+  (* out, bundle type *)
+  | Eval_outport_bt_nf v vt t fs n ce cs ce' cs' ce'' cs'':
+      0 < n ->
+      eval_port (Foutput (new_bdvar v vt) t) ce cs ce'' cs'' ->
+      eval_port (Foutput v (Btyp fs)) ce' cs' ce'' cs'' ->
+      eval_port (Foutput v (Btyp (Fflips vt Nflip t fs))) ce cs ce'' cs''
+  (* out, bundle type flip *)
+  | Eval_outport_bt_f v vt t fs n ce cs ce' cs' ce'' cs'':
+      0 < n ->
+      eval_port (Finput (new_bdvar v vt) t) ce cs ce'' cs'' ->
+      eval_port (Foutput v (Btyp fs)) ce' cs' ce'' cs'' ->
+      eval_port (Foutput v (Btyp (Fflips vt Flipped t fs))) ce cs ce'' cs''
+  .
   
-  (* Inductive eval_ports : seq hfport -> CE.env -> cstate -> CE.env -> cstate -> Prop := *)
-  (* | Eval_ports_nil ce cs : eval_ports [::] ce cs ce cs *)
-  (* | Eval_ports_cons p ps ce cs ce' cs' ce'' cs'': *)
-  (*     eval_port p ce cs ce' cs' -> *)
-  (*     eval_ports ps ce' cs' ce'' cs'' -> *)
-  (*     eval_ports (p :: ps) ce cs ce'' cs'' *)
-  (* . *)
+  Inductive eval_ports : seq hfport -> CE.env -> cstate -> CE.env -> cstate -> Prop :=
+  | Eval_ports_nil ce cs : eval_ports [::] ce cs ce cs
+  | Eval_ports_cons p ps ce cs ce' cs' ce'' cs'':
+      eval_port p ce cs ce' cs' ->
+      eval_ports ps ce' cs' ce'' cs'' ->
+      eval_ports (p :: ps) ce cs ce'' cs''
+  .
   
-  (* (** semantics of single statement, update CE.env (var -> fgtyp * fcomponent) and cstate (var -> rhs_expr) *) *)
+  (** Semantics of single statement, update CE.env (var -> fgtyp * fcomponent) and cstate (var -> rhs_expr) *)
+  
+  Inductive eval_fstmt_single : hfstmt -> CE.env -> cstate -> CE.env -> cstate -> Prop :=
+  | Eval_sskip : forall ce cs, eval_fstmt_single sskip ce cs ce cs
+  (* declare wire with ground type *)
+  | Eval_swire_gt v t ce cs ce' cs':
+      CE.Add v (aggr_typ t, Wire) ce ce' ->
+      (* SV.Upd v (r_ftype t) cs cs' -> *)
+      SV.Upd v r_default cs cs' ->
+      eval_fstmt_single (swire v t) ce cs ce' cs'
+  (* declare node with expr, valid rhs *)
+  | Eval_snode v e ce cs ce' cs':
+      valid_rhs_fexpr e ce' ->
+      CE.Add v (aggr_typ (type_of_hfexpr e ce), Node) ce ce' ->
+      SV.Upd v (r_fexpr e) cs cs' ->
+      eval_fstmt_single (snode v e) ce cs ce' cs'
+  (* define full connection *)
+  (* valid flow orient, type eq between dst and src*)
+  | Eval_sfcnct v e ce ce' cs cs':
+      valid_lhs_orient (orient_of_comp (snd (CE.vtyp (base_ref v) ce))) ->
+      valid_rhs_fexpr e ce ->
+      ~~ is_deftyp (type_of_ref v ce) ->
+      ftype_equiv (type_of_ref v ce) (type_of_hfexpr e ce) ->
+      typeConstraintsGe (type_of_ref v ce) (type_of_hfexpr e ce) ->
+      CE.Add (base_ref v) (CE.vtyp (base_ref v) ce) ce ce' ->
+      SV.Upd (new_bdvar (base_ref v) (v2var (get_field_name v))) (r_fexpr e) cs cs' ->
+      eval_fstmt_single (sfcnct v e) ce cs ce' cs'
+  (* declare reg, reset expr type equiv with reg type*)
+  | Eval_sreg_r r t c rc rs ce cs ce' cs' :
+      valid_rhs_fexpr rs ce ->
+      ftype_equiv (type_of_hfexpr rs ce) t ->
+      CE.Add r (reg_typ (mk_hfreg t c (rrst rc rs)), Register) ce ce' ->
+      (* SV.Upd r (r_fstmt (sreg r (mk_hfreg t c (rrst rc rs)))) cs cs' -> *)
+      SV.Upd r r_default cs cs' ->
+      eval_fstmt_single (sreg r (mk_hfreg t c (rrst rc rs))) ce cs ce' cs'
+  (* declare reg, non reset *)
+  | Eval_sreg_nr r t c ce cs ce' cs' :
+      CE.Add r (reg_typ (mk_hfreg t c nrst) , Register) ce ce' ->
+      (* SV.Upd r (r_fstmt (sreg r (mk_hfreg t c nrst))) cs cs' -> *)
+      SV.Upd r r_default cs cs' ->
+      eval_fstmt_single (sreg r (mk_hfreg t c nrst)) ce cs ce' cs'
+  (* declare mem *)
+  | Eval_smem m t dp r w rl wl rw ce cs ce' cs' :
+      is_passive t ->
+      CELemmas.P.Add m (mem_typ (mk_hfmem t dp r w rl wl rw), Memory) ce ce' ->
+      (* SV.Upd m (r_fstmt (smem m (mk_hfmem t dp r w rl wl rw))) cs cs' -> *)
+      SV.Upd m r_default cs cs' ->
+      eval_fstmt_single (smem m (mk_hfmem t dp r w rl wl rw)) ce cs ce' cs'
+  .
 
-  
-  (* Inductive eval_fstmt_single : hfstmt -> CE.env -> cstate -> CE.env -> cstate -> Prop := *)
-  (* | Eval_sskip : forall ce cs, eval_fstmt_single sskip ce cs ce cs *)
-  (* (* declare wire with ground type *) *)
-  (* | Eval_swire_gt v t ce cs ce' cs': *)
-  (*     CELemmas.P.Add v (t, Wire) ce ce' -> *)
-  (*     SV.Upd v (r_ftype (Gtyp t)) cs cs' -> *)
-  (*     eval_fstmt_single (swire v (Gtyp t)) ce cs ce' cs' *)
-  (* (* declare wire with vector type *) *)
-  (* | Eval_swire_agt v t n ce cs ce' cs' ce'' cs'': *)
-  (*     0 < n -> *)
-  (*     eval_fstmt_single (swire (new_vecvar v n) t) ce cs ce' cs' -> *)
-  (*     eval_fstmt_single (swire v (Atyp t n.-1)) ce' cs' ce'' cs'' -> *)
-  (*     eval_fstmt_single (swire v (Atyp t n)) ce cs ce'' cs'' *)
-  (* (* TBD. declare wire with bundle type *) *)
-  (* (*| Eval_swire_bt *) *)
-  (* (* declare node with expr, valid rhs *) *)
-  (* | Eval_snode v e ce cs ce' cs': *)
-  (*     valid_rhs_fexpr e ce' -> *)
-  (*     CELemmas.P.Add v ((type_of_hfexpr e ce), Node) ce ce' -> *)
-  (*     SV.Upd v (r_fexpr e) cs cs' -> *)
-  (*     eval_fstmt_single (snode v e) ce cs ce' cs' *)
-  (* (* define full connection *) *)
-  (* (* valid flow orient, type eq between dst and src, dst width upd to max (current size, src) *) *)
-  (* | Eval_sfcnct v e ce ce' cs cs': *)
-  (*     valid_lhs_orient (orient_of_comp (snd (CE.vtyp v ce))) -> *)
-  (*     valid_rhs_fexpr e ce -> *)
-  (*     fgtyp_equiv (fst (CE.vtyp v ce)) (type_of_hfexpr e ce) -> *)
-  (*     CELemmas.P.Add v (change_width (fst (CE.vtyp v ce)) (maxn (sizeof_fgtyp (fst (CE.vtyp v ce))) (sizeof_fgtyp (type_of_hfexpr e ce))), snd (CE.vtyp v ce)) ce ce' -> *)
-  (*     SV.Upd v (r_fexpr e) cs cs' -> *)
-  (*     eval_fstmt_single (sfcnct (Eref v) e) ce cs ce' cs' *)
-  (* (* declare reg with ground type , reset expr type equiv with reg type*) *)
-  (* | Eval_sreg_r_gt r t c rc rs ce cs ce' cs' : *)
-  (*     fgtyp_equiv (type_of_hfexpr rs ce) t -> *)
-  (*     CELemmas.P.Add r (t , Register) ce ce' -> *)
-  (*     SV.Upd r (r_fstmt (sreg (mk_hfreg r (Gtyp t) c (rrst rc rs)))) cs cs' -> *)
-  (*     eval_fstmt_single (sreg (mk_hfreg r (Gtyp t) c (rrst rc rs))) ce cs ce' cs' *)
-  (* (* declare reg with ground type, non reset *) *)
-  (* | Eval_sreg_nr_gt r t c ce cs ce' cs' : *)
-  (*     CELemmas.P.Add r (t , Register) ce ce' -> *)
-  (*     SV.Upd r (r_fstmt (sreg (mk_hfreg r (Gtyp t) c nrst))) cs cs' -> *)
-  (*     eval_fstmt_single (sreg (mk_hfreg r (Gtyp t) c nrst)) ce cs ce' cs' *)
-  (* (* declare reg with vector ground type *) *)
-  (* | Eval_sreg_agt r t n c rs ce cs ce' cs' ce'' cs'' : *)
-  (*     0 < n -> *)
-  (*     eval_fstmt_single (sreg (mk_hfreg r t c rs)) ce cs ce' cs' -> *)
-  (*     eval_fstmt_single (sreg (mk_hfreg r (Atyp t n.-1) c rs)) ce' cs' ce'' cs'' -> *)
-  (*     eval_fstmt_single (sreg (mk_hfreg r (Atyp t n) c rs)) ce cs ce'' cs'' *)
-  (* (* declare mem with ground type *) *)
-  (* | Eval_smem_gt m t dp r w rl wl rw ce cs ce' cs' : *)
-  (*     is_passive (Gtyp t) -> *)
-  (*     CELemmas.P.Add m (t, Memory) ce ce' -> *)
-  (*     SV.Upd m (r_fstmt (smem (mk_hfmem m (Gtyp t) dp r w rl wl rw))) cs cs' -> *)
-  (*     eval_fstmt_single (smem (mk_hfmem m (Gtyp t) dp r w rl wl rw)) ce cs ce' cs' *)
-  (* (* declare mem with vector ground type *) *)
-  (* | Eval_smem_agt m t n dp r w rl wl rw ce cs ce' cs' ce'' cs'': *)
-  (*     0 < n -> *)
-  (*     is_passive (Atyp (Gtyp t) n) -> *)
-  (*     CELemmas.P.Add m (t, Memory) ce ce' -> *)
-  (*     SV.Upd (new_vecvar m n) (r_fstmt (smem (mk_hfmem m (Gtyp t) dp r w rl wl rw))) cs cs' -> *)
-  (*     eval_fstmt_single (smem (mk_hfmem m (Atyp (Gtyp t) n.-1) dp r w rl wl rw)) ce' cs' ce'' cs'' -> *)
-  (*     eval_fstmt_single (smem (mk_hfmem m (Atyp (Gtyp t) n) dp r w rl wl rw)) ce cs ce'' cs'' *)
-  (* . *)
+  Definition merge_branch_cs_t c re re_t : option rhs_expr :=
+    match re, re_t with
+    | None, None => None
+    | Some (R_fexpr e), Some (R_fexpr e_t) => Some (r_fexpr (emux c e_t e))
+    | Some R_default, Some (R_fexpr e_t) => Some (R_fexpr e_t)
+    | Some er1, None => Some er1
+    | None, Some er2 => Some er2
+    | _, _ => None 
+    end.
 
-  (* (** semantics of statement group, last cnct considered *) *)
-  (* Inductive eval_fstmts_group : seq hfstmt -> CE.env -> cstate -> CE.env -> cstate -> Prop := *)
-  (* | Gnil ce cs: eval_fstmts_group [::] ce cs ce cs *)
-  (* (** connect to a dst *) *)
-  (* | Gfstmts_last_cncts v e hst_tl ce ce' cs cs' cs'' : *)
-  (*     eval_fstmt_single (sfcnct (Eref v) e) ce cs ce cs' -> *)
-  (*     eval_fstmts_group hst_tl ce cs' ce' cs'' -> *)
-  (*     eval_fstmts_group (sfcnct (Eref v) e :: hst_tl) ce cs ce' cs'' *)
+  Definition merge_branch_cs_e c re re_e : option rhs_expr :=
+    match re, re_e with
+    | None, None => None
+    | Some (R_fexpr e), Some (R_fexpr e_e) => Some (r_fexpr (emux c e e_e))
+    | Some R_default, Some (R_fexpr e_e) => Some (R_fexpr e_e)
+    | Some er1, None => Some er1
+    | None, Some er2 => Some er2
+    | _, _ => None 
+    end.
+
+  Definition merge_branch_ce ce ce_t : option (cmpnt_init_typs * fcomponent) :=
+    match ce, ce_t with
+    | None, None => None
+    | Some (Aggr_typ t1, cp1), Some (Aggr_typ t2, cp2) => Some (aggr_typ (max_width t1 t2), cp1)
+    | Some (Reg_typ t1, cp1), Some (Aggr_typ t2, cp2) => Some (Reg_typ t1, cp1)
+    | Some er1, None => Some er1
+    | None, Some er2 => Some er2
+    | _, _ => None 
+    end.
+
+
+  Parameter map2 : (option rhs_expr -> option rhs_expr -> option rhs_expr) -> cstate -> cstate -> cstate.
+  
+  (** Semantics of statement group, last cnct considered *)
+  Inductive eval_fstmts_group : seq hfstmt -> CE.env -> cstate -> CE.env -> cstate -> Prop :=
+  | Gnil ce cs: eval_fstmts_group [::] ce cs ce cs
+  (** other than when *)
+  | Gfstmts_default st hst_tl ce ce' cs cs' cs'' :
+      eval_fstmt_single st ce cs ce cs' ->
+      eval_fstmts_group hst_tl ce cs' ce' cs'' ->
+      eval_fstmts_group (st :: hst_tl) ce cs ce' cs''
   (* (**  claim a sreg *) *)
-  (* | Gfstmts_reg_init (r: hfreg) hst_tl ce ce' ce'' cs cs' cs'' : *)
-  (*     eval_fstmt_single (sreg r) ce cs ce' cs' -> *)
+  (* | Gfstmts_reg_init r rt hst_tl ce ce' ce'' cs cs' cs'' : *)
+  (*     eval_fstmt_single (sreg r rt) ce cs ce' cs' -> *)
   (*     eval_fstmts_group  hst_tl ce' cs' ce'' cs'' -> *)
-  (*     eval_fstmts_group (sreg r :: hst_tl) ce cs ce'' cs'' *)
+  (*     eval_fstmts_group (sreg r rt :: hst_tl) ce cs ce'' cs''. *)
   (* (** claim a node *) *)
   (* | Gfstmts_node v e hst_tl ce ce' ce'' cs cs' cs'' : *)
   (*     eval_fstmt_single (snode v e) ce cs ce' cs' -> *)
@@ -1243,23 +1396,29 @@ Module MakeHiFirrtl
   (* | Gskip_fstmts hst_tl ce ce' cs cs' : *)
   (*     eval_fstmts_group hst_tl ce cs ce' cs' -> *)
   (*     eval_fstmts_group (sskip :: hst_tl) ce cs ce' cs' *)
-  (* (** condition when *) *)
-  (* | Gwhen_fstmts c hstg1 hstg2 hst_tl ce ce' ce'' cs cs' cs'' : *)
-  (*     eval_fstmts_group_branch c hstg1 hstg2 ce cs ce' cs' -> *)
-  (*     eval_fstmts_group hst_tl ce' cs' ce'' cs'' -> *)
-  (*     eval_fstmts_group (swhen c hstg1 hstg2 :: hst_tl) ce cs ce'' cs'' *)
-  (* (** https://github.com/llvm/circt/blob/main/lib/Dialect/FIRRTL/Transforms/ExpandWhens.cpp *) *)
-  (* with eval_fstmts_group_branch : *)
-  (*        hfexpr -> seq hfstmt -> seq hfstmt -> CE.env -> cstate -> CE.env -> cstate -> Prop := *)
-  (* (** nil *) *)
-  (* | Gthen_else_def c ce cs : *)
-  (*     eval_fstmts_group_branch c [::] [::] ce cs ce cs  *)
+  (** condition when *)
+  | Gwhen_fstmts c hstg1 hstg2 hst_tl ce ce' ce'' cs cs' cs'' :
+      eval_fstmts_group_branch c hstg1 hstg2 ce cs ce' cs' ->
+      eval_fstmts_group hst_tl ce' cs' ce'' cs'' ->
+      eval_fstmts_group (swhen c hstg1 hstg2 :: hst_tl) ce cs ce'' cs''
+  (** https://github.com/llvm/circt/blob/main/lib/Dialect/FIRRTL/Transforms/ExpandWhens.cpp *)
+  with eval_fstmts_group_branch :
+         hfexpr -> seq hfstmt -> seq hfstmt -> CE.env -> cstate -> CE.env -> cstate -> Prop :=
+  (** nil *)
+  | Gthen_else_def c ce cs :
+      eval_fstmts_group_branch c [::] [::] ce cs ce cs
+  | Gthen_else c tb eb ce0 cs0 ce1 cs1 ce2 cs2 :
+      eval_fstmts_group tb ce0 cs0 ce1 cs1 ->
+      eval_fstmts_group eb ce0 cs0 ce2 cs2 ->
+      eval_fstmts_group_branch c tb eb ce0 cs0 (CE.map2 merge_branch_ce (CE.map2 merge_branch_ce ce0 ce1) ce2)
+                               (map2 (merge_branch_cs_e c) (map2 (merge_branch_cs_t c) cs0 cs1) cs2).
+  
   (* (** connect to dst in then branch which has "not" been connected previously, add then branch *) *)
   (* | Gthen_cnct_0 c v e hstg1 hstg2 ce ce' ce'' cs cs' cs'' : *)
-  (*     CE.find v ce == None -> *)
-  (*     eval_fstmt_single (sfcnct (eref v) e) ce cs ce' cs' -> *)
+  (*     SV.acc (base_ref v) cs == r_default -> *)
+  (*     eval_fstmt_single (sfcnct v e) ce cs ce' cs' -> *)
   (*     eval_fstmts_group_branch c hstg1 hstg2 ce' cs' ce'' cs'' -> *)
-  (*     eval_fstmts_group_branch c (sfcnct (eref v) e :: hstg1) hstg2 ce cs ce'' cs'' *)
+  (*     eval_fstmts_group_branch c (sfcnct v e :: hstg1) hstg2 ce cs ce'' cs'' *)
   (* (** connect to dst in else branch which has "not" been connected previously, add else branch *) *)
   (* | Gelse_cnct_0 c v e hstg2 ce ce' ce'' cs cs' cs'' : *)
   (*     CE.find v ce == None -> *)
@@ -1299,14 +1458,15 @@ Module MakeHiFirrtl
   (* | Gelse_node c v e hstg2 ce ce' ce'' cs cs' cs'' : *)
   (*     eval_fstmt_single (snode v e) ce cs ce' cs' -> *)
   (*     eval_fstmts_group_branch c [::] hstg2 ce' cs' ce'' cs'' -> *)
-  (*     eval_fstmts_group_branch c [::] (snode v e :: hstg2) ce cs ce'' cs'' *)
-  (* . *)
+  (*     eval_fstmts_group_branch c [::] (snode v e :: hstg2) ce cs ce'' cs''. *)
 
   (* Lemma valid_conncection v e2 sts ce cs ce' cs' : *)
   (*   eval_fstmts_group (sfcnct (eref v) e2 :: sts) ce cs ce' cs' -> *)
   (*   valid_rhs (SV.acc v cs') ce'. *)
     
-    
+
+   
+  
 End MakeHiFirrtl.
 
 
