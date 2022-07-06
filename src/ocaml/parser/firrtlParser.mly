@@ -4,7 +4,7 @@
 %}
 
 %token<string> COMMENT
-%token<string> BINARY HEX_DECIMAL OCTAL DECIMAL NUMERAL STRING SYMBOL
+%token<string> BINARY HEX_DECIMAL OCTAL DECIMAL NUMERAL STRING SYMBOL S_HEX_DECIMAL S_BINARY S_NUMERAL S_OCTAL
 %token PAR_OPEN PAR_CLOSE ANG_OPEN ANG_CLOSE SQR_OPEN SQR_CLOSE UNDERSCORE QUOT SPRT KEYWORD
 %token CIRCUIT STM_MODULE STM_EXTMODULE STM_SKIP STM_INPUT STM_OUTPUT STM_WHEN STM_ELSE  STM_CONNECT STM_PCONNECT
 %token STM_NODE STM_NASS STM_INST KEYWORD_OF STM_DEFNAME STM_INVALID STM_PARAM STM_DATATYPE STM_DEPTH STM_READ STM_READ_L STM_WRITE STM_WRITE_L STM_READWRITE
@@ -105,14 +105,24 @@ statement
   
 expr
 :   symbol                                  { Eref $1 }
-/*
     | UINT ANG_OPEN numeral ANG_CLOSE PAR_OPEN QUOT hexadecimal QUOT PAR_CLOSE
                                             { Econst (Fuint($3), $7)}
-    | SINT ANG_OPEN numeral ANG_CLOSE PAR_OPEN QUOT hexadecimal QUOT PAR_CLOSE
+    | UINT ANG_OPEN numeral ANG_CLOSE PAR_OPEN QUOT binary QUOT PAR_CLOSE
+                                            { Econst (Fuint($3), $7)}
+    | UINT ANG_OPEN numeral ANG_CLOSE PAR_OPEN QUOT octal QUOT PAR_CLOSE
+                                            { Econst (Fuint($3), $7)}
+    | UINT ANG_OPEN numeral ANG_CLOSE PAR_OPEN numeral PAR_CLOSE
+                                            { Econst (Fuint($3), $6)}
+
+    | SINT ANG_OPEN numeral ANG_CLOSE PAR_OPEN QUOT s_hexadecimal QUOT PAR_CLOSE
                                             { Econst (Fsint($3), $7)}
-                                            */
-    | typ_def PAR_OPEN QUOT hexadecimal QUOT PAR_CLOSE
-                                              { Econst ($1, $4)}
+    | SINT ANG_OPEN numeral ANG_CLOSE PAR_OPEN QUOT s_binary QUOT PAR_CLOSE
+                                            { Econst (Fsint($3), $7)}
+    | SINT ANG_OPEN numeral ANG_CLOSE PAR_OPEN QUOT s_octal QUOT PAR_CLOSE
+                                            { Econst (Fsint($3), $7)}
+    | SINT ANG_OPEN numeral ANG_CLOSE PAR_OPEN s_numeral PAR_CLOSE
+                                            { Econst (Fsint($3), $6)}
+
     | EXPR_ADD PAR_OPEN expr SPRT expr PAR_CLOSE
                                             { Eprim_binop (Badd, $3, $5)}
     | EXPR_SUB PAR_OPEN expr SPRT expr PAR_CLOSE
@@ -208,6 +218,10 @@ numeral
   : NUMERAL                             { Z.of_string $1 }
 ;
 
+s_numeral
+  : S_NUMERAL                             { Z.of_string $1 }
+;
+
 decimal
   : DECIMAL                             { $1 }
 ;
@@ -216,12 +230,25 @@ hexadecimal
   : HEX_DECIMAL                         { Z.of_string_base 16 $1 }
 ;
 
+s_hexadecimal
+  : S_HEX_DECIMAL                         { Z.of_string_base 16 $1 }
+;
+
 binary
-  : BINARY                              { Z.of_string $1 }
+  : BINARY                              { Z.of_string_base 2 $1 }
 ;
 
 octal 
-  : OCTAL                                { Z.of_string $1 }
+  : OCTAL                                { Z.of_string_base 10 $1 }
+;
+
+s_binary
+  : S_BINARY                              { Z.of_string_base 2 $1 }
+;
+
+s_octal 
+  : S_OCTAL                                { Z.of_string_base 10 $1 }
+;
 
 string
   : STRING                              { Z.of_string $1 }

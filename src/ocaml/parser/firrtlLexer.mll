@@ -12,6 +12,8 @@
 let digit = ['0'-'9']
 let binary_digit = ['0' '1']
 let numeral = '0' | ['1'-'9'] digit*
+let s_binary_digit = binary_digit | ('-' binary_digit)
+let s_numeral = numeral | ('-' numeral)
 let letter = ['a'-'z' 'A'-'Z' '_']
 let special_char = ['+' '-' '/' '*' '=' '%' '?' '!' '.' '$' '_' '~' '&' '^' '<' '>' '@' '\'']
 let symbol = ('|' [^'|']+ '|') | (letter|special_char)(letter|special_char|digit)*
@@ -20,6 +22,7 @@ let escape_space = "\"\""
 let letter = ['a'-'z' 'A'-'Z' '_']
 let number = ['0'-'9']
 let hex = ['0'-'9' 'a'-'f' 'A'-'F']
+let s_hex = hex | ('-' hex)
 let identity = letter (letter | number)*
 let comment_line = ('@'([^ '\n' ]+))|('#'([^ '\n' ]+))
 
@@ -42,13 +45,16 @@ and token = parse
 | '_'                                   { upd_cnum lexbuf; UNDERSCORE }
 | "b" (binary_digit+ as str)            { upd_cnum lexbuf; BINARY str }
 | "o" (numeral+ as str)                 { upd_cnum lexbuf; OCTAL str }
+| "h" (hex+ as str)                           { upd_cnum lexbuf; HEX_DECIMAL str }
+| "b" (s_binary_digit+ as str)            { upd_cnum lexbuf; S_BINARY str }
+| "o" (s_numeral+ as str)                 { upd_cnum lexbuf; S_OCTAL str }
+| "h" (s_hex+ as str)                           { upd_cnum lexbuf; S_HEX_DECIMAL str }
 | ':'                                   { upd_cnum lexbuf; KEYWORD }
 | ','                                   { upd_cnum lexbuf; SPRT }
 | '.'                                   { upd_cnum lexbuf; SUB_FIELD }
-| "h" (hex+ as str)
-                                        { upd_cnum lexbuf; HEX_DECIMAL str }
 | numeral '.' '0'* numeral as str       { upd_cnum lexbuf; DECIMAL str }
 | numeral as str                        { upd_cnum lexbuf; NUMERAL str }
+| s_numeral as str                        { upd_cnum lexbuf; S_NUMERAL str }
 (* | '"' (([^'"']|escape_space)* as str) '"'
  *                                         { upd_cnum lexbuf; STRING str } *)
 | "circuit"                             { upd_cnum lexbuf; CIRCUIT }
