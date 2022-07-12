@@ -418,6 +418,14 @@ Module MakeHiFirrtl
     end.
 
   (* rhs expr has right orient *)
+  Fixpoint valid_rhs_ref (e : href) (ce : cenv) :=
+    match e with
+    | Eid r => let (_,c) := CE.vtyp r ce in valid_rhs_orient (orient_of_comp c)
+    | Esubfield r _ => valid_rhs_ref r ce
+    | Esubindex r _ => valid_rhs_ref r ce
+    | Esubaccess r _ => valid_rhs_ref r ce
+    end.
+  
   Fixpoint valid_rhs_fexpr (e : hfexpr) (ce : cenv) :=
     match e with
     | Econst _ _ => true
@@ -427,14 +435,7 @@ Module MakeHiFirrtl
     | Eprim_unop _ _ => true
     | Emux _ e1 e2 => valid_rhs_fexpr e1 ce && (valid_rhs_fexpr e2 ce)
     | Evalidif _ e => valid_rhs_fexpr e ce
-    end
-  with valid_rhs_ref (e : href) (ce : cenv) :=
-         match e with
-         | Eid r => let (_,c) := CE.vtyp r ce in valid_rhs_orient (orient_of_comp c)
-         | Esubfield r _ => valid_rhs_ref r ce
-         | Esubindex r _ => valid_rhs_ref r ce
-         | Esubaccess r _ => valid_rhs_ref r ce
-         end.
+    end.
 
   Definition valid_rhs (re : rhs_expr) (ce : cenv) : bool :=
     match re with
@@ -477,23 +478,49 @@ Module MakeHiFirrtl
          end.
 
   (* type weak equivalence *)
-  (* Fixpoint ftype_weak_equiv t1 t2 := *)
-  (*   match t1, t2 with *)
-  (*   | Gtyp gt1, Gtyp gt2 => fgtyp_equiv gt1 gt2 *)
-  (*   | Atyp t1 n1, Atyp t2 n2 => ftype_equiv t1 t2 *)
-  (*   | Btyp bt1, Btyp bt2 => fbtyp_weak_equiv bt1 bt2 *)
-  (*   | _, _ => false *)
-  (*   end *)
-  (* with fbtyp_weak_equiv b1 b2 := *)
-  (*        match b1, b2 with *)
-  (*        | Fflips v1 Flipped t1 fs1, Fflips v2 Flipped t2 fs2 => *)
-  (*          (v1 == v2) && ftype_equiv t1 t2 && fbtyp_equiv fs1 fs2 *)
-  (*        | Fflips v1 Nflip t1 fs1, Fflips v2 Nflip t2 fs2 => *)
-  (*          (v1 == v2) && ftype_equiv t1 t2 && fbtyp_equiv fs1 fs2 *)
-  (*        | _, Fnil => true *)
-  (*        | Fnil, _ => true *)
-  (*        | _, _ => false *)
-  (*        end. *)
+  Fixpoint have_field bs f : bool :=
+    match bs with
+    | Fflips v fp t bs' => if v == f then true else have_field bs' f
+    | Fnil => false
+    end.
+
+  Fixpoint orient_of_field bs f : option fflip :=
+    match bs with
+    | Fflips v fp t bs' => if v == f then Some fp else orient_of_field bs' f
+    | Fnil => None
+    end.
+
+  Fixpoint type_of_field bs f : option ftype :=
+    match bs with
+    | Fflips v fp t bs' => if v == f then Some t else type_of_field bs' f
+    | Fnil => None
+    end.
+
+  Definition same_ffilp f1 f2 : bool :=
+    match f1, f2 with
+    | Flipped, Flipped => true
+    | Nflip, Nflip => true
+    | _, _ => false
+    end.
+
+  Fixpoint fbtyp_weak_equiv b1 b2 :=
+    match b1 with
+    | Fflips v1 fp1 t1 fs1 =>
+      match orient_of_field b2 v1, type_of_field b2 v1 with
+      | Some fp2, Some t2 => (same_ffilp fp1 fp2 && (ftype_equiv t1 t2))
+      | None, None => true
+      | _, _ => fbtyp_weak_equiv fs1 b2
+      end
+    | Fnil => true
+    end.
+  
+  Fixpoint ftype_weak_equiv t1 t2 :=
+    match t1, t2 with
+    | Gtyp gt1, Gtyp gt2 => fgtyp_equiv gt1 gt2
+    | Atyp t1 n1, Atyp t2 n2 => ftype_equiv t1 t2
+    | Btyp bt1, Btyp bt2 => fbtyp_weak_equiv bt1 bt2
+    | _, _ => false
+    end.
   
   Definition cmpnt_init_typs := @cmpnt_init_typs V.T.
   Definition aggr_typ t := @Aggr_typ V.T t.
@@ -564,6 +591,27 @@ Module MakeHiFirrtl
       resolveKinds_modules ps ce' ce'' ->
       resolveKinds_modules (p::ps) ce ce''.
 
+  Definition resolveKinds_stmt_fun st ce :=
+    match st with
+    | Swire v t => CE.add v (aggr_typ t, Wire) ce
+    | Sreg v r => CE.add v (reg_typ r, Register) ce
+    | Smem v m => CE.add v (mem_typ m, Memory) ce
+    | Snode v e => CE.add v (unknown_typ, Node) ce
+    | Sinst v m => CE.add v (unknown_typ, Instanceof) ce
+    | Skip => ce
+    end.
+
+  Fixpoint resolveKinds_stmts_fun sts ce : CE.env := fold_right resolveKinds_stmt_fun sts ce.
+
+  Definition resolveKinds_port_fun p ce :=
+    match p with
+    | Finput v t => CE.add v (t, In_port) ce
+    | Foutput v t => CE.add v (t, Out_port) ce
+    end.
+
+  Fixpoint resolveKinds_ports_fun ps ce := fold_right resolveKinds_port_fun ps ce.
+    
+  
   (** decide the type and width of hifirrtl expressions *)
 
   Parameter v2var : V.t -> Var.var.
@@ -987,31 +1035,6 @@ Module MakeHiFirrtl
                                  (upd_vectyp (base_type_of_ref r ce) t).
   Proof.
   Admitted.
-  
-  (* Definition upd_cmpnttyp_field ft v t : cmpnt_init_typs := *)
-  (*   match ft with *)
-  (*   | Reg_typ r => reg_typ (upd_regtyp (upd_name_ftype (type r) v t) r) *)
-  (*   | Mem_typ m => mem_typ (upd_memtyp (upd_name_ftype (data_type m) v t) m) *)
-  (*   | Aggr_typ ft => aggr_typ (upd_name_ftype ft v t) *)
-  (*   | Unknown_typ => unknown_typ *)
-  (*   end. *)
-  
-  (* (* upd a field 'v' according to the ref expression 'r', find and upd the corresponding type from ce *) *)
-  (* Fixpoint upd_subfield_typ r v t ce : CE.env := *)
-  (*   match r with *)
-  (*   | Eid v1 => CE.add v1 (upd_cmpnttyp_field (fst (CE.vtyp v1 ce)) v t, snd (CE.vtyp v1 ce)) ce *)
-  (*   | Esubfield r1 v1 => upd_subfield_typ r1 v t ce *)
-  (*   | Esubindex r1 n => upd_subfield_typ r1 v t ce *)
-  (*   | Esubaccess r1 n => upd_subfield_typ r1 v t ce *)
-  (*   end. *)
-
-  (* Fixpoint upd_eref_ftype r t ce := *)
-  (*   match r with *)
-  (*   | Eid v => CE.add v (upd_cmpnttyp_field (fst (CE.vtyp v ce)) (v2var v) t, snd (CE.vtyp v ce)) ce *)
-  (*   | Esubfield r v => upd_subfield_typ r (v2var v) t ce *)
-  (*   | Esubindex r1 n => upd_eref_ftype r1 t ce *)
-  (*   | Esubaccess r1 n =>  upd_eref_ftype r1 t ce *)
-  (*   end. *)
 
   Fixpoint typeConstraints (f1 f2 : nat -> nat -> bool) (t1 t2 : ftype) : bool :=
     match t1, t2 with
@@ -1036,15 +1059,35 @@ Module MakeHiFirrtl
   Definition typeConstraintsGe t1 t2 := typeConstraints geq ltn t1 t2.
 
   (* type constraint exclude default type *)
-   Definition typeConstraintsGe_exdef t1 t2 :=
-     if is_deftyp t1 then true
-     else typeConstraintsGe t1 t2.
-    
+  Definition typeConstraintsGe_exdef t1 t2 :=
+    if is_deftyp t1 then true
+    else typeConstraintsGe t1 t2.
+
+  (** Pass ResolveFlow *)
+  (* rhs passive type ? TBD. *)
+
+  Fixpoint resolveFlow_fun st te : bool :=
+    match st with
+    | Sfcnct r e => 
+      ftype_equiv (type_of_ref r te) (type_of_hfexpr e te) && valid_rhs_fexpr e te
+      && (valid_lhs_orient (orient_of_comp (snd (CE.vtyp (base_ref r) te))))
+    | Spcnct r e =>
+      ftype_weak_equiv (type_of_ref r te) (type_of_hfexpr e te) && valid_rhs_fexpr e te
+      && (valid_lhs_orient (orient_of_comp (snd (CE.vtyp (base_ref r) te))))
+    | Sinvalid e => valid_rhs_ref e te
+    | Sreg r rt => match (reset rt) with
+                   | NRst => true
+                   | Rst r1 r2 => valid_rhs_fexpr r2 te
+                   end
+    | _ => true
+    end.
+   
   (** Pass InferWidth *)
+  
   (* Infer unknown width
      Infers the smallest width is larger than all assigned widths to a signal
-   *  Note that this means that dummy assignments that are overwritten by last-connect-semantics
-   *  can still influence width inference *)
+   * Note that this means that dummy assignments that are overwritten by last-connect-semantics
+   * can still influence width inference *)
 
 
    (* A map to store candidate types *)
@@ -1091,8 +1134,6 @@ Module MakeHiFirrtl
        end
      end.
 
-   (* TODO : Resolve flow need to be add before *)
-
    Fixpoint inferWidth_wmap0 (s : hfstmt) (ce : cenv) (w : wmap0) {struct s}: wmap0 :=
        match s with
      | Snode v e => w
@@ -1103,10 +1144,22 @@ Module MakeHiFirrtl
        if (is_deftyp t) && (is_deftyp (type_of_ref rs ce)) then (w2 (w1 w))
        else if (is_deftyp t) then (w1 w)
             else if (is_deftyp (type_of_ref rs ce)) then (w2 w) else w
+     | Sfcnct r1 (Eref r2) =>
+       let w1 w := add_ref_wmap0 r1 (type_of_ref r2 ce) ce w in
+       let w2 w := add_ref_wmap0 r2 (type_of_ref r1 ce) ce w in
+       if is_deftyp (type_of_ref r1 ce) && (is_deftyp (type_of_ref r2 ce)) then (w2 (w1 w))
+       else if is_deftyp (type_of_ref r1 ce) then w1 w
+            else if is_deftyp (type_of_ref r2 ce) then w2 w else w
      | Sfcnct r e =>
        let w1 := add_ref_wmap0 r (type_of_hfexpr e ce) ce w in
        if is_deftyp (type_of_ref r ce) then w1 else w
-     | Spcnct r e => 
+     | Spcnct r1 (Eref r2) =>
+       let w1 w := add_ref_wmap0 r1 (type_of_ref r2 ce) ce w in
+       let w2 w := add_ref_wmap0 r2 (type_of_ref r1 ce) ce w in
+       if is_deftyp (type_of_ref r1 ce) && (is_deftyp (type_of_ref r2 ce)) then (w2 (w1 w))
+       else if is_deftyp (type_of_ref r1 ce) then w1 w
+            else if is_deftyp (type_of_ref r2 ce) then w2 w else w
+     | Spcnct r e =>
        let w1 := add_ref_wmap0 r (type_of_hfexpr e ce) ce w in
        if is_deftyp (type_of_ref r ce) then w1 else w
      | Swhen (Eref rs) s1 s2 =>
@@ -1216,10 +1269,78 @@ Module MakeHiFirrtl
    Definition inferWidth_fun ss ce : CE.env :=
     wmap_map2_cenv (inferWidth_stmts_wmap0 ss ce empty_wmap0) ce.
 
+
    (** Pass ExpandConnect *)
 
-   (** TBD *)
-   Parameter expandConnect_fun : hfstmt -> CE.env -> cstate -> hfstmt.
+   (** TBD *)  
+   Parameter new_vecvar : var -> nat -> var.
+
+   Fixpoint new_vars_atyp r n t te : CE.env :=
+     match n with
+     | 0 => te
+     | S m => new_vars_atyp r m t (CE.add (new_vecvar r n) t te)
+     end.
+   
+   Parameter new_bdvar : var -> Var.var -> var.
+   Parameter var2v : Var.var -> V.T.
+   
+   (* premise : passive type, type equiv *)
+   Fixpoint expand_connect_subindex r1 r2 n : seq hfstmt :=
+     match n with
+     | 0 => [::]
+     | S m => Sfcnct (Esubindex r1 n) (Eref (Esubindex r2 n)) :: (expand_connect_subindex r1 r2 m)
+     end.
+
+   (* premise : passive type, type equiv *)
+   Fixpoint expand_fullconnect_subfield r1 r2 bs :=
+     match bs with
+     | Fnil => [::]
+     | Fflips v Nflip t bs' => Sfcnct (Esubfield r1 (var2v v)) (Eref (Esubfield r2 (var2v v)))
+                                      :: (expand_fullconnect_subfield r1 r2 bs')
+     | _ => [::]
+     end.
+
+   (* premise : type weak equiv *)
+   Fixpoint expand_partconnect_subfield r1 r2 bs1 bs2 {struct bs1} :=
+     match bs1 with
+     | Fflips v1 Nflip t1 bs1' =>
+       if have_field bs2 v1 then
+         Sfcnct (Esubfield r1 (var2v v1)) (Eref (Esubfield r2 (var2v v1)))
+                :: (expand_partconnect_subfield r1 r2 bs1' bs2)
+       else expand_partconnect_subfield r1 r2 bs1' bs2
+     | Fflips v1 Flipped t1 bs1' =>
+       if have_field bs2 v1 then
+         Sfcnct (Esubfield r2 (var2v v1)) (Eref (Esubfield r1 (var2v v1)))
+                :: (expand_partconnect_subfield r1 r2 bs1' bs2)
+       else expand_partconnect_subfield r1 r2 bs1' bs2
+     | Fnil => [::]
+     end.
+
+   (* premise: valid lhs rhs (resolve flow), type equiv/weak_equiv (type infer, width infer) *)
+   (* since types are lowered in Pass LoweringType, ExpandConnect is only in transform pass, not in semantics representation ce cs *)
+   Fixpoint expandConnect_fun st ce : seq hfstmt :=
+     match st with
+     | Sfcnct r1 (Eref r2) =>
+       let tr1 := type_of_ref r1 ce in
+       let tr2 := type_of_ref r2 ce in
+       match tr1, tr2 with
+       | Gtyp t1, Gtyp t2 => [::Sfcnct r1 (Eref r2)]
+       | Atyp t1 n1, Atyp t2 n2 => expand_connect_subindex r1 r2 n1
+       | Btyp bs1, Btyp bs2 => expand_fullconnect_subfield r1 r2 bs1
+       | _, _ => [::]
+       end
+     | Spcnct r1 (Eref r2) =>
+       let tr1 := type_of_ref r1 ce in
+       let tr2 := type_of_ref r2 ce in
+       match tr1, tr2 with
+       | Gtyp t1, Gtyp t2 => [:: Sfcnct r1 (Eref r2)]
+       | Atyp t1 n1, Atyp t2 n2 => if n1 < n2 then expand_connect_subindex r1 r2 n1
+                                   else expand_connect_subindex r1 r2 n2
+       | Btyp bs1, Btyp bs2 => expand_partconnect_subfield r1 r2 bs1 bs2
+       | _, _ => [::]
+       end
+     | st => [::st]
+     end.
 
    (** Pass ExpandWhens *)
    
@@ -1227,9 +1348,7 @@ Module MakeHiFirrtl
    (*   match s with *)
    (*   | Swhen c (Sfcnct r e) s2 =>  *)
 
-   (* TBD *)
-  Parameter new_vecvar : var -> nat -> var.
-  Parameter new_bdvar : var -> Var.var -> var.
+
   
   (** Semantics of declaim  ports*)
   Inductive eval_port : hfport -> CE.env -> cstate -> CE.env -> cstate -> Prop :=
@@ -1464,7 +1583,7 @@ Module MakeHiFirrtl
   (*   eval_fstmts_group (sfcnct (eref v) e2 :: sts) ce cs ce' cs' -> *)
   (*   valid_rhs (SV.acc v cs') ce'. *)
     
-
+  
    
   
 End MakeHiFirrtl.
