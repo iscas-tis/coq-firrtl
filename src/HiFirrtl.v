@@ -605,12 +605,19 @@ Module MakeHiFirrtl
 
   Definition resolveKinds_port_fun p ce :=
     match p with
-    | Finput v t => CE.add v (t, In_port) ce
-    | Foutput v t => CE.add v (t, Out_port) ce
+    | Finput v t => CE.add v (aggr_typ t, In_port) ce
+    | Foutput v t => CE.add v (aggr_typ t, Out_port) ce
     end.
 
   Fixpoint resolveKinds_ports_fun ps ce := fold_right resolveKinds_port_fun ps ce.
-    
+
+  Definition resolveKinds_module_fun m ce :=
+    match m with
+    | FInmod v ps ss => CE.add v (unknown_typ, Fmodule) ce
+    | FExmod v ps ss => CE.add v (unknown_typ, Fmodule) ce
+    end.
+
+  Fixpoint resolveKinds_modules_fun ms ce := fold_right resolveKinds_module_fun ms ce.
   
   (** decide the type and width of hifirrtl expressions *)
 
@@ -899,19 +906,37 @@ Module MakeHiFirrtl
     end.
 
   Definition inst_type_of_ports' ps :=
-    match ps with
-    | Btyp Fnil => def_ftype
-    | ps => ps
+    let pt := inst_type_of_ports ps in
+    match pt with
+    | Fnil => def_ftype
+    | ps => Btyp ps
     end.
 
   (* infer type of module according to ports declaration *)
   Inductive inferType_module : hfmodule -> cenv -> cenv -> Prop :=
   | infertype_inmod vm ps ss ce ce' :
-      CE.Add_fst vm (aggr_typ (Btyp (inst_type_of_ports ps))) ce ce' ->
+      CE.Add_fst vm (aggr_typ (inst_type_of_ports' ps)) ce ce' ->
       inferType_module (hfinmod vm ps ss) ce ce'
   | infertype_exmod vm ps ss ce ce' :
-      CE.Add_fst vm (aggr_typ (Btyp (inst_type_of_ports ps))) ce ce' ->
+      CE.Add_fst vm (aggr_typ (inst_type_of_ports' ps)) ce ce' ->
       inferType_module (hfexmod vm ps ss) ce ce'.
+
+  Definition inferType_stmt_fun st ce : CE.env :=
+    match st with
+    | Snode v e => CE.add_fst v (aggr_typ (type_of_hfexpr e ce)) ce
+    | Sinst v1 v2 => CE.add_fst v1 (fst (CE.vtyp v2 ce)) ce
+    | _ => ce
+    end.
+
+  Fixpoint inferType_stmts_fun sts ce : CE.env := fold_right inferType_stmt_fun sts ce.
+
+  Definition inferType_module_fun m ce :=
+    match m with
+    | FInmod v ps ss => CE.add v (aggr_typ (inst_type_of_ports' ps)) ce
+    | FExmod v ps ss => CE.add v (aggr_typ (inst_type_of_ports' ps)) ce
+    end.
+
+  Fixpoint inferType_modules_fun ms ce := fold_right inferType_module_fun ms ce.
   
   Definition upd_regtyp t r :=
     mk_hfreg t (clock r) (reset r).
@@ -1273,16 +1298,11 @@ Module MakeHiFirrtl
    (** Pass ExpandConnect *)
 
    (** TBD *)  
-   Parameter new_vecvar : var -> nat -> var.
+   Parameter new_var : var -> Var.var -> var.
 
-   Fixpoint new_vars_atyp r n t te : CE.env :=
-     match n with
-     | 0 => te
-     | S m => new_vars_atyp r m t (CE.add (new_vecvar r n) t te)
-     end.
+
    
-   Parameter new_bdvar : var -> Var.var -> var.
-   Parameter var2v : Var.var -> V.T.
+   Parameter var2v : Var.var -> V.t.
    
    (* premise : passive type, type equiv *)
    Fixpoint expand_connect_subindex r1 r2 n : seq hfstmt :=
@@ -1342,6 +1362,104 @@ Module MakeHiFirrtl
      | st => [::st]
      end.
 
+   Inductive expand_fields : var -> var -> ffield -> CE.env -> cstate -> CE.env -> cstate -> Prop :=
+   | Expand_fnil r1 r2 ce cs ce' cs' : expand_fields r1 r2 (Fnil) ce cs ce' cs'
+   | Expand_fields r1 r2 v t f ffs ce0 cs0 ce1 ce2 cs1 ce' cs':
+       CE.Add (new_var r1 v) (aggr_typ t, Wire) ce0 ce1 ->
+       CE.Add (new_var r2 v) (aggr_typ t, Wire) ce1 ce2 ->
+       SV.Upd (new_var r1 v) (R_fexpr (Eref (Eid (new_var r2 v)))) cs0 cs1 ->
+       expand_fields r1 r2 ffs ce2 cs1 ce' cs' ->
+       expand_fields r1 r2 (Fflips (v) f t ffs) ce0 cs0 ce' cs'.
+
+   (*
+   Inductive expandConnect : hfstmt -> CE.env -> cstate -> CE.env -> cstate -> Prop :=
+   | Expand_fcnnct :
+       forall r f bs r2 ce0 cs0 ce cs ,
+         base_type_of_ref r ce0 == Btyp bs ->
+         have_field bs (v2var f) ->
+         ftype_equiv (type_of_ref r ce0) (type_of_ref r2 ce0) ->
+         expand_fields (base_ref r) (base_ref r2) bs ce0 cs0 ce cs ->
+         expandConnect (Sfcnct r (Eref r2)) ce0 cs0 ce cs
+   | Expand_pcnnct r r2 ce0 cs0 ce cs:
+       expandConnect (Spcnct r (Eref r2)) ce0 cs0 ce cs.
+*)                 
+
+   (** Pass LowerTypes *)
+   (* lower ports 
+    * We lower ports in a separate pass in order to ensure that statements inside the module do not influence port names.*)
+
+   (* A map to store types destruct *)
+   Definition dmap := CE.t (ftype).
+   Definition empty_dmap : dmap := CE.empty (ftype).
+   Definition findsd (v:var) (d:dmap) := match CE.find v d with Some t => t | None => def_ftype end.
+
+   Parameter destructType_fun : var -> cenv -> dmap.
+
+   Fixpoint len_of_ftype t :=
+     match t with
+     | Gtyp t => 1
+     | Atyp t n => len_of_ftype t + n
+     | Btyp bs => len_of_ffield bs
+     end
+   with len_of_ffield f :=
+     match f with
+     | Fnil => 0
+     | Fflips v f t ff => len_of_ftype t + (len_of_ffield ff)
+     end.
+   
+   Fixpoint new_vars_atyp r n t te : CE.env :=
+     match n with
+     | 0 => te
+     | S m => new_vars_atyp r m t (CE.add (new_var r (N.of_nat n)) t te)
+     end.
+
+   Fixpoint io_conv c :=
+     match c with
+     | In_port => Out_port
+     | Out_port => In_port
+     | c => c
+     end.
+   
+   Fixpoint destructTypes_fun_aux r t c l {struct t} : list (var * fgtyp * fcomponent) :=
+     match t with
+     | Gtyp t => (r, t, c) :: l
+     | Atyp t n =>
+       match n with
+       | 0 => l
+       | S n => destructTypes_fun_aux (new_var r (N.of_nat n)) t c l
+       end
+     | Btyp bs => destructField_fun_aux r bs c l 
+     end
+     with destructField_fun_aux r bs c l :=
+            match bs with
+            | Fnil => l
+            | Fflips v f t ff =>
+              match f with
+              | Nflip => 
+                destructTypes_fun_aux (new_var r v) t c l ++ destructField_fun_aux r ff c l
+              | Flipped =>
+                destructTypes_fun_aux (new_var r v) t (io_conv c) l ++ destructField_fun_aux r ff c l
+              end
+            end.
+
+   Fixpoint destructTypes_fun (l : list (var * fgtyp * fcomponent)) ce : cenv :=
+     match l with
+     | nil => ce
+     | (r, t, c) :: tl => destructTypes_fun tl (CE.add r (aggr_typ (Gtyp t), c) ce)
+     end.
+
+   Definition lowerTypes_fport (p : hfport) ce : cenv :=
+     match p with
+     | Finput v t => destructTypes_fun (destructTypes_fun_aux v t In_port [::]) ce
+     | Foutput v t => destructTypes_fun (destructTypes_fun_aux v t Out_port [::]) ce
+     end.
+
+   Definition lowerTypes_fstmt (s : hfstmt) ce : cenv :=
+     match s with
+     | Swire v t => destructTypes_fun (destructTypes_fun_aux v t Wire [::]) ce
+     | _ => ce
+     end.
+   
    (** Pass ExpandWhens *)
    
    (* Definition expandWhens_fun s ce cs : hfstmt := *)
@@ -1361,19 +1479,19 @@ Module MakeHiFirrtl
   (* in, vector type *)
   | Eval_inport_at v t n ce cs ce' cs' ce'' cs'':
       0 < n ->
-      eval_port (Finput (new_vecvar v n) t) ce cs ce'' cs'' ->
+      eval_port (Finput (new_var v (N.of_nat n)) t) ce cs ce'' cs'' ->
       eval_port (Finput v (Atyp t n.-1)) ce' cs' ce'' cs'' ->
       eval_port (Finput v (Atyp t n)) ce cs ce'' cs''
   (* in, bundle type non flip *)
   | Eval_inport_bt_nf v vt t fs n ce cs ce' cs' ce'' cs'':
       0 < n ->
-      eval_port (Finput (new_bdvar v vt) t) ce cs ce'' cs'' ->
+      eval_port (Finput (new_var v vt) t) ce cs ce'' cs'' ->
       eval_port (Finput v (Btyp fs)) ce' cs' ce'' cs'' ->
       eval_port (Finput v (Btyp (Fflips vt Nflip t fs))) ce cs ce'' cs''
   (* in, bundle type flip *)
   | Eval_inport_bt_f v vt t fs n ce cs ce' cs' ce'' cs'':
       0 < n ->
-      eval_port (Foutput (new_bdvar v vt) t) ce cs ce'' cs'' ->
+      eval_port (Foutput (new_var v vt) t) ce cs ce'' cs'' ->
       eval_port (Finput v (Btyp fs)) ce' cs' ce'' cs'' ->
       eval_port (Finput v (Btyp (Fflips vt Flipped t fs))) ce cs ce'' cs''
   (* out, ground type *)
@@ -1385,19 +1503,19 @@ Module MakeHiFirrtl
   (* out, vector type *)
   | Eval_outport_at v t n ce cs ce' cs' ce'' cs'':
       0 < n ->
-      eval_port (Foutput (new_vecvar v n) t) ce cs ce'' cs'' ->
+      eval_port (Foutput (new_var v (N.of_nat n)) t) ce cs ce'' cs'' ->
       eval_port (Foutput v (Atyp t n.-1)) ce' cs' ce'' cs'' ->
       eval_port (Foutput v (Atyp t n)) ce cs ce'' cs''
   (* out, bundle type *)
   | Eval_outport_bt_nf v vt t fs n ce cs ce' cs' ce'' cs'':
       0 < n ->
-      eval_port (Foutput (new_bdvar v vt) t) ce cs ce'' cs'' ->
+      eval_port (Foutput (new_var v vt) t) ce cs ce'' cs'' ->
       eval_port (Foutput v (Btyp fs)) ce' cs' ce'' cs'' ->
       eval_port (Foutput v (Btyp (Fflips vt Nflip t fs))) ce cs ce'' cs''
   (* out, bundle type flip *)
   | Eval_outport_bt_f v vt t fs n ce cs ce' cs' ce'' cs'':
       0 < n ->
-      eval_port (Finput (new_bdvar v vt) t) ce cs ce'' cs'' ->
+      eval_port (Finput (new_var v vt) t) ce cs ce'' cs'' ->
       eval_port (Foutput v (Btyp fs)) ce' cs' ce'' cs'' ->
       eval_port (Foutput v (Btyp (Fflips vt Flipped t fs))) ce cs ce'' cs''
   .
@@ -1435,7 +1553,7 @@ Module MakeHiFirrtl
       ftype_equiv (type_of_ref v ce) (type_of_hfexpr e ce) ->
       typeConstraintsGe (type_of_ref v ce) (type_of_hfexpr e ce) ->
       CE.Add (base_ref v) (CE.vtyp (base_ref v) ce) ce ce' ->
-      SV.Upd (new_bdvar (base_ref v) (v2var (get_field_name v))) (r_fexpr e) cs cs' ->
+      SV.Upd (new_var (base_ref v) (v2var (get_field_name v))) (r_fexpr e) cs cs' ->
       eval_fstmt_single (sfcnct v e) ce cs ce' cs'
   (* declare reg, reset expr type equiv with reg type*)
   | Eval_sreg_r r t c rc rs ce cs ce' cs' :
