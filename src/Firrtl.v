@@ -367,8 +367,8 @@ Module MakeFirrtl
       let ve2 := (eval_fexpr e2 s te) in
       (ebinop_op b) ve1 ve2
     | Eprim_unop u e => (eunop_op u) (eval_fexpr e s te)
-    | Emux c e1 e2 => if (Z.ltb 0 (to_Z (eval_fexpr c s te))) then (eval_fexpr e1 s te) else (eval_fexpr e2 s te)
-    | Evalidif c e => if (Z.ltb 0 (to_Z (eval_fexpr c s te))) then (eval_fexpr e s te) else [::]
+    | Emux c e1 e2 => if ~~ (is_zero (eval_fexpr c s te)) then (eval_fexpr e1 s te) else (eval_fexpr e2 s te)
+    | Evalidif c e => if ~~ (is_zero (eval_fexpr c s te)) then (eval_fexpr e s te) else [::]
     (* | Edeclare v t => zeros (sizeof_fgtyp t) *)
     | Ecast AsUInt e => eval_fexpr e s te
     | Ecast AsSInt e => eval_fexpr e s te
@@ -396,7 +396,7 @@ Module MakeFirrtl
     | Swire v t => SV.upd v (from_Z (sizeof_fgtyp t) 0) s
     | Sreg r => match reset r with
                 | NRst => s
-                | Rst e1 e2 => if (Z.ltb 0 (to_Z (eval_fexpr e1 s te)))
+                | Rst e1 e2 => if ~~ (is_zero (eval_fexpr e1 s te))
                                then SV.upd (rid r) (eval_fexpr e2 s te) s
                                else if SV.acc (rid r) s == [::] then
                                       SV.upd (rid r) (from_Z (sizeof_fgtyp (type r)) 0) s
@@ -616,6 +616,168 @@ Definition init_env : TE.env := TE.empty fgtyp.
 Definition init_store := Store.empty.
 
 
+Module Natlist0. 
+Delimit Scope natlist_scope with natlist0.
+
+Inductive natlist : Type :=
+  | nil
+  | cons (n : nat) (l : natlist).
+Notation "[ x ; .. ; y ]" := (cons x .. (cons y nil) ..) (x at level 10, right associativity) : natlist0.
+Fixpoint nth_bad (l:natlist) (n:nat) : nat :=
+  match l with
+  | nil => 42
+  | cons a l' => match n with
+               | 0 => a
+               | S n' => nth_bad l' n'
+               end
+  end.
+
+Local Open Scope natlist0.
+
+Eval compute in nth_bad [1;2;3] 2.
+
+Definition in_map := N -> natlist.
+
+Definition eqb_N (x y : N) : bool :=
+  if x==y then true else false.
+Definition t_update (m : in_map) (x : N) (v : natlist) :=
+  fun x' => if eqb_N x x' then v else m x'.
+Definition t_empty (v : natlist) : in_map :=
+  (fun _ => v).
+
+Notation "'_' '!->' v" := (t_empty v)
+  (at level 100, right associativity) : natlist0.
+Notation "x '!->' v ';' m" := (t_update m x v)
+                              (at level 100, v at next level, right associativity) : natlist0.
+
+End Natlist0.
+
+Section clksExamples.
+
+  
+  Import LoFirrtl.
+
+(*Eval compute in (from_nat 1 1).
+Eval compute in (from_nat 1 0).
+Eval compute in (from_nat 2 3).*)
+
+(*clk rst in*)
+Definition l_in := [:: (cons (from_nat 1 0) (cons (from_nat 1 0)(cons (from_nat 1 0) nil))); (cons (from_nat 1 0) (cons (from_nat 1 0)(cons (from_nat 1 0) nil)))].
+(*Definition l_in  := [:: [:: (from_nat 1 0)(from_nat 1 0)(from_nat 1 1)]; [:: (from_nat 1 0)(from_nat 1 0)(from_nat 1 0)]; [:: (from_nat 1 0)(from_nat 1 0)(from_nat 1 1)]; [:: (from_nat 1 0)(from_nat 1 0)(from_nat 1 1)]].*)
+Eval compute in l_in.
+Eval compute in (lastd l_in).
+
+Eval compute in (cons (from_nat 1 0) (cons (from_nat 1 0)(cons (from_nat 1 0) nil))).
+Eval compute in lastd (cons (from_nat 1 0) (cons (from_nat 1 0)(cons (from_nat 1 0) nil))).
+
+(*Require Export Coq.Strings.String.
+Definition total_map (A : Type) := string -> A.
+Definition eqb_string (x y : string) : bool :=
+  if string_dec x y then true else false.
+Definition t_update {A : Type} (m : total_map A) (x : string) (v : A) :=
+  fun x' => if eqb_string x x' then v else m x'.
+Definition t_empty {A : Type} (v : A) : total_map A :=
+  (fun _ => v).
+
+Notation "'_' '!->' v" := (t_empty v)
+  (at level 100, right associativity).
+Notation "x '!->' v ';' m" := (t_update m x v)
+                              (at level 100, v at next level, right associativity).
+
+Definition examplemap' :=
+  ( "bar" !-> true;
+    "foo" !-> true;
+    _ !-> false
+  ).
+(*Eval compute in (examplemap' "bar").*)*)
+
+
+
+
+  Definition st0 := Store.empty.
+  Definition te0 := TE.empty fgtyp. 
+  Definition Accumulator := VarOrder.default. 
+  Definition accumulator := VarOrder.succ Accumulator.
+  Definition io_out := VarOrder.succ accumulator.
+  Definition io_in := VarOrder.succ io_out.
+  Definition _T_11 := VarOrder.succ io_in.
+  Definition _T_12 := VarOrder.succ _T_11.
+  Definition clk := VarOrder.succ _T_12.
+  Definition rst1 := VarOrder.succ clk.
+  
+  Definition fpts := [::(Finput clk Fclock);
+                     (Finput rst1 (Fuint 1));
+                     (Finput io_in (Fuint 1));
+                     (Foutput io_out (Fuint 8))].
+  Definition te1 := upd_typenv_fports fpts te0. 
+  Definition st1 := Store.upd clk [::b0] (Store.upd rst1 [::b1] (Store.upd io_in [::b1] (Store.upd io_out (from_nat 8 0) st0))).
+  
+  Definition fst1 := sreg (mk_freg accumulator (Fuint 8) (eref clk)
+                                   (rrst (econst (Fuint 1) [::b0]) (eref accumulator))).
+  Definition te2 := upd_typenv_fstmt fst1 te1 st1.
+  Definition st2 := eval_fstmt fst1 st1 te2.
+
+  Definition fst2 := (snode _T_11 (eprim_binop Badd (eref accumulator) (eref io_in))).
+  Definition te3 := upd_typenv_fstmt fst2 te2 st2.
+  Definition st3 := eval_fstmt fst2 st2 te3.
+
+  Definition fst3 := (Snode _T_12 (Eprim_unop (Utail 1) (Eref _T_11))).
+  Definition te4 := upd_typenv_fstmt fst3 te3 st3.
+  Definition st4 := eval_fstmt fst3 st3 te4.
+
+  Definition fst4 := (sfcnct (Eref io_out ) (Eref accumulator)).
+  Definition te5 := upd_typenv_fstmt fst4 te4 st4.
+  Definition st5 := eval_fstmt fst4 st4 te5.
+
+  Definition fst5 := (Sfcnct (Eref accumulator) (Emux (Eref rst1) (econst (Fuint 8) (from_nat 8 0)) (Eref _T_12))).
+  Definition te6 := upd_typenv_fstmt fst5 te5 st5.
+  Definition st6 := eval_fstmt fst5 st5 te6.
+
+  Definition fst6 := sskip.
+  Definition te7 := upd_typenv_fstmt fst6 te6 st6.
+  Definition st7 := eval_fstmt fst6 st6 te7.
+
+(*Definition eval_updtyp_fstmt fst te st := eval_fstmt fst st (upd_typenv_fstmt fst te st).*)
+
+  Import Natlist0.
+  Local Open Scope natlist0.
+  
+Definition exampleinp :=
+  ( rst1 !-> [0;0;0;1;1];
+    io_in !-> [1;1;0;1;0];
+    _ !-> nil
+  ).
+  Eval compute in exampleinp rst1.
+  Eval compute in nth_bad (exampleinp rst1) 3.
+
+Fixpoint upd_argulist (s: Store.t) (io_in: N -> natlist) (name: list N) (ind: nat): Store.t :=
+  match name with
+   | [:: ] => s
+   | h::t => upd_argulist (Store.upd h (from_nat 1 (nth_bad (io_in h) ind))s) io_in t ind
+  end.
+
+Fixpoint clk_steps (st : seq fstmt) (s : Store.t) (te : TE.env) (io_in: N -> natlist) (name:list N) (clk_num: nat) : Store.t :=
+  match clk_num with
+  | 0 => eval_fstmts st s te
+  | S m => eval_fstmts st (upd_argulist (clk_steps st s  te io_in name m) io_in name m) te
+  end.
+
+
+Compute (Store.acc accumulator (clk_steps [::fst1;fst2;fst3;fst4;fst5;fst6] st0 te0 exampleinp [:: rst1; io_in] 4)).
+
+
+(*fst1: (Store.upd clk [::b0] (Store.upd rst1 [::b0] (Store.upd io_in [::b0] (Store.upd io_out (from_nat 8 0) st0))).)
+  st: [::fst1;fst2;fst3;fst4;fst5;fst6] *)
+
+  Compute (Store.acc accumulator (eval_fstmts [::fst1;fst2;fst3;fst4;fst5;fst6] st1 te1)).
+ 
+  (*Compute (Store.acc accumulator (clk_steps [::fst1;fst2;fst3;fst4;fst5;fst6] st1 te1 l_in  io_in)).*)
+
+
+End clksExamples.
+
+
+(*
 Section Examples.
   Import LoFirrtl.
   
@@ -643,7 +805,7 @@ Section Examples.
                      (Finput io_in (Fuint 1));
                      (Foutput io_out (Fuint 8))].
   Definition te1 := upd_typenv_fports fpts te0. 
-  Definition st1 := Store.upd clk [::b0] (Store.upd rst1 [::b0] (Store.upd io_in [::b1] (Store.upd io_out (from_nat 8 0) st0))).
+  Definition st1 := Store.upd clk [::b0] (Store.upd rst1 [::b1] (Store.upd io_in [::b1] (Store.upd io_out (from_nat 8 0) st0))).
   Definition fst1 := sreg (mk_freg accumulator (Fuint 8) (eref clk)
                                    (rrst (econst (Fuint 1) [::b0]) (eref accumulator))).
   Definition te2 := upd_typenv_fstmt fst1 te1 st1.
@@ -694,5 +856,6 @@ Section Examples.
   Compute (Store.acc accumulator (run_fstmts [::fst1;fst2;fst3;fst4;fst5;fst6] st1 te1 10)).
   Compute (Store.acc accumulator (run_fmodule fm1 st1 te1 10)).
 
-End Examples.
 
+End Examples.
+*)

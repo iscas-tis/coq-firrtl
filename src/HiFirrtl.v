@@ -896,10 +896,10 @@ Module MakeHiFirrtl
       inferType_ports ss ce' ce'' ->
       inferType_ports (s::ss) ce ce''.
 
-  Fixpoint inst_type_of_ports ps :=
+  Fixpoint inst_type_of_ports (ps : seq hfport) :=
     match ps with
     | nil => Fnil
-    | cons p ps => match p with
+    | p :: ps => match p with
                    | Finput v t => Fflips (v2var v) Flipped t (inst_type_of_ports ps)
                    | Foutput v t => Fflips (v2var v) Nflip t (inst_type_of_ports ps)
                    end
@@ -1389,11 +1389,12 @@ Module MakeHiFirrtl
     * We lower ports in a separate pass in order to ensure that statements inside the module do not influence port names.*)
 
    (* A map to store types destruct *)
-   Definition dmap := CE.t (ftype).
-   Definition empty_dmap : dmap := CE.empty (ftype).
-   Definition findsd (v:var) (d:dmap) := match CE.find v d with Some t => t | None => def_ftype end.
+   Definition dmap := CE.t (fgtyp * fcomponent).
+   Definition empty_dmap : dmap := CE.empty (fgtyp * fcomponent). 
+   Definition findsd (v:var) (d:dmap) :=
+     match CE.find v d with Some t => t | None => (Fuint 0,Node)  end.
 
-   Parameter destructType_fun : var -> cenv -> dmap.
+   (* Parameter destructType_fun : var -> cenv -> dmap. *)
 
    Fixpoint len_of_ftype t :=
      match t with
@@ -1407,11 +1408,11 @@ Module MakeHiFirrtl
      | Fflips v f t ff => len_of_ftype t + (len_of_ffield ff)
      end.
    
-   Fixpoint new_vars_atyp r n t te : CE.env :=
-     match n with
-     | 0 => te
-     | S m => new_vars_atyp r m t (CE.add (new_var r (N.of_nat n)) t te)
-     end.
+   (* Fixpoint new_vars_atyp r n t te : CE.env := *)
+   (*   match n with *)
+   (*   | 0 => te *)
+   (*   | S m => new_vars_atyp r m t (CE.add (new_var r (N.of_nat n)) t te) *)
+   (*   end. *)
 
    Fixpoint io_conv c :=
      match c with
@@ -1442,22 +1443,24 @@ Module MakeHiFirrtl
               end
             end.
 
-   Fixpoint destructTypes_fun (l : list (var * fgtyp * fcomponent)) ce : cenv :=
+   Fixpoint destructTypes_fun (l : list (var * fgtyp * fcomponent)) d : dmap :=
      match l with
-     | nil => ce
-     | (r, t, c) :: tl => destructTypes_fun tl (CE.add r (aggr_typ (Gtyp t), c) ce)
+     | nil => d
+     | (r, t, c) :: tl => destructTypes_fun tl (CE.add r (t, c) d)
      end.
 
-   Definition lowerTypes_fport (p : hfport) ce : cenv :=
+   
+   
+   Definition lowerTypes_fport (p : hfport) dm : dmap :=
      match p with
-     | Finput v t => destructTypes_fun (destructTypes_fun_aux v t In_port [::]) ce
-     | Foutput v t => destructTypes_fun (destructTypes_fun_aux v t Out_port [::]) ce
+     | Finput v t => destructTypes_fun (destructTypes_fun_aux v t In_port [::]) dm
+     | Foutput v t => destructTypes_fun (destructTypes_fun_aux v t Out_port [::]) dm
      end.
 
-   Definition lowerTypes_fstmt (s : hfstmt) ce : cenv :=
+   Definition lowerTypes_fstmt (s : hfstmt) dm : dmap :=
      match s with
-     | Swire v t => destructTypes_fun (destructTypes_fun_aux v t Wire [::]) ce
-     | _ => ce
+     | Swire v t => destructTypes_fun (destructTypes_fun_aux v t Wire [::]) dm
+     | _ => dm
      end.
    
    (** Pass ExpandWhens *)
