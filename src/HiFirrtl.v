@@ -91,10 +91,11 @@ Section HiFirrtl.
   Inductive hfmodule : Type :=
   | FInmod : var -> seq hfport -> seq hfstmt -> hfmodule
   | FExmod : var -> seq hfport -> seq hfstmt -> hfmodule
-(* DNJ: External modules do not contain statements but only an interface.
+(* DNJ: External modules do not contain statements but only an interface. 
 They may contain the following special statements:
 one “defname = ...” (to set the Verilog name)
 zero, one, or multiple “paramter <variable> = <constant> (to pass parameters to the Verilog design that implements this module)
+XM : TO BE DESIGNED , how to present the parameters
 *)
   .
 
@@ -513,7 +514,6 @@ Module MakeHiFirrtl
     | Fflips v1 fp1 t1 fs1 =>
       match orient_of_field b2 v1, type_of_field b2 v1 with
       | Some fp2, Some t2 => (same_ffilp fp1 fp2 && (ftype_equiv t1 t2))
-      | None, None => true (* DNJ: I think here we still need to check the other fields in fp1 and fs1. Perhaps delete this case? *)
       | _, _ => fbtyp_weak_equiv fs1 b2
       end
     | Fnil => true
@@ -522,7 +522,7 @@ Module MakeHiFirrtl
   Fixpoint ftype_weak_equiv t1 t2 :=
     match t1, t2 with
     | Gtyp gt1, Gtyp gt2 => fgtyp_equiv gt1 gt2
-    | Atyp t1 n1, Atyp t2 n2 => ftype_equiv t1 t2 (* DNJ: Should we not check *weak* equivalence of the array element type? *)
+    | Atyp t1 n1, Atyp t2 n2 => ftype_equiv t1 t2 (* DNJ: Should we not check *weak* equivalence of the array element type? XM: It could be nested in the bundle? *)
     | Btyp bt1, Btyp bt2 => fbtyp_weak_equiv bt1 bt2
     | _, _ => false
     end.
@@ -638,13 +638,7 @@ Module MakeHiFirrtl
       | Gtyp Fclock, Gtyp Fclock => (Gtyp Fclock)
       | Atyp t1 n1, Atyp t2 n2 => if n1 == n2 then (Atyp (mux_types t1 t2) n1)
                                   else def_ftype
-(* DNJ: Atyp t1 n1, Atyp t2 n2 => if n1 == n2 then match mux_types t1 t2 with
-                                                   | def_ftype => def_ftype
-                                                   | t => Atyp t n1
-                                                   end
-                                  else def_ftype *)
       | Btyp bs1, Btyp bs2 => match mux_btyps bs1 bs2 with
-                              | def_ftype (* this line added by DNJ *)
                               | Fnil => def_ftype
                               | t => Btyp t
                               end
@@ -653,28 +647,11 @@ Module MakeHiFirrtl
   with mux_btyps bs1 bs2 : ffield :=
          match bs1, bs2 with
          | Fnil, Fnil => (Fnil)
-         | Fflips v1 Flipped t1 fs1, Fflips v2 Flipped t2 fs2 =>
+         | Fflips v1 Nflip t1 fs1, Fflips v2 Nflip t2 fs2 =>
            if v1 == v2 then
              (Fflips v1 Flipped (mux_types t1 t2) (mux_btyps fs1 fs2))
            else Fnil
-         (* | Fflips v1 Nflip t1 fs1, Fflips v2 Nflip t2 fs2 => *)
-         (*   if v1 == v2 then *)
-         (*     (Fflips v1 Flipped (mux_types t1 t2) (mux_btyps fs1 fs2)) *) (* DNJ: Nflips? *)
-         (*   else Fnil *)
          | _, _ => Fnil
-(* DNJ: inputs of a mux must be passive, so they cannot be Flipped
-  with mux_btyps bs1 bs2 : ffield :=
-         match bs1, bs2 with
-         | Fnil, Fnil => (Fnil)
-         | Fflips v1 Nflip t1 fs1, Fflips v2 Nflip t2 fs2 =>
-           if v1 == v2 then match (mux_types t1 t2), (mux_btyps fs1 fs2) with
-                            | def_ftype, _
-                            | _, def_ftype => def_ftype
-                            | t, fs => (Fflips v1 NFlip t fs)
-                            end
-           else def_ftype
-         | _, _ => def_ftype
-*)
     end.
 
   (* type of ref expressions *)
