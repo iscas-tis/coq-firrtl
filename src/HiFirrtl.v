@@ -91,6 +91,11 @@ Section HiFirrtl.
   Inductive hfmodule : Type :=
   | FInmod : var -> seq hfport -> seq hfstmt -> hfmodule
   | FExmod : var -> seq hfport -> seq hfstmt -> hfmodule
+(* DNJ: External modules do not contain statements but only an interface.
+They may contain the following special statements:
+one “defname = ...” (to set the Verilog name)
+zero, one, or multiple “paramter <variable> = <constant> (to pass parameters to the Verilog design that implements this module)
+*)
   .
 
   Inductive hfcircuit : Type := Fcircuit : var -> seq hfmodule -> hfcircuit.
@@ -508,7 +513,7 @@ Module MakeHiFirrtl
     | Fflips v1 fp1 t1 fs1 =>
       match orient_of_field b2 v1, type_of_field b2 v1 with
       | Some fp2, Some t2 => (same_ffilp fp1 fp2 && (ftype_equiv t1 t2))
-      | None, None => true
+      | None, None => true (* DNJ: I think here we still need to check the other fields in fp1 and fs1. Perhaps delete this case? *)
       | _, _ => fbtyp_weak_equiv fs1 b2
       end
     | Fnil => true
@@ -517,7 +522,7 @@ Module MakeHiFirrtl
   Fixpoint ftype_weak_equiv t1 t2 :=
     match t1, t2 with
     | Gtyp gt1, Gtyp gt2 => fgtyp_equiv gt1 gt2
-    | Atyp t1 n1, Atyp t2 n2 => ftype_equiv t1 t2
+    | Atyp t1 n1, Atyp t2 n2 => ftype_equiv t1 t2 (* DNJ: Should we not check *weak* equivalence of the array element type? *)
     | Btyp bt1, Btyp bt2 => fbtyp_weak_equiv bt1 bt2
     | _, _ => false
     end.
@@ -633,7 +638,13 @@ Module MakeHiFirrtl
       | Gtyp Fclock, Gtyp Fclock => (Gtyp Fclock)
       | Atyp t1 n1, Atyp t2 n2 => if n1 == n2 then (Atyp (mux_types t1 t2) n1)
                                   else def_ftype
+(* DNJ: Atyp t1 n1, Atyp t2 n2 => if n1 == n2 then match mux_types t1 t2 with
+                                                   | def_ftype => def_ftype
+                                                   | t => Atyp t n1
+                                                   end
+                                  else def_ftype *)
       | Btyp bs1, Btyp bs2 => match mux_btyps bs1 bs2 with
+                              | def_ftype (* this line added by DNJ *)
                               | Fnil => def_ftype
                               | t => Btyp t
                               end
@@ -648,9 +659,22 @@ Module MakeHiFirrtl
            else Fnil
          (* | Fflips v1 Nflip t1 fs1, Fflips v2 Nflip t2 fs2 => *)
          (*   if v1 == v2 then *)
-         (*     (Fflips v1 Flipped (mux_types t1 t2) (mux_btyps fs1 fs2)) *)
+         (*     (Fflips v1 Flipped (mux_types t1 t2) (mux_btyps fs1 fs2)) *) (* DNJ: Nflips? *)
          (*   else Fnil *)
          | _, _ => Fnil
+(* DNJ: inputs of a mux must be passive, so they cannot be Flipped
+  with mux_btyps bs1 bs2 : ffield :=
+         match bs1, bs2 with
+         | Fnil, Fnil => (Fnil)
+         | Fflips v1 Nflip t1 fs1, Fflips v2 Nflip t2 fs2 =>
+           if v1 == v2 then match (mux_types t1 t2), (mux_btyps fs1 fs2) with
+                            | def_ftype, _
+                            | _, def_ftype => def_ftype
+                            | t, fs => (Fflips v1 NFlip t fs)
+                            end
+           else def_ftype
+         | _, _ => def_ftype
+*)
     end.
 
   (* type of ref expressions *)
@@ -870,6 +894,13 @@ Module MakeHiFirrtl
   | Infertype_mem v m ce ce' :
       CE.Add_fst v (mem_typ m) ce ce' ->
       inferType_stmt (smem v m) ce ce'.
+(* DNJ: Are there any other statements, which might not lead to an immediate type inference?
+   For example, have when statements already been resolved at this moment?
+  | Infertype_when ... ce ce' :
+       ... ->
+       inferType_stmt (swhen ...) ce ce'
+  | Infertype_other ce :
+       inferType_stmt (statement that does not influence types) ce ce. *)
 
   Inductive inferType_stmts : seq hfstmt -> cenv -> cenv -> Prop :=
   | Infertype_stmts_nil ce :
@@ -980,7 +1011,7 @@ Module MakeHiFirrtl
          | Fnil, Fnil => bt1
          | Fflips v1 ft1 t1 fs1, Fflips v2 ft2 t2 fs2 =>
            Fflips v1 ft1 (max_width t1 t2) (max_width_f fs1 fs2)
-         | Fnil, _ => bt1
+         | Fnil, _ => bt1 (* DNJ: The last two cases can be simplified to | _, _ => bt1. Or should we not do that because max_width_f is not total? *)
          | f, Fnil => f
          end.
 
@@ -1110,7 +1141,7 @@ Module MakeHiFirrtl
   (** Pass InferWidth *)
   
   (* Infer unknown width
-     Infers the smallest width is larger than all assigned widths to a signal
+     Infers the smallest width that is larger than or equal to all assigned widths to a signal
    * Note that this means that dummy assignments that are overwritten by last-connect-semantics
    * can still influence width inference *)
 
@@ -1286,7 +1317,7 @@ Module MakeHiFirrtl
      | t , _ => t
      end.
    
-   (* overwirte types width in ce by wmap with the same index *)
+   (* overwrite type widths in ce by wmap with the same index *)
 
    Definition wmap_map2_cenv w ce : CE.env :=
      CE.map2 add_width_2_cenv w ce.

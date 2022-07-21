@@ -381,10 +381,10 @@ Module MakeHiFirrtl
 
   (** condition when *)
   | Gwhen_fstmts c hstg1 hstg2 hst_tl ce ce' ce'' cs cs_true cs_false cs_final :
-      eval_fstmts_group hstg1 ce cs ce' cs_true ->
-      eval_ftsmts_group hstg2 ce' cs ce'' cs_false ->
-      eval_fstmts_group hst_tl ce' (map2 (union_states c) cs_true cs_false) ce'' cs_final ->
-      eval_fstmts_group (swhen c hstg1 hstg2 :: hst_tl) ce cs ce'' cs_final
+      eval_fstmts_group hstg1 ce cs ce_true cs_true ->
+      eval_ftsmts_group hstg2 ce_true cs ce_true_false cs_false ->
+      eval_fstmts_group hst_tl ce_true_false (map2 (union_states c) cs_true cs_false) ce_final cs_final ->
+      eval_fstmts_group (swhen c hstg1 hstg2 :: hst_tl) ce cs ce_final cs_final
 
   (** https://github.com/llvm/circt/blob/main/lib/Dialect/FIRRTL/Transforms/ExpandWhens.cpp *)
   with union_states (c : fexpr) (s_true : option rhs_expr) (s_false : option rhs_expr) : option rhs_expr :=
