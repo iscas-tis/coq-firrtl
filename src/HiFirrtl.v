@@ -873,6 +873,7 @@ Module MakeHiFirrtl
       inferType_stmt (smem v m) ce ce'.
 (* DNJ: Are there any other statements, which might not lead to an immediate type inference?
    For example, have when statements already been resolved at this moment?
+XM : No for this moment.
   | Infertype_when ... ce ce' :
        ... ->
        inferType_stmt (swhen ...) ce ce'
@@ -985,11 +986,9 @@ Module MakeHiFirrtl
     end
   with max_width_f bt1 bt2 :=
          match bt1, bt2 with
-         | Fnil, Fnil => bt1
          | Fflips v1 ft1 t1 fs1, Fflips v2 ft2 t2 fs2 =>
            Fflips v1 ft1 (max_width t1 t2) (max_width_f fs1 fs2)
-         | Fnil, _ => bt1 (* DNJ: The last two cases can be simplified to | _, _ => bt1. Or should we not do that because max_width_f is not total? *)
-         | f, Fnil => f
+         | _, _ => bt1
          end.
 
   Lemma max_width_ftype_equiv :
