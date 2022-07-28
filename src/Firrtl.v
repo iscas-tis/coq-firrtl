@@ -17,7 +17,7 @@ Section LoFirrtl.
   (****** Expressions ******)
 
   Inductive ucast : Set :=
-  | AsUInt | AsSInt (*| AsFixed*) | AsClock.
+  | AsUInt | AsSInt (*| AsFixed*) | AsClock | AsReset | AsAsync .
 
   Inductive eunop : Set :=
   | Upad : nat -> eunop
@@ -189,10 +189,11 @@ Module MakeFirrtl
     match fty with
     | Fuint w => ucastB bs (sizeof_fgtyp tty)
     | Fsint w => scastB bs (sizeof_fgtyp tty)
-    | Fclock => ucastB bs 1
+    | _ => ucastB bs 1
     end.
   
   Definition to_Clock bs := Z.b2z (lsb bs).
+  Definition to_Reset bs := Z.b2z (lsb bs).
 
   (* Casting operations *)
   Definition eunop_ucast (o : ucast) : bits -> Z :=
@@ -200,6 +201,7 @@ Module MakeFirrtl
     | AsUInt => to_Zpos
     | AsSInt => to_Z
     | AsClock => to_Clock
+    | AsReset | AsAsync => to_Reset
     end.
 
   (* Unary operations *)
@@ -308,11 +310,13 @@ Module MakeFirrtl
     | Ecast AsUInt e => Fuint (sizeof_fgtyp (type_of_fexpr e te))
     | Ecast AsSInt e => Fsint (sizeof_fgtyp (type_of_fexpr e te))
     | Ecast AsClock e => Fuint 1
+    | Ecast AsReset e => Fuint 1
+    | Ecast AsAsync e => Fuint 1
     | Eprim_unop u e => match u with
                         | Upad n => match (type_of_fexpr e te) with
                                     | Fuint _ => Fuint n
                                     | Fsint _ => Fsint n
-                                    | Fclock => Fuint n
+                                    | _ => Fuint n
                                     end
                         | Uandr | Uorr | Uxorr => Fuint 1
                         | Uextr n1 n2 => Fuint (n2 - n1 + 1)
@@ -324,7 +328,7 @@ Module MakeFirrtl
                              | Bdshl | Bdshr => match (type_of_fexpr e1 te) with
                                                 | Fuint n => Fuint (n + sizeof_fgtyp (type_of_fexpr e2 te))
                                                 | Fsint n => Fsint (n + sizeof_fgtyp (type_of_fexpr e2 te))
-                                                | Fclock => TE.deftyp
+                                                | _ => TE.deftyp
                                                 end
                              | Badd | Bsub => match type_of_fexpr e1 te, type_of_fexpr e2 te with
                                               | Fuint s1, Fuint s2 => Fuint (maxn s1 s2).+1
@@ -352,6 +356,8 @@ Module MakeFirrtl
     | Ecast AsUInt (Eref v) => TE.add v (Fuint (sizeof_fgtyp (TE.vtyp v te))) te
     | Ecast AsSInt (Eref v) => TE.add v (Fsint (sizeof_fgtyp (TE.vtyp v te))) te
     | Ecast AsClock (Eref v) => TE.add v (Fuint 1) te
+    | Ecast AsReset (Eref v) => TE.add v (Fuint 1) te
+    | Ecast AsAsync (Eref v) => TE.add v (Fuint 1) te
     | _ => te
     end.
   
@@ -373,6 +379,8 @@ Module MakeFirrtl
     | Ecast AsUInt e => eval_fexpr e s te
     | Ecast AsSInt e => eval_fexpr e s te
     | Ecast AsClock e => [::lsb (eval_fexpr e s te)]
+    | Ecast AsReset e => [::lsb (eval_fexpr e s te)]
+    | Ecast AsAsync e => [::lsb (eval_fexpr e s te)]
     end.
 
   (* Expression statement, type env *)

@@ -16,10 +16,12 @@ Import Prenex Implicits.
   Inductive fgtyp : Set :=
     Fuint : nat -> fgtyp
   | Fsint : nat -> fgtyp
-  | Fclock.
-  (* | Fanalog : nat -> fgtyp *) (* TBD, HiFirrtl *)
-  (* | Fvector : fgtyp -> nat -> fgtyp *) (* TBD, HiFirrtl *)
-
+  | Fclock
+  | Freset
+  | Fasyncreset
+  (*| Fanalog : nat -> fgtyp*) (* TBD, HiFirrtl *)
+  .
+  
   (* Size of types *)
 
   Definition sizeof_fgtyp (t : fgtyp) : nat :=
@@ -27,9 +29,8 @@ Import Prenex Implicits.
     | Fuint w => w
     | Fsint w => w
     (* | Fanalog w => w *)
-    | Fclock => 1
+    | _ => 1
     end.
-
   
   (* Equality of types *)
 
@@ -46,6 +47,8 @@ Import Prenex Implicits.
     (*   + left; rewrite H; reflexivity. *)
     (*   + right; move=> []; auto. *)
     - left; done.
+    - left; done.
+    - left; done.
   Qed.
 
   Definition fgtyp_eqn (x y : fgtyp) : bool :=
@@ -54,6 +57,8 @@ Import Prenex Implicits.
     | Fsint wx, Fsint wy => wx == wy
     (* | Fanalog wx, Fanalog wy => wx == wy *)
     | Fclock, Fclock => true
+    | Freset, Freset => true
+    | Fasyncreset, Fasyncreset => true
     | _, _ => false
     end.
 
@@ -61,15 +66,14 @@ Import Prenex Implicits.
 
   Lemma fgtyp_eqn_refl (x : fgtyp) : x =? x.
   Proof.
-    destruct x; try (exact: eqxx).
-    - done.
+    destruct x; try (exact: eqxx|| done).
   Qed.
 
   Lemma fgtyp_eqn_eq (x y : fgtyp) : x =? y <-> x = y.
   Proof.
     split; first (destruct x; destruct y; move=> /= H);
       try (discriminate|| rewrite (eqP H); reflexivity).
-    - done.
+    - done. - done. - done.
     - move=> ->. exact: fgtyp_eqn_refl.
   Qed.
 

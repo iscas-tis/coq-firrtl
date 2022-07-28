@@ -461,7 +461,10 @@ Module MakeHiFirrtl
     match t1, t2 with
     | Fuint _, Fuint _ 
     | Fsint _, Fsint _ 
-    | Fclock, Fclock => true
+    | Fclock, Fclock 
+    | Freset, Freset
+    (* | Freset, Fuint 1 *)
+    | Fasyncreset, Fasyncreset => true
     | _, _ => false
     end.
 
@@ -707,17 +710,31 @@ Module MakeHiFirrtl
                          match t with
                          | Gtyp (Fsint w) | Gtyp (Fuint w) => Gtyp (Fuint w)
                          | Gtyp Fclock => Gtyp (Fuint 1)
+                         | Gtyp Freset => Gtyp (Fuint 1)
+                         | Gtyp Fasyncreset => Gtyp (Fuint 1)
                          | _ => def_ftype
                          end
     | Ecast AsSInt e1 => let t := type_of_hfexpr e1 ce in
                          match t with
                          | Gtyp (Fsint w) | Gtyp (Fuint w) => Gtyp (Fsint w)
                          | Gtyp Fclock => Gtyp (Fsint 1)
+                         | Gtyp Freset => Gtyp (Fuint 1)
+                         | Gtyp Fasyncreset => Gtyp (Fuint 1)
                          | _ => def_ftype
                          end
     | Ecast AsClock e1 => let t := type_of_hfexpr e1 ce in
                           match t with
                           | Gtyp _ =>  Gtyp Fclock
+                          | _ => def_ftype
+                          end
+    | Ecast AsReset e1 => let t := type_of_hfexpr e1 ce in
+                          match t with
+                          | Gtyp _ =>  Gtyp Freset
+                          | _ => def_ftype
+                          end
+    | Ecast AsAsync e1 => let t := type_of_hfexpr e1 ce in
+                          match t with
+                          | Gtyp _ =>  Gtyp Fasyncreset
                           | _ => def_ftype
                           end
     | Eprim_unop (Upad n) e1 => let t := type_of_hfexpr e1 ce in
