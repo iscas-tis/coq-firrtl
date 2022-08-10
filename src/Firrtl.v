@@ -751,8 +751,8 @@ Definition examplemap' :=
   Local Open Scope natlist0.
   
 Definition exampleinp :=
-  ( rst1 !-> [0;0;0;1;1];
-    io_in !-> [1;1;0;1;0];
+  ( rst1 !-> [0;0;0;0;1];
+    io_in !-> [1;1;1;1;0];
     _ !-> nil
   ).
   Eval compute in exampleinp rst1.

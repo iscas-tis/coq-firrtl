@@ -525,7 +525,7 @@ Module MakeHiFirrtl
   Fixpoint ftype_weak_equiv t1 t2 :=
     match t1, t2 with
     | Gtyp gt1, Gtyp gt2 => fgtyp_equiv gt1 gt2
-    | Atyp t1 n1, Atyp t2 n2 => ftype_equiv t1 t2 (* DNJ: Should we not check *weak* equivalence of the array element type? XM: It could be nested in the bundle? *)
+    | Atyp t1 n1, Atyp t2 n2 => ftype_equiv t1 t2 
     | Btyp bt1, Btyp bt2 => fbtyp_weak_equiv bt1 bt2
     | _, _ => false
     end.
@@ -652,7 +652,7 @@ Module MakeHiFirrtl
          | Fnil, Fnil => (Fnil)
          | Fflips v1 Nflip t1 fs1, Fflips v2 Nflip t2 fs2 =>
            if v1 == v2 then
-             (Fflips v1 Flipped (mux_types t1 t2) (mux_btyps fs1 fs2))
+             (Fflips v1 Nflip (mux_types t1 t2) (mux_btyps fs1 fs2))
            else Fnil
          | _, _ => Fnil
     end.
@@ -888,14 +888,6 @@ Module MakeHiFirrtl
   | Infertype_mem v m ce ce' :
       CE.Add_fst v (mem_typ m) ce ce' ->
       inferType_stmt (smem v m) ce ce'.
-(* DNJ: Are there any other statements, which might not lead to an immediate type inference?
-   For example, have when statements already been resolved at this moment?
-XM : No for this moment.
-  | Infertype_when ... ce ce' :
-       ... ->
-       inferType_stmt (swhen ...) ce ce'
-  | Infertype_other ce :
-       inferType_stmt (statement that does not influence types) ce ce. *)
 
   Inductive inferType_stmts : seq hfstmt -> cenv -> cenv -> Prop :=
   | Infertype_stmts_nil ce :
@@ -947,19 +939,27 @@ XM : No for this moment.
       CE.Add_fst vm (aggr_typ (inst_type_of_ports' ps)) ce ce' ->
       inferType_module (hfexmod vm ps ss) ce ce'.
 
-  Definition inferType_stmt_fun st ce : CE.env :=
+  Definition inferType_stmt_fun st (ce : cenv) : cenv :=
     match st with
     | Snode v e => CE.add_fst v (aggr_typ (type_of_hfexpr e ce)) ce
     | Sinst v1 v2 => CE.add_fst v1 (fst (CE.vtyp v2 ce)) ce
-    | _ => ce
+    | Sreg v r => CE.add_fst v (reg_typ r) ce
+    | Smem v m => CE.add_fst v (mem_typ m) ce
+    | Swire v t => CE.add_fst v (aggr_typ t) ce
+    | Swhen _ _ _
+    | Sfcnct _ _
+    | Spcnct _ _
+    | Sinvalid _
+    | Sstop _ _ _
+    | Sskip => ce
     end.
 
-  Fixpoint inferType_stmts_fun sts ce : CE.env := fold_right inferType_stmt_fun sts ce.
+  Fixpoint inferType_stmts_fun (sts : seq hfstmt) ce : cenv := fold_right inferType_stmt_fun ce sts.
 
   Definition inferType_module_fun m ce :=
     match m with
-    | FInmod v ps ss => CE.add v (aggr_typ (inst_type_of_ports' ps)) ce
-    | FExmod v ps ss => CE.add v (aggr_typ (inst_type_of_ports' ps)) ce
+    | FInmod v ps ss => inferType_stmts_fun ss (CE.add_fst v (aggr_typ (inst_type_of_ports' ps)) ce)
+    | FExmod v ps ss => CE.add_fst v (aggr_typ (inst_type_of_ports' ps)) ce
     end.
 
   Fixpoint inferType_modules_fun ms ce := fold_right inferType_module_fun ms ce.
@@ -1312,21 +1312,164 @@ XM : No for this moment.
    
    (* overwrite type widths in ce by wmap with the same index *)
 
-   Definition wmap_map2_cenv w ce : CE.env :=
+   Definition wmap_map2_cenv w (ce:cenv) : cenv :=
      CE.map2 add_width_2_cenv w ce.
 
-   Definition inferWidth_fun ss ce : CE.env :=
-    wmap_map2_cenv (inferWidth_stmts_wmap0 ss ce empty_wmap0) ce.
+   Definition inferWidth_fun ss ce : cenv :=
+     wmap_map2_cenv (inferWidth_stmts_wmap0 ss ce empty_wmap0) ce.
+Check wmap_map2_cenv.
+   (** Pass InferResets **)
 
+   (* A map to store candidate reset signals *)
+   (* Definition rmap := CE.t (ftype). *)
+   (* Definition empty_rmap : rmap := CE.empty (ftype). *)
+   (* Definition finds_r (v:var) (r:rmap) := match CE.find v r with Some t => t | None => def_ftype end. *)
+   
+   Definition rmap := CE.t (seq ftype).
+   Definition empty_rmap : rmap := CE.empty (seq ftype).
+   Definition findr (v:var) (r:rmap) := match CE.find v r with Some t => t | None => [::] end.
+   Print HiFirrtl.hfstmt.
+
+   (* store a list of abstract reset types, and check async/sync later *)
+   Fixpoint add_ref_rmap r t ce m : rmap :=
+     match r with
+     | Eid v => CE.add v (cons t (findr v m)) m
+     | Esubfield r f =>
+       let br := base_ref r in
+       CE.add br (cons (upd_name_ftype (base_type_of_ref r ce) (v2var f) t) (finds br m)) m
+     | Esubindex rs n =>
+       let br := base_ref rs in
+       let vt := type_of_cmpnttyp (fst (CE.vtyp br ce)) in
+       match vt with
+       | Gtyp gt => m
+       | Atyp ta na => CE.add br (cons (upd_vectyp vt t) (finds br m)) m
+       | Btyp _ => CE.add br (cons (upd_name_ftype vt (v2var (get_field_name rs)) t) (finds br m)) m
+       end
+     | Esubaccess rs n =>
+       let br := base_ref rs in
+       let vt := type_of_cmpnttyp (fst (CE.vtyp br ce)) in
+       match vt with
+       | Gtyp gt => m
+       | Atyp ta na => CE.add br (cons (upd_vectyp vt t) (finds br m)) m
+       | Btyp Fnil => m
+       | Btyp (Fflips v _ tf fs) =>
+         CE.add br (cons (upd_name_ftype vt (v2var (get_field_name rs)) t) (finds br m)) m
+       end
+     end.
+
+   Fixpoint inferReset_rmap ce (m : rmap) (s : hfstmt) : rmap :=
+     match s with
+     | Snode v e => CE.add v [::type_of_hfexpr e ce] m
+     | Swire v t => if is_deftyp t then CE.add v [::t] m else m
+     | Sreg v _ => m
+     | Smem v _ => m           
+     | Sinst v1 v2 => CE.add v1 [::type_of_ref (Eid v2) ce] m
+     | Sinvalid v => m
+     | Sfcnct r e => let te := type_of_hfexpr e ce in
+                     add_ref_rmap r te ce m
+     | Spcnct r e => let te := type_of_hfexpr e ce in
+                     add_ref_rmap r te ce m
+     | Sskip
+     | Sstop _ _ _ => m
+     | Swhen c s1 s2 => List.fold_left (inferReset_rmap ce) s2 (List.fold_left (inferReset_rmap ce) s1 m)
+     end.
+
+   Definition is_uninfered_reset rs := is_deftyp (hd def_ftype rs).
+                                  
+   Fixpoint has_async rs :=
+     match rs with
+     | [::] => false
+     | Gtyp Fasyncreset :: rt => true
+     | _ :: rt => has_async rt
+     end.
+
+   Fixpoint has_sync rs {struct rs} :=
+     match rs with
+     | [::] => false
+     | Gtyp (Fuint 1) :: rt => true
+     | _ :: rt => has_sync rt
+     end.
+
+   Definition add_reset2cenv (m : option (list ftype)) (t : option (cmpnt_init_typs * fcomponent)) :=
+     match t, m with
+     | Some (Aggr_typ (Gtyp Freset), c), Some rs => 
+       if (has_async rs && (negb (has_sync rs))) then Some (aggr_typ (Gtyp (Fuint 1)), c)
+           else if has_sync rs && has_async rs then Some (aggr_typ def_ftype, c)
+                else Some (aggr_typ (Gtyp (Fuint 1)), c)
+     | _, _ => t
+     end.
+   
+   Definition rmap_map2_cenv (r:rmap) ce : CE.env :=
+     CE.map2 add_reset2cenv r ce.
+
+   Definition inferReset_fun ss ce : CE.env :=
+     rmap_map2_cenv (List.fold_left (inferReset_rmap ce) ss empty_rmap) ce.
 
    (** Pass ExpandConnect *)
 
    (** TBD *)  
    Parameter new_var : var -> Var.var -> var.
-
-
-   
+   Parameter new_subvar : var -> var -> var.
+   Parameter new_subvar_i : var -> nat -> var.
+   Parameter new_subvar_t : var -> var -> var.
    Parameter var2v : Var.var -> V.t.
+   Parameter vtmp : var.
+
+   (* A map to store types destruct *)
+   Definition dmap := CE.t (fgtyp * fcomponent).
+   Definition empty_dmap : dmap := CE.empty (fgtyp * fcomponent). 
+   Definition findsd (v:var) (d:dmap) :=
+     match CE.find v d with Some t => t | None => (Fuint 0,Node)  end.
+   
+   Fixpoint expand_eref er : var :=
+     match er with
+     | Eid v => v
+     | Esubfield r v => new_subvar (expand_eref r) v
+     | Esubindex r n => new_subvar_i (expand_eref r) n
+     | Esubaccess r e => new_subvar_t (expand_eref r) vtmp
+     end.
+
+   Fixpoint expand_index r t n l : list (var * ftype) :=
+     match n with
+     | 0 => l
+     | S m => expand_index r t m ((expand_eref (Esubindex r n), t) :: l)
+     end.
+
+   Fixpoint expand_fields_fun r bs l : list (var * ftype) :=
+     match bs with
+     | Fnil => l
+     | Fflips v fl t fs => expand_fields_fun r fs ((expand_eref (Esubfield r (var2v v)), t) :: l )
+     end.
+   
+   Fixpoint fcnct_list (l1 :list (var * ftype)) (l2:list (var * ftype)) cs :=
+     match l1, l2 with
+     | nil, nil => cs
+     | (v1, t1) :: tl1, (v2, t2):: tl2 => fcnct_list tl1 tl2 (SV.upd v1 (r_fexpr (Eref (Eid v2))) cs)
+     | _, _ => cs
+     end.
+   
+   (* premise : passive type, type equiv,  *)
+   Fixpoint store_sfcnct r1 r2 t cs {struct t} : cstate :=
+     match t with
+     | Gtyp t => SV.upd (expand_eref r1) (r_fexpr (Eref r2)) cs
+     | Atyp t n => fcnct_list (expand_index r1 t n nil) (expand_index r2 t n nil) cs
+     | Btyp bs => fcnct_list (expand_fields_fun r1 bs nil) (expand_fields_fun r2 bs nil) cs
+     end.
+     
+   (* premise : passive type, weak type equiv *)
+   (* TBD *)
+   Parameter store_spcnct : href -> href -> ftype -> cstate -> cstate.
+
+   Definition store_rhsexpr (s : hfstmt) (cs : cstate) ce : cstate :=
+     match s with
+     | Swire v t => SV.upd v r_default cs
+     | Snode v e => SV.upd v (r_fexpr e) cs
+     | Sreg v r => SV.upd v r_default cs
+     | Smem v m => SV.upd v r_default cs
+     | Sfcnct r1 (Eref r2) => store_sfcnct r1 r2 (type_of_ref r1 ce) cs 
+     | Spcnct r1 (Eref r2) => store_spcnct r1 r2 (type_of_ref r1 ce) cs
+     | _ => cs
+     end.     
    
    (* premise : passive type, type equiv *)
    Fixpoint expand_connect_subindex r1 r2 n : seq hfstmt :=
@@ -1406,87 +1549,11 @@ XM : No for this moment.
          expandConnect (Sfcnct r (Eref r2)) ce0 cs0 ce cs
    | Expand_pcnnct r r2 ce0 cs0 ce cs:
        expandConnect (Spcnct r (Eref r2)) ce0 cs0 ce cs.
-*)                 
+    *)
 
-   (** Pass LowerTypes *)
-   (* lower ports 
-    * We lower ports in a separate pass in order to ensure that statements inside the module do not influence port names.*)
 
-   (* A map to store types destruct *)
-   Definition dmap := CE.t (fgtyp * fcomponent).
-   Definition empty_dmap : dmap := CE.empty (fgtyp * fcomponent). 
-   Definition findsd (v:var) (d:dmap) :=
-     match CE.find v d with Some t => t | None => (Fuint 0,Node)  end.
 
-   (* Parameter destructType_fun : var -> cenv -> dmap. *)
 
-   Fixpoint len_of_ftype t :=
-     match t with
-     | Gtyp t => 1
-     | Atyp t n => len_of_ftype t + n
-     | Btyp bs => len_of_ffield bs
-     end
-   with len_of_ffield f :=
-     match f with
-     | Fnil => 0
-     | Fflips v f t ff => len_of_ftype t + (len_of_ffield ff)
-     end.
-   
-   (* Fixpoint new_vars_atyp r n t te : CE.env := *)
-   (*   match n with *)
-   (*   | 0 => te *)
-   (*   | S m => new_vars_atyp r m t (CE.add (new_var r (N.of_nat n)) t te) *)
-   (*   end. *)
-
-   Fixpoint io_conv c :=
-     match c with
-     | In_port => Out_port
-     | Out_port => In_port
-     | c => c
-     end.
-   
-   Fixpoint destructTypes_fun_aux r t c l {struct t} : list (var * fgtyp * fcomponent) :=
-     match t with
-     | Gtyp t => (r, t, c) :: l
-     | Atyp t n =>
-       match n with
-       | 0 => l
-       | S n => destructTypes_fun_aux (new_var r (N.of_nat n)) t c l
-       end
-     | Btyp bs => destructField_fun_aux r bs c l 
-     end
-     with destructField_fun_aux r bs c l :=
-            match bs with
-            | Fnil => l
-            | Fflips v f t ff =>
-              match f with
-              | Nflip => 
-                destructTypes_fun_aux (new_var r v) t c l ++ destructField_fun_aux r ff c l
-              | Flipped =>
-                destructTypes_fun_aux (new_var r v) t (io_conv c) l ++ destructField_fun_aux r ff c l
-              end
-            end.
-
-   Fixpoint destructTypes_fun (l : list (var * fgtyp * fcomponent)) d : dmap :=
-     match l with
-     | nil => d
-     | (r, t, c) :: tl => destructTypes_fun tl (CE.add r (t, c) d)
-     end.
-
-   
-   
-   Definition lowerTypes_fport (p : hfport) dm : dmap :=
-     match p with
-     | Finput v t => destructTypes_fun (destructTypes_fun_aux v t In_port [::]) dm
-     | Foutput v t => destructTypes_fun (destructTypes_fun_aux v t Out_port [::]) dm
-     end.
-
-   Definition lowerTypes_fstmt (s : hfstmt) dm : dmap :=
-     match s with
-     | Swire v t => destructTypes_fun (destructTypes_fun_aux v t Wire [::]) dm
-     | _ => dm
-     end.
-   
    (** Pass ExpandWhens *)
    
    (* Definition expandWhens_fun s ce cs : hfstmt := *)
@@ -1728,7 +1795,99 @@ XM : No for this moment.
   (*   eval_fstmts_group (sfcnct (eref v) e2 :: sts) ce cs ce' cs' -> *)
   (*   valid_rhs (SV.acc v cs') ce'. *)
     
-  
+                   
+
+   (** Pass LowerTypes *)
+   (* lower ports 
+    * We lower ports in a separate pass in order to ensure that statements inside the module do not influence port names.*)
+    (* Dependency(RemoveAccesses), // we require all SubAccess nodes to have been removed *)
+    (* Dependency(CheckTypes), // we require all types to be correct *)
+    (* Dependency(InferTypes), // we require instance types to be resolved (i.e., DefInstance.tpe != UnknownType) *)
+    (* Dependency(ExpandConnects) // we require all PartialConnect nodes to have been expanded *)
+
+   (* Parameter destructType_fun : var -> cenv -> dmap. *)
+
+   Fixpoint len_of_ftype t :=
+     match t with
+     | Gtyp t => 1
+     | Atyp t n => len_of_ftype t + n
+     | Btyp bs => len_of_ffield bs
+     end
+   with len_of_ffield f :=
+     match f with
+     | Fnil => 0
+     | Fflips v f t ff => len_of_ftype t + (len_of_ffield ff)
+     end.
+   
+   (* Fixpoint new_vars_atyp r n t te : CE.env := *)
+   (*   match n with *)
+   (*   | 0 => te *)
+   (*   | S m => new_vars_atyp r m t (CE.add (new_var r (N.of_nat n)) t te) *)
+   (*   end. *)
+
+   Fixpoint io_conv c :=
+     match c with
+     | In_port => Out_port
+     | Out_port => In_port
+     | c => c
+     end.
+   
+   Fixpoint destructTypes_fun_aux r t c l {struct t} : list (var * fgtyp * fcomponent) :=
+     match t with
+     | Gtyp t => (r, t, c) :: l
+     | Atyp t n =>
+       match n with
+       | 0 => l
+       | S n => destructTypes_fun_aux (new_var r (N.of_nat n)) t c l
+       end
+     | Btyp bs => destructField_fun_aux r bs c l 
+     end
+     with destructField_fun_aux r bs c l :=
+            match bs with
+            | Fnil => l
+            | Fflips v f t ff =>
+              match f with
+              | Nflip => 
+                destructTypes_fun_aux (new_var r v) t c l ++ destructField_fun_aux r ff c l
+              | Flipped =>
+                destructTypes_fun_aux (new_var r v) t (io_conv c) l ++ destructField_fun_aux r ff c l
+              end
+            end.
+
+   Fixpoint destructTypes_fun (l : list (var * fgtyp * fcomponent)) d : dmap :=
+     match l with
+     | nil => d
+     | (r, t, c) :: tl => destructTypes_fun tl (CE.add r (t, c) d)
+     end.
+   
+   Definition lowerTypes_fport (p : hfport) dm : dmap :=
+     match p with
+     | Finput v t => destructTypes_fun (destructTypes_fun_aux v t In_port [::]) dm
+     | Foutput v t => destructTypes_fun (destructTypes_fun_aux v t Out_port [::]) dm
+     end.
+
+   Definition lowerTypes_init_fstmt dm (s : hfstmt) : dmap :=
+     match s with
+     | Swire v t => destructTypes_fun (destructTypes_fun_aux v t Wire [::]) dm
+     | Sreg v r => destructTypes_fun (destructTypes_fun_aux v (type r) Register [::]) dm
+     | Smem v m => destructTypes_fun (destructTypes_fun_aux v (data_type m) Memory [::]) dm
+     | _ => dm
+     end.
+   
+   Definition lowerTypes_init_fstmts ss dm := fold_left lowerTypes_init_fstmt ss dm.
+
+   Definition add_lowtype_2_cenv (lt : option (fgtyp * fcomponent)) (t : option (cmpnt_init_typs * fcomponent)) :=
+     match lt, t with
+     | None, t => t
+     | Some (lt, c), None => Some (aggr_typ (Gtyp lt), c)
+     | Some (lt, c), Some t => Some t
+     end.
+   
+   Definition dmap_2_cenv lt ce : CE.env :=
+     CE.map2 add_lowtype_2_cenv lt ce.
+
+   Definition lowerTypes_fun ss ce : CE.env :=
+     dmap_2_cenv (lowerTypes_init_fstmts ss empty_dmap) ce.
    
   
 End MakeHiFirrtl.
