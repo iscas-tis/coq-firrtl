@@ -229,6 +229,7 @@ Module Type ValStore (V : SsrOrder) (TE : TypEnv with Module SE := V).
   Local Notation value := bits.
 
   Parameter t : Type.
+  Parameter empty : t.
   Parameter acc : var -> t -> value.
   Parameter upd : var -> value -> t -> t.
   Parameter upd2 : var -> value -> var -> value -> t -> t.
