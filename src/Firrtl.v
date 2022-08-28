@@ -208,8 +208,8 @@ Module MakeFirrtl
   Definition eunop_op (o : eunop ) : bits -> bits :=
     match o with
     | Upad n => fun b => if msb b then scastB b n else ucastB b n
-    | Ushl n => shlB n
-    | Ushr n => shrB n
+    | Ushl n => fun b => cat b (zeros n)
+    | Ushr n => fun b => if (n < size b) then high (size b - n) b else [::msb b]
     | Ucvt =>  fun b => if msb b then b else ucastB b (size b + 1)
     | Uneg => negB
     | Unot => invB
@@ -324,6 +324,16 @@ Module MakeFirrtl
                         | Uextr n1 n2 => Fuint (n2 - n1 + 1)
                         | Uhead n => Fuint n
                         | Utail n => Fuint ((sizeof_fgtyp (type_of_fexpr e te)) - n)
+                        | Ushl n => match (type_of_fexpr e te) with
+                                    | Fuint w => Fuint (w + n)
+                                    | Fsint w => Fsint (w + n)
+                                    | _ => TE.deftyp
+                                    end
+                        | Ushr n => match (type_of_fexpr e te) with
+                                    | Fuint w => if n < w then Fuint (w - n) else Fuint 1
+                                    | Fsint w => if n < w then Fsint (w - n) else Fsint 1
+                                    | _ => TE.deftyp
+                                    end
                         | _ => type_of_fexpr e te
                         end
     | Eprim_binop b e1 e2 => match b with
