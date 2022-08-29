@@ -15,7 +15,7 @@ let numeral = '0' | ['1'-'9'] digit*
 let s_binary_digit = binary_digit | ('-' binary_digit)
 let s_numeral = numeral | ('-' numeral)
 let letter = ['a'-'z' 'A'-'Z' '_']
-let special_char = ['+' '-' '/' '*' '=' '%' '?' '!' '.' '$' '_' '~' '&' '^' '<' '>' '@' '\'']
+let special_char = ['+' '-' '/' '*' '=' '%' '?' '!' '$' '_' '~' '&' '^' '@' '\'']
 let symbol = ('|' [^'|']+ '|') | (letter|special_char)(letter|special_char|digit)*
 let escape_space = "\"\""
 

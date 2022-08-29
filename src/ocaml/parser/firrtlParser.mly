@@ -172,13 +172,13 @@ expr
                                             { Eprim_unop ( Ubits ($5, $7), $3)}
 
     | EXPR_ASUINT PAR_OPEN expr PAR_CLOSE
-                                            { Eprim_unop (Ucast (AsUInt), $3)}
+                                            { Ecast (AsUInt, $3)}
     | EXPR_ASSINT PAR_OPEN expr PAR_CLOSE
-                                            { Eprim_unop (Ucast (AsSInt), $3)}
-    | EXPR_ASFIXED PAR_OPEN expr PAR_CLOSE
-                                            { Eprim_unop (Ucast (AsFixed), $3)}
+                                            { Ecast (AsSInt, $3)}
+    /*| EXPR_ASFIXED PAR_OPEN expr PAR_CLOSE
+                                            { Eprim_unop (Ucast (AsFixed), $3)}*/
     | EXPR_ASCLOCK PAR_OPEN expr PAR_CLOSE
-                                            { Eprim_unop (Ucast (AsClock), $3)}
+                                            { Ecast (AsClock, $3)}
 
     | EXPR_GT PAR_OPEN expr SPRT expr PAR_CLOSE
                                             { Eprim_binop (Bcomp (Bgt), $3, $5)}

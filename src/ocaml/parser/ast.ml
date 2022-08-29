@@ -5,11 +5,11 @@ open Extraction.NBitsDef
 type nat = Z.t
 
 type fgtyp =
-  Fuint of nat
+| Fuint of nat
 | Fsint of nat
 | Fclock
 
-let sizeof_fgtyp out fgtyp =
+let sizeof_fgtyp fgtyp =
   match fgtyp with
   | Fuint w -> w
   | Fsint w -> w
@@ -20,11 +20,10 @@ type var = string
 (** Operators *)
 
 type ucast =
-  | AsUInt | AsSInt | AsFixed | AsClock
+  | AsUInt | AsSInt | AsClock
               
 type eunop =
   | Upad of Z.t
-  | Ucast of ucast
   | Ushl of Z.t
   | Ushr of Z.t
   | Ucvt
@@ -37,9 +36,9 @@ type eunop =
   | Uhead of Z.t
   | Utail of Z.t
   | Ubits of Z.t * Z.t
-  | Uincp
+  (*| Uincp
   | Udecp
-  | Usetp
+  | Usetp*)
               
 type bcmp =
   | Blt | Bleq | Bgt | Bgeq | Beq | Bneq
@@ -61,10 +60,10 @@ type ebinop =
   | Bsrem
 
 type fexpr =
-  | Econst of fgtyp*Z.t
+  | Econst of fgtyp * Z.t
   | Eref of var
-  | Edeclare of var * fgtyp
-  (* | Efield of fexpr * fexpr
+  (*| Edeclare of var * fgtyp
+  | Efield of fexpr * fexpr
   | Esubacc of var * Z.t *)
   | Eprim_unop of eunop * fexpr
   | Eprim_binop of ebinop * fexpr * fexpr
@@ -148,13 +147,12 @@ let pp_cast out cst =
  match cst with
  | AsUInt -> output_string out "AsUInt"
  | AsSInt -> output_string out "AsSInt"
- | AsFixed ->  output_string out "AsFixed"
+ (*| AsFixed ->  output_string out "AsFixed"*)
  | AsClock -> output_string out "AsUint "
          
 let pp_unop out op =
  match op with
  | Upad s -> output_string out "(Upad "; output_string out (Z.to_string s); output_string out ")" 
- | Ucast s -> output_string out "(Ucast "; pp_cast out s; output_string out")"
  | Ushl s -> output_string out "(Ushl "; output_string out (Z.to_string s); output_string out")"
  | Ushr s -> output_string out "(Ushr "; output_string out (Z.to_string s); output_string out")"
  | Ucvt -> output_string out "Ucvt"
@@ -167,10 +165,10 @@ let pp_unop out op =
  | Uhead s -> output_string out "(Uhead "; output_string out (Z.to_string s); output_string out")"
  | Utail s -> output_string out "(Utail "; output_string out (Z.to_string s); output_string out")"
  | Ubits (s1,s2)  -> output_string out "(Ubits "; output_string out (Z.to_string s1); output_string out " "; output_string out (Z.to_string s2); output_string out")"
- | Uincp -> output_string out "Uincp"
+ (*| Uincp -> output_string out "Uincp"
  | Udecp -> output_string out "Udecp"
- |Usetp -> output_string out "Usetp"
- (* | _ -> output_string out "" *)
+ | Usetp -> output_string out "Usetp"
+ | _ -> output_string out "" *)
 
 let pp_comp out cmp = 
  match cmp with
@@ -203,8 +201,8 @@ let rec pp_expr out e =
  match e with
  | Econst (ty, s) -> output_string out "(econst "; pp_type out ty; output_string out " [::b"; output_string out (Z.format "%b" s) ; output_string out"])"
  | Eref v -> output_string out "(eref "; output_string out (v^" "); output_string out ")"
- | Edeclare (v, ty) -> output_string out "(edeclare "; output_string out (v^" "); output_string out " "; pp_type out ty; output_string out ")\n"
- (* | Esubacc (v, s) -> output_string out "(Esubacc "; output_string out (v^" "); output_string out " "; output_string out (Z.to_string s); output_string out ")\n" *)
+ (*| Edeclare (v, ty) -> output_string out "(edeclare "; output_string out (v^" "); output_string out " "; pp_type out ty; output_string out ")\n"
+ | Esubacc (v, s) -> output_string out "(Esubacc "; output_string out (v^" "); output_string out " "; output_string out (Z.to_string s); output_string out ")\n" *)
  | Eprim_unop (op, e1) -> output_string out "(eprim_unop "; pp_unop out op; pp_expr out e1; output_string out ")"
  | Eprim_binop (bop, e1, e2) -> output_string out "(eprim_binop "; pp_binop out bop; pp_expr out e1; output_string out " "; pp_expr out e2; output_string out ")"
  | Emux (e1,e2,e3)  -> output_string out "(emux "; pp_expr out e1; output_string out " "; pp_expr out e2; output_string out " "; pp_expr out e3; output_string out " "; output_string out ")"
