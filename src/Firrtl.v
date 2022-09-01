@@ -410,7 +410,7 @@ Module MakeFirrtl
     | h :: tl => upd_typenv_fstmts tl (upd_typenv_fstmt h te s) s
     end.
   
-  Fixpoint eval_fstmt (st : fstmt) (rs : vstate) (s : vstate) (te : TE.env) : vstate * vstate :=
+  Definition eval_fstmt (st : fstmt) (rs : vstate) (s : vstate) (te : TE.env) : vstate * vstate :=
     match st with
     | Sskip => (rs, s)
     | Swire v t => (rs, SV.upd v (zeros (sizeof_fgtyp t)) s)
@@ -444,7 +444,6 @@ Module MakeFirrtl
       (rs, SV.upd v (zeros (sizeof_fgtyp tv)) s)
     | _ => (rs, s)
     end.
-
   
   Fixpoint eval_fstmts st rs s te : vstate * vstate :=
     match st with
@@ -744,6 +743,23 @@ Definition examplemap' :=
   Definition _T_12 := VarOrder.succ _T_11.
   Definition clk := VarOrder.succ _T_12.
   Definition rst1 := VarOrder.succ clk.
+
+  
+  
+  
+  Definition fpts_64 := [::(Finput clk Fclock);
+                     (Finput rst1 (Fuint 1));
+                     (Finput io_in (Fsint 64));
+                     (Foutput io_out (Fuint 64))].
+  Definition te1_64 := upd_typenv_fports fpts_64 te0. 
+  Definition st1_64 := Store.upd clk [::b0] (Store.upd rst1 [::b0] (Store.upd io_in (from_Z 64 0) (Store.upd io_out (from_nat 64 0) st0))).
+  Definition rs1_64 := (Store.upd accumulator (from_nat 9 0) rs0).
+  Compute (st1_64).
+  Definition fst1 := sreg (mk_freg accumulator (Fuint 8) (eref clk)
+                                   (rrst (econst (Fuint 1) [::b0]) (eref accumulator))).
+  Definition te2 := upd_typenv_fstmt fst1 te1 st1.
+  Definition st2 := eval_fstmt fst1 rs0 st1 te0.
+  
   
   Definition fpts := [::(Finput clk Fclock);
                      (Finput rst1 (Fuint 1));
