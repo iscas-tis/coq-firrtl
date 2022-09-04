@@ -326,7 +326,7 @@ Module MakeFirrtl
         let eb := sext w b in
       match o with
       | Badd => let (c, r) := adcB false ea eb in rcons r c
-      | Bsub => subB ea eb
+      | Bsub => let (b, r) := sbbB false ea eb in rcons r b
       | Bdiv => sext 1 (sdivB a b)
       | Brem => low (minn w1 w2) (sremB a b)
       | Bmul => full_mul a b
