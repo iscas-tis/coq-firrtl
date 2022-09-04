@@ -42,8 +42,8 @@ Section LoFirrtl.
   | Bmul
   | Bdiv
   | Brem
-  | Bsdiv
-  | Bsrem
+  (* | Bsdiv *)
+  (* | Bsrem *)
   | Bcomp: bcmp -> ebinop
   | Bdshl
   | Bdshr
@@ -208,7 +208,7 @@ Module MakeFirrtl
   Definition eunop_op (o : eunop ) : bits -> bits :=
     match o with
     | Upad n => fun b => if msb b then scastB b n else ucastB b n
-    | Ushl n => fun b => cat b (zeros n)
+    | Ushl n => fun b => cat (zeros n) b
     | Ushr n => fun b => if (n < size b) then high (size b - n) b else [::msb b]
     | Ucvt =>  fun b => if msb b then b else ucastB b (size b + 1)
     | Uneg => negB
@@ -231,10 +231,20 @@ Module MakeFirrtl
     | Beq => fun b1 b2 => [::b1 == b2]
     | Bneq => fun b1 b2 => [::(~~ (b1 == b2))]
     end.
+  
+  Definition binop_sbcmp (o : bcmp) : bits -> bits -> bits :=
+    match o with
+    | Blt => fun b1 b2 => [::sltB b1 b2]
+    | Bleq => fun b1 b2 => [::sleB b1 b2]
+    | Bgt => fun b1 b2 => [::sgtB b1 b2]
+    | Bgeq => fun b1 b2 => [::sgeB b1 b2]
+    | Beq => fun b1 b2 => [::b1 == b2]
+    | Bneq => fun b1 b2 => [::(~~ (b1 == b2))]
+    end.
 
   (* Binary operations *)
 
-  (* addition with extended bits *)
+  (* addition with zero extended bits *)
   Definition full_adder_ext c bs1 bs2 : bool * bits := full_adder_zip c (extzip0 bs1 bs2).
   Definition adcB_ext c bs1 bs2 := full_adder_ext c bs1 bs2.
   Definition addB_ext bs1 bs2 : bits := let (c, r) := (adcB_ext false bs1 bs2) in rcons r c.
@@ -286,22 +296,49 @@ Module MakeFirrtl
   Lemma size_subB_ext bs1 bs2 : size (subB_ext bs1 bs2) = maxn (size bs1) (size bs2).
   Proof. Admitted.
   
-  Definition ebinop_op (o : ebinop) : bits -> bits -> bits :=
-    match o with
-    | Badd => addB_ext
-    | Bsub => subB_ext
-    | Bdiv => udivB'
-    | Brem => uremB
-    | Bsdiv => sdivB
-    | Bsrem => sremB
-    | Bmul => full_mul
-    | Bcomp c => binop_bcmp c
-    | Band => andB
-    | Bor => orB
-    | Bxor => xorB
-    | Bcat => cat
-    | Bdshl => fun a b => shlB (to_nat b) a
-    | Bdshr => fun a b => shrB (to_nat b) a
+  Definition ebinop_op (o : ebinop) (t1 t2 : fgtyp) : bits -> bits -> bits :=
+    match t1, t2 with
+    | Fuint w1, Fuint w2 =>
+      fun a b =>
+        let w := max w1 w2 in
+        let ea := zext w a in
+        let eb := zext w b in
+      match o with
+      | Badd => addB_ext a b
+      | Bsub => subB_ext a b
+      | Bdiv => udivB' a b
+      | Brem => low (minn w1 w2) (uremB a b)
+      (* | Bsdiv => sdivB *)
+      (* | Bsrem => sremB *)
+      | Bmul => full_mul a b
+      | Bcomp c => binop_bcmp c a b
+      | Band => andB ea eb
+      | Bor => orB ea eb
+      | Bxor => xorB ea eb
+      | Bcat => cat a b
+      | Bdshl => cat (zeros (to_nat b)) a
+      | Bdshr => shrB (to_nat b) a
+      end
+    | Fsint w1, Fsint w2 =>
+      fun a b =>
+        let w := max w1 w2 in
+        let ea := sext w a in
+        let eb := sext w b in
+      match o with
+      | Badd => let (c, r) := adcB false ea eb in rcons r c
+      | Bsub => subB ea eb
+      | Bdiv => sext 1 (sdivB a b)
+      | Brem => low (minn w1 w2) (sremB a b)
+      | Bmul => full_mul a b
+      | Bcomp c => binop_sbcmp c ea eb
+      | Band => andB ea eb
+      | Bor => orB ea eb
+      | Bxor => xorB ea eb
+      | Bcat => cat a b
+      | Bdshl => cat (zeros (to_nat b)) a
+      | Bdshr => shrB (to_nat b) a
+      end
+    | _, _ => fun a b => a
     end.
 
   Fixpoint type_of_fexpr (e : fexpr) (te : TE.env) : fgtyp :=
@@ -383,7 +420,9 @@ Module MakeFirrtl
     | Eprim_binop b e1 e2 =>
       let ve1 := (eval_fexpr e1 s te) in
       let ve2 := (eval_fexpr e2 s te) in
-      (ebinop_op b) ve1 ve2
+      let te1 := type_of_fexpr e1 te in
+      let te2 := type_of_fexpr e2 te in
+      (ebinop_op b te1 te2) ve1 ve2
     | Eprim_unop u e => (eunop_op u) (eval_fexpr e s te)
     | Emux c e1 e2 => if ~~ (is_zero (eval_fexpr c s te)) then (eval_fexpr e1 s te) else (eval_fexpr e2 s te)
     | Evalidif c e => if ~~ (is_zero (eval_fexpr c s te)) then (eval_fexpr e s te) else [::]
@@ -755,10 +794,10 @@ Definition examplemap' :=
   Definition st1_64 := Store.upd clk [::b0] (Store.upd rst1 [::b0] (Store.upd io_in (from_Z 64 0) (Store.upd io_out (from_nat 64 0) st0))).
   Definition rs1_64 := (Store.upd accumulator (from_nat 9 0) rs0).
   Compute (st1_64).
-  Definition fst1 := sreg (mk_freg accumulator (Fuint 8) (eref clk)
+  Definition fst1_64 := sreg (mk_freg accumulator (Fuint 8) (eref clk)
                                    (rrst (econst (Fuint 1) [::b0]) (eref accumulator))).
-  Definition te2 := upd_typenv_fstmt fst1 te1 st1.
-  Definition st2 := eval_fstmt fst1 rs0 st1 te0.
+  Definition te2_64 := upd_typenv_fstmt fst1_64 te1_64 st1_64.
+  Definition st2_64 := eval_fstmt fst1_64 rs0 st1_64 te0.
   
   
   Definition fpts := [::(Finput clk Fclock);
