@@ -341,6 +341,8 @@ Module MakeFirrtl
     | _, _ => fun a b => a
     end.
 
+  Check size_adcB.
+
   Fixpoint type_of_fexpr (e : fexpr) (te : TE.env) : fgtyp :=
     match e with
     | Econst t c => t
@@ -399,7 +401,7 @@ Module MakeFirrtl
     end.
 
   (* Expression evaluation, type env *)
-  Definition upd_typenv_fexpr (e : fexpr) (te : TE.env) : TE.env :=
+  (*Definition upd_typenv_fexpr (e : fexpr) (te : TE.env) : TE.env :=
     match e with
     (* | Edeclare v t => TE.add v t te *)
     | Ecast AsUInt (Eref v) => TE.add v (Fuint (sizeof_fgtyp (TE.vtyp v te))) te
@@ -408,7 +410,7 @@ Module MakeFirrtl
     | Ecast AsReset (Eref v) => TE.add v (Fuint 1) te
     | Ecast AsAsync (Eref v) => TE.add v (Fuint 1) te
     | _ => te
-    end.
+    end.*)
   
   (* Expression evaluation, value *)
   Fixpoint eval_fexpr (e : fexpr) (s : vstate) (te : TE.env) : bits :=
@@ -434,12 +436,17 @@ Module MakeFirrtl
     | Ecast AsAsync e => [::lsb (eval_fexpr e s te)]
     end.
 
+  Compute (from_Z 6 (-3)). (*[:: true; false; true; true; true; true] *)
+  Compute (from_Z 11 (-56)). (*[:: false; false; false; true; false; false; true; true; true; true; true]*)
+  Compute (ebinop_op Badd (Fuint 16) (Fuint 11) [:: true; false; true; true; true; true] [:: false; false; false; true; false; false; true; true; true; true; true]).
+
   (* Expression statement, type env *)
   Definition upd_typenv_fstmt (s : fstmt) (te : TE.env) (st : vstate) : TE.env :=
     match s with
     | Swire v t  => TE.add v t te
     | Sreg r => TE.add (rid r) (type r) te
-    | Snode v e => TE.add v (type_of_fexpr e (upd_typenv_fexpr e te)) (upd_typenv_fexpr e te)
+    (* | Snode v e => TE.add v (type_of_fexpr e (upd_typenv_fexpr e te)) (upd_typenv_fexpr e te) *)
+    | Snode v e => TE.add v (type_of_fexpr e te) te
     | _ => te
     end.
 
@@ -783,9 +790,7 @@ Definition examplemap' :=
   Definition clk := VarOrder.succ _T_12.
   Definition rst1 := VarOrder.succ clk.
 
-  
-  
-  
+   
   Definition fpts_64 := [::(Finput clk Fclock);
                      (Finput rst1 (Fuint 1));
                      (Finput io_in (Fsint 64));
@@ -798,16 +803,16 @@ Definition examplemap' :=
                                    (rrst (econst (Fuint 1) [::b0]) (eref accumulator))).
   Definition te2_64 := upd_typenv_fstmt fst1_64 te1_64 st1_64.
   Definition st2_64 := eval_fstmt fst1_64 rs0 st1_64 te0.
-  
+  Compute (Store.acc accumulator (fst st2_64)).
   
   Definition fpts := [::(Finput clk Fclock);
                      (Finput rst1 (Fuint 1));
-                     (Finput io_in (Fuint 1));
-                     (Foutput io_out (Fuint 8))].
+                     (Finput io_in (Fsint 2));
+                     (Foutput io_out (Fsint 8))].
   Definition te1 := upd_typenv_fports fpts te0. 
-  Definition st1 := Store.upd clk [::b0] (Store.upd rst1 [::b0] (Store.upd io_in [::b1] (Store.upd io_out (from_nat 8 0) st0))).
+  Definition st1 := Store.upd clk [::b0] (Store.upd rst1 [::b0] (Store.upd io_in (from_Z 2 (-1)) (Store.upd io_out (from_nat 8 0) st0))).
   Definition rs1 := (Store.upd accumulator (from_nat 9 0) rs0).
-  Definition fst1 := sreg (mk_freg accumulator (Fuint 8) (eref clk)
+  Definition fst1 := sreg (mk_freg accumulator (Fsint 8) (eref clk)
                                    (rrst (econst (Fuint 1) [::b0]) (eref accumulator))).
   Definition te2 := upd_typenv_fstmt fst1 te1 st1.
   Definition st2 := eval_fstmt fst1 rs0 st1 te0.
@@ -816,7 +821,7 @@ Definition examplemap' :=
   Definition te3 := let (rs2, sst2) := st2 in upd_typenv_fstmt fst2 te2 sst2.
   Definition st3 := let (rs2, sst2) := st2 in eval_fstmt fst2 rs2 sst2 te3.
 
-  Definition fst3 := (Snode _T_12 (Eprim_unop (Utail 1) (Eref _T_11))).
+  Definition fst3 := (Snode _T_12 (Ecast AsSInt (Eprim_unop (Utail 1) (Eref _T_11)))).
   Definition te4 := let (rs3, sst3) := st3 in upd_typenv_fstmt fst3 te3 sst3.
   Definition st4 := let (rs3, sst3) := st3 in eval_fstmt fst3 rs3 sst3 te4.
 
@@ -832,8 +837,8 @@ Definition examplemap' :=
   Definition te7 := let (rs6, sst6) := st6 in upd_typenv_fstmt fst6 te6 sst6.
   Definition st7 := let (rs6, sst6) := st6 in eval_fstmt fst6 rs6 sst6 te7.
 
-  Definition st' := run_fstmts [::fst1;fst2;fst3;fst4;fst5;fst6] rs0 st1 te1 4. 
-  Compute (Store.acc io_out st').
+  Definition st' := run_fstmts [::fst1;fst2;fst3;fst4;fst5;fst6] rs0 st1 te1 9. 
+  Compute (Store.acc io_out st'). Compute (TE.vtyp _T_12 te7).
   
   Import Natlist0.
   Local Open Scope natlist0.
