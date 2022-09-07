@@ -301,8 +301,8 @@ Module MakeFirrtl
     | Fuint w1, Fuint w2 =>
       fun a b =>
         let w := max w1 w2 in
-        let ea := zext w a in
-        let eb := zext w b in
+        let ea := zext (w-w1) a in
+        let eb := zext (w-w2) b in
       match o with
       | Badd => addB_ext a b
       | Bsub => subB_ext a b
@@ -322,8 +322,8 @@ Module MakeFirrtl
     | Fsint w1, Fsint w2 =>
       fun a b =>
         let w := max w1 w2 in
-        let ea := sext w a in
-        let eb := sext w b in
+        let ea := sext (w-w1) a in
+        let eb := sext (w-w2) b in
       match o with
       | Badd => let (c, r) := adcB false ea eb in rcons r c
       | Bsub => let (b, r) := sbbB false ea eb in rcons r b
@@ -341,7 +341,6 @@ Module MakeFirrtl
     | _, _ => fun a b => a
     end.
 
-  Check size_adcB.
 
   Fixpoint type_of_fexpr (e : fexpr) (te : TE.env) : fgtyp :=
     match e with
@@ -454,7 +453,7 @@ Module MakeFirrtl
 
   Compute (from_Z 6 (-3)). (*[:: true; false; true; true; true; true] *)
   Compute (from_Z 11 (-56)). (*[:: false; false; false; true; false; false; true; true; true; true; true]*)
-  Compute (ebinop_op Badd (Fuint 6) (Fuint 11) [:: true; false; true; true; true; true] [:: false; false; false; true; false; false; true; true; true; true; true]).
+  Compute (ebinop_op Badd (Fsint 6) (Fsint 11) [:: true; false; true; true; true; true] [:: false; false; false; true; false; false; true; true; true; true; true]).
 
   (* Expression statement, type env *)
   Definition upd_typenv_fstmt (s : fstmt) (te : TE.env) (st : vstate) : TE.env :=
