@@ -247,6 +247,7 @@ Section Rhs_expr.
   | R_default
   .
 
+  
   (** eq dec *)
   Axiom rhs_expr_eq_dec : forall {x y : rhs_expr}, {x = y} + {x <> y}.
   Parameter rhs_expr_eqn : forall (x y : rhs_expr), bool.
@@ -824,7 +825,7 @@ Module MakeHiFirrtl
                                 | _, _ => def_ftype
                                 end
     | Eprim_binop Bdiv e1 e2
-    | Eprim_binop Bsdiv e1 e2 => let t1 := type_of_hfexpr e1 ce in
+    (* | Eprim_binop Bsdiv e1 e2 *) => let t1 := type_of_hfexpr e1 ce in
                                  let t2 := type_of_hfexpr e2 ce in
                                  match t1, t2 with
                                  | Gtyp (Fuint w1), Gtyp (Fuint w2) => Gtyp (Fuint w1)
@@ -832,7 +833,7 @@ Module MakeHiFirrtl
                                  | _, _ => def_ftype
                                  end
     | Eprim_binop Brem e1 e2
-    | Eprim_binop Bsrem e1 e2 => let t1 := type_of_hfexpr e1 ce in
+    (* | Eprim_binop Bsrem e1 e2 *) => let t1 := type_of_hfexpr e1 ce in
                                  let t2 := type_of_hfexpr e2 ce in
                                  match t1, t2 with
                                  | Gtyp (Fuint w1), Gtyp (Fuint w2) => Gtyp (Fuint (minn w1 w2))
@@ -1199,7 +1200,10 @@ Module MakeHiFirrtl
        end
      end.
 
-   Fixpoint inferWidth_wmap0 (s : hfstmt) (ce : cenv) (w : wmap0) {struct s}: wmap0 :=
+   
+   Require Import FunInd.
+   
+   Function inferWidth_wmap0 (s : hfstmt) (ce : cenv) (w : wmap0): wmap0 :=
        match s with
      | Snode v e => w
      | Swire v t => if is_deftyp t then add_ref_wmap0 (Eid v) t ce w else w
@@ -1241,7 +1245,7 @@ Module MakeHiFirrtl
      | _ => w 
      end
    .
-   
+
    (* store a list of types, and compare width later *)
    (* Fixpoint add_ref_wmap r t ce w : wmap := *)
    (*   match r with *)
@@ -1306,12 +1310,12 @@ Module MakeHiFirrtl
    (* Definition map_max_width_wmap (w : wmap) : wmap0 := *)
    (*   CE.map max_width_of_wmap w . *)
 
-   Lemma inferWidth_deftyp :
-     forall s ce w w',
-       inferWidth_wmap0 s ce w = w' ->
-       forall v, ~~ is_deftyp (finds0 v w).
-   Proof.
-   Admitted.
+   (* Lemma inferWidth_deftyp : *)
+   (*   forall s ce w w', *)
+   (*     inferWidth_wmap0 s ce w = w' -> *)
+   (*     forall v, ~~ is_deftyp (finds0 v w). *)
+   (* Proof. *)
+   (* Admitted. *)
 
    Fixpoint inferWidth_stmts_wmap0 ss ce w: wmap0 :=
      match ss with
@@ -1331,10 +1335,48 @@ Module MakeHiFirrtl
    Definition wmap_map2_cenv w (ce:cenv) : cenv :=
      CE.map2 add_width_2_cenv w ce.
 
+   Lemma empty_emap_map2_cenv :
+     forall ce, CE.map2 add_width_2_cenv empty_wmap0 ce = ce.
+   Proof.
+   Admitted.
+
    Definition inferWidth_fun ss ce : cenv :=
      wmap_map2_cenv (inferWidth_stmts_wmap0 ss ce empty_wmap0) ce.
 
-   
+
+   Inductive inferWidth_wmap_p : hfstmt -> cenv -> cenv -> Prop :=
+   | inferWidth_snode v e ce1 ce2 :
+       CE.Add_fst v (aggr_typ (type_of_hfexpr e ce1)) ce1 ce2 -> 
+       inferWidth_wmap_p (Snode v e) ce1 ce2 .
+
+   Inductive inferWidth_stmts_semantics : seq hfstmt -> cenv -> cenv -> Prop :=
+   | inferWidth_stmts_nil ce :
+       inferWidth_stmts_semantics nil ce ce
+   | inferWidth_stmts_exp sts ce1 ce2 :
+       forall v,
+         ~~ is_deftyp (type_of_cmpnttyp (fst (CE.vtyp v ce1))) ->
+         CE.vtyp v ce1 = CE.vtyp v ce2 ->
+         inferWidth_stmts_semantics sts ce1 ce2
+   | inferWidth_stmts_imp sts ce1 ce2 :
+       forall v,
+         is_deftyp (type_of_cmpnttyp (fst (CE.vtyp v ce1))) ->
+         ~~ is_deftyp (type_of_cmpnttyp (fst (CE.vtyp v ce2))) ->
+         
+         inferWidth_stmts_semantics sts ce1 ce2.
+
+   Lemma inferWidth_stmts_semantics_conform :
+     forall sts ce1 ,
+       (* is_deftyp (type_of_cmpnttyp (fst (CE.vtyp v ce1))) -> *)
+       (* ~~ is_deftyp (type_of_cmpnttyp (fst (CE.vtyp v ce2))) -> *)
+       inferWidth_stmts_semantics sts ce1 (inferWidth_fun sts ce1).
+   Proof.
+     elim => [ce | st sts Hm ce]. 
+     - rewrite /inferWidth_fun /wmap_map2_cenv empty_emap_map2_cenv.
+       exact : inferWidth_stmts_nil.
+     - rewrite /inferWidth_fun/=.
+       move : st. elim.
+       + rewrite/=. 
+   Admitted.   
    (********************************************************************************)
 
    
@@ -1536,9 +1578,6 @@ Module MakeHiFirrtl
      | (v1, t1) :: tl1, (v2, t2):: tl2 => fcnct_list tl1 tl2 (SV.upd v1 (r_fexpr (Eref (Eid v2))) cs)
      | _, _ => cs
      end.
-
-   Print ftype_weak_equiv.
-   Print fbtyp_weak_equiv.
 
    (* premise : passive type, weak type equiv *)
 
