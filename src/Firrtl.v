@@ -205,12 +205,21 @@ Module MakeFirrtl
     end.
 
   (* Unary operations *)
-  Definition eunop_op (o : eunop ) : bits -> bits :=
+  Definition eunop_op (o : eunop) (t : fgtyp) : bits -> bits :=
     match o with
-    | Upad n => fun b => if msb b then scastB b n else ucastB b n
+    | Upad n => fun b =>
+                 (match t with
+                  | Fuint w => zext (n - w) b
+                  | Fsint w => sext (n - w) b
+                  | _ => b
+                  end)
     | Ushl n => fun b => cat (zeros n) b
     | Ushr n => fun b => if (n < size b) then high (size b - n) b else [::msb b]
-    | Ucvt =>  fun b => if msb b then b else ucastB b (size b + 1)
+    | Ucvt =>  fun b =>
+                 (match t with
+                  | Fuint w => sext 1 b
+                  | _ => b
+                  end)
     | Uneg => negB
     | Unot => invB
     | Uandr => fun b => [::foldr andb b1 b]
@@ -219,7 +228,7 @@ Module MakeFirrtl
     | Uextr n1 n2 => extract n1 n2
     | Uhead n => high n
     | Utail n => fun b => low (size b - n) b
-    end.
+    end.  
 
   (* Comparison operations *)
   Definition binop_bcmp (o : bcmp) : bits -> bits -> bits :=
@@ -291,9 +300,9 @@ Module MakeFirrtl
     
   (* subtraction with extended bits *)
   Definition sbbB_ext b bs1 bs2 : bool * bits := adcB_ext (~~ b) bs1 (~~# bs2).
-  Definition subB_ext bs1 bs2 := snd (sbbB_ext false bs1 bs2).
+  Definition subB_ext bs1 bs2 := let (b, r) := (sbbB_ext false bs1 bs2) in rcons r b.
 
-  Lemma size_subB_ext bs1 bs2 : size (subB_ext bs1 bs2) = maxn (size bs1) (size bs2).
+  Lemma size_subB_ext bs1 bs2 : size (subB_ext bs1 bs2) = (maxn (size bs1) (size bs2))+1.
   Proof. Admitted.
   
   Definition ebinop_op (o : ebinop) (t1 t2 : fgtyp) : bits -> bits -> bits :=
@@ -356,7 +365,7 @@ Module MakeFirrtl
                         | Upad n => match (type_of_fexpr e te) with
                                     | Fuint _ => Fuint n
                                     | Fsint _ => Fsint n
-                                    | _ => Fuint n
+                                    | _ => TE.deftyp
                                     end
                         | Uandr | Uorr | Uxorr => Fuint 1
                         | Uextr n1 n2 => Fuint (n2 - n1 + 1)
@@ -372,6 +381,11 @@ Module MakeFirrtl
                                     | Fsint w => if n < w then Fsint (w - n) else Fsint 1
                                     | _ => TE.deftyp
                                     end
+                        | Ucvt => match (type_of_fexpr e te) with
+                                  | Fuint w => Fsint (w + 1)
+                                  | Fsint w => Fsint w
+                                  | _ => TE.deftyp
+                                  end
                         | _ => type_of_fexpr e te
                         end
     | Eprim_binop b e1 e2 => match b with
@@ -440,7 +454,9 @@ Module MakeFirrtl
       let te1 := type_of_fexpr e1 te in
       let te2 := type_of_fexpr e2 te in
       (ebinop_op b te1 te2) ve1 ve2
-    | Eprim_unop u e => (eunop_op u) (eval_fexpr e s te)
+    | Eprim_unop u e =>
+      let t := type_of_fexpr e te in
+      (eunop_op u t) (eval_fexpr e s te)
     | Emux c e1 e2 => if ~~ (is_zero (eval_fexpr c s te)) then (eval_fexpr e1 s te) else (eval_fexpr e2 s te)
     | Evalidif c e => if ~~ (is_zero (eval_fexpr c s te)) then (eval_fexpr e s te) else [::]
     (* | Edeclare v t => zeros (sizeof_fgtyp t) *)
@@ -454,7 +470,9 @@ Module MakeFirrtl
   Compute (from_Z 6 (-3)). (*[:: true; false; true; true; true; true] *)
   Compute (from_Z 11 (-56)). (*[:: false; false; false; true; false; false; true; true; true; true; true]*)
   Compute (ebinop_op Badd (Fsint 6) (Fsint 11) [:: true; false; true; true; true; true] [:: false; false; false; true; false; false; true; true; true; true; true]).
-
+  Compute (ebinop_op Bsub (Fsint 6) (Fsint 11) [:: true; false; true; true; true; true] [:: false; false; false; true; false; false; true; true; true; true; true]).
+  Compute (eunop_op (Ucvt) (Fuint 6) [:: true; false; true; true; true; true]).
+  
   (* Expression statement, type env *)
   Definition upd_typenv_fstmt (s : fstmt) (te : TE.env) (st : vstate) : TE.env :=
     match s with
