@@ -382,15 +382,31 @@ Module MakeFirrtl
                                                 | _ => TE.deftyp
                                                 end
                              | Badd | Bsub => match type_of_fexpr e1 te, type_of_fexpr e2 te with
-                                              | Fuint s1, Fuint s2 => Fuint (maxn s1 s2).+1
-                                              | Fsint s1, Fsint s2 => Fsint (maxn s1 s2).+1
+                                              | Fuint s1, Fuint s2 => Fuint ((maxn s1 s2)+1)
+                                              | Fsint s1, Fsint s2 => Fsint ((maxn s1 s2)+1)
                                               | _, _ => TE.deftyp
                                               end
                              | Bmul => match type_of_fexpr e1 te, type_of_fexpr e2 te with
                                               | Fuint s1, Fuint s2 => Fuint (s1 + s2)
                                               | Fsint s1, Fsint s2 => Fsint (s1 + s2)
                                               | _, _ => TE.deftyp
-                                              end
+                                       end
+                             | Bcomp c => Fuint 1
+                             | Band | Bor | Bxor => match type_of_fexpr e1 te, type_of_fexpr e2 te with
+                                                    | Fuint s1, Fuint s2 => Fuint (maxn s1 s2)
+                                                    | Fsint s1, Fsint s2 => Fsint (maxn s1 s2)
+                                                    | _, _ => TE.deftyp
+                                                    end
+                             | Bdiv => match type_of_fexpr e1 te with
+                                       | Fuint n => Fuint n
+                                       | Fsint n => Fsint (n+1)
+                                       | _ => TE.deftyp
+                                       end
+                             | Brem => match type_of_fexpr e1 te, type_of_fexpr e2 te with
+                                       | Fuint s1, Fuint s2 => Fuint (minn s1 s2)
+                                       | Fsint s1, Fsint s2 => Fsint (minn s1 s2)
+                                       | _, _ => TE.deftyp
+                                       end
                              | _ => type_of_fexpr e1 te
                              end
     | Emux c e1 e2 => let t1 := (type_of_fexpr e1 te) in
@@ -438,7 +454,7 @@ Module MakeFirrtl
 
   Compute (from_Z 6 (-3)). (*[:: true; false; true; true; true; true] *)
   Compute (from_Z 11 (-56)). (*[:: false; false; false; true; false; false; true; true; true; true; true]*)
-  Compute (ebinop_op Badd (Fuint 16) (Fuint 11) [:: true; false; true; true; true; true] [:: false; false; false; true; false; false; true; true; true; true; true]).
+  Compute (ebinop_op Badd (Fuint 6) (Fuint 11) [:: true; false; true; true; true; true] [:: false; false; false; true; false; false; true; true; true; true; true]).
 
   (* Expression statement, type env *)
   Definition upd_typenv_fstmt (s : fstmt) (te : TE.env) (st : vstate) : TE.env :=
