@@ -338,7 +338,7 @@ Module MakeFirrtl
       | Bsub => let (b, r) := sbbB false ea eb in rcons r b
       | Bdiv => sext 1 (sdivB a b)
       | Brem => low (minn w1 w2) (sremB a b)
-      | Bmul => full_mul a b
+      | Bmul => Sfull_mul a b
       | Bcomp c => binop_sbcmp c ea eb
       | Band => andB ea eb
       | Bor => orB ea eb
@@ -428,6 +428,23 @@ Module MakeFirrtl
     | Evalidif c e => (* if (Z.ltb 0 (to_Z (eval_fexpr c s))) then *)
                       (type_of_fexpr e te)
     end.
+
+  Fixpoint Sfull_mul (bs1 bs2 : bits) : bits :=
+    match bs1 with
+    | [::] => from_nat (size bs1 + size bs2) 0
+    | hd::tl =>
+    if tl == nil then (
+      if hd then addB (invB (sext (size bs1) bs2)) (zext (size bs2) [::b1])
+        else addB (invB (sext (size bs1) (zeros (size bs2)))) (zext (size bs2) [::b1])
+      )
+      else (
+      if hd then addB (joinlsb false (Sfull_mul tl bs2)) (sext (size bs1) bs2)
+        else joinlsb false (Sfull_mul tl bs2))
+    end.
+
+  (*Compute (sext 2 [::b1;b0]).
+  Compute (joinlsb false(addB (zeros ((size [::b1;b0])+1)) (addB (invB (sext (size [::b1]) [::b1;b0])) (zext (size [::b1;b0]) [::b1])))).*)
+  Compute (Sfull_mul [::b1;b1] [::b0;b1]).
 
   (* Expression evaluation, type env *)
   (*Definition upd_typenv_fexpr (e : fexpr) (te : TE.env) : TE.env :=
