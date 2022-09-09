@@ -286,9 +286,26 @@ Section Ops.
     match bs1 with
     | [::] => from_nat (size bs1 + size bs2) 0
     | hd::tl =>
-      if hd then addB (joinlsb false (full_mul tl bs2)) (zext (size bs1) bs2)
+      if hd then addB (joinlsb false (full_mul tl bs2)) (zext (size bs1) bs2)(*bs1正*)
       else joinlsb false (full_mul tl bs2)
     end.
+
+  Fixpoint Sfull_mul (bs1 bs2 : bits) : bits :=
+    match bs1 with
+    | [::] => from_nat (size bs1 + size bs2) 0
+    | hd::tl =>
+    if tl == nil then (
+      if hd then addB (invB (sext (size bs1) bs2)) (zext (size bs2) [::b1])
+        else addB (invB (sext (size bs1) (zeros (size bs2)))) (zext (size bs2) [::b1])
+      )
+      else (
+      if hd then addB (joinlsb false (Sfull_mul tl bs2)) (sext (size bs1) bs2)
+        else joinlsb false (Sfull_mul tl bs2))
+    end.
+
+  (*Compute (sext 2 [::b1;b0]).
+  Compute (joinlsb false(addB (zeros ((size [::b1;b0])+1)) (addB (invB (sext (size [::b1]) [::b1;b0])) (zext (size [::b1;b0]) [::b1])))).*)
+  Compute (Sfull_mul [::b1;b1] [::b0;b1]).
 
   Definition mulB (bs1 bs2 : bits) : bits := low (size bs1) (full_mul bs1 bs2).
 
