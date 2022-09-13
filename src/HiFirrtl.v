@@ -166,8 +166,8 @@ Module Type CmpntEnv (V : SsrOrder) <: SsrFMap.
   (*   forall {x : SE.t} {e : env} {ty : fgtyp}, *)
   (*     vtyp x e = ty -> vsize x e = sizeof_fgtyp ty. *)
 
-  Parameter Add : SE.t -> (cmpnttyp * fcomponent) -> env -> env -> Prop.
-  Parameter Add_add : forall v f e, Add v f e (add v f e).
+  (*Parameter Add : SE.t -> (cmpnttyp * fcomponent) -> env -> env -> Prop.
+  Parameter Add_add : forall v f e, Add v f e (add v f e).*)
 
   (* Return the env with a variable v, where the fst element of type is given *)
   Parameter add_fst : SE.t -> cmpnttyp -> env -> env.
@@ -218,14 +218,14 @@ Module MakeCmpntEnv (V : SsrOrder) (VM : SsrFMap with Module SE := V) <:
   Lemma not_mem_vtyp v e : ~~ mem v e -> vtyp v e = deftyp.
   Proof. rewrite /vtyp => H. by rewrite Lemmas.not_mem_find_none. Qed.
 
-  Definition Add x c e e' := forall y, vtyp y e' = vtyp y (add x c e).
+  (*Definition Add x c e e' := forall y, vtyp y e' = vtyp y (add x c e).
   Lemma Add_add : forall v f e, Add v f e (add v f e).
-  Proof. done. Qed.
+  Proof. done. Qed.*)
 
   Definition add_fst (v : V.t) (c : cmpnttyp) (e : env) : env :=
     let (f, s) := vtyp v e in add v (c, s) e.
   Definition add_snd (v : V.t) (fc : fcomponent) (e : env) : env :=
-    let (f, s) := vtyp v e in add v (f, fc) e. About Lemmas.find_add_eq.
+    let (f, s) := vtyp v e in add v (f, fc) e. 
   Definition Add_fst x c e e' := forall y, fst (vtyp y e') = fst (vtyp y (add_fst x c e)).
   Lemma Add_add_fst {v c e} : Add_fst v c e (add_fst v c e).
   Proof. done. Qed.
@@ -545,19 +545,19 @@ Module MakeHiFirrtl
   (* Resolve compnent kind from statement, init with unknown type *)
   Inductive resolveKinds_stmt : hfstmt -> cenv -> cenv -> Prop :=
   | Resolve_wire v t (ce : cenv) (ce' : cenv) :
-      CE.Add v (unknown_typ, Wire) ce ce' ->
+      CELemmas.P.Add v (unknown_typ, Wire) ce ce' ->
       resolveKinds_stmt (swire v t) ce ce'
   | Resolve_reg v r ce ce' :
-      CE.Add v (unknown_typ, Register) ce ce' ->
+      CELemmas.P.Add v (unknown_typ, Register) ce ce' ->
       resolveKinds_stmt (sreg v r) ce ce'
   | Resolve_inst v1 v2 ce ce' :
-      CE.Add v1 (unknown_typ, Instanceof) ce ce' ->
+      CELemmas.P.Add v1 (unknown_typ, Instanceof) ce ce' ->
       resolveKinds_stmt (sinst v1 v2) ce ce'
   | Resolve_node v e ce ce' :
-      CE.Add v CE.deftyp ce ce' ->
+      CELemmas.P.Add v (unknown_typ, Node) ce ce' ->
       resolveKinds_stmt (snode v e) ce ce'
   | Resolve_mem v m ce ce' :
-      CE.Add v (unknown_typ, Memory) ce ce' ->
+      CELemmas.P.Add v (unknown_typ, Memory) ce ce' ->
       resolveKinds_stmt (smem v m) ce ce'
   | Resolve_invalid v ce :
       resolveKinds_stmt (sinvalid v) ce ce
@@ -573,10 +573,10 @@ Module MakeHiFirrtl
 
   Inductive resolveKinds_port : hfport -> CE.env -> CE.env -> Prop :=
   | Resolve_input v t ce ce' :
-      CE.Add v (unknown_typ, In_port) ce ce' ->
+      CELemmas.P.Add v (unknown_typ, In_port) ce ce' ->
       resolveKinds_port (hinport v t) ce ce'
   | Resolve_output v t ce ce' :
-      CE.Add v (unknown_typ, Out_port) ce ce' ->
+      CELemmas.P.Add v (unknown_typ, Out_port) ce ce' ->
       resolveKinds_port (houtport v t) ce ce'
   .
 
@@ -590,10 +590,10 @@ Module MakeHiFirrtl
   
   Inductive resolveKinds_module : hfmodule -> CE.env -> CE.env -> Prop :=
   | Resolves_inmod vm ps ss ce ce' : 
-      CE.Add vm (unknown_typ, Fmodule) ce ce' ->
+      CELemmas.P.Add vm (unknown_typ, Fmodule) ce ce' ->
       resolveKinds_module (hfinmod vm ps ss) ce ce
   | Resolves_exmod vm ps ss ce ce' :
-      CE.Add vm (unknown_typ, Fmodule) ce ce' ->
+      CELemmas.P.Add vm (unknown_typ, Fmodule) ce ce' ->
       resolveKinds_module (hfexmod vm ps ss) ce ce
   .
 
@@ -883,19 +883,19 @@ Module MakeHiFirrtl
   (* infer type according to a statement *)
   Inductive inferType_stmt : hfstmt -> cenv -> cenv -> Prop :=
   | Infertype_wire v t ce ce' :
-      CE.Add_fst v (aggr_typ t) ce ce' ->
+      CELemmas.P.Add v (aggr_typ t, Wire) ce ce' ->
       inferType_stmt (swire v t) ce ce'
   | Infertype_reg v r ce ce' :
-      CE.Add_fst v (reg_typ r) ce ce' ->
+      CELemmas.P.Add v (reg_typ r, Register) ce ce' ->
       inferType_stmt (sreg v r) ce ce'
   | Infertype_inst v1 v2 ce ce' :
-      CE.Add_fst v1 (fst (CE.vtyp v2 ce)) ce ce' ->
+      CELemmas.P.Add v1 (fst (CE.vtyp v2 ce), Instanceof) ce ce' ->
       inferType_stmt (sinst v1 v2) ce ce'
   | Infertype_node v e ce ce' :
-      CE.Add_fst v (aggr_typ (type_of_hfexpr e ce)) ce ce' ->
+      CELemmas.P.Add v (aggr_typ (type_of_hfexpr e ce), Node) ce ce' ->
       inferType_stmt (snode v e) ce ce'
   | Infertype_mem v m ce ce' :
-      CE.Add_fst v (mem_typ m) ce ce' ->
+      CELemmas.P.Add v (mem_typ m, Memory) ce ce' ->
       inferType_stmt (smem v m) ce ce'
   | Infertype_invalid v ce :
       inferType_stmt (sinvalid v) ce ce
@@ -912,10 +912,10 @@ Module MakeHiFirrtl
   (* infer type according to ports declaration *)
   Inductive inferType_port : hfport -> cenv -> cenv -> Prop :=
   | Infertype_inport v t ce ce' :
-      CE.Add_fst v (aggr_typ t) ce ce' ->
+      CELemmas.P.Add v (aggr_typ t, In_port) ce ce' ->
       inferType_port (hinport v t) ce ce'
   | Infertype_outport v t ce ce' :
-      CE.Add_fst v (aggr_typ t) ce ce' ->
+      CELemmas.P.Add v (aggr_typ t, Out_port) ce ce' ->
       inferType_port (hinport v t) ce ce'.
 
   Inductive inferType_ports : seq hfport -> cenv -> cenv -> Prop :=
@@ -1176,7 +1176,11 @@ Module MakeHiFirrtl
    (* store the larger width *)
    Fixpoint add_ref_wmap0 r t ce (w:wmap0) : wmap0 :=
      match r with
-     | Eid v => CE.add v t w
+     | Eid v =>
+       match CE.find v w with
+       | Some t1 => CE.add v (max_width t t1) w
+       | None => CE.add v t w
+       end
      | Esubfield r f =>
        let br := base_ref r in
        CE.add br (upd_name_ftype (base_type_of_ref r ce) (v2var f) t) w
@@ -1216,9 +1220,8 @@ Module MakeHiFirrtl
      | Sfcnct r1 (Eref r2) =>
        let w1 w := add_ref_wmap0 r1 (type_of_ref r2 ce) ce w in
        let w2 w := add_ref_wmap0 r2 (type_of_ref r1 ce) ce w in
-       if is_deftyp (type_of_ref r1 ce) && (is_deftyp (type_of_ref r2 ce)) then (w2 (w1 w))
-       else if is_deftyp (type_of_ref r1 ce) then w1 w
-            else if is_deftyp (type_of_ref r2 ce) then w2 w else w
+       if is_deftyp (type_of_ref r1 ce) && (is_deftyp (type_of_ref r2 ce)) then w
+       else if ~~ is_deftyp (type_of_ref r2 ce) then w1 w else w
      | Sfcnct r e =>
        let w1 := add_ref_wmap0 r (type_of_hfexpr e ce) ce w in
        if is_deftyp (type_of_ref r ce) then w1 else w
@@ -1324,10 +1327,10 @@ Module MakeHiFirrtl
      end.
 
    Definition add_width_2_cenv (w : option ftype) (t : option (cmpnt_init_typs * fcomponent)) :=
-     match t, w with
-     | Some (Aggr_typ (Gtyp (Fuint 0)), c), Some w => Some (aggr_typ w, c)
-     | Some (Reg_typ (mk_freg (Gtyp (Fuint 0)) _ _), c), Some w => Some (aggr_typ w, c)
-     | t , _ => t
+     match w, t with
+     | Some w, Some (Aggr_typ ta, c) => if is_deftyp ta then Some (aggr_typ w, c) else t
+     | Some w, Some (Reg_typ (mk_freg tf _ _), c) => if is_deftyp tf then Some (aggr_typ w, c) else t
+     | _, t => t
      end.
    
    (* overwrite type widths in ce by wmap with the same index *)
@@ -1335,47 +1338,154 @@ Module MakeHiFirrtl
    Definition wmap_map2_cenv w (ce:cenv) : cenv :=
      CE.map2 add_width_2_cenv w ce.
 
-   Lemma empty_emap_map2_cenv :
-     forall ce, CE.map2 add_width_2_cenv empty_wmap0 ce = ce.
-   Proof.
-   Admitted.
+   (* Lemma empty_emap_map2_cenv : *)
+   (*   forall ce, CE.map2 add_width_2_cenv empty_wmap0 ce = ce. *)
+   (* Proof. *)
+   (* Admitted. *)
 
    Definition inferWidth_fun ss ce : cenv :=
      wmap_map2_cenv (inferWidth_stmts_wmap0 ss ce empty_wmap0) ce.
 
+   (**** infer width semantics in pred **)
+   
+   Inductive inferWidth_sstmt_sem : hfstmt -> wmap0 -> wmap0 -> cenv -> cenv -> Prop :=
+   | inferWidth_snode_exp v e ce1 ce2 (wm : wmap0) :
+       CE.find v wm = None ->
+       CE.find v ce1 = CE.find v ce2 ->
+       inferWidth_sstmt_sem (Snode v e) wm wm ce1 ce2
+   | inferWidth_swire_exp v t ce1 ce2 wm :
+       ~~ is_deftyp t ->
+       CE.find v wm = None ->
+       CE.find v ce1 = CE.find v ce2 ->
+       inferWidth_sstmt_sem (Swire v t) wm wm ce1 ce2
+   | inferWidth_swire_imp v t ce1 ce2 wm1 wm2 :
+       is_deftyp t ->
+       CE.find v wm1 = None ->
+       CE.find v wm2 = Some t ->
+       CE.find v ce1 = CE.find v ce2 ->
+       inferWidth_sstmt_sem (Swire v t) wm1 wm2 ce1 ce2
+   | inferWidth_sfcnct_example v e c t1 t2 ce1 ce2 wm1 wm2 :
+       CE.find v wm1 = Some (Gtyp (Fuint t1)) ->
+       type_of_hfexpr e ce1 = Gtyp (Fuint t2) ->
+       CE.find v wm2 = Some (Gtyp (Fuint (maxn t1 t2))) -> 
+       CE.find v ce1 = Some (aggr_typ (Gtyp (Fuint 0)), c) ->
+       CE.find v ce2 = Some (aggr_typ (Gtyp (Fuint (maxn t1 t2))), c) ->
+       inferWidth_sstmt_sem (Sfcnct ((eid v)) e) wm1 wm2 ce1 ce2
+   .
 
-   Inductive inferWidth_wmap_p : hfstmt -> cenv -> cenv -> Prop :=
-   | inferWidth_snode v e ce1 ce2 :
-       CE.Add_fst v (aggr_typ (type_of_hfexpr e ce1)) ce1 ce2 -> 
-       inferWidth_wmap_p (Snode v e) ce1 ce2 .
+   Lemma inferWidth_snode_exp_sem_conform :
+     forall v e wm1 ce1 wm2 ce2 ce3,
+       inferType_stmt (Snode v e) ce1 ce2 ->
+       CE.find v wm1 = None ->
+       wm2 = inferWidth_wmap0 (Snode v e) ce1 wm1 ->
+       ce3 = wmap_map2_cenv wm2 ce2 ->
+       inferWidth_sstmt_sem (Snode v e) wm1 wm2 ce2 ce3.
+   Proof.
+     intros. rewrite H1/=.
+     move : H1. rewrite /= => Heqw12. 
+     have Hnone : (add_width_2_cenv None None = None) by done.
+     move : (CELemmas.map2_1bis wm1 ce2 v Hnone).
+     rewrite H0 /=. rewrite -/(wmap_map2_cenv wm1 ce2) -Heqw12 -H2.
+     move => Hfeq. symmetry in Hfeq.
+     apply inferWidth_snode_exp; [rewrite Heqw12//|done].
+   Qed.
 
-   Inductive inferWidth_stmts_semantics : seq hfstmt -> cenv -> cenv -> Prop :=
+   Compute (full_mul (from_Z 4 (-1))) (from_Z 6 (1)).
+
+   Lemma inferWidth_swire_exp_sem_conform :
+     forall v t wm1 ce1 wm2 ce2 ce3,
+       ~~ is_deftyp t ->
+       inferType_stmt (Swire v t) ce1 ce2 ->
+       CE.find v wm1 = None ->
+       wm2 = inferWidth_wmap0 (Swire v t) ce1 wm1 ->
+       ce3 = wmap_map2_cenv wm2 ce2 ->
+       inferWidth_sstmt_sem (Swire v t) wm1 wm2 ce2 ce3.
+   Proof.
+     intros. rewrite H2/=.
+     move : H2. rewrite /= (negbTE H) => Heqw12.
+     have Hnone : (add_width_2_cenv None None = None) by done.
+     move : (CELemmas.map2_1bis wm1 ce2 v Hnone).
+     rewrite H1 /=. rewrite -/(wmap_map2_cenv wm1 ce2) -Heqw12 -H3.
+     move => Hfeq. symmetry in Hfeq.
+     apply inferWidth_swire_exp; [done | rewrite Heqw12// |done].
+   Qed.
+
+   Lemma inferWidth_swire_imp_sem_conform :
+     forall v t wm1 ce1 wm2 ce2 ce3,
+       is_deftyp t ->
+       inferType_stmt (Swire v t) ce1 ce2 ->
+       CE.find v wm1 = None ->
+       wm2 = inferWidth_wmap0 (Swire v t) ce1 wm1 ->
+       ce3 = wmap_map2_cenv wm2 ce2 ->
+       inferWidth_sstmt_sem (Swire v t) wm1 wm2 ce2 ce3.
+   Proof.
+     intros. rewrite H2 /= H H1.
+     move : H2. rewrite /= H H1 => Hw2.
+     apply inferWidth_swire_imp; [done|done| |].
+     - exact : (CELemmas.add_eq_o wm1 t (eq_refl v)).
+     - rewrite H3 /wmap_map2_cenv.
+       have Hnone : (add_width_2_cenv None None = None) by done.
+       move : (CELemmas.map2_1bis wm2 ce2 v Hnone) .
+       rewrite Hw2 => Hf . rewrite Hf.
+       inversion H0. rewrite /CELemmas.P.Add in H7.
+       rewrite (H7 v).
+       rewrite (CELemmas.add_eq_o wm1 t (eq_refl v)).
+       rewrite (CELemmas.add_eq_o ce1 (aggr_typ t, Wire) (eq_refl v)).
+       rewrite/= H//.
+   Qed.
+
+   Lemma inferWidth_sfcnct_sem_conform :
+     forall v1 v2 c1 c2 s1 s2 wm1 ce1 wm2 ce2 ,
+       CE.find v2 ce1 = Some (aggr_typ (Gtyp (Fuint s2.+1)), c2) ->
+       CE.find v1 wm1 = Some (Gtyp (Fuint s1)) ->
+       CE.find v1 ce1 = Some (aggr_typ (Gtyp (Fuint 0)), c1) ->
+       wm2 = inferWidth_wmap0 (Sfcnct (eid v1) (eref (eid v2))) ce1 wm1 ->
+       ce2 = wmap_map2_cenv wm2 ce1 ->
+       inferWidth_sstmt_sem (Sfcnct (eid v1) (eref (eid v2))) wm1 wm2 ce1 ce2.
+   Proof. 
+     intros. rewrite H2/= (CE.find_some_vtyp H)/= (CE.find_some_vtyp H1)/= H0.
+     apply inferWidth_sfcnct_example with c1 (s1) (s2.+1); [done | | | done |].
+      - rewrite /= (CE.find_some_vtyp H)/=//.
+      - rewrite maxnC.
+        exact : (CELemmas.add_eq_o wm1 (Gtyp (Fuint (maxn s1 s2.+1))) (eq_refl v1)).
+      - rewrite H3 /wmap_map2_cenv H2/= (CE.find_some_vtyp H)/= (CE.find_some_vtyp H1)/= H0/=.
+        have Hnone : (add_width_2_cenv None None = None) by done.
+        rewrite (CELemmas.map2_1bis (CE.add v1 (Gtyp (Fuint (maxn s2.+1 s1))) wm1) ce1 v1 Hnone) .
+        rewrite H1 (CELemmas.add_eq_o wm1 (Gtyp (Fuint (maxn s2.+1 s1))) (eq_refl v1))/=.
+        rewrite maxnC//.
+   Qed.
+
+        
+   Inductive inferWidth_stmt_sem : hfstmt -> cenv -> cenv -> Prop :=.
+     
+   Inductive inferWidth_stmts_sem : seq hfstmt -> cenv -> cenv -> Prop :=
    | inferWidth_stmts_nil ce :
-       inferWidth_stmts_semantics nil ce ce
-   | inferWidth_stmts_exp sts ce1 ce2 :
+       inferWidth_stmts_sem nil ce ce
+   | inferWidth_stmts_exp st sts ce1 ce2 ce3 :
        forall v,
          ~~ is_deftyp (type_of_cmpnttyp (fst (CE.vtyp v ce1))) ->
          CE.vtyp v ce1 = CE.vtyp v ce2 ->
-         inferWidth_stmts_semantics sts ce1 ce2
-   | inferWidth_stmts_imp sts ce1 ce2 :
+         inferWidth_stmt_sem st ce1 ce2 ->
+         inferWidth_stmts_sem (st :: sts) ce1 ce3
+   | inferWidth_stmts_imp st sts ce1 ce2 :
        forall v,
          is_deftyp (type_of_cmpnttyp (fst (CE.vtyp v ce1))) ->
          ~~ is_deftyp (type_of_cmpnttyp (fst (CE.vtyp v ce2))) ->
-         
-         inferWidth_stmts_semantics sts ce1 ce2.
+         inferWidth_stmts_sem (st :: sts) ce1 ce2.
 
-   Lemma inferWidth_stmts_semantics_conform :
+   Lemma inferWidth_stmts_sem_conform :
      forall sts ce1 ,
        (* is_deftyp (type_of_cmpnttyp (fst (CE.vtyp v ce1))) -> *)
        (* ~~ is_deftyp (type_of_cmpnttyp (fst (CE.vtyp v ce2))) -> *)
-       inferWidth_stmts_semantics sts ce1 (inferWidth_fun sts ce1).
+       inferWidth_stmts_sem sts ce1 (inferWidth_fun sts ce1).
    Proof.
      elim => [ce | st sts Hm ce]. 
      - rewrite /inferWidth_fun /wmap_map2_cenv empty_emap_map2_cenv.
        exact : inferWidth_stmts_nil.
      - rewrite /inferWidth_fun/=.
        move : st. elim.
-       + rewrite/=. 
+       + rewrite/=.
+         
    Admitted.   
    (********************************************************************************)
 
@@ -1789,14 +1899,14 @@ Module MakeHiFirrtl
   | Eval_sskip : forall ce cs, eval_fstmt_single sskip ce cs ce cs
   (* declare wire with ground type *)
   | Eval_swire_gt v t ce cs ce' cs':
-      CE.Add v (aggr_typ t, Wire) ce ce' ->
+      CELemmas.P.Add v (aggr_typ t, Wire) ce ce' ->
       (* SV.Upd v (r_ftype t) cs cs' -> *)
       SV.Upd v r_default cs cs' ->
       eval_fstmt_single (swire v t) ce cs ce' cs'
   (* declare node with expr, valid rhs *)
   | Eval_snode v e ce cs ce' cs':
       valid_rhs_fexpr e ce' ->
-      CE.Add v (aggr_typ (type_of_hfexpr e ce), Node) ce ce' ->
+      CELemmas.P.Add v (aggr_typ (type_of_hfexpr e ce), Node) ce ce' ->
       SV.Upd v (r_fexpr e) cs cs' ->
       eval_fstmt_single (snode v e) ce cs ce' cs'
   (* define full connection *)
@@ -1807,20 +1917,20 @@ Module MakeHiFirrtl
       ~~ is_deftyp (type_of_ref v ce) ->
       ftype_equiv (type_of_ref v ce) (type_of_hfexpr e ce) ->
       typeConstraintsGe (type_of_ref v ce) (type_of_hfexpr e ce) ->
-      CE.Add (base_ref v) (CE.vtyp (base_ref v) ce) ce ce' ->
+      CELemmas.P.Add (base_ref v) (CE.vtyp (base_ref v) ce) ce ce' ->
       SV.Upd (new_var (base_ref v) (v2var (get_field_name v))) (r_fexpr e) cs cs' ->
       eval_fstmt_single (sfcnct v e) ce cs ce' cs'
   (* declare reg, reset expr type equiv with reg type*)
   | Eval_sreg_r r t c rc rs ce cs ce' cs' :
       valid_rhs_fexpr rs ce ->
       ftype_equiv (type_of_hfexpr rs ce) t ->
-      CE.Add r (reg_typ (mk_hfreg t c (rrst rc rs)), Register) ce ce' ->
+      CELemmas.P.Add r (reg_typ (mk_hfreg t c (rrst rc rs)), Register) ce ce' ->
       (* SV.Upd r (r_fstmt (sreg r (mk_hfreg t c (rrst rc rs)))) cs cs' -> *)
       SV.Upd r r_default cs cs' ->
       eval_fstmt_single (sreg r (mk_hfreg t c (rrst rc rs))) ce cs ce' cs'
   (* declare reg, non reset *)
   | Eval_sreg_nr r t c ce cs ce' cs' :
-      CE.Add r (reg_typ (mk_hfreg t c nrst) , Register) ce ce' ->
+      CELemmas.P.Add r (reg_typ (mk_hfreg t c nrst) , Register) ce ce' ->
       (* SV.Upd r (r_fstmt (sreg r (mk_hfreg t c nrst))) cs cs' -> *)
       SV.Upd r r_default cs cs' ->
       eval_fstmt_single (sreg r (mk_hfreg t c nrst)) ce cs ce' cs'
