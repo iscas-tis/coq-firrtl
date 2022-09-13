@@ -351,7 +351,7 @@ Module MakeFirrtl
       | Bxor => xorB ea eb
       | Bcat => cat b a
       | Bdshl => cat (zeros (to_nat b)) a
-      | Bdshr => shrB (to_nat b) a
+      | Bdshr => (shrB (to_nat b) a)
       end
     | Fsint w1, Fsint w2 =>
       fun a b =>
@@ -368,9 +368,15 @@ Module MakeFirrtl
       | Band => andB ea eb
       | Bor => orB ea eb
       | Bxor => xorB ea eb
-      | Bcat => cat a b
+      | Bcat => cat b a
+      | _ => a
+      end
+    | Fsint _, Fuint _ =>
+      fun a b =>
+      match o with
       | Bdshl => cat (zeros (to_nat b)) a
-      | Bdshr => shrB (to_nat b) a
+      | Bdshr => (sarB (to_nat b) a)
+      | _ => a
       end
     | _, _ => fun a b => a
     end.
@@ -414,9 +420,14 @@ Module MakeFirrtl
                         | _ => type_of_fexpr e te
                         end
     | Eprim_binop b e1 e2 => match b with
-                             | Bdshl | Bdshr => match (type_of_fexpr e1 te) with
-                                                | Fuint n => Fuint (n + sizeof_fgtyp (type_of_fexpr e2 te))
-                                                | Fsint n => Fsint (n + sizeof_fgtyp (type_of_fexpr e2 te))
+                             | Bdshl => match (type_of_fexpr e1 te) with
+                                                | Fuint n => Fuint (n + (Nat.pow 2 (sizeof_fgtyp (type_of_fexpr e2 te))) - 1)
+                                                | Fsint n => Fsint (n + (Nat.pow 2 (sizeof_fgtyp (type_of_fexpr e2 te))) - 1)
+                                                | _ => TE.deftyp
+                                                end
+                             | Bdshr => match (type_of_fexpr e1 te) with
+                                                | Fuint n => Fuint n
+                                                | Fsint n => Fsint n
                                                 | _ => TE.deftyp
                                                 end
                              | Badd | Bsub => match type_of_fexpr e1 te, type_of_fexpr e2 te with
