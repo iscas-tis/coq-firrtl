@@ -237,8 +237,12 @@ Module MakeFirrtl
     | Bleq => fun b1 b2 => [::leB b1 b2]
     | Bgt => fun b1 b2 => [::gtB b1 b2]
     | Bgeq => fun b1 b2 => [::geB b1 b2]
-    | Beq => fun b1 b2 => [::b1 == b2]
-    | Bneq => fun b1 b2 => [::(~~ (b1 == b2))]
+    | Beq => fun b1 b2 => let bs1 := zext ((maxn (size b1) (size b2)) - (size b1)) b1 in
+                          let bs2 := zext ((maxn (size b1) (size b2)) - (size b2)) b2 in
+    [::bs1 == bs2]
+    | Bneq => fun b1 b2 => let bs1 := zext ((maxn (size b1) (size b2)) - (size b1)) b1 in
+                           let bs2 := zext ((maxn (size b1) (size b2)) - (size b2)) b2 in
+    [::(~~ (bs1 == bs2))]
     end.
   
   Definition binop_sbcmp (o : bcmp) : bits -> bits -> bits :=
@@ -247,8 +251,12 @@ Module MakeFirrtl
     | Bleq => fun b1 b2 => [::sleB b1 b2]
     | Bgt => fun b1 b2 => [::sgtB b1 b2]
     | Bgeq => fun b1 b2 => [::sgeB b1 b2]
-    | Beq => fun b1 b2 => [::b1 == b2]
-    | Bneq => fun b1 b2 => [::(~~ (b1 == b2))]
+    | Beq => fun b1 b2 => let bs1 := sext ((maxn (size b1) (size b2)) - (size b1)) b1 in
+                          let bs2 := sext ((maxn (size b1) (size b2)) - (size b2)) b2 in
+                          [::bs1 == bs2]
+    | Bneq => fun b1 b2 => let bs1 := sext ((maxn (size b1) (size b2)) - (size b1)) b1 in
+                           let bs2 := sext ((maxn (size b1) (size b2)) - (size b2)) b2 in
+                           [::(~~ (bs1 == bs2))]
     end.
 
   (* Binary operations *)
@@ -304,6 +312,23 @@ Module MakeFirrtl
 
   Lemma size_subB_ext bs1 bs2 : size (subB_ext bs1 bs2) = (maxn (size bs1) (size bs2))+1.
   Proof. Admitted.
+
+  Fixpoint Sfull_mul (bs1 bs2 : bits) : bits :=
+    match bs1 with
+    | [::] => from_nat (size bs1 + size bs2) 0
+    | hd::tl =>
+    if tl == nil then (
+      if hd then addB (invB (sext (size bs1) bs2)) (zext (size bs2) [::b1])
+        else addB (invB (sext (size bs1) (zeros (size bs2)))) (zext (size bs2) [::b1])
+      )
+      else (
+      if hd then addB (joinlsb false (Sfull_mul tl bs2)) (sext (size bs1) bs2)
+        else joinlsb false (Sfull_mul tl bs2))
+    end.
+
+  (*Compute (sext 2 [::b1;b0]).
+  Compute (joinlsb false(addB (zeros ((size [::b1;b0])+1)) (addB (invB (sext (size [::b1]) [::b1;b0])) (zext (size [::b1;b0]) [::b1])))).*)
+  Compute (Sfull_mul [::b1;b1] [::b0;b1]).
   
   Definition ebinop_op (o : ebinop) (t1 t2 : fgtyp) : bits -> bits -> bits :=
     match t1, t2 with
@@ -324,7 +349,7 @@ Module MakeFirrtl
       | Band => andB ea eb
       | Bor => orB ea eb
       | Bxor => xorB ea eb
-      | Bcat => cat a b
+      | Bcat => cat b a
       | Bdshl => cat (zeros (to_nat b)) a
       | Bdshr => shrB (to_nat b) a
       end
@@ -428,23 +453,6 @@ Module MakeFirrtl
     | Evalidif c e => (* if (Z.ltb 0 (to_Z (eval_fexpr c s))) then *)
                       (type_of_fexpr e te)
     end.
-
-  Fixpoint Sfull_mul (bs1 bs2 : bits) : bits :=
-    match bs1 with
-    | [::] => from_nat (size bs1 + size bs2) 0
-    | hd::tl =>
-    if tl == nil then (
-      if hd then addB (invB (sext (size bs1) bs2)) (zext (size bs2) [::b1])
-        else addB (invB (sext (size bs1) (zeros (size bs2)))) (zext (size bs2) [::b1])
-      )
-      else (
-      if hd then addB (joinlsb false (Sfull_mul tl bs2)) (sext (size bs1) bs2)
-        else joinlsb false (Sfull_mul tl bs2))
-    end.
-
-  (*Compute (sext 2 [::b1;b0]).
-  Compute (joinlsb false(addB (zeros ((size [::b1;b0])+1)) (addB (invB (sext (size [::b1]) [::b1;b0])) (zext (size [::b1;b0]) [::b1])))).*)
-  Compute (Sfull_mul [::b1;b1] [::b0;b1]).
 
   (* Expression evaluation, type env *)
   (*Definition upd_typenv_fexpr (e : fexpr) (te : TE.env) : TE.env :=
