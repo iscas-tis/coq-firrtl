@@ -16,14 +16,14 @@ Import Prenex Implicits.
 Section Ftype.
 
 (* Variable var : eqType. *)
-  
+
 Inductive fflip : Type := Flipped | Nflip.
 
 Inductive ftype : Type :=
 | Gtyp : fgtyp -> ftype
 | Atyp : ftype -> nat -> ftype
 | Btyp : ffield -> ftype
-                           
+
 with ffield : Type :=
 | Fnil : ffield
 | Fflips : var -> fflip -> ftype -> ffield -> ffield

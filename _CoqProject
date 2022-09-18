@@ -1,3 +1,4 @@
+-Q lib/mathcomp mathcomp
 -Q lib/simplssrlib simplssrlib
 lib/simplssrlib/Types.v
 lib/simplssrlib/Tactics.v
