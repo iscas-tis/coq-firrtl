@@ -230,6 +230,8 @@ Module MakeFirrtl
     | Utail n => fun b => low (size b - n) b
     end.  
 
+  Compute (eunop_op (Uextr 5 1) (Fuint 6) [:: true; false; true; true; true; true]).
+
   (* Comparison operations *)
   Definition binop_bcmp (o : bcmp) : bits -> bits -> bits :=
     match o with
@@ -359,8 +361,10 @@ Module MakeFirrtl
         let ea := sext (w-w1) a in
         let eb := sext (w-w2) b in
       match o with
-      | Badd => let (c, r) := adcB false ea eb in rcons r c
-      | Bsub => let (b, r) := sbbB false ea eb in rcons r b
+      | Badd => let (c, r) := adcB false ea eb in 
+      (if (msb ea) == (msb eb) then (rcons r c) else (rcons r (~~c)))
+      | Bsub => let (b, r) := sbbB false ea eb in 
+      (if (msb ea) == (msb eb) then (rcons r b) else (rcons r (~~b)))
       | Bdiv => sext 1 (sdivB a b)
       | Brem => low (minn w1 w2) (sremB a b)
       | Bmul => Sfull_mul a b
@@ -503,10 +507,10 @@ Module MakeFirrtl
     | Ecast AsAsync e => [::lsb (eval_fexpr e s te)]
     end.
 
-  Compute (from_Z 6 (-3)). (*[:: true; false; true; true; true; true] *)
+  (*Compute (from_Z 6 (-3)). (*[:: true; false; true; true; true; true] *)
   Compute (from_Z 11 (-56)). (*[:: false; false; false; true; false; false; true; true; true; true; true]*)
   Compute (ebinop_op Badd (Fsint 6) (Fsint 11) [:: true; false; true; true; true; true] [:: false; false; false; true; false; false; true; true; true; true; true]).
-  Compute (ebinop_op Bsub (Fsint 6) (Fsint 11) [:: true; false; true; true; true; true] [:: false; false; false; true; false; false; true; true; true; true; true]).
+  *)Compute (ebinop_op Badd (Fsint 4) (Fsint 4) [:: true;true;true;true] [:: false; true; true; false]).
   Compute (eunop_op (Ucvt) (Fuint 6) [:: true; false; true; true; true; true]).
   
   (* Expression statement, type env *)
