@@ -17,7 +17,7 @@ Import Prenex Implicits.
     Fuint : nat -> fgtyp
   | Fsint : nat -> fgtyp
   | Fclock
-  | Freset
+  | Freset (* HiFIRRTL only *)
   | Fasyncreset
   (*| Fanalog : nat -> fgtyp*) (* TBD, HiFirrtl *)
   .

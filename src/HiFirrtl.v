@@ -19,7 +19,7 @@ Section HiFirrtl.
   Variable var : eqType.
 
   Inductive sign := Unsigned | Signed.
-  
+
   Inductive hfexpr : Type :=
   | Econst : fgtyp -> bits -> hfexpr
   | Ecast : ucast -> hfexpr -> hfexpr
@@ -44,7 +44,7 @@ Section HiFirrtl.
         data_type : ftype;
         depth : nat;
         reader : seq var;
-        writer : seq var;                    
+        writer : seq var;
         read_latency : nat;
         write_latency : nat;
         read_write : ruw
@@ -53,7 +53,7 @@ Section HiFirrtl.
   Inductive rst : Type :=
   | NRst : rst
   | Rst : hfexpr -> hfexpr -> rst.
-  
+
   Record hfreg : Type :=
     mk_freg
       {
@@ -62,7 +62,7 @@ Section HiFirrtl.
         clock : hfexpr;
         reset : rst
       }.
-  
+
   Inductive hfstmt : Type :=
   | Sskip
   | Swire : var -> ftype -> hfstmt
@@ -94,8 +94,11 @@ Section HiFirrtl.
 (* DNJ: External modules do not contain statements but only an interface. 
 They may contain the following special statements:
 one “defname = ...” (to set the Verilog name)
-zero, one, or multiple “paramter <variable> = <constant> (to pass parameters to the Verilog design that implements this module)
+zero, one, or multiple “parameter <variable> = <constant> (to pass parameters to the Verilog design that implements this module)
 XM : TO BE DESIGNED , how to present the parameters
+Discussion result: Because we concentrate on correctness,
+and external modules are black boxes whose behaviour is unknown,
+it does not make sense to put effort in external modules.
 *)
   .
 
@@ -103,20 +106,19 @@ XM : TO BE DESIGNED , how to present the parameters
 
 End HiFirrtl.
 
-
-(* A mapping from a variable to its component type *)
-
 Section Component_types.
-
+  (* A mapping from a variable to its component type.
+  This mapping is needed because a register or memory definition
+  contains more information than just the data type. *)
   Variable var : eqType.
-  
+
   Inductive cmpnt_init_typs : Type :=
   | Aggr_typ : ftype -> cmpnt_init_typs
   | Reg_typ : hfreg var -> cmpnt_init_typs
   | Mem_typ : hfmem var -> cmpnt_init_typs
   | Unknown_typ : cmpnt_init_typs.
-  
-  (* type of component type *)
+
+  (* data type of component *)
   Definition type_of_cmpnttyp ct :=
     match ct with
     | Aggr_typ t => t
@@ -124,10 +126,12 @@ Section Component_types.
     | Mem_typ m => data_type m
     | Unknown_typ => Gtyp (Fuint 0)
     end.
-  
+
 End Component_types.
 
 Module Type CmpntEnv (V : SsrOrder) <: SsrFMap.
+  (* a module interface to store components in the form a map from (defined) identifiers
+  to their data types (e.g. ``UInt<3>'') and kind (e.g. ``node''). *)
   Include SsrFMap.
 
   Local Notation var := V.t.
@@ -151,7 +155,7 @@ Module Type CmpntEnv (V : SsrOrder) <: SsrFMap.
     forall {x y : SE.t} {ty : cmpnt_init_typs V.T * fcomponent} {e : env},
       x != y -> vtyp x (add y ty e) = vtyp x e.
   Axiom not_mem_vtyp :
-    forall {v : SE.t} {e : env}, ~~ mem v e -> vtyp v e = deftyp.
+    forall {v : SE.t} {e : env}, ~~ mem v e -> vtyp v e = deftyp. (* mem = member of the SsrFMap *)
 
   (*Parameter Add : SE.t -> (cmpnttyp * fcomponent) -> env -> env -> Prop.
   Parameter Add_add : forall v f e, Add v f e (add v f e).*)
@@ -169,6 +173,8 @@ End CmpntEnv.
 
 Module MakeCmpntEnv (V : SsrOrder) (VM : SsrFMap with Module SE := V) <:
   CmpntEnv V with Module SE := V.
+  (* concretisation of the above module interface
+  (in particular, defines vtyp) *)
   Include VM.
   Module Lemmas := FMapLemmas VM.
   Local Notation cmpnttyp := (cmpnt_init_typs V.T).
@@ -219,7 +225,7 @@ Module MakeCmpntEnv (V : SsrOrder) (VM : SsrFMap with Module SE := V) <:
   Definition Add_snd x c e e' := forall y, snd (vtyp y e') = snd (vtyp y (add_snd x c e)).
   Lemma Add_add_snd {v c e} : Add_snd v c e (add_snd v c e).
   Proof. done. Qed.
-  
+
 End MakeCmpntEnv.
 
 Module CE (*<: CmpntEnv VarOrder *) := MakeCmpntEnv VarOrder VM.
@@ -241,10 +247,12 @@ Section Rhs_expr.
   Axiom rhs_expr_eqP : Equality.axiom rhs_expr_eqn. 
   Canonical rhs_expr_eqMixin := EqMixin rhs_expr_eqP.
   Canonical rhs_expr_eqType := Eval hnf in EqType rhs_expr rhs_expr_eqMixin.
-  
+
 End Rhs_expr.
 
 Module Type StructStore (V : SsrOrder) (CE : CmpntEnv V with Module SE := V).
+  (* extension of the component environment above
+  with functions (and lemmas) to define additional variables *)
   Module Lemmas := FMapLemmas CE.
 
   Local Notation var := V.t.
@@ -318,13 +326,13 @@ End MakeStructStore.
 Module StructState := MakeStructStore VarOrder CE.
 
 Module MakeHiFirrtl
-       (V : SsrOrder)
+       (V : SsrOrder) (* identifier names *)
        (VS : SsrFSet with Module SE := V)
        (VM : SsrFMap with Module SE := V)
        (CE : CmpntEnv V with Module SE := V)
-       (SV : StructStore V CE).
+       (SV : StructStore V CE). (* map from names of defined identifiers to their type and kind *)
   (* Local Open Scope hifirrtl. *)
-  
+
   Module CELemmas := FMapLemmas CE.
   Module VSLemmas := SsrFSetLemmas VS.
 
@@ -359,7 +367,7 @@ Module MakeHiFirrtl
   Definition swhen c s1 s2 := @Swhen V.T c s1 s2.
   Definition sstop e1 e2 n := @Sstop V.T e1 e2 n.
   Definition sinst v1 v2 := @Sinst V.T v1 v2.
-  
+
   Definition hfreg := @hfreg V.T.
   Definition mk_hfreg := @mk_freg V.T.
   Definition nrst := @NRst V.T.
@@ -373,7 +381,7 @@ Module MakeHiFirrtl
   Definition hfinmod v ps ss := @FInmod V.T v ps ss.
   Definition hfexmod v ps ss := @FExmod V.T v ps ss.
   Definition hfcircuit := @hfcircuit V.T.
-  
+
   Definition rhs_expr := rhs_expr V.T.
   Definition r_fexpr e := @R_fexpr V.T e.
   (* Definition r_ftype t := @R_ftype V.T t. *)
@@ -390,10 +398,13 @@ Module MakeHiFirrtl
   Axiom forient_eqP : Equality.axiom forient_eqn. 
   Canonical forient_eqMixin := EqMixin forient_eqP.
   Canonical forient_eqType := Eval hnf in EqType forient forient_eqMixin.
-  
+
   Definition orient_of_comp c :=
     match c with 
     | In_port | Instanceof | Memory | Node => Source
+    (* DNJ: Not sure whether a memory should be a source. It is written like that
+    in the specificiation, but actually the data type of a memory port is a bundle
+    defined as a sink (with some fields flipped). *)
     | Out_port => Sink
     | Register | Wire => Duplex
     | Fmodule => Other
@@ -416,10 +427,11 @@ Module MakeHiFirrtl
     match e with
     | Eid r => let (_,c) := CE.vtyp r ce in valid_rhs_orient (orient_of_comp c)
     | Esubfield r _ => valid_rhs_ref r ce
+    (* DNJ: Subfields can be flipped. So one needs to check with the data type of r *)
     | Esubindex r _ => valid_rhs_ref r ce
     | Esubaccess r _ => valid_rhs_ref r ce
     end.
-  
+
   Fixpoint valid_rhs_fexpr (e : hfexpr) (ce : cenv) :=
     match e with
     | Econst _ _ => true
@@ -427,6 +439,9 @@ Module MakeHiFirrtl
     | Ecast _ _ => true
     | Eprim_binop _ _ _ => true
     | Eprim_unop _ _ => true
+    (* DNJ: The arguments of a multiplexer or a validif need to be passive.
+    I am not sure whether something similar holds for primitive expression arguments;
+    I guess they should be valid_rhs_fexpr themselves. *)
     | Emux _ e1 e2 => valid_rhs_fexpr e1 ce && (valid_rhs_fexpr e2 ce)
     | Evalidif _ e => valid_rhs_fexpr e ce
     end.
@@ -441,7 +456,7 @@ Module MakeHiFirrtl
     (*                | _ => false *)
     (*                end *)
     end.
-  
+
   (****** Semantics ******)
 
   (* ground type equivalence *)
@@ -509,7 +524,7 @@ Module MakeHiFirrtl
       end
     | Fnil => true
     end.
-  
+
   Fixpoint ftype_weak_equiv t1 t2 :=
     match t1, t2 with
     | Gtyp gt1, Gtyp gt2 => fgtyp_equiv gt1 gt2
@@ -517,7 +532,7 @@ Module MakeHiFirrtl
     | Btyp bt1, Btyp bt2 => fbtyp_weak_equiv bt1 bt2
     | _, _ => false
     end.
-  
+
   Definition cmpnt_init_typs := @cmpnt_init_typs V.T.
   Definition aggr_typ t := @Aggr_typ V.T t.
   Definition reg_typ t := @Reg_typ V.T t.
@@ -528,8 +543,8 @@ Module MakeHiFirrtl
   (********************************************************************************)
 
   (** Pass Resolvekinds *)
-  
-  (* Resolve compnent kind from statement, init with unknown type *)
+
+  (* Resolve component kind from statement, init with unknown type *)
   Inductive resolveKinds_stmt : hfstmt -> cenv -> cenv -> Prop :=
   | Resolve_wire v t (ce : cenv) (ce' : cenv) :
       CELemmas.P.Add v (unknown_typ, Wire) ce ce' ->
@@ -574,7 +589,7 @@ Module MakeHiFirrtl
       resolveKinds_port p ce ce' ->
       resolveKinds_ports ps ce' ce'' ->
       resolveKinds_ports (p::ps) ce ce''.
-  
+
   Inductive resolveKinds_module : hfmodule -> CE.env -> CE.env -> Prop :=
   | Resolves_inmod vm ps ss ce ce' : 
       CELemmas.P.Add vm (unknown_typ, Fmodule) ce ce' ->
@@ -620,13 +635,13 @@ Module MakeHiFirrtl
     end.
 
   Fixpoint resolveKinds_modules_fun ms ce := fold_right resolveKinds_module_fun ms ce.
-  
+
   (** decide the type and width of hifirrtl expressions *)
 
   Parameter v2var : V.t -> Var.var.
 
   Definition def_ftype := Gtyp (Fuint 0).
-  
+
   (* type of mux expression *)
   Fixpoint mux_types t1 t2 : ftype :=
       match t1, t2 with
@@ -952,7 +967,7 @@ Module MakeHiFirrtl
     | Sreg v r => CE.add_fst v (reg_typ r) ce
     | Smem v m => CE.add_fst v (mem_typ m) ce
     | Swire v t => CE.add_fst v (aggr_typ t) ce
-    | Swhen _ _ _
+    | Swhen _ _ _ (* DNJ: but when has substatements that may influence the type *)
     | Sfcnct _ _
     | Spcnct _ _
     | Sinvalid _
@@ -969,16 +984,16 @@ Module MakeHiFirrtl
     end.
 
   Fixpoint inferType_modules_fun ms ce := fold_right inferType_module_fun ms ce.
-  
+
   Definition upd_regtyp t r :=
     mk_hfreg t (clock r) (reset r).
-  
+
   Definition upd_memtyp t m :=
     mk_hfmem t (depth m) (reader m) (writer m) (read_latency m) (write_latency m) (read_write m).
 
   Definition is_bundle t :=
     match t with Btyp _ => true | _ => false end.
-  
+
   Definition is_vector t :=
     match t with Atyp _ _ => true | _ => false end.
 
@@ -996,7 +1011,7 @@ Module MakeHiFirrtl
          | Fnil => false
          | Fflips v f tv fs => is_deftyp tv || (is_deftyp_f fs)
          end.
-  
+
   (* given 2 equivalent types, return the one with larger width *)
   Fixpoint max_width t1 t2 :=
     match t1, t2 with
@@ -1052,7 +1067,7 @@ Module MakeHiFirrtl
         * apply max_width_ftype_equiv; done.
         * apply Hm; done.
   Qed.
-        
+
   (* directly upd a field of a ftype with name 'v' with given type t, the field width upd to larger one *)
   (* if it has no such field, return itself *)
   Fixpoint upd_name_ftype ft v t : ftype :=
@@ -1068,7 +1083,7 @@ Module MakeHiFirrtl
                                  else Fflips v1 fp (upd_name_ftype t1 v t)
                                              (upd_name_ffield fs v t)
          end.
-  
+
   Lemma upd_type_equiv :
     forall t r v ce, ~~ is_deftyp (type_of_hfexpr (eref (esubfield r v)) ce) ->
                      ftype_equiv (type_of_hfexpr (eref (esubfield r v)) ce) t ->
@@ -1076,7 +1091,7 @@ Module MakeHiFirrtl
                                  (upd_name_ftype (base_type_of_ref r ce) (v2var v) t).
   Proof.
   Admitted.
-    
+
   Fixpoint upd_vectyp vt t : ftype :=
     match vt with
     | Gtyp gt => t
@@ -1143,7 +1158,7 @@ Module MakeHiFirrtl
   (********************************************************************************)
 
   (** Pass InferWidth *)
-  
+
   (* Infer unknown width
      Infers the smallest width that is larger than or equal to all assigned widths to a signal
    * Note that this means that dummy assignments that are overwritten by last-connect-semantics
@@ -1166,7 +1181,7 @@ Module MakeHiFirrtl
      | Esubindex r n => get_field_name r
      | Esubaccess r n => get_field_name r
      end.
-   
+
    (* store the larger width *)
    Fixpoint add_ref_wmap0 r t ce (w:wmap0) : wmap0 :=
      match r with
@@ -1304,7 +1319,7 @@ Module MakeHiFirrtl
 
    (* Definition max_width_of_wmap ts : ftype := *)
    (*   List.fold_left max_width ts (Gtyp (Fuint 0)). *)
-   
+
    (* Definition map_max_width_wmap (w : wmap) : wmap0 := *)
    (*   CE.map max_width_of_wmap w . *)
 
@@ -1327,7 +1342,7 @@ Module MakeHiFirrtl
      | Some w, Some (Reg_typ (mk_freg tf _ _), c) => if is_deftyp tf then Some (aggr_typ w, c) else t
      | _, t => t
      end.
-   
+
    (* overwrite type widths in ce by wmap with the same index *)
 
    Definition wmap_map2_cenv w (ce:cenv) : cenv :=
@@ -1524,7 +1539,7 @@ Module MakeHiFirrtl
    (* Definition rmap := CE.t (ftype). *)
    (* Definition empty_rmap : rmap := CE.empty (ftype). *)
    (* Definition finds_r (v:var) (r:rmap) := match CE.find v r with Some t => t | None => def_ftype end. *)
-   
+
    Definition rmap := CE.t (seq ftype).
    Definition empty_rmap : rmap := CE.empty (seq ftype).
    Definition findr (v:var) (r:rmap) := match CE.find v r with Some t => t | None => [::] end.
@@ -1561,7 +1576,7 @@ Module MakeHiFirrtl
      | Snode v e => CE.add v [::type_of_hfexpr e ce] m
      | Swire v t => if is_deftyp t then CE.add v [::t] m else m
      | Sreg v _ => m
-     | Smem v _ => m           
+     | Smem v _ => m
      | Sinst v1 v2 => CE.add v1 [::type_of_ref (Eid v2) ce] m
      | Sinvalid v => m
      | Sfcnct r e => let te := type_of_hfexpr e ce in
@@ -1574,7 +1589,7 @@ Module MakeHiFirrtl
      end.
 
    Definition is_uninfered_reset rs := is_deftyp (hd def_ftype rs).
-                                  
+
    Fixpoint has_async rs :=
      match rs with
      | [::] => false
@@ -1597,7 +1612,7 @@ Module MakeHiFirrtl
                 else Some (aggr_typ (Gtyp (Fuint 1)), c)
      | _, _ => t
      end.
-   
+
    Definition rmap_map2_cenv (r:rmap) ce : CE.env :=
      CE.map2 add_reset2cenv r ce.
 
@@ -1854,13 +1869,13 @@ Module MakeHiFirrtl
 
 
    (** Pass ExpandWhens *)
-   
+
    (* Definition expandWhens_fun s ce cs : hfstmt := *)
    (*   match s with *)
    (*   | Swhen c (Sfcnct r e) s2 =>  *)
 
 
-  
+
   (** Semantics of declaim  ports*)
   Inductive eval_port : hfport -> CE.env -> cstate -> CE.env -> cstate -> Prop :=
   (* in, ground type *)
@@ -1912,7 +1927,7 @@ Module MakeHiFirrtl
       eval_port (Foutput v (Btyp fs)) ce' cs' ce'' cs'' ->
       eval_port (Foutput v (Btyp (Fflips vt Flipped t fs))) ce cs ce'' cs''
   .
-  
+
   Inductive eval_ports : seq hfport -> CE.env -> cstate -> CE.env -> cstate -> Prop :=
   | Eval_ports_nil ce cs : eval_ports [::] ce cs ce cs
   | Eval_ports_cons p ps ce cs ce' cs' ce'' cs'':
@@ -1920,9 +1935,9 @@ Module MakeHiFirrtl
       eval_ports ps ce' cs' ce'' cs'' ->
       eval_ports (p :: ps) ce cs ce'' cs''
   .
-  
+
   (** Semantics of single statement, update CE.env (var -> fgtyp * fcomponent) and cstate (var -> rhs_expr) *)
-  
+
   Inductive eval_fstmt_single : hfstmt -> CE.env -> cstate -> CE.env -> cstate -> Prop :=
   | Eval_sskip : forall ce cs, eval_fstmt_single sskip ce cs ce cs
   (* declare wire with ground type *)
@@ -2003,7 +2018,7 @@ Module MakeHiFirrtl
 
 
   Parameter map2 : (option rhs_expr -> option rhs_expr -> option rhs_expr) -> cstate -> cstate -> cstate.
-  
+
   (** Semantics of statement group, last cnct considered *)
   Inductive eval_fstmts_group : seq hfstmt -> CE.env -> cstate -> CE.env -> cstate -> Prop :=
   | Gnil ce cs: eval_fstmts_group [::] ce cs ce cs
@@ -2042,7 +2057,7 @@ Module MakeHiFirrtl
       eval_fstmts_group eb ce0 cs0 ce2 cs2 ->
       eval_fstmts_group_branch c tb eb ce0 cs0 (CE.map2 merge_branch_ce (CE.map2 merge_branch_ce ce0 ce1) ce2)
                                (map2 (merge_branch_cs_e c) (map2 (merge_branch_cs_t c) cs0 cs1) cs2).
-  
+
   (* (** connect to dst in then branch which has "not" been connected previously, add then branch *) *)
   (* | Gthen_cnct_0 c v e hstg1 hstg2 ce ce' ce'' cs cs' cs'' : *)
   (*     SV.acc (base_ref v) cs == r_default -> *)
@@ -2119,7 +2134,7 @@ Module MakeHiFirrtl
      | Fnil => 0
      | Fflips v f t ff => len_of_ftype t + (len_of_ffield ff)
      end.
-   
+
    (* Fixpoint new_vars_atyp r n t te : CE.env := *)
    (*   match n with *)
    (*   | 0 => te *)
@@ -2132,7 +2147,7 @@ Module MakeHiFirrtl
      | Out_port => In_port
      | c => c
      end.
-   
+
    Fixpoint destructTypes_fun_aux r t c l {struct t} : list (var * fgtyp * fcomponent) :=
      match t with
      | Gtyp t => (r, t, c) :: l
@@ -2160,7 +2175,7 @@ Module MakeHiFirrtl
      | nil => d
      | (r, t, c) :: tl => destructTypes_fun tl (CE.add r (t, c) d)
      end.
-   
+
    Definition lowerTypes_fport (p : hfport) dm : dmap :=
      match p with
      | Finput v t => destructTypes_fun (destructTypes_fun_aux v t In_port [::]) dm
@@ -2174,7 +2189,7 @@ Module MakeHiFirrtl
      | Smem v m => destructTypes_fun (destructTypes_fun_aux v (data_type m) Memory [::]) dm
      | _ => dm
      end.
-   
+
    Definition lowerTypes_init_fstmts ss dm := fold_left lowerTypes_init_fstmt ss dm.
 
    Definition add_lowtype_2_cenv (lt : option (fgtyp * fcomponent)) (t : option (cmpnt_init_typs * fcomponent)) :=
@@ -2183,7 +2198,7 @@ Module MakeHiFirrtl
      | Some (lt, c), None => Some (aggr_typ (Gtyp lt), c)
      | Some (lt, c), Some t => Some t
      end.
-   
+
    Definition dmap_2_cenv lt ce : CE.env :=
      CE.map2 add_lowtype_2_cenv lt ce.
 
