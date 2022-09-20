@@ -532,7 +532,16 @@ Module MakeFirrtl
     | Eprim_unop u e =>
       let t := type_of_fexpr e te in
       (eunop_op u t) (eval_fexpr e s te)
-    | Emux c e1 e2 => if ~~ (is_zero (eval_fexpr c s te)) then (eval_fexpr e1 s te) else (eval_fexpr e2 s te)
+    | Emux c e1 e2 =>
+      let t1 := (type_of_fexpr e1 te) in
+      let t2 := (type_of_fexpr e2 te) in
+      match t1, t2 with
+      | Fuint w1, Fuint w2 => if ~~ (is_zero (eval_fexpr c s te)) 
+      then (zext ((max w1 w2) - w1) (eval_fexpr e1 s te)) else(zext ((max w1 w2) - w2) (eval_fexpr e2 s te))
+      | Fsint w1, Fsint w2 => if ~~ (is_zero (eval_fexpr c s te)) 
+      then (sext ((max w1 w2) - w1) (eval_fexpr e1 s te)) else(sext ((max w1 w2) - w2) (eval_fexpr e2 s te))
+      | _, _ => [::]
+      end       
     | Evalidif c e => if ~~ (is_zero (eval_fexpr c s te)) then (eval_fexpr e s te) else [::]
     (* | Edeclare v t => zeros (sizeof_fgtyp t) *)
     | Ecast AsUInt e => eval_fexpr e s te
