@@ -135,12 +135,42 @@ End LoFirrtl.
 
 
 
+(************************************************************)
+(* Parallel semantics model *)
+
+Module Type ExprStore (V : SsrOrder) (TE : TypEnv with Module SE := V).
+  Module Lemmas := FMapLemmas TE.
+
+  Local Notation var := V.t.
+  Local Notation value := (fexpr V.T).
+
+  Parameter t : Type.
+  Parameter empty : t.
+  Parameter acc : var -> t -> value.
+  Parameter upd : var -> value -> t -> t.
+End ExprStore.
+
+Module ExprType (V:SsrOrder)<: HasDefaultTyp.
+  Definition t : Type := fexpr V.T.
+  Definition default : t := Econst V.T (Fuint 0) [::].
+End ExprType.
+
+Module MakeExprStore (V : SsrOrder) (TE : TypEnv with Module SE := V) <:
+  ExprStore V TE.
+  Module ExprTypeV := ExprType V.
+  Include MakeTStoreMap V ExprTypeV.
+  Module Lemmas := FMapLemmas TE.
+End MakeExprStore.
+
+Module EStore := MakeExprStore VarOrder TE.
+
 Module MakeFirrtl
        (V : SsrOrder)
        (VS : SsrFSet with Module SE := V)
        (VM : SsrFMap with Module SE := V)
        (TE : TypEnv with Module SE := V)
-       (SV : ValStore V TE).
+       (SV : ValStore V TE)
+       (ES : ExprStore V TE).
   Local Open Scope firrtl.
   Local Open Scope bits.
   
@@ -149,6 +179,7 @@ Module MakeFirrtl
   Local Notation var := V.t.
 
   Local Notation vstate := SV.t.
+  Local Notation estate := ES.t.
   
 (****** Semantics ******)
 
@@ -693,6 +724,12 @@ Module MakeFirrtl
     | Sfcnct (Eref v) e => is_defined v te && is_defined_fexpr e te
     | _ => true
     end.
+
+
+
+  
+  (************************************************************)
+  
   
   (* well formed expression *)
   Definition well_formed_fexpr e te := well_typed_fexpr e te && is_defined_fexpr e te.
@@ -756,7 +793,7 @@ Module MakeFirrtl
   Admitted.
   
 End MakeFirrtl.
-  
+
   (* Record fmod_state : Type := *)
   (* mk_state *)
   (*   { *)
@@ -766,7 +803,11 @@ End MakeFirrtl.
 
 (* TBD *)
   (*Parameter eval_fstmt : fstate -> fstmt -> fstate.*)
-Module LoFirrtl := MakeFirrtl VarOrder VS VM TE Store.
+Module LoFirrtl := MakeFirrtl VarOrder VS VM TE Store EStore.
+
+
+
+
 
 Definition init_vm := VM.empty.
 Definition init_vs := VS.empty.
