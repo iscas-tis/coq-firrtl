@@ -495,7 +495,11 @@ Module MakeFirrtl
                              end
     | Emux c e1 e2 => let t1 := (type_of_fexpr e1 te) in
                       let t2 := (type_of_fexpr e2 te) in
-                      if sizeof_fgtyp t1 < sizeof_fgtyp t2 then t2 else t1
+                      match t1, t2 with
+                      | Fuint w1, Fuint w2 => Fuint (max w1 w2)
+                      | Fsint w1, Fsint w2 => Fsint (max w1 w2)
+                      | _, _ => TE.deftyp
+                      end
     | Evalidif c e => (* if (Z.ltb 0 (to_Z (eval_fexpr c s))) then *)
                       (type_of_fexpr e te)
     end.
