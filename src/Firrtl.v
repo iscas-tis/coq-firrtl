@@ -532,7 +532,16 @@ Module MakeFirrtl
     | Eprim_unop u e =>
       let t := type_of_fexpr e te in
       (eunop_op u t) (eval_fexpr e s te)
-    | Emux c e1 e2 => if ~~ (is_zero (eval_fexpr c s te)) then (eval_fexpr e1 s te) else (eval_fexpr e2 s te)
+    | Emux c e1 e2 =>
+      let t1 := (type_of_fexpr e1 te) in
+      let t2 := (type_of_fexpr e2 te) in
+      match t1, t2 with
+      | Fuint w1, Fuint w2 => if ~~ (is_zero (eval_fexpr c s te)) 
+      then (zext ((max w1 w2) - w1) (eval_fexpr e1 s te)) else(zext ((max w1 w2) - w2) (eval_fexpr e2 s te))
+      | Fsint w1, Fsint w2 => if ~~ (is_zero (eval_fexpr c s te)) 
+      then (sext ((max w1 w2) - w1) (eval_fexpr e1 s te)) else(sext ((max w1 w2) - w2) (eval_fexpr e2 s te))
+      | _, _ => [::]
+      end       
     | Evalidif c e => if ~~ (is_zero (eval_fexpr c s te)) then (eval_fexpr e s te) else [::]
     (* | Edeclare v t => zeros (sizeof_fgtyp t) *)
     | Ecast AsUInt e => eval_fexpr e s te
@@ -622,6 +631,34 @@ Module MakeFirrtl
       let (rs1, s1) := eval_fstmt h rs s te1 in
       eval_fstmts tl rs1 s1 te1
     end.
+
+    Definition store_fstmt (st : fstmt) (s : estate) (te : TE.env) : estate :=
+      match st with
+      | Sskip => s
+      | Swire v t => s
+      | Sreg r => EV.upd (rid r) (Eref (rid r)) s
+      | Smem m => s
+      | Sinst v1 v2 => EV.upd v1 (Eref v2) s
+      | Snode v e => EV.upd v e s
+      | Sfcnct (Eref v) e2 => EV.upd v e2 s
+      | Sinvalid v => s
+      | _ => s
+      end.
+
+  Fixpoint store_fstmts st e te : estate :=
+    match st with
+    | [::] => e
+    | h :: tl =>
+      (*let te1 := upd_typenv_fstmt h te s in 更新type怎么做？*)
+      let e1 := store_fstmt h e te in
+      store_fstmts tl e1 te
+    end.
+
+  (* vstate * vstate -> estate -> vstate * vstate *)
+  (* e = store_fstmts st e0 te *)
+  Fixpoint eval_store rs s e te : vstate * vstate :=
+    (*遍历estate s 来evaluate，存入两个vstate*)
+.
 
   (* Definition eval_fport (p : fport) (s : vstate) : vstate := *)
   (*   match p with *)
