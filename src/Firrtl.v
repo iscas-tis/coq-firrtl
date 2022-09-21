@@ -553,10 +553,9 @@ Module MakeFirrtl
       Eprim_binop b ve1 ve2
     | Eprim_unop u e =>
       Eprim_unop u (eval_fexpr' e s te)
-    | Emux c e1 e2 => 
     | _ => e
     end.
-  
+
 
   (*Compute (from_Z 6 (-3)). (*[:: true; false; true; true; true; true] *)
   Compute (from_Z 11 (-56)). (*[:: false; false; false; true; false; false; true; true; true; true; true]*)
@@ -613,7 +612,7 @@ Module MakeFirrtl
       let tv := TE.vtyp v te in
       (rs, SV.upd v (zeros (sizeof_fgtyp tv)) s)
     | _ => (rs, s)
-    end.
+    end.  
   
   Fixpoint eval_fstmts st rs s te : vstate * vstate :=
     match st with
