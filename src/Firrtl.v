@@ -617,6 +617,34 @@ Module MakeFirrtl
       eval_fstmts tl rs1 s1 te1
     end.
 
+    Definition store_fstmt (st : fstmt) (s : estate) (te : TE.env) : estate :=
+      match st with
+      | Sskip => s
+      | Swire v t => s
+      | Sreg r => EV.upd (rid r) (Eref (rid r)) s
+      | Smem m => s
+      | Sinst v1 v2 => EV.upd v1 (Eref v2) s
+      | Snode v e => EV.upd v e s
+      | Sfcnct (Eref v) e2 => EV.upd v e2 s
+      | Sinvalid v => s
+      | _ => s
+      end.
+
+  Fixpoint store_fstmts st e te : estate :=
+    match st with
+    | [::] => e
+    | h :: tl =>
+      (*let te1 := upd_typenv_fstmt h te s in 更新type怎么做？*)
+      let e1 := store_fstmt h e te in
+      store_fstmts tl e1 te
+    end.
+
+  (* vstate * vstate -> estate -> vstate * vstate *)
+  (* e = store_fstmts st e0 te *)
+  Fixpoint eval_store rs s e te : vstate * vstate :=
+    (*遍历estate s 来evaluate，存入两个vstate*)
+.
+
   (* Definition eval_fport (p : fport) (s : vstate) : vstate := *)
   (*   match p with *)
   (*   | Finput v t => SV.upd v [::] s *)
