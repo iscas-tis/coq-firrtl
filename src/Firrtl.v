@@ -541,6 +541,22 @@ Module MakeFirrtl
     | Ecast AsReset e => [::lsb (eval_fexpr e s te)]
     | Ecast AsAsync e => [::lsb (eval_fexpr e s te)]
     end.
+  
+  (* Expression evaluation, fexpr *)
+  Fixpoint eval_fexpr' (e : fexpr) (s : estate) (te : TE.env) : fexpr :=
+    match e with
+    | Econst t c => econst t c
+    | Eref v => ES.acc v s
+    | Eprim_binop b e1 e2 =>
+      let ve1 := (eval_fexpr' e1 s te) in
+      let ve2 := (eval_fexpr' e2 s te) in
+      Eprim_binop b ve1 ve2
+    | Eprim_unop u e =>
+      Eprim_unop u (eval_fexpr' e s te)
+    | Emux c e1 e2 => 
+    | _ => e
+    end.
+  
 
   (*Compute (from_Z 6 (-3)). (*[:: true; false; true; true; true; true] *)
   Compute (from_Z 11 (-56)). (*[:: false; false; false; true; false; false; true; true; true; true; true]*)
