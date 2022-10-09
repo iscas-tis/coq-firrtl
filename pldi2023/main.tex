@@ -45,7 +45,10 @@
 %% for your publication.
 %%
 %%
-\documentclass[acmsmall]{acmart}
+\documentclass[acmsmall,review,screen]{acmart}
+
+\input{macros.tex}
+
 
 %%
 %% \BibTeX command to typeset BibTeX logo in the docs
@@ -53,18 +56,21 @@
   \providecommand\BibTeX{{%
     Bib\TeX}}}
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\hide{
 %% Rights management information.  This information is sent to you
 %% when you complete the rights form.  These commands have SAMPLE
 %% values in them; it is your responsibility as an author to replace
 %% the commands and values with those provided to you when you
 %% complete the rights form.
 \setcopyright{acmcopyright}
-\copyrightyear{2018}
-\acmYear{2018}
+\copyrightyear{2022}
+\acmYear{2022}
 \acmDOI{XXXXXXX.XXXXXXX}
 
 %% These commands are for a PROCEEDINGS abstract or paper.
-\acmConference[Conference acronym 'XX]{Make sure to enter the correct
+\acmConference[PLDI '23]{Make sure to enter the correct
   conference title from your rights confirmation emai}{June 03--05,
   2018}{Woodstock, NY}
 %%
@@ -75,7 +81,7 @@
 %%  June 03--05, 2018, Woodstock, NY}
 \acmPrice{15.00}
 \acmISBN{978-1-4503-XXXX-X/18/06}
-
+}
 
 %%
 %% Submission ID.
@@ -109,7 +115,6 @@
 %% the next command will enable that style.
 %%\citestyle{acmauthoryear}
 
-\input{macros.tex}
 
 
 %%
@@ -119,7 +124,9 @@
 %%
 %% The "title" command has an optional parameter,
 %% allowing the author to define a "short title" to be used in page headers.
-\title{The Name of the Title Is Hope}
+\title{Formalizing FIRRTL Intermediate Representation and Its Transformations}
+
+
 
 %%
 %% The "author" command and its associated commands are used to define
@@ -127,77 +134,95 @@
 %% Of note is the shared affiliation of the first two authors, and the
 %% "authornote" and "authornotemark" commands
 %% used to denote shared contribution to the research.
-\author{Ben Trovato}
-\authornote{Both authors contributed equally to this research.}
-\email{trovato@corporation.com}
-\orcid{1234-5678-9012}
-\author{G.K.M. Tobin}
-\authornotemark[1]
-\email{webmaster@marysville-ohio.com}
-\affiliation{%
-  \institution{Institute for Clarity in Documentation}
-  \streetaddress{P.O. Box 1212}
-  \city{Dublin}
-  \state{Ohio}
-  \country{USA}
-  \postcode{43017-6221}
-}
 
-\author{Lars Th{\o}rv{\"a}ld}
-\affiliation{%
-  \institution{The Th{\o}rv{\"a}ld Group}
-  \streetaddress{1 Th{\o}rv{\"a}ld Circle}
-  \city{Hekla}
-  \country{Iceland}}
-\email{larst@affiliation.org}
+\author{Anonymous authors}
+%\affiliation{%
+%  \institution{Shenzhen University}
+%  \streetaddress{3688 Nanhai Avenue, Nanshan District, Shenzhen}
+%  \city{Shenzhen}
+%  \country{China}}
+%\email{xshi0811@gmail.com}
+%\orcid{}
 
-\author{Valerie B\'eranger}
-\affiliation{%
-  \institution{Inria Paris-Rocquencourt}
-  \city{Rocquencourt}
-  \country{France}
-}
 
-\author{Aparna Patel}
+%%%%%%%%%%%%%%%%%%%%%%
+\hide{
+\author{Xiaomu Shi}
 \affiliation{%
- \institution{Rajiv Gandhi University}
- \streetaddress{Rono-Hills}
- \city{Doimukh}
- \state{Arunachal Pradesh}
- \country{India}}
-
-\author{Huifen Chan}
-\affiliation{%
-  \institution{Tsinghua University}
-  \streetaddress{30 Shuangqing Rd}
-  \city{Haidian Qu}
-  \state{Beijing Shi}
+  \institution{Shenzhen University}
+  \streetaddress{3688 Nanhai Avenue, Nanshan District, Shenzhen}
+  \city{Shenzhen}
   \country{China}}
+\email{xshi0811@gmail.com}
+\orcid{}
 
-\author{Charles Palmer}
+\author{Keyin Wang}
 \affiliation{%
-  \institution{Palmer Research Laboratories}
-  \streetaddress{8600 Datapoint Drive}
-  \city{San Antonio}
-  \state{Texas}
-  \country{USA}
-  \postcode{78229}}
-\email{cpalmer@prl.com}
+  \institution{Institute of Software, Chinese Academy of Sciences  University of Chinese Academy of Sciences}
+  \streetaddress{P.O.Box 8718}
+  \city{Beijing}
+  \country{China}}
+ \affiliation{%
+  \institution{University of Chinese Academy of Sciences}
+  \streetaddress{No.19(A) Yuquan Road, Shijingshan District}
+  \city{Beijing}
+  \country{China}} 
+\email{}
+\orcid{}
 
-\author{John Smith}
+\author{David Jansen}
 \affiliation{%
-  \institution{The Th{\o}rv{\"a}ld Group}
-  \streetaddress{1 Th{\o}rv{\"a}ld Circle}
-  \city{Hekla}
-  \country{Iceland}}
-\email{jsmith@affiliation.org}
+  \institution{Institute of Software, Chinese Academy of Sciences}
+  \streetaddress{P.O.Box 8718}
+  \city{Beijing}
+  \country{China}}
+\email{dnjansen@ios.ac.cn}
+\orcid{}
 
-\author{Julius P. Kumquat}
+\author{Zhilin Wu}
 \affiliation{%
-  \institution{The Kumquat Consortium}
-  \city{New York}
-  \country{USA}}
-\email{jpkumquat@consortium.net}
+  \institution{Institute of Software, Chinese Academy of Sciences}
+  \streetaddress{P.O.Box 8718}
+  \city{Beijing}
+  \country{China}}
+ \affiliation{%
+  \institution{University of Chinese Academy of Sciences}
+  \streetaddress{No.19(A) Yuquan Road, Shijingshan District}
+  \city{Beijing}
+  \country{China}} 
+\email{wuzl@ios.ac.cn}
+\orcid{}
+
+
+\author{Lijun Zhang}
+\affiliation{%
+  \institution{Huazhong University of Science and Technology}
+  \streetaddress{P.O.Box 8718}
+  \city{Wuhan}
+  \country{China}}
+ \affiliation{%
+  \institution{University of Chinese Academy of Sciences}
+  \streetaddress{No.19(A) Yuquan Road, Shijingshan District}
+  \city{Beijing}
+  \country{China}} 
+\email{jiuyang@hust.edu.cn}
+\orcid{}
+
+\author{Lijun Zhang}
+\affiliation{%
+  \institution{Institute of Software, Chinese Academy of Sciences}
+  \streetaddress{P.O.Box 8718}
+  \city{Beijing}
+  \country{China}}
+ \affiliation{%
+  \institution{University of Chinese Academy of Sciences}
+  \streetaddress{No.19(A) Yuquan Road, Shijingshan District}
+  \city{Beijing}
+  \country{China}} 
+\email{zhanglj@ios.ac.cn}
+\orcid{}
+}
+%%%%%%%%%%%%%%%%%%%%%%
 
 %%
 %% By default, the full list of authors will be used in the page
@@ -205,18 +230,13 @@
 %% other information printed in the page headers. This command allows
 %% the author to define a more concise list
 %% of authors' names for this purpose.
-\renewcommand{\shortauthors}{Trovato et al.}
+\renewcommand{\shortauthors}{Anonymous authors}
 
 %%
 %% The abstract is a short summary of the work to be presented in the
 %% article.
 \begin{abstract}
-  A clear and well-documented \LaTeX\ document is presented as an
-  article formatted for publication by ACM in a conference proceedings
-  or journal publication. Based on the ``acmart'' document class, this
-  article presents and explains many of the common variations, as well
-  as many of the formatting elements an author may use in the
-  preparation of the documentation of their work.
+  To be done
 \end{abstract}
 
 %%
@@ -270,12 +290,12 @@
   seats. Ichiro Suzuki preparing to bat.}
   \label{fig:teaser}
 \end{teaserfigure}
-}
-%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \received{20 February 2007}
 \received[revised]{12 March 2009}
 \received[accepted]{5 June 2009}
+}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%
 %% This command processes the author and affiliation and title
