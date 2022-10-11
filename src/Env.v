@@ -233,7 +233,8 @@ Module Type ValStore (V : SsrOrder) (TE : TypEnv with Module SE := V).
   Parameter acc : var -> t -> value.
   Parameter upd : var -> value -> t -> t.
   Parameter upd2 : var -> value -> var -> value -> t -> t.
-    Parameter acc_upd_eq : forall {x y v s}, x == y -> acc x (upd y v s) = v.
+  Parameter map2 : (option value -> option value -> option value) -> t -> t -> t.
+  Parameter acc_upd_eq : forall {x y v s}, x == y -> acc x (upd y v s) = v.
   Parameter acc_upd_neq : forall {x y v s}, x != y -> acc x (upd y v s) = acc x s.
   Parameter acc_upd2_eq1 :
     forall {x y1 v1 y2 v2 s},
@@ -336,6 +337,9 @@ Module MakeValStore (V : SsrOrder) (TE : TypEnv with Module SE := V) <:
     forall (v : V.t),
       TE.mem v te -> TE.vsize v te = size (acc v s).
 
+  Definition map2 (f : option bits -> option bits -> option bits) (s1 s2 : t) : t :=
+    M.map2 f s1 s2.
+  
   Lemma conform_def :
     forall (s : t) (E : TE.env),
       (forall (v : V.t), TE.mem v E -> TE.vsize v E = size (acc v s)) ->
