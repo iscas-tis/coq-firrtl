@@ -138,21 +138,23 @@ End LoFirrtl.
 (************************************************************)
 (* Parallel semantics model *)
 
+
 Module Type ExprStore (V : SsrOrder) (TE : TypEnv with Module SE := V).
   Module Lemmas := FMapLemmas TE.
 
   Local Notation var := V.t.
-  Local Notation value := (fexpr V.T).
+  Local Notation value := (option (fexpr V.T)).
 
   Parameter t : Type.
   Parameter empty : t.
   Parameter acc : var -> t -> value.
   Parameter upd : var -> value -> t -> t.
+
 End ExprStore.
 
 Module ExprType (V:SsrOrder)<: HasDefaultTyp.
-  Definition t : Type := fexpr V.T.
-  Definition default : t := Econst V.T (Fuint 0) [::].
+  Definition t : Type := option (fexpr V.T).
+  Definition default : t := None. (* Econst V.T (Fuint 0) [::]. *)
 End ExprType.
 
 Module MakeExprStore (V : SsrOrder) (TE : TypEnv with Module SE := V) <:
@@ -170,7 +172,7 @@ Module MakeFirrtl
        (VM : SsrFMap with Module SE := V)
        (TE : TypEnv with Module SE := V)
        (SV : ValStore V TE)
-       (ES : ExprStore V TE).
+       (EV : ExprStore V TE).
   Local Open Scope firrtl.
   Local Open Scope bits.
   
@@ -179,8 +181,12 @@ Module MakeFirrtl
   Local Notation var := V.t.
 
   Local Notation vstate := SV.t.
-  Local Notation estate := ES.t.
+
+  (* Definition EStore := Store.M.t (fexpr V.T). *)
+
+  Local Notation estate := EV.t.
   
+
 (****** Semantics ******)
 
   (* Small-step *) 
@@ -551,19 +557,6 @@ Module MakeFirrtl
     | Ecast AsAsync e => [::lsb (eval_fexpr e s te)]
     end.
   
-  (* Expression evaluation, fexpr *)
-  Fixpoint eval_fexpr' (e : fexpr) (s : estate) (te : TE.env) : fexpr :=
-    match e with
-    | Econst t c => econst t c
-    | Eref v => ES.acc v s
-    | Eprim_binop b e1 e2 =>
-      let ve1 := (eval_fexpr' e1 s te) in
-      let ve2 := (eval_fexpr' e2 s te) in
-      Eprim_binop b ve1 ve2
-    | Eprim_unop u e =>
-      Eprim_unop u (eval_fexpr' e s te)
-    | _ => e
-    end.
 
 
   (*Compute (from_Z 6 (-3)). (*[:: true; false; true; true; true; true] *)
@@ -632,33 +625,52 @@ Module MakeFirrtl
       eval_fstmts tl rs1 s1 te1
     end.
 
-    Definition store_fstmt (st : fstmt) (s : estate) (te : TE.env) : estate :=
-      match st with
-      | Sskip => s
-      | Swire v t => s
-      | Sreg r => EV.upd (rid r) (Eref (rid r)) s
-      | Smem m => s
-      | Sinst v1 v2 => EV.upd v1 (Eref v2) s
-      | Snode v e => EV.upd v e s
-      | Sfcnct (Eref v) e2 => EV.upd v e2 s
-      | Sinvalid v => s
-      | _ => s
-      end.
+  (********************************************************************************)
 
-  Fixpoint store_fstmts st e te : estate :=
-    match st with
-    | [::] => e
-    | h :: tl =>
-      (*let te1 := upd_typenv_fstmt h te s in 更新type怎么做？*)
-      let e1 := store_fstmt h e te in
-      store_fstmts tl e1 te
-    end.
+  (* Parallel evaluation *)
 
-  (* vstate * vstate -> estate -> vstate * vstate *)
-  (* e = store_fstmts st e0 te *)
-  Fixpoint eval_store rs s e te : vstate * vstate :=
-    (*遍历estate s 来evaluate，存入两个vstate*)
-.
+  (* Expression evaluation, fexpr -> fexpr *)
+  (* Fixpoint eval_fexpr' (e : fexpr) (s : estate) : fexpr := *)
+  (*   match e with *)
+  (*   | Econst t c => econst t c *)
+  (*   | Eref v => (ES.acc v s) (*TODO*) *)
+  (*   | Eprim_binop b e1 e2 => *)
+  (*     let ve1 := (eval_fexpr' e1 s) in *)
+  (*     let ve2 := (eval_fexpr' e2 s) in *)
+  (*     Eprim_binop b ve1 ve2 *)
+  (*   | Eprim_unop u e => *)
+  (*     Eprim_unop u (eval_fexpr' e s) *)
+  (*   | _ => e (*TODO*) *)
+  (*   end.· *)
+
+
+(*     Definition store_fstmt (st : fstmt) (s : estate) (te : TE.env) : estate := *)
+(*       match st with *)
+(*       | Sskip => s *)
+(*       | Swire v t => s *)
+(*       | Sreg r => EV.upd (rid r) (Eref (rid r)) s *)
+(*       | Smem m => s *)
+(*       | Sinst v1 v2 => EV.upd v1 (Eref v2) s *)
+(*       | Snode v e => EV.upd v e s *)
+(*       | Sfcnct (Eref v) e2 => EV.upd v e2 s *)
+(*       | Sinvalid v => s *)
+(*       | _ => s *)
+(*       end. *)
+
+(*   Fixpoint store_fstmts st e te : estate := *)
+(*     match st with *)
+(*     | [::] => e *)
+(*     | h :: tl => *)
+(*       (*let te1 := upd_typenv_fstmt h te s in 更新type怎么做？*) *)
+(*       let e1 := store_fstmt h e te in *)
+(*       store_fstmts tl e1 te *)
+(*     end. *)
+
+(*   (* vstate * vstate -> estate -> vstate * vstate *) *)
+(*   (* e = store_fstmts st e0 te *) *)
+(*   Fixpoint eval_store rs s e te : vstate * vstate := *)
+(*     (*遍历estate s 来evaluate，存入两个vstate*) *)
+(* . *)
 
   (* Definition eval_fport (p : fport) (s : vstate) : vstate := *)
   (*   match p with *)
