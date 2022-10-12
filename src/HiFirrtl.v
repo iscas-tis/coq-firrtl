@@ -1048,6 +1048,33 @@ Module MakeHiFirrtl
 
   Fixpoint inferType_modules_fun ms ce := fold_right inferType_module_fun ms ce.
 
+  Lemma ftype_equiv_ident :
+  forall t ,
+      ftype_equiv t t.
+  Proof.
+    move => t.
+    rewrite /ftype_equiv.
+    induction t.
+    rewrite /fgtyp_equiv.
+    case f.
+    try done.
+    try done.
+    try done.
+    try done.
+    try done.
+    admit.
+    case f.
+    try done.
+    intros.
+    induction f0.
+    Admitted.
+
+    Lemma ftype_weak_equiv_ident :
+  forall t ,
+      ftype_weak_equiv t t.
+  Proof.
+    Admitted.
+
   (****** TODO. For KY ******)
   (** Begin **)
 
@@ -1066,28 +1093,39 @@ Module MakeHiFirrtl
       new_comp_name v ->
       inferType_stmt (Sreg v r) ce0 (inferType_stmt_fun (Sreg v r) ce0).
   Proof.
-  Admitted.
+    intros. apply Infertype_reg. try done.
+    rewrite /inferType_stmt_fun /CE.add_fst (CELemmas.add_eq_o _ _ (eq_refl v)) //.
+  Qed.
 
   Lemma inferType_smem_sem_conform :
     forall v r ce0 ,
       new_comp_name v ->
       inferType_stmt (Smem v r) ce0 (inferType_stmt_fun (Smem v r) ce0).
   Proof.
-  Admitted.
+    intros. apply Infertype_mem. try done.
+    rewrite /inferType_stmt_fun /CE.add_fst (CELemmas.add_eq_o _ _ (eq_refl v)) //.
+  Qed.
 
   Lemma inferType_swire_sem_conform :
     forall v r ce0 ,
       new_comp_name v ->
       inferType_stmt (Swire v r) ce0 (inferType_stmt_fun (Swire v r) ce0).
   Proof.
-  Admitted.
+    intros. apply Infertype_wire. try done.
+    rewrite /inferType_stmt_fun.
+    rewrite (CELemmas.add_eq_o _ _ (eq_refl v)) //.
+  Qed.
     
   Lemma inferType_sinst_sem_conform :
     forall v1 v2  ce0 ,
       new_comp_name v1 ->
+      v1 != v2 ->
       inferType_stmt (Sinst v1 v2) ce0 (inferType_stmt_fun (Sinst v1 v2) ce0).
   Proof.
-  Admitted.
+    intros. apply Infertype_inst. try done. try done.
+    rewrite /inferType_stmt_fun.
+    rewrite (CELemmas.add_eq_o _ _ (eq_refl v1)). try done.
+  Qed.
 
   Lemma inferType_sfcnct_sem_conform :
     forall v1 t c e ce0 ,
@@ -1095,18 +1133,33 @@ Module MakeHiFirrtl
       type_of_cmpnttyp t = type_of_hfexpr e ce0 ->
       inferType_stmt (Sfcnct v1 e) ce0 (inferType_stmt_fun (Sfcnct v1 e) ce0).
   Proof.
-    intros. rewrite /inferType_stmt_fun.
+    intros. 
+    rewrite /inferType_stmt_fun.
     apply Infertype_sfcnct with t (type_of_cmpnttyp t) c.
     split.
-  Admitted.
+    apply H.
+    split.
+    rewrite H0.
+    reflexivity.
+    apply ftype_equiv_ident.
+  Qed.
 
   Lemma inferType_spcnct_sem_conform :
-    forall v1 e t c ce0 ,
+    forall v1 t c e ce0 ,
       CE.find (base_ref v1) ce0 = Some (t, c) ->
       type_of_cmpnttyp t = type_of_hfexpr e ce0 ->
       inferType_stmt (Spcnct v1 e) ce0 (inferType_stmt_fun (Spcnct v1 e) ce0).
   Proof.
-  Admitted.
+    intros.
+    rewrite /inferType_stmt_fun.
+    apply Infertype_spcnct with t (type_of_cmpnttyp t) c.
+    split.
+    apply H.
+    split.
+    rewrite H0.
+    reflexivity.
+    apply ftype_weak_equiv_ident.
+  Qed.
     
   (** End **)
   
@@ -2022,7 +2075,7 @@ Module MakeHiFirrtl
 
    Lemma inferWidth_spcnct_ftype_sem_conform :
      forall r e c1 t0 t1 t2 wm1 ce1 wm2 ce2 ,
-       ftype_weak_equiv t1 t2 ->
+       ftype_equiv t1 t2 ->
        CE.find (base_ref r) ce1 =  Some (t0, c1) ->
        type_of_ref r ce1 = type_of_cmpnttyp t0 ->
        is_deftyp (type_of_cmpnttyp t0) ->
@@ -2526,22 +2579,20 @@ Module MakeHiFirrtl
          rewrite /find_unknown/= in Hun. done.
    Qed.
 
-   Lemma ftype_equiv_ident :
-     forall t, ftype_equiv t t
-   with ffield_equiv_ident :
-          forall(f: ffield),
-            fbtyp_equiv f f.
-   Proof.
-     elim; rewrite /=; intros. elim f; done.
-     rewrite eq_refl H//.
-     rewrite ffield_equiv_ident//.
-     elim; intros. rewrite /= ; done.
-     rewrite /= eq_refl H ftype_equiv_ident.
-     case f; rewrite /=//.
-   Qed.
+   (* Lemma ftype_equiv_ident : *)
+   (*   forall t, ftype_equiv t t *)
+   (* with ffield_equiv_ident : *)
+   (*        forall(f: ffield), *)
+   (*          fbtyp_equiv f f. *)
+   (* Proof. *)
+   (*   elim; rewrite /=; intros. elim f; done. *)
+   (*   rewrite eq_refl H//. *)
+   (*   rewrite ffield_equiv_ident//. *)
+   (*   elim; intros. rewrite /= ; done. *)
+   (*   rewrite /= eq_refl H ftype_equiv_ident. *)
+   (*   case f; rewrite /=//. *)
+   (* Qed. *)
 
-   SearchAbout cat.
-   
    Lemma inferWidth_stmts_sem_conform :
      forall sts ce0 ce1 (v:var),
        (
@@ -2628,61 +2679,13 @@ Module MakeHiFirrtl
          move : (inferType_stmts_hd Hiw) => Hitc.
          inversion Hitc; subst.
          move : H4 => [Hit1 [Hit2 Hit3]].
-         apply inferWidth_spcnct_ftype_sem_conform with c0 t (type_of_cmpnttyp t) t'; try done.
-         rewrite (type_of_hexpr_cefind Hit1) /=//.
-         rewrite (CE.find_some_vtyp Hit1) /= in Hun. done.
-         rewrite Hndt (CE.find_some_vtyp Hit1)/=//.
+         admit.
        + (*invalid*)
          intros.
          move : (Hec (h) (aggr_typ def_ftype, Node) (* (Sinvalid h) *)) => [Hbrs1 [Hbrt [Hi[Hdt [Hndt [Hun Hit]]]]]].
-         rewrite //.
-       (* exists wm0; exists wm1. *)
-       (* rewrite /= in Hdt. rewrite /= in Hbrt; rewrite /= in Hbrs1. *)
-       (* apply inferWidth_sinvalid; try rewrite //. *)
-       (* rewrite Hiw//. *)
-       (* rewrite /wmap_map2_cenv (CELemmas.map2_1bis _ _ _ Hnone) Hbrs1. *)
-       (* move : (inferType_stmts_hd Hit) => Hits. *)
-       (* inversion Hits; subst. rewrite Hbrt//. *)
-       + (*when*)
-         intros.
-         move : (Hec (r) (aggr_typ def_ftype, Node) (* (Swhen h l l0) *)) => [Hbrs1 [Hbrt [Hi[Hdt [Hndt [Hun Hit]]]]]].
-         rewrite //.
-       (* rewrite /= in Hiw; rewrite /= in Hbrs; rewrite /= in Hbrt. *)
-       (* apply inferWidth_swhen with (Eid v); try rewrite //. *)
-       (* rewrite Hiw//. *)
-       (* rewrite /wmap_map2_cenv (CELemmas.map2_1bis _ _ _ Hnone) Hbrs1. *)
-       (* move : (inferType_stmts_hd Hit) => Hits. *)
-       (* inversion Hits; subst.  *)
-       + (*stop*)
-         intros.
-         move : (Hec (r) (aggr_typ def_ftype, Node) (* (Sstop h h0 n) *)) => [Hbrs1 [Hbrt [Hi[Hdt [Hndt [Hun Hit]]]]]].
-         rewrite //.
-         (* rewrite /= in Hiw; rewrite /= in Hbrs; rewrite /= in Hbrt. *)
-         (* apply inferWidth_sstop with v; try rewrite //. *)
-         (* rewrite Hiw//. *)
-         (* rewrite /wmap_map2_cenv (CELemmas.map2_1bis _ _ _ Hnone) Hbrs1. *)
-         (* move : (inferType_stmts_hd Hit) => Hits. *)
-         (* inversion Hits; subst.  *)
-       +
-         move : (Hec (Eid v) (aggr_typ def_ftype, Node)) => [Hbrs1 [Hbrt [Hi[Hdt [Hndt [Hun Hit]]]]]].
-         symmetry in Hi.
-         rewrite (infer_stmt_lst _ Hi).
-         apply Hm with ce0 (*wmap_map2_cenv wm1 ce1*) ; try done.
-         exists wm1; exists (inferWidth_wmap0 (hd sskip ss) (wmap_map2_cenv wm1 ce1) wm1).
-         intros.
-         move : (Hec r t) => [Hbrs10 [Hbrt0 [Hin0 [Hdt0 [Hndt0 [Hun0 Hit0]]]]]].
-         repeat (split; try done).
-         rewrite /= in Hbrt0. move : Hbrt0. case (is_inital st); try done.
-         rewrite /wmap_map2_cenv/find_unknown (CELemmas.map2_1bis _ _ _ Hnone).
-         rewrite (new_v_wmap_none Hbrs10 wm1)/=.
-         rewrite /find_unknown/= in Hun0. done.
-         move : Hit0. rewrite (infer_stmt_lst ss Hi)//.
-         apply Infertype_stmts_know.
-         exists (base_ref (Eid v)).
-         rewrite /find_unknown/wmap_map2_cenv (CELemmas.map2_1bis _ _ _ Hnone).
-         rewrite (new_v_wmap_none Hbrs1 wm1)/=.
-         rewrite /find_unknown/= in Hun. done.
-   Qed.
+         exists wm0; exists wm1.
+         rewrite /= in Hdt. rewrite /= in Hbrt; rewrite /= in Hbrs1.
+         apply inferWidth_sinvalid; try rewrite //.
    Admitted.
          
    (********************************************************************************)
