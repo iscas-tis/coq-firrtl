@@ -37,7 +37,7 @@ The syntax of FIRRTL is given in the sequel (in EBNF).
     & & & \{\mbox{``readwriter=>''} id\}\\    
  &  &   &\mid \mbox{``inst''} id\ \mbox{``of''}\ id\ [info] \mid \mbox{``node''} id\ \mbox{``=''}\ id\ [info]  \\
  &  &   &\mid exp\ \mbox{``<=''}\ exp\ [info]  \mid exp\ \mbox{``<-''}\ exp\ [info]  \\
- &  &   &\mid exp\ \mbox{``is invalid''}\ [info]  \mid \mbox{``attach''} \{exp\}\ [info]  \\ 
+ &  &   &\mid exp\ \mbox{``is invalid''}\ [info]  \mid \mbox{``attach(''} \{exp\}\mbox{``)''}\ [info]  \\ 
 &  &   &\mid \mbox{``when''} exp\mbox{``:''} [info]\ stmt [\mbox{``else:''} stmt]\\ 
 &  &   &\mid \mbox{``stop(''} exp\mbox{``,''}exp\mbox{``,''}int\mbox{``)''} [\mbox{``:''} id][info]\\ 
 &  &   &\mid \mbox{``printf(''} exp\mbox{``,''}exp\mbox{``,''}string\mbox{``,''}\{exp\}\mbox{``)''} [\mbox{``:''} id][info]\\ 
