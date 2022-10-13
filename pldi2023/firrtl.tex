@@ -3,9 +3,10 @@
 %FIRRTL represents the standardized elaborated circuit that the Chisel HDL produces. 
 %FIRRTL represents the circuit immediately after Chisel's elaboration but before any circuit simplification. It is designed to resemble the Chisel HDL after all meta-programming has executed. Thus, a user program that makes little use of meta-programming facilities should look almost identical to the generated FIRRTL.
 %For this reason, 
-FIRRTL has first-class support for high-level constructs such as vector types, bundle types, conditional statements, partial connects, and modules. These high-level constructs are then gradually removed by a sequence of lowering transformations. During each lowering transformation, the circuit is rewritten into an equivalent circuit using simpler, lower-levelconstructs. Eventually the circuit is simplified to its most restricted form, resembling a structured netlist, which allows for easy translation to an output language (e.g. Verilog). This form is given the name lowered FIRRTL (LoFIRRTL) and is a strict subset of the full FIRRTL language. For clarity, the original form is called high FIRRTL (HiFIRRTL).
+FIRRTL has first-class support for high-level constructs such as vector types, bundle types, conditional statements, partial connects, and modules. These high-level constructs are then gradually removed by a sequence of lowering transformations. During each lowering transformation, the circuit is rewritten into an equivalent circuit using simpler, lower-levelconstructs. Eventually the circuit is simplified to its most restricted form, resembling a structured netlist, which allows for easy translation to an output language (e.g. Verilog). This form is given the name lowered FIRRTL (LoFIRRTL) and is a strict subset of the full FIRRTL language. For clarity, the original form is called high FIRRTL (HiFIRRTL). 
 
-The syntax of FIRRTL is given in the sequel (in EBNF).
+The syntax of FIRRTL is given in Figure~\ref{fig-firrtl-synt}.  Note that the syntactic rules therein are in Extended Backus–Naur form, where $\{\cdots\}$ denotes repetition (possibly empty) and $[\cdots]$ denotes option, moreover, the terminals are doubly quoted. 
+\begin{figure}[t]
 {\footnotesize
 \[
 \begin{array}{l l l l}
@@ -41,9 +42,12 @@ The syntax of FIRRTL is given in the sequel (in EBNF).
 &  &   &\mid \mbox{``when''} exp\mbox{``:''} [info]\ stmt [\mbox{``else:''} stmt]\\ 
 &  &   &\mid \mbox{``stop(''} exp\mbox{``,''}exp\mbox{``,''}int\mbox{``)''} [\mbox{``:''} id][info]\\ 
 &  &   &\mid \mbox{``printf(''} exp\mbox{``,''}exp\mbox{``,''}string\mbox{``,''}\{exp\}\mbox{``)''} [\mbox{``:''} id][info]\\ 
-&  &   &\mid \mbox{``skip ''}  [info] \mid \mbox{``(''} \{  stmt \} \mbox{``)''};\\ 
+&  &   &\mid \mbox{``skip''}  [info] \mid  \{  stmt \};\\ 
+%
 \mbox{\bf Read Under Write Flag} & ruw & = & \mbox{``old''} \mid \mbox{``new''} \mid \mbox{``undefined''};\\
+%
 \mbox{\bf File Information Token} & info & = & \mbox{``@[''}  string \mbox{``,''} int \mbox{``,''} int \mbox{``]''};\\
+%
 \mbox{\bf Expression} & exp & = & \mbox{``UInt''} [\mbox{``<''} int \mbox{``>''}] \mbox{``(''} int \mbox{``)''} 
 \mid \mbox{``UInt''} [\mbox{``<''} int \mbox{``>''}] \mbox{``(''} string \mbox{``)''}\\
 & & & \mid \mbox{``SInt''} [\mbox{``<''} int \mbox{``>''}] \mbox{``(''} int \mbox{``)''}
@@ -51,6 +55,7 @@ The syntax of FIRRTL is given in the sequel (in EBNF).
 & & &\mid id \mid exp\mbox{``.''}id \mid exp\mbox{``[''} int \mbox{``]''} \mid exp\mbox{``[''} exp \mbox{``]''}\\
 & & &\mid \mbox{``mux(''} exp\mbox{``,''} exp\mbox{``,''}exp\mbox{``)''} \mid \mbox{``validif(''} exp\mbox{``,''} exp\mbox{``)''}\\
 & & & \mid primop \mbox{``(''}\{exp\}\mbox{``,''}\{int\}\mbox{``)''};\\
+%
 \mbox{\bf Primitive Operation} & primop & = & \mbox{``add''}  \mid  \mbox{``sub''}  \mid  \mbox{``sub''} \mid \mbox{``mul''} \mid \mbox{``div''} \mid \mbox{``mod''} \\
 & & &  \mid \mbox{``lt''} \mid \mbox{``leq''} \mid \mbox{``gt''} \mid \mbox{``geq''} \mid \mbox{``eq''} \mid \mbox{``neq''} \mid  \mbox{``pad''} \\
 & & & \mid \mbox{``asUInt''} \mid \mbox{``asSInt''} \mid \mbox{``asClock''} \mid \mbox{``shl''} \mid \mbox{``shr''} \mid \mbox{``dshl''}  \mid \mbox{``dshr''} \\
@@ -59,9 +64,11 @@ The syntax of FIRRTL is given in the sequel (in EBNF).
 \end{array}
 \]
 }
+\caption{Syntax of FIRRTL}
+\label{fig-firrtl-synt}
+\end{figure}
 
-
-
+A circuit in FIRRTL consists of modules, each of which has ports, statements, 
 
 
 
