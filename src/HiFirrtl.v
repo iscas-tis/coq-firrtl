@@ -959,6 +959,13 @@ Module MakeHiFirrtl
       type_of_hfexpr e ce = t' /\
       ftype_weak_equiv (type_of_cmpnttyp t) t' ->
       inferType_stmt (spcnct r e) ce ce
+
+  | Infertype_sskip ce :
+      inferType_stmt (sskip) ce ce
+  | Infertype_swhen e s1 s2 ce :
+      inferType_stmt (swhen e s1 s2) ce ce
+  | Infertype_sstop e1 e2 n ce :
+      inferType_stmt (sstop e1 e2 n) ce ce
   .
 
    Definition find_unknown r (ce : cenv) :=
@@ -1049,31 +1056,59 @@ Module MakeHiFirrtl
   Fixpoint inferType_modules_fun ms ce := fold_right inferType_module_fun ms ce.
 
   Lemma ftype_equiv_ident :
-  forall t ,
-      ftype_equiv t t.
+    forall t , ftype_equiv t t
+  with ffield_equiv_ident :
+      forall(f:ffield),
+      fbtyp_equiv f f.
   Proof.
     move => t.
     rewrite /ftype_equiv.
     induction t.
     rewrite /fgtyp_equiv.
-    case f.
+    case f; try done.
+    rewrite eq_refl.
     try done.
+
+    case f;try done.
+
+    induction f.
     try done.
-    try done.
-    try done.
-    try done.
-    apply eq_refl.
+
+    
     admit.
-    case f.
     try done.
-    intros.
-    induction f0.
+    move => f.
+    rewrite /fbtyp_equiv.
+    induction f.
+    try done.
+
     Admitted.
+
+
 
     Lemma ftype_weak_equiv_ident :
   forall t ,
       ftype_weak_equiv t t.
   Proof.
+    move => t.
+    rewrite /ftype_weak_equiv.
+    induction t.
+    rewrite /fgtyp_equiv.
+    case f;try done.
+
+    rewrite /ftype_equiv.
+    induction t.
+    apply IHt.
+    rewrite eq_refl.
+    try done.
+    admit.
+
+    rewrite /fbtyp_weak_equiv.
+    case f;try done.
+    intros.
+    case f2.
+
+
     Admitted.
 
   (****** TODO. For KY ******)
@@ -1105,6 +1140,13 @@ Module MakeHiFirrtl
   Proof.
     intros. apply Infertype_mem. try done.
     rewrite /inferType_stmt_fun /CE.add_fst (CELemmas.add_eq_o _ _ (eq_refl v)) //.
+  Qed.
+
+  Lemma inferType_sinvalid_sem_conform :
+  forall v ce0 ,
+      inferType_stmt (Sinvalid v) ce0 (inferType_stmt_fun (Sinvalid v) ce0).
+  Proof.
+    intros. apply Infertype_invalid.
   Qed.
 
   Lemma inferType_swire_sem_conform :
@@ -1161,6 +1203,23 @@ Module MakeHiFirrtl
     reflexivity.
     apply ftype_weak_equiv_ident.
   Qed.
+
+  Lemma inferType_sskip_sem_conform :
+  forall ce0 e s1 s2 ,
+      inferType_stmt (Swhen e s1 s2) ce0 (inferType_stmt_fun (Swhen e s1 s2) ce0).
+  Proof.
+    intros. apply Infertype_swhen.
+  Qed.
+
+  Lemma inferType_sstop_sem_conform :
+  forall ce0 e1 e2 n,
+      inferType_stmt (Sstop e1 e2 n) ce0 (inferType_stmt_fun (Sstop e1 e2 n) ce0).
+  Proof.
+    intros. apply Infertype_sstop.
+  Qed.
+
+  (*Lemma inferType_stmts_sem_conform :*)
+  
     
   (** End **)
   
