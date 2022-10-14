@@ -10,57 +10,79 @@ The syntax of FIRRTL is given in Figure~\ref{fig-firrtl-synt}.  Note that the sy
 {\footnotesize
 \[
 \begin{array}{l l l l}
-\mbox{\bf Circuit} & circuit & = & \mbox{``circuit''} \ id: [info] \{module\};\\
+\mbox{\bf Circuit} & circuit & = & \mbox{``circuit''}, id, \mbox{``:''}, [info], newline, indent, \{module \mid extmodule\}, dedent;\\
 %
-\mbox{\bf Module} & module & = & \mbox{``module''} \ id: [info] \{port\} stmt \mid \mbox{``extmodule''}\ id: [info] \{port\};\\
+\mbox{\bf Module} & module & = & \mbox{``module''} \ id, \mbox{``:''}, [info], newline, indent, \\
+& & & \{port, newline\}, \{stmt, newline\}, dedent;\\
 %
-\mbox{\bf Port} & port & = & dir\ id: type [info];\\
+\mbox{\bf External Module} & extmodule & = & \mbox{``extmodule''}, id, \mbox{``:''}, [info], newline, indent,\\
+ &  &  &  \{port, newline\}, [\mbox{``defname''}, \mbox{``=''}, id, newline], \\
+ & & & \{\mbox{``parameter''}, \mbox{``=''}, (string \mid int), newline\}, dedent;\\
 %
-\mbox{\bf Port Direction} & dir & = & \mbox{``input''} \mid \mbox{``output''};\\
+\mbox{\bf Port} & port & = & (\mbox{``input''} \mid \mbox{``output''}), id, \mbox{``:''}, type, [info];\\
 %
-\mbox{\bf Data Types} & type & = & \mbox{``UInt''} [\mbox{``<''} int \mbox{``>''}] \mid \mbox{``SInt''} [\mbox{``<''} int \mbox{``>''} ] \mid \mbox{``Fixed''} [\mbox{``<''} int \mbox{``>''} ]
-[\mbox{``<}\mbox{<''} int \mbox{``>}\mbox{>''}]\\
+ \mbox{\bf Statment} & stmt & = & \mbox{``wire''}, id, \mbox{``:''}, type, [info] \\
+ & & &  \mid \mbox{``reg''}, id, \mbox{``:''}, type, exp, [\mbox{``(with:\{reset=>(''}, exp, \mbox{``,''}, exp, \mbox{``)\})''}], [info] \\
+ &  &   &  \mid memory \mid \mbox{``inst''}, id, \mbox{``of''}, id, [info] \mid \mbox{``node''}, id, \mbox{``=''}, id, [info]  \\
+ &  &   & \mid reference, \mbox{``<=''}, exp, [info]  \mid reference, \mbox{``<-''}, exp, [info]  \\
+ &  &   &\mid reference, \mbox{``is invalid''}, [info]  \mid \mbox{``attach(''}, \{reference\}, \mbox{``)''}, [info]  \\ 
+&  &   &\mid \mbox{``when''}, exp, \mbox{``:''}, [info], newline, indent, \{stmt\}, dedent, \\
+& & & [\mbox{``else:''}, indent, \{stmt\}, dedent] \\ 
+&  &   &\mid \mbox{``stop(''}, exp, \mbox{``,''}, exp, \mbox{``,''}, int, \mbox{``)''}, [info]\\ 
+&  &   &\mid \mbox{``printf(''}, exp, \mbox{``,''}, exp, \mbox{``,''}, string, \mbox{``,''}, \{exp\}, \mbox{``)''}, [\mbox{``:''}, id], [info]\\ 
+&  &   &\mid \mbox{``skip''}, [info];\\ 
 %
- &  &  & \mid \mbox{``Clock''} \mid \mbox{``Analog''}  [\mbox{``<''} int \mbox{``>''}] \mid \mbox{``\{''} field \mbox{``\}''} \mid type \mbox{``[''} int \mbox{``]''}; \\
-%
- \mbox{\bf Bundle Field} & field & = & [\mbox{``flip''}]\ id: type;\\
-%
- \mbox{\bf Statment} & stmt & = & \mbox{``wire''}\ id: type\ [info]  \\
- & & &  \mid \mbox{``reg''}\ id: type\ exp [\mbox{``(with:''} \{\mbox{``reset=>(''} exp\ \mbox{``,''} exp \mbox{``)''}\}\mbox{``)''}] [info] \\
- & & &  \mid  \mbox{``mem''}\ id: [info] \\
- & & & \mbox{``data-type=>''} type \\
- & & & \mbox{``depth => ''} int \\
- & & & \mbox{``read-latency=>''} int \\ 
- & & & \mbox{``write-latency=>''} int \\
- & & & \mbox{``read-under-write=>''} ruw\\
-  & & & \{\mbox{``reader=>''} id\} \\
-    & & & \{\mbox{``writer=>''} id\} \\
-    & & & \{\mbox{``readwriter=>''} id\}\\    
- &  &   &\mid \mbox{``inst''} id\ \mbox{``of''}\ id\ [info] \mid \mbox{``node''} id\ \mbox{``=''}\ id\ [info]  \\
- &  &   &\mid exp\ \mbox{``<=''}\ exp\ [info]  \mid exp\ \mbox{``<-''}\ exp\ [info]  \\
- &  &   &\mid exp\ \mbox{``is invalid''}\ [info]  \mid \mbox{``attach(''} \{exp\}\mbox{``)''}\ [info]  \\ 
-&  &   &\mid \mbox{``when''} exp\mbox{``:''} [info]\ stmt [\mbox{``else:''} stmt]\\ 
-&  &   &\mid \mbox{``stop(''} exp\mbox{``,''}exp\mbox{``,''}int\mbox{``)''} [\mbox{``:''} id][info]\\ 
-&  &   &\mid \mbox{``printf(''} exp\mbox{``,''}exp\mbox{``,''}string\mbox{``,''}\{exp\}\mbox{``)''} [\mbox{``:''} id][info]\\ 
-&  &   &\mid \mbox{``skip''}  [info] \mid  \{  stmt \};\\ 
+\mbox{\bf Memory} & memory & = &  \mid  \mbox{``mem''}, id, \mbox{``:''}, [info], newline, indent, \\
+ & & & \mbox{``data-type''}, \mbox{``=>''}, type, newline, \\
+ & & & \mbox{``depth''}, \mbox{``=>''}, int, newline, \\
+ & & & \mbox{``read-latency''}, \mbox{``=>''}, int, newline, \\ 
+ & & & \mbox{``write-latency}, \mbox{``=>''}, int, newline,  \\
+ & & & \mbox{``read-under-write''}, \mbox{``=>''}, ruw, newline, \\
+  & & & \{\mbox{``reader''}, \mbox{``=>''}, id, newline\}, \\
+    & & & \{\mbox{``writer''}, \mbox{``=>''}, id, newline\}, \\
+    & & & \{\mbox{``readwriter''}, \mbox{``=>''}, id, newline\}, dedent;\\    
 %
 \mbox{\bf Read Under Write Flag} & ruw & = & \mbox{``old''} \mid \mbox{``new''} \mid \mbox{``undefined''};\\
 %
-\mbox{\bf File Information Token} & info & = & \mbox{``@[''}  string \mbox{``,''} int \mbox{``,''} int \mbox{``]''};\\
+\mbox{\bf Expression} & exp & = & (\mbox{``UInt''} \mid \mbox{``SInt''}), [width], \mbox{``(''}, int, \mbox{``)''} \mid reference \\
+& & & \mid  \mbox{``mux''}, \mbox{``(''}, exp, \mbox{``,''} exp, \mbox{``,''}, exp, \mbox{``)''} \mid \mbox{``validif''}, \mbox{``(''}, exp, \mbox{``,''}, exp, \mbox{``)''}\\
+& & & \mid primop;\\
 %
-\mbox{\bf Expression} & exp & = & \mbox{``UInt''} [\mbox{``<''} int \mbox{``>''}] \mbox{``(''} int \mbox{``)''} 
-\mid \mbox{``UInt''} [\mbox{``<''} int \mbox{``>''}] \mbox{``(''} string \mbox{``)''}\\
-& & & \mid \mbox{``SInt''} [\mbox{``<''} int \mbox{``>''}] \mbox{``(''} int \mbox{``)''}
-\mid \mbox{``SInt''} [\mbox{``<''} int \mbox{``>''}] \mbox{``(''} string \mbox{``)''}\\
-& & &\mid id \mid exp\mbox{``.''}id \mid exp\mbox{``[''} int \mbox{``]''} \mid exp\mbox{``[''} exp \mbox{``]''}\\
-& & &\mid \mbox{``mux(''} exp\mbox{``,''} exp\mbox{``,''}exp\mbox{``)''} \mid \mbox{``validif(''} exp\mbox{``,''} exp\mbox{``)''}\\
-& & & \mid primop \mbox{``(''}\{exp\}\mbox{``,''}\{int\}\mbox{``)''};\\
+& reference & = & id \mid reference, \mbox{``.''}, id \mid reference, \mbox{``[''}, int, \mbox{``]''} \mid reference, \mbox{``[''}, exp, \mbox{``]''};\\
 %
-\mbox{\bf Primitive Operation} & primop & = & \mbox{``add''}  \mid  \mbox{``sub''}  \mid  \mbox{``sub''} \mid \mbox{``mul''} \mid \mbox{``div''} \mid \mbox{``mod''} \\
-& & &  \mid \mbox{``lt''} \mid \mbox{``leq''} \mid \mbox{``gt''} \mid \mbox{``geq''} \mid \mbox{``eq''} \mid \mbox{``neq''} \mid  \mbox{``pad''} \\
-& & & \mid \mbox{``asUInt''} \mid \mbox{``asSInt''} \mid \mbox{``asClock''} \mid \mbox{``shl''} \mid \mbox{``shr''} \mid \mbox{``dshl''}  \mid \mbox{``dshr''} \\
-& & & \mid \mbox{``cvt''} \mid \mbox{``neg''} \mid \mbox{``not''} \mid \mbox{``and''} \mid \mbox{``or''} \mid \mbox{``xor''} \mid \mbox{``andr''} \mid \mbox{``orr''} \mid \mbox{``xorr''}\\
-& & & \mid \mbox{``cat''} \mid \mbox{``bits''} \mid \mbox{``head''} \mid \mbox{``tail''}\\
+& width & = & \mbox{``<''}, int, \mbox{``>''};\\
+%
+& binarypoint & = & \mbox{``<''}, \mbox{``<''}, int, \mbox{``>''}, \mbox{``>''};\\
+%
+ \mbox{\bf Bundle Field} & field & = & [\mbox{``flip''}]\ id: type;\\
+%
+\mbox{\bf Data Types} & type & = & type\_ground \mid type\_aggregate; \\
+ & type\_ground & = &  \mbox{``Clock''} \mid \mbox{``Reset''} \mid \mbox{``AsyncReset''} \mid (\mbox{``UInt''} \mid \mbox{``SInt''}  \mid \mbox{``Analog''}), [width]  \\
+ & & & \mid \mbox{``Fixed''}, [width], [binarypoint];\\
+  & type\_aggregate & = & \mbox{``\{''}, field, \{field\}, \mbox{``\}''} \mid type, \mbox{``[''}, int, \mbox{``]''};\\
+%& & & \mbox{``UInt''}, [\mbox{``<''}, int, \mbox{``>''}] \mid \mbox{``SInt''}, [\mbox{``<''}, int, \mbox{``>''} ] \\
+%& & & \mid \mbox{``Fixed''}, [\mbox{``<''}, int, \mbox{``>''} ] [\mbox{``<}\mbox{<''}, int, \mbox{``>}\mbox{>''}]\\
+% &  &  & \mid \mbox{``Clock''} \mid \mbox{``Analog''},  [\mbox{``<''}, int, \mbox{``>''}] \mid \mbox{``\{''}, field, \mbox{``\}''} \mid type, \mbox{``[''}, int, \mbox{``]''}; \\
+%
+\mbox{\bf Primitive Operation} & primop & = & primop\_2exp \mid primop\_1exp \mid primop\_1exp1int \mid primop\_1exp2int; \\
+& primop\_2exp & = & primop\_2exp\_keyword, \mbox{``(''} , exp, \mbox{``,''} , exp, \mbox{``)''}; \\
+%
+& primop\_2exp\_keyword & = &  \mbox{``add''}  \mid  \mbox{``sub''}  \mid  \mbox{``sub''} \mid \mbox{``mul''} \mid \mbox{``div''} \mid \mbox{``mod''} \mid \mbox{``lt''} \mid \mbox{``leq''}  \\
+& & &  \mid \mbox{``gt''} \mid \mbox{``geq''} \mid \mbox{``eq''} \mid \mbox{``neq''} \mid \mbox{``dshl''}  \mid \mbox{``dshr''} \\
+ & & & \mid \mbox{``and''} \mid \mbox{``or''} \mid \mbox{``xor''} \mid \mbox{``cat''}; \\
+ %
+& primop\_1exp & = & primop\_1exp\_keyword, \mbox{``(''}, exp, \mbox{``)''}; \\
+& primop\_1exp\_keyword & = & \mbox{``asUInt''} \mid \mbox{``asSInt''} \mid \mbox{``asClock''} \mid \mbox{``cvt''} \mid \mbox{``neg''} \mid \mbox{``not''}  \\
+& & & \mid \mbox{``andr''} \mid \mbox{``orr''} \mid  \mbox{``xorr''} \mid \mbox{``head''} \mid \mbox{``tail''};\\
+%
+& primop\_1exp1int & = & primop\_1exp1int\_keyword, \mbox{``(''}, exp, \mbox{``,''}, int, \mbox{``)''}; \\
+& primop\_1exp1int\_keyword & = & \mbox{``pad''} \mid \mbox{``shl''} \mid \mbox{``shr''}; \\
+& primop\_1exp2int & = & primop\_1exp2int\_keyword, \mbox{``(''}, exp, \mbox{``,''}, int, \mbox{``,''}, int \mbox{``)''}; \\
+& primop\_1exp1int\_keyword & = & \mbox{``bits''}; \\
+\mbox{\bf File Information Token} & info & = & \mbox{``@''}, \mbox{``[''}, \{string, \mbox{`` ''}, linecol\}, \mbox{``]''};\\
+& linecol & = &  digit\_dec, \{digit\_dec\}, \mbox{``:''}, digit\_dec, \{digit\_dec\};\\
+& id & = & ( \mbox{``\_''} \mid letter), \{ \mbox{``\_''} \mid letter \mid digit\_dec\};
+%
 \end{array}
 \]
 }
