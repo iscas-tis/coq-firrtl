@@ -39,7 +39,7 @@ port & = & (\mbox{``input''} \mid \mbox{``output''}), id, \mbox{``:''}, type, [i
  %& 
   &   &\mid reference, \mbox{``is invalid''}, [info]  \mid \mbox{``attach(''}, \{reference\}, \mbox{``)''}, [info]  \\ 
 %&  
-&   &\mid \mbox{``when''}, exp, \mbox{``:''}, [info], newline, indent, \{stmt\}, dedent, \\
+&   &\mid \mbox{``when''}, exp, \mbox{``:''}, [info], newline, indent, \{stmt\}, dedent \\
 %& 
 & & [\mbox{``else:''}, indent, \{stmt\}, dedent] \\ 
 %&  
@@ -144,9 +144,15 @@ id & = & ( \mbox{``\_''} \mid letter), \{ \mbox{``\_''} \mid letter \mid digit\_
 \label{fig-firrtl-synt}
 \end{figure}
 
-A circuit in FIRRTL consists of modules, each of which has ports, statements, 
-
-
+\begin{itemize}
+\item A circuit in FIRRTL consists of modules, each of which include several ports and statements. 
+\item Each port has an identifier and types and is either an input or output. 
+\item Each statement defines a wire, register, memory, or node, connect (<=) or partial connect (<-), attach (for analog signals), conditional (when statement), and so on.  
+\item Expressions are widely used in statements. Each expression is an unsigned/signed integer constant, a reference, a multiplexer, a validif expression, or an expression obtained by applying primitive operations on ground types. 
+\item A ground type is ``Clock'', ``Reset'', ``AsyncReset'', ``UInt'' (unsigned integer), ``SInt'' (signed integer), ``Analog'', or ``Fixed'' (fixed point number).  
+\item An aggregate type is either declared by describing the (possibly nested) fields, or an array (e.g. UInt[10]).
+\end{itemize}
+Note that some special terminal symbols $newline$, $indent$, and $dedent$ are used to format FIRRTL programs. 
 
 
 
