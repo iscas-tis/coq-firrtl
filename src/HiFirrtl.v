@@ -1935,10 +1935,31 @@ Module MakeHiFirrtl
    Admitted.
      
    Lemma ftype_equiv_symmetry t1 t2 :
-     ftype_equiv (t1) (t2) -> ftype_equiv (t2) (t1).
+     ftype_equiv (t1) (t2) -> ftype_equiv (t2) (t1)
+   with ffield_equiv_symmetry f1 f2 :
+          fbtyp_equiv f1 f2 -> fbtyp_equiv f2 f1.
    Proof.
-     case t1, t2; rewrite/=; try done.
-   Admitted.
+     elim: t1 t2 => [f1| f1 H1 n1| n1 ]  [f2| f2 n2| n2 ]//.
+     - elim: f1 f2; try done.
+     - rewrite /= => /andP [Heq Hfeq]. rewrite (eqP Heq)/= eq_refl andTb.
+         by apply H1.
+     - rewrite /=. apply ffield_equiv_symmetry.
+     elim: f1 f2 => [|v1 flp1 f1 fs1 IH1 ] [|v2 flp2 f2 fs2 ] .
+     - done.
+     - rewrite /=//.
+     - rewrite /=; case flp1; done.
+     - elim: flp1 flp2 => [|] [|] /=//.
+       + move => /andP [/andP [Heq Heqf] Heqb].
+         rewrite (eqP Heq) eq_refl andTb.
+         apply /andP. split.
+         by apply ftype_equiv_symmetry.
+         exact : (IH1 fs2 Heqb).
+       + move => /andP [/andP [Heq Heqf] Heqb].
+         rewrite (eqP Heq) eq_refl andTb.
+         apply /andP. split.
+         by apply ftype_equiv_symmetry.
+         exact : (IH1 fs2 Heqb).
+   Qed.
 
    Lemma max_width_symmetry t1 t2 :
      max_width (t1) (t2) = max_width (t2) (t1).
@@ -2075,7 +2096,7 @@ Module MakeHiFirrtl
 
    Lemma inferWidth_spcnct_ftype_sem_conform :
      forall r e c1 t0 t1 t2 wm1 ce1 wm2 ce2 ,
-       ftype_equiv t1 t2 ->
+       ftype_weak_equiv t1 t2 ->
        CE.find (base_ref r) ce1 =  Some (t0, c1) ->
        type_of_ref r ce1 = type_of_cmpnttyp t0 ->
        is_deftyp (type_of_cmpnttyp t0) ->
@@ -2679,6 +2700,8 @@ Module MakeHiFirrtl
          move : (inferType_stmts_hd Hiw) => Hitc.
          inversion Hitc; subst.
          move : H4 => [Hit1 [Hit2 Hit3]].
+         apply inferWidth_spcnct_ftype_sem_conform with c0 t (type_of_cmpnttyp t) t'; try done.
+         
          admit.
        + (*invalid*)
          intros.
