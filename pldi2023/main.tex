@@ -140,7 +140,7 @@
 %%
 %% The "title" command has an optional parameter,
 %% allowing the author to define a "short title" to be used in page headers.
-\title{Formalizing FIRRTL Intermediate Representation and Its Transformations}
+\title{Formalizing FIRRTL Intermediate Representation and Its Lowering Transformations}
 
 
 
@@ -252,7 +252,8 @@
 %% The abstract is a short summary of the work to be presented in the
 %% article.
 \begin{abstract}
-This paper presents Vefirrtl, a framework for reasoningabout programs expressed in FIRRTL’s intermediate representationand transformations that operate on it. Vefirrtl provides amechanized formal semantics of FIRRTL’s intermediate representation and its type system. The framework is built using the Coq interactive theorem prover. It includesmultiple operational semantics and proves relations among them tofacilitate different reasoning styles and proof techniques.To validate Vefirrtl's design, we extract an interpreter from theCoq formal semantics that can execute programs from FIRRTL testsuite and thus be compared against FIRRTL reference implementations.To demonstrate Vefirrtl's practicality, we formalize and verify two key transformations, InferWidth and ExpandsWhen, which infer bit widths of signals of FIRRTL programs and expands the when statements respectively. 
+FIRRTL is an intermediate representation for Chisel hardware description language and has been intensively used in designing RISC-V CPUs. 
+This paper presents Vefirrtl, a framework for reasoningabout programs expressed in FIRRTL’s intermediate representationand lowering transformations that remove gradually the high-level constructs. Vefirrtl provides amechanized formal semantics of FIRRTL’s intermediate representation and its type system. The framework is built using the Coq interactive theorem prover. It includesthe axiomatic semantics for High FIRRTL and operational semantics for Low FIRRTL and proves relations among them.To validate Vefirrtl's design, we extract an interpreter from theCoq formal semantics that can execute programs from FIRRTL testsuite and thus be compared against FIRRTL reference implementations.To demonstrate Vefirrtl's practicality, we formalize and verify two key transformations of FIRRTL programs, namely ``Infer Width'' and ``Expands When'', which infer bit widths of signals and expands the when statements respectively. 
 %
 \end{abstract}
 
@@ -331,6 +332,10 @@ This paper presents Vefirrtl, a framework for reasoningabout programs expressed
 
 \section{Formalization of FIRRTL}
 
+\subsection{Formalization of High FIRRTL}
+
+\input{form-firrtl-high}
+
 \subsection{Formalization of Low FIRRTL}
 
 \input{form-firrtl-low}
@@ -339,12 +344,7 @@ This paper presents Vefirrtl, a framework for reasoningabout programs expressed
 
 \input{firrtl-interpret}
 
-\subsection{Formalization of High FIRRTL}
-
-\input{form-firrtl-high}
-
-
-\section{Formalization of FIRRTL transformations}
+\section{Formalization and verification of FIRRTL transformations}
 
 \input{form-firrtl-transform}
 
