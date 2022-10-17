@@ -588,6 +588,18 @@ Module MakeHiFirrtl
       resolveKinds_stmt (smem v m) ce ce'
   | Resolve_invalid v ce :
       resolveKinds_stmt (sinvalid v) ce ce
+  | Resolve_skip ce :
+      resolveKinds_stmt sskip ce ce
+
+
+  | Resolve_fcnct r e ce :
+      resolveKinds_stmt (sfcnct r e) ce ce
+  | Resolve_pcnct r e ce :
+      resolveKinds_stmt (spcnct r e) ce ce
+  | Resolve_when e s1 s2 ce :
+      resolveKinds_stmt (swhen e s1 s2) ce ce
+  | Resolve_stop e1 e2 n ce :
+      resolveKinds_stmt (sstop e1 e2 n) ce ce
   .
 
   Inductive resolveKinds_stmts : seq hfstmt -> cenv -> cenv -> Prop :=
@@ -647,8 +659,8 @@ Module MakeHiFirrtl
 
   Definition resolveKinds_port_fun p ce :=
     match p with
-    | Finput v t => CE.add v (aggr_typ t, In_port) ce
-    | Foutput v t => CE.add v (aggr_typ t, Out_port) ce
+    | Finput v t => CE.add v (unknown_typ, In_port) ce
+    | Foutput v t => CE.add v (unknown_typ, Out_port) ce
     end.
 
   Fixpoint resolveKinds_ports_fun ps ce := fold_right resolveKinds_port_fun ps ce.
@@ -690,33 +702,93 @@ Proof.
 Qed.
 
 Lemma resolveKinds_sinvalid_sem_conform :
-forall v ce0 ,
+  forall v ce0 ,
   resolveKinds_stmt (Sinvalid v) ce0 (resolveKinds_stmt_fun (Sinvalid v) ce0).
 Proof.
   intros. apply Resolve_invalid.
 Qed.
-(*
-Lemma resolveKinds_swire_sem_conform :
-  forall v r ce0 ,
-    new_comp_name v ->
-    inferType_stmt (Swire v r) ce0 (inferType_stmt_fun (Swire v r) ce0).
+
+Lemma resolveKinds_sskip_sem_conform :
+  forall ce0 ,
+  resolveKinds_stmt sskip ce0 (resolveKinds_stmt_fun sskip ce0).
 Proof.
-  intros. apply Infertype_wire. try done.
-  rewrite /inferType_stmt_fun.
-  rewrite (CELemmas.add_eq_o _ _ (eq_refl v)) //.
+  intros. apply Resolve_skip.
+Qed.
+
+Lemma resolveKinds_sfcnct_sem_conform :
+  forall r e ce0 ,
+  resolveKinds_stmt (sfcnct r e) ce0 (resolveKinds_stmt_fun (sfcnct r e) ce0).
+Proof.
+  intros. apply Resolve_fcnct.
+Qed.
+
+Lemma resolveKinds_spcnct_sem_conform :
+forall r e ce0 ,
+  resolveKinds_stmt (spcnct r e) ce0 (resolveKinds_stmt_fun (spcnct r e) ce0).
+Proof.
+  intros. apply Resolve_pcnct.
+Qed.
+
+Lemma resolveKinds_swhen_sem_conform :
+forall e s1 s2 ce0 ,
+  resolveKinds_stmt (swhen e s1 s2) ce0 (resolveKinds_stmt_fun (swhen e s1 s2) ce0).
+Proof.
+  intros. apply Resolve_when.
+Qed.
+
+Lemma resolveKinds_sstop_sem_conform :
+forall e1 e2 n ce0 ,
+  resolveKinds_stmt (sstop e1 e2 n) ce0 (resolveKinds_stmt_fun (sstop e1 e2 n) ce0).
+Proof.
+  intros. apply Resolve_stop.
+Qed.
+
+Lemma resolveKinds_swire_sem_conform :
+  forall v e ce0 ,
+  resolveKinds_stmt (Swire v e) ce0 (resolveKinds_stmt_fun (Swire v e) ce0).
+Proof.
+  intros. apply Resolve_wire.
+  rewrite /resolveKinds_stmt_fun.
+  done.
 Qed.
   
 Lemma resolveKinds_sinst_sem_conform :
-  forall v1 v2  ce0 ,
-    new_comp_name v1 ->
-    v1 != v2 ->
-    inferType_stmt (Sinst v1 v2) ce0 (inferType_stmt_fun (Sinst v1 v2) ce0).
+  forall v1 v2 ce0 ,
+  resolveKinds_stmt (Sinst v1 v2) ce0 (resolveKinds_stmt_fun (Sinst v1 v2) ce0).
 Proof.
-  intros. apply Infertype_inst. try done. try done.
-  rewrite /inferType_stmt_fun.
-  rewrite (CELemmas.add_eq_o _ _ (eq_refl v1)). try done.
+  intros. apply Resolve_inst.
+  rewrite /resolveKinds_stmt_fun.
+  done.
 Qed.
-*)
+
+(* Lemma resolveKinds_stmts_sem_conform : *)
+
+Lemma resolveKinds_inport_sem_conform :
+  forall v t ce0 ,
+    resolveKinds_port (Finput v t) ce0 (resolveKinds_port_fun (Finput v t) ce0).
+  Proof.
+    intros.
+    apply Resolve_input; try done.
+    Qed.
+
+Lemma resolveKinds_outport_sem_conform :
+  forall v t ce0 ,
+    resolveKinds_port (Foutput v t) ce0 (resolveKinds_port_fun (Foutput v t) ce0).
+  Proof.
+    intros.
+    apply Resolve_output; try done.
+    Qed.
+
+(* ports *)
+
+Lemma resolveKinds_inmod_sem_conform :
+forall vm ps ss ce,
+  resolveKinds_module (FInmod vm ps ss) ce (resolveKinds_module_fun (FInmod vm ps ss) ce).
+Proof.
+  intros.
+Admitted.
+
+(* mods *)
 
   (** decide the type and width of hifirrtl expressions *)
 
@@ -1054,7 +1126,7 @@ Qed.
   | Infertype_outport v t ce ce' :
       CE.find v ce = None ->
       ce' = CE.add v (aggr_typ t, Out_port) ce ->
-      inferType_port (hinport v t) ce ce'.
+      inferType_port (houtport v t) ce ce'.
 
   Inductive inferType_ports : seq hfport -> cenv -> cenv -> Prop :=
   | infertype_ports_nil ce :
@@ -1105,6 +1177,14 @@ Qed.
     end.
 
   Fixpoint inferType_stmts_fun (sts : seq hfstmt) ce : cenv := fold_right inferType_stmt_fun ce sts.
+
+  Definition inferType_port_fun p ce :=
+    match p with
+    | Finput v t => CE.add v (aggr_typ t, In_port) ce
+    | Foutput v t => CE.add v (aggr_typ t, Out_port) ce
+    end.
+
+  Fixpoint inferType_ports_fun ps ce := fold_right inferType_port_fun ps ce.
 
   Definition inferType_module_fun m ce :=
     match m with
@@ -1318,26 +1398,50 @@ Qed.
     case h.
     Admitted.
 
-  (*Lemma inferType_inport_sem_conform :
+  Lemma inferType_inport_sem_conform :
   forall v t ce0 ,
-      inferType_inport (hinport v t) ce0 (inferType_stmt_fun sskip ce0?).
+      CE.find v ce0 = None ->
+      inferType_port (hinport v t) ce0 (inferType_port_fun (hinport v t) ce0).
   Proof.
-    intros. apply Infertype_sskip.
-  Qed.  *)
+    intros.
+    apply Infertype_inport; try done.
+    Qed.
+
+  Lemma inferType_outport_sem_conform :
+  forall v t ce0 ,
+      CE.find v ce0 = None ->
+      inferType_port (houtport v t) ce0 (inferType_port_fun (houtport v t) ce0).
+  Proof.
+    intros.
+    apply Infertype_outport; try done.
+    Qed.
+
+(*  Lemma inferType_ports_sem_conform :
+  forall ss ce0,
+    inferType_ports ss ce0 (fold_right inferType_port_fun? ss ce).
+  Proof.
+*)
 
   Lemma inferType_inmod_sem_conform :
   forall vm ps ss ce,
-    inferType_module (hfinmod vm ps ss) ce (inferType_module_fun (hfinmod vm ps ss) ce).
+    inferType_module (FInmod vm ps ss) ce (inferType_module_fun (FInmod vm ps ss) ce).
   Proof.
     intros.
     apply infertype_inmod; try done.
+
+    rewrite /inferType_module_fun.
 
   Admitted.
 
   Lemma inferType_exmod_sem_conform :
   forall vm ps ss ce,
-  inferType_module (hfexmod vm ps ss) ce (inferType_module_fun (hfexmod vm ps ss) ce).
+  inferType_module (FExmod vm ps ss) ce (inferType_module_fun (FExmod vm ps ss) ce).
   Proof.
+    intros.
+    apply infertype_exmod; try done.
+
+    rewrite /inferType_module_fun.
+
   Admitted.
 
   (*
