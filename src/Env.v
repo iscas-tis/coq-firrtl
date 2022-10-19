@@ -21,7 +21,7 @@ Import Prenex Implicits.
   | Fasyncreset
   (*| Fanalog : nat -> fgtyp*) (* TBD, HiFirrtl *)
   .
-  
+
   (* Size of types *)
 
   Definition sizeof_fgtyp (t : fgtyp) : nat :=
@@ -31,7 +31,7 @@ Import Prenex Implicits.
     (* | Fanalog w => w *)
     | _ => 1
     end.
-  
+
   (* Equality of types *)
 
   Lemma fgtyp_eq_dec (x y : fgtyp) : {x = y} + {x <> y}.
@@ -327,7 +327,7 @@ End BValueType.
 Module MakeValStore (V : SsrOrder) (TE : TypEnv with Module SE := V) <:
   ValStore V TE.
 
-  Include MakeTStoreMap V BValueType. 
+  Include MakeTStoreMap V BValueType.
   Module Lemmas := FMapLemmas TE.
 
   (* A store conforms to a typing environment if for every variable in the typing
@@ -339,7 +339,7 @@ Module MakeValStore (V : SsrOrder) (TE : TypEnv with Module SE := V) <:
 
   Definition map2 (f : option bits -> option bits -> option bits) (s1 s2 : t) : t :=
     M.map2 f s1 s2.
-  
+
   Lemma conform_def :
     forall (s : t) (E : TE.env),
       (forall (v : V.t), TE.mem v E -> TE.vsize v E = size (acc v s)) ->
