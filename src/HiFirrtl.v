@@ -1221,12 +1221,21 @@ Proof.
 
   (* infer type of module according to ports declaration *)
   Inductive inferType_module : hfmodule -> cenv -> cenv -> Prop :=
-  | infertype_inmod vm ps ss ce ce' :
+  | infertype_inmod vm ps ss ce ce' ce1 ce2 :
       CE.find vm ce' = Some (aggr_typ (inst_type_of_ports' ps), Fmodule) ->
-      inferType_module (hfinmod vm ps ss) ce ce'
+      inferType_ports ps ce' ce1 -> inferType_stmts ss ce1 ce2 ->
+      inferType_module (FInmod vm ps ss) ce ce2
   | infertype_exmod vm ps ss ce ce' :
       CE.find vm ce' = Some (aggr_typ (inst_type_of_ports' ps), Fmodule) ->
-      inferType_module (hfexmod vm ps ss) ce ce'.
+      inferType_module (FExmod vm ps ss) ce ce'.
+
+  Inductive inferType_modules : seq hfmodule -> cenv -> cenv -> Prop :=
+  | infertype_modules_nil ce :
+      inferType_modules [::] ce ce
+  | infertype_modules_con s ss ce ce' ce'' :
+      inferType_module s ce ce' ->
+      inferType_modules ss ce' ce'' ->
+      inferType_modules (s::ss) ce ce''.
 
   Definition inferType_stmt_fun st (ce : cenv) : cenv :=
     match st with
@@ -1283,8 +1292,9 @@ Proof.
 
   Definition inferType_module_fun m ce :=
     match m with
-    | FInmod v ps ss => inferType_stmts_fun ss (CE.add_fst v (aggr_typ (inst_type_of_ports' ps)) ce)
-    | FExmod v ps ss => CE.add_fst v (aggr_typ (inst_type_of_ports' ps)) ce
+    | FInmod v ps ss => inferType_stmts_fun ss (inferType_ports_fun ps 
+    (CE.add v (aggr_typ (inst_type_of_ports' ps), Fmodule) ce))
+    | FExmod v ps ss => CE.add v (aggr_typ (inst_type_of_ports' ps), Fmodule) ce
     end.
 
   Fixpoint inferType_modules_fun ms ce := (*fold_right inferType_module_fun ms ce.*)
@@ -1303,48 +1313,17 @@ Proof.
       rewrite eq_refl H//. 
       rewrite ffield_equiv_ident//. 
     
-      elim; intros. rewrite /= ; done. 
-      rewrite /= eq_refl H ftype_equiv_ident. 
-      case f; rewrite /=//. 
+      elim; intros. rewrite /=; done. 
+      rewrite /=.
+      rewrite eq_refl.
+      simpl.
+      rewrite H.
+      rewrite ftype_equiv_ident. 
+      simpl.
+      case f; done.
      Qed. 
 
-
-(*
-    elim.
-    rewrite /ftype_equiv.
-    intros.
-    case f; try done.
-
-    intros.
-    rewrite eq_refl H//.
-
-    move => t.
-    rewrite /ftype_equiv.
-    induction t.
-    rewrite /fgtyp_equiv.
-    case f; try done.
-    rewrite eq_refl.
-    try done.
-
-    case f;try done.
-
-    induction f.
-    try done.
-    try done.
-    try done.
-    try done.
-    admit.
-    try done.
-    move => f.
-    rewrite /fbtyp_equiv.
-    induction f.
-    try done.
-
-    Admitted.
-*)
-
-
-    Lemma ftype_weak_equiv_ident :
+  Lemma ftype_weak_equiv_ident :
   forall t ,
       ftype_weak_equiv t t.
   Proof.
@@ -1534,6 +1513,7 @@ Proof.
   Proof.
     intros.
     apply Infertype_inport.
+    rewrite /inferType_port_fun.
     rewrite (CELemmas.add_eq_o _ _ (eq_refl v)) //.
   Qed.
 
@@ -1563,38 +1543,42 @@ Proof.
 
   Lemma inferType_inmod_sem_conform :
   forall vm ps ss ce,
+    (*inferType_ports ps ce' ce1 -> inferType_stmts ss ce1 ce2 ->*)
     inferType_module (FInmod vm ps ss) ce (inferType_module_fun (FInmod vm ps ss) ce).
   Proof.
     intros.
-    apply infertype_inmod.
-    simpl.
+    rewrite /inferType_module_fun.
 
-    (*
-    rewrite /CE.add_fst.
-
+    apply infertype_inmod with (CE.add vm (aggr_typ (inst_type_of_ports' ps), Fmodule) ce) (inferType_ports_fun ps
+    (CE.add vm (aggr_typ (inst_type_of_ports' ps), Fmodule) ce)).
     rewrite (CELemmas.add_eq_o _ _ (eq_refl vm)) //.
-    Qed.
-*)
-  Admitted.
+    apply inferType_ports_sem_conform.
+    apply inferType_stmts_init_sem_conform.
+Qed.
 
   Lemma inferType_exmod_sem_conform :
   forall vm ps ss ce,
   inferType_module (FExmod vm ps ss) ce (inferType_module_fun (FExmod vm ps ss) ce).
   Proof.
     intros.
-    apply infertype_exmod; try done.
-
+    apply infertype_exmod.
     rewrite /inferType_module_fun.
+    rewrite (CELemmas.add_eq_o _ _ (eq_refl vm)) //.
+  Qed.
 
-  Admitted.
-
-  (*
   Lemma inferType_mods_sem_conform :
-  forall vm ps ss ce,
-  inferType_module (hfinmod vm ps ss) ce (inferType_module_fun (hfinmod vm ps ss) ce).
-
+  forall ms ce,
+  inferType_modules ms ce (inferType_modules_fun ms ce).
   Proof.
-  Admitted.*)
+    elim. intros. apply infertype_modules_nil.
+    intros.
+    apply infertype_modules_con with (inferType_module_fun a ce).
+    elim a; intros; try done.
+    - apply inferType_inmod_sem_conform.
+    - apply inferType_exmod_sem_conform.
+    - rewrite/=.
+    apply (H (inferType_module_fun a ce)). 
+    Qed.
     
   (** End **)
   
