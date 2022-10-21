@@ -253,7 +253,16 @@
 %% article.
 \begin{abstract}
 FIRRTL is an intermediate representation for Chisel hardware description language and has been intensively used in designing RISC-V CPUs. 
-This paper presents Vefirrtl, a framework for reasoningabout programs expressed in FIRRTL’s intermediate representationand lowering transformations that remove gradually the high-level constructs. Vefirrtl provides amechanized formal semantics of FIRRTL’s intermediate representation and its type system. The framework is built using the Coq interactive theorem prover. It includesthe axiomatic semantics for High FIRRTL and operational semantics for Low FIRRTL and proves relations among them.To validate Vefirrtl's design, we extract an interpreter from theCoq formal semantics that can execute programs from FIRRTL testsuite and thus be compared against FIRRTL reference implementations.To demonstrate Vefirrtl's practicality, we formalize and verify two key transformations of FIRRTL programs, namely ``Infer Width'' and ``Expands When'', which infer bit widths of signals and expands the when statements respectively. 
+This paper presents Vefirrtl, a framework for reasoning
+about programs expressed in FIRRTL’s intermediate representation
+and lowering transformations that remove gradually the high-level constructs. Vefirrtl provides a
+mechanized formal semantics of FIRRTL’s intermediate representation and 
+its type system. The framework is built using the Coq interactive theorem prover. It includes
+the axiomatic semantics for High FIRRTL and operational semantics for Low FIRRTL and proves relations among them.
+To validate Vefirrtl's design, we extract an interpreter from the
+Coq formal semantics that can execute programs from FIRRTL test
+suite and thus be compared against FIRRTL reference implementations.
+To demonstrate Vefirrtl's practicality, we formalize and verify two key transformations of FIRRTL programs, namely ``Infer Width'' and ``Expands When'', which infer bit widths of signals and expands the when statements respectively. 
 %
 \end{abstract}
 
@@ -332,17 +341,52 @@ This paper presents Vefirrtl, a framework for reasoningabout programs expressed
 
 \section{Formalization of FIRRTL}
 
-\subsection{Formalization of High FIRRTL}
+\subsection{Operational Semantics of LoFIRRTL}
 
-\input{form-firrtl-high}
+In the sequel, we introduce an operational semantics of LoFIRRTL programs, on which the formalization of LoFIRRTL in Coq is based. 
 
-\subsection{Formalization of Low FIRRTL}
+\newcommand\ports{Ports}
+\newcommand\wires{Wires}
+\newcommand\nodes{Nodes}
+\newcommand\registers{Regs}
+\newcommand\varset{Vars}
+\newcommand\gtypes{GTypes}
+\newcommand\bv{BitVec}
+
+Before the description of the operational semantics, we introduce some notations. 
+
+Let $\gtypes$ denote the set of ground types, that is, $(\{UInt, SInt\} \times \Nat) \cup \{Clock, Reset, AsyncReset\}$. Let $\bv$ denote the set of bit vectors, that is, $\{0,1\}^+$.
+
+Let $M$ be a LoFIRRTL module, $\ports(M)$ denote the set of ports in $M$, $\wires(M)$ denote the set of wires in $M$, $\nodes(M)$ denote the set of nodes in $M$, and $\registers(M)$ denote the set of registers in $M$. Moreover, we use $\varset(M)$ to denote the set of variables in $M$, that is, $\ports(M) \cup \wires(M) \cup \nodes(M) \cup \registers(M)$.
+
+A \emph{type environment} of $M$ is a function from $\varset(M)$ to $\gtypes$.
+A \emph{state} of $M$ is a function from $\varset(M)$ to $\bv$. A \emph{register state} of $M$ is a function from $\registers(M)$ to $\bv$.
+
+Then a \emph{configuration} of $M$ is defined as a triple $(te, s, rs)$, where $te$ is a type environment, $s$ is a state, and $rs$ is a register state. Intuitively, $te$ denotes the types of the variables, $s$ denotes the values of the variables in the beginning of the current clock cycle, and $rs$ denotes the new values of the registers in the beginning of the next clock cycle. 
+
+Then the operational semantics of each statement $st$ in $M$ is defined as a relation $(te, s, rs) \xrightarrow{st} (te', s', rs')$, which denotes that the execution of $st$ from a configuration $(te, s, rs)$ results into a configuration $(te', s', rs')$. The operational semantics of $M$ is then defined as the composition of the relations of statements in $M$. 
+
+\zhilin{stopped here}
+
+The operational semantics of loFIRRTL program: consider input and output ports, two versions, non-tail-recursion and tail recursion
+
+
+type environment: signals to types, default type UInt 0
+
+state: map, signals to bits
+
+register state: map, register to bits
 
 \input{form-firrtl-low}
 
 \subsection{Low FIRRTL OCaml Interpreter: Extraction and Validation}
 
 \input{firrtl-interpret}
+
+\subsection{Formalization of High FIRRTL}
+
+\input{form-firrtl-high}
+
 
 \section{Formalization and verification of FIRRTL transformations}
 
