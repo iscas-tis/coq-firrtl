@@ -684,10 +684,10 @@ Module MakeHiFirrtl
     | Skip => ce
     end.
 
-  Fixpoint resolveKinds_stmts_fun sts ce : CE.env := (*fold_right resolveKinds_stmt_fun ce sts.*)
+  Fixpoint resolveKinds_stmts_fun (sts : hfstmt_seq) ce : CE.env := (*fold_right resolveKinds_stmt_fun ce sts.*)
     match sts with
-    | nil => ce
-    | s :: stl => resolveKinds_stmts_fun stl (resolveKinds_stmt_fun s ce)
+    | Qnil => ce
+    | Qcons s stl => resolveKinds_stmts_fun stl (resolveKinds_stmt_fun s ce)
     end.
 
   Definition resolveKinds_port_fun p ce :=
