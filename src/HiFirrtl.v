@@ -35,6 +35,19 @@ Section HiFirrtl.
   | Esubaccess : href -> hfexpr -> href (* HiFirrtl *)
   .
 
+  (** equality of hfexpr and href are decidable *)
+  Axiom hfexpr_eq_dec : forall {x y : hfexpr}, {x = y} + {x <> y}.
+  Parameter hfexpr_eqn : forall (x y : hfexpr), bool.
+  Axiom hfexpr_eqP : Equality.axiom hfexpr_eqn.
+  Canonical hfexpr_eqMixin := EqMixin hfexpr_eqP.
+  Canonical hfexpr_eqType := Eval hnf in EqType hfexpr hfexpr_eqMixin.
+
+  Axiom href_eq_dec : forall {x y : href}, {x = y} + {x <> y}.
+  Parameter href_eqn : forall (x y : href), bool.
+  Axiom href_eqP : Equality.axiom href_eqn.
+  Canonical href_eqMixin := EqMixin href_eqP.
+  Canonical href_eqType := Eval hnf in EqType href href_eqMixin.
+
   (****** Statements ******)
 
   Record hfmem : Type :=
@@ -3493,8 +3506,8 @@ Qed.
    | None, Some _ => false_expr (* declared and defined only in the false branch *)
    | Some (R_fexpr t), Some R_default => Some (R_fexpr (Evalidif c t)) (* declared before when, only defined in true branch *)
    | Some R_default, Some (R_fexpr f) => Some (R_fexpr (Evalidif (Eprim_unop Unot c) f)) (* declared before when, only defined in false branch *)
-   | Some (R_fexpr t), Some (R_fexpr f) => (*if t = f, TBD then true_expr (* both definitions match, no multiplexer needed *)
-                                           else*) Some (R_fexpr (emux c t f)) (* defined differently in both branches *)
+   | Some (R_fexpr t), Some (R_fexpr f) => if t == f then true_expr (* both definitions match, no multiplexer needed *)
+                                           else Some (R_fexpr (emux c t f)) (* defined differently in both branches *)
    end.
 
    Definition combine_branches (c : hfexpr) (true_branch : (hfstmt_seq * cstate))
@@ -3583,16 +3596,16 @@ Qed.
    match ss_rev with
    | Qnil => r_default (* r_default is an abbreviation of R_default V.T *)
    | Qcons s t => match s with
-               | Sfcnct v0 e => if false (*v == v0*) then R_fexpr e else definition_of_variable t v
+               | Sfcnct v0 e => if v == v0 then R_fexpr e else definition_of_variable t v
                | Swhen c sst ssf => let true_result  := definition_of_variable sst v in
                                     let false_result := definition_of_variable ssf v in
                                     let earlier_result := definition_of_variable t v in
                                     match true_result, false_result, earlier_result with
                                     | R_default, R_default, _ => earlier_result
-                                    | R_fexpr t, R_fexpr f, _ => if false (*t == f*) then true_result else R_fexpr (Emux c t f)
-                                    | R_fexpr t, R_default, R_fexpr e => if false (*t == e*) then true_result else R_fexpr (Emux c t e)
+                                    | R_fexpr t, R_fexpr f, _ => if t == f then true_result else R_fexpr (Emux c t f)
+                                    | R_fexpr t, R_default, R_fexpr e => if t == e then true_result else R_fexpr (Emux c t e)
                                     | R_fexpr t, R_default, R_default => R_fexpr (Evalidif c t)
-                                    | R_default, R_fexpr f, R_fexpr e => if false (*e == f*) then false_result else R_fexpr (Emux c e f)
+                                    | R_default, R_fexpr f, R_fexpr e => if e == f then false_result else R_fexpr (Emux c e f)
                                     | R_default, R_fexpr f, R_default => R_fexpr (Evalidif (Eprim_unop Unot c) f)
                                     end
                | _ => definition_of_variable t v
