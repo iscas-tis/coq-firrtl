@@ -115,6 +115,58 @@
 %% the next command will enable that style.
 %%\citestyle{acmauthoryear}
 
+\usepackage{mathrsfs}
+\usepackage{blindtext}
+\usepackage[cache=false]{minted}
+\usepackage{eqnarray}
+%\usepackage{amssymb}
+\usepackage{mathtools}
+\usepackage{booktabs}
+\usepackage{bussproofs}
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%package listings for highlighting FIRRTL code %%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\usepackage{listings}
+\usepackage{color}
+\definecolor{lightgray}{rgb}{.9,.9,.9}
+\definecolor{darkgray}{rgb}{.4,.4,.4}
+\definecolor{purple}{rgb}{0.65, 0.12, 0.82}
+
+\lstdefinelanguage{Firrtl}{
+  keywords={defname, parameter, with, reset, inst, of, is, invalid, attach, when, else, stop, printf, skip, data-type, depth, read-latency, write-latency, read-under-write, reader, writer, readwriter, old, new, undefined, UInt, SInt, mux, validif, flip, Clock, Reset, AsyncReset, Analog, Fixed, add, sub, mul, div, mod, lt, leq, gt, geq, eq, neq, dshl, dshr, and, or, xor, cat, asUInt, asSInt, asClock, cvt, neg, not, andr, orr, xorr, head, tail, pad, shl, shr, bits},
+  keywordstyle=\color{blue},
+  ndkeywords={circuit, module, extmodule, input, output, wire, reg, node, mem},
+  ndkeywordstyle=\color{purple},
+  identifierstyle=\color{black},
+  sensitive=false,
+%  comment=[l]{;},
+%  morecomment=[s]{/*}{*/},
+%  commentstyle=\color{purple}\ttfamily,
+  stringstyle=\color{red}\ttfamily,
+  morestring=[b]',
+  morestring=[b]"
+}
+
+\lstset{
+   language=Firrtl,
+   backgroundcolor=\color{white},
+   extendedchars=true,
+   basicstyle=\footnotesize\ttfamily,
+   showstringspaces=false,
+   showspaces=false,
+   numbers=left,
+   numberstyle=\footnotesize,
+   numbersep=9pt,
+   tabsize=2,
+   breaklines=true,
+   showtabs=false,
+   captionpos=b
+}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 
 %\newif\ifdraft\drafttrue
 \newif\ifdraft\drafttrue
@@ -343,28 +395,8 @@ To demonstrate Vefirrtl's practicality, we formalize and verify two key transfor
 
 \subsection{Operational Semantics of LoFIRRTL}
 
-In the sequel, we introduce an operational semantics of LoFIRRTL programs, on which the formalization of LoFIRRTL in Coq is based. 
+\input{form-firrtl-low}
 
-\newcommand\ports{Ports}
-\newcommand\wires{Wires}
-\newcommand\nodes{Nodes}
-\newcommand\registers{Regs}
-\newcommand\varset{Vars}
-\newcommand\gtypes{GTypes}
-\newcommand\bv{BitVec}
-
-Before the description of the operational semantics, we introduce some notations. 
-
-Let $\gtypes$ denote the set of ground types, that is, $(\{UInt, SInt\} \times \Nat) \cup \{Clock, Reset, AsyncReset\}$. Let $\bv$ denote the set of bit vectors, that is, $\{0,1\}^+$.
-
-Let $M$ be a LoFIRRTL module, $\ports(M)$ denote the set of ports in $M$, $\wires(M)$ denote the set of wires in $M$, $\nodes(M)$ denote the set of nodes in $M$, and $\registers(M)$ denote the set of registers in $M$. Moreover, we use $\varset(M)$ to denote the set of variables in $M$, that is, $\ports(M) \cup \wires(M) \cup \nodes(M) \cup \registers(M)$.
-
-A \emph{type environment} of $M$ is a function from $\varset(M)$ to $\gtypes$.
-A \emph{state} of $M$ is a function from $\varset(M)$ to $\bv$. A \emph{register state} of $M$ is a function from $\registers(M)$ to $\bv$.
-
-Then a \emph{configuration} of $M$ is defined as a triple $(te, s, rs)$, where $te$ is a type environment, $s$ is a state, and $rs$ is a register state. Intuitively, $te$ denotes the types of the variables, $s$ denotes the values of the variables in the beginning of the current clock cycle, and $rs$ denotes the new values of the registers in the beginning of the next clock cycle. 
-
-Then the operational semantics of each statement $st$ in $M$ is defined as a relation $(te, s, rs) \xrightarrow{st} (te', s', rs')$, which denotes that the execution of $st$ from a configuration $(te, s, rs)$ results into a configuration $(te', s', rs')$. The operational semantics of $M$ is then defined as the composition of the relations of statements in $M$. 
 
 \zhilin{stopped here}
 
@@ -377,7 +409,6 @@ state: map, signals to bits
 
 register state: map, register to bits
 
-\input{form-firrtl-low}
 
 \subsection{Low FIRRTL OCaml Interpreter: Extraction and Validation}
 
