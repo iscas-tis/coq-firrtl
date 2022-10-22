@@ -2,7 +2,7 @@
 
 In the sequel, we introduce an operational semantics of LoFIRRTL programs, on which the formalization of LoFIRRTL in Coq is based. 
 
-We require that the LoFIRRTL programs are in a \emph{pseudo-SSA form}, that is, LoFIRRTL programs satisfying the following constraints: Each output port, wire, and register is connected exactly once and defined before it is used. For instance, the following LoFIRRTL program
+We require that the LoFIRRTL programs are in a \emph{pseudo-SSA form}, that is, LoFIRRTL programs satisfying the following constraints: Each output port or wire is connected to exactly once, each register is connected to at most once, and each of ports, wires, registers is defined before it is used. For instance, the following LoFIRRTL program
 %[caption=My FIRRTL Example]
 \begin{lstlisting}
 module A
@@ -41,8 +41,6 @@ The rules for the operational semantics of statements are presented in Table~\re
 
 \begin{table}
   \footnotesize
-  \caption{Operational semantics of LoFIRRTL statements.}
-  \label{tab:lofirrtl-sem}
   \begin{gather*}
     \infer[skip]
     {\seqq{(te, s, rs) \xrightarrow{\mbox{skip}} (te, s, rs)}}
@@ -54,12 +52,28 @@ The rules for the operational semantics of statements are presented in Table~\re
    {\seqq{te' = te [t/v]}} {\seqq{s' = s [0^{sz(t)}/v]}}
     \\[1ex]
     \inferiii[reg: $\bot$]
-    {\seqq{(te, s, rs) \xrightarrow{\mbox{reg } r: t} (te', s, rs')}}
-   {\seqq{rs(r) = \bot}} {\seqq{te' = te [t/r]}} {\seqq{rs' = rs[0^{sz(t)}/r]}}
+    {\seqq{(te, s, rs) \xrightarrow{\mbox{reg } r: t, c} (te', s', rs)}}
+   {\seqq{rs(r) = \bot}} {\seqq{te' = te [t/r]}} {\seqq{s' = s[0^{sz(t)}/r]}}
     \quad
     \inferii[reg: $\neq\bot$]
-    {\seqq{(te, s, rs) \xrightarrow{\mbox{reg } r: t} (te, s', rs)}}
+    {\seqq{(te, s, rs) \xrightarrow{\mbox{reg } r: t, c} (te, s', rs)}}
    {\seqq{rs(r) \neq \bot}} {\seqq{s' = s[rs(r)/r]}}
+    \\[1ex]
+    \inferiv[reg with reset: $\bot$, false]
+    {\seqq{(te, s, rs) \xrightarrow{\mbox{reg } r: t, c \mbox{ with: reset => }(e_1, e_2)} (te', s', rs)}}
+   {\seqq{rs(r) = \bot}} {\seqq{ s(e_1)= false}}  {\seqq{te' = te [t/r]}} {\seqq{s' = s[0^{sz(t)}/r]}}
+    \\[1ex]
+    \inferv[reg with reset: $\bot$, true]
+    {\seqq{(te, s, rs) \xrightarrow{\mbox{reg } r: t, c \mbox{ with: reset => }(e_1, e_2)} (te', s', rs')}}
+   {\seqq{rs(r) = \bot}} {\seqq{ s(e_1)= true}}  {\seqq{te' = te [t/r]}} {\seqq{s' = s[0^{sz(t)}/r]}} {\seqq{rs' = s[s(e_2)/r]}}
+    \\[1ex]
+    \inferiii[reg with reset: $\neq\bot$, false]
+    {\seqq{(te, s, rs) \xrightarrow{\mbox{reg } r: t, c \mbox{ with: reset => }(e_1, e_2)} (te, s', rs)}}
+   {\seqq{rs(r) \neq \bot}} {\seqq{ s(e_1)= false}} {\seqq{s' = s[rs(r)/r]}}
+    \\[1ex]
+    \inferiv[reg with reset: $\neq\bot$, true]
+    {\seqq{(te, s, rs) \xrightarrow{\mbox{reg } r: t, c \mbox{ with: reset => }(e_1, e_2)} (te, s', rs')}}
+   {\seqq{rs(r) \neq \bot}} {\seqq{ s(e_1)= true}} {\seqq{s' = s[rs(r)/r]}} {\seqq{rs' = rs[s(e_2)/r]}}
     \\[1ex]
     \inferii[node]
     {\seqq{(te, s, rs) \xrightarrow{\mbox{node } v = e} (te', s, rs')}}
@@ -73,7 +87,14 @@ The rules for the operational semantics of statements are presented in Table~\re
     {\seqq{(te, s, rs) \xrightarrow{v <= e} (te, s, rs')}}
    {\seqq{rs(v) \neq \bot}} {\seqq{rs' = rs[s(e)/v]}}
   \quad
+    \infer[invalid]
+    {\seqq{(te, s, rs) \xrightarrow{v \mbox{ is invalid}} (te, s', rs)}}
+%   {\seqq{rs(v) \neq \bot}} {\seqq{rs' = rs[s(e)/v]}}
+   {\seqq{s' = s[0^{sz(te(v))}/v]}}
   \end{gather*}
 %  \vspace{-4mm}
+  \caption{Operational semantics of LoFIRRTL statements.}
+  \label{tab:lofirrtl-sem}
 \end{table}
 
+\zhilin{$s(e)$ and $te(e)$ to be defined}

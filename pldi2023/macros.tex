@@ -632,6 +632,17 @@
   \QuaternaryInfC{$#2$}
   \DisplayProof
 }
+\newcommand{\inferv}[7][]{%
+  \AxiomC{$#3$}
+  \AxiomC{$#4$}
+  \AxiomC{$#5$}
+  \AxiomC{$#6$}
+    \AxiomC{$#7$}
+  \ifx#1\relax\else\LeftLabel{\ruleName{#1}}\fi
+  \QuinaryInfC{$#2$}
+  \DisplayProof
+}
+
 
 \newcommand\ports{Ports}
 \newcommand\wires{Wires}
