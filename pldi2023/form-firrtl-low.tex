@@ -1,3 +1,79 @@
 %!TEX root = main.tex
 
-formalization of low firrtl
+In the sequel, we introduce an operational semantics of LoFIRRTL programs, on which the formalization of LoFIRRTL in Coq is based. 
+
+We require that the LoFIRRTL programs are in a \emph{pseudo-SSA form}, that is, LoFIRRTL programs satisfying the following constraints: Each output port, wire, and register is connected exactly once and defined before it is used. For instance, the following LoFIRRTL program
+%[caption=My FIRRTL Example]
+\begin{lstlisting}
+module A
+  input io_in: UInt<32>
+  output io_out: UInt<32>
+  node a = add(io_in, UInt<32>("h1"))
+  io_out <= a
+\end{lstlisting}
+%
+is in pseudo-SSA form, while the following program
+\begin{lstlisting}
+module A
+  input io_in: UInt<32>
+  output io_out: UInt<32>
+  io_out <= a
+  node a = add(io_in, UInt<32>("h1"))
+\end{lstlisting}
+is not, since {\tt a} is defined after it is used in the statement {\tt io\_out <= a}.
+
+Before the description of the operational semantics, we introduce some notations. 
+
+Let $\gtypes$ denote the set of ground types, that is, $(\{UInt, SInt\} \times \Nat) \cup \{Clock, Reset, AsyncReset\}$. Let $\bv$ denote the set of bit vectors, that is, $\{0,1\}^+$.
+For $t = (dt, wd) \in \{UInt, SInt\} \times \Nat$, we define the size of $t$, denoted by $sz(t)$, as $wd$.
+
+Let $M$ be a LoFIRRTL module in pseudo-SSA form. 
+Moreover, let $\ports(M)$ denote the set of ports in $M$, $\wires(M)$ denote the set of wires in $M$, $\nodes(M)$ denote the set of nodes in $M$, and $\registers(M)$ denote the set of registers in $M$. Moreover, we use $\varset(M)$ to denote the set of variables in $M$, that is, $\ports(M) \cup \wires(M) \cup \nodes(M) \cup \registers(M)$.
+
+A \emph{type environment} of $M$ is a function from $\varset(M)$ to $\gtypes$.
+A \emph{state} of $M$ is a function from $\varset(M)$ to $\bv \cup \{\bot\}$. A \emph{register state} $rs$ of $M$ is a function from $\varset(M)$ to $\bv \cup \{\bot\}$ such that $rs(v) = \bot$ for every $v \in \gtypes \setminus \registers(M)$. Note that $\bot$ is a special symbol denoting the fact that the value of a variable is not determined yet. 
+
+Then a \emph{configuration} of $M$ is defined as a triple $(te, s, rs)$, where $te$ is a type environment, $s$ is a state, and $rs$ is a register state. Intuitively, $te$ denotes the types of the variables, $s$ denotes the values of the variables in the beginning of the current clock cycle, and $rs$ denotes the new values of the registers in the beginning of the next clock cycle. 
+
+Then the operational semantics of each statement $st$ in $M$ is defined as a relation $(te, s, rs) \xrightarrow{st} (te', s', rs')$, which denotes that the execution of $st$ from a configuration $(te, s, rs)$ results into a configuration $(te', s', rs')$. The operational semantics of $M$ is then defined as the composition of the relations of statements in $M$. 
+
+The rules for the operational semantics of statements are presented in Table~\ref{tab:lofirrtl-sem}.
+
+\begin{table}
+  \footnotesize
+  \caption{Operational semantics of LoFIRRTL statements.}
+  \label{tab:lofirrtl-sem}
+  \begin{gather*}
+    \infer[skip]
+    {\seqq{(te, s, rs) \xrightarrow{\mbox{skip}} (te, s, rs)}}
+    {\seqq{-}}
+    \quad
+    \inferii[wire]
+%    {\seqq{}}
+    {\seqq{(te, s, rs) \xrightarrow{\mbox{wire } v: t} (te', s', rs)}}
+   {\seqq{te' = te [t/v]}} {\seqq{s' = s [0^{sz(t)}/v]}}
+    \\[1ex]
+    \inferiii[reg: $\bot$]
+    {\seqq{(te, s, rs) \xrightarrow{\mbox{reg } r: t} (te', s, rs')}}
+   {\seqq{rs(r) = \bot}} {\seqq{te' = te [t/r]}} {\seqq{rs' = rs[0^{sz(t)}/r]}}
+    \quad
+    \inferii[reg: $\neq\bot$]
+    {\seqq{(te, s, rs) \xrightarrow{\mbox{reg } r: t} (te, s', rs)}}
+   {\seqq{rs(r) \neq \bot}} {\seqq{s' = s[rs(r)/r]}}
+    \\[1ex]
+    \inferii[node]
+    {\seqq{(te, s, rs) \xrightarrow{\mbox{node } v = e} (te', s, rs')}}
+   {\seqq{te' = te[te(e)/v]}} {\seqq{s' = s[s(e)/v]}}
+    \quad
+    \inferii[connect:$\bot$]
+    {\seqq{(te, s, rs) \xrightarrow{v <= e} (te, s', rs)}}
+   {\seqq{rs(v) = \bot}} {\seqq{s' = s[s(e)/v]}}
+    \\[1ex]    
+    \inferii[connect:$\neq \bot$]
+    {\seqq{(te, s, rs) \xrightarrow{v <= e} (te, s, rs')}}
+   {\seqq{rs(v) \neq \bot}} {\seqq{rs' = rs[s(e)/v]}}
+  \quad
+  \end{gather*}
+%  \vspace{-4mm}
+\end{table}
+

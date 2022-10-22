@@ -591,9 +591,9 @@
 \newcommand{\OMIT}[1]{}
 
 \newcommand{\seq}[1]{\ensuremath{#1}}
-\newcommand{\seqq}[1]{\seq{\Gamma\ifx#1\relax\else,#1\fi}}
+\newcommand{\seqq}[1]{\seq{\ifx#1\relax\else#1\fi}}
 
-\newcommand{\ruleName}[1]{\textsc{#1}}
+\newcommand{\ruleName}[1]{\textrm{#1}}
 
 \newcommand{\infer}[3][]{%
   \AxiomC{$#3$}
@@ -615,3 +615,29 @@
   \BinaryInfC{$#2$}
   \DisplayProof
 }
+\newcommand{\inferiii}[5][]{%
+  \AxiomC{$#3$}
+  \AxiomC{$#4$}
+  \AxiomC{$#5$}
+  \ifx#1\relax\else\LeftLabel{\ruleName{#1}}\fi
+  \TrinaryInfC{$#2$}
+  \DisplayProof
+}
+\newcommand{\inferiv}[6][]{%
+  \AxiomC{$#3$}
+  \AxiomC{$#4$}
+  \AxiomC{$#5$}
+  \AxiomC{$#6$}
+  \ifx#1\relax\else\LeftLabel{\ruleName{#1}}\fi
+  \QuaternaryInfC{$#2$}
+  \DisplayProof
+}
+
+\newcommand\ports{Ports}
+\newcommand\wires{Wires}
+\newcommand\nodes{Nodes}
+\newcommand\registers{Regs}
+\newcommand\varset{Vars}
+\newcommand\gtypes{GTypes}
+\newcommand\bv{BitVec}
+

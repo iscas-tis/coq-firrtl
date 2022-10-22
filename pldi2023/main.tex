@@ -115,6 +115,58 @@
 %% the next command will enable that style.
 %%\citestyle{acmauthoryear}
 
+\usepackage{mathrsfs}
+\usepackage{blindtext}
+\usepackage[cache=false]{minted}
+\usepackage{eqnarray}
+%\usepackage{amssymb}
+\usepackage{mathtools}
+\usepackage{booktabs}
+\usepackage{bussproofs}
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%package listings for highlighting FIRRTL code %%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\usepackage{listings}
+\usepackage{color}
+\definecolor{lightgray}{rgb}{.9,.9,.9}
+\definecolor{darkgray}{rgb}{.4,.4,.4}
+\definecolor{purple}{rgb}{0.65, 0.12, 0.82}
+
+\lstdefinelanguage{Firrtl}{
+  keywords={defname, parameter, with, reset, inst, of, is, invalid, attach, when, else, stop, printf, skip, data-type, depth, read-latency, write-latency, read-under-write, reader, writer, readwriter, old, new, undefined, UInt, SInt, mux, validif, flip, Clock, Reset, AsyncReset, Analog, Fixed, add, sub, mul, div, mod, lt, leq, gt, geq, eq, neq, dshl, dshr, and, or, xor, cat, asUInt, asSInt, asClock, cvt, neg, not, andr, orr, xorr, head, tail, pad, shl, shr, bits},
+  keywordstyle=\color{blue},
+  ndkeywords={circuit, module, extmodule, input, output, wire, reg, node, mem},
+  ndkeywordstyle=\color{purple},
+  identifierstyle=\color{black},
+  sensitive=false,
+%  comment=[l]{;},
+%  morecomment=[s]{/*}{*/},
+%  commentstyle=\color{purple}\ttfamily,
+  stringstyle=\color{red}\ttfamily,
+  morestring=[b]',
+  morestring=[b]"
+}
+
+\lstset{
+   language=Firrtl,
+   backgroundcolor=\color{white},
+   extendedchars=true,
+   basicstyle=\footnotesize\ttfamily,
+   showstringspaces=false,
+   showspaces=false,
+   numbers=left,
+   numberstyle=\footnotesize,
+   numbersep=9pt,
+   tabsize=2,
+   breaklines=true,
+   showtabs=false,
+   captionpos=b
+}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 
 %\newif\ifdraft\drafttrue
 \newif\ifdraft\drafttrue
@@ -253,7 +305,16 @@
 %% article.
 \begin{abstract}
 FIRRTL is an intermediate representation for Chisel hardware description language and has been intensively used in designing RISC-V CPUs. 
-This paper presents Vefirrtl, a framework for reasoningabout programs expressed in FIRRTL’s intermediate representationand lowering transformations that remove gradually the high-level constructs. Vefirrtl provides amechanized formal semantics of FIRRTL’s intermediate representation and its type system. The framework is built using the Coq interactive theorem prover. It includesthe axiomatic semantics for High FIRRTL and operational semantics for Low FIRRTL and proves relations among them.To validate Vefirrtl's design, we extract an interpreter from theCoq formal semantics that can execute programs from FIRRTL testsuite and thus be compared against FIRRTL reference implementations.To demonstrate Vefirrtl's practicality, we formalize and verify two key transformations of FIRRTL programs, namely ``Infer Width'' and ``Expands When'', which infer bit widths of signals and expands the when statements respectively. 
+This paper presents Vefirrtl, a framework for reasoning
+about programs expressed in FIRRTL’s intermediate representation
+and lowering transformations that remove gradually the high-level constructs. Vefirrtl provides a
+mechanized formal semantics of FIRRTL’s intermediate representation and 
+its type system. The framework is built using the Coq interactive theorem prover. It includes
+the axiomatic semantics for High FIRRTL and operational semantics for Low FIRRTL and proves relations among them.
+To validate Vefirrtl's design, we extract an interpreter from the
+Coq formal semantics that can execute programs from FIRRTL test
+suite and thus be compared against FIRRTL reference implementations.
+To demonstrate Vefirrtl's practicality, we formalize and verify two key transformations of FIRRTL programs, namely ``Infer Width'' and ``Expands When'', which infer bit widths of signals and expands the when statements respectively. 
 %
 \end{abstract}
 
@@ -332,17 +393,31 @@ This paper presents Vefirrtl, a framework for reasoningabout programs expressed
 
 \section{Formalization of FIRRTL}
 
-\subsection{Formalization of High FIRRTL}
-
-\input{form-firrtl-high}
-
-\subsection{Formalization of Low FIRRTL}
+\subsection{Operational Semantics of LoFIRRTL}
 
 \input{form-firrtl-low}
+
+
+\zhilin{stopped here}
+
+The operational semantics of loFIRRTL program: consider input and output ports, two versions, non-tail-recursion and tail recursion
+
+
+type environment: signals to types, default type UInt 0
+
+state: map, signals to bits
+
+register state: map, register to bits
+
 
 \subsection{Low FIRRTL OCaml Interpreter: Extraction and Validation}
 
 \input{firrtl-interpret}
+
+\subsection{Formalization of High FIRRTL}
+
+\input{form-firrtl-high}
+
 
 \section{Formalization and verification of FIRRTL transformations}
 

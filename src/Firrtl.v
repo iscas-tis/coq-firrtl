@@ -667,7 +667,7 @@ Module MakeFirrtl
   Fixpoint upd_argulist s io_in name ind : vstate :=
     match name with
      | [:: ] => s
-     | h::t => upd_argulist (SV.upd h (from_nat 1 (nth_bad (io_in h) ind))s) io_in t ind
+     | h::t => upd_argulist (SV.upd h (from_nat 1 (nth_bad (io_in h) ind)) s) io_in t ind
     end.
   
   Fixpoint clk_steps st rs s te io_in name clk_num : vstate :=
