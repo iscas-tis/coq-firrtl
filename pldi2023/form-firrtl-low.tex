@@ -28,14 +28,14 @@ Let $\gtypes$ denote the set of ground types, that is, $(\{UInt, SInt\} \times \
 For $t = (dt, wd) \in \{UInt, SInt\} \times \Nat$, we define the size of $t$, denoted by $sz(t)$, as $wd$.
 
 Let $M$ be a LoFIRRTL module in pseudo-SSA form. 
-Moreover, let $\ports(M)$ denote the set of ports in $M$, $\wires(M)$ denote the set of wires in $M$, $\nodes(M)$ denote the set of nodes in $M$, and $\registers(M)$ denote the set of registers in $M$. Moreover, we use $\varset(M)$ to denote the set of variables in $M$, that is, $\ports(M) \cup \wires(M) \cup \nodes(M) \cup \registers(M)$.
+Moreover, let $\iports(M)$ (resp. $\oports(M)$) denote the set of input (resp. output) ports of $M$,  $\ports(M) = \iports(M) \cup \oports(M)$, $\wires(M)$ denote the set of wires in $M$, $\nodes(M)$ denote the set of nodes in $M$, and $\registers(M)$ denote the set of registers in $M$. Moreover, we use $\varset(M)$ to denote the set of variables in $M$, that is, $\ports(M) \cup \wires(M) \cup \nodes(M) \cup \registers(M)$.
 
 A \emph{type environment} of $M$ is a function from $\varset(M)$ to $\gtypes$.
 A \emph{state} of $M$ is a function from $\varset(M)$ to $\bv \cup \{\bot\}$. A \emph{register state} $rs$ of $M$ is a function from $\varset(M)$ to $\bv \cup \{\bot\}$ such that $rs(v) = \bot$ for every $v \in \gtypes \setminus \registers(M)$. Note that $\bot$ is a special symbol denoting the fact that the value of a variable is not determined yet. 
 
 Then a \emph{configuration} of $M$ is defined as a triple $(te, s, rs)$, where $te$ is a type environment, $s$ is a state, and $rs$ is a register state. Intuitively, $te$ denotes the types of the variables, $s$ denotes the values of the variables in the beginning of the current clock cycle, and $rs$ denotes the new values of the registers in the beginning of the next clock cycle. 
 
-Then the operational semantics of each statement $st$ in $M$ is defined as a relation $(te, s, rs) \xrightarrow{st} (te', s', rs')$, which denotes that the execution of $st$ from a configuration $(te, s, rs)$ results into a configuration $(te', s', rs')$. The operational semantics of $M$ is then defined as the composition of the relations of statements in $M$. 
+Then the operational semantics of each statement $st$ in $M$ is defined as a relation $(te, s, rs) \xrightarrow{st} (te', s', rs')$, which denotes that the execution of $st$ from a configuration $(te, s, rs)$ results into a configuration $(te', s', rs')$. Moreover, the operational semantics of a sequence of statements is defined as the composition of the relations of statements therein. 
 
 The rules for the operational semantics of statements are presented in Table~\ref{tab:lofirrtl-sem}.
 
@@ -97,7 +97,6 @@ The rules for the operational semantics of statements are presented in Table~\re
   \label{tab:lofirrtl-sem}
 \end{table}
 
-\zhilin{$s(e)$ and $te(e)$ to be defined}
 
 $te(e)$ is defined as follows. 
 \begin{itemize}
@@ -152,6 +151,18 @@ $te(e)$ is defined as follows.
 %
 \end{itemize}
 
+\zhilin{$s(e)$ to be defined}
+
+
+An \emph{input trace} of $M$ of length $m$ is a function $it$ from $\iports(M)$ to $\bv$ such that $it(x)$ is a bit vector of length $m$ for every $x \in \iports(M)$.
+
+Let $M$ be a module where the sequence of statements is $st$, $it$  be an input trace of $M$ of length $m$. Then the semantics of a module $M$ with respect to $it$ is defined by the relations $(te, s, rs) \xrightarrow{M, it, j, m} (te', s', rs')$, which are defined below,
+\begin{itemize}
+\item if $j = 0$, then $(te, s, rs) \xrightarrow{M, it, j, m} (te, s, rs)$, 
+%
+\item otherwise, let $s_1$ be obtained from $s$ by assigning $it(x)[m-j+1]$ to $x$ for each $x \in \iports(M)$, if $(te, s_1, rs) \xrightarrow{st} (te'', s'', rs'')$ and $(te'', s'', rs'') \xrightarrow{M, it, j-1, m} (te', s', rs')$, then we have $(te, s, rs) \xrightarrow{M, it, j, m} (te', s', rs')$.
+\end{itemize}
+Intuitively, the relation $(te, s, rs) \xrightarrow{M, it, j, m} (te', s', rs')$ denotes that starting from the configuration $(te, s_1, rs)$, where $s_1$ is obtained from $s$ by replacing the values of the input ports with their values in the $(m-j+1)$-th clock cycle of the input trace $it$, after the execution of $M$ on $it$ for $j$ clock cycles, the configuration $(te', s', rs')$ will be generated. For instance, if $j=1$, then $s_1$ assigns to the input ports the values of the $m$-th clock cycle of $it$, and $(te, s_1, rs) \xrightarrow{st} (te'', s'', rs'')$ and $(te'', s'', rs'') = (te', s', rs')$.
 %$s(e)$ is defined as follows.
 %\begin{itemize}
 %\item 
