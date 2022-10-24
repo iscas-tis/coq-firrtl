@@ -680,12 +680,12 @@ Module MakeFirrtl
   Fixpoint clk_steps_tail_rec_aux st rs s te io_in name clk_num len:=
     match clk_num with
     | 0 => let s1 := upd_argulist s io_in name len in
-           let te1 := upd_typenv_fstmts st te s1 in
-           let (rs2, s2) := eval_fstmts st rs s1 te1 in s2
+           (*let te1 := upd_typenv_fstmts st te s1 in*)
+           let (rs2, s2) := eval_fstmts st rs s1 te in s2
     | S m => let n := len - S m in
              let s1 := upd_argulist s io_in name n in
-             let te1 := upd_typenv_fstmts st te s1 in
-             let (rs2, s2) := eval_fstmts st rs s1 te1 in
+             (*let te1 := upd_typenv_fstmts st te s1 in*)
+             let (rs2, s2) := eval_fstmts st rs s1 te in
              clk_steps_tail_rec_aux st rs2 s2 te1 io_in name m len
     end.
   
