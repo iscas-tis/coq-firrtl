@@ -16,5 +16,5 @@ Separate Extraction
          seq.catrev nat_of_int n_of_int int_of_nat int_of_n int_of_z
          NBitsDef.from_string NBitsDef.from_hex NBitsDef.from_bin
          NBitsDef.to_hex NBitsDef.to_nat NBitsDef.to_bin
-         (*LoFirrtl.run_fmodule eval_fm1*) clk_steps exampleinp.
+         (*LoFirrtl.run_fmodule eval_fm1 clk_steps exampleinp.*).
 Cd "../../..".
