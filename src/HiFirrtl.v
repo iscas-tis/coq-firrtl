@@ -98,6 +98,9 @@ Section HiFirrtl.
        | Qnil
        | Qcons : hfstmt -> hfstmt_seq -> hfstmt_seq.
 
+   Scheme hfstmt_seq_hfstmt_ind := Induction for hfstmt_seq Sort Prop
+   with hfstmt_hfstmt_seq_ind := Induction for hfstmt Sort Prop.
+
    Fixpoint Qhead (default : hfstmt) (s : hfstmt_seq) : hfstmt :=
    match s with Qnil => default
               | Qcons h tl => h end.
@@ -114,11 +117,10 @@ Section HiFirrtl.
 
 (* Fixpoint Qfoldl {R : Type} (f : R -> hfstmt -> R) (s : hfstmt_seq) (default : R) :=
    match s with Qnil => default
-              | Qcons h tl => Qfoldl f tl (f default h) end. *)
-
+              | Qcons h tl => Qfoldl f tl (f default h) end.
    Fixpoint Qfoldr {R : Type} (f : hfstmt -> R -> R) (default : R) (s : hfstmt_seq) :=
    match s with Qnil => default
-              | Qcons h tl => f h (Qfoldr f default tl) end.
+              | Qcons h tl => f h (Qfoldr f default tl) end. *)
 
   Inductive hfport : Type :=
   | Finput : var -> ftype -> hfport
@@ -4017,34 +4019,205 @@ Admitted.
       However, for the verification of correctness, it is easier to directly
       verify the map instead of the generated code. *)
 
-   Fixpoint definition_of_variable (ss_rev : hfstmt_seq) (v : href) : rhs_expr :=
+   Fixpoint definition_of_variable (ss : hfstmt_seq) (v : href) (default : rhs_expr) : rhs_expr :=
    (* This function looks up to which value v is connected in the code ss.
-      The sequence ss_rev is the reversed sequence of statements. *)
-   match ss_rev with
-   | Qnil => r_default (* r_default is an abbreviation of R_default V.T *)
-   | Qcons s t => match s with
-               | Sfcnct v0 e => if v == v0 then R_fexpr e else definition_of_variable t v
-               | Swhen c sst ssf => let true_result  := definition_of_variable sst v in
-                                    let false_result := definition_of_variable ssf v in
-                                    let earlier_result := definition_of_variable t v in
-                                    match true_result, false_result, earlier_result with
-                                    | R_default, R_default, _ => earlier_result
-                                    | R_fexpr t, R_fexpr f, _ => if t == f then true_result else R_fexpr (Emux c t f)
-                                    | R_fexpr t, R_default, R_fexpr e => if t == e then true_result else R_fexpr (Emux c t e)
-                                    | R_fexpr t, R_default, R_default => R_fexpr (Evalidif c t)
-                                    | R_default, R_fexpr f, R_fexpr e => if e == f then false_result else R_fexpr (Emux c e f)
-                                    | R_default, R_fexpr f, R_default => R_fexpr (Evalidif (Eprim_unop Unot c) f)
-                                    end
-               | _ => definition_of_variable t v
-               end
+      If no connection is found, the function returns default. *)
+   match ss with
+   | Qnil => default
+   | Qcons s tl => match s with
+                   | Swire v0 _ => definition_of_variable tl v (if v == (Eid v0) then r_default else default)
+                   | Sreg v0 _ => definition_of_variable tl v (if v == (Eid v0) then r_fexpr (Eref (Eid v0)) else default)
+                   | Sfcnct v0 e => definition_of_variable tl v (if v == v0 then r_fexpr e else default)
+                   | Swhen c sst ssf => let true_result  := definition_of_variable sst v default in
+                                        let false_result := definition_of_variable ssf v default in
+                                        match true_result, false_result with
+                                        | R_default, R_default => definition_of_variable tl v r_default
+                                        | R_fexpr t, R_fexpr f => definition_of_variable tl v (if t == f then true_result else r_fexpr (Emux c t f))
+                                        | R_fexpr t, R_default => definition_of_variable tl v (r_fexpr (Evalidif c t))
+                                        | R_default, R_fexpr f => definition_of_variable tl v (r_fexpr (Evalidif (Eprim_unop Unot c) f))
+                                       end
+                   | _ => definition_of_variable tl v default
+                   end
    end.
 
+   Definition expandWhen_var_sem (ss : hfstmt_seq) (ce : cenv) (cs : cstate) : Prop :=
+   (* Specification: cs contains the connects defined by ss in the context of ce. *)
+   forall v : href, SV.acc (expand_eref v ce) cs = definition_of_variable ss v r_default.
 
-  
+   Fixpoint expandWhen_precondition_ss (ss : hfstmt_seq) : Prop:=
+   (* Precondition of expandWhens: there are no instance statements, no aggregate types, and no partial connects *)
+   match ss with
+   | Qnil => True
+   | Qcons s tl => match s with
+                  | Spcnct _ _ => False
+                  | Sinst _ _ => False
+                  | Swire _ t => match t          with Gtyp _ => expandWhen_precondition_ss tl
+                                                     | _ => False end
+                  | Sreg _ r => match type r      with Gtyp _ => expandWhen_precondition_ss tl
+                                                     | _ => False end
+                  | Smem _ m => match data_type m with Gtyp _ => expandWhen_precondition_ss tl
+                                                     | _ => False end
+                  | _ => expandWhen_precondition_ss tl
+                  end
+   end.
 
-   Definition expandWhens_var_sem (ss : hfstmt_seq) (ce : cenv) (cs : cstate) : Prop :=
-   (* This should express that cs contains the connects defined by ss in the context of ce. *)
-   forall v : href, SV.acc (expand_eref v ce) cs = definition_of_variable (Qrev ss) v.
+   Definition expandWhen_precondition_ce (ce : cenv) : Prop :=
+   (* Precondition of expandWhens: all declared components have ground types *)
+   forall v : V.t, match CE.find v ce with
+                   | None => True (* no constraints on types of undeclared components *)
+                   | Some (t, c) => match type_of_cmpnttyp t with Gtyp _ => True (* declared components have ground types *)
+                                                                | _ => False end
+                   end.
+
+   Definition expandWhen_sem_conform_P (ss : hfstmt_seq) :=
+      expandWhen_precondition_ss ss ->
+      forall ce : cenv, expandWhen_precondition_ce ce ->
+                        expandWhen_var_sem ss ce (snd (expandWhen_fun ss ce)).
+   (* Actually need a more general formulation, something based on expandBranch_fun:
+      Given some cs, expandBranch_fun will expand cs with the definitions in ss. *)
+
+   Definition expandWhen_sem_conform_P0 (s : hfstmt) : Prop :=
+   match s with Swhen c sst ssf => expandWhen_sem_conform_P sst /\ expandWhen_sem_conform_P ssf
+              | _ => true end.
+
+   Lemma expandWhen_sem_conform : forall ss : hfstmt_seq, expandWhen_sem_conform_P ss.
+   Proof.
+   intro.
+   apply hfstmt_seq_hfstmt_ind with (P := expandWhen_sem_conform_P) (P0 := expandWhen_sem_conform_P0).
+   (* case Qnil / empty program *)
+   unfold expandWhen_sem_conform_P.
+   intros.
+   unfold expandWhen_var_sem, expandWhen_fun, expandBranch_fun, snd.
+   unfold Qrev, Qcatrev, definition_of_variable.
+   (* now need an axiom that states that the empy map only produces r_default. *)
+   admit.
+   (* case Qcons / concatenation of statements *)
+   intros.
+   unfold expandWhen_sem_conform_P.
+   intros.
+   unfold expandWhen_sem_conform_P in H0.
+   (* now I probably need to distinguish cases: if h is Sfcnct or Swhen,
+      need to do some work; otherwise, the resulting function does not change,
+      and we can apply the induction hypothesis. *)
+   induction h.
+   (* subcase Qcons Sskip _ *)
+   unfold expandWhen_var_sem, expandWhen_fun, expandBranch_fun.
+   fold expandBranch_fun.
+   unfold definition_of_variable.
+   fold definition_of_variable.
+   unfold expandWhen_var_sem, expandWhen_fun in H0.
+   apply H0.
+   unfold expandWhen_precondition_ss in H1.
+   fold expandWhen_precondition_ss in H1.
+   exact H1.
+   exact H2.
+   (* subcase Qcons (Swire _ _) _ *)
+   unfold expandWhen_var_sem, expandWhen_fun, expandBranch_fun.
+   unfold snd at 1.
+   fold expandBranch_fun.
+   unfold definition_of_variable.
+   fold definition_of_variable.
+   (* Now we need something about the distinction between an undeclared and undefined variable;
+      (and we need to change expandWhen_var_sem accordingly).
+      Xiaomu has added some code for that. *)
+   admit.
+   (* subcase Qcons (Sreg _ _) _ *)
+   unfold expandWhen_var_sem, expandWhen_fun, expandBranch_fun.
+   unfold snd at 1.
+   fold expandBranch_fun.
+   unfold definition_of_variable.
+   fold definition_of_variable.
+   (* Here we need the more general formulation of the semantics of expandBranch_fun. *)
+   admit.
+   (* subcase Qcons (Smem _ _) _ *)
+   unfold expandWhen_var_sem, expandWhen_fun, expandBranch_fun.
+   unfold snd at 1.
+   fold expandBranch_fun.
+   unfold definition_of_variable.
+   fold definition_of_variable.
+   unfold expandWhen_var_sem, expandWhen_fun in H0.
+   apply H0.
+   unfold expandWhen_precondition_ss in H1.
+   fold expandWhen_precondition_ss in H1.
+   induction (data_type h).
+   exact H1.
+   contradiction H1.
+   contradiction H1.
+   exact H2.
+   (* subcase Qcons (Sinst _ _) _ *)
+   contradiction H1.
+   (* subcase Qcons (Snode _ _) _ *)
+   unfold expandWhen_var_sem, expandWhen_fun, expandBranch_fun.
+   fold expandBranch_fun.
+   unfold definition_of_variable.
+   fold definition_of_variable.
+   unfold expandWhen_var_sem, expandWhen_fun in H0.
+   apply H0.
+   unfold expandWhen_precondition_ss in H1.
+   fold expandWhen_precondition_ss in H1.
+   exact H1.
+   exact H2.
+   (* subcase Qcons (Sfcnct _ _) _ *)
+   unfold expandWhen_var_sem, expandWhen_fun, expandBranch_fun.
+   fold expandBranch_fun.
+   unfold definition_of_variable.
+   fold definition_of_variable.
+   (* Here we need the more general formulation of the semantics of expandBranch_fun. *)
+   admit.
+   (* subcase Qcons (Spcnct _ _) _ *)
+   contradiction H1.
+   (* subcase Qcond (Sinvalid _) _ *)
+   unfold expandWhen_var_sem, expandWhen_fun, expandBranch_fun.
+   fold expandBranch_fun.
+   unfold definition_of_variable.
+   fold definition_of_variable.
+   unfold expandWhen_var_sem, expandWhen_fun in H0.
+   apply H0.
+   unfold expandWhen_precondition_ss in H1.
+   fold expandWhen_precondition_ss in H1.
+   exact H1.
+   exact H2.
+   (* subcase Scons (Swhen _ _ _) _ *)
+   unfold expandWhen_var_sem, expandWhen_fun, expandBranch_fun.
+   unfold snd at 1.
+   fold expandBranch_fun.
+   unfold definition_of_variable.
+   fold definition_of_variable.
+   (* It's complicated. *)
+   admit.
+   unfold expandWhen_var_sem, expandWhen_fun, expandBranch_fun.
+   fold expandBranch_fun.
+   unfold definition_of_variable.
+   fold definition_of_variable.
+   unfold expandWhen_var_sem, expandWhen_fun in H0.
+   apply H0.
+   unfold expandWhen_precondition_ss in H1.
+   fold expandWhen_precondition_ss in H1.
+   exact H1.
+   exact H2.
+   (* case Sskip *)
+   move => //.
+   (* case Swire _ _ *)
+   move => //.
+   (* case Sreg _ _ *)
+   move => //.
+   (* case Smem _ _ *)
+   move => //.
+   (* case Sinst _ _ *)
+   move => //.
+   (* case Snode _ _ *)
+   move => //.
+   (* case Sfcnct _ _ *)
+   move => //.
+   (* case Spcnct _ _ *)
+   move => //.
+   (* case Sinvalid _ _ *)
+   move => //.
+   (* case Swhen _ _ _ *)
+   move => //.
+   (* case Sstop _ _ _ *)
+   move => //.
+   Admitted.
 
 
   (** Semantics of declaim ports *)
