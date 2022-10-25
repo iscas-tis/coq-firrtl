@@ -817,8 +817,8 @@ Lemma resolveKinds_stmts_sem_conform :
 Proof.
   elim. intros. apply Resolve_stmts_nil.
   intros.
-  apply Resolve_stmts_cons with (resolveKinds_stmt_fun a ce0).
-  elim a; intros;try done.
+  apply Resolve_stmts_cons with (resolveKinds_stmt_fun h ce0).
+  elim h; intros;try done.
   - apply resolveKinds_sskip_sem_conform.
   - apply resolveKinds_swire_sem_conform.
   - apply resolveKinds_sreg_sem_conform.
@@ -831,7 +831,7 @@ Proof.
   - apply resolveKinds_swhen_sem_conform.
   - apply resolveKinds_sstop_sem_conform.
   rewrite /=.
-  apply (H (resolveKinds_stmt_fun a ce0)).
+  apply (H (resolveKinds_stmt_fun h ce0)).
   Qed.
 
 Lemma resolveKinds_inport_sem_conform :
