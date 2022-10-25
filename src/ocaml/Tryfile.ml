@@ -268,16 +268,16 @@ let myupdateo s2 omap l =
 let rec clk_steps_tail_rec_aux st rs s te io_in0 name ols clk_num len =
   (fun fO fS n -> if n=0 then fO () else fS (n-1))
     (fun _ ->
-    let s1 = upd_argulist s io_in0 name (len-1) in
+    (*let s1 = upd_argulist s io_in0 name (len-1) in
     (*let te1 = LoFirrtl.upd_typenv_fstmts st te s1 in*)(*更新te*)
-    let (_, s2) = LoFirrtl.eval_fstmts st rs s1 te in
+    let (_, s2) = LoFirrtl.eval_fstmts st rs s1 te in*)
     (*let temp = (match (Env.TE.vtyp (Obj.magic 5) te) with
     | Env.Fuint ss -> ss
     | Env.Fsint ss -> ss
     | Env.Fclock -> 0
     | Env.Freset -> 0
     | Env.Fasyncreset -> 0) in*)
-     (s2,io_in0))(*printf "%d\n" (Seq.size (Env.Store.acc (Obj.magic 7) s2) )*)
+     (s,io_in0))(*printf "%d\n" (Seq.size (Env.Store.acc (Obj.magic 7) s2) )*)
     (fun m ->
     let n = Ssrnat.subn len (m+1) in
     let s1 = upd_argulist s io_in0 name n in

@@ -494,7 +494,16 @@ Module MakeFirrtl
                                   | Fsint w => Fsint w
                                   | _ => TE.deftyp
                                   end
-                        | _ => type_of_fexpr e te
+                        | Uneg => match (type_of_fexpr e te) with
+                                  | Fuint w => Fsint (w + 1)
+                                  | Fsint w => Fsint (w + 1)
+                                  | _ => TE.deftyp
+                                  end
+                        | Unot => match (type_of_fexpr e te) with
+                                  | Fuint w => Fuint w
+                                  | Fsint w => Fuint w
+                                  | _ => TE.deftyp
+                                  end
                         end
     | Eprim_binop b e1 e2 => match b with
                              | Bdshl => match (type_of_fexpr e1 te) with
@@ -670,18 +679,20 @@ Module MakeFirrtl
      | h::t => upd_argulist (SV.upd h (from_nat 1 (nth_bad (io_in h) ind)) s) io_in t ind
     end.
   
+    (*
   Fixpoint clk_steps st rs s te io_in name clk_num : vstate :=
     match clk_num with
     | 0 => snd (eval_fstmts st rs s te)
     | S m => snd (eval_fstmts st rs (upd_argulist (clk_steps st rs s te io_in name m) io_in name m) te)
     end.
+    *)
   
   (* XM : tail recursive version *)
   Fixpoint clk_steps_tail_rec_aux st rs s te io_in name clk_num len:=
     match clk_num with
-    | 0 => let s1 := upd_argulist s io_in name len in
-           (*let te1 := upd_typenv_fstmts st te s1 in*)
-           let (rs2, s2) := eval_fstmts st rs s1 te in s2
+    | 0 => s(*let s1 := upd_argulist s io_in name len in
+           let te1 := upd_typenv_fstmts st te s1 in
+           let (rs2, s2) := eval_fstmts st rs s1 te in s2*)
     | S m => let n := len - S m in
              let s1 := upd_argulist s io_in name n in
              (*let te1 := upd_typenv_fstmts st te s1 in*)
