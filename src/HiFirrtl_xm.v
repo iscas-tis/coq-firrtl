@@ -270,6 +270,7 @@ Module Type StructStore (V : SsrOrder) (CE : CmpntEnv V with Module SE := V).
   Parameter t : Type.
   Parameter empty : t.
   Parameter map2 : (option value -> option value -> option value) -> t -> t -> t.
+  Parameter find : var -> t -> option value.
   Parameter acc : var -> t -> value.
   Parameter upd : var -> value -> t -> t.
   Parameter upd2 : var -> value -> var -> value -> t -> t.
@@ -334,7 +335,7 @@ Module MakeStructStore (V : SsrOrder) (CE : CmpntEnv V with Module SE := V) <:
   Module Lemmas := FMapLemmas CE.
   Definition map2 (f : option (rhs_expr V.T) -> option (rhs_expr V.T) -> option (rhs_expr V.T)) (s1 s2 : t) : t :=
     M.map2 f s1 s2.
-
+  Definition find (v: V.t) (s : t) := M.find v s.
 End MakeStructStore.
 
 Module StructState := MakeStructStore VarOrder CE.
