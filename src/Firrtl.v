@@ -679,9 +679,9 @@ Module MakeFirrtl
   (* XM : tail recursive version *)
   Fixpoint clk_steps_tail_rec_aux st rs s te io_in name clk_num len:=
     match clk_num with
-    | 0 => let s1 := upd_argulist s io_in name len in
-           (*let te1 := upd_typenv_fstmts st te s1 in*)
-           let (rs2, s2) := eval_fstmts st rs s1 te in s2
+    | 0 => s(*let s1 := upd_argulist s io_in name len in
+           let te1 := upd_typenv_fstmts st te s1 in
+           let (rs2, s2) := eval_fstmts st rs s1 te in s2*)
     | S m => let n := len - S m in
              let s1 := upd_argulist s io_in name n in
              (*let te1 := upd_typenv_fstmts st te s1 in*)
