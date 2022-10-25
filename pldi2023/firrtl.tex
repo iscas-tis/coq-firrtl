@@ -2,8 +2,10 @@
 
 %FIRRTL represents the standardized elaborated circuit that the Chisel HDL produces. 
 %FIRRTL represents the circuit immediately after Chisel's elaboration but before any circuit simplification. It is designed to resemble the Chisel HDL after all meta-programming has executed. Thus, a user program that makes little use of meta-programming facilities should look almost identical to the generated FIRRTL.
-%For this reason, 
-FIRRTL has first-class support for high-level constructs such as vector types, bundle types, conditional statements, partial connects, and modules. These high-level constructs are then gradually removed by a sequence of lowering transformations. During each lowering transformation, the circuit is rewritten into an equivalent circuit using simpler, lower-levelconstructs. Eventually the circuit is simplified to its most restricted form, resembling a structured netlist, which allows for easy translation to an output language (e.g. Verilog). This form is given the name lowered FIRRTL (LoFIRRTL) and is a strict subset of the full FIRRTL language. For clarity, the original form is called high FIRRTL (HiFIRRTL). 
+
+%For this reason, 
+FIRRTL has first-class support for high-level constructs such as vector types, bundle types, conditional statements, partial connects, and modules. These high-level constructs are then gradually removed by a sequence of lowering transformations. During each lowering transformation, the circuit is rewritten into an equivalent circuit using simpler, lower-level
+constructs. Eventually the circuit is simplified to its most restricted form, resembling a structured netlist, which allows for easy translation to an output language (e.g. Verilog). This form is given the name lowered FIRRTL (LoFIRRTL) and is a strict subset of the full FIRRTL language. For clarity, the original form is called high FIRRTL (HiFIRRTL). 
 
 The syntax of FIRRTL is given in Figure~\ref{fig-firrtl-synt}.  Note that the syntactic rules therein are in Extended Backus–Naur form, where $\{\cdots\}$ denotes repetition (possibly empty) and $[\cdots]$ denotes option, moreover, the terminals are doubly quoted. 
 \begin{figure}[t]
@@ -155,7 +157,14 @@ id & = & ( \mbox{``\_''} \mid letter), \{ \mbox{``\_''} \mid letter \mid digit\_
 Note that some special terminal symbols $newline$, $indent$, and $dedent$ are used to format FIRRTL programs. 
 
 A FIRRTL circuit is defined to be a valid LoFIRRTL circuit if it obeys the following restrictions:
-\begin{itemize}\item All widths must be explicitly defined.\item The conditional statement is not used.\item All components are connected to exactly once.\item All components must be declared with a ground type.\item The partial connect statement is not used.
+\begin{itemize}
+\item All widths must be explicitly defined.
+\item The conditional statement is not used.
+\item All components are connected to at most once.
+\item All components must be declared with a ground type.
+\item The partial connect statement is not used.
 \end{itemize}
+Intuitively, LoFIRRTL is in a flavor similar to static single-assignment (SSA) form of software programs. Programs in SSA form are those where each variable is assigned exactly once, and each variable is defined before it is used.
+
 Besides LoFIRRTL, there is another lowered form of FIRRTL, MidFIRRTL. Nevertheless, in this paper, we ignore MidFIRRTL, since there are no requirements in FIRRTL related to accepting or producing MidFIRRTL.
 

@@ -166,6 +166,42 @@ End MakeExprStore.
 
 Module EStore := MakeExprStore VarOrder TE.
 
+Module Natlist0. 
+Delimit Scope natlist_scope with natlist0.
+
+Inductive natlist : Type :=
+  | nil
+  | cons (n : nat) (l : natlist).
+Notation "[ x ; .. ; y ]" := (cons x .. (cons y nil) ..) (x at level 10, right associativity) : natlist0.
+Fixpoint nth_bad (l:natlist) (n:nat) : nat :=
+  match l with
+  | nil => 42
+  | cons a l' => match n with
+               | 0 => a
+               | S n' => nth_bad l' n'
+               end
+  end.
+
+Local Open Scope natlist0.
+
+Eval compute in nth_bad [1;2;3] 2.
+
+Definition in_map := N -> natlist.
+
+Definition eqb_N (x y : N) : bool :=
+  if x==y then true else false.
+Definition t_update (m : in_map) (x : N) (v : natlist) :=
+  fun x' => if eqb_N x x' then v else m x'.
+Definition t_empty (v : natlist) : in_map :=
+  (fun _ => v).
+
+Notation "'_' '!->' v" := (t_empty v)
+  (at level 100, right associativity) : natlist0.
+Notation "x '!->' v ';' m" := (t_update m x v)
+                              (at level 100, v at next level, right associativity) : natlist0.
+
+End Natlist0.
+
 Module MakeFirrtl
        (V : SsrOrder)
        (VS : SsrFSet with Module SE := V)
@@ -625,6 +661,37 @@ Module MakeFirrtl
       eval_fstmts tl rs1 s1 te1
     end.
 
+    Import Natlist0.
+    Local Open Scope natlist0.
+  
+  Fixpoint upd_argulist s io_in name ind : vstate :=
+    match name with
+     | [:: ] => s
+     | h::t => upd_argulist (SV.upd h (from_nat 1 (nth_bad (io_in h) ind)) s) io_in t ind
+    end.
+  
+  Fixpoint clk_steps st rs s te io_in name clk_num : vstate :=
+    match clk_num with
+    | 0 => snd (eval_fstmts st rs s te)
+    | S m => snd (eval_fstmts st rs (upd_argulist (clk_steps st rs s te io_in name m) io_in name m) te)
+    end.
+  
+  (* XM : tail recursive version *)
+  Fixpoint clk_steps_tail_rec_aux st rs s te io_in name clk_num len:=
+    match clk_num with
+    | 0 => let s1 := upd_argulist s io_in name len in
+           (*let te1 := upd_typenv_fstmts st te s1 in*)
+           let (rs2, s2) := eval_fstmts st rs s1 te in s2
+    | S m => let n := len - S m in
+             let s1 := upd_argulist s io_in name n in
+             (*let te1 := upd_typenv_fstmts st te s1 in*)
+             let (rs2, s2) := eval_fstmts st rs s1 te in
+             clk_steps_tail_rec_aux st rs2 s2 te io_in name m len
+    end.
+  
+  Definition clk_steps_tail_rec st rs s te ios nms nclk := clk_steps_tail_rec_aux st rs s te ios nms nclk nclk.
+  
+
   (********************************************************************************)
 
   (* Parallel evaluation *)
@@ -717,20 +784,6 @@ Module MakeFirrtl
     match m with
     | FInmod v ps ss => upd_typenv_fstmts ss (upd_typenv_fports ps te) s
     | _ => te
-    end.
-
-  Fixpoint run_fstmts (st : seq fstmt) (rs : vstate) (s : vstate) (te : TE.env) (n : nat) :=
-    match n with
-    | 0 => s
-    | S n => let (rs1, s1) := eval_fstmts st rs s te in
-             let te1 := upd_typenv_fstmts st te s in
-             run_fstmts st rs1 s1 te1 n
-    end.
-
-  Definition run_fmodule (m : fmodule) (s : vstate) (te : TE.env) (n : nat) : vstate :=
-    match m with
-    | FInmod v ps st => run_fstmts st SV.empty (eval_fports_init ps s) (upd_typenv_fports ps te) n
-    | _ => s
     end.
   
   (* fexpr eqn , TBD *)
@@ -862,70 +915,24 @@ Module MakeFirrtl
   
 End MakeFirrtl.
 
-  (* Record fmod_state : Type := *)
-  (* mk_state *)
-  (*   { *)
-  (*     fregs : seq freg; *)
-  (*     fmems : seq fmem *)
-  (*   }. *)
-
-(* TBD *)
-  (*Parameter eval_fstmt : fstate -> fstmt -> fstate.*)
+ 
 Module LoFirrtl := MakeFirrtl VarOrder VS VM TE Store EStore.
 
-
-
-
-
+(*
 Definition init_vm := VM.empty.
 Definition init_vs := VS.empty.
 Definition init_env : TE.env := TE.empty fgtyp.
 Definition init_store := Store.empty.
 
-
-Module Natlist0. 
-Delimit Scope natlist_scope with natlist0.
-
-Inductive natlist : Type :=
-  | nil
-  | cons (n : nat) (l : natlist).
-Notation "[ x ; .. ; y ]" := (cons x .. (cons y nil) ..) (x at level 10, right associativity) : natlist0.
-Fixpoint nth_bad (l:natlist) (n:nat) : nat :=
-  match l with
-  | nil => 42
-  | cons a l' => match n with
-               | 0 => a
-               | S n' => nth_bad l' n'
-               end
-  end.
-
-Local Open Scope natlist0.
-
-Eval compute in nth_bad [1;2;3] 2.
-
-Definition in_map := N -> natlist.
-
-Definition eqb_N (x y : N) : bool :=
-  if x==y then true else false.
-Definition t_update (m : in_map) (x : N) (v : natlist) :=
-  fun x' => if eqb_N x x' then v else m x'.
-Definition t_empty (v : natlist) : in_map :=
-  (fun _ => v).
-
-Notation "'_' '!->' v" := (t_empty v)
-  (at level 100, right associativity) : natlist0.
-Notation "x '!->' v ';' m" := (t_update m x v)
-                              (at level 100, v at next level, right associativity) : natlist0.
-
-End Natlist0.
-
 Section clksExamples.
   
   Import LoFirrtl.
+  Import Natlist0.
+  Local Open Scope natlist0.
 
   (*Eval compute in (from_nat 1 1).
 Eval compute in (from_nat 1 0).
-Eval compute in (from_nat 2 3).*)
+Eval compute in (from_nat 2 3).
 
   (*clk rst in*)
   Definition l_in := [:: (cons (from_nat 1 0) (cons (from_nat 1 0)(cons (from_nat 1 0) nil))); (cons (from_nat 1 0) (cons (from_nat 1 0)(cons (from_nat 1 0) nil)))].
@@ -936,7 +943,7 @@ Eval compute in (from_nat 2 3).*)
   Eval compute in (cons (from_nat 1 0) (cons (from_nat 1 0)(cons (from_nat 1 0) nil))).
   Eval compute in lastd (cons (from_nat 1 0) (cons (from_nat 1 0)(cons (from_nat 1 0) nil))).
 
-  (*Require Export Coq.Strings.String.
+  Require Export Coq.Strings.String.
 Definition total_map (A : Type) := string -> A.
 Definition eqb_string (x y : string) : bool :=
   if string_dec x y then true else false.
@@ -955,10 +962,8 @@ Definition examplemap' :=
     "foo" !-> true;
     _ !-> false
   ).
-   (*Eval compute in (examplemap' "bar").*)*)
-
-
-
+   Eval compute in (examplemap' "bar").
+   *)
 
   Definition st0 := Store.empty.
   Definition rs0 := Store.empty.
@@ -966,8 +971,8 @@ Definition examplemap' :=
   Definition Accumulator := VarOrder.default. 
   Definition accumulator := VarOrder.succ Accumulator.
   Definition io_out := VarOrder.succ accumulator.
-  Definition io_in := VarOrder.succ io_out.
-  Definition _T_11 := VarOrder.succ io_in.
+  Definition io_in0 := VarOrder.succ io_out.
+  Definition _T_11 := VarOrder.succ io_in0.
   Definition _T_12 := VarOrder.succ _T_11.
   Definition clk := VarOrder.succ _T_12.
   Definition rst1 := VarOrder.succ clk.
@@ -975,10 +980,10 @@ Definition examplemap' :=
    
   Definition fpts_64 := [::(Finput clk Fclock);
                      (Finput rst1 (Fuint 1));
-                     (Finput io_in (Fsint 64));
+                     (Finput io_in0 (Fsint 64));
                      (Foutput io_out (Fuint 64))].
   Definition te1_64 := upd_typenv_fports fpts_64 te0. 
-  Definition st1_64 := Store.upd clk [::b0] (Store.upd rst1 [::b0] (Store.upd io_in (from_Z 64 0) (Store.upd io_out (from_nat 64 0) st0))).
+  Definition st1_64 := Store.upd clk [::b0] (Store.upd rst1 [::b0] (Store.upd io_in0 (from_Z 64 0) (Store.upd io_out (from_nat 64 0) st0))).
   Definition rs1_64 := (Store.upd accumulator (from_nat 9 0) rs0).
   Compute (st1_64).
   Definition fst1_64 := sreg (mk_freg accumulator (Fuint 8) (eref clk)
@@ -989,17 +994,17 @@ Definition examplemap' :=
   
   Definition fpts := [::(Finput clk Fclock);
                      (Finput rst1 (Fuint 1));
-                     (Finput io_in (Fsint 2));
+                     (Finput io_in0 (Fsint 2));
                      (Foutput io_out (Fsint 8))].
   Definition te1 := upd_typenv_fports fpts te0. 
-  Definition st1 := Store.upd clk [::b0] (Store.upd rst1 [::b0] (Store.upd io_in (from_Z 2 (-1)) (Store.upd io_out (from_nat 8 0) st0))).
+  Definition st1 := Store.upd clk [::b0] (Store.upd rst1 [::b0] (Store.upd io_in0 (from_Z 2 (-1)) (Store.upd io_out (from_nat 8 0) st0))).
   Definition rs1 := (Store.upd accumulator (from_nat 9 0) rs0).
   Definition fst1 := sreg (mk_freg accumulator (Fsint 8) (eref clk)
                                    (rrst (econst (Fuint 1) [::b0]) (eref accumulator))).
   Definition te2 := upd_typenv_fstmt fst1 te1 st1.
   Definition st2 := eval_fstmt fst1 rs0 st1 te0.
 
-  Definition fst2 := (snode _T_11 (eprim_binop Badd (eref accumulator) (eref io_in))).
+  Definition fst2 := (snode _T_11 (eprim_binop Badd (eref accumulator) (eref io_in0))).
   Definition te3 := let (rs2, sst2) := st2 in upd_typenv_fstmt fst2 te2 sst2.
   Definition st3 := let (rs2, sst2) := st2 in eval_fstmt fst2 rs2 sst2 te3.
 
@@ -1018,70 +1023,22 @@ Definition examplemap' :=
   Definition fst6 := sskip.
   Definition te7 := let (rs6, sst6) := st6 in upd_typenv_fstmt fst6 te6 sst6.
   Definition st7 := let (rs6, sst6) := st6 in eval_fstmt fst6 rs6 sst6 te7.
-
-  Definition st' := run_fstmts [::fst1;fst2;fst3;fst4;fst5;fst6] rs0 st1 te1 9. 
-  Compute (Store.acc io_out st'). Compute (TE.vtyp _T_12 te7).
-  
-  Import Natlist0.
-  Local Open Scope natlist0.
   
 Definition exampleinp :=
   ( rst1 !-> [1;1;1;0;0;1;0];
-    io_in !-> [1;1;1;1;1;1;1];
+    io_in0 !-> [1;1;1;1;1;1;1];
     _ !-> nil
   ).
 
   Eval compute in exampleinp rst1.
   Eval compute in nth_bad (exampleinp rst1) 2.
 
-Fixpoint upd_argulist (s: Store.t) (io_in: N -> natlist) (name: list N) (ind: nat): Store.t :=
-  match name with
-   | [:: ] => s
-   | h::t => upd_argulist (Store.upd h (from_nat 1 (nth_bad (io_in h) ind))s) io_in t ind
-  end.
-
-Fixpoint clk_steps (st : seq fstmt) (rs : Store.t) (s : Store.t) (te : TE.env) (io_in: N -> natlist) (name:list N) (clk_num: nat) : Store.t :=
-  match clk_num with
-  | 0 => snd (eval_fstmts st rs s te)
-  | S m => snd (eval_fstmts st rs (upd_argulist (clk_steps st rs s te io_in name m) io_in name m) te)
-  end.
-
-(* XM : tail recursive version *)
-Fixpoint clk_steps_tail_rec_aux (st : seq fstmt) (rs : Store.t) s te (io_in: N -> natlist) (name:list N) (clk_num: nat) len:=
-  match clk_num with
-  | 0 => let s1 := upd_argulist s io_in name len in
-         let te1 := upd_typenv_fstmts st te s1 in
-         let (rs2, s2) := eval_fstmts st rs s1 te1 in s2
-  | S m => let n := len - S m in
-           let s1 := upd_argulist s io_in name n in
-           let te1 := upd_typenv_fstmts st te s1 in
-           let (rs2, s2) := eval_fstmts st rs s1 te1 in
-           clk_steps_tail_rec_aux st rs2 s2 te1 io_in name m len
-  end.
-
-Definition clk_steps_tail_rec st rs s te ios nms nclk := clk_steps_tail_rec_aux st rs s te ios nms nclk nclk.
-
-Compute (Store.acc accumulator (clk_steps_tail_rec [::fst1;fst2;fst3;fst4;fst5;fst6] rs1 st0 te1 exampleinp [:: rst1; io_in] 5)).
-(*  Fixpoint run_fstmts (st : seq fstmt) (rs : vstate) (s : vstate) (te : TE.env) (n : nat) :=
-    match n with
-    | 0 => s
-    | S n => let (rs1, s1) := eval_fstmts st rs s te in
-             let te1 := upd_typenv_fstmts st te s in
-             run_fstmts st rs1 s1 te1 n
-    end.*)
-
-(*fst1: (Store.upd clk [::b0] (Store.upd rst1 [::b0] (Store.upd io_in [::b0] (Store.upd io_out (from_nat 8 0) st0))).)
-  st: [::fst1;fst2;fst3;fst4;fst5;fst6] *)
-
-  Compute (Store.acc accumulator (fst (eval_fstmts [::fst1;fst2;fst3;fst4;fst5;fst6] rs0 st1 te1))).
+Compute (Store.acc accumulator (clk_steps_tail_rec [::fst1;fst2;fst3;fst4;fst5;fst6] rs1 st0 te1 exampleinp [:: rst1; io_in0] 5)).
+Compute (Store.acc accumulator (fst (eval_fstmts [::fst1;fst2;fst3;fst4;fst5;fst6] rs0 st1 te1))).
  
-  (*Compute (Store.acc accumulator (clk_steps [::fst1;fst2;fst3;fst4;fst5;fst6] st1 te1 l_in  io_in)).*)
-
-
 End clksExamples.
 
 
-(*
 Section Examples.
   Import LoFirrtl.
   

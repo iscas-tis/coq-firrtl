@@ -35,6 +35,19 @@ Section HiFirrtl.
   | Esubaccess : href -> hfexpr -> href (* HiFirrtl *)
   .
 
+  (** equality of hfexpr and href are decidable *)
+  Axiom hfexpr_eq_dec : forall {x y : hfexpr}, {x = y} + {x <> y}.
+  Parameter hfexpr_eqn : forall (x y : hfexpr), bool.
+  Axiom hfexpr_eqP : Equality.axiom hfexpr_eqn.
+  Canonical hfexpr_eqMixin := EqMixin hfexpr_eqP.
+  Canonical hfexpr_eqType := Eval hnf in EqType hfexpr hfexpr_eqMixin.
+
+  Axiom href_eq_dec : forall {x y : href}, {x = y} + {x <> y}.
+  Parameter href_eqn : forall (x y : href), bool.
+  Axiom href_eqP : Equality.axiom href_eqn.
+  Canonical href_eqMixin := EqMixin href_eqP.
+  Canonical href_eqType := Eval hnf in EqType href href_eqMixin.
+
   (****** Statements ******)
 
   Record hfmem : Type :=
@@ -74,14 +87,38 @@ Section HiFirrtl.
   | Spcnct : href -> hfexpr -> hfstmt
   | Sinvalid : href -> hfstmt
   (* | Sattach : seq var -> fstmt *)
-  | Swhen : hfexpr -> seq hfstmt -> seq hfstmt -> hfstmt
+  | Swhen : hfexpr -> hfstmt_seq -> hfstmt_seq -> hfstmt
   | Sstop : hfexpr -> hfexpr -> nat -> hfstmt
   (* | Sprintf (* TBD *) *)
   (* | Sassert (* TBD *) *)
   (* | Sassume (* TBD *) *)
   (* | Sdefname : var -> fstmt *) (* TBD *)
   (* | Sparam : var -> fexpr -> fstmt *) (* TBD *)
-  .
+  with hfstmt_seq : Type :=
+       | Qnil
+       | Qcons : hfstmt -> hfstmt_seq -> hfstmt_seq.
+
+   Fixpoint Qhead (default : hfstmt) (s : hfstmt_seq) : hfstmt :=
+   match s with Qnil => default
+              | Qcons h tl => h end.
+
+   Fixpoint Qcat (s1 s2 : hfstmt_seq) : hfstmt_seq :=
+   match s1 with Qnil => s2
+               | Qcons h1 tl1 => Qcons h1 (Qcat tl1 s2) end.
+
+   Fixpoint Qcatrev (s1 s2 : hfstmt_seq) : hfstmt_seq := (* calculates the reversal of s1, followed by s2 *)
+   match s1 with Qnil => s2
+               | Qcons h1 tl1 => Qcatrev tl1 (Qcons h1 s2) end.
+
+   Definition Qrev (s : hfstmt_seq) : hfstmt_seq := Qcatrev s Qnil.
+
+(* Fixpoint Qfoldl {R : Type} (f : R -> hfstmt -> R) (s : hfstmt_seq) (default : R) :=
+   match s with Qnil => default
+              | Qcons h tl => Qfoldl f tl (f default h) end. *)
+
+   Fixpoint Qfoldr {R : Type} (f : hfstmt -> R -> R) (default : R) (s : hfstmt_seq) :=
+   match s with Qnil => default
+              | Qcons h tl => f h (Qfoldr f default tl) end.
 
   Inductive hfport : Type :=
   | Finput : var -> ftype -> hfport
@@ -89,8 +126,8 @@ Section HiFirrtl.
   .
 
   Inductive hfmodule : Type :=
-  | FInmod : var -> seq hfport -> seq hfstmt -> hfmodule
-  | FExmod : var -> seq hfport -> seq hfstmt -> hfmodule
+  | FInmod : var -> seq hfport -> hfstmt_seq -> hfmodule
+  | FExmod : var -> seq hfport -> hfstmt_seq -> hfmodule
 (* DNJ: External modules do not contain statements but only an interface.
 They may contain the following special statements:
 one “defname = ...” (to set the Verilog name)
@@ -260,6 +297,7 @@ Module Type StructStore (V : SsrOrder) (CE : CmpntEnv V with Module SE := V).
   Local Notation value := (rhs_expr V.T).
 
   Parameter t : Type.
+  Parameter empty : t.
   Parameter map2 : (option value -> option value -> option value) -> t -> t -> t.
   Parameter acc : var -> t -> value.
   Parameter upd : var -> value -> t -> t.
@@ -361,6 +399,9 @@ Module MakeHiFirrtl
   Definition href := href V.T.
 
   Definition hfstmt := hfstmt V.T.
+  Definition hfstmt_seq := hfstmt_seq V.T.
+  Definition qnil := Qnil V.T.
+(*Definition qcons s ss := @Qcons V.T s ss.*)
   Definition sskip := @Sskip V.T.
   Definition swire v t := @Swire V.T v t.
   Definition sreg v r := @Sreg V.T v r.
@@ -572,19 +613,20 @@ Module MakeHiFirrtl
   (* Resolve component kind from statement, init with unknown type *)
   Inductive resolveKinds_stmt : hfstmt -> cenv -> cenv -> Prop :=
   | Resolve_wire v t (ce : cenv) (ce' : cenv) :
-      CELemmas.P.Add v (unknown_typ, Wire) ce ce' ->
+      CE.find v ce' = Some (unknown_typ, Wire) ->
       resolveKinds_stmt (swire v t) ce ce'
   | Resolve_reg v r ce ce' :
-      CELemmas.P.Add v (unknown_typ, Register) ce ce' ->
+      CE.find v ce' = Some (unknown_typ, Register) ->
       resolveKinds_stmt (sreg v r) ce ce'
   | Resolve_inst v1 v2 ce ce' :
-      CELemmas.P.Add v1 (unknown_typ, Instanceof) ce ce' ->
+  (*~~ (v1 == v2) ->*)
+      CE.find v1 ce' = Some (unknown_typ, Instanceof) ->
       resolveKinds_stmt (sinst v1 v2) ce ce'
   | Resolve_node v e ce ce' :
-      CELemmas.P.Add v (unknown_typ, Node) ce ce' ->
+      CE.find v ce' = Some (unknown_typ, Node) ->
       resolveKinds_stmt (snode v e) ce ce'
   | Resolve_mem v m ce ce' :
-      CELemmas.P.Add v (unknown_typ, Memory) ce ce' ->
+      CE.find v ce' = Some (unknown_typ, Memory) ->
       resolveKinds_stmt (smem v m) ce ce'
   | Resolve_invalid v ce :
       resolveKinds_stmt (sinvalid v) ce ce
@@ -602,20 +644,20 @@ Module MakeHiFirrtl
       resolveKinds_stmt (sstop e1 e2 n) ce ce
   .
 
-  Inductive resolveKinds_stmts : seq hfstmt -> cenv -> cenv -> Prop :=
+  Inductive resolveKinds_stmts : hfstmt_seq -> cenv -> cenv -> Prop :=
   | Resolve_stmts_nil ce :
-      resolveKinds_stmts [::] ce ce
+      resolveKinds_stmts qnil ce ce
   | Resolve_stmts_cons s ss ce ce' ce'' :
       resolveKinds_stmt s ce ce' ->
       resolveKinds_stmts ss ce' ce'' ->
-      resolveKinds_stmts (s::ss) ce ce''.
+    resolveKinds_stmts (Qcons s ss) ce ce''.
 
   Inductive resolveKinds_port : hfport -> CE.env -> CE.env -> Prop :=
   | Resolve_input v t ce ce' :
-      CELemmas.P.Add v (unknown_typ, In_port) ce ce' ->
+      CE.find v ce' = Some (unknown_typ, In_port) ->
       resolveKinds_port (Finput v t) ce ce'
   | Resolve_output v t ce ce' :
-      CELemmas.P.Add v (unknown_typ, Out_port) ce ce' ->
+      CE.find v ce' = Some (unknown_typ, Out_port) ->
       resolveKinds_port (Foutput v t) ce ce'
   .
 
@@ -629,11 +671,11 @@ Module MakeHiFirrtl
 
   Inductive resolveKinds_module : hfmodule -> CE.env -> CE.env -> Prop :=
   | Resolves_inmod vm ps ss ce ce' :
-      CELemmas.P.Add vm (unknown_typ, Fmodule) ce ce' ->
-      resolveKinds_module (hfinmod vm ps ss) ce ce
+      CE.find vm ce' = Some (unknown_typ, Fmodule) ->
+      resolveKinds_module (hfinmod vm ps ss) ce ce'
   | Resolves_exmod vm ps ss ce ce' :
-      CELemmas.P.Add vm (unknown_typ, Fmodule) ce ce' ->
-      resolveKinds_module (hfexmod vm ps ss) ce ce
+      CE.find vm ce' = Some (unknown_typ, Fmodule) ->
+      resolveKinds_module (hfexmod vm ps ss) ce ce'
   .
 
   Inductive resolveKinds_modules : seq hfmodule -> CE.env -> CE.env -> Prop :=
@@ -642,7 +684,7 @@ Module MakeHiFirrtl
   | Resolve_modules_cons p ps ce ce' ce'' :
       resolveKinds_module p ce ce' ->
       resolveKinds_modules ps ce' ce'' ->
-      resolveKinds_modules (p::ps) ce ce''.
+      resolveKinds_modules (p :: ps) ce ce''.
 
   Definition resolveKinds_stmt_fun st ce :=
     match st with
@@ -655,10 +697,10 @@ Module MakeHiFirrtl
     | Skip => ce
     end.
 
-  Fixpoint resolveKinds_stmts_fun sts ce : CE.env := (*fold_right resolveKinds_stmt_fun ce sts.*)
+  Fixpoint resolveKinds_stmts_fun (sts : hfstmt_seq) ce : CE.env := (*fold_right resolveKinds_stmt_fun ce sts.*)
     match sts with
-    | nil => ce
-    | s :: stl => resolveKinds_stmts_fun stl (resolveKinds_stmt_fun s ce)
+    | Qnil => ce
+    | Qcons s stl => resolveKinds_stmts_fun stl (resolveKinds_stmt_fun s ce)
     end.
 
   Definition resolveKinds_port_fun p ce :=
@@ -691,26 +733,23 @@ Module MakeHiFirrtl
     resolveKinds_stmt (Snode v e) ce0 (resolveKinds_stmt_fun (Snode v e) ce0).
 Proof.
   intros. apply Resolve_node.
-  rewrite /resolveKinds_stmt_fun.
-  done.
-Qed.
+  rewrite /resolveKinds_stmt_fun /CE.add_fst (CELemmas.add_eq_o _ _ (eq_refl v)) //.
+  Qed.
 
 Lemma resolveKinds_sreg_sem_conform :
   forall v e ce0 ,
   resolveKinds_stmt (Sreg v e) ce0 (resolveKinds_stmt_fun (Sreg v e) ce0).
 Proof.
   intros. apply Resolve_reg.
-  rewrite /resolveKinds_stmt_fun.
-  done.
-Qed.
+  rewrite /resolveKinds_stmt_fun /CE.add_fst (CELemmas.add_eq_o _ _ (eq_refl v)) //.
+  Qed.
 
 Lemma resolveKinds_smem_sem_conform :
   forall v e ce0 ,
   resolveKinds_stmt (Smem v e) ce0 (resolveKinds_stmt_fun (Smem v e) ce0).
 Proof.
   intros. apply Resolve_mem.
-  rewrite /resolveKinds_stmt_fun.
-  done.
+  rewrite /resolveKinds_stmt_fun /CE.add_fst (CELemmas.add_eq_o _ _ (eq_refl v)) //.
 Qed.
 
 Lemma resolveKinds_sinvalid_sem_conform :
@@ -761,26 +800,25 @@ Lemma resolveKinds_swire_sem_conform :
 Proof.
   intros. apply Resolve_wire.
   rewrite /resolveKinds_stmt_fun.
-  done.
+  rewrite (CELemmas.add_eq_o _ _ (eq_refl v)) //.
 Qed.
-  
+
 Lemma resolveKinds_sinst_sem_conform :
   forall v1 v2 ce0 ,
   resolveKinds_stmt (Sinst v1 v2) ce0 (resolveKinds_stmt_fun (Sinst v1 v2) ce0).
 Proof.
   intros. apply Resolve_inst.
-  rewrite /resolveKinds_stmt_fun.
-  done.
+  rewrite /resolveKinds_stmt_fun /CE.add_fst (CELemmas.add_eq_o _ _ (eq_refl v1)) //.
 Qed.
 
-Lemma resolveKinds_stmts_sem_conform : 
+Lemma resolveKinds_stmts_sem_conform :
   forall sts ce0 ,
   resolveKinds_stmts sts ce0 (resolveKinds_stmts_fun sts ce0).
 Proof.
   elim. intros. apply Resolve_stmts_nil.
   intros.
-  apply Resolve_stmts_cons with (resolveKinds_stmt_fun a ce0).
-  elim a; intros;try done.
+  apply Resolve_stmts_cons with (resolveKinds_stmt_fun h ce0).
+  elim h; intros;try done.
   - apply resolveKinds_sskip_sem_conform.
   - apply resolveKinds_swire_sem_conform.
   - apply resolveKinds_sreg_sem_conform.
@@ -793,7 +831,7 @@ Proof.
   - apply resolveKinds_swhen_sem_conform.
   - apply resolveKinds_sstop_sem_conform.
   rewrite /=.
-  apply (H (resolveKinds_stmt_fun a ce0)).
+  apply (H (resolveKinds_stmt_fun h ce0)).
   Qed.
 
 Lemma resolveKinds_inport_sem_conform :
@@ -802,6 +840,7 @@ Lemma resolveKinds_inport_sem_conform :
   Proof.
     intros.
     apply Resolve_input; try done.
+    rewrite /resolveKinds_port_fun /CE.add_fst (CELemmas.add_eq_o _ _ (eq_refl v)) //.
     Qed.
 
 Lemma resolveKinds_outport_sem_conform :
@@ -810,9 +849,10 @@ Lemma resolveKinds_outport_sem_conform :
   Proof.
     intros.
     apply Resolve_output; try done.
+    rewrite /resolveKinds_port_fun /CE.add_fst (CELemmas.add_eq_o _ _ (eq_refl v)) //.
     Qed.
 
-Lemma resolveKinds_ports_sem_conform : 
+Lemma resolveKinds_ports_sem_conform :
   forall ps ce0 ,
     resolveKinds_ports ps ce0 (resolveKinds_ports_fun ps ce0).
   Proof.
@@ -831,12 +871,34 @@ forall vm ps ss ce,
   resolveKinds_module (FInmod vm ps ss) ce (resolveKinds_module_fun (FInmod vm ps ss) ce).
 Proof.
   intros.
+  apply Resolves_inmod.
   rewrite /resolveKinds_module_fun.
-  (*apply Resolves_inmod.*)
+  rewrite /CE.add_fst (CELemmas.add_eq_o _ _ (eq_refl vm)) //.
+Qed.
 
-Admitted.
+Lemma resolveKinds_exmod_sem_conform :
+forall vm ps ss ce,
+  resolveKinds_module (FExmod vm ps ss) ce (resolveKinds_module_fun (FExmod vm ps ss) ce).
+Proof.
+  intros.
+  apply Resolves_exmod.
+  rewrite /resolveKinds_module_fun.
+  rewrite /CE.add_fst (CELemmas.add_eq_o _ _ (eq_refl vm)) //.
+Qed.
 
-(* mods *)
+Lemma resolveKinds_mods_sem_conform :
+forall ms ce0 ,
+  resolveKinds_modules ms ce0 (resolveKinds_modules_fun ms ce0).
+Proof.
+    elim. intros. apply Resolve_modules_nil.
+    intros.
+    apply Resolve_modules_cons with (resolveKinds_module_fun a ce0).
+    elim a; intros;try done.
+    - apply resolveKinds_inmod_sem_conform.
+    - apply resolveKinds_exmod_sem_conform.
+    rewrite /=.
+    apply (H (resolveKinds_module_fun a ce0)).
+    Qed.
 
   (** decide the type and width of hifirrtl expressions *)
 
@@ -1029,21 +1091,21 @@ Admitted.
                                 | _, _ => def_ftype
                                 end
     | Eprim_binop Bdiv e1 e2
-    (* | Eprim_binop Bsdiv e1 e2 *) => let t1 := type_of_hfexpr e1 ce in
-                                 let t2 := type_of_hfexpr e2 ce in
-                                 match t1, t2 with
-                                 | Gtyp (Fuint w1), Gtyp (Fuint w2) => Gtyp (Fuint w1)
-                                 | Gtyp (Fsint w1), Gtyp (Fsint w2) => Gtyp (Fsint (w1 + 1))
-                                 | _, _ => def_ftype
-                                 end
+    (* | Eprim_binop Bsdiv e1 e2 => let t1 := type_of_hfexpr e1 ce in *)
+    (*                              let t2 := type_of_hfexpr e2 ce in *)
+    (*                              match t1, t2 with *)
+    (*                              | Gtyp (Fuint w1), Gtyp (Fuint w2) => Gtyp (Fuint w1) *)
+    (*                              | Gtyp (Fsint w1), Gtyp (Fsint w2) => Gtyp (Fsint (w1 + 1)) *)
+    (*                              | _, _ => def_ftype *)
+    (*                              end *)
     | Eprim_binop Brem e1 e2
-    (* | Eprim_binop Bsrem e1 e2 *) => let t1 := type_of_hfexpr e1 ce in
-                                 let t2 := type_of_hfexpr e2 ce in
-                                 match t1, t2 with
-                                 | Gtyp (Fuint w1), Gtyp (Fuint w2) => Gtyp (Fuint (minn w1 w2))
-                                 | Gtyp (Fsint w1), Gtyp (Fsint w2) => Gtyp (Fsint (minn w1 w2))
-                                 | _, _ => def_ftype
-                                 end
+    (* | Eprim_binop Bsrem e1 e2 => let t1 := type_of_hfexpr e1 ce in *)
+    (*                              let t2 := type_of_hfexpr e2 ce in *)
+    (*                              match t1, t2 with *)
+    (*                              | Gtyp (Fuint w1), Gtyp (Fuint w2) => Gtyp (Fuint (minn w1 w2)) *)
+    (*                              | Gtyp (Fsint w1), Gtyp (Fsint w2) => Gtyp (Fsint (minn w1 w2)) *)
+    (*                              | _, _ => def_ftype *)
+    (*                              end *)
     | Eprim_binop Bdshl e1 e2 => let t1 := type_of_hfexpr e1 ce in
                                  let t2 := type_of_hfexpr e2 ce in
                                  match t1, t2 with
@@ -1153,15 +1215,15 @@ Admitted.
      | _ => false
      end.
 
-  Inductive inferType_stmts : seq hfstmt -> cenv -> cenv -> Prop :=
-  | Infertype_stmts_nil ce : 
-      inferType_stmts [::] ce ce 
-  | Infertype_stmts_con s ss ce ce' ce'' : 
-      inferType_stmt s ce ce' -> 
-      inferType_stmts ss ce' ce'' -> 
-      inferType_stmts (s::ss) ce ce''.
+  Inductive inferType_stmts : hfstmt_seq -> cenv -> cenv -> Prop :=
+  | Infertype_stmts_nil ce :
+      inferType_stmts qnil ce ce
+  | Infertype_stmts_con s ss ce ce' ce'' :
+      inferType_stmt s ce ce' ->
+      inferType_stmts ss ce' ce'' ->
+      inferType_stmts (Qcons s ss) ce ce''.
 
-  (*Inductive inferType_stmts : seq hfstmt -> cenv -> cenv -> Prop :=
+  (*Inductive inferType_stmts : hfstmt_seq -> cenv -> cenv -> Prop :=
   | Infertype_stmts_know ss ce ce' :
       (exists v,
                  ~~ find_unknown v ce') ->
@@ -1170,12 +1232,10 @@ Admitted.
   (* infer type according to ports declaration *)
   Inductive inferType_port : hfport -> cenv -> cenv -> Prop :=
   | Infertype_inport v t ce ce' :
-      CE.find v ce = None ->
-      ce' = CE.add v (aggr_typ t, In_port) ce ->
+      CE.find v ce' = Some (aggr_typ t, In_port) ->
       inferType_port (Finput v t) ce ce'
   | Infertype_outport v t ce ce' :
-      CE.find v ce = None ->
-      ce' = CE.add v (aggr_typ t, Out_port) ce ->
+      CE.find v ce' = Some (aggr_typ t, Out_port) ->
       inferType_port (Foutput v t) ce ce'.
 
   Inductive inferType_ports : seq hfport -> cenv -> cenv -> Prop :=
@@ -1204,12 +1264,21 @@ Admitted.
 
   (* infer type of module according to ports declaration *)
   Inductive inferType_module : hfmodule -> cenv -> cenv -> Prop :=
-  | infertype_inmod vm ps ss ce ce' :
+  | infertype_inmod vm ps ss ce ce' ce1 ce2 :
       CE.find vm ce' = Some (aggr_typ (inst_type_of_ports' ps), Fmodule) ->
-      inferType_module (hfinmod vm ps ss) ce ce'
+      inferType_ports ps ce' ce1 -> inferType_stmts ss ce1 ce2 ->
+      inferType_module (FInmod vm ps ss) ce ce2
   | infertype_exmod vm ps ss ce ce' :
       CE.find vm ce' = Some (aggr_typ (inst_type_of_ports' ps), Fmodule) ->
-      inferType_module (hfexmod vm ps ss) ce ce'.
+      inferType_module (FExmod vm ps ss) ce ce'.
+
+  Inductive inferType_modules : seq hfmodule -> cenv -> cenv -> Prop :=
+  | infertype_modules_nil ce :
+      inferType_modules [::] ce ce
+  | infertype_modules_con s ss ce ce' ce'' :
+      inferType_module s ce ce' ->
+      inferType_modules ss ce' ce'' ->
+      inferType_modules (s::ss) ce ce''.
 
   Definition inferType_stmt_fun st (ce : cenv) : cenv :=
     match st with
@@ -1226,10 +1295,10 @@ Admitted.
     | Sskip => ce
     end.
 
-  Fixpoint inferType_stmts_fun (sts : seq hfstmt) ce : cenv := (* fold_right inferType_stmt_fun ce sts. *)
+  Fixpoint inferType_stmts_fun (sts : hfstmt_seq) ce : cenv := (* fold_right inferType_stmt_fun ce sts. *)
     match sts with
-    | nil => ce
-    | s :: stl => inferType_stmts_fun stl (inferType_stmt_fun s ce)
+    | Qnil => ce
+    | Qcons s stl => inferType_stmts_fun stl (inferType_stmt_fun s ce)
     end.
 
   Definition is_init (s : hfstmt) : bool :=
@@ -1237,7 +1306,7 @@ Admitted.
      | Spcnct _ _ | Sfcnct _ _ | Sinvalid _ | Swhen _ _ _
      | Sstop _ _ _ | Sskip => false
      | _ => true
-     end.   
+     end.
 
   Parameter init_new_comp_name :
      forall s, is_init s -> forall v, new_comp_name v.
@@ -1266,8 +1335,9 @@ Admitted.
 
   Definition inferType_module_fun m ce :=
     match m with
-    | FInmod v ps ss => inferType_stmts_fun ss (CE.add_fst v (aggr_typ (inst_type_of_ports' ps)) ce)
-    | FExmod v ps ss => CE.add_fst v (aggr_typ (inst_type_of_ports' ps)) ce
+    | FInmod v ps ss => inferType_stmts_fun ss (inferType_ports_fun ps
+    (CE.add v (aggr_typ (inst_type_of_ports' ps), Fmodule) ce))
+    | FExmod v ps ss => CE.add v (aggr_typ (inst_type_of_ports' ps), Fmodule) ce
     end.
 
   Fixpoint inferType_modules_fun ms ce := (*fold_right inferType_module_fun ms ce.*)
@@ -1282,52 +1352,21 @@ Admitted.
       forall(f:ffield),
       fbtyp_equiv f f.
   Proof.
-    elim; rewrite /=; intros. elim f; done. 
-      rewrite eq_refl H//. 
-      rewrite ffield_equiv_ident//. 
-    
-      elim; intros. rewrite /= ; done. 
-      rewrite /= eq_refl H ftype_equiv_ident. 
-      case f; rewrite /=//. 
-     Qed. 
+    elim; rewrite /=; intros. elim f; done.
+      rewrite eq_refl H//.
+      rewrite ffield_equiv_ident//.
 
+      elim; intros. rewrite /=; done.
+      rewrite /=.
+      rewrite eq_refl.
+      simpl.
+      rewrite H.
+      rewrite ftype_equiv_ident.
+      simpl.
+      case f; done.
+     Qed.
 
-(*
-    elim.
-    rewrite /ftype_equiv.
-    intros.
-    case f; try done.
-
-    intros.
-    rewrite eq_refl H//.
-
-    move => t.
-    rewrite /ftype_equiv.
-    induction t.
-    rewrite /fgtyp_equiv.
-    case f; try done.
-    rewrite eq_refl.
-    try done.
-
-    case f;try done.
-
-    induction f.
-    try done.
-    try done.
-    try done.
-    try done.
-    admit.
-    try done.
-    move => f.
-    rewrite /fbtyp_equiv.
-    induction f.
-    try done.
-
-    Admitted.
-*)
-
-
-    Lemma ftype_weak_equiv_ident :
+  Lemma ftype_weak_equiv_ident :
   forall t ,
       ftype_weak_equiv t t.
   Proof.
@@ -1485,120 +1524,116 @@ Admitted.
   Proof.
     elim. intros. apply Infertype_stmts_nil.
     intros.
-    apply Infertype_stmts_con with (inferType_stmt_fun a ce0).
-    have Hin : ((is_init a) \/ ~~(is_init a)) by (case (is_init a); [by left| by right]).
+    apply Infertype_stmts_con with (inferType_stmt_fun h ce0).
+    have Hin : ((is_init h) \/ ~~(is_init h)) by (case (is_init h); [by left| by right]).
     move : Hin.
-    elim a; intros; move : Hin => [Hin | Hin]; try done.
+    elim h; intros; move : Hin => [Hin | Hin]; try done.
     - exact : (inferType_sskip_sem_conform).
-    - exact : (inferType_swire_sem_conform f ce0 (init_new_comp_name Hin s)). 
-    - exact : (inferType_sreg_sem_conform h ce0 (init_new_comp_name Hin s)).
-    - exact : (inferType_smem_sem_conform h ce0 (init_new_comp_name Hin s)).
-    - exact : (inferType_sinst_sem_conform ce0 (init_new_comp_name Hin s) (new_comp_name_not_rep s0 (init_new_comp_name Hin s))). 
-    - have Hte : (type_of_hfexpr h ce0 = type_of_hfexpr h (inferType_stmt_fun (Snode s h) ce0)).
+    - exact : (inferType_swire_sem_conform f ce0 (init_new_comp_name Hin s)).
+    - exact : (inferType_sreg_sem_conform h1 ce0 (init_new_comp_name Hin s)).
+    - exact : (inferType_smem_sem_conform h1 ce0 (init_new_comp_name Hin s)).
+    - exact : (inferType_sinst_sem_conform ce0 (init_new_comp_name Hin s) (new_comp_name_not_rep s0 (init_new_comp_name Hin s))).
+    - have Hte : (type_of_hfexpr h1 ce0 = type_of_hfexpr h1 (inferType_stmt_fun (Snode s h1) ce0)).
       rewrite/=.
-      apply upd_new_comp_same_expr with s (aggr_typ (type_of_hfexpr h ce0), Node); try done.
+      apply upd_new_comp_same_expr with s (aggr_typ (type_of_hfexpr h1 ce0), Node); try done.
       exact : (init_new_comp_name Hin s).
       exact : (inferType_snode_sem_conform (init_new_comp_name Hin s) Hte).
-    - case Hf : (CE.find (base_ref h) ce0) => [[t c]|].
-      move : (not_init_cefind_some Hin (base_ref h) ce0 (aggr_typ (type_of_hfexpr h0 ce0), c)) => Hni.
+    - case Hf : (CE.find (base_ref h1) ce0) => [[t c]|].
+      move : (not_init_cefind_some Hin (base_ref h1) ce0 (aggr_typ (type_of_hfexpr h2 ce0), c)) => Hni.
       apply inferType_sfcnct_sem_conform with t c; try done.
       move : (CE.find_some_vtyp Hf) => Hfv.
       move : (CE.find_some_vtyp Hni) => Hnv.
       rewrite Hfv in Hnv.
       inversion Hnv. rewrite /=//.
-      move : (not_init_cefind_some Hin (base_ref h) ce0 (aggr_typ (type_of_hfexpr h0 ce0), Node)) => Hni.
+      move : (not_init_cefind_some Hin (base_ref h1) ce0 (aggr_typ (type_of_hfexpr h2 ce0), Node)) => Hni.
       rewrite Hf in Hni; discriminate.
-    - case Hf : (CE.find (base_ref h) ce0) => [[t c]|].
-      move : (not_init_cefind_some Hin (base_ref h) ce0 (aggr_typ (type_of_hfexpr h0 ce0), c)) => Hni.
+    - case Hf : (CE.find (base_ref h1) ce0) => [[t c]|].
+      move : (not_init_cefind_some Hin (base_ref h1) ce0 (aggr_typ (type_of_hfexpr h2 ce0), c)) => Hni.
       apply inferType_spcnct_sem_conform with t c; try done.
       move : (CE.find_some_vtyp Hf) => Hfv.
       move : (CE.find_some_vtyp Hni) => Hnv.
       rewrite Hfv in Hnv.
       inversion Hnv. rewrite /=//.
-      move : (not_init_cefind_some Hin (base_ref h) ce0 (aggr_typ (type_of_hfexpr h0 ce0), Node)) => Hni.
+      move : (not_init_cefind_some Hin (base_ref h1) ce0 (aggr_typ (type_of_hfexpr h2 ce0), Node)) => Hni.
       rewrite Hf in Hni; discriminate.
     - apply inferType_sinvalid_sem_conform.
     - apply inferType_swhen_sem_conform.
     - apply inferType_sstop_sem_conform.
     rewrite/=.
-    exact : (H (inferType_stmt_fun a ce0) ). 
+    exact : (H (inferType_stmt_fun h ce0) ). 
   Qed.
 
   Lemma inferType_inport_sem_conform :
   forall v t ce0 ,
-      CE.find v ce0 = None ->
       inferType_port (Finput v t) ce0 (inferType_port_fun (Finput v t) ce0).
   Proof.
     intros.
-    apply Infertype_inport; try done.
-    Qed.
+    apply Infertype_inport.
+    rewrite /inferType_port_fun.
+    rewrite (CELemmas.add_eq_o _ _ (eq_refl v)) //.
+  Qed.
 
   Lemma inferType_outport_sem_conform :
   forall v t ce0 ,
-      CE.find v ce0 = None ->
       inferType_port (Foutput v t) ce0 (inferType_port_fun (Foutput v t) ce0).
   Proof.
     intros.
-    apply Infertype_outport; try done.
-    Qed.
+    apply Infertype_outport.
+    rewrite (CELemmas.add_eq_o _ _ (eq_refl v)) //.
+  Qed.
 
   Lemma inferType_ports_sem_conform :
   forall ss ce0,
-    (forall v t, In (Finput v t) ss -> CE.find v ce0 = None) ->
-    (forall v t, In (Foutput v t) ss -> CE.find v ce0 = None) ->
     inferType_ports ss ce0 (inferType_ports_fun ss ce0).
   Proof.
     elim. intros. apply infertype_ports_nil.
     intros.
     apply infertype_ports_con with (inferType_port_fun a ce0).
-    move: H0 H1.
-    elim a.
-    - move => s f H0 H1.
-    apply inferType_inport_sem_conform.
-    apply H0 with f.
-    apply in_eq.
-    - move => s f H0 H1.
-    apply inferType_outport_sem_conform.
-    apply H1 with f.
-    apply in_eq.
+    elim a; intros; try done.
+    - apply inferType_inport_sem_conform.
+    - apply inferType_outport_sem_conform.
     - rewrite/=.
-    apply H.
-      + move: H0.
-      elim a.
-      intros.
-      simpl.
-      admit.
-  Admitted.
+    apply (H (inferType_port_fun a
+    ce0)).
+    Qed.
 
   Lemma inferType_inmod_sem_conform :
   forall vm ps ss ce,
+    (*inferType_ports ps ce' ce1 -> inferType_stmts ss ce1 ce2 ->*)
     inferType_module (FInmod vm ps ss) ce (inferType_module_fun (FInmod vm ps ss) ce).
   Proof.
     intros.
-    apply infertype_inmod; try done.
-
     rewrite /inferType_module_fun.
-
-  Admitted.
+    apply infertype_inmod with (CE.add vm (aggr_typ (inst_type_of_ports' ps), Fmodule) ce) (inferType_ports_fun ps
+    (CE.add vm (aggr_typ (inst_type_of_ports' ps), Fmodule) ce)).
+    rewrite (CELemmas.add_eq_o _ _ (eq_refl vm)) //.
+    apply inferType_ports_sem_conform.
+    apply inferType_stmts_init_sem_conform.
+Qed.
 
   Lemma inferType_exmod_sem_conform :
   forall vm ps ss ce,
   inferType_module (FExmod vm ps ss) ce (inferType_module_fun (FExmod vm ps ss) ce).
   Proof.
     intros.
-    apply infertype_exmod; try done.
-
+    apply infertype_exmod.
     rewrite /inferType_module_fun.
+    rewrite (CELemmas.add_eq_o _ _ (eq_refl vm)) //.
+  Qed.
 
-  Admitted.
-
-  (*
   Lemma inferType_mods_sem_conform :
-  forall vm ps ss ce,
-  inferType_module (hfinmod vm ps ss) ce (inferType_module_fun (hfinmod vm ps ss) ce).
-
+  forall ms ce,
+  inferType_modules ms ce (inferType_modules_fun ms ce).
   Proof.
-  Admitted.*)
+    elim. intros. apply infertype_modules_nil.
+    intros.
+    apply infertype_modules_con with (inferType_module_fun a ce).
+    elim a; intros; try done.
+    - apply inferType_inmod_sem_conform.
+    - apply inferType_exmod_sem_conform.
+    - rewrite/=.
+    apply (H (inferType_module_fun a ce)).
+    Qed.
 
   (** End **)
 
@@ -1954,10 +1989,10 @@ Admitted.
    (* Proof. *)
    (* Admitted. *)
 
-   Fixpoint inferWidth_stmts_wmap0 ss ce w: wmap0 :=
+   Fixpoint inferWidth_stmts_wmap0 (ss : hfstmt_seq) ce w: wmap0 :=
      match ss with
-     | nil => w
-     | s :: sts => inferWidth_stmts_wmap0 sts ce (inferWidth_wmap0 s ce w)
+     | Qnil => w
+     | Qcons s sts => inferWidth_stmts_wmap0 sts ce (inferWidth_wmap0 s ce w)
      end.
 
    Definition add_width_2_cenv (w : option ftype) (t : option (cmpnt_init_typs * fcomponent)) :=
@@ -3052,11 +3087,12 @@ Admitted.
    Proof.
    Admitted.
 
-   Inductive inferWidth_stmts_sem : seq hfstmt -> cenv -> cenv -> Prop :=
+
+   Inductive inferWidth_stmts_sem : hfstmt_seq -> cenv -> cenv -> Prop :=
    | inferWidth_stmts_nil ce1 ce2 :
        (forall v,
          CE.find v ce1 = CE.find v ce2) ->
-         inferWidth_stmts_sem nil ce1 ce2
+         inferWidth_stmts_sem qnil ce1 ce2
    | inferWidth_stmts_imp st sts (ce1 ce2 ce3 : cenv) :
        (forall r  t1 c,
            new_comp_name (base_ref r) /\
@@ -3067,16 +3103,16 @@ Admitted.
              inferWidth_sstmt_sem st wm1 wm2 ce1 ce2) ->
        (exists wm1 wm2, inferWidth_sstmt_sem st wm1 wm2 ce1 ce2) ->
        inferWidth_stmts_sem sts ce2 ce3 ->
-       inferWidth_stmts_sem (st :: sts) ce1 ce3.
+       inferWidth_stmts_sem (Qcons st sts) ce1 ce3.
 
    Lemma infer_stmt_lst st ss ce1 :
      forall wm0 wm1 ,
        wm1 = inferWidth_wmap0 st ce1 wm0 ->
-       inferWidth_fun (st :: ss) ce1 = inferWidth_fun ss (wmap_map2_cenv wm1 ce1).
+       inferWidth_fun (Qcons st ss) ce1 = inferWidth_fun ss (wmap_map2_cenv wm1 ce1).
    Proof. Admitted.
 
    Lemma inferType_stmts_hd ss sts ce0 ce1 :
-     inferType_stmts (ss :: sts) ce0 ce1 ->
+     inferType_stmts (Qcons ss sts) ce0 ce1 ->
      inferType_stmt ss ce0 ce1.
    Proof.
    Admitted.
@@ -3092,14 +3128,33 @@ Admitted.
   (*                ~~ find_unknown v ce') -> *)
   (*     inferType_stmts (ss) ce ce'. *)
 
+   Definition is_inital (s : hfstmt) : bool :=
+     match s with
+     | Spcnct _ _ | Sfcnct _ _ | Sinvalid _ | Swhen _ _ _
+     | Sstop _ _ _ | Sskip => false
+     | _ => true
+     end.
+
+   Fixpoint is_inital_all_t (s : hfstmt_seq) : bool :=
+     match (s) with
+     | Qnil => true
+     | Qcons h t => if (is_inital h) then is_inital_all_t t else false
+     end.
+
+   Fixpoint not_inital_all (s : hfstmt_seq) : bool :=
+     match s with
+     | Qnil => true
+     | Qcons h t => if (is_inital h) then false else not_inital_all t
+     end.
+
    Lemma inferWidth_stmts_inital_sem_conform :
      forall sts ce0 ce1 (v:var),
        (
          exists wm0 wm1,
            forall r t ,
              new_comp_name (base_ref r) /\
-             is_init_all_t sts /\
-              inferWidth_wmap0 (hd sskip sts) ce1 wm0 = wm1 /\
+             is_inital_all_t sts /\
+              inferWidth_wmap0 (Qhead sskip sts) ce1 wm0 = wm1 /\
            CE.find (base_ref r) ce0 = Some t /\
            is_deftyp (type_of_cmpnttyp (fst t)) /\
            ~~ find_unknown (base_ref r) ce1 /\
@@ -3230,6 +3285,7 @@ Admitted.
        +
          move : (Hec (Eid v) (aggr_typ def_ftype, Node)) => [Hbrs1 [Hbrt [Hi[Hdt [Hndt [Hun Hit]]]]]].
          symmetry in Hi.
+
          (* rewrite (infer_stmt_lst _ Hi). *)
    (*       apply Hm with ce0 (*wmap_map2_cenv wm1 ce1*) ; try done. *)
    (*       exists wm1; exists (inferWidth_wmap0 (hd sskip ss) (wmap_map2_cenv wm1 ce1) wm1). *)
@@ -3250,19 +3306,25 @@ Admitted.
    (* Qed. *)
 Admitted.
          
-   (* Lemma ftype_equiv_ident : *)
-   (*   forall t, ftype_equiv t t *)
-   (* with ffield_equiv_ident : *)
-   (*        forall(f: ffield), *)
-   (*          fbtyp_equiv f f. *)
-   (* Proof. *)
-   (*   elim; rewrite /=; intros. elim f; done. *)
-   (*   rewrite eq_refl H//. *)
-   (*   rewrite ffield_equiv_ident//. *)
-   (*   elim; intros. rewrite /= ; done. *)
-   (*   rewrite /= eq_refl H ftype_equiv_ident. *)
-   (*   case f; rewrite /=//. *)
+
+   (*       rewrite (infer_stmt_lst _ Hi). *)
+   (*       apply Hm with ce0 (*wmap_map2_cenv wm1 ce1*) ; try done. *)
+   (*       exists wm1; exists (inferWidth_wmap0 (Qhead sskip ss) (wmap_map2_cenv wm1 ce1) wm1). *)
+   (*       intros. *)
+   (*       move : (Hec r t) => [Hbrs10 [Hbrt0 [Hin0 [Hdt0 [Hndt0 [Hun0 Hit0]]]]]]. *)
+   (*       repeat (split; try done). *)
+   (*       rewrite /= in Hbrt0. move : Hbrt0. case (is_inital st); try done. *)
+   (*       rewrite /wmap_map2_cenv/find_unknown (CELemmas.map2_1bis _ _ _ Hnone). *)
+   (*       rewrite (new_v_wmap_none Hbrs10 wm1)/=. *)
+   (*       rewrite /find_unknown/= in Hun0. done. *)
+   (*       move : Hit0. rewrite (infer_stmt_lst ss Hi)//. *)
+   (*       apply Infertype_stmts_know. *)
+   (*       exists (base_ref (Eid v)). *)
+   (*       rewrite /find_unknown/wmap_map2_cenv (CELemmas.map2_1bis _ _ _ Hnone). *)
+   (*       rewrite (new_v_wmap_none Hbrs1 wm1)/=. *)
+   (*       rewrite /find_unknown/= in Hun. done. *)
    (* Qed. *)
+
 
 
    Parameter not_init_wmfind_some :
@@ -3307,35 +3369,53 @@ Admitted.
        inferWidth_stmts_sem' sts ce2 ce3 ->
        inferWidth_stmts_sem' (st :: sts) ce1 ce3.
 
-   Lemma inferWidth_stmts_sem_conform' :
-     forall sts ce0 ce1 ce2, 
-       (* ( *)
-       (*   exists wm0 wm1, *)
-       (*     forall r t , *)
-       (*       new_comp_name (base_ref r) /\ *)
-       (*       inferWidth_wmap0 (hd sskip sts) ce1 wm0 = wm1 /\ *)
-       (*       CE.find (base_ref r) ce0 = Some t /\ *)
-       (*       CE.find (base_ref r) wm0 = Some (type_of_cmpnttyp (fst t)) /\ *)
-       (*     is_deftyp (type_of_cmpnttyp (fst t)) /\ *)
-       (*     ~~ find_unknown (base_ref r) ce1 /\ *)
-       (*     ~~ is_deftyp (type_of_cmpnttyp (fst (CE.vtyp (base_ref r) (inferWidth_fun sts ce1))))  *)
-       (*     )-> *)
-       (inferType_stmts sts ce0 ce1 /\ forall v, CE.find v ce1 = CE.find v ce2) ->
-       inferWidth_stmts_sem' sts ce2 (inferWidth_fun sts ce2).
-   Proof.
-     have Hnone : (add_width_2_cenv None None = None) by done.
-     elim => [ce0 ce1 ce2 Hiw | st ss Hm ce0 ce1 ce2 Hiw].
-     - apply inferWidth_stmts_nil'. intros.
-       rewrite /inferWidth_fun/wmap_map2_cenv/=.
-       rewrite (CELemmas.map2_1bis _ _ _ Hnone) CELemmas.empty_o//.
-     -
-       have Hin : ((is_init st) \/ ~~(is_init st)) by (case (is_init st); [by left| by right]).
-       rewrite /inferWidth_fun.
-       apply inferWidth_stmts_cons' with (wmap_map2_cenv (inferWidth_wmap0 st ce1 empty_wmap0)  ce1).
-       move : Hiw => [Hif Hce12].
-       inversion Hif; subst.
-       exists empty_wmap0 . exists (inferWidth_wmap0 st ce1 empty_wmap0).
-       move : Hif H1 Hin.
+   (* Lemma inferWidth_stmts_sem_conform' : *)
+   (*   forall (sts:seq hfstmt) ce0 ce1 ce2, *)
+   (*     (* ( *) *)
+   (*     (*   exists wm0 wm1, *) *)
+   (*     (*     forall r t , *) *)
+   (*     (*       new_comp_name (base_ref r) /\ *) *)
+   (*     (*       inferWidth_wmap0 (hd sskip sts) ce1 wm0 = wm1 /\ *) *)
+   (*     (*       CE.find (base_ref r) ce0 = Some t /\ *) *)
+   (*     (*       CE.find (base_ref r) wm0 = Some (type_of_cmpnttyp (fst t)) /\ *) *)
+   (*     (*     is_deftyp (type_of_cmpnttyp (fst t)) /\ *) *)
+   (*     (*     ~~ find_unknown (base_ref r) ce1 /\ *) *)
+   (*     (*     ~~ is_deftyp (type_of_cmpnttyp (fst (CE.vtyp (base_ref r) (inferWidth_fun sts ce1))))  *) *)
+   (*     (*     )-> *) *)
+   (*     (inferType_stmts sts ce0 ce1 /\ forall v, CE.find v ce1 = CE.find v ce2) -> *)
+   (*     inferWidth_stmts_sem' sts ce2 (inferWidth_fun sts ce2). *)
+
+   (* Lemma inferWidth_stmts_sem_conform : *)
+   (*   forall (sts : hfstmt_seq) ce0 ce1 (v:var), *)
+   (*     ( *)
+   (*       exists wm0 wm1, *)
+   (*         forall r t , *)
+   (*           new_comp_name (base_ref r) /\ *)
+   (*           inferWidth_wmap0 (Qhead sskip sts) ce1 wm0 = wm1 /\ *)
+   (*           CE.find (base_ref r) ce0 = Some t /\ *)
+   (*           CE.find (base_ref r) wm0 = Some (type_of_cmpnttyp (fst t)) /\ *)
+   (*         is_deftyp (type_of_cmpnttyp (fst t)) /\ *)
+   (*         ~~ find_unknown (base_ref r) ce1 /\ *)
+   (*         ~~ is_deftyp (type_of_cmpnttyp (fst (CE.vtyp (base_ref r) (inferWidth_fun sts ce1)))) *)
+   (*         )-> *)
+   (*         (* ~~ is_deftyp (type_of_cmpnttyp (fst (CE.vtyp v (inferWidth_fun sts ce1)))) /\ *) *)
+   (*         (*ce2 = wmap_map2_cenv wm1 ce1 /\*) *)
+   (*         inferType_stmts sts ce0 ce1 -> *)
+   (*     inferWidth_stmts_sem sts ce1 (inferWidth_fun sts ce1). *)
+   (* Proof. *)
+   (*   have Hnone : (add_width_2_cenv None None = None) by done. *)
+   (*   elim => [ce0 ce1 ce2 Hiw | st ss Hm ce0 ce1 ce2 Hiw]. *)
+   (*   - apply inferWidth_stmts_nil'. intros. *)
+   (*     rewrite /inferWidth_fun/wmap_map2_cenv/=. *)
+   (*     rewrite (CELemmas.map2_1bis _ _ _ Hnone) CELemmas.empty_o//. *)
+   (*   - *)
+   (*     have Hin : ((is_init st) \/ ~~(is_init st)) by (case (is_init st); [by left| by right]). *)
+   (*     rewrite /inferWidth_fun. *)
+   (*     apply inferWidth_stmts_cons' with (wmap_map2_cenv (inferWidth_wmap0 st ce1 empty_wmap0)  ce1). *)
+   (*     move : Hiw => [Hif Hce12]. *)
+   (*     inversion Hif; subst. *)
+   (*     exists empty_wmap0 . exists (inferWidth_wmap0 st ce1 empty_wmap0). *)
+   (*     move : Hif H1 Hin. *)
 
    (* Lemma inferWidth_stmts_sem_conform : *)
    (*   forall sts ce0 ce1 (v:var), *)
@@ -3365,133 +3445,133 @@ Admitted.
    (*     apply inferWidth_stmts_imp with (wmap_map2_cenv wm1 ce1). *)
    (*     move : Hec Hiw. *)
 
-       elim st.
-       + (*skip*)
-         intros. 
-         apply inferWidth_sskip_sem_conform; try done.
-         erewrite (find_same_ce_wmap2ce _ (Hce12 _)). done.
-       + (*swire*)
+       (* elim st. *)
+       (* + (*skip*) *)
+       (*   intros.  *)
+       (*   apply inferWidth_sskip_sem_conform; try done. *)
+       (*   erewrite (find_same_ce_wmap2ce _ (Hce12 _)). done. *)
+       (* + (*swire*) *)
 
-         move => s f Hit Hits. move => [Hin | Hin]; try rewrite //.
-         move : (init_new_comp_name Hin s) => Hns.
-         move : (new_v_wmap_none Hns empty_wmap0) => Hnv.
-         apply inferWidth_swire_sem_conform'; try done. 
-         move : (inferType_stmts_hd Hit) => Hhd. inversion Hhd; subst.
-         rewrite -H5 (Hce12 s)//.
-         erewrite (find_same_ce_wmap2ce _ (Hce12 _)). done.
-         (* intros. *)
-         (* exists wm0; exists wm1. *)
-         (* move : (Hec (Eid s) (aggr_typ f, Wire) (* (Swire s f) *)) => [Hbrs1 [Hbrt [[Hdt [Hndt [Hun Hit]]]]]]. *)
-         (* rewrite /= in Hbrt. *)
-         (* move : (new_v_wmap_none Hbrs1 wm0) => Hnv. *)
-         (* apply inferWidth_swire_sem_conform with ce0; try done. *)
-         (* exact : (inferType_stmts_hd Hiw). *)
-       + (*reg*)
-         intros.
-         apply inferWidth_sreg_sem_conform'; try done.
-         move : (inferType_stmts_hd Hif) => Hhd. inversion Hhd; subst.
-         rewrite -H6 (Hce12 s)//.
-         erewrite (find_same_ce_wmap2ce _ (Hce12 _)). done.
-       + (*mem*)
-         intros.
-         apply inferWidth_smem_sem_conform'; try done.
-         move : (inferType_stmts_hd Hif) => Hhd. inversion Hhd; subst.
-         rewrite -H6 (Hce12 s)//.
-         erewrite (find_same_ce_wmap2ce _ (Hce12 _)). done.
-       + (*inst*)
-         intros.
-         apply inferWidth_sinst_sem_conform' with (fst (CE.vtyp s0 ce0)); try done.
-         move : (inferType_stmts_hd Hif) => Hhd. inversion Hhd; subst.
-         rewrite -H7 (Hce12 s)//.
-         erewrite (find_same_ce_wmap2ce _ (Hce12 _)). done.
-       + (*node*)
-         intros.
-         apply inferWidth_snode_sem_conform'; try done.
-         move : (inferType_stmts_hd Hif) => Hhd. inversion Hhd; subst.
-         rewrite -(typeof_same_ce h (Hce12 s)) -H3 -H7//.
-         rewrite/=(typeof_same_ce h (Hce12 s)).
-         case (is_deftyp (type_of_hfexpr h ce2)); try done.
-         erewrite (find_same_ce_wmap2ce _ (Hce12 _)). done.
-       + (*fcnct*)
-         intros.
-         move : Hin => [Hin|Hin]; try done.
-         move : (inferType_stmts_hd Hif) => Hitc. 
-         inversion Hitc; subst.
-         move : H5 => [Hit1 [Hit2 Hit3]].
-         move : (not_init_wmfind_some Hin (base_ref h) empty_wmap0 (type_of_cmpnttyp t)) => Haux.
-         case Hde : (is_deftyp (type_of_cmpnttyp t)).
-         apply inferWidth_sfcnct_ftype_sem_conform with c t (type_of_cmpnttyp t) t'; try done.
-         rewrite -(Hce12 (base_ref h))//.
-         erewrite <-(typeofr_same_ce _ (Hce12 _)).
-         rewrite (type_of_hexpr_cefind Hit1)//.
-         erewrite <-(typeof_same_ce _ (Hce12 _)). done.
-         rewrite /=. erewrite <-(typeofr_same_ce _ (Hce12 _)).
-         erewrite <-(typeof_same_ce _ (Hce12 _)).
-         case (is_deftyp (type_of_ref h ce1)); try done.
-         rewrite (add_wmap_same_ce _ empty_wmap0 (Hce12 _)).
-         case h0; try done.
-         intros. erewrite <-(typeofr_same_ce _ (Hce12 _)).
-         rewrite (add_wmap_same_ce _ empty_wmap0 (Hce12 _))//.
-         erewrite (find_same_ce_wmap2ce _ (Hce12 _)). done.
-         move : (infer_type_no_unknown_type Hif) => Hfu.
-         rewrite /find_unknown. move : (Hfu (base_ref h) c ).
-         rewrite -(Hce12 (base_ref h)).
-         rewrite Hit1. case t; try done.
-         apply inferWidth_sfcnct_tmp with (type_of_cmpnttyp t).
-         have Hit1' : CE.find (base_ref h) ce2 = Some (t, c) by rewrite -(Hce12 (base_ref h))//.
-         rewrite (type_of_hexpr_cefind Hit1')//.
-         rewrite /=(type_of_hexpr_cefind Hit1)/= Hde; case h0; done.
-         rewrite -(Hce12 (base_ref h))/=(type_of_hexpr_cefind Hit1)/= Hde; case h0; intros; move : Hde;
-           rewrite /wmap_map2_cenv (CELemmas.map2_1bis _ _ _ Hnone) Haux Hit1;
-           case t; rewrite /=; intros; try (rewrite Hde//|| discriminate).
-         rewrite Hde//.         
-       + (*pcnct*)
-                  intros.
-         move : Hin => [Hin|Hin]; try done.
-         move : (inferType_stmts_hd Hif) => Hitc. 
-         inversion Hitc; subst.
-         move : H5 => [Hit1 [Hit2 Hit3]].
-         move : (not_init_wmfind_some Hin (base_ref h) empty_wmap0 (type_of_cmpnttyp t)) => Haux.
-         case Hde : (is_deftyp (type_of_cmpnttyp t)).
-         apply inferWidth_spcnct_ftype_sem_conform with c t (type_of_cmpnttyp t) t'; try done.
-         rewrite -(Hce12 (base_ref h))//.
-         erewrite <-(typeofr_same_ce _ (Hce12 _)).
-         rewrite (type_of_hexpr_cefind Hit1)//.
-         erewrite <-(typeof_same_ce _ (Hce12 _)). done.
-         rewrite /=. erewrite <-(typeofr_same_ce _ (Hce12 _)).
-         erewrite <-(typeof_same_ce _ (Hce12 _)).
-         case (is_deftyp (type_of_ref h ce1)); try done.
-         rewrite (add_wmap_same_ce _ empty_wmap0 (Hce12 _)).
-         case h0; try done.
-         intros. erewrite <-(typeofr_same_ce _ (Hce12 _)).
-         rewrite (add_wmap_same_ce _ empty_wmap0 (Hce12 _))//.
-         erewrite (find_same_ce_wmap2ce _ (Hce12 _)). done.
-         move : (infer_type_no_unknown_type Hif) => Hfu.
-         rewrite /find_unknown. move : (Hfu (base_ref h) c ).
-         rewrite -(Hce12 (base_ref h)).
-         rewrite Hit1. case t; try done.
-         apply inferWidth_spcnct_tmp with (type_of_cmpnttyp t).
-         have Hit1' : CE.find (base_ref h) ce2 = Some (t, c) by rewrite -(Hce12 (base_ref h))//.
-         rewrite (type_of_hexpr_cefind Hit1')//.
-         rewrite /=(type_of_hexpr_cefind Hit1)/= Hde; case h0; done.
-         rewrite -(Hce12 (base_ref h))/=(type_of_hexpr_cefind Hit1)/= Hde; case h0; intros; move : Hde;
-           rewrite /wmap_map2_cenv (CELemmas.map2_1bis _ _ _ Hnone) Haux Hit1;
-           case t; rewrite /=; intros; try (rewrite Hde//|| discriminate).
-         rewrite Hde//.   
-       + (*invalid*)
-         intros.
-         apply inferWidth_sinvalid_sem_conform; try done.
-         erewrite (find_same_ce_wmap2ce _ (Hce12 _)). done.
-       + (*when*)
-         intros.
-         apply inferWidth_swhen_sem_conform_tmp; try done.
-         erewrite (find_same_ce_wmap2ce _ (Hce12 _)). done.
-       + (*stop*)
-         intros.
-         apply inferWidth_sstop_sem_conform; try done.
-         erewrite (find_same_ce_wmap2ce _ (Hce12 _)). done.
-     -  rewrite -/(inferWidth_fun _).
-   Admitted.
+       (*   move => s f Hit Hits. move => [Hin | Hin]; try rewrite //. *)
+       (*   move : (init_new_comp_name Hin s) => Hns. *)
+       (*   move : (new_v_wmap_none Hns empty_wmap0) => Hnv. *)
+       (*   apply inferWidth_swire_sem_conform'; try done.  *)
+       (*   move : (inferType_stmts_hd Hit) => Hhd. inversion Hhd; subst. *)
+       (*   rewrite -H5 (Hce12 s)//. *)
+       (*   erewrite (find_same_ce_wmap2ce _ (Hce12 _)). done. *)
+       (*   (* intros. *) *)
+       (*   (* exists wm0; exists wm1. *) *)
+       (*   (* move : (Hec (Eid s) (aggr_typ f, Wire) (* (Swire s f) *)) => [Hbrs1 [Hbrt [[Hdt [Hndt [Hun Hit]]]]]]. *) *)
+       (*   (* rewrite /= in Hbrt. *) *)
+       (*   (* move : (new_v_wmap_none Hbrs1 wm0) => Hnv. *) *)
+       (*   (* apply inferWidth_swire_sem_conform with ce0; try done. *) *)
+       (*   (* exact : (inferType_stmts_hd Hiw). *) *)
+       (* + (*reg*) *)
+       (*   intros. *)
+       (*   apply inferWidth_sreg_sem_conform'; try done. *)
+       (*   move : (inferType_stmts_hd Hif) => Hhd. inversion Hhd; subst. *)
+       (*   rewrite -H6 (Hce12 s)//. *)
+       (*   erewrite (find_same_ce_wmap2ce _ (Hce12 _)). done. *)
+       (* + (*mem*) *)
+       (*   intros. *)
+       (*   apply inferWidth_smem_sem_conform'; try done. *)
+       (*   move : (inferType_stmts_hd Hif) => Hhd. inversion Hhd; subst. *)
+       (*   rewrite -H6 (Hce12 s)//. *)
+       (*   erewrite (find_same_ce_wmap2ce _ (Hce12 _)). done. *)
+       (* + (*inst*) *)
+       (*   intros. *)
+       (*   apply inferWidth_sinst_sem_conform' with (fst (CE.vtyp s0 ce0)); try done. *)
+       (*   move : (inferType_stmts_hd Hif) => Hhd. inversion Hhd; subst. *)
+       (*   rewrite -H7 (Hce12 s)//. *)
+       (*   erewrite (find_same_ce_wmap2ce _ (Hce12 _)). done. *)
+       (* + (*node*) *)
+       (*   intros. *)
+       (*   apply inferWidth_snode_sem_conform'; try done. *)
+       (*   move : (inferType_stmts_hd Hif) => Hhd. inversion Hhd; subst. *)
+       (*   rewrite -(typeof_same_ce h (Hce12 s)) -H3 -H7//. *)
+       (*   rewrite/=(typeof_same_ce h (Hce12 s)). *)
+       (*   case (is_deftyp (type_of_hfexpr h ce2)); try done. *)
+       (*   erewrite (find_same_ce_wmap2ce _ (Hce12 _)). done. *)
+       (* + (*fcnct*) *)
+       (*   intros. *)
+       (*   move : Hin => [Hin|Hin]; try done. *)
+       (*   move : (inferType_stmts_hd Hif) => Hitc.  *)
+       (*   inversion Hitc; subst. *)
+       (*   move : H5 => [Hit1 [Hit2 Hit3]]. *)
+       (*   move : (not_init_wmfind_some Hin (base_ref h) empty_wmap0 (type_of_cmpnttyp t)) => Haux. *)
+       (*   case Hde : (is_deftyp (type_of_cmpnttyp t)). *)
+       (*   apply inferWidth_sfcnct_ftype_sem_conform with c t (type_of_cmpnttyp t) t'; try done. *)
+       (*   rewrite -(Hce12 (base_ref h))//. *)
+       (*   erewrite <-(typeofr_same_ce _ (Hce12 _)). *)
+       (*   rewrite (type_of_hexpr_cefind Hit1)//. *)
+       (*   erewrite <-(typeof_same_ce _ (Hce12 _)). done. *)
+       (*   rewrite /=. erewrite <-(typeofr_same_ce _ (Hce12 _)). *)
+       (*   erewrite <-(typeof_same_ce _ (Hce12 _)). *)
+       (*   case (is_deftyp (type_of_ref h ce1)); try done. *)
+       (*   rewrite (add_wmap_same_ce _ empty_wmap0 (Hce12 _)). *)
+       (*   case h0; try done. *)
+       (*   intros. erewrite <-(typeofr_same_ce _ (Hce12 _)). *)
+       (*   rewrite (add_wmap_same_ce _ empty_wmap0 (Hce12 _))//. *)
+       (*   erewrite (find_same_ce_wmap2ce _ (Hce12 _)). done. *)
+       (*   move : (infer_type_no_unknown_type Hif) => Hfu. *)
+       (*   rewrite /find_unknown. move : (Hfu (base_ref h) c ). *)
+       (*   rewrite -(Hce12 (base_ref h)). *)
+       (*   rewrite Hit1. case t; try done. *)
+       (*   apply inferWidth_sfcnct_tmp with (type_of_cmpnttyp t). *)
+       (*   have Hit1' : CE.find (base_ref h) ce2 = Some (t, c) by rewrite -(Hce12 (base_ref h))//. *)
+       (*   rewrite (type_of_hexpr_cefind Hit1')//. *)
+       (*   rewrite /=(type_of_hexpr_cefind Hit1)/= Hde; case h0; done. *)
+       (*   rewrite -(Hce12 (base_ref h))/=(type_of_hexpr_cefind Hit1)/= Hde; case h0; intros; move : Hde; *)
+       (*     rewrite /wmap_map2_cenv (CELemmas.map2_1bis _ _ _ Hnone) Haux Hit1; *)
+       (*     case t; rewrite /=; intros; try (rewrite Hde//|| discriminate). *)
+       (*   rewrite Hde//.          *)
+       (* + (*pcnct*) *)
+       (*            intros. *)
+       (*   move : Hin => [Hin|Hin]; try done. *)
+       (*   move : (inferType_stmts_hd Hif) => Hitc.  *)
+       (*   inversion Hitc; subst. *)
+       (*   move : H5 => [Hit1 [Hit2 Hit3]]. *)
+       (*   move : (not_init_wmfind_some Hin (base_ref h) empty_wmap0 (type_of_cmpnttyp t)) => Haux. *)
+       (*   case Hde : (is_deftyp (type_of_cmpnttyp t)). *)
+       (*   apply inferWidth_spcnct_ftype_sem_conform with c t (type_of_cmpnttyp t) t'; try done. *)
+       (*   rewrite -(Hce12 (base_ref h))//. *)
+       (*   erewrite <-(typeofr_same_ce _ (Hce12 _)). *)
+       (*   rewrite (type_of_hexpr_cefind Hit1)//. *)
+       (*   erewrite <-(typeof_same_ce _ (Hce12 _)). done. *)
+       (*   rewrite /=. erewrite <-(typeofr_same_ce _ (Hce12 _)). *)
+       (*   erewrite <-(typeof_same_ce _ (Hce12 _)). *)
+       (*   case (is_deftyp (type_of_ref h ce1)); try done. *)
+       (*   rewrite (add_wmap_same_ce _ empty_wmap0 (Hce12 _)). *)
+       (*   case h0; try done. *)
+       (*   intros. erewrite <-(typeofr_same_ce _ (Hce12 _)). *)
+       (*   rewrite (add_wmap_same_ce _ empty_wmap0 (Hce12 _))//. *)
+       (*   erewrite (find_same_ce_wmap2ce _ (Hce12 _)). done. *)
+       (*   move : (infer_type_no_unknown_type Hif) => Hfu. *)
+       (*   rewrite /find_unknown. move : (Hfu (base_ref h) c ). *)
+       (*   rewrite -(Hce12 (base_ref h)). *)
+       (*   rewrite Hit1. case t; try done. *)
+       (*   apply inferWidth_spcnct_tmp with (type_of_cmpnttyp t). *)
+       (*   have Hit1' : CE.find (base_ref h) ce2 = Some (t, c) by rewrite -(Hce12 (base_ref h))//. *)
+       (*   rewrite (type_of_hexpr_cefind Hit1')//. *)
+       (*   rewrite /=(type_of_hexpr_cefind Hit1)/= Hde; case h0; done. *)
+       (*   rewrite -(Hce12 (base_ref h))/=(type_of_hexpr_cefind Hit1)/= Hde; case h0; intros; move : Hde; *)
+       (*     rewrite /wmap_map2_cenv (CELemmas.map2_1bis _ _ _ Hnone) Haux Hit1; *)
+       (*     case t; rewrite /=; intros; try (rewrite Hde//|| discriminate). *)
+       (*   rewrite Hde//.    *)
+       (* + (*invalid*) *)
+       (*   intros. *)
+       (*   apply inferWidth_sinvalid_sem_conform; try done. *)
+       (*   erewrite (find_same_ce_wmap2ce _ (Hce12 _)). done. *)
+       (* + (*when*) *)
+       (*   intros. *)
+       (*   apply inferWidth_swhen_sem_conform_tmp; try done. *)
+       (*   erewrite (find_same_ce_wmap2ce _ (Hce12 _)). done. *)
+       (* + (*stop*) *)
+       (*   intros. *)
+       (*   apply inferWidth_sstop_sem_conform; try done. *)
+       (*   erewrite (find_same_ce_wmap2ce _ (Hce12 _)). done. *)
+     (* -  rewrite -/(inferWidth_fun _). *)
+   (* Admitted. *)
 
    (********************************************************************************)
 
@@ -3534,22 +3614,26 @@ Admitted.
        end
      end.
 
-   Fixpoint inferReset_rmap ce (m : rmap) (s : hfstmt) : rmap :=
+   Fixpoint inferReset_rmap ce (m : rmap) (ss : hfstmt_seq) : rmap :=
+   match ss with
+   | Qnil => m
+   | Qcons s sss =>
      match s with
-     | Snode v e => CE.add v [::type_of_hfexpr e ce] m
-     | Swire v t => if is_deftyp t then CE.add v [::t] m else m
-     | Sreg v _ => m
-     | Smem v _ => m
-     | Sinst v1 v2 => CE.add v1 [::type_of_ref (Eid v2) ce] m
-     | Sinvalid v => m
-     | Sfcnct r e => let te := type_of_hfexpr e ce in
-                     add_ref_rmap r te ce m
-     | Spcnct r e => let te := type_of_hfexpr e ce in
-                     add_ref_rmap r te ce m
+     | Snode v e => inferReset_rmap ce (CE.add v [::type_of_hfexpr e ce] m) sss
+     | Swire v t => inferReset_rmap ce (if is_deftyp t then CE.add v [::t] m else m) sss
+     | Sreg v _
+     | Smem v _ => inferReset_rmap ce m sss
+     | Sinst v1 v2 => inferReset_rmap ce (CE.add v1 [::type_of_ref (Eid v2) ce] m) sss
+     | Sinvalid v => inferReset_rmap ce m sss
+     | Sfcnct r e => inferReset_rmap ce (let te := type_of_hfexpr e ce in
+                                         add_ref_rmap r te ce m) sss
+     | Spcnct r e => inferReset_rmap ce (let te := type_of_hfexpr e ce in
+                                         add_ref_rmap r te ce m) sss
      | Sskip
-     | Sstop _ _ _ => m
-     | Swhen c s1 s2 => List.fold_left (inferReset_rmap ce) s2 (List.fold_left (inferReset_rmap ce) s1 m)
-     end.
+     | Sstop _ _ _ => inferReset_rmap ce m sss
+     | Swhen c s1 s2 => inferReset_rmap ce (inferReset_rmap ce (inferReset_rmap ce m s1) s2) sss
+     end
+   end.
 
    Definition is_uninfered_reset rs := is_deftyp (hd def_ftype rs).
 
@@ -3580,7 +3664,7 @@ Admitted.
      CE.map2 add_reset2cenv r ce.
 
    Definition inferReset_fun ss ce : CE.env :=
-     rmap_map2_cenv (List.fold_left (inferReset_rmap ce) ss empty_rmap) ce.
+     rmap_map2_cenv (inferReset_rmap ce empty_rmap ss) ce.
 
 
    (********************************************************************************)
@@ -3746,19 +3830,19 @@ Admitted.
 
    (*
    (* premise : passive type, type equiv *)
-   Fixpoint expand_connect_subindex r1 r2 n : seq hfstmt :=
+   Fixpoint expand_connect_subindex r1 r2 n : hfstmt_seq :=
      match n with
-     | 0 => [::]
-     | S m => Sfcnct (Esubindex r1 n) (Eref (Esubindex r2 n)) :: (expand_connect_subindex r1 r2 m)
+     | 0 => qnil
+     | S m => Qcons (Sfcnct (Esubindex r1 n) (Eref (Esubindex r2 n))) (expand_connect_subindex r1 r2 m)
      end.
 
    (* premise : passive type, type equiv *)
    Fixpoint expand_fullconnect_subfield r1 r2 bs :=
      match bs with
-     | Fnil => [::]
-     | Fflips v Nflip t bs' => Sfcnct (Esubfield r1 (var2v v)) (Eref (Esubfield r2 (var2v v)))
-                                      :: (expand_fullconnect_subfield r1 r2 bs')
-     | _ => [::]
+     | Fnil => qnil
+     | Fflips v Nflip t bs' => Qcons (Sfcnct (Esubfield r1 (var2v v)) (Eref (Esubfield r2 (var2v v))))
+                                     (expand_fullconnect_subfield r1 r2 bs')
+     | _ => Qnil
      end.
 
    (* premise : type weak equiv *)
@@ -3766,41 +3850,41 @@ Admitted.
      match bs1 with
      | Fflips v1 Nflip t1 bs1' =>
        if have_field bs2 v1 then
-         Sfcnct (Esubfield r1 (var2v v1)) (Eref (Esubfield r2 (var2v v1)))
-                :: (expand_partconnect_subfield r1 r2 bs1' bs2)
+         Qcons (Sfcnct (Esubfield r1 (var2v v1)) (Eref (Esubfield r2 (var2v v1))))
+               (expand_partconnect_subfield r1 r2 bs1' bs2)
        else expand_partconnect_subfield r1 r2 bs1' bs2
      | Fflips v1 Flipped t1 bs1' =>
        if have_field bs2 v1 then
-         Sfcnct (Esubfield r2 (var2v v1)) (Eref (Esubfield r1 (var2v v1)))
-                :: (expand_partconnect_subfield r1 r2 bs1' bs2)
+         Qcons (Sfcnct (Esubfield r2 (var2v v1)) (Eref (Esubfield r1 (var2v v1))))
+               (expand_partconnect_subfield r1 r2 bs1' bs2)
        else expand_partconnect_subfield r1 r2 bs1' bs2
-     | Fnil => [::]
+     | Fnil => qnil
      end.
 
    (* premise: valid lhs rhs (resolve flow), type equiv/weak_equiv (type infer, width infer) *)
    (* since types are lowered in Pass LoweringType, ExpandConnect is only in transform pass, not in semantics representation ce cs *)
-   Fixpoint expandConnect_fun st ce : seq hfstmt :=
+   Fixpoint expandConnect_fun st ce : hfstmt_seq :=
      match st with
      | Sfcnct r1 (Eref r2) =>
        let tr1 := type_of_ref r1 ce in
        let tr2 := type_of_ref r2 ce in
        match tr1, tr2 with
-       | Gtyp t1, Gtyp t2 => [::Sfcnct r1 (Eref r2)]
+       | Gtyp t1, Gtyp t2 => Qcons (Sfcnct r1 (Eref r2)) qnil
        | Atyp t1 n1, Atyp t2 n2 => expand_connect_subindex r1 r2 n1
        | Btyp bs1, Btyp bs2 => expand_fullconnect_subfield r1 r2 bs1
-       | _, _ => [::]
+       | _, _ => qnil
        end
      | Spcnct r1 (Eref r2) =>
        let tr1 := type_of_ref r1 ce in
        let tr2 := type_of_ref r2 ce in
        match tr1, tr2 with
-       | Gtyp t1, Gtyp t2 => [:: Sfcnct r1 (Eref r2)]
+       | Gtyp t1, Gtyp t2 => Qcons (Sfcnct r1 (Eref r2)) qnil
        | Atyp t1 n1, Atyp t2 n2 => if n1 < n2 then expand_connect_subindex r1 r2 n1
                                    else expand_connect_subindex r1 r2 n2
        | Btyp bs1, Btyp bs2 => expand_partconnect_subfield r1 r2 bs1 bs2
-       | _, _ => [::]
+       | _, _ => qnil
        end
-     | st => [::st]
+     | st => Qcons st qnil
      end.
 
    Inductive expand_fields : var -> var -> ffield -> CE.env -> cstate -> CE.env -> cstate -> Prop :=
@@ -3847,12 +3931,12 @@ Admitted.
    | None, Some _ => false_expr (* declared and defined only in the false branch *)
    | Some (R_fexpr t), Some R_default => Some (R_fexpr (Evalidif c t)) (* declared before when, only defined in true branch *)
    | Some R_default, Some (R_fexpr f) => Some (R_fexpr (Evalidif (Eprim_unop Unot c) f)) (* declared before when, only defined in false branch *)
-   | Some (R_fexpr t), Some (R_fexpr f) => (*if t = f, TBD then true_expr (* both definitions match, no multiplexer needed *)
-                                           else*) Some (R_fexpr (emux c t f)) (* defined differently in both branches *)
+   | Some (R_fexpr t), Some (R_fexpr f) => if t == f then true_expr (* both definitions match, no multiplexer needed *)
+                                           else Some (R_fexpr (emux c t f)) (* defined differently in both branches *)
    end.
 
-   Definition combine_branches (c : hfexpr) (true_branch : (seq hfstmt * cstate))
-                                            (false_branch: (seq hfstmt * cstate)) : (seq hfstmt * cstate) :=
+   Definition combine_branches (c : hfexpr) (true_branch : (hfstmt_seq * cstate))
+                                            (false_branch: (hfstmt_seq * cstate)) : (hfstmt_seq * cstate) :=
    (* combines the two branches of a when statmeent into one sequence of declaration statements
       and one map of connections.
       Input:  * c = condition of the when statement
@@ -3867,34 +3951,19 @@ Admitted.
               * declaration statements containing the declarations from both branches
               * map of connections containing definitions (if necessary using multiplexers/validifs
                 to choose between the values defined in the branches) *)
-         ((fst true_branch) ++ (fst false_branch),
+         (Qcat (fst true_branch) (fst false_branch),
           SV.map2 (map2_helper_cs_tf c) (snd true_branch) (snd false_branch))
    .
-
-
-   Definition stmts_well_order (s1 : seq hfstmt) (s2 : seq hfstmt) : Prop :=
-   (* a well-founded relation to prove that expandBranch_fun is well-founded.
-      (The definition is not transitive but it is sufficient for our purposes.) *)
-   match s2 with
-   | [::] => false
-   | Swhen _ st sf :: ss2 => s1 = st \/ s1 = sf \/ s1 = ss2
-                                       (* The last disjunct can be replaced by:
-                                          stmts_well_order s1 st
-                                       \/ stmts_well_order s1 sf
-                                       \/ stmts_well_order ss1 ss2 *)
-   | _ :: ss2 => s1 = ss2 (* or: _ :: ss1, ... stmts_well_order ss1 ss2 *)
-   end.
-
-
    
-   Program Fixpoint expandBranch_fun (ss : seq hfstmt) (ce : cenv) (cs : cstate) { wf stmts_well_order ss } : (seq hfstmt * cstate) :=
+
+   Fixpoint expandBranch_fun (ss : hfstmt_seq) (ce : cenv) (cs : cstate) : (hfstmt_seq * cstate) :=
    (* This is the main function of ExpandWhens. It replaces when statements by expressions containing
       multiplexers/validifs where necessary.  It has the following interface:
       Input:  * ss = sequence of statements that are a final fragment of a module definition
                 or a final fragment of a branch
                 (not containing partial or aggregate connects;
                 possibly containing double connects and when statements)
-              * ce = component environment, containing the type definitions
+              * ce = component environment, containing the type declarations
                 of the module (this has been found in earlier passes and is not updated)
               * cs = map of connections that have been defined in the previous statements of the module definition
                 (including, when applicable, in the previous statements of the branch).
@@ -3907,83 +3976,37 @@ Admitted.
               * cstate : map of connects that have been defined before or in the branch
                 (i.e. this map extends parameter cs by the connects in ss). *)
    match ss with
-   | [::] => ([::], cs)
-   | s :: sss => match s with
+   | Qnil => (qnil, cs)
+   | Qcons s sss => match s with
                  | Sinst _ _ (* ignore for now -- TBD *)
                  | Spcnct _ _ (* should not appear -- ignore *)
                  | Sskip
                  | Sinvalid _
                  | Sstop _ _ _ => expandBranch_fun sss ce cs (* no translation needed *)
                  | Snode v e => let result := expandBranch_fun sss ce cs (* (SV.upd v (R_fexpr e) cs) *) in
-                                (s :: (fst result), snd result)
+                                (Qcons s (fst result), snd result)
                  | Sreg v r => let result := expandBranch_fun sss ce (SV.upd v (R_fexpr (Eref (Eid v))) cs) in
                                                                   (* registers keep their old value by default.
                                                                      The above code works for registers of basic type. *)
-                               (s :: (fst result), snd result)
+                               (Qcons s (fst result), snd result)
                  | Smem v m => let result := expandBranch_fun sss ce cs (* but should assign R_default to all
                                                                         input signals of ports *) in
-                                (s :: (fst result), snd result)
+                                (Qcons s (fst result), snd result)
                  | Swire v t => let result := expandBranch_fun sss ce (SV.upd v (R_default V.T) cs) in
-                                (s :: (fst result), snd result)
+                                (Qcons s (fst result), snd result)
                  | Sfcnct v e => expandBranch_fun sss ce (SV.upd (expand_eref v ce) (R_fexpr e) cs)
                  | Swhen c sst ssf => let combined_branches := combine_branches c (expandBranch_fun sst ce cs) (expandBranch_fun ssf ce cs) in
                                       let result := expandBranch_fun sss ce (snd combined_branches) in
-                                      ((fst combined_branches) ++ (fst result), snd result)
+                                      (Qcat (fst combined_branches) (fst result), snd result)
                  end
    end.
-   Obligation 1 of expandBranch_fun_func.
-   unfold stmts_well_order ; reflexivity.
-   Qed.
-   Obligation 2 of expandBranch_fun_func.
-   unfold stmts_well_order ; reflexivity.
-   Qed.
-   Obligation 3 of expandBranch_fun_func.
-   unfold stmts_well_order ; reflexivity.
-   Qed.
-   Obligation 4 of expandBranch_fun_func.
-   unfold stmts_well_order ; reflexivity.
-   Qed.
-   Obligation 5 of expandBranch_fun_func.
-   unfold stmts_well_order ; reflexivity.
-   Qed.
-   Obligation 6 of expandBranch_fun_func.
-   unfold stmts_well_order ; reflexivity.
-   Qed.
-   Obligation 7 of expandBranch_fun_func.
-   unfold stmts_well_order ; reflexivity.
-   Qed.
-   Obligation 8 of expandBranch_fun_func.
-   unfold stmts_well_order ; reflexivity.
-   Qed.
-   Obligation 9 of expandBranch_fun_func.
-   unfold stmts_well_order ; reflexivity.
-   Qed.
-   Obligation 10 of expandBranch_fun_func.
-   unfold stmts_well_order ; reflexivity.
-   Qed.
-   Obligation 11 of expandBranch_fun_func.
-   unfold stmts_well_order ; left ; reflexivity.
-   Qed.
-   Obligation 12 of expandBranch_fun_func.
-   unfold stmts_well_order ; right ; left ; reflexivity.
-   Qed.
-   Obligation 13 of expandBranch_fun_func.
-   unfold stmts_well_order ; right ; right ; reflexivity.
-   Qed.
-   Obligation 14 of expandBranch_fun_func.
-   (* Obligation 14 requires to prove that stmts_well_order is actually a well-order.
-      It is because it is based on inductive definition of seq and hfstmt,
-      but I don't know how to write that right now. *)
-   Admitted.
 
-(*
-   Definition expandWhen_fun (ss : seq hfstmt) (ce : cenv) : (seq hfstmt * cstate) := expandBranch_fun ss ce (CE.empty rhs_expr).
-*)
+   Definition expandWhen_fun (ss : hfstmt_seq) (ce : cenv) : (hfstmt_seq * cstate) := expandBranch_fun ss ce SV.empty.
    (* This function provides an interface to the main function.
       Input:  * ss = sequence of statements that form a module definition
                 (not containing partial or aggregate connects;
                 possibly containing double connects and when statements)
-              * ce = component environment, containing the type definitions
+              * ce = component environment, containing the type declarations
                 of the module (this has been found in earlier passes and is not updated)
       Output: same as the main function expandBranch_fun.
 
@@ -3993,78 +4016,37 @@ Admitted.
       However, for the verification of correctness, it is easier to directly
       verify the map instead of the generated code. *)
 
-   (* Definition expandWhen1_fun s ce cs : seq hfstmt := *)
-   (*   match s with *)
-   (*   | Swhen c ss1 ss2 => (* first collect all connections and nodes from ss1 and ss2; if some overlap, create a multiplexer;
-                                                                                if there is no overlap create a multiplexer with the previous value or a validif.
-                                Copy register / wire / memory definitions as they appear in the branches. *) *)
-   (*   | _ => s :: [::] *)
+   Fixpoint definition_of_variable (ss_rev : hfstmt_seq) (v : href) : rhs_expr :=
+   (* This function looks up to which value v is connected in the code ss.
+      The sequence ss_rev is the reversed sequence of statements. *)
+   match ss_rev with
+   | Qnil => r_default (* r_default is an abbreviation of R_default V.T *)
+   | Qcons s t => match s with
+               | Sfcnct v0 e => if v == v0 then R_fexpr e else definition_of_variable t v
+               | Swhen c sst ssf => let true_result  := definition_of_variable sst v in
+                                    let false_result := definition_of_variable ssf v in
+                                    let earlier_result := definition_of_variable t v in
+                                    match true_result, false_result, earlier_result with
+                                    | R_default, R_default, _ => earlier_result
+                                    | R_fexpr t, R_fexpr f, _ => if t == f then true_result else R_fexpr (Emux c t f)
+                                    | R_fexpr t, R_default, R_fexpr e => if t == e then true_result else R_fexpr (Emux c t e)
+                                    | R_fexpr t, R_default, R_default => R_fexpr (Evalidif c t)
+                                    | R_default, R_fexpr f, R_fexpr e => if e == f then false_result else R_fexpr (Emux c e f)
+                                    | R_default, R_fexpr f, R_default => R_fexpr (Evalidif (Eprim_unop Unot c) f)
+                                    end
+               | _ => definition_of_variable t v
+               end
+   end.
 
-  (* Fixpoint expandWhens_stmts_sem ... -- DNJ will think about this. *)
-
-
-
-  
-  Definition merge_branch_cs_t c re re_t : option rhs_expr :=
-    match re, re_t with
-    | None, None => None
-    | Some (R_fexpr e), Some (R_fexpr e_t) => Some (r_fexpr (emux c e_t e))
-    | Some R_default, Some (R_fexpr e_t) => Some (R_fexpr e_t)
-    | Some er1, None => Some er1
-    | None, Some er2 => Some er2
-    | _, _ => None
-    end.
-
-  Definition merge_branch_cs_e c re re_e : option rhs_expr :=
-    match re, re_e with
-    | None, None => None
-    | Some (R_fexpr e), Some (R_fexpr e_e) => Some (r_fexpr (emux c e e_e))
-    | Some R_default, Some (R_fexpr e_e) => Some (R_fexpr e_e)
-    | Some er1, None => Some er1
-    | None, Some er2 => Some er2
-    | _, _ => None
-    end.
-
-  Definition merge_branch_ce ce ce_t : option (cmpnt_init_typs * fcomponent) :=
-    match ce, ce_t with
-    | None, None => None
-    | Some (Aggr_typ t1, cp1), Some (Aggr_typ t2, cp2) => Some (aggr_typ (max_width t1 t2), cp1)
-    | Some (Reg_typ t1, cp1), Some (Aggr_typ t2, cp2) => Some (Reg_typ t1, cp1)
-    | Some er1, None => Some er1
-    | None, Some er2 => Some er2
-    | _, _ => None
-    end.
-
-   Fixpoint try_expandBranch_fun (s :  hfstmt) (ce : cenv) (cs : cstate) {struct s}: (cstate):=
-          let fix aux (ss : seq hfstmt) (ce : cenv) (cs : cstate) {struct ss}: (cstate) :=
-    
-              match ss with
-              | [::] => (cs)
-              | s :: sss =>  aux sss ce (try_expandBranch_fun s ce cs)
-              end in
-          match s with
-                 | Sinst _ _ (* ignore for now -- TBD *)
-                 | Spcnct _ _ (* should not appear -- ignore *)
-                 | Sskip
-                 | Sinvalid _
-                 | Sstop _ _ _ => cs (* no translation needed *)
-                 | Snode v e => (SV.upd v (R_fexpr e) cs)
-                 | Sreg v r => SV.upd v (R_fexpr (Eref (Eid v))) cs
-                                                                  (* registers keep their old value by default.
-                                                                     The above code works for registers of basic type. *)
-                 | Smem v m =>  cs (* but should assign R_default to all
-                                                                        input signals of ports *)
-                 | Swire v t => SV.upd v (R_default V.T) cs
-                 | Sfcnct v e => SV.upd (expand_eref v ce) (R_fexpr e) cs
-                 | Swhen c sst ssf => let combined_branches := SV.map2 (merge_branch_cs_t c) (aux sst ce cs) (aux ssf ce cs) in
-                                      (* let result := try_expandBranch_fun s ce (snd combined_branches) in *)
-                   (* ((fst combined_branches) ++ (fst result), snd result) *)
-                   (cs)
-                 end.
 
   
 
-  (** Semantics of declaim  ports*)
+   Definition expandWhens_var_sem (ss : hfstmt_seq) (ce : cenv) (cs : cstate) : Prop :=
+   (* This should express that cs contains the connects defined by ss in the context of ce. *)
+   forall v : href, SV.acc (expand_eref v ce) cs = definition_of_variable (Qrev ss) v.
+
+
+  (** Semantics of declaim ports *)
   Inductive eval_port : hfport -> CE.env -> cstate -> CE.env -> cstate -> Prop :=
   (* in, ground type *)
   | Eval_inport_gt v t ce cs ce' cs':
@@ -4174,60 +4156,114 @@ Admitted.
       eval_fstmt_single (smem m (mk_hfmem t dp r w rl wl rw)) ce cs ce' cs'
   .
 
+    Definition merge_branch_cs_t c re re_t : option rhs_expr :=
+    match re, re_t with
+    | None, None => None
+    | Some (R_fexpr e), Some (R_fexpr e_t) => Some (r_fexpr (emux c e_t e))
+    | Some R_default, Some (R_fexpr e_t) => Some (R_fexpr e_t)
+    | Some er1, None => Some er1
+    | None, Some er2 => Some er2
+    | _, _ => None
+    end.
 
-  Parameter map2 : (option rhs_expr -> option rhs_expr -> option rhs_expr) -> cstate -> cstate -> cstate.
+  Definition merge_branch_cs_e c re re_e : option rhs_expr :=
+    match re, re_e with
+    | None, None => None
+    | Some (R_fexpr e), Some (R_fexpr e_e) => Some (r_fexpr (emux c e e_e))
+    | Some R_default, Some (R_fexpr e_e) => Some (R_fexpr e_e)
+    | Some er1, None => Some er1
+    | None, Some er2 => Some er2
+    | _, _ => None
+    end.
+
+  Definition merge_branch_ce ce ce_t : option (cmpnt_init_typs * fcomponent) :=
+    match ce, ce_t with
+    | None, None => None
+    | Some (Aggr_typ t1, cp1), Some (Aggr_typ t2, cp2) => Some (aggr_typ (max_width t1 t2), cp1)
+    | Some (Reg_typ t1, cp1), Some (Aggr_typ t2, cp2) => Some (Reg_typ t1, cp1)
+    | Some er1, None => Some er1
+    | None, Some er2 => Some er2
+    | _, _ => None
+    end.
+
+   (* Fixpoint try_expandBranch_fun (s :  hfstmt) (ce : cenv) (cs : cstate) {struct s}: (cstate):= *)
+   (*        let fix aux (ss : seq hfstmt) (ce : cenv) (cs : cstate) {struct ss}: (cstate) := *)
+    
+   (*            match ss with *)
+   (*            | [::] => (cs) *)
+   (*            | s :: sss =>  aux sss ce (try_expandBranch_fun s ce cs) *)
+   (*            end in *)
+   (*        match s with *)
+   (*               | Sinst _ _ (* ignore for now -- TBD *) *)
+   (*               | Spcnct _ _ (* should not appear -- ignore *) *)
+   (*               | Sskip *)
+   (*               | Sinvalid _ *)
+   (*               | Sstop _ _ _ => cs (* no translation needed *) *)
+   (*               | Snode v e => (SV.upd v (R_fexpr e) cs) *)
+   (*               | Sreg v r => SV.upd v (R_fexpr (Eref (Eid v))) cs *)
+   (*                                                                (* registers keep their old value by default. *)
+   (*                                                                   The above code works for registers of basic type. *) *)
+   (*               | Smem v m =>  cs (* but should assign R_default to all *)
+   (*                                                                      input signals of ports *) *)
+   (*               | Swire v t => SV.upd v (R_default V.T) cs *)
+   (*               | Sfcnct v e => SV.upd (expand_eref v ce) (R_fexpr e) cs *)
+   (*               | Swhen c sst ssf => let combined_branches := SV.map2 (merge_branch_cs_t c) (aux sst ce cs) (aux ssf ce cs) in *)
+   (*                                    (* let result := try_expandBranch_fun s ce (snd combined_branches) in *) *)
+   (*                 (* ((fst combined_branches) ++ (fst result), snd result) *) *)
+   (*                 (cs) *)
+   (*               end. *)
 
   (** Semantics of statement group, last cnct considered *)
-  Inductive eval_fstmts_group : seq hfstmt -> CE.env -> cstate -> CE.env -> cstate -> Prop :=
-  | Gnil ce cs: eval_fstmts_group [::] ce cs ce cs
+  Inductive eval_fstmts_group : hfstmt_seq -> CE.env -> cstate -> CE.env -> cstate -> Prop :=
+  | Gnil ce cs: eval_fstmts_group qnil ce cs ce cs
   (** other than when *)
   | Gfstmts_default st hst_tl ce ce' cs cs' cs'' :
       eval_fstmt_single st ce cs ce cs' ->
       eval_fstmts_group hst_tl ce cs' ce' cs'' ->
-      eval_fstmts_group (st :: hst_tl) ce cs ce' cs''
+      eval_fstmts_group (Qcons st hst_tl) ce cs ce' cs''
   (* (**  claim a sreg *) *)
   (* | Gfstmts_reg_init r rt hst_tl ce ce' ce'' cs cs' cs'' : *)
   (*     eval_fstmt_single (sreg r rt) ce cs ce' cs' -> *)
   (*     eval_fstmts_group  hst_tl ce' cs' ce'' cs'' -> *)
-  (*     eval_fstmts_group (sreg r rt :: hst_tl) ce cs ce'' cs''. *)
+  (*     eval_fstmts_group (Qcons (sreg r rt) hst_tl) ce cs ce'' cs''. *)
   (* (** claim a node *) *)
   (* | Gfstmts_node v e hst_tl ce ce' ce'' cs cs' cs'' : *)
   (*     eval_fstmt_single (snode v e) ce cs ce' cs' -> *)
   (*     eval_fstmts_group hst_tl ce' cs' ce'' cs'' -> *)
-  (*     eval_fstmts_group (snode v e :: hst_tl) ce cs ce'' cs'' *)
+  (*     eval_fstmts_group (Qcons (snode v e) hst_tl) ce cs ce'' cs'' *)
   (* (** skip *) *)
   (* | Gskip_fstmts hst_tl ce ce' cs cs' : *)
   (*     eval_fstmts_group hst_tl ce cs ce' cs' -> *)
-  (*     eval_fstmts_group (sskip :: hst_tl) ce cs ce' cs' *)
+  (*     eval_fstmts_group (Qcons sskip hst_tl) ce cs ce' cs' *)
   (** condition when *)
   | Gwhen_fstmts c hstg1 hstg2 hst_tl ce ce' ce'' cs cs' cs'' :
       eval_fstmts_group_branch c hstg1 hstg2 ce cs ce' cs' ->
       eval_fstmts_group hst_tl ce' cs' ce'' cs'' ->
-      eval_fstmts_group (swhen c hstg1 hstg2 :: hst_tl) ce cs ce'' cs''
+      eval_fstmts_group (Qcons (swhen c hstg1 hstg2) hst_tl) ce cs ce'' cs''
   (** https://github.com/llvm/circt/blob/main/lib/Dialect/FIRRTL/Transforms/ExpandWhens.cpp *)
   with eval_fstmts_group_branch :
-         hfexpr -> seq hfstmt -> seq hfstmt -> CE.env -> cstate -> CE.env -> cstate -> Prop :=
+         hfexpr -> hfstmt_seq -> hfstmt_seq -> CE.env -> cstate -> CE.env -> cstate -> Prop :=
   (** nil *)
   | Gthen_else_def c ce cs :
-      eval_fstmts_group_branch c [::] [::] ce cs ce cs
+      eval_fstmts_group_branch c qnil qnil ce cs ce cs
   | Gthen_else c tb eb ce0 cs0 ce1 cs1 ce2 cs2 :
       eval_fstmts_group tb ce0 cs0 ce1 cs1 ->
       eval_fstmts_group eb ce0 cs0 ce2 cs2 ->
       eval_fstmts_group_branch c tb eb ce0 cs0 (CE.map2 merge_branch_ce (CE.map2 merge_branch_ce ce0 ce1) ce2)
-                               (map2 (merge_branch_cs_e c) (map2 (merge_branch_cs_t c) cs0 cs1) cs2).
+                               (SV.map2 (merge_branch_cs_e c) (SV.map2 (merge_branch_cs_t c) cs0 cs1) cs2).
 
   (* (** connect to dst in then branch which has "not" been connected previously, add then branch *) *)
   (* | Gthen_cnct_0 c v e hstg1 hstg2 ce ce' ce'' cs cs' cs'' : *)
   (*     SV.acc (base_ref v) cs == r_default -> *)
   (*     eval_fstmt_single (sfcnct v e) ce cs ce' cs' -> *)
   (*     eval_fstmts_group_branch c hstg1 hstg2 ce' cs' ce'' cs'' -> *)
-  (*     eval_fstmts_group_branch c (sfcnct v e :: hstg1) hstg2 ce cs ce'' cs'' *)
+  (*     eval_fstmts_group_branch c (Qcons (sfcnct v e) hstg1) hstg2 ce cs ce'' cs'' *)
   (* (** connect to dst in else branch which has "not" been connected previously, add else branch *) *)
   (* | Gelse_cnct_0 c v e hstg2 ce ce' ce'' cs cs' cs'' : *)
   (*     CE.find v ce == None -> *)
   (*     eval_fstmt_single (sfcnct (eref v) e) ce cs ce' cs' -> *)
-  (*     eval_fstmts_group_branch c [::] hstg2 ce' cs' ce'' cs'' -> *)
-  (*     eval_fstmts_group_branch c [::] (sfcnct (eref v) e :: hstg2) ce cs ce'' cs'' *)
+  (*     eval_fstmts_group_branch c Qnil hstg2 ce' cs' ce'' cs'' -> *)
+  (*     eval_fstmts_group_branch c Qnil (Qcons (sfcnct (eref v) e) hstg2) ce cs ce'' cs'' *)
   (* (** connect to dst in then branch which has been connected previously, add mux(p, then, prev) *) *)
   (* | Gthen_cnct c v e re hstg1 hstg2 ce ce' cs cs' cs'' : *)
   (*     SV.acc v cs == r_fexpr re -> *)
@@ -4235,36 +4271,36 @@ Admitted.
   (*     (* SV.Upd vn (r_fexpr (emux c e re)) cs cs' -> *) *)
   (*     SV.Upd v (r_fexpr (emux c e re)) cs cs' -> *)
   (*     eval_fstmts_group_branch c hstg1 hstg2 ce cs' ce' cs'' -> *)
-  (*     eval_fstmts_group_branch c (sfcnct (eref v) e :: hstg1) hstg2 ce cs ce' cs'' *)
+  (*     eval_fstmts_group_branch c (Qcons (sfcnct (eref v) e) hstg1) hstg2 ce cs ce' cs'' *)
   (* (** connect to dst in else branch which has been connected previously, add mux(p, prev, else) *) *)
   (* | Gelse_cnct c v e re hstg2 ce ce' cs cs' cs'' : *)
   (*     SV.acc v cs == r_fexpr re -> *)
   (*     SV.Upd v (r_fexpr (emux c re e)) cs cs' -> *)
-  (*     eval_fstmts_group_branch c [::] hstg2 ce cs' ce' cs'' -> *)
-  (*     eval_fstmts_group_branch c [::] (sfcnct (eref v) e :: hstg2) ce cs ce' cs'' *)
+  (*     eval_fstmts_group_branch c Qnil hstg2 ce cs' ce' cs'' -> *)
+  (*     eval_fstmts_group_branch c Qnil (Qcons (sfcnct (eref v) e) hstg2) ce cs ce' cs'' *)
   (* (** claim a sreg in then branch *) *)
   (* | Gthen_reg c r hstg1 hstg2 ce ce' ce'' cs cs' cs'' : *)
   (*     eval_fstmt_single (sreg r) ce cs ce' cs' -> *)
   (*     eval_fstmts_group_branch c hstg1 hstg2 ce' cs' ce'' cs'' -> *)
-  (*     eval_fstmts_group_branch c (sreg r :: hstg1) hstg2 ce cs ce'' cs'' *)
+  (*     eval_fstmts_group_branch c (Qcons (sreg r) hstg1) hstg2 ce cs ce'' cs'' *)
   (* (** claim a sreg in else branch *) *)
   (* | Gelse_reg c r hstg2 ce ce' ce'' cs cs' cs'' : *)
   (*     eval_fstmt_single (sreg r) ce cs ce' cs' -> *)
-  (*     eval_fstmts_group_branch c [::] hstg2 ce' cs' ce'' cs'' -> *)
-  (*     eval_fstmts_group_branch c [::] (sreg r :: hstg2) ce cs ce'' cs'' *)
+  (*     eval_fstmts_group_branch c Qnil hstg2 ce' cs' ce'' cs'' -> *)
+  (*     eval_fstmts_group_branch c Qnil (Qcons (sreg r) hstg2) ce cs ce'' cs'' *)
   (* (** claim a node in then branch *) *)
   (* | Gthen_node c v e hstg1 hstg2 ce ce' ce'' cs cs' cs'' : *)
   (*     eval_fstmt_single (snode v e) ce cs ce' cs' -> *)
   (*     eval_fstmts_group_branch c hstg1 hstg2 ce' cs' ce'' cs'' -> *)
-  (*     eval_fstmts_group_branch c (snode v e :: hstg1) hstg2 ce cs ce'' cs'' *)
+  (*     eval_fstmts_group_branch c (Qcons (snode v e) hstg1) hstg2 ce cs ce'' cs'' *)
   (* (** claim a node in else branch *) *)
   (* | Gelse_node c v e hstg2 ce ce' ce'' cs cs' cs'' : *)
   (*     eval_fstmt_single (snode v e) ce cs ce' cs' -> *)
-  (*     eval_fstmts_group_branch c [::] hstg2 ce' cs' ce'' cs'' -> *)
-  (*     eval_fstmts_group_branch c [::] (snode v e :: hstg2) ce cs ce'' cs''. *)
+  (*     eval_fstmts_group_branch c Qnil hstg2 ce' cs' ce'' cs'' -> *)
+  (*     eval_fstmts_group_branch c Qnil (Qcons (snode v e) hstg2) ce cs ce'' cs''. *)
 
   (* Lemma valid_conncection v e2 sts ce cs ce' cs' : *)
-  (*   eval_fstmts_group (sfcnct (eref v) e2 :: sts) ce cs ce' cs' -> *)
+  (*   eval_fstmts_group (Qcons (sfcnct (eref v) e2) sts) ce cs ce' cs' -> *)
   (*   valid_rhs (SV.acc v cs') ce'. *)
 
 
