@@ -504,7 +504,6 @@ Module MakeFirrtl
                                   | Fsint w => Fuint w
                                   | _ => TE.deftyp
                                   end
-                        | _ => type_of_fexpr e te
                         end
     | Eprim_binop b e1 e2 => match b with
                              | Bdshl => match (type_of_fexpr e1 te) with
@@ -698,7 +697,7 @@ Module MakeFirrtl
              let s1 := upd_argulist s io_in name n in
              (*let te1 := upd_typenv_fstmts st te s1 in*)
              let (rs2, s2) := eval_fstmts st rs s1 te in
-             clk_steps_tail_rec_aux st rs2 s2 te1 io_in name m len
+             clk_steps_tail_rec_aux st rs2 s2 te io_in name m len
     end.
   
   Definition clk_steps_tail_rec st rs s te ios nms nclk := clk_steps_tail_rec_aux st rs s te ios nms nclk nclk.
