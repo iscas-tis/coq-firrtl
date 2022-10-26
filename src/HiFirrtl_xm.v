@@ -3863,7 +3863,35 @@ Qed.
       to one where when statements are replaced by suitable multiplexers or validifs.
       It also handles the last connect semantics. *)
   
-  Definition merge_branch_cs_t c re re_t : option rhs_expr :=
+  Definition branch_true c re re_t : option rhs_expr :=
+    match re, re_t with
+    | None, Some er => Some er
+    | None, None => None
+    | Some (R_fexpr e), Some (R_fexpr e_t) => Some (r_fexpr (emux c e_t e))
+    | Some (R_default), Some (R_fexpr e_t) => Some (r_fexpr (evalidif c e_t))
+    | Some (R_fexpr e), Some R_default => None
+    | Some (R_default), Some R_default => None
+    | Some (R_fexpr e), None => Some (r_fexpr (evalidif c e))
+    | Some R_default, None => Some r_default
+    end.
+
+  Definition branch_false c re re_e : option rhs_expr :=
+    match re, re_e with
+    | None, None => None
+    | None, Some er => Some er
+    | Some (R_fexpr e), Some (R_fexpr e_e) => Some (r_fexpr (emux c e e_e))
+    | Some (R_default), Some (R_fexpr e_e) => Some (r_fexpr (evalidif (eprim_unop Unot c) e_e))
+    | Some (R_fexpr e), Some (R_default) => None
+    | Some (R_default), Some (R_default) => None
+    | Some (R_fexpr e), None => Some (r_fexpr (evalidif c e))
+    | Some (R_default), None => Some r_default
+    end.
+
+  Definition merge_t_f c rt re : option rhs_expr :=
+    match rt, re with
+    | Some t, None => Some t
+
+    Definition merge_branch_cs_t c re re_t : option rhs_expr :=
     match re, re_t with
     | None, None => None
     | Some (R_fexpr e), Some (R_fexpr e_t) => Some (r_fexpr (emux c e_t e))
@@ -3872,7 +3900,7 @@ Qed.
     | None, Some er2 => Some er2
     | _, _ => None
     end.
-
+  
   Definition merge_branch_cs_e c re re_e : option rhs_expr :=
     match re, re_e with
     | None, None => None
@@ -3883,15 +3911,15 @@ Qed.
     | _, _ => None
     end.
 
-  Definition merge_branch_ce ce ce_t : option (cmpnt_init_typs * fcomponent) :=
-    match ce, ce_t with
-    | None, None => None
-    | Some (Aggr_typ t1, cp1), Some (Aggr_typ t2, cp2) => Some (aggr_typ (max_width t1 t2), cp1)
-    | Some (Reg_typ t1, cp1), Some (Aggr_typ t2, cp2) => Some (Reg_typ t1, cp1)
-    | Some er1, None => Some er1
-    | None, Some er2 => Some er2
-    | _, _ => None
-    end.
+  (* Definition merge_branch_ce ce ce_t : option (cmpnt_init_typs * fcomponent) := *)
+  (*   match ce, ce_t with *)
+  (*   | None, None => None *)
+  (*   | Some (Aggr_typ t1, cp1), Some (Aggr_typ t2, cp2) => Some (aggr_typ (max_width t1 t2), cp1) *)
+  (*   | Some (Reg_typ t1, cp1), Some (Aggr_typ t2, cp2) => Some (Reg_typ t1, cp1) *)
+  (*   | Some er1, None => Some er1 *)
+  (*   | None, Some er2 => Some er2 *)
+  (*   | _, _ => None *)
+  (*   end. *)
 
    Fixpoint expandBranch_fun (s :  hfstmt) (cs : cstate) : (cstate):=
           let fix aux (sts : seq hfstmt) (cs : cstate) : (cstate) :=
@@ -3906,8 +3934,8 @@ Qed.
                  | Sinvalid _
                  | Sstop _ _ _ => cs (* no translation needed *)
                  | Snode v e => (SV.upd v (r_fexpr e) cs)
-                 | Sreg v r => SV.upd v r_default cs
-                 | Smem v m =>  SV.upd v r_default cs 
+                 | Sreg v r => SV.upd v (Eref v) cs
+                 | Smem v m =>  SV.upd v (Eref v) cs 
                  | Swire v t => SV.upd v r_default cs
                  | Sfcnct v e => SV.upd (base_ref v) (R_fexpr e) cs
                  | Swhen c sst ssf =>
@@ -3950,10 +3978,15 @@ Qed.
          SV.acc (base_ref v) cs1 = r_fexpr e ->
          expandBranch_stmt (sfcnct v e) cs0 cs1
    | expandB_swhen :
-       forall c st_t st_f cs0 cs1,
+       forall c st_t st_f cs0 cs1 cs2,
          expandBranch_stmts (st_t) cs0 cs1 ->
-         expandBranch_stmts (st_f) cs0 cs1 ->
-         expandBranch_stmt (swhen c st_t st_f) cs0 cs1
+         expandBranch_stmts (st_f) cs1 cs2 ->
+         (forall v e,
+             (SV.find v cs0 = None /\ SV.find v cs1 = Some (r_fexpr e) -> SV.find v cs2 = SV.find v cs1)
+             \/ (SV.find v cs0 = None /\ SV.find v cs1 = None -> SV.find v cs2 = Some (r_fexpr e))
+             \/ (SV.find v cs0 = Some (r_fexpr e1) /\ SV.find v cs1 = Some (r_fexpr e2) /\ )
+         ) ->
+             expandBranch_stmt (swhen c st_t st_f) cs0 cs2
    with expandBranch_stmts : seq hfstmt -> cstate -> cstate -> Prop :=
    | expandB_nil :
        forall cs0,
