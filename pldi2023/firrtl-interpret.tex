@@ -1,3 +1,16 @@
 %!TEX root = main.tex
+Coq's Extraction feature to translate lower firrtl (clk\_steps\_tail\_rec) into an OCaml program that is the Low FIRRTL OCaml Interpreter
 
-extraction of firrtl ocaml interpreter and its validation
+benchmarks: treadle\_lofir (self-contained XXX samples out of YYY samples from the official hardware circuit simulator \textsf{treadle}, )
+and Accumulator.lo.fir, Combinational.lo.fir, FibCircuit.lo.fir, ShiftRegister.lo.fir (all the benchmarks from ``A Mechanized Semantic Metalanguage for
+High Level Synthesis").
+
+
+Testing:  Treadle vs. Interpreter
+
+Steps: for benchmark, an OCaml driver identifies the inputs and their types, then
+randomly generate 100 tests of the benchmark.
+
+test results are the same
+
+execution time: 
