@@ -76,7 +76,7 @@ The rules for the operational semantics of statements are presented in Table~\re
    {\seqq{rs(r) \neq \bot}} {\seqq{ s(e_1)= true}} {\seqq{s' = s[rs(r)/r]}} {\seqq{rs' = rs[s(e_2)/r]}}
     \\[1ex]
     \inferii[node]
-    {\seqq{(te, s, rs) \xrightarrow{\mbox{node } v = e} (te', s, rs')}}
+    {\seqq{(te, s, rs) \xrightarrow{\mbox{node } v = e} (te', s', rs)}}
    {\seqq{te' = te[te(e)/v]}} {\seqq{s' = s[s(e)/v]}}
     \quad
     \inferii[connect:$\bot$]
