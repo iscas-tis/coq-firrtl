@@ -118,7 +118,7 @@ $te(e)$ is defined as follows.
 %
 \item $te(cp(e_1, e_2)) = UInt \bwidth{1}$, where $cp \in \{lt, leq, gt, geq, eq, neq\}$,
 %
-\item $te(dshl(e_1, e_2)) = \theta \bwidth{\max(n_1, 2^{n_2}-1)}$, 
+\item $te(dshl(e_1, e_2)) = \theta \bwidth{n_1+2^{n_2}-1}$, 
 %
 \item $te(dshr(e_1, e_2)) = \theta \bwidth{n_1}$, 
 %
