@@ -6,7 +6,7 @@ open Firrtl
 open Big_int_Z
 open Graph
 
-let lowf = "./demo/treadle_lofir/VF.lo.fir"
+let lowf = "./demo/treadle_lofir/HasCycle.lo.fir"
 let file = "./demo/input.txt"
 
 let parse f =
@@ -196,6 +196,7 @@ end
 module G = Persistent.Digraph.Concrete(Int)
 
 module C = Graph.Components.Make(G)
+module GPDFS = Traverse.Dfs (G)
 
 (* expr -> var list *)
 let rec expr2varlist expr ls = 
@@ -341,7 +342,6 @@ let () =
   let (rsl, pl) = fextract_stmt fcir [] [] in 
   let te00 = LoFirrtl.upd_typenv_fports pl te0 in
   let sl = List.rev rsl in 
-
   let (gg,kls,_,rsl,ukm) = generateG sl (G.empty,[],[],[],intmap) in
     (*printf "%d\n" (List.length kls);
     IntMap.iter (fun key _ -> (printf "%d:" key;); printf "\n") ukm;*)
@@ -352,7 +352,8 @@ let () =
   let (_,stmtorder) = List.split (IntMap.bindings (IntMap.fold (fun k v mm -> IntMap.add (order k) v mm) ukm intmap)) in
   (*printf "%d\n" (List.length stmtorder);*)
   let fsl = List.append (List.append kls (List.rev stmtorder)) rsl in 
-    (*List.iter p_stmt fsl;*)
+  if (GPDFS.has_cycle gg)
+    then printf  "HasCycle\n";
   let ut1 = (Unix.times()).tms_utime in
   (*let inp_intmap = IntMap.add 3 (List.map (bits_of_z 1) (List.map Z.of_int [1;1;1;1;1;1;1;1;1;1])) inp_intmap in
   let inp_intmap = IntMap.add 1 (List.map (bits_of_z 1) (List.map Z.of_int [0;0;0;0;0;0;0;0;0;0])) inp_intmap in
