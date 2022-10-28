@@ -1,16 +1,63 @@
 %!TEX root = main.tex
-Coq's Extraction feature to translate lower firrtl (clk\_steps\_tail\_rec) into an OCaml program that is the Low FIRRTL OCaml Interpreter
+Formalizing the operational semantics of LoFIRRTL in Coq not only provides a formal reference of LoFIRRTL,
+but only yields an executable interpreter in OCaml, called LoFIRRTL OCaml Interpreter, via the Coq's extraction feature.
+The former would greatly facilitate developers' understanding, freeing them from lengthy, ambiguous and elusive documentations.
+The latter enables developers' to conveniently test correctness of FIRRTL circuit designs and test conformance of any other
+LoFIRRTL interpreter or simulator via difference testing.
+In this subsection, to understand the performance and ensure confidence of the formalized operational semantics,
+we conduct difference testing between our LoFIRRTL OCaml Interpreter and
+the official FIRRTL circuit simulator, called Treadle, which executes LoFIRRTL circuts
+based on the earlier scala-based LoFIRRTL Interpreter.
 
-benchmarks: treadle\_lofir (self-contained XXX samples out of YYY samples from the official hardware circuit simulator \textsf{treadle}, )
-and Accumulator.lo.fir, Combinational.lo.fir, FibCircuit.lo.fir, ShiftRegister.lo.fir (all the benchmarks from ``A Mechanized Semantic Metalanguage for
-High Level Synthesis").
+
+\smallskip\noindent
+{\bf Benchmarks}. We mainly collect LoFIRRTL circuits from Treadle, 
+i.e., those 55 LoFIRRTL circuits inside the ``chipsalliance/treadle/samples'' directory.
+We consider those LoFIRRTL circuits because Treadle is more likely to execute correctly on them so that
+the correctness testing of the formalized operational semantics has high confidence. 
+Among 55 LoFIRRTL circuits, we exclude 21 LoFIRRTL circuits because they violate the syntax of
+LoFIRRTL (i.e., dependency of external modules or the usage of subfield), have no output ports or 
+cannot be handled by Treadle due to cyclical connection of ports.
+Thus, we collected 34 LoFIRRTL circuits from Treadle.
+In addition, we also collect all the four LoFIRRTL circuits from 
+\cite{HarrisonHA21} which have been tested using the scala-based LoFIRRTL Interpreter
+and a formal Agda-based Interpreter designed for a subset of LoFIRRTL.
+In summary, we use 38 LoFIRRTL circuits all of which can be handled by Treadle.
+ 
+\smallskip\noindent
+{\bf Testing method}.
+Since the input LoFIRRTL programs to our LoFIRRTL OCaml Interpreter should be in the pseudo-SSA form
+while all the collected LoFIRRTL circuits are not necessary in the pseudo-SSA form,
+to solve this issue, we implement a preprocessor
+in OCaml which transforms each LoFIRRTL program into an equivalent one in the pseudo-SSA form on which
+our LoFIRRTL OCaml Interpreter can be handled.
+Furthermore, LoFIRRTL programs themselves require inputs to execute.
+For this purpose, we also implement a deriver in OCaml which first automatically identifies
+all the input ports and their types for each LoFIRRTL program and then randomly generates 100 test inputs for
+the LoFIRRTL program. Finally, for each given LoFIRRTL program and each its test input,
+we compare the equivalence of output ports produced by  our LoFIRRTL OCaml Interpreter and Treadle.
 
 
-Testing:  Treadle vs. Interpreter
+\smallskip\noindent
+{\bf Testing results}.
 
-Steps: for benchmark, an OCaml driver identifies the inputs and their types, then
-randomly generate 100 tests of the benchmark.
-
-test results are the same
-
-execution time: 
+%
+%
+%
+%%Coq's Extraction feature to translate lower firrtl (clk\_steps\_tail\_rec) into an OCaml program that is the Low FIRRTL OCaml Interpreter
+%
+%%benchmarks: treadle\_lofir (self-contained XXX samples out of YYY samples from the official hardware circuit simulator \textsf{treadle}, )
+%%and Accumulator.lo.fir, Combinational.lo.fir, FibCircuit.lo.fir, ShiftRegister.lo.fir (all the benchmarks from ``A Mechanized Semantic Metalanguage for
+%%High Level Synthesis").
+%
+%% treadle例子一共55个，18有external module或者多个module用到subfield（是不符合lofir语法），一致的37个,3
+%%7个里还有2个例子是电路本身没有output端口没法比较，还有1个是有循环连接的，treadle那边会直接报一个error，ocaml这边我会写一个判断报错
+%
+%%Testing:  Treadle vs. Interpreter
+%
+%Steps: for benchmark, an OCaml driver identifies the inputs and their types, then
+%randomly generate 100 tests of the benchmark.
+%
+%test results are the same
+%
+%execution time:
