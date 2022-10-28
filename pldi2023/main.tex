@@ -5,17 +5,17 @@
 %% The original source files were:
 %%
 %% samples.dtx  (with options: `acmsmall-conf')
-%% 
+%%
 %% IMPORTANT NOTICE:
-%% 
+%%
 %% For the copyright see the source file.
-%% 
+%%
 %% Any modified versions of this file must be renamed
 %% with new filenames distinct from sample-acmsmall-conf.tex.
-%% 
+%%
 %% For distribution of the original source see the terms
 %% for copying and modification in the file samples.dtx.
-%% 
+%%
 %% This generated file may be distributed as long as the
 %% original source files, as listed above, are part of the
 %% same distribution. (The sources need not necessarily be
@@ -123,6 +123,8 @@
 \usepackage{mathtools}
 \usepackage{booktabs}
 \usepackage{bussproofs}
+\usepackage{multirow}
+\usepackage{graphics}
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -234,7 +236,7 @@
   \institution{University of Chinese Academy of Sciences}
   \streetaddress{No.19(A) Yuquan Road, Shijingshan District}
   \city{Beijing}
-  \country{China}} 
+  \country{China}}
 \email{}
 \orcid{}
 
@@ -257,7 +259,7 @@
   \institution{University of Chinese Academy of Sciences}
   \streetaddress{No.19(A) Yuquan Road, Shijingshan District}
   \city{Beijing}
-  \country{China}} 
+  \country{China}}
 \email{wuzl@ios.ac.cn}
 \orcid{}
 
@@ -272,7 +274,7 @@
   \institution{University of Chinese Academy of Sciences}
   \streetaddress{No.19(A) Yuquan Road, Shijingshan District}
   \city{Beijing}
-  \country{China}} 
+  \country{China}}
 \email{jiuyang@hust.edu.cn}
 \orcid{}
 
@@ -286,7 +288,7 @@
   \institution{University of Chinese Academy of Sciences}
   \streetaddress{No.19(A) Yuquan Road, Shijingshan District}
   \city{Beijing}
-  \country{China}} 
+  \country{China}}
 \email{zhanglj@ios.ac.cn}
 \orcid{}
 }
@@ -304,17 +306,17 @@
 %% The abstract is a short summary of the work to be presented in the
 %% article.
 \begin{abstract}
-FIRRTL is an intermediate representation for Chisel hardware description language and has been intensively used in designing RISC-V CPUs. 
+FIRRTL is an intermediate representation for Chisel hardware description language and has been intensively used in designing RISC-V CPUs.
 This paper presents Vefirrtl, a framework for reasoning
 about programs expressed in FIRRTL’s intermediate representation
 and lowering transformations that remove gradually the high-level constructs. Vefirrtl provides a
-mechanized formal semantics of FIRRTL’s intermediate representation and 
+mechanized formal semantics of FIRRTL’s intermediate representation and
 its type system. The framework is built using the Coq interactive theorem prover. It includes
 the axiomatic semantics for High FIRRTL and operational semantics for Low FIRRTL and proves relations among them.
 To validate Vefirrtl's design, we extract an interpreter from the
 Coq formal semantics that can execute programs from FIRRTL test
 suite and thus be compared against FIRRTL reference implementations.
-To demonstrate Vefirrtl's practicality, we formalize and verify two key transformations of FIRRTL programs, namely ``Infer Width'' and ``Expands When'', which infer bit widths of signals and expands the when statements respectively. 
+To demonstrate Vefirrtl's practicality, we formalize and verify two key transformations of FIRRTL programs, namely ``Infer Width'' and ``Expands When'', which infer bit widths of signals and expands the when statements respectively.
 %
 \end{abstract}
 

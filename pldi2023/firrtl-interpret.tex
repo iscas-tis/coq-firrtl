@@ -5,7 +5,7 @@ The former would greatly facilitate developers' understanding, freeing them from
 The latter enables developers' to conveniently test correctness of FIRRTL circuit designs and test conformance of any other
 LoFIRRTL interpreter or simulator via difference testing.
 In this subsection, to understand the performance and ensure confidence of the formalized operational semantics,
-we conduct difference testing between our LoFIRRTL OCaml Interpreter and
+we conduct conformance testing between our LoFIRRTL OCaml Interpreter and
 the official FIRRTL circuit simulator, called Treadle, which executes LoFIRRTL circuts
 based on the earlier scala-based LoFIRRTL Interpreter.
 
@@ -38,10 +38,70 @@ the LoFIRRTL program. Finally, for each given LoFIRRTL program and each its test
 we compare the equivalence of output ports produced by  our LoFIRRTL OCaml Interpreter and Treadle.
 
 
+
+\begin{table}[t]
+\caption{Results of conformance testing}\footnotesize
+\label{tab:conformancetesting}
+\begin{tabular}{|c|c|c|c|c|c|c|}
+  \hline
+\multicolumn{2}{|c|}{\multirow{2}{*}{\bf Benchmark name}} & \multirow{2}{*}{\bf \#LOC} & \multicolumn{3}{c|}{\bf Execution time (ms)} & \multirow{2}{*}{\bf Result} \\ \cline{4-6}
+ \multicolumn{2}{|c|}{}                                   &                        & {\bf Treadle}  &  {\bf Ours}  & {\bf Speedup}    &  \\ \hline
+\multirow{34}{*}{\textbf{\rotatebox{270}{Treadle}}} & \textbf{AggregatePassThrough}              & 72  & 0.338 & 0.074 & 3.590  & \checkmark \\
+                                   & \textbf{ALU}                               & 61  & 0.905 & 0.125 & 6.219  & \checkmark \\
+                                   & \textbf{BundlePassThrough}                 & 27  & 0.234 & 0.020 & 10.492 & \checkmark \\
+                                   & \textbf{ConstantTapTransposedStreamingFIR} & 35  & 0.280 & 0.046 & 5.023  & \checkmark \\
+                                   & \textbf{DoesAbs}                           & 36  & 0.464 & 0.047 & 8.822  & \checkmark \\
+                                   & \textbf{DriverTest}                        & 8   & 0.193 & 0.002 & 97.851 & \checkmark \\
+                                   & \textbf{EqModule}                          & 9   & 0.191 & 0.008 & 23.763 & \checkmark \\
+                                   & \textbf{ExampleModule}                     & 44  & 0.236 & 0.059 & 3.016  & \checkmark \\
+                                   & \textbf{FixedPointAdder}                   & 11  & 0.230 & 0.007 & 30.161 & \checkmark \\
+                                   & \textbf{FixedPointDivide}                  & 10  & 0.193 & 0.007 & 28.099 & \checkmark \\
+                                   & \textbf{FixedPointReduce}                  & 43  & 0.386 & 0.110 & 2.508  & \checkmark \\
+                                   & \textbf{FixedPointShifter}                 & 15  & 0.239 & 0.012 & 18.790 & \checkmark \\
+                                   & \textbf{FixedPrecisionChanger}             & 10  & 0.276 & 0.005 & 51.454 & \checkmark \\
+                                   & \textbf{FixedRing1}                        & 26  & 0.264 & 0.045 & 4.907  & \checkmark \\
+                                   & \textbf{GCD}                               & 30  & 0.274 & 0.043 & 5.436  & \checkmark \\
+                                   & \textbf{HardwareHashMaker}                 & 122 & 0.459 & 2.894 & -0.841 & \checkmark \\
+                                   & \textbf{IntegerModule}                     & 11  & 0.166 & 0.029 & 4.650  & \checkmark \\
+                                   & \textbf{OverflowTypeCircuit}               & 34  & 0.243 & 0.033 & 6.325  & \checkmark \\
+                                   & \textbf{ParameterizedNumberOperation}      & 12  & 0.237 & 0.025 & 8.576  & \checkmark \\
+                                   & \textbf{PeekPokeBundleSpecMyCircuit}       & 17  & 0.253 & 0.009 & 28.056 & \checkmark \\
+                                   & \textbf{RealGCD2}                          & 44  & 0.274 & 0.066 & 3.179  & \checkmark \\
+                                   & \textbf{RealGCD3}                          & 48  & 0.441 & 0.073 & 5.053  & \checkmark \\
+                                   & \textbf{RemoveMantissa}                    & 10  & 0.206 & 0.004 & 45.697 & \checkmark \\
+                                   & \textbf{RingModule}                        & 11  & 0.192 & 0.018 & 9.644  & \checkmark \\
+                                   & \textbf{ShouldBeBadUIntSubtractWithGrow}   & 14  & 0.258 & 0.010 & 23.763 & \checkmark \\
+                                   & \textbf{SignedAdder}                       & 11  & 0.245 & 0.011 & 21.989 & \checkmark \\
+                                   & \textbf{SignedModule}                      & 34  & 0.156 & 0.034 & 3.627  & \checkmark \\
+                                   & \textbf{SimpleAdder}                       & 15  & 0.219 & 0.010 & 20.500 & \checkmark \\
+                                   & \textbf{SimpleCaseClassModule}             & 10  & 0.226 & 0.002 & 98.158 & \checkmark \\
+                                   & \textbf{SimpleComplexAdder}                & 40  & 0.295 & 0.058 & 4.083  & \checkmark \\
+                                   & \textbf{Sort}                              & 85  & 0.571 & 0.268 & 1.135  & \checkmark \\
+                                   & \textbf{UseMyBundle}                       & 59  & 0.261 & 0.044 & 4.868  & \checkmark \\
+                                   & \textbf{VecPassThrough}                    & 75  & 0.411 & 0.067 & 5.142  & \checkmark \\
+                                   & \textbf{VF}                                & 64  & 0.195 & 0.070 & 1.797  & \checkmark \\ \hline
+\multirow{4}{*}{\textbf{\cite{HarrisonHA21}}}      & \textbf{Accumulator}                       & 13  & 0.175 & 0.007 & 25.705 & \checkmark \\
+                                   & \textbf{Combinational}                     & 12  & 0.167 & 0.007 & 21.328 & \checkmark \\
+                                   & \textbf{FibCircuit}                        & 14  & 0.190 & 0.006 & 29.195 & \checkmark \\
+                                   & \textbf{ShiftRegister}                     & 21  & 0.190 & 0.010 & 18.433 & \checkmark  \\ \hline
+\end{tabular}
+\end{table}
+%
+
 \smallskip\noindent
 {\bf Testing results}.
+The results of conformance testing are reported in Table~\ref{tab:conformancetesting}, where 
+column (\#LOC) shows the number of locations,
+column (Treadle) shows the execution time $t_1$ of Treadle in millisecond,
+column (Ours) shows the execution time $t_2$ of our LoFIRRTL OCaml Interpreter in millisecond,
+column (Speedup) is calculated via $\frac{t_1-t_2}{t_2}$,
+column (Result) shows the comparison result of output ports between Treadle and our LoFIRRTL OCaml Interpreter with
+\checkmark indicating the same values of the output ports under all the 100 input tests.
 
-%
+We can observe that our LoFIRRTL OCaml Interpreter produces the same results as Treadle on all the 38 benchmarks under all the input tests.
+Furthermore, our LoFIRRTL OCaml Interpreter is significantly more efficient than Treadle on almost all the benchmarks except for HardwareHashMaker.
+
+Explain why it is slower on HardwareHashMaker.
 %
 %
 %%Coq's Extraction feature to translate lower firrtl (clk\_steps\_tail\_rec) into an OCaml program that is the Low FIRRTL OCaml Interpreter
