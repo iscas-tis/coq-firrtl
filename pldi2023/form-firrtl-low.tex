@@ -76,7 +76,7 @@ The rules for the operational semantics of statements are presented in Table~\re
    {\seqq{rs(r) \neq \bot}} {\seqq{ s(e_1)= true}} {\seqq{s' = s[rs(r)/r]}} {\seqq{rs' = rs[s(e_2)/r]}}
     \\[1ex]
     \inferii[node]
-    {\seqq{(te, s, rs) \xrightarrow{\mbox{node } v = e} (te', s, rs')}}
+    {\seqq{(te, s, rs) \xrightarrow{\mbox{node } v = e} (te', s', rs)}}
    {\seqq{te' = te[te(e)/v]}} {\seqq{s' = s[s(e)/v]}}
     \quad
     \inferii[connect:$\bot$]
@@ -118,7 +118,7 @@ $te(e)$ is defined as follows.
 %
 \item $te(cp(e_1, e_2)) = UInt \bwidth{1}$, where $cp \in \{lt, leq, gt, geq, eq, neq\}$,
 %
-\item $te(dshl(e_1, e_2)) = \theta \bwidth{\max(n_1, 2^{n_2}-1)}$, 
+\item $te(dshl(e_1, e_2)) = \theta \bwidth{n_1+2^{n_2}-1}$, 
 %
 \item $te(dshr(e_1, e_2)) = \theta \bwidth{n_1}$, 
 %
@@ -131,7 +131,7 @@ $te(e)$ is defined as follows.
 \begin{itemize}
 \item $te(andr(e_1)) = te(orr(e_1)) =  te(xorr(e_1)) = \uint{1}$,
 %
-\item $te(neg(e_1)) = \sint{n_1 +1}$, $te(not(e_1)) =  \uint{1}$, 
+\item $te(neg(e_1)) = \sint{n_1 +1}$, $te(not(e_1)) =  \uint{n_1}$, 
 %
 \item $te(cvt(e_1)) = \sint{n_1 +1}$ if $\theta = UInt$, and $te(cvt(e_1)) =  \sint{n_1}$ otherwise,  
 \end{itemize}
