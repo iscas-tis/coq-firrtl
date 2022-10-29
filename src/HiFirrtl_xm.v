@@ -1872,17 +1872,14 @@ Qed.
      | Spcnct r e =>
        let w1 := add_ref_wmap0 r (type_of_hfexpr e ce) ce w in
        if is_deftyp (type_of_ref r ce) then w1 else w
-     (* | Swhen (Eref rs) s1 s2 => *)
-     (*   let w1 w := add_ref_wmap0 rs (Gtyp (Fuint 1)) ce w in *)
-     (*   let fix aux ss ce w := *)
-     (*       match ss with *)
-     (*       | nil => w *)
-     (*       | s :: ss => aux ss ce (inferWidth_wmap0 s ce w) *)
-     (*       end *)
-     (*   in *)
-     (*   if (is_deftyp (type_of_ref rs ce)) *)
-     (*   then aux s2 ce (aux s1 ce (w1 w)) *)
-     (*   else aux s2 ce (aux s1 ce w) *)
+     | Swhen c s1 s2 =>
+       let fix aux ss ce w :=
+           match ss with
+           | nil => w
+           | s :: ss => aux ss ce (inferWidth_wmap0 s ce w)
+           end
+       in
+       aux s2 ce (aux s1 ce w)
      | _ => w
      end
    .
@@ -1995,49 +1992,43 @@ Qed.
        (forall v t c,
        CE.find v ce1 = Some (t, c) ->
        CE.find v wm1 = Some (type_of_cmpnttyp t) ->
-       CE.find v wm1 = CE.find v wm2 /\
-       CE.find v ce1 = CE.find v ce2) ->
+       CE.find v wm1 = CE.find v wm2 ->
+       CE.find v ce1 = CE.find v ce2)   ->
        inferWidth_sstmt_sem (sskip) wm1 wm2 ce1 ce2
    | inferWidth_sstop wm1 wm2 ce1 ce2 ss1 ss2 n :
        (forall v t c ,
        CE.find v ce1 = Some (t, c) ->
        CE.find v wm1 = Some (type_of_cmpnttyp t) ->
-       CE.find v wm1 = CE.find v wm2 /\
+       CE.find v wm1 = CE.find v wm2 ->
        CE.find v ce1 = CE.find v ce2) ->
        inferWidth_sstmt_sem (sstop ss1 ss2 n) wm1 wm2 ce1 ce2
    | inferWidth_sinvalid wm1 wm2 ce1 ce2 :
        forall v, (forall t c,
          CE.find (base_ref v) ce1 = Some (t, c) ->
          CE.find (base_ref v) wm1 = Some (type_of_cmpnttyp t) ->
-         CE.find (base_ref v) wm1 = CE.find (base_ref v) wm2 /\
+         CE.find (base_ref v) wm1 = CE.find (base_ref v) wm2 ->
          CE.find (base_ref v) ce1 = CE.find (base_ref v) ce2) ->
          inferWidth_sstmt_sem (sinvalid v) wm1 wm2 ce1 ce2
    | inferWidth_swhen wm1 wm2 ce1 ce2 c ss1 ss2:
        (forall v t c ,
          CE.find (v) ce1 = Some (t, c) ->
          CE.find (v) wm1 = Some (type_of_cmpnttyp t) ->
-         CE.find (v) wm1 = CE.find (v) wm2 /\
+         CE.find (v) wm1 = CE.find (v) wm2 ->
          CE.find (v) ce1 = CE.find (v) ce2) ->
          inferWidth_sstmt_sem (swhen c ss1 ss2) wm1 wm2 ce1 ce2
    | inferWidth_smem v m wm1 wm2 ce1 ce2 :
-       (forall t ,
-           CE.find (v) ce1 = Some (t, Memory) ->
-           (* CE.find v wm1 = None -> *)
-           new_comp_name v ->
-           CE.find v wm1 = CE.find v wm2 /\
-           CE.find v ce1 = CE.find v ce2) ->
+       forall t ,
+         CE.find (v) ce1 = Some (t, Memory) ->
+         new_comp_name v ->
+         CE.find v wm1 = CE.find v wm2 ->
+         CE.find v ce1 = CE.find v ce2 ->
        inferWidth_sstmt_sem (smem v m) wm1 wm2 ce1 ce2
-   | inferWidth_smem_repeatv v m wm1 ce1 :
-       (forall t ,
-           CE.find v wm1 = Some t) ->
-       inferWidth_sstmt_sem (smem v m) wm1 wm1 ce1 ce1
    | inferWidth_sinst v m wm1 wm2 ce1 ce2 :
-       (forall t c,
-           CE.find (v) ce1 = Some (t, c) ->
-           (* CE.find v wm1 = None -> *)
-           new_comp_name v ->
-           CE.find v wm1 = CE.find v wm2 /\
-           CE.find v ce1 = CE.find v ce2) ->
+       forall t c,
+         CE.find (v) ce1 = Some (t, c) ->
+         new_comp_name v ->
+         CE.find v wm1 = CE.find v wm2 ->
+         CE.find v ce1 = CE.find v ce2 ->
        inferWidth_sstmt_sem (sinst v m) wm1 wm2 ce1 ce2
    | inferWidth_snode_exp v e ce0 ce1 (wm : wmap0) :
        CE.find (v) ce0 = Some (aggr_typ (type_of_hfexpr e ce0), Node) ->
@@ -2054,21 +2045,23 @@ Qed.
        CE.find v wm1 = Some (type_of_hfexpr e ce0) ->
        CE.find v ce0 = CE.find v ce1 ->
        inferWidth_sstmt_sem (Snode v e) wm0 wm1 ce0 ce1
+                            
    | inferWidth_swire_exp v t ce0 ce1 wm :
-       ~~ is_deftyp (t) ->
-       CE.find (v) ce0 = Some (aggr_typ t, Wire) ->
-       (* CE.find v wm = None -> *)
        new_comp_name v ->
+       ~~ is_deftyp (t) ->
+       (* CE.find v wm = None -> *)
+       CE.find (v) ce0 = Some (aggr_typ t, Wire) ->
        CE.find v ce0 = CE.find v ce1 ->
        inferWidth_sstmt_sem (Swire v t) wm wm ce0 ce1
    | inferWidth_swire_imp v t ce0 ce1 wm0 wm1 :
        is_deftyp t ->
        CE.find (v) ce0 = Some (aggr_typ t, Wire) ->
-       (* CE.find v wm0 = None -> *)
        new_comp_name v ->
+       (* CE.find v wm0 = None -> *)
        CE.find v wm1 = Some t ->
        CE.find v ce0 = CE.find v ce1 ->
        inferWidth_sstmt_sem (Swire v t) wm0 wm1 ce0 ce1
+                            
    | inferWidth_sreg_exp v r ce0 ce1 wm :
        ~~ is_deftyp (type r) ->
        CE.find (v) ce0 = Some (reg_typ r, Register) ->
@@ -2150,41 +2143,71 @@ Qed.
        CE.find (base_ref r) ce0 = CE.find (base_ref r) ce1 ->
        ~~ is_deftyp t0 ->
        inferWidth_sstmt_sem (Spcnct r e) wm0 wm1 ce0 ce1
-   .
+   | inferWidth_swhen_t wm0 wm1 ce0 ce1 ce2 c s1 s2:
+       inferWidth_stmts_sem s1 ce0 ce1 ->
+       inferWidth_stmts_sem s2 ce1 ce2 ->
+       inferWidth_sstmt_sem (Swhen c s1 s2) wm0 wm1 ce0 ce2
+   with 
+     inferWidth_stmts_sem : seq hfstmt -> cenv -> cenv -> Prop :=
+   | inferWidth_stmts_nil ce :
+         inferWidth_stmts_sem nil ce ce
+   | inferWidth_stmts_cons st sts (ce0 ce0' ce1 ce2 ce3 : cenv) :
+       (inferType_stmts (st::sts) ce0 ce0' /\ forall v, CE.find v ce0' = CE.find v ce1) ->
+       (exists wm1 wm2 ,
+       inferWidth_sstmt_sem st wm1 wm2 ce1 ce2) ->
+       inferWidth_stmts_sem sts ce2 ce3 ->
+       inferWidth_stmts_sem (st :: sts) ce1 ce3.
+   
+   (*   inferWidth_stmts_sem : seq hfstmt -> cenv -> cenv -> Prop := *)
+   (* | inferWidth_stmts_nil ce1 ce2 : *)
+   (*     (forall v, *)
+   (*       CE.find v ce1 = CE.find v ce2) -> *)
+   (*       inferWidth_stmts_sem nil ce1 ce2 *)
+   (* | inferWidth_stmts_imp st sts (ce1 ce2 ce3 : cenv) : *)
+   (*     (forall r  t1 c, *)
+   (*         new_comp_name (base_ref r) /\ *)
+   (*         CE.find (base_ref r) ce1 = Some (t1, c) /\ *)
+   (*         (* is_deftyp (type_of_cmpnttyp t1) -> *) *)
+   (*         ~~ is_deftyp (type_of_cmpnttyp (fst (CE.vtyp (base_ref r) ce3))) -> *)
+   (*         exists (wm1 wm2 : wmap0), *)
+   (*           inferWidth_sstmt_sem st wm1 wm2 ce1 ce2) -> *)
+   (*     (exists wm1 wm2, inferWidth_sstmt_sem st wm1 wm2 ce1 ce2) -> *)
+   (*     inferWidth_stmts_sem sts ce2 ce3 -> *)
+   (*     inferWidth_stmts_sem (cons st sts) ce1 ce3. *)
 
-   Lemma inferWidth_snode_sem_conform :
-     forall v e wm0 ce0 wm1 ce1 ce2,
-       inferType_stmt (Snode v e) ce0 ce1 ->
-       (* CE.find v wm0 = None -> *)
-       new_comp_name v ->
-       wm1 = inferWidth_wmap0 (Snode v e) ce1 wm0 ->
-       ce2 = wmap_map2_cenv wm1 ce1 ->
-       inferWidth_sstmt_sem (Snode v e) wm0 wm1 ce1 ce2.
-   Proof.
-     intros. rewrite H2/= H1.
-     move : H1.
-     move : (new_v_wmap_none H0 wm0) => Hn.
-     rewrite /= Hn => Heqw01.
-     have Hnone : (add_width_2_cenv None None = None) by done.
-     move : (CELemmas.map2_1bis wm1 ce1 v Hnone).
-     rewrite Heqw01 /=.
-     move : Heqw01; case Hdf : (is_deftyp (type_of_hfexpr e ce1)).
-     - move => Hwm1.
-       move : (CELemmas.add_eq_o wm0 (type_of_hfexpr e ce1) (eq_refl v)) => Hwm01.
-       rewrite Hwm01 -Hwm1 -/(wmap_map2_cenv wm1 ce1) -H2.
-       inversion H.
-       move => Ht01.
-       apply inferWidth_snode_imp; try done.
-       rewrite -H5//.
-       rewrite Hwm1 (CELemmas.add_eq_o _ _ (eq_refl v))//.
-       rewrite Ht01 H8 /add_width_2_cenv/= H5 Hdf//.
-     - move => Hwm01.
-       rewrite Hn -/(wmap_map2_cenv wm0 ce1) -Hwm01 -H2/= => Hce01.
-       apply inferWidth_snode_exp; [ | rewrite(negbT Hdf)//|done | done ].
-       rewrite -Hce01 H2 /wmap_map2_cenv (CELemmas.map2_1bis _ _ _ Hnone).
-       rewrite Hwm01 Hn/=.
-       inversion H. rewrite -H5 //.
-   Qed.
+   (* Lemma inferWidth_snode_sem_conform : *)
+   (*   forall v e wm0 ce0 wm1 ce1 ce2, *)
+   (*     inferType_stmt (Snode v e) ce0 ce1 -> *)
+   (*     (* CE.find v wm0 = None -> *) *)
+   (*     new_comp_name v -> *)
+   (*     wm1 = inferWidth_wmap0 (Snode v e) ce1 wm0 -> *)
+   (*     ce2 = wmap_map2_cenv wm1 ce1 -> *)
+   (*     inferWidth_sstmt_sem (Snode v e) wm0 wm1 ce1 ce2. *)
+   (* Proof. *)
+   (*   intros. rewrite H2/= H1. *)
+   (*   move : H1. *)
+   (*   move : (new_v_wmap_none H0 wm0) => Hn. *)
+   (*   rewrite /= Hn => Heqw01. *)
+   (*   have Hnone : (add_width_2_cenv None None = None) by done. *)
+   (*   move : (CELemmas.map2_1bis wm1 ce1 v Hnone). *)
+   (*   rewrite Heqw01 /=. *)
+   (*   move : Heqw01; case Hdf : (is_deftyp (type_of_hfexpr e ce1)). *)
+   (*   - move => Hwm1. *)
+   (*     move : (CELemmas.add_eq_o wm0 (type_of_hfexpr e ce1) (eq_refl v)) => Hwm01. *)
+   (*     rewrite Hwm01 -Hwm1 -/(wmap_map2_cenv wm1 ce1) -H2. *)
+   (*     inversion H. *)
+   (*     move => Ht01. *)
+   (*     apply inferWidth_snode_imp; try done. *)
+   (*     rewrite -H5//. *)
+   (*     rewrite Hwm1 (CELemmas.add_eq_o _ _ (eq_refl v))//. *)
+   (*     rewrite Ht01 H8 /add_width_2_cenv/= H5 Hdf//. *)
+   (*   - move => Hwm01. *)
+   (*     rewrite Hn -/(wmap_map2_cenv wm0 ce1) -Hwm01 -H2/= => Hce01. *)
+   (*     apply inferWidth_snode_exp; [ | rewrite(negbT Hdf)//|done | done ]. *)
+   (*     rewrite -Hce01 H2 /wmap_map2_cenv (CELemmas.map2_1bis _ _ _ Hnone). *)
+   (*     rewrite Hwm01 Hn/=. *)
+   (*     inversion H. rewrite -H5 //. *)
+   (* Qed. *)
 
    Lemma inferWidth_snode_sem_conform' :
      forall v e wm0 wm1 ce1 ce2,
@@ -2216,153 +2239,179 @@ Qed.
        apply inferWidth_snode_exp; [done | rewrite(negbT Hdf)//|done | done ].
    Qed.
 
-   Lemma inferWidth_swire_exp_sem_conform :
-     forall v t wm1 ce1 wm2 ce2 ce3,
-       ~~ is_deftyp t ->
-       inferType_stmt (Swire v t) ce1 ce2 ->
-       (* CE.find v wm0 = None -> *)
-       new_comp_name v ->
-       wm2 = inferWidth_wmap0 (Swire v t) ce1 wm1 ->
-       ce3 = wmap_map2_cenv wm2 ce2 ->
-       inferWidth_sstmt_sem (Swire v t) wm1 wm2 ce2 ce3.
-   Proof.
-     intros. rewrite H2/=.
-     move : (new_v_wmap_none H1 wm1) => Hn.
-     move : H2. rewrite /= (negbTE H) => Heqw12.
-     have Hnone : (add_width_2_cenv None None = None) by done.
-     move : (CELemmas.map2_1bis wm1 ce2 v Hnone).
-     rewrite Hn /=. rewrite -/(wmap_map2_cenv wm1 ce2) -Heqw12 -H3.
-     move => Hfeq. symmetry in Hfeq.
-     apply inferWidth_swire_exp; [ done | | done |done].
-     inversion H0; subst. done.
-   Qed.
-
+   (* Lemma inferWidth_swire_exp_sem_conform : *)
+   (*   forall v t wm1 ce1 wm2 ce2 ce3, *)
+   (*     ~~ is_deftyp t -> *)
+   (*     inferType_stmt (Swire v t) ce1 ce2 -> *)
+   (*     (* CE.find v wm0 = None -> *) *)
+   (*     new_comp_name v -> *)
+   (*     wm2 = inferWidth_wmap0 (Swire v t) ce1 wm1 -> *)
+   (*     ce3 = wmap_map2_cenv wm2 ce2 -> *)
+   (*     inferWidth_sstmt_sem (Swire v t) wm1 wm2 ce2 ce3. *)
+   (* Proof. *)
+   (*   intros. rewrite H2/=. *)
+   (*   move : (new_v_wmap_none H1 wm1) => Hn. *)
+   (*   move : H2. rewrite /= (negbTE H) => Heqw12. *)
+   (*   have Hnone : (add_width_2_cenv None None = None) by done. *)
+   (*   move : (CELemmas.map2_1bis wm1 ce2 v Hnone). *)
+   (*   rewrite Hn /=. rewrite -/(wmap_map2_cenv wm1 ce2) -Heqw12 -H3. *)
+   (*   move => Hfeq. symmetry in Hfeq. *)
+   (*   apply inferWidth_swire_exp; [ done | | done |done]. *)
+   (*   inversion H0; subst. done. *)
+   (* Qed. *)
    
    Lemma inferWidth_swire_exp_sem_conform' :
-     forall v t wm1 wm2 ce2 ce3,
+     forall v t wm1 wm2 ce1 ce2,
        ~~ is_deftyp t ->
-       CE.find v ce2 = Some (aggr_typ t, Wire) -> 
-       wm2 = inferWidth_wmap0 (Swire v t) ce2 wm1 ->
-       ce3 = wmap_map2_cenv wm2 ce2 ->
-       inferWidth_sstmt_sem (Swire v t) wm1 wm2 ce2 ce3.
+       CE.find v ce1 = Some (aggr_typ t, Wire) -> 
+       wm2 = inferWidth_wmap0 (Swire v t) ce1 wm1 ->
+       ce2 = wmap_map2_cenv wm2 ce1 ->
+       inferWidth_sstmt_sem (Swire v t) wm1 wm2 ce1 ce2.
    Proof.
      intros.
      rewrite H2/=.
      have Hin : (is_init (Swire v t)) by done. 
      move : (init_new_comp_name Hin v) => Hnv.
-     move : (new_v_wmap_none Hnv wm1) => Hn.
      move : H1. rewrite /= (negbTE H) => Heqw12.
      have Hnone : (add_width_2_cenv None None = None) by done.
-     move : (CELemmas.map2_1bis wm1 ce2 v Hnone).
-     rewrite Hn /=. rewrite -/(wmap_map2_cenv wm1 ce2) -Heqw12 -H2.
-     move => Hfeq. symmetry in Hfeq.
-     apply inferWidth_swire_exp; [ done | | done |done].
-     inversion H0; subst. done.
-   Qed.
-
-   Lemma inferWidth_swire_imp_sem_conform :
-     forall v t wm1 ce1 wm2 ce2 ce3,
-       is_deftyp t ->
-       inferType_stmt (Swire v t) ce1 ce2 ->
-       (* CE.find v wm0 = None -> *)
-       new_comp_name v ->
-       wm2 = inferWidth_wmap0 (Swire v t) ce1 wm1 ->
-       ce3 = wmap_map2_cenv wm2 ce2 ->
-       inferWidth_sstmt_sem (Swire v t) wm1 wm2 ce2 ce3.
-   Proof.
-     intros.
-     move : (new_v_wmap_none H1 wm1) => Hn.
-     rewrite H2 /= H Hn.
-     move : H2. rewrite /= H Hn => Hw2.
-     inversion H0; subst.
-     apply inferWidth_swire_imp; [done| done|done | |].
-     - exact : (CELemmas.add_eq_o _ _ (eq_refl v)).
-     -
-       rewrite /wmap_map2_cenv.
-       have Hnone : (add_width_2_cenv None None = None) by done.
-       rewrite (CELemmas.map2_1bis _ _ _ Hnone) .
-       rewrite (CELemmas.add_eq_o _ _ (eq_refl v)) H8.
-       inversion H0; subst. rewrite /add_width_2_cenv/=.
-       case (is_deftyp t); done.
+     move : (CELemmas.map2_1bis wm1 ce1 v Hnone).
+     rewrite H0/= (new_v_wmap_none Hnv wm1).
+     rewrite -/(wmap_map2_cenv wm1 ce1) -Heqw12 -H2/= => Hfm.
+     apply inferWidth_swire_exp; try done.
+     rewrite Hfm//.
    Qed.
    
    Lemma inferWidth_swire_imp_sem_conform' :
-     forall v t wm1 wm2 ce2 ce3,
+     forall v t wm1 wm2 ce1 ce2,
        is_deftyp t ->
-       CE.find v ce2 = Some (aggr_typ t, Wire) ->
-       wm2 = inferWidth_wmap0 (Swire v t) ce2 wm1 ->
-       ce3 = wmap_map2_cenv wm2 ce2 ->
-       inferWidth_sstmt_sem (Swire v t) wm1 wm2 ce2 ce3.
+       CE.find v ce1 = Some (aggr_typ t, Wire) ->
+       wm2 = inferWidth_wmap0 (Swire v t) ce1 wm1 ->
+       ce2 = wmap_map2_cenv wm2 ce1 ->
+       inferWidth_sstmt_sem (Swire v t) wm1 wm2 ce1 ce2.
    Proof. 
      intros.
-     have Hin : (is_init (Swire v t)) by done. 
+     have Hin : (is_init (Swire v t)) by done.
      move : (init_new_comp_name Hin v) => Hnv.
      move : (new_v_wmap_none Hnv wm1) => Hn.
      rewrite H1 /= H Hn.
      move : H1. rewrite /= H Hn => Hw2.
-     apply inferWidth_swire_imp; [done| done|done | |].
+     apply inferWidth_swire_imp; try done.
      - exact : (CELemmas.add_eq_o _ _ (eq_refl v)).
      -
        rewrite H2 /wmap_map2_cenv.
        have Hnone : (add_width_2_cenv None None = None) by done.
        rewrite (CELemmas.map2_1bis _ _ _ Hnone) .
        rewrite Hw2 (CELemmas.add_eq_o _ _ (eq_refl v)) H0.
-       rewrite /add_width_2_cenv/=. 
-       case (is_deftyp t); try done.
+       rewrite /add_width_2_cenv/= H//.
    Qed.
+     
+   (* Lemma inferWidth_swire_imp_sem_conform : *)
+   (*   forall v t wm1 ce1 wm2 ce2 ce3, *)
+   (*     is_deftyp t -> *)
+   (*     inferType_stmt (Swire v t) ce1 ce2 -> *)
+   (*     (* CE.find v wm0 = None -> *) *)
+   (*     new_comp_name v -> *)
+   (*     wm2 = inferWidth_wmap0 (Swire v t) ce1 wm1 -> *)
+   (*     ce3 = wmap_map2_cenv wm2 ce2 -> *)
+   (*     inferWidth_sstmt_sem (Swire v t) wm1 wm2 ce2 ce3. *)
+   (* Proof. *)
+   (*   intros. *)
+   (*   move : (new_v_wmap_none H1 wm1) => Hn. *)
+   (*   rewrite H2 /= H Hn. *)
+   (*   move : H2. rewrite /= H Hn => Hw2. *)
+   (*   inversion H0; subst. *)
+   (*   apply inferWidth_swire_imp; [done| done|done | |]. *)
+   (*   - exact : (CELemmas.add_eq_o _ _ (eq_refl v)). *)
+   (*   - *)
+   (*     rewrite /wmap_map2_cenv. *)
+   (*     have Hnone : (add_width_2_cenv None None = None) by done. *)
+   (*     rewrite (CELemmas.map2_1bis _ _ _ Hnone) . *)
+   (*     rewrite (CELemmas.add_eq_o _ _ (eq_refl v)) H8. *)
+   (*     inversion H0; subst. rewrite /add_width_2_cenv/=. *)
+   (*     case (is_deftyp t); done. *)
+   (* Qed. *)
+   
+   (* Lemma inferWidth_swire_imp_sem_conform' : *)
+   (*   forall v t wm1 wm2 ce2 ce3, *)
+   (*     is_deftyp t -> *)
+   (*     CE.find v ce2 = Some (aggr_typ t, Wire) -> *)
+   (*     wm2 = inferWidth_wmap0 (Swire v t) ce2 wm1 -> *)
+   (*     ce3 = wmap_map2_cenv wm2 ce2 -> *)
+   (*     inferWidth_sstmt_sem (Swire v t) wm1 wm2 ce2 ce3. *)
+   (* Proof.  *)
+   (*   intros. *)
+   (*   have Hin : (is_init (Swire v t)) by done.  *)
+   (*   move : (init_new_comp_name Hin v) => Hnv. *)
+   (*   move : (new_v_wmap_none Hnv wm1) => Hn. *)
+   (*   rewrite H1 /= H Hn. *)
+   (*   move : H1. rewrite /= H Hn => Hw2. *)
+   (*   apply inferWidth_swire_imp; [done| done|done | |]. *)
+   (*   - exact : (CELemmas.add_eq_o _ _ (eq_refl v)). *)
+   (*   - *)
+   (*     rewrite H2 /wmap_map2_cenv. *)
+   (*     have Hnone : (add_width_2_cenv None None = None) by done. *)
+   (*     rewrite (CELemmas.map2_1bis _ _ _ Hnone) . *)
+   (*     rewrite Hw2 (CELemmas.add_eq_o _ _ (eq_refl v)) H0. *)
+   (*     rewrite /add_width_2_cenv/=.  *)
+   (*     case (is_deftyp t); try done. *)
+   (* Qed. *)
 
-   Lemma inferWidth_swire_sem_conform :
-     forall v t wm1 ce1 wm2 ce2 ce3,
-       inferType_stmt (Swire v t) ce1 ce2 ->
-       (* CE.find v wm0 = None -> *)
-       new_comp_name v ->
-       wm2 = inferWidth_wmap0 (Swire v t) ce1 wm1 ->
-       ce3 = wmap_map2_cenv wm2 ce2 ->
-       inferWidth_sstmt_sem (Swire v t) wm1 wm2 ce2 ce3.
-   Proof.
-     intros.
-     case Hdf : (is_deftyp t).
-     apply inferWidth_swire_imp_sem_conform with ce1; try done.
-     apply inferWidth_swire_exp_sem_conform with ce1; try done.
-     rewrite Hdf//.
-   Qed.
+   (* Lemma inferWidth_swire_sem_conform : *)
+   (*   forall v t wm1 ce1 wm2 ce2 ce3, *)
+   (*     inferType_stmt (Swire v t) ce1 ce2 -> *)
+   (*     (* CE.find v wm0 = None -> *) *)
+   (*     new_comp_name v -> *)
+   (*     wm2 = inferWidth_wmap0 (Swire v t) ce1 wm1 -> *)
+   (*     ce3 = wmap_map2_cenv wm2 ce2 -> *)
+   (*     inferWidth_sstmt_sem (Swire v t) wm1 wm2 ce2 ce3. *)
+   (* Proof. *)
+   (*   intros. *)
+   (*   case Hdf : (is_deftyp t). *)
+   (*   apply inferWidth_swire_imp_sem_conform with ce1; try done. *)
+   (*   apply inferWidth_swire_exp_sem_conform with ce1; try done. *)
+   (*   rewrite Hdf//. *)
+   (* Qed. *)
 
    Lemma inferWidth_swire_sem_conform' :
-     forall v t wm1 wm2 ce2 ce3,
-       CE.find v ce2 = Some (aggr_typ t, Wire) ->
-       wm2 = inferWidth_wmap0 (Swire v t) ce2 wm1 ->
-       ce3 = wmap_map2_cenv wm2 ce2 ->
-       inferWidth_sstmt_sem (Swire v t) wm1 wm2 ce2 ce3.
+     forall v t wm1 wm2 ce1 ce2,
+       CE.find v ce1 = Some (aggr_typ t, Wire) ->
+       wm2 = inferWidth_wmap0 (Swire v t) ce1 wm1 ->
+       ce2 = wmap_map2_cenv wm2 ce1 ->
+       CE.find v wm1 = None ->
+       inferWidth_sstmt_sem (Swire v t) wm1 wm2 ce1 ce2.
    Proof.
      intros.
+     have Hin : (is_init (Swire v t)) by done.
+     move :(init_new_comp_name Hin v) => Hnv.
+     move : (new_v_wmap_none Hnv wm1) => Hn.
      case Hdf : (is_deftyp t).
-     apply inferWidth_swire_imp_sem_conform' ; try done.
+     apply inferWidth_swire_imp_sem_conform'; try done.
      apply inferWidth_swire_exp_sem_conform' ; try done.
      rewrite Hdf//.
    Qed.
 
-   Lemma inferWidth_sreg_exp_sem_conform :
-     forall v r wm1 ce1 wm2 ce2 ce3,
-       ~~ is_deftyp (type r) ->
-       inferType_stmt (Sreg v r) ce1 ce2 ->
-       (* CE.find v wm0 = None -> *)
-       new_comp_name v ->
-       wm2 = inferWidth_wmap0 (Sreg v r) ce1 wm1 ->
-       ce3 = wmap_map2_cenv wm2 ce2 ->
-       inferWidth_sstmt_sem (Sreg v r) wm1 wm2 ce2 ce3.
-   Proof.
-     intros. rewrite H2.
-     move : H2.
-     move : (new_v_wmap_none H1 wm1) => Hn.
-     rewrite/= Hn (negbTE H) => Heqw12.
-     have Hnone : (add_width_2_cenv None None = None) by done.
-     move : (CELemmas.map2_1bis wm1 ce2 v Hnone).
-     rewrite Hn /=. rewrite -/(wmap_map2_cenv wm1 ce2) -Heqw12 -H3.
-     move => Hfeq. symmetry in Hfeq.
-     apply inferWidth_sreg_exp; [ done | | done |done].
-     inversion H0; subst.
-     done.
-   Qed.
+   (* Lemma inferWidth_sreg_exp_sem_conform : *)
+   (*   forall v r wm1 ce1 wm2 ce2 ce3, *)
+   (*     ~~ is_deftyp (type r) -> *)
+   (*     inferType_stmt (Sreg v r) ce1 ce2 -> *)
+   (*     (* CE.find v wm0 = None -> *) *)
+   (*     new_comp_name v -> *)
+   (*     wm2 = inferWidth_wmap0 (Sreg v r) ce1 wm1 -> *)
+   (*     ce3 = wmap_map2_cenv wm2 ce2 -> *)
+   (*     inferWidth_sstmt_sem (Sreg v r) wm1 wm2 ce2 ce3. *)
+   (* Proof. *)
+   (*   intros. rewrite H2. *)
+   (*   move : H2. *)
+   (*   move : (new_v_wmap_none H1 wm1) => Hn. *)
+   (*   rewrite/= Hn (negbTE H) => Heqw12. *)
+   (*   have Hnone : (add_width_2_cenv None None = None) by done. *)
+   (*   move : (CELemmas.map2_1bis wm1 ce2 v Hnone). *)
+   (*   rewrite Hn /=. rewrite -/(wmap_map2_cenv wm1 ce2) -Heqw12 -H3. *)
+   (*   move => Hfeq. symmetry in Hfeq. *)
+   (*   apply inferWidth_sreg_exp; [ done | | done |done]. *)
+   (*   inversion H0; subst. *)
+   (*   done. *)
+   (* Qed. *)
    
    Lemma inferWidth_sreg_exp_sem_conform' :
      forall v r wm1 wm2 ce2 ce3,
@@ -2385,31 +2434,31 @@ Qed.
      apply inferWidth_sreg_exp; done.
    Qed.
 
-   Lemma inferWidth_sreg_imp_sem_conform :
-     forall v r wm1 ce1 wm2 ce2 ce3,
-       is_deftyp (type r) ->
-       inferType_stmt (Sreg v r) ce1 ce2 ->
-       (* CE.find v wm1 = None -> *)
-       new_comp_name v ->
-       wm2 = inferWidth_wmap0 (Sreg v r) ce1 wm1 ->
-       ce3 = wmap_map2_cenv wm2 ce2 ->
-       inferWidth_sstmt_sem (Sreg v r) wm1 wm2 ce2 ce3.
-   Proof.
-     intros.
-     move : (new_v_wmap_none H1 wm1) => Hn.
-     rewrite H2 /= H Hn.
-     move : H2. rewrite /= H Hn => Hw2.
-     inversion H0; subst.
-     apply inferWidth_sreg_imp; [ done| done| done| |].
-     - exact : (CELemmas.add_eq_o _ _ (eq_refl v)).
-     - rewrite  /wmap_map2_cenv.
-       have Hnone : (add_width_2_cenv None None = None) by done.
-       rewrite (CELemmas.map2_1bis _ _ _ Hnone) .
-       rewrite (CELemmas.add_eq_o _ _ (eq_refl v)) H8.
-       rewrite /add_width_2_cenv/=.
-       case (is_deftyp (type r)). case r; done.
-       done.
-   Qed.
+   (* Lemma inferWidth_sreg_imp_sem_conform : *)
+   (*   forall v r wm1 ce1 wm2 ce2 ce3, *)
+   (*     is_deftyp (type r) -> *)
+   (*     inferType_stmt (Sreg v r) ce1 ce2 -> *)
+   (*     (* CE.find v wm1 = None -> *) *)
+   (*     new_comp_name v -> *)
+   (*     wm2 = inferWidth_wmap0 (Sreg v r) ce1 wm1 -> *)
+   (*     ce3 = wmap_map2_cenv wm2 ce2 -> *)
+   (*     inferWidth_sstmt_sem (Sreg v r) wm1 wm2 ce2 ce3. *)
+   (* Proof. *)
+   (*   intros. *)
+   (*   move : (new_v_wmap_none H1 wm1) => Hn. *)
+   (*   rewrite H2 /= H Hn. *)
+   (*   move : H2. rewrite /= H Hn => Hw2. *)
+   (*   inversion H0; subst. *)
+   (*   apply inferWidth_sreg_imp; [ done| done| done| |]. *)
+   (*   - exact : (CELemmas.add_eq_o _ _ (eq_refl v)). *)
+   (*   - rewrite  /wmap_map2_cenv. *)
+   (*     have Hnone : (add_width_2_cenv None None = None) by done. *)
+   (*     rewrite (CELemmas.map2_1bis _ _ _ Hnone) . *)
+   (*     rewrite (CELemmas.add_eq_o _ _ (eq_refl v)) H8. *)
+   (*     rewrite /add_width_2_cenv/=. *)
+   (*     case (is_deftyp (type r)). case r; done. *)
+   (*     done. *)
+   (* Qed. *)
 
    Lemma inferWidth_sreg_imp_sem_conform' :
      forall v r wm1 wm2 ce2 ce3,
@@ -2436,21 +2485,21 @@ Qed.
        case r; done.
    Qed.
 
-   Lemma inferWidth_sreg_sem_conform :
-     forall v t wm1 ce1 wm2 ce2 ce3,
-       inferType_stmt (Sreg v t) ce1 ce2 ->
-       (* CE.find v wm1 = None -> *)
-       new_comp_name v ->
-       wm2 = inferWidth_wmap0 (Sreg v t) ce1 wm1 ->
-       ce3 = wmap_map2_cenv wm2 ce2 ->
-       inferWidth_sstmt_sem (Sreg v t) wm1 wm2 ce2 ce3.
-   Proof.
-     intros.
-     case Hdf : (is_deftyp (type t)).
-     apply inferWidth_sreg_imp_sem_conform with ce1; try done.
-     apply inferWidth_sreg_exp_sem_conform with ce1; try done.
-     rewrite Hdf//.
-   Qed.
+   (* Lemma inferWidth_sreg_sem_conform : *)
+   (*   forall v t wm1 ce1 wm2 ce2 ce3, *)
+   (*     inferType_stmt (Sreg v t) ce1 ce2 -> *)
+   (*     (* CE.find v wm1 = None -> *) *)
+   (*     new_comp_name v -> *)
+   (*     wm2 = inferWidth_wmap0 (Sreg v t) ce1 wm1 -> *)
+   (*     ce3 = wmap_map2_cenv wm2 ce2 -> *)
+   (*     inferWidth_sstmt_sem (Sreg v t) wm1 wm2 ce2 ce3. *)
+   (* Proof. *)
+   (*   intros. *)
+   (*   case Hdf : (is_deftyp (type t)). *)
+   (*   apply inferWidth_sreg_imp_sem_conform with ce1; try done. *)
+   (*   apply inferWidth_sreg_exp_sem_conform with ce1; try done. *)
+   (*   rewrite Hdf//. *)
+   (* Qed. *)
 
    Lemma inferWidth_sreg_sem_conform' :
      forall v t wm1 wm2 ce2 ce3,
@@ -2466,24 +2515,24 @@ Qed.
      rewrite Hdf//.
    Qed.
    
-   Lemma inferWidth_smem_sem_conform :
-     forall v m wm1 ce1 wm2 ce2 ce3,
-       inferType_stmt (Smem v m) ce1 ce2 ->
-       (* CE.find v wm1 = None -> *)
-       new_comp_name v ->
-       wm2 = inferWidth_wmap0 (Smem v m) ce1 wm1 ->
-       ce3 = wmap_map2_cenv wm2 ce2 ->
-       inferWidth_sstmt_sem (Smem v m) wm1 wm2 ce2 ce3.
-   Proof.
-     intros.
-     rewrite H2 H1/=.
-     apply inferWidth_smem; try done.
-     intros.
-     rewrite /wmap_map2_cenv.
-     have Hnone : (add_width_2_cenv None None = None) by done.
-     rewrite (CELemmas.map2_1bis _ _ _ Hnone) (new_v_wmap_none H0 wm1)/=.
-     done.
-   Qed.
+   (* Lemma inferWidth_smem_sem_conform : *)
+   (*   forall v m wm1 ce1 wm2 ce2 ce3, *)
+   (*     inferType_stmt (Smem v m) ce1 ce2 -> *)
+   (*     (* CE.find v wm1 = None -> *) *)
+   (*     new_comp_name v -> *)
+   (*     wm2 = inferWidth_wmap0 (Smem v m) ce1 wm1 -> *)
+   (*     ce3 = wmap_map2_cenv wm2 ce2 -> *)
+   (*     inferWidth_sstmt_sem (Smem v m) wm1 wm2 ce2 ce3. *)
+   (* Proof. *)
+   (*   intros. *)
+   (*   rewrite H2 H1/=. *)
+   (*   apply inferWidth_smem; try done. *)
+   (*   intros. *)
+   (*   rewrite /wmap_map2_cenv. *)
+   (*   have Hnone : (add_width_2_cenv None None = None) by done. *)
+   (*   rewrite (CELemmas.map2_1bis _ _ _ Hnone) (new_v_wmap_none H0 wm1)/=. *)
+   (*   done. *)
+   (* Qed. *)
 
    Lemma inferWidth_smem_sem_conform' :
      forall v m wm1 wm2 ce2 ce3,
@@ -2497,31 +2546,31 @@ Qed.
      move : (init_new_comp_name Hin v) => Hnv.
      move : (new_v_wmap_none Hnv wm1) => Hn.
      rewrite H1 H0/=.
-     apply inferWidth_smem; try done.
+     apply inferWidth_smem with (mem_typ m); try done.
      intros.
      rewrite /wmap_map2_cenv.
      have Hnone : (add_width_2_cenv None None = None) by done.
      rewrite (CELemmas.map2_1bis _ _ _ Hnone) Hn/=//.
    Qed.
 
-   Lemma inferWidth_sinst_sem_conform :
-     forall v m wm1 ce1 wm2 ce2 ce3,
-       inferType_stmt (Sinst v m) ce1 ce2 ->
-       (* CE.find v wm1 = None -> *)
-       new_comp_name v ->
-       wm2 = inferWidth_wmap0 (Sinst v m) ce1 wm1 ->
-       ce3 = wmap_map2_cenv wm2 ce2 ->
-       inferWidth_sstmt_sem (Sinst v m) wm1 wm2 ce2 ce3.
-   Proof.
-     intros.
-     rewrite H2 H1/=.
-     apply inferWidth_sinst; try done.
-     intros.
-     rewrite /wmap_map2_cenv.
-     have Hnone : (add_width_2_cenv None None = None) by done.
-     rewrite (CELemmas.map2_1bis _ _ _ Hnone) (new_v_wmap_none H0 wm1)/=.
-     done.
-   Qed.
+   (* Lemma inferWidth_sinst_sem_conform : *)
+   (*   forall v m wm1 ce1 wm2 ce2 ce3, *)
+   (*     inferType_stmt (Sinst v m) ce1 ce2 -> *)
+   (*     (* CE.find v wm1 = None -> *) *)
+   (*     new_comp_name v -> *)
+   (*     wm2 = inferWidth_wmap0 (Sinst v m) ce1 wm1 -> *)
+   (*     ce3 = wmap_map2_cenv wm2 ce2 -> *)
+   (*     inferWidth_sstmt_sem (Sinst v m) wm1 wm2 ce2 ce3. *)
+   (* Proof. *)
+   (*   intros. *)
+   (*   rewrite H2 H1/=. *)
+   (*   apply inferWidth_sinst; try done. *)
+   (*   intros. *)
+   (*   rewrite /wmap_map2_cenv. *)
+   (*   have Hnone : (add_width_2_cenv None None = None) by done. *)
+   (*   rewrite (CELemmas.map2_1bis _ _ _ Hnone) (new_v_wmap_none H0 wm1)/=. *)
+   (*   done. *)
+   (* Qed. *)
 
    Lemma inferWidth_sinst_sem_conform' :
      forall v t m wm1 wm2 ce2 ce3,
@@ -2535,8 +2584,7 @@ Qed.
      move : (init_new_comp_name Hin v) => Hnv.
      move : (new_v_wmap_none Hnv wm1) => Hn.
      rewrite H1 H0/=.
-     apply inferWidth_sinst; try done.
-     intros.
+     apply inferWidth_sinst with t Instanceof; try done.
      rewrite /wmap_map2_cenv.
      have Hnone : (add_width_2_cenv None None = None) by done.
      rewrite (CELemmas.map2_1bis _ _ _ Hnone)/= Hn//.
@@ -2882,7 +2930,6 @@ Qed.
      - rewrite /find_unknown H0 in H7. discriminate.
    Qed.
 
-
    Lemma inferWidth_sfcnct_sem_conform :
      forall v1 e c1 t0 t1 t2 wm1 ce1 wm2 ce2 ,
        ftype_equiv (Gtyp t1) (Gtyp t2) ->
@@ -2958,7 +3005,6 @@ Qed.
      have Hnone : (add_width_2_cenv None None = None) by done.
      rewrite /wmap_map2_cenv (CELemmas.map2_1bis _ _ _ Hnone).
      rewrite H0 H2.
-     split. done.
      case t; rewrite /=; intros; try done.
      case (is_deftyp f); done.
      case (is_deftyp (type h)); try done.
@@ -2979,7 +3025,6 @@ Qed.
      have Hnone : (add_width_2_cenv None None = None) by done.
      rewrite /wmap_map2_cenv (CELemmas.map2_1bis _ _ _ Hnone).
      rewrite H0 H2.
-     split. done.
      case t; rewrite /=; intros; try done.
      case (is_deftyp f); done.
      case (is_deftyp (type h)); try done.
@@ -3000,7 +3045,6 @@ Qed.
      have Hnone : (add_width_2_cenv None None = None) by done.
      rewrite /wmap_map2_cenv (CELemmas.map2_1bis _ _ _ Hnone).
      rewrite H0 H2.
-     split. done.
      case t; rewrite /=; intros; try done.
      case (is_deftyp f); done.
      case (is_deftyp (type h)); try done.
@@ -3015,21 +3059,23 @@ Qed.
        ce2 = wmap_map2_cenv wm2 ce1 ->
        inferWidth_sstmt_sem (swhen ss1 ss2 n) wm1 wm2 ce1 ce2.
    Proof.
-     move => wm1 wm2 ce1 ce2 ss1 ss2 n H H1. rewrite /= in H.
-     apply inferWidth_swhen. intros.
-     rewrite H1 H.
-     have Hnone : (add_width_2_cenv None None = None) by done.
-     rewrite /wmap_map2_cenv (CELemmas.map2_1bis _ _ _ Hnone).
-     rewrite H0 H2.
-     split. done.
-     case t; rewrite /=; intros; try done.
-     case (is_deftyp f); done.
-     case (is_deftyp (type h)); try done.
-     case h; intros; rewrite /=//.
-     case (is_deftyp (data_type h)); try done.
-     case h; intros; rewrite //.
-   Qed.
-
+   (*   move => wm1 wm2 ce1 ce2 ss1 ss2 n H H1. rewrite /= in H. *)
+   (*   apply inferWidth_swhen. intros. *)
+   (*   rewrite H1 H. *)
+   (*   have Hnone : (add_width_2_cenv None None = None) by done. *)
+   (*   rewrite /wmap_map2_cenv (CELemmas.map2_1bis _ _ _ Hnone). *)
+   (*   rewrite H0 H2. *)
+   (*   split. done. *)
+   (*   case t; rewrite /=; intros; try done. *)
+   (*   case (is_deftyp f); done. *)
+   (*   case (is_deftyp (type h)); try done. *)
+   (*   case h; intros; rewrite /=//. *)
+   (*   case (is_deftyp (data_type h)); try done. *)
+   (*   case h; intros; rewrite //. *)
+     (* Qed. *)
+     
+     Admitted.
+     
    Lemma cefind_eq_eq_width :
      forall v (ce1 ce2 : cenv) t1 t2 c,
        CE.find v ce1 = Some (t1, c) ->
@@ -3057,22 +3103,6 @@ Qed.
    Admitted.
 
 
-   Inductive inferWidth_stmts_sem : seq hfstmt -> cenv -> cenv -> Prop :=
-   | inferWidth_stmts_nil ce1 ce2 :
-       (forall v,
-         CE.find v ce1 = CE.find v ce2) ->
-         inferWidth_stmts_sem nil ce1 ce2
-   | inferWidth_stmts_imp st sts (ce1 ce2 ce3 : cenv) :
-       (forall r  t1 c,
-           new_comp_name (base_ref r) /\
-           CE.find (base_ref r) ce1 = Some (t1, c) /\
-           (* is_deftyp (type_of_cmpnttyp t1) -> *)
-           ~~ is_deftyp (type_of_cmpnttyp (fst (CE.vtyp (base_ref r) ce3))) ->
-           exists (wm1 wm2 : wmap0),
-             inferWidth_sstmt_sem st wm1 wm2 ce1 ce2) ->
-       (exists wm1 wm2, inferWidth_sstmt_sem st wm1 wm2 ce1 ce2) ->
-       inferWidth_stmts_sem sts ce2 ce3 ->
-       inferWidth_stmts_sem (cons st sts) ce1 ce3.
 
    Lemma infer_stmt_lst st ss ce1 :
      forall wm1 ,
@@ -3112,169 +3142,12 @@ Qed.
      | cons h t => if (is_inital h) then false else not_inital_all t
      end.
 
-   Lemma inferWidth_stmts_inital_sem_conform :
-     forall sts ce0 ce1 (v:var),
-       (
-         exists wm0 wm1,
-           forall r t ,
-             new_comp_name (base_ref r) /\
-             is_inital_all_t sts /\
-              inferWidth_wmap0 (head sskip sts) ce1 wm0 = wm1 /\
-           CE.find (base_ref r) ce0 = Some t /\
-           is_deftyp (type_of_cmpnttyp (fst t)) /\
-           ~~ find_unknown (base_ref r) ce1 /\
-           ~~ is_deftyp (type_of_cmpnttyp (fst (CE.vtyp (base_ref r) (inferWidth_fun sts ce1))))
-           )->
-           (* ~~ is_deftyp (type_of_cmpnttyp (fst (CE.vtyp v (inferWidth_fun sts ce1)))) /\ *)
-           (*ce2 = wmap_map2_cenv wm1 ce1 /\*)
-           inferType_stmts sts ce0 ce1 ->
-       inferWidth_stmts_sem sts ce1 (inferWidth_fun sts ce1).
-   Proof.
-     have Hnone : (add_width_2_cenv None None = None) by done.
-     elim => [ce0 ce1  v He Hiw | st ss Hm ce0 ce1 v He Hiw].
-     -
-       apply inferWidth_stmts_nil. rewrite /inferWidth_fun/wmap_map2_cenv/=. intro.
-       rewrite (CELemmas.map2_1bis _ _ _ Hnone). rewrite CELemmas.empty_o//.
-     -
-       case He => [wm0 [wm1 Hec]].
-       apply inferWidth_stmts_imp with (wmap_map2_cenv wm1 ce1).
-       move : Hec Hiw.
-       elim st.
-       + (*skip*)
-         intros.
-         move : (Hec (r) (aggr_typ def_ftype, Node) (* sskip *)) => [Hbrs1 [Hbrt [Hi[Hdt [Hndt [Hun Hit]]]]]].
-         (* move : Hbrt => [ [Hinit Hi]].  *) rewrite /= in Hbrt.
-         rewrite //.
-         (* exists wm0; exists wm1. *)
-         (* apply inferWidth_sskip_sem_conform; try done. *)
-         (* move : (Hec (r) (aggr_typ def_ftype, Node) ) => [Hbrs1 [Hbrt [Hdt [Hndt [Hun Hit]]]]]. *)
-         (* rewrite //. *)
-       + (*swire*)
-         intros.
-         exists wm0; exists wm1.
-         move : (Hec (Eid s) (aggr_typ f, Wire) (* (Swire s f) *)) => [Hbrs1 [Hbrt [Hi [Hdt [Hndt [Hun Hit]]]]]].
-         move : (new_v_wmap_none Hbrs1 wm0) => Hnv.
-         apply inferWidth_swire_sem_conform with ce0; try done.
-         exact : (inferType_stmts_hd Hiw).
-       + (*reg*)
-         intros.
-         exists wm0; exists wm1.
-         move : (Hec (Eid s) (reg_typ h, Register) (* (Sreg s h) *)) => [Hbrs1 [Hbrt [Hi[Hdt [Hndt [Hun Hit]]]]]].
-         apply inferWidth_sreg_sem_conform with ce0; try done.
-         exact : (inferType_stmts_hd Hiw).
-       + (*mem*)
-         intros.
-         exists wm0; exists wm1.
-         move : (Hec (Eid s) (CE.vtyp s ce0) (* (Smem s h) *)) => [Hbrs1 [Hbrt [Hi[Hdt [Hndt [Hun Hit]]]]]].
-         apply inferWidth_smem_sem_conform with ce0; try done.
-         exact : (inferType_stmts_hd Hiw).
-       + (*inst*)
-         intros.
-         move : (Hec (Eid s) (CE.vtyp s0 ce0) (* (Sinst s s0) *)) => [Hbrs1 [Hbrt [Hi[Hdt [Hndt [Hun Hit]]]]]].
-         exists wm0; exists wm1.
-         apply inferWidth_sinst_sem_conform with ce0; try done.
-         exact : (inferType_stmts_hd Hiw).
-       + (*node*)
-         intros.
-         exists wm0; exists wm1.
-         move : (Hec (Eid s) (CE.vtyp s ce0) (* (Snode s h) *)) => [Hbrs1 [Hbrt [Hi [Hdt [Hndt [Hun Hit]]]]]].
-         apply inferWidth_snode_sem_conform with ce0; try done.
-         exact : (inferType_stmts_hd Hiw).
-       + (*fcnct*)
-         intros.
-         move : (Hec h (CE.vtyp (base_ref h) ce0) (* (Sfcnct h h0) *)) => [Hbrs1 [Hbrt [Hi[Hdt [Hndt [Hun Hit]]]]]].
-         rewrite //.
-         (* exists wm0; exists wm1. *)
-         (* move : (inferType_stmts_hd Hiw) => Hitc. *)
-         (* inversion Hitc; subst.  *)
-         (* apply inferWidth_sfcnct_ftype_sem_conform with (snd (CE.vtyp (base_ref h) ce1)) ( (fst (CE.vtyp (base_ref h) ce1))) (type_of_cmpnttyp (fst (CE.vtyp (base_ref h) ce1))) (type_of_cmpnttyp (fst (CE.vtyp (base_ref h) (wmap_map2_cenv wm0 ce1)))); try done. *)
-         (* move : (H3 ((fst (CE.vtyp (base_ref h) ce1))) *)
-         (*            (type_of_cmpnttyp (fst (CE.vtyp (base_ref h) (wmap_map2_cenv wm0 ce1)))) *)
-         (*            (snd (CE.vtyp (base_ref h) ce1))) => [Hit1 [Hit2 Hit3]]. *)
-         (* rewrite //. *)
-         (* move : (CE.find_some_vtyp Hbrt) => Hv. rewrite -surjective_pairing -Hbrt//. *)
-         (* exact : (type_of_hexpr_cefind Hbrt). *)
-         (* move : (H3 ((fst (CE.vtyp (base_ref h) ce1))) *)
-         (*            (type_of_cmpnttyp (fst (CE.vtyp (base_ref h) (wmap_map2_cenv wm0 ce1)))) *)
-         (*            (snd (CE.vtyp (base_ref h) ce1))) => [Hit1 [Hit2 Hit3]]. *)
-         (* done. *)
-       + (*pcnct*)
-         intros.
-         move : (Hec h (CE.vtyp (base_ref h) ce0) (* (Spcnct h h0) *)) => [Hbrs1 [Hbrt [Hi[Hdt [Hndt [Hun Hit]]]]]].
-         rewrite //.
-       (* exists wm0; exists wm1. *)
-       (* move : (inferType_stmts_hd Hiw) => Hitc. *)
-       (* inversion Hitc; subst.  *)
-       (* apply inferWidth_spcnct_ftype_sem_conform with (snd (CE.vtyp (base_ref h) ce1)) ( (fst (CE.vtyp (base_ref h) ce1))) (type_of_cmpnttyp (fst (CE.vtyp (base_ref h) ce1))) (type_of_cmpnttyp (fst (CE.vtyp (base_ref h) (wmap_map2_cenv wm0 ce1)))); try done. *)
-       (* move : (H3 ((fst (CE.vtyp (base_ref h) ce1))) *)
-       (*            (type_of_cmpnttyp (fst (CE.vtyp (base_ref h) (wmap_map2_cenv wm0 ce1)))) *)
-       (*            (snd (CE.vtyp (base_ref h) ce1))) => [Hit1 [Hit2 Hit3]]. *)
-       (* rewrite //. *)
-       (* move : (CE.find_some_vtyp Hbrt) => Hv. rewrite -surjective_pairing -Hbrt//. *)
-       (* exact : (type_of_hexpr_cefind Hbrt). *)
-       (* move : (H3 ((fst (CE.vtyp (base_ref h) ce1))) *)
-       (*            (type_of_cmpnttyp (fst (CE.vtyp (base_ref h) (wmap_map2_cenv wm0 ce1)))) *)
-       (*            (snd (CE.vtyp (base_ref h) ce1))) => [Hit1 [Hit2 Hit3]]. *)
-       (* done. *)
-       + (*invalid*)
-         intros.
-         move : (Hec (h) (aggr_typ def_ftype, Node) (* (Sinvalid h) *)) => [Hbrs1 [Hbrt [Hi[Hdt [Hndt [Hun Hit]]]]]].
-         rewrite //.
-       (* exists wm0; exists wm1. *)
-       (* rewrite /= in Hdt. rewrite /= in Hbrt; rewrite /= in Hbrs1. *)
-       (* apply inferWidth_sinvalid; try rewrite //. *)
-       (* rewrite Hiw//. *)
-       (* rewrite /wmap_map2_cenv (CELemmas.map2_1bis _ _ _ Hnone) Hbrs1. *)
-       (* move : (inferType_stmts_hd Hit) => Hits. *)
-       (* inversion Hits; subst. rewrite Hbrt//. *)
-       + (*when*)
-         intros.
-         move : (Hec (r) (aggr_typ def_ftype, Node) (* (Swhen h l l0) *)) => [Hbrs1 [Hbrt [Hi[Hdt [Hndt [Hun Hit]]]]]].
-         rewrite //.
-       (* rewrite /= in Hiw; rewrite /= in Hbrs; rewrite /= in Hbrt. *)
-       (* apply inferWidth_swhen with (Eid v); try rewrite //. *)
-       (* rewrite Hiw//. *)
-       (* rewrite /wmap_map2_cenv (CELemmas.map2_1bis _ _ _ Hnone) Hbrs1. *)
-       (* move : (inferType_stmts_hd Hit) => Hits. *)
-       (* inversion Hits; subst.  *)
-       + (*stop*)
-         intros.
-         move : (Hec (r) (aggr_typ def_ftype, Node) (* (Sstop h h0 n) *)) => [Hbrs1 [Hbrt [Hi[Hdt [Hndt [Hun Hit]]]]]].
-         rewrite //.
-         (* rewrite /= in Hiw; rewrite /= in Hbrs; rewrite /= in Hbrt. *)
-         (* apply inferWidth_sstop with v; try rewrite //. *)
-         (* rewrite Hiw//. *)
-         (* rewrite /wmap_map2_cenv (CELemmas.map2_1bis _ _ _ Hnone) Hbrs1. *)
-         (* move : (inferType_stmts_hd Hit) => Hits. *)
-         (* inversion Hits; subst.  *)
-       +
-         move : (Hec (Eid v) (aggr_typ def_ftype, Node)) => [Hbrs1 [Hbrt [Hi[Hdt [Hndt [Hun Hit]]]]]].
-         symmetry in Hi.
-         (* rewrite (infer_stmt_lst _ Hi). *)
-   (*       apply Hm with ce0 (*wmap_map2_cenv wm1 ce1*) ; try done. *)
-   (*       exists wm1; exists (inferWidth_wmap0 (hd sskip ss) (wmap_map2_cenv wm1 ce1) wm1). *)
-   (*       intros. *)
-   (*       move : (Hec r t) => [Hbrs10 [Hbrt0 [Hin0 [Hdt0 [Hndt0 [Hun0 Hit0]]]]]]. *)
-   (*       repeat (split; try done). *)
-   (*       rewrite /= in Hbrt0. move : Hbrt0. case (is_inital st); try done. *)
-   (*       rewrite /wmap_map2_cenv/find_unknown (CELemmas.map2_1bis _ _ _ Hnone). *)
-   (*       rewrite (new_v_wmap_none Hbrs10 wm1)/=. *)
-   (*       rewrite /find_unknown/= in Hun0. done. *)
-   (*       move : Hit0. rewrite (infer_stmt_lst ss Hi)//. *)
-   (*       inversion Hiw. *)
-   (*       apply Infertype_stmts_know. *)
-   (*       exists (base_ref (Eid v)). *)
-   (*       rewrite /find_unknown/wmap_map2_cenv (CELemmas.map2_1bis _ _ _ Hnone). *)
-   (*       rewrite (new_v_wmap_none Hbrs1 wm1)/=. *)
-   (*       rewrite /find_unknown/= in Hun. done. *)
-   (* Qed. *)
-   Admitted.
-
-
    Parameter not_init_wmfind_some :
      forall s, ~~ is_init s -> forall v (wm:wmap0) t, CE.find v wm = Some t.
-   Parameter infer_type_no_unknown_type :
+   Parameter infer_types_no_unknown_type :
      forall sts ce0 ce1, inferType_stmts sts ce0 ce1 -> forall v c, ~ (CE.find v ce1 = Some (unknown_typ, c)).
+   Parameter infer_type_no_unknown_type :
+     forall st ce0 ce1, inferType_stmt st ce0 ce1 -> forall v c, ~ (CE.find v ce1 = Some (unknown_typ, c)).
 
    Parameter find_same_ce_wmap2ce :
      forall v (ce1 ce2: cenv) wm1,
@@ -3297,11 +3170,11 @@ Qed.
    
 
    Inductive inferWidth_stmts_sem' : seq hfstmt -> cenv -> cenv -> Prop :=
-   | inferWidth_stmts_nil' ce1 ce2 :
-       (forall v,
-         CE.find v ce1 = CE.find v ce2) ->
-         inferWidth_stmts_sem' nil ce1 ce2
-   | inferWidth_stmts_cons' st sts (ce1 ce2 ce3 : cenv) :
+   | inferWidth_stmts_nil' ce :
+       (* (forall v, *)
+       (*   CE.find v ce1 = CE.find v ce2) -> *)
+         inferWidth_stmts_sem' nil ce ce
+   | inferWidth_stmts_cons' st sts (ce0 ce0' ce1 ce2 ce3 : cenv) :
        (* (forall r  t1 c, *)
        (*     new_comp_name (base_ref r) /\ *)
        (*     CE.find (base_ref r) ce1 = Some (t1, c) /\ *)
@@ -3309,216 +3182,314 @@ Qed.
        (*     ~~ is_deftyp (type_of_cmpnttyp (fst (CE.vtyp (base_ref r) ce3))) -> *)
        (*     exists (wm1 wm2 : wmap0), *)
        (*       inferWidth_sstmt_sem st wm1 wm2 ce1 ce2) -> *)
-       (exists wm1 wm2, inferWidth_sstmt_sem st wm1 wm2 ce1 ce2) ->
+       (inferType_stmts (st::sts) ce0 ce0' /\ forall v, CE.find v ce0' = CE.find v ce1) ->
+       (exists wm1 wm2 ,
+       inferWidth_sstmt_sem st wm1 wm2 ce1 ce2) ->
        inferWidth_stmts_sem' sts ce2 ce3 ->
        inferWidth_stmts_sem' (st :: sts) ce1 ce3.
 
-   (* Lemma inferWidth_stmts_sem_conform' : *)
-   (*   forall st (sts:seq hfstmt) wm ce0 ce1 ce2 ce3, *)
-   (*     (* ( *) *)
-   (*     (*   exists wm0 wm1, *) *)
-   (*     (*     forall r t , *) *)
-   (*     (*       new_comp_name (base_ref r) /\ *) *)
-   (*     (*       inferWidth_wmap0 (hd sskip sts) ce1 wm0 = wm1 /\ *) *)
-   (*     (*       CE.find (base_ref r) ce0 = Some t /\ *) *)
-   (*     (*       CE.find (base_ref r) wm0 = Some (type_of_cmpnttyp (fst t)) /\ *) *)
-   (*     (*     is_deftyp (type_of_cmpnttyp (fst t)) /\ *) *)
-   (*     (*     ~~ find_unknown (base_ref r) ce1 /\ *) *)
-   (*     (*     ~~ is_deftyp (type_of_cmpnttyp (fst (CE.vtyp (base_ref r) (inferWidth_fun sts ce1))))  *) *)
-   (*     (*     )-> *) *)
-   (*     (inferType_stmts sts ce0 ce1 /\ forall v, CE.find v ce1 = CE.find v ce2) -> *)
-   (*     inferWidth_sstmt_sem st wm (inferWidth_wmap0 st ce2 wm) ce2 ce3 -> *)
-   (*     inferWidth_stmts_sem' (st::sts) ce2 (inferWidth_fun (st::sts) ce2). *)
-   (* Proof. *)
-   (*   intros. *)
-   (*   apply inferWidth_stmts_cons' with ce3. *)
-   (*   exists wm; exists (inferWidth_wmap0 st ce2 wm). done. move : H0. *)
-     
 
-   Lemma inferWidth_stmts_sem_conform' :
-     forall (sts:seq hfstmt) ce0 ce1 ce2 ,
-       (* ( *)
-       (*   exists wm0 wm1, *)
-       (*     forall r t , *)
-       (*       new_comp_name (base_ref r) /\ *)
-       (*       inferWidth_wmap0 (hd sskip sts) ce1 wm0 = wm1 /\ *)
-       (*       CE.find (base_ref r) ce0 = Some t /\ *)
-       (*       CE.find (base_ref r) wm0 = Some (type_of_cmpnttyp (fst t)) /\ *)
-       (*     is_deftyp (type_of_cmpnttyp (fst t)) /\ *)
-       (*     ~~ find_unknown (base_ref r) ce1 /\ *)
-       (*     ~~ is_deftyp (type_of_cmpnttyp (fst (CE.vtyp (base_ref r) (inferWidth_fun sts ce1))))  *)
-       (*     )-> *)
-       (inferType_stmts sts ce0 ce1 /\ forall v, CE.find v ce1 = CE.find v ce2) ->
-       inferWidth_stmts_sem' (sts) ce2 (inferWidth_fun (sts) ce2).
+   Parameter wmap_empty : forall ce,
+       (wmap_map2_cenv empty_wmap0 ce) = ce.
+
+   Parameter inferType_hd_tl : forall ss st ce0 ce1,
+       inferType_stmts (st::ss) ce0 ce1 ->
+       inferType_stmts ss (inferType_stmt_fun st ce0) ce1.
+
+   Parameter wmap2_same : forall v wm ce,
+       CE.find v wm = None ->
+       CE.find v (wmap_map2_cenv wm ce) = CE.find v ce.
+
+   Parameter inferWidth_unfold_swhen :
+     forall ce1 wm1 h l l0,
+       inferWidth_wmap0 (Swhen h l l0) ce1 wm1 =
+       inferWidth_stmts_wmap0 (cat l l0) ce1 wm1.
+
+   Parameter inferWidth_list_cat :
+     forall ce1 wm1 l l0,
+       inferWidth_stmts_wmap0 (l ++ l0) ce1 wm1 =
+       inferWidth_stmts_wmap0 l0 ce1 (inferWidth_stmts_wmap0 l ce1 wm1).
+
+   Parameter inferWidth_fun_list :
+     forall ce1 wm1 l l0,
+       wmap_map2_cenv (inferWidth_stmts_wmap0 l0 ce1 (inferWidth_stmts_wmap0 l ce1 wm1)) ce1 =
+       wmap_map2_cenv (inferWidth_stmts_wmap0 l0 (wmap_map2_cenv (inferWidth_stmts_wmap0 l ce1 wm1) ce1) (inferWidth_stmts_wmap0 l ce1 wm1)) ce1.
+
+   Parameter inferWidth_list_fold :
+     forall l l0 ce1 wm1,
+     wmap_map2_cenv (inferWidth_stmts_wmap0 l (wmap_map2_cenv (inferWidth_stmts_wmap0 l0 ce1 wm1) ce1) (inferWidth_stmts_wmap0 l0 ce1 wm1)) ce1 =
+     inferWidth_fun l (inferWidth_fun l0 ce1).
+   
+   Lemma inferWidth_sstmt_stmts_sem_conform' :
+     forall st sts wm1 wm2 ce ce' ce0 ce0' ce1 ce2,
+       
+       ((forall st wm1 wm2 ce1 ce2, inferWidth_sstmt_sem st wm1 wm2 ce1 ce2 ) ->
+        inferType_stmts sts ce ce' ->
+        (forall v, CE.find v ce' = CE.find v ce1) ->
+        inferWidth_stmts_sem (sts) ce1 (inferWidth_fun (sts) ce1))
+       /\
+       ((forall ce1 sts, inferWidth_stmts_sem (sts) ce1 (inferWidth_fun (sts) ce1)) ->
+        inferType_stmt st ce0 ce0' ->
+        (forall v, CE.find v ce0' = CE.find v ce1) ->
+        wm2 = inferWidth_wmap0 st ce1 wm1 ->
+        ce2 = wmap_map2_cenv wm2 ce1 ->
+        inferWidth_sstmt_sem st wm1 wm2 ce1 ce2).
    Proof.
      have Hnone : (add_width_2_cenv None None = None) by done.
-     elim => [ce0 ce1 ce2 Hiw | st ss Hm ce0 ce1 ce2 Hiw].
-     - apply inferWidth_stmts_nil'. intros.
-       rewrite /inferWidth_fun/wmap_map2_cenv/=.
-       rewrite (CELemmas.map2_1bis _ _ _ Hnone) CELemmas.empty_o//.
+     split.
+     move : sts ce ce' ce1 ce2. 
+     elim => [ cece' ce1 ce2 Hce12 Hit Hwm1 Hce2 | s ss Hm ce ce' ce1 ce3 Hms Hit Hce12].
+     - rewrite /inferWidth_fun/= wmap_empty; apply inferWidth_stmts_nil. 
      -
-       have Hin : ((is_init st) \/ ~~(is_init st)) by (case (is_init st); [by left| by right]).
+       have Hin : ((is_init s) \/ ~~(is_init s)) by (case (is_init s); [by left| by right]).
+       move : Hin => [Hin | Hin].
        rewrite /inferWidth_fun.
-       apply inferWidth_stmts_cons' with (wmap_map2_cenv (inferWidth_wmap0 st ce1 empty_wmap0)  ce1).
-       move : Hiw => [Hif Hce12].
-       inversion Hif; subst.
-       exists empty_wmap0 . exists (inferWidth_wmap0 st ce1 empty_wmap0).
-       move : Hif H1 Hin.
-   (* Lemma inferWidth_stmts_sem_conform : *)
-   (*   forall sts ce0 ce1 (v:var), *)
-   (*     ( *)
-   (*       exists wm0 wm1, *)
-   (*         forall r t , *)
-   (*           new_comp_name (base_ref r) /\ *)
-   (*           inferWidth_wmap0 (hd sskip sts) ce1 wm0 = wm1 /\ *)
-   (*           CE.find (base_ref r) ce0 = Some t /\ *)
-   (*           CE.find (base_ref r) wm0 = Some (type_of_cmpnttyp (fst t)) /\ *)
-   (*         is_deftyp (type_of_cmpnttyp (fst t)) /\ *)
-   (*         ~~ find_unknown (base_ref r) ce1 /\ *)
-   (*         ~~ is_deftyp (type_of_cmpnttyp (fst (CE.vtyp (base_ref r) (inferWidth_fun sts ce1)))) *)
-   (*         )-> *)
-   (*         (* ~~ is_deftyp (type_of_cmpnttyp (fst (CE.vtyp v (inferWidth_fun sts ce1)))) /\ *) *)
-   (*         (*ce2 = wmap_map2_cenv wm1 ce1 /\*) *)
-   (*         inferType_stmts sts ce0 ce1 -> *)
-   (*     inferWidth_stmts_sem sts ce1 (inferWidth_fun sts ce1). *)
-   (* Proof. *)
-   (*   have Hnone : (add_width_2_cenv None None = None) by done. *)
-   (*   elim => [ce0 ce1  v He Hiw | st ss Hm ce0 ce1 v He Hiw]. *)
-   (*   - *)
-   (*     apply inferWidth_stmts_nil. rewrite /inferWidth_fun/wmap_map2_cenv/=. intro. *)
-   (*     rewrite (CELemmas.map2_1bis _ _ _ Hnone). rewrite CELemmas.empty_o//. *)
-   (*   - *)
-   (*     case He => [wm0 [wm1 Hec]]. *)
-   (*     apply inferWidth_stmts_imp with (wmap_map2_cenv wm1 ce1). *)
-   (*     move : Hec Hiw. *)
-       elim st.
+       apply inferWidth_stmts_cons with ce ce' (wmap_map2_cenv (inferWidth_wmap0 s ce1 empty_wmap0) ce1) ;
+         try done.
+       exists wm1; exists wm2. apply Hms.
+       rewrite -/(inferWidth_fun (s :: ss) ce1).
+       erewrite infer_stmt_lst; try done.
+       apply Hm with (inferType_stmt_fun s ce) ce'; try done.
+       by apply inferType_hd_tl.
+       intros. symmetry. rewrite (Hce12 v) . apply wmap2_same.
+       apply new_v_wmap_none. by apply init_new_comp_name with s.
+       rewrite /inferWidth_fun.
+       apply inferWidth_stmts_cons with ce ce' (wmap_map2_cenv (inferWidth_wmap0 s ce1 empty_wmap0) ce1) ;
+         try done.
+       exists wm1; exists wm2. apply Hms.
+       rewrite -/(inferWidth_fun (s :: ss) ce1).
+       erewrite infer_stmt_lst; try done.
+       apply Hm with (inferType_stmt_fun s ce) ce'; try done.
+       by apply inferType_hd_tl.
+       intros.
+       move : (not_init_cefind_some Hin v (wmap_map2_cenv (inferWidth_wmap0 s ce1 empty_wmap0) ce1) (CE.vtyp v ce1)) => Haux.
+       rewrite Haux.
+       exact : (not_init_cefind_some Hin v ce' (CE.vtyp v ce1)).
+
+       have Hin : ((is_init st) \/ ~~(is_init st)) by (case (is_init st); [by left| by right]).
+       move : st wm1 wm2 ce0 ce0' ce1 ce2 Hin.
+       elim .
        + (*skip*)
          intros. 
          apply inferWidth_sskip_sem_conform; try done.
-         erewrite (find_same_ce_wmap2ce _ (Hce12 _)). done.
        + (*swire*)
-         move => s f Hit Hits. move => [Hin | Hin]; try rewrite //.
+         move => s f wm1 wm2 ce0 ce0' ce1 ce2 Hin Hm Hit Hce12 Hwm2 Hce2.
+         move : Hin => [Hin | Hin]; try rewrite //.
          move : (init_new_comp_name Hin s) => Hns.
-         move : (new_v_wmap_none Hns empty_wmap0) => Hnv.
+         move : (new_v_wmap_none Hns wm1) => Hnv.
          apply inferWidth_swire_sem_conform'; try done. 
-         move : (inferType_stmts_hd Hit) => Hhd. inversion Hhd; subst.
-         rewrite -H5 (Hce12 s)//.
-         erewrite (find_same_ce_wmap2ce _ (Hce12 _)). done.
-         (* intros. *)
-         (* exists wm0; exists wm1. *)
-         (* move : (Hec (Eid s) (aggr_typ f, Wire) (* (Swire s f) *)) => [Hbrs1 [Hbrt [[Hdt [Hndt [Hun Hit]]]]]]. *)
-         (* rewrite /= in Hbrt. *)
-         (* move : (new_v_wmap_none Hbrs1 wm0) => Hnv. *)
-         (* apply inferWidth_swire_sem_conform with ce0; try done. *)
-         (* exact : (inferType_stmts_hd Hiw). *)
+         inversion Hit; subst.
+         rewrite -H4 (Hce12 s)//.
        + (*reg*)
          intros.
          apply inferWidth_sreg_sem_conform'; try done.
-         move : (inferType_stmts_hd Hif) => Hhd. inversion Hhd; subst.
-         rewrite -H6 (Hce12 s)//.
-         erewrite (find_same_ce_wmap2ce _ (Hce12 _)). done.
+         inversion H0; subst.
+         rewrite -H9 (H1 s)//.
        + (*mem*)
          intros.
          apply inferWidth_smem_sem_conform'; try done.
-         move : (inferType_stmts_hd Hif) => Hhd. inversion Hhd; subst.
-         rewrite -H6 (Hce12 s)//.
-         erewrite (find_same_ce_wmap2ce _ (Hce12 _)). done.
+         inversion H0; subst.
+         rewrite -H9 (H1 s)//.
        + (*inst*)
          intros.
          apply inferWidth_sinst_sem_conform' with (fst (CE.vtyp s0 ce0)); try done.
-         move : (inferType_stmts_hd Hif) => Hhd. inversion Hhd; subst.
-         rewrite -H7 (Hce12 s)//.
-         erewrite (find_same_ce_wmap2ce _ (Hce12 _)). done.
+         inversion H0; subst.
+         rewrite -H10  (H1 s)//.
        + (*node*)
          intros.
          apply inferWidth_snode_sem_conform'; try done.
-         move : (inferType_stmts_hd Hif) => Hhd. inversion Hhd; subst.
-         rewrite -(typeof_same_ce h (Hce12 s)) -H3 -H7//.
-         rewrite/=(typeof_same_ce h (Hce12 s)).
-         case (is_deftyp (type_of_hfexpr h ce2)); try done.
-         erewrite (find_same_ce_wmap2ce _ (Hce12 _)). done.
+         inversion H0; subst.
+         rewrite -(typeof_same_ce h (H1 s)) -H7 -H1//.
        + (*fcnct*)
          intros.
          move : Hin => [Hin|Hin]; try done.
-         move : (inferType_stmts_hd Hif) => Hitc. 
+         move : H0 => Hitc. 
          inversion Hitc; subst.
-         move : H5 => [Hit1 [Hit2 Hit3]].
-         move : (not_init_wmfind_some Hin (base_ref h) empty_wmap0 (type_of_cmpnttyp t)) => Haux.
+         move : H7 => [Hit1 [Hit2 Hit3]].
+         move : (not_init_wmfind_some Hin (base_ref h) wm1 (type_of_cmpnttyp t)) => Haux.
          case Hde : (is_deftyp (type_of_cmpnttyp t)).
          apply inferWidth_sfcnct_ftype_sem_conform with c t (type_of_cmpnttyp t) t'; try done.
-         rewrite -(Hce12 (base_ref h))//.
-         erewrite <-(typeofr_same_ce _ (Hce12 _)).
+         rewrite -(H1 (base_ref h))//.
+         rewrite <-(typeofr_same_ce _ (H1 (base_ref h))). 
          rewrite (type_of_hexpr_cefind Hit1)//.
-         erewrite <-(typeof_same_ce _ (Hce12 _)). done.
-         rewrite /=. erewrite <-(typeofr_same_ce _ (Hce12 _)).
-         erewrite <-(typeof_same_ce _ (Hce12 _)).
-         case (is_deftyp (type_of_ref h ce1)); try done.
-         rewrite (add_wmap_same_ce _ empty_wmap0 (Hce12 _)).
-         case h0; try done.
-         intros. erewrite <-(typeofr_same_ce _ (Hce12 _)).
-         rewrite (add_wmap_same_ce _ empty_wmap0 (Hce12 _))//.
-         erewrite (find_same_ce_wmap2ce _ (Hce12 _)). done.
-         move : (infer_type_no_unknown_type Hif) => Hfu.
+         rewrite <-(typeof_same_ce _ (H1 (base_ref h))). done.
+         move : (infer_type_no_unknown_type Hitc) => Hfu.
          rewrite /find_unknown. move : (Hfu (base_ref h) c ).
-         rewrite -(Hce12 (base_ref h)).
+         rewrite -(H1 (base_ref h)).
          rewrite Hit1. case t; try done.
+         have Hit1' : CE.find (base_ref h) ce1 = Some (t, c) by rewrite -(H1 (base_ref h))//.
          apply inferWidth_sfcnct_tmp with (type_of_cmpnttyp t).
-         have Hit1' : CE.find (base_ref h) ce2 = Some (t, c) by rewrite -(Hce12 (base_ref h))//.
          rewrite (type_of_hexpr_cefind Hit1')//.
-         rewrite /=(type_of_hexpr_cefind Hit1)/= Hde; case h0; done.
-         rewrite -(Hce12 (base_ref h))/=(type_of_hexpr_cefind Hit1)/= Hde; case h0; intros; move : Hde;
-           rewrite /wmap_map2_cenv (CELemmas.map2_1bis _ _ _ Hnone) Haux Hit1;
+         rewrite /=(type_of_hexpr_cefind Hit1')/= Hde; case h0; done.
+         rewrite /= -(H1 (base_ref h))/= (type_of_hexpr_cefind Hit1') /= Hde; case h0; intros; move : Hde;
+           rewrite /wmap_map2_cenv (CELemmas.map2_1bis _ _ _ Hnone) Haux Hit1 Hit1';
            case t; rewrite /=; intros; try (rewrite Hde//|| discriminate).
          rewrite Hde//.         
        + (*pcnct*)
-                  intros.
+         intros.
          move : Hin => [Hin|Hin]; try done.
-         move : (inferType_stmts_hd Hif) => Hitc. 
+         move : H0 => Hitc. 
          inversion Hitc; subst.
-         move : H5 => [Hit1 [Hit2 Hit3]].
-         move : (not_init_wmfind_some Hin (base_ref h) empty_wmap0 (type_of_cmpnttyp t)) => Haux.
+         move : H7 => [Hit1 [Hit2 Hit3]].
+         move : (not_init_wmfind_some Hin (base_ref h) wm1 (type_of_cmpnttyp t)) => Haux.
          case Hde : (is_deftyp (type_of_cmpnttyp t)).
          apply inferWidth_spcnct_ftype_sem_conform with c t (type_of_cmpnttyp t) t'; try done.
-         rewrite -(Hce12 (base_ref h))//.
-         erewrite <-(typeofr_same_ce _ (Hce12 _)).
+         rewrite -(H1 (base_ref h))//.
+         rewrite <-(typeofr_same_ce _ (H1 (base_ref h))). 
          rewrite (type_of_hexpr_cefind Hit1)//.
-         erewrite <-(typeof_same_ce _ (Hce12 _)). done.
-         rewrite /=. erewrite <-(typeofr_same_ce _ (Hce12 _)).
-         erewrite <-(typeof_same_ce _ (Hce12 _)).
-         case (is_deftyp (type_of_ref h ce1)); try done.
-         rewrite (add_wmap_same_ce _ empty_wmap0 (Hce12 _)).
-         case h0; try done.
-         intros. erewrite <-(typeofr_same_ce _ (Hce12 _)).
-         rewrite (add_wmap_same_ce _ empty_wmap0 (Hce12 _))//.
-         erewrite (find_same_ce_wmap2ce _ (Hce12 _)). done.
-         move : (infer_type_no_unknown_type Hif) => Hfu.
+         rewrite <-(typeof_same_ce _ (H1 (base_ref h))). done.
+         move : (infer_type_no_unknown_type Hitc) => Hfu.
          rewrite /find_unknown. move : (Hfu (base_ref h) c ).
-         rewrite -(Hce12 (base_ref h)).
+         rewrite -(H1 (base_ref h)).
          rewrite Hit1. case t; try done.
+         have Hit1' : CE.find (base_ref h) ce1 = Some (t, c) by rewrite -(H1 (base_ref h))//.
          apply inferWidth_spcnct_tmp with (type_of_cmpnttyp t).
-         have Hit1' : CE.find (base_ref h) ce2 = Some (t, c) by rewrite -(Hce12 (base_ref h))//.
          rewrite (type_of_hexpr_cefind Hit1')//.
-         rewrite /=(type_of_hexpr_cefind Hit1)/= Hde; case h0; done.
-         rewrite -(Hce12 (base_ref h))/=(type_of_hexpr_cefind Hit1)/= Hde; case h0; intros; move : Hde;
-           rewrite /wmap_map2_cenv (CELemmas.map2_1bis _ _ _ Hnone) Haux Hit1;
+         rewrite /=(type_of_hexpr_cefind Hit1')/= Hde; case h0; done.
+         rewrite /= -(H1 (base_ref h))/= (type_of_hexpr_cefind Hit1') /= Hde; case h0; intros; move : Hde;
+           rewrite /wmap_map2_cenv (CELemmas.map2_1bis _ _ _ Hnone) Haux Hit1 Hit1';
            case t; rewrite /=; intros; try (rewrite Hde//|| discriminate).
-         rewrite Hde//.   
+         rewrite Hde//.
        + (*invalid*)
          intros.
          apply inferWidth_sinvalid_sem_conform; try done.
-         erewrite (find_same_ce_wmap2ce _ (Hce12 _)). done.
        + (*when*)
          intros.
-         apply inferWidth_swhen_sem_conform_tmp; try done.
-         erewrite (find_same_ce_wmap2ce _ (Hce12 _)). done.
-       + (*stop*)
+         apply inferWidth_swhen_t with (inferWidth_fun l ce1); try done.
+         rewrite H3 H2.
+         rewrite inferWidth_unfold_swhen inferWidth_list_cat.
+         rewrite inferWidth_fun_list inferWidth_list_fold.
+         apply H.
+       + (* stop *)
          intros.
          apply inferWidth_sstop_sem_conform; try done.
-         erewrite (find_same_ce_wmap2ce _ (Hce12 _)). done.
-     -  rewrite -/(inferWidth_fun (st :: ss) ce2).
-        set wm1 := (inferWidth_wmap0 st ce1 empty_wmap0).
-        erewrite infer_stmt_lst; try done. 
-   Admitted.
+   Qed.
+     
+   (* Lemma inferWidth_stmts_sem_conform' : *)
+   (*   forall (sts:seq hfstmt) ce0 ce1 ce2 , *)
+   (*     inferType_stmts sts ce0 ce1-> (forall v, CE.find v ce1 = CE.find v ce2) -> *)
+   (*     inferWidth_stmts_sem (sts) ce2 (inferWidth_fun (sts) ce2). *)
+   (* Proof. *)
+   (*   have Hnone : (add_width_2_cenv None None = None) by done. *)
+   (*   elim => [ce0 ce1 ce2 Hif Hfv | st ss Hm ce0 ce1 ce2 Hif Hce12]. *)
+   (*   - rewrite /inferWidth_fun/= wmap_empty. apply inferWidth_stmts_nil.  *)
+   (*   - *)
+   (*     have Hin : ((is_init st) \/ ~~(is_init st)) by (case (is_init st); [by left| by right]). *)
+   (*     rewrite /inferWidth_fun. *)
+   (*     apply inferWidth_stmts_cons with ce0 ce1 (wmap_map2_cenv (inferWidth_wmap0 st ce2 empty_wmap0) ce2); try done. *)
+   (*     inversion Hif; subst. *)
+   (*     exists empty_wmap0 . exists (inferWidth_wmap0 st ce2 empty_wmap0). *)
+   (*     move : Hif H1 Hin. *)
+   (*     elim st. *)
+   (*     + (*skip*) *)
+   (*       intros.  *)
+   (*       apply inferWidth_sskip_sem_conform; try done. *)
+   (*     + (*swire*) *)
+   (*       move => s f Hit Hits. move => [Hin | Hin]; try rewrite //. *)
+   (*       move : (init_new_comp_name Hin s) => Hns. *)
+   (*       move : (new_v_wmap_none Hns empty_wmap0) => Hnv. *)
+   (*       apply inferWidth_swire_sem_conform'; try done.  *)
+   (*       move : (inferType_stmts_hd Hit) => Hhd. inversion Hhd; subst. *)
+   (*       rewrite -H5 (Hce12 s)//. *)
+   (*     + (*reg*) *)
+   (*       intros. *)
+   (*       apply inferWidth_sreg_sem_conform'; try done. *)
+   (*       move : (inferType_stmts_hd Hif) => Hhd. inversion Hhd; subst. *)
+   (*       rewrite -H6 (Hce12 s)//. *)
+   (*     + (*mem*) *)
+   (*       intros. *)
+   (*       apply inferWidth_smem_sem_conform'; try done. *)
+   (*       move : (inferType_stmts_hd Hif) => Hhd. inversion Hhd; subst. *)
+   (*       rewrite -H6 (Hce12 s)//. *)
+   (*     + (*inst*) *)
+   (*       intros. *)
+   (*       apply inferWidth_sinst_sem_conform' with (fst (CE.vtyp s0 ce0)); try done. *)
+   (*       move : (inferType_stmts_hd Hif) => Hhd. inversion Hhd; subst. *)
+   (*       rewrite -H7 (Hce12 s)//. *)
+   (*     + (*node*) *)
+   (*       intros. *)
+   (*       apply inferWidth_snode_sem_conform'; try done. *)
+   (*       move : (inferType_stmts_hd Hif) => Hhd. inversion Hhd; subst. *)
+   (*       rewrite -(typeof_same_ce h (Hce12 s)) -H3 -H7//. *)
+   (*     + (*fcnct*) *)
+   (*       intros. *)
+   (*       move : Hin => [Hin|Hin]; try done. *)
+   (*       move : (inferType_stmts_hd Hif) => Hitc.  *)
+   (*       inversion Hitc; subst. *)
+   (*       move : H5 => [Hit1 [Hit2 Hit3]]. *)
+   (*       move : (not_init_wmfind_some Hin (base_ref h) empty_wmap0 (type_of_cmpnttyp t)) => Haux. *)
+   (*       case Hde : (is_deftyp (type_of_cmpnttyp t)). *)
+   (*       apply inferWidth_sfcnct_ftype_sem_conform with c t (type_of_cmpnttyp t) t'; try done. *)
+   (*       rewrite -(Hce12 (base_ref h))//. *)
+   (*       rewrite <-(typeofr_same_ce _ (Hce12 (base_ref h))).  *)
+   (*       rewrite (type_of_hexpr_cefind Hit1)//. *)
+   (*       rewrite <-(typeof_same_ce _ (Hce12 (base_ref h))). done. *)
+   (*       rewrite /=.  *)
+   (*       move : (infer_type_no_unknown_type H1) => Hfu. *)
+   (*       rewrite /find_unknown. move : (Hfu (base_ref h) c ). *)
+   (*       rewrite -(Hce12 (base_ref h)). *)
+   (*       rewrite Hit1. case t; try done. *)
+   (*       have Hit1' : CE.find (base_ref h) ce2 = Some (t, c) by rewrite -(Hce12 (base_ref h))//. *)
+   (*       apply inferWidth_sfcnct_tmp with (type_of_cmpnttyp t). *)
+   (*       rewrite (type_of_hexpr_cefind Hit1')//. *)
+   (*       rewrite /=(type_of_hexpr_cefind Hit1')/= Hde; case h0; done. *)
+   (*       rewrite /= -(Hce12 (base_ref h))/= (type_of_hexpr_cefind Hit1') /= Hde; case h0; intros; move : Hde; *)
+   (*         rewrite /wmap_map2_cenv (CELemmas.map2_1bis _ _ _ Hnone) Haux Hit1 Hit1'; *)
+   (*         case t; rewrite /=; intros; try (rewrite Hde//|| discriminate). *)
+   (*       rewrite Hde//.          *)
+   (*     + (*pcnct*) *)
+   (*       intros. *)
+   (*       move : Hin => [Hin|Hin]; try done. *)
+   (*       move : (inferType_stmts_hd Hif) => Hitc.  *)
+   (*       inversion Hitc; subst. *)
+   (*       move : H5 => [Hit1 [Hit2 Hit3]]. *)
+   (*       move : (not_init_wmfind_some Hin (base_ref h) empty_wmap0 (type_of_cmpnttyp t)) => Haux. *)
+   (*       case Hde : (is_deftyp (type_of_cmpnttyp t)). *)
+   (*       apply inferWidth_spcnct_ftype_sem_conform with c t (type_of_cmpnttyp t) t'; try done. *)
+   (*       rewrite -(Hce12 (base_ref h))//. *)
+   (*       rewrite <-(typeofr_same_ce _ (Hce12 (base_ref h))).  *)
+   (*       rewrite (type_of_hexpr_cefind Hit1)//. *)
+   (*       rewrite <-(typeof_same_ce _ (Hce12 (base_ref h))). done. *)
+   (*       rewrite /=.  *)
+   (*       move : (infer_type_no_unknown_type Hif) => Hfu. *)
+   (*       rewrite /find_unknown. move : (Hfu (base_ref h) c ). *)
+   (*       rewrite -(Hce12 (base_ref h)). *)
+   (*       rewrite Hit1. case t; try done. *)
+   (*       have Hit1' : CE.find (base_ref h) ce2 = Some (t, c) by rewrite -(Hce12 (base_ref h))//. *)
+   (*       apply inferWidth_spcnct_tmp with (type_of_cmpnttyp t). *)
+   (*       rewrite (type_of_hexpr_cefind Hit1')//. *)
+   (*       rewrite /=(type_of_hexpr_cefind Hit1')/= Hde; case h0; done. *)
+   (*       rewrite /= -(Hce12 (base_ref h))/= (type_of_hexpr_cefind Hit1') /= Hde; case h0; intros; move : Hde; *)
+   (*         rewrite /wmap_map2_cenv (CELemmas.map2_1bis _ _ _ Hnone) Haux Hit1 Hit1'; *)
+   (*         case t; rewrite /=; intros; try (rewrite Hde//|| discriminate). *)
+   (*       rewrite Hde//. *)
+   (*     + (*invalid*) *)
+   (*       intros. *)
+   (*       apply inferWidth_sinvalid_sem_conform; try done. *)
+   (*     + (*when*) *)
+   (*       intros.  *)
+   (*       apply inferWidth_swhen_sem_conform_tmp; try done. *)
+   (*     + (*stop*) *)
+   (*       intros. *)
+   (*       apply inferWidth_sstop_sem_conform; try done. *)
+   (*   - move : Hin => [Hin | Hin]. *)
+   (*     rewrite -/(inferWidth_fun (st :: ss) ce2). *)
+   (*     set wm1 := (inferWidth_wmap0 st ce2 empty_wmap0). *)
+   (*     erewrite infer_stmt_lst; try done. *)
+   (*     apply Hm with (inferType_stmt_fun st ce0) ce1 . *)
+   (*     by apply inferType_hd_tl. *)
+   (*     intros. symmetry. rewrite (Hce12 v) . apply wmap2_same. *)
+   (*     apply new_v_wmap_none. by apply init_new_comp_name with st.  *)
+   (*     rewrite -/(inferWidth_fun (st :: ss) ce2). *)
+   (*     set wm1 := (inferWidth_wmap0 st ce2 empty_wmap0). *)
+   (*     erewrite infer_stmt_lst; try done. *)
+   (*     apply Hm with (inferType_stmt_fun st ce0) ce1 . *)
+   (*     by apply inferType_hd_tl. *)
+   (*     intros. *)
+   (*     move : (not_init_cefind_some Hin v (wmap_map2_cenv (inferWidth_wmap0 st ce2 empty_wmap0) ce2) (CE.vtyp v ce1)) => Haux. *)
+   (*     rewrite Haux. *)
+   (*     exact : (not_init_cefind_some Hin v ce1 (CE.vtyp v ce1)). *)
+   (* Qed. *)
 
    (********************************************************************************)
 
@@ -3887,9 +3858,16 @@ Qed.
     | Some (R_default), None => Some r_default
     end.
 
-  Definition merge_t_f c rt re : option rhs_expr :=
+  Definition merge_t_f rt re : option rhs_expr :=
     match rt, re with
-    | Some t, None => Some t
+    | Some (R_fexpr (Emux c e_t e)), None => Some (r_fexpr (emux c e_t e))
+    | Some e, None => Some e
+    | Some (R_fexpr (Emux c e_t _)), Some (R_fexpr (Emux _ _ e_f)) => Some (r_fexpr (emux c e_t e_f))
+    | Some (R_fexpr (Evalidif c e_t)), Some (R_fexpr (Evalidif (Eprim_unop Unot _) e_f)) =>
+      Some (r_fexpr (emux c e_t e_f))
+    | None, Some e => Some e
+    | _, _ => None
+    end.
 
     Definition merge_branch_cs_t c re re_t : option rhs_expr :=
     match re, re_t with
@@ -3911,15 +3889,15 @@ Qed.
     | _, _ => None
     end.
 
-  (* Definition merge_branch_ce ce ce_t : option (cmpnt_init_typs * fcomponent) := *)
-  (*   match ce, ce_t with *)
-  (*   | None, None => None *)
-  (*   | Some (Aggr_typ t1, cp1), Some (Aggr_typ t2, cp2) => Some (aggr_typ (max_width t1 t2), cp1) *)
-  (*   | Some (Reg_typ t1, cp1), Some (Aggr_typ t2, cp2) => Some (Reg_typ t1, cp1) *)
-  (*   | Some er1, None => Some er1 *)
-  (*   | None, Some er2 => Some er2 *)
-  (*   | _, _ => None *)
-  (*   end. *)
+  Definition merge_branch_ce ce ce_t : option (cmpnt_init_typs * fcomponent) :=
+    match ce, ce_t with
+    | None, None => None
+    | Some (Aggr_typ t1, cp1), Some (Aggr_typ t2, cp2) => Some (aggr_typ (max_width t1 t2), cp1)
+    | Some (Reg_typ t1, cp1), Some (Aggr_typ t2, cp2) => Some (Reg_typ t1, cp1)
+    | Some er1, None => Some er1
+    | None, Some er2 => Some er2
+    | _, _ => None
+    end.
 
    Fixpoint expandBranch_fun (s :  hfstmt) (cs : cstate) : (cstate):=
           let fix aux (sts : seq hfstmt) (cs : cstate) : (cstate) :=
@@ -3934,14 +3912,14 @@ Qed.
                  | Sinvalid _
                  | Sstop _ _ _ => cs (* no translation needed *)
                  | Snode v e => (SV.upd v (r_fexpr e) cs)
-                 | Sreg v r => SV.upd v (Eref v) cs
-                 | Smem v m =>  SV.upd v (Eref v) cs 
+                 | Sreg v r => SV.upd v (r_fexpr (eref (eid v))) cs
+                 | Smem v m =>  SV.upd v (r_fexpr (eref (eid v))) cs 
                  | Swire v t => SV.upd v r_default cs
                  | Sfcnct v e => SV.upd (base_ref v) (R_fexpr e) cs
                  | Swhen c sst ssf =>
-                   let cs_t := SV.map2 (merge_branch_cs_t c) (aux sst cs) (aux ssf cs) in
-                   let cs_e := SV.map2 (merge_branch_cs_e c) (aux sst cs_t) (aux ssf cs_t) in
-                   cs_e
+                   let cs_t := SV.map2 (branch_true c) (aux sst cs) (aux ssf cs) in
+                   let cs_e := SV.map2 (branch_false c) (aux sst cs) (aux ssf cs) in
+                   SV.map2 merge_t_f cs_t cs_e
                  end.
 
    Inductive expandBranch_stmt : hfstmt -> cstate -> cstate -> Prop :=
@@ -3984,7 +3962,7 @@ Qed.
          (forall v e,
              (SV.find v cs0 = None /\ SV.find v cs1 = Some (r_fexpr e) -> SV.find v cs2 = SV.find v cs1)
              \/ (SV.find v cs0 = None /\ SV.find v cs1 = None -> SV.find v cs2 = Some (r_fexpr e))
-             \/ (SV.find v cs0 = Some (r_fexpr e1) /\ SV.find v cs1 = Some (r_fexpr e2) /\ )
+             \/ (SV.find v cs0 = Some (r_fexpr e) /\ SV.find v cs1 = Some (r_fexpr e))
          ) ->
              expandBranch_stmt (swhen c st_t st_f) cs0 cs2
    with expandBranch_stmts : seq hfstmt -> cstate -> cstate -> Prop :=
@@ -3997,8 +3975,6 @@ Qed.
          expandBranch_stmts sts cs1 cs2 ->
          expandBranch_stmts (st::sts) cs0 cs2
    .
-         
-   
    
   (** Semantics of declaim ports *)
   Inductive eval_port : hfport -> CE.env -> cstate -> CE.env -> cstate -> Prop :=
