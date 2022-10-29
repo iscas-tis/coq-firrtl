@@ -17,11 +17,9 @@ let mem_str2N (m:Ast.fmem) map flag =
 in
   List.fold_left v_str2N (List.fold_left v_str2N (map,flag) (m.reader)) (m.writer)
 
-let rec s_str2N (map,flag) stmt = 
+let s_str2N (map,flag) stmt = 
   match stmt with
   | Ast.Swire (v, _) -> (StringMap.add v flag map,flag + 1)
-  | Ast.Sinst (v1,_) -> (StringMap.add v1 flag map,flag + 1)
-  | Ast.Swhen (_, s1, s2) -> s_str2N (s_str2N (map,flag) s1) s2
   | Ast.Sreg r -> (StringMap.add r.rid flag map,flag + 1)
   | Ast.Smem m -> let (map0,flag0) = mem_str2N m map flag in 
     (StringMap.add m.mid flag0 map0,flag0 + 1)
@@ -139,35 +137,26 @@ let trans_rst rst map =
      | Ast.NRst -> Firrtl.NRst
      | Ast.Rst (e1, e2) -> Firrtl.Rst(trans_expr e1 map, trans_expr e2 map)
 
-let rec trans_stmt smap s = 
+let trans_stmt smap s = 
   match s with
   | Ast.Sskip -> Firrtl.Sskip
   | Ast.Swire (v, ty) -> Firrtl.Swire(Obj.magic (StringMap.find v smap), trans_fgtyp ty)
   | Ast.Smem m -> Firrtl.Smem (Firrtl.LoFirrtl.mk_fmem (Obj.magic (StringMap.find m.mid smap)) (trans_fgtyp m.data_type) (Z.to_int m.depth) (Obj.magic (List.map (myfind smap) m.reader)) (Obj.magic (List.map (myfind smap) m.writer)) (Z.to_int m.read_latency) (Z.to_int m.write_latency) (trans_ruw m.read_write))
-  | Ast.Sinst (v1,v2) -> Firrtl.Sinst(Obj.magic (StringMap.find v1 smap), Obj.magic (StringMap.find v2 smap))
   | Ast.Sfcnct (e1, e2) -> Firrtl.Sfcnct(trans_expr e1 smap, trans_expr e2 smap)
-  (*| Ast.Spcnct (e1, e2) -> Firrtl.Spcnct(trans_expr e1 smap, trans_expr e2 smap)*)
   | Ast.Sinvalid v -> Firrtl.Sinvalid (Obj.magic (StringMap.find v smap))
-  | Ast.Swhen (e, s1, s2) -> Firrtl.Swhen((trans_expr e smap), (trans_stmt smap s1), (trans_stmt smap s2))
   | Ast.Sreg r -> Firrtl.Sreg (Firrtl.LoFirrtl.mk_freg (Obj.magic (StringMap.find r.rid smap)) (trans_fgtyp r.rtype) (trans_expr r.clock smap) (trans_rst r.reset smap))
-  | Ast.Sstop (e1,e2,s) -> Firrtl.Sstop(trans_expr e1 smap, trans_expr e2 smap, Z.to_int s)
   | Ast.Snode (v, e) -> Firrtl.Snode(Obj.magic (StringMap.find v smap), trans_expr e smap)
-  | _ -> Firrtl.Sskip
 
 let trans_stmtl smap fsl s = 
   match s with
   | Ast.Sskip -> List.cons Firrtl.Sskip fsl
   | Ast.Swire (v, ty) -> List.cons (Firrtl.Swire(Obj.magic (StringMap.find v smap), trans_fgtyp ty)) fsl
   | Ast.Smem m -> List.cons (Firrtl.Smem (Firrtl.LoFirrtl.mk_fmem (Obj.magic (StringMap.find m.mid smap)) (trans_fgtyp m.data_type) (Z.to_int m.depth) (Obj.magic (List.map (myfind smap) m.reader)) (Obj.magic (List.map (myfind smap) m.writer)) (Z.to_int m.read_latency) (Z.to_int m.write_latency) (trans_ruw m.read_write))) fsl
-  | Ast.Sinst (v1,v2) -> List.cons (Firrtl.Sinst(Obj.magic (StringMap.find v1 smap), Obj.magic (StringMap.find v2 smap))) fsl
   | Ast.Sfcnct (e1, e2) -> List.cons (Firrtl.Sfcnct(trans_expr e1 smap, trans_expr e2 smap)) fsl
   (*| Ast.Spcnct (e1, e2) -> List.cons (Firrtl.Spcnct(trans_expr e1 smap, trans_expr e2 smap)) fsl*)
   | Ast.Sinvalid v -> List.cons (Firrtl.Sinvalid (Obj.magic (StringMap.find v smap))) fsl
-  | Ast.Swhen (e, s1, s2) -> List.cons (Firrtl.Swhen((trans_expr e smap), (trans_stmt smap s1), (trans_stmt smap s2))) fsl
   | Ast.Sreg r -> List.cons (Firrtl.Sreg (Firrtl.LoFirrtl.mk_freg (Obj.magic (StringMap.find r.rid smap)) (trans_fgtyp r.rtype) (trans_expr r.clock smap) (trans_rst r.reset smap))) fsl
-  | Ast.Sstop (e1,e2,s) -> List.cons (Firrtl.Sstop(trans_expr e1 smap, trans_expr e2 smap, Z.to_int s)) fsl
   | Ast.Snode (v, e) -> List.cons (Firrtl.Snode(Obj.magic (StringMap.find v smap), trans_expr e smap)) fsl
-  | _ -> fsl
 
 let trans_port pmap fpl p = 
   match p with
