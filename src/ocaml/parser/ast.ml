@@ -111,19 +111,10 @@ type fstmt =
   | Swire of var * fgtyp
   | Sreg of freg
   | Smem of fmem
-  | Sinst of var * var
   | Snode of var * fexpr
   | Sfcnct of fexpr * fexpr
-  | Spcnct of fexpr * fexpr
   | Sinvalid of var
   (*  | Sattach of var list *)
-  | Swhen of fexpr * fstmt * fstmt
-  | Sstop of fexpr * fexpr * Z.t
-  | Sprintf (* TBD *)
-  | Sassert (* TBD *)
-  | Sassume (* TBD *)
-  | Sdefname of var (* TBD *)
-  | Sparam of var * fexpr (* TBD *)
 
 type fport =
   | Finput of var * fgtyp
@@ -233,19 +224,14 @@ and  pp_statement out s =
   | Sskip -> output_string out "sskip"
   | Swire (v, ty) -> output_string out "(swire "; output_string out (v^" "); pp_type out ty; output_string out ")\n"
   | Smem m -> output_string out "smem ("; output_string out ((m.mid)^" "); pp_type out (m.data_type); output_string out "Depth "; output_string out (Z.to_string m.depth); output_string out " ReadL "; output_string out (Z.to_string m.read_latency); output_string out " WriteL "; output_string out (Z.to_string m.write_latency); output_string out "  Reader "; List.iter (fun c ->  output_string out (c^" "); output_string out "") m.reader; output_string out " Writer "; List.iter (fun c ->  output_string out (c^" "); output_string out "") m.writer; output_string out " "; output_string out " RuW "; pp_ruw out (m.read_write); output_string out ")\n"
-  | Sinst (v1,v2) -> output_string out "(sinst "; output_string out (v1^" ");  output_string out " ";  output_string out (v2^" "); output_string out ")\n"
   | Sfcnct (e1, e2) -> output_string out "(sfcnct "; pp_expr out e1; output_string out " "; pp_expr out e2; output_string out ")\n"
-  | Spcnct (e1, e2) -> output_string out "(spcnct "; pp_expr out e1; output_string out " "; pp_expr out e2; output_string out ")\n"
   | Sinvalid v -> output_string out "(sinvalid "; output_string out (v^" "); output_string out ")\n"
-  | Swhen (e, s1, s2) -> output_string out "(swhen "; pp_expr out e; pp_statement out s1; pp_statement out s2; output_string out ")\n"
   | Sreg r ->
      (match r.reset with
      | NRst -> output_string out "sreg (mk_freg "; output_string out ((r.rid)^" "); pp_type out (r.rtype); output_string out " "; pp_expr out (r.clock); output_string out "NRst)\n"
      | Rst (e1, e2) ->
         output_string out "sreg (mk_freg "; output_string out ((r.rid)^" "); pp_type out (r.rtype); output_string out " "; pp_expr out (r.clock); output_string out " "; output_string out "(rrst "; pp_expr out e1; output_string out " "; pp_expr out e2; output_string out "))\n")
-  | Sstop (e1,e2,s) -> output_string out "(sstop "; pp_expr out e1; pp_expr out e2; output_string out (Z.to_string s);  output_string out")\n"
   | Snode (v, e) -> output_string out "(snode "; output_string out (v^" "); pp_expr out e; output_string out ")\n"
-  | _ -> output_string out ""
                  
           
 let pp_module out fmod =
