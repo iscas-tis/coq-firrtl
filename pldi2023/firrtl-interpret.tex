@@ -84,7 +84,7 @@ we compare the equivalence of output ports produced by  our LoFIRRTL OCaml Inter
                                    & \textbf{Combinational}                     & 12  & 0.167 & 0.007 & 21.328 & \checkmark \\
                                    & \textbf{FibCircuit}                        & 14  & 0.190 & 0.006 & 29.195 & \checkmark \\
                                    & \textbf{ShiftRegister}                     & 21  & 0.190 & 0.010 & 18.433 & \checkmark  \\ \hline
-     & \textbf{myALU}             & 29  & 0.243 & 0.029 & 7.379 & \checkmark \\  \hline
+     & \textbf{mytest}             & 29  & 0.243 & 0.029 & 7.379 & \checkmark \\  \hline
 \end{tabular}
 \end{table}
 %
@@ -102,8 +102,8 @@ column (Result) shows the comparison result of output ports between Treadle and 
 We can observe that our LoFIRRTL OCaml Interpreter produces the same results as Treadle on all the 38 benchmarks under all the input tests.
 Furthermore, our LoFIRRTL OCaml Interpreter is significantly more efficient than Treadle on almost all the benchmarks except for HardwareHashMaker.
 In order to have some measure of the effectiveness of our testing, we analyzed the branch coverage of our LoFIRRTL OCaml Interpreter.
-All the 38 benchmarks together cover 36 branches out of 45. To cover the remaining branches, we implement an additional benchmark, called myALU, based on the benchmark ALU.
-Treadle and our LoFIRRTL OCaml Interpreter also produce the same results on the additional benchmark myALU.
+All the 38 benchmarks together cover 36 branches out of 45. To cover the remaining branches, we implement an additional benchmark, called mytest,
+on which Treadle and our LoFIRRTL OCaml Interpreter also produce the same results.
 \fu{Explain why it is slower on HardwareHashMaker and discuss coverage of testing.}
 %
 %
