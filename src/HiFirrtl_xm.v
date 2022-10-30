@@ -1793,9 +1793,9 @@ Qed.
 
 
    (* A map to store candidate types *)
-   Definition wmap := CE.t (seq ftype).
-   Definition empty_wmap : wmap := CE.empty (seq ftype).
-   Definition finds (v:var) (w:wmap) := match CE.find v w with Some t => t | None => [::] end.
+   (* Definition wmap := CE.t (seq ftype). *)
+   (* Definition empty_wmap : wmap := CE.empty (seq ftype). *)
+   (* Definition finds (v:var) (w:wmap) := match CE.find v w with Some t => t | None => [::] end. *)
 
    Definition wmap0 := CE.t (ftype).
    Definition empty_wmap0 : wmap0 := CE.empty (ftype).
@@ -1849,25 +1849,18 @@ Qed.
                       then add_ref_wmap0 (Eid v) (type_of_hfexpr e ce) ce w else w
      | Swire v t => if is_deftyp t then add_ref_wmap0 (Eid v) t ce w else w
      | Sreg v r => if is_deftyp (type r) then add_ref_wmap0 (Eid v) (type r) ce w else w
-     (* | Sreg v (mk_freg t cl (Rst (Eref rs) e)) => *)
-     (*   let w1 w := add_ref_wmap0 (Eid v) (type_of_hfexpr e ce) ce w in *)
-     (*   let w2 w:= add_ref_wmap0 rs (Gtyp (Fuint 1)) ce w in  *)
-     (*   if (is_deftyp t) && (is_deftyp (type_of_ref rs ce)) then (w2 (w1 w)) *)
-     (*   else if (is_deftyp t) then (w1 w) *)
-     (*        else if (is_deftyp (type_of_ref rs ce)) then (w2 w) else w *)
      | Sfcnct r1 (Eref r2) =>
        let w1 w := add_ref_wmap0 r1 (type_of_ref r2 ce) ce w in
        let w2 w := add_ref_wmap0 r2 (type_of_ref r1 ce) ce w in
-       if is_deftyp (type_of_ref r1 ce) (*&& (is_deftyp (type_of_ref r2 ce))*) then ((w1 w))
-       (*else if ~~ is_deftyp (type_of_ref r1 ce) then w1 w*) else w
+       if is_deftyp (type_of_ref r1 ce) then ((w1 w))
+       else w
      | Sfcnct r e =>
        let w1 := add_ref_wmap0 r (type_of_hfexpr e ce) ce w in
        if is_deftyp (type_of_ref r ce) then w1 else w
      | Spcnct r1 (Eref r2) =>
        let add1 wx := add_ref_wmap0 r1 (type_of_ref r2 ce) ce wx in
        let add2 wx := add_ref_wmap0 r2 (type_of_ref r2 ce) ce wx in
-       if is_deftyp (type_of_ref r1 ce) (*&& (is_deftyp (type_of_ref r2 ce))*) then ((add1 w))
-       (*else if is_deftyp (type_of_ref r1 ce) then add1 w*)
+       if is_deftyp (type_of_ref r1 ce)  then ((add1 w))
             (*else if is_deftyp (type_of_ref r2 ce) then w2 w*) else w
      | Spcnct r e =>
        let w1 := add_ref_wmap0 r (type_of_hfexpr e ce) ce w in
@@ -3511,24 +3504,24 @@ Qed.
      | Eid v => CE.add v (cons t (findr v m)) m
      | Esubfield r f =>
        let br := base_ref r in
-       CE.add br (cons (upd_name_ftype (base_type_of_ref r ce) (v2var f) t) (finds br m)) m
+       CE.add br (cons (upd_name_ftype (base_type_of_ref r ce) (v2var f) t) (findr br m)) m
      | Esubindex rs n =>
        let br := base_ref rs in
        let vt := type_of_cmpnttyp (fst (CE.vtyp br ce)) in
        match vt with
        | Gtyp gt => m
-       | Atyp ta na => CE.add br (cons (upd_vectyp vt t) (finds br m)) m
-       | Btyp _ => CE.add br (cons (upd_name_ftype vt (v2var (get_field_name rs)) t) (finds br m)) m
+       | Atyp ta na => CE.add br (cons (upd_vectyp vt t) (findr br m)) m
+       | Btyp _ => CE.add br (cons (upd_name_ftype vt (v2var (get_field_name rs)) t) (findr br m)) m
        end
      | Esubaccess rs n =>
        let br := base_ref rs in
        let vt := type_of_cmpnttyp (fst (CE.vtyp br ce)) in
        match vt with
        | Gtyp gt => m
-       | Atyp ta na => CE.add br (cons (upd_vectyp vt t) (finds br m)) m
+       | Atyp ta na => CE.add br (cons (upd_vectyp vt t) (findr br m)) m
        | Btyp Fnil => m
        | Btyp (Fflips v _ tf fs) =>
-         CE.add br (cons (upd_name_ftype vt (v2var (get_field_name rs)) t) (finds br m)) m
+         CE.add br (cons (upd_name_ftype vt (v2var (get_field_name rs)) t) (findr br m)) m
        end
      end.
 
