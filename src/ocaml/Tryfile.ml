@@ -6,7 +6,7 @@ open Firrtl
 open Big_int_Z
 open Graph
 
-let lowf = "./demo/ShiftRegister.lo.fir"
+let lowf = "./demo/treadle_lofir/myALU.lo.fir"
 let file = "./demo/input.txt"
 
 let parse f =
