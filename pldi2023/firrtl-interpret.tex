@@ -11,19 +11,19 @@ based on the earlier scala-based LoFIRRTL Interpreter.
 
 
 \smallskip\noindent
-{\bf Benchmarks}. We mainly collect LoFIRRTL circuits from Treadle, 
+{\bf Benchmarks}. We mainly collect LoFIRRTL circuits from Treadle,
 i.e., those 55 LoFIRRTL circuits inside the ``chipsalliance/treadle/samples'' directory.
 We consider those LoFIRRTL circuits because Treadle is more likely to execute correctly on them so that
-the correctness testing of the formalized operational semantics has high confidence. 
+the correctness testing of the formalized operational semantics has high confidence.
 Among 55 LoFIRRTL circuits, we exclude 21 LoFIRRTL circuits because they violate the syntax of
-LoFIRRTL (i.e., dependency of external modules or the usage of subfield), have no output ports or 
+LoFIRRTL (i.e., dependency of external modules or the usage of subfield), have no output ports or
 cannot be handled by Treadle due to cyclical connection of ports.
 Thus, we collected 34 LoFIRRTL circuits from Treadle.
-In addition, we also collect all the four LoFIRRTL circuits from 
+In addition, we also collect all the four LoFIRRTL circuits from
 \cite{HarrisonHA21} which have been tested using the scala-based LoFIRRTL Interpreter
 and a formal Agda-based Interpreter designed for a subset of LoFIRRTL.
 In summary, we use 38 LoFIRRTL circuits all of which can be handled by Treadle.
- 
+
 \smallskip\noindent
 {\bf Testing method}.
 Since the input LoFIRRTL programs to our LoFIRRTL OCaml Interpreter should be in the pseudo-SSA form
@@ -84,13 +84,14 @@ we compare the equivalence of output ports produced by  our LoFIRRTL OCaml Inter
                                    & \textbf{Combinational}                     & 12  & 0.167 & 0.007 & 21.328 & \checkmark \\
                                    & \textbf{FibCircuit}                        & 14  & 0.190 & 0.006 & 29.195 & \checkmark \\
                                    & \textbf{ShiftRegister}                     & 21  & 0.190 & 0.010 & 18.433 & \checkmark  \\ \hline
+     & \textbf{myALU}             & 29  & 0.243 & 0.029 & 7.379 & \checkmark \\  \hline
 \end{tabular}
 \end{table}
 %
 
 \smallskip\noindent
 {\bf Testing results}.
-The results of conformance testing are reported in Table~\ref{tab:conformancetesting}, where 
+The results of conformance testing are reported in Table~\ref{tab:conformancetesting}, where
 column (\#LOC) shows the number of locations,
 column (Treadle) shows the execution time $t_1$ of Treadle in millisecond,
 column (Ours) shows the execution time $t_2$ of our LoFIRRTL OCaml Interpreter in millisecond,
@@ -100,6 +101,9 @@ column (Result) shows the comparison result of output ports between Treadle and 
 
 We can observe that our LoFIRRTL OCaml Interpreter produces the same results as Treadle on all the 38 benchmarks under all the input tests.
 Furthermore, our LoFIRRTL OCaml Interpreter is significantly more efficient than Treadle on almost all the benchmarks except for HardwareHashMaker.
+In order to have some measure of the effectiveness of our testing, we analyzed the branch coverage of our LoFIRRTL OCaml Interpreter.
+All the 38 benchmarks together cover 36 branches out of 45. To cover the remaining branches, we implement an additional benchmark, called myALU,
+on which Treadle and our LoFIRRTL OCaml Interpreter also produce the same results.
 \fu{Explain why it is slower on HardwareHashMaker and discuss coverage of testing.}
 %
 %
