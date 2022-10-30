@@ -87,7 +87,7 @@ and token = parse
 | "orr"                                 { upd_cnum lexbuf; EXPR_ORR}
 | "xorr"                                 { upd_cnum lexbuf; EXPR_XORR}
 | "tail"                                 { upd_cnum lexbuf; EXPR_TAIL}
-| "head"                                 { upd_cnum lexbuf; EXPR_HEAD}
+| "ahead"                                 { upd_cnum lexbuf; EXPR_HEAD}
 | "pad"                                 { upd_cnum lexbuf; EXPR_PAD}
 | "shl"                                 { upd_cnum lexbuf; EXPR_SHL}
 | "shr"                                 { upd_cnum lexbuf; EXPR_SHR}
