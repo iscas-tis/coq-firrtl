@@ -10,6 +10,6 @@ circuit fib :
     reg m : UInt < 4 > , clk with :
       reset => ( UInt < 1 > ( "h0" ) , m ) 
     out <= n
-    n <= mux ( reset1 , UInt < 4 > ( "h0" ) , mux ( go , m , n ) ) 
-    m <= mux ( reset1 , UInt < 4 > ( "h1" ) , bits ( mux ( go , add ( n , m ) , m ) , 3 , 0 ) ) 
+    n <= mux(reset1 , UInt < 4 > ( "h0" ) , mux(go , m , n ) ) 
+    m <= mux(reset1 , UInt < 4 > ( "h1" ) , bits(mux(go , add(n , m ) , m ) , 3 , 0 ) ) 
     
