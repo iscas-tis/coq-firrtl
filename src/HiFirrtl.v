@@ -318,6 +318,10 @@ Module Type StructStore (V : SsrOrder) (CE : CmpntEnv V with Module SE := V).
   Parameter acc_upd2_neq :
     forall {x y1 v1 y2 v2 s},
       x != y1 -> x != y2 -> acc x (upd2 y1 v1 y2 v2 s) = acc x s.
+  Parameter map2_eq : forall (m m': t)
+        (x:var)(f:option value->option value->option value),
+        f None None == None ->
+        find x (map2 f m m') = f (find x m) (find x m').
   Parameter Upd : var -> value -> t -> t -> Prop.
   Definition Upd2 x1 v1 x2 v2 (s1 s2 : t) : Prop :=
     forall y, acc y s2 = acc y (upd x2 v2 (upd x1 v1 s1)).
@@ -384,7 +388,64 @@ Module MakeStructStore (V : SsrOrder) (CE : CmpntEnv V with Module SE := V) <:
   apply Lemmas_M.find_add_neq.
   move/eqP.
   move/eqP: H.
-  done.
+  contradiction.
+  Qed.
+  Lemma map2_eq : forall (m m': t)
+        (x:V.t)(f:option (rhs_expr V.T)->option (rhs_expr V.T)->option (rhs_expr V.T)),
+        f None None == None ->
+        find x (map2 f m m') = f (find x m) (find x m').
+  Proof.
+  intros.
+  induction (find x m) eqn: Hxm.
+  replace (Some a) with (find x m).
+  apply M.map2_1.
+  left.
+  unfold M.In, M.Raw.In0.
+  exists a.
+  apply M.find_2.
+  exact Hxm.
+  induction (find x m') eqn: Hxm'.
+  replace (None) with (find x m).
+  replace (Some a) with (find x m').
+  apply M.map2_1.
+  right.
+  unfold M.In, M.Raw.In0.
+  exists a.
+  apply M.find_2.
+  exact Hxm'.
+  induction (f None None) eqn: Hfnn.
+  contradict H.
+  move /eqP.
+  discriminate.
+  induction (find x (map2 f m m')) eqn: Hfm.
+  assert (M.In x m \/ M.In x m').
+  apply M.map2_2 with (f := f).
+  unfold M.In, M.Raw.In0.
+  exists a.
+  apply M.find_2.
+  exact Hfm.
+  destruct H0.
+  assert (~M.In x m).
+  unfold M.In, M.Raw.In0.
+  contradict Hxm.
+  destruct Hxm.
+  replace (find x m) with (Some x0).
+  discriminate.
+  symmetry.
+  apply M.find_1.
+  exact H1.
+  contradiction.
+  assert (~M.In x m').
+  unfold M.In, M.Raw.In0.
+  contradict Hxm'.
+  destruct Hxm'.
+  replace (find x m') with (Some x0).
+  discriminate.
+  symmetry.
+  apply M.find_1.
+  exact H1.
+  contradiction.
+  reflexivity.
   Qed.
 End MakeStructStore.
 
@@ -4287,11 +4348,53 @@ Admitted.
    unfold snd at 1.
    fold expandBranch_fun.
    intro.
-   unfold expandBranch_sem_conform_P0, expandBranch_sem_conform_P, expandBranch_vars_sem in H.
+   unfold expandBranch_one_var_sem.
+   fold expandBranch_one_var_sem.
    unfold expandWhen_precondition_ss in H1.
    fold expandWhen_precondition_ss in H1.
-   (* It's complicated. *)
-   admit.
+   transitivity (expandBranch_one_var_sem h0 (eid id) (SV.find id (snd (combine_branches h (expandBranch_fun h1 ce default)
+        (expandBranch_fun h2 ce default))))).
+   unfold expandBranch_sem_conform_P, expandBranch_vars_sem in H0.
+   apply H0.
+   apply H1.
+   apply H2.
+   unfold expandBranch_sem_conform_P0, expandBranch_sem_conform_P, expandBranch_vars_sem in H.
+   (* Now comes a case distinction over expandBranch_one_var_sem h1 ...
+      and over expandBranch_one_var_sem h2 ... *)
+   unfold combine_branches.
+   unfold snd at 1.
+   replace (SV.find id (SV.map2 (map2_helper_cs_tf h) (expandBranch_fun h1 ce default).2
+                                                      (expandBranch_fun h2 ce default).2)) with
+     (map2_helper_cs_tf h (SV.find id (snd (expandBranch_fun h1 ce default)))
+                          (SV.find id (snd (expandBranch_fun h2 ce default)))).
+   unfold map2_helper_cs_tf.
+   replace (expandBranch_one_var_sem h1 (eid id) (SV.find id default)) with (SV.find id (snd (expandBranch_fun h1 ce default))).
+   replace (expandBranch_one_var_sem h2 (eid id) (SV.find id default)) with (SV.find id (snd (expandBranch_fun h2 ce default))).
+   induction (SV.find id (snd (expandBranch_fun h1 ce default))) eqn : Hh1.
+   induction (SV.find id (snd (expandBranch_fun h2 ce default))) eqn : Hh2.
+   induction a.
+   induction a0.
+   reflexivity.
+   reflexivity.
+   induction a0.
+   reflexivity.
+   reflexivity.
+   induction a.
+   reflexivity.
+   reflexivity.
+   induction (SV.find id (snd (expandBranch_fun h2 ce default))) eqn : Hh2.
+   reflexivity.
+   reflexivity.
+   apply H.
+   apply H1.
+   exact H2.
+   apply H.
+   apply H1.
+   exact H2.
+   symmetry.
+   apply SV.map2_eq.
+   unfold map2_helper_cs_tf.
+   apply eq_refl.
    (* subcase Qcons (Sstop _ _ _) _ *)
    unfold expandBranch_vars_sem, expandBranch_fun.
    fold expandBranch_fun.
@@ -4325,7 +4428,7 @@ Admitted.
    move => //.
    (* case Sstop _ _ _ *)
    move => //.
-   Admitted.
+   Qed.
 
 
   (** Semantics of declaim ports *)
