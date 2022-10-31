@@ -1,6 +1,0 @@
-circuit Foo :
-module Foo :
-input a : UInt < 32 >
-output b : UInt < 1 >
-b <= c
-node c = a 

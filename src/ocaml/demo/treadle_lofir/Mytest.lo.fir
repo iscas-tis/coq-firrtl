@@ -1,5 +1,5 @@
-circuit ALU : @[:@2.0]
-  module ALU : @[:@3.2]
+circuit Mytest : @[:@2.0]
+  module Mytest : @[:@3.2]
     input clock : Clock @[:@4.4]
     input reset1 : UInt<1> @[:@5.4]
     input io_in1 : UInt<32> @[:@6.4]
