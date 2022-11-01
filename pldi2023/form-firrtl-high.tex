@@ -2,11 +2,13 @@
 
 In this section, we describe the main ideas used in the formalization of HiFIRRTL.
 
-A structure called circuit diagram is used in the formalization.
+A structure called circuit diagram is used in the formalization to represent HiFIRRTL programs.
 
 \begin{definition}
-A \emph{circuit diagram} $D$ is a triple $(SS, CE, CO)$, where $SS$ is the statement sequence, i.e. a sequence of statements, $CE$ is a component environment, and CO is the connection mapping. 
+A \emph{circuit diagram} $D$ is a triple $(SS, CE, CM)$, where $SS$ is a sequence of statements, $CE$ is a component environment that maps each component to its type, and $CM$ is a connection mapping that maps each component to an expression that is connected to it. 
 \end{definition}
+
+A HiFIRRTL program 
 
 formalization of high firrtl
 
