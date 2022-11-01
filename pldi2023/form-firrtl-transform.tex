@@ -11,36 +11,36 @@ they need to be replaced by multiplexers.
 The ``expand whens'' transformation does exactly this:
 it replaces connects within \textit{when} statements by multiplexers where necessary.
 For example, \pagebreak[1]\\
-\begin{minipage}[t]{12.97em}
-\vspace*{-\baselineskip}
+\begin{minipage}[t]{12.49em}
+\vspace*{-0.94\baselineskip}
 \begin{lstlisting}
 module TestCondition
-  input in : UInt<32>
-  input condition : UInt<1>
-  output pos : UInt<32>
-  output neg : SInt<33>
-  pos <= 0
-  when condition :
-    pos <= in
-  else :
-    wire a : SInt<33>
+  input in: UInt<32>
+  input condition: UInt<1>
+  output posv: UInt<32>
+  output negv: SInt<33>
+  posv <= 0
+  when condition:
+    posv <= in
+  else:
+    wire a: SInt<33>
     a <= neg in
-    neg <= a
+    negv <= a
 \end{lstlisting}
 \end{minipage}
 is translated to\qquad{}%
-\begin{minipage}[t]{16.33em}
-\vspace*{-\baselineskip}
+\begin{minipage}[t]{16.81em}
+\vspace*{-0.94\baselineskip}
 \begin{lstlisting}
 module TestCondition
-  input in : UInt<32>
-  input condition : UInt<1>
-  output pos : UInt<32>
-  output neg : SInt<33>
-  wire a : SInt<33>
-  pos <= mux(condition, in, 0)
+  input in: UInt<32>
+  input condition: UInt<1>
+  output posv: UInt<32>
+  output negv: SInt<33>
+  wire a: SInt<33>
+  posv <= mux(condition, in, 0)
   a <= neg in
-  neg <= validif(not condition, a)
+  negv <= validif(not condition, a)
 \end{lstlisting}
 \end{minipage}
 
@@ -49,16 +49,19 @@ thereby implementing the \emph{last connect} semantics.
 The ``expand when'' transformation produces a map
 where every connected component is mapped to the one expression
 that it is connected to.
-This map can then easily changed back into a list of connect statements.
+This map can then easily changed back into a list of connect statements,
+as shown in the example above.
+Note that this phase only touches on (full) connect statements;
+node statements are left unchanged.
 
 The specification of the Expand Whens transformation is therefore:
 \begin{description}
 \item[The input] of Expand Whens is the code of a module
 where all types of components have been lowered to ground types.
-For example, a statement \lstinline!reg a : { a1 : UInt<32>, a2 : SInt<16> },clk!
+For example, a statement \lstinline!reg a: { a1: UInt<32>, a2: SInt<16> }, clk!
 is already translated to the two statements
-\lstinline!reg a$a1 : UInt<32>, clk! and
-\lstinline!reg a$a2 : SInt<16>, clk!.
+\lstinline!reg a$a1: UInt<32>, clk! and
+\lstinline!reg a$a2: SInt<16>, clk!.
 Also, all partial connects (\lstinline!<-!) have been replaced by appropriate full connects (\lstinline!<=!).
 
 \item[The output] of Expand Whens is a pair (list of statements, map of connects);
@@ -73,23 +76,25 @@ then a suitable multiplexer or \lstinline!validif! expression is returned.
 
 In the above example, the resulting code always connects \lstinline!a <= in!
 because wire \lstinline!a! is only declared in the \lstinline!else! path.
-On the other hand, output \lstinline!neg! is connected using a \lstinline!validif! statement
+On the other hand, output \lstinline!negv! is connected using a \lstinline!validif! statement
 because an output is declared in every path.
 (In a real circuit, this is probably a designer error,
 and a FIRRTL compiler is required to produce an error message.
-The error message can be suppressed by a statement \lstinline!neg is invalid!.
+The error message can be suppressed by a statement \lstinline!negv is invalid!.
 Our formalization of the lowering transformation does not produce this error message
 but leaves it to the LoFIRRTL compiler.)
-The connection \lstinline~pos <= 0~ is overridden if \lstinline~condition~ is high;
-this is translated to a multiplexer.
+The output \lstinline!posv! is connected twice;
+this is translated to a single connect with a multiplexer.
 
-In the Coq implementation, the result of ``\texttt{find v m}'' (try to find the definition of \texttt{v} in map \texttt{m})
+In the Coq implementation, the result of ``\texttt{find v}''
+(try to find the definition of \texttt{v} in a map),
+when applied to the resulting map,
 produces \texttt{None} if the component has not been declared;
 \texttt{Some R\_default} if the component has been declared but not defined
 (i.e.\@, not connected to);
 and \texttt{Some (R\_fexpr e)} if the last connect assigned expression \texttt{e} to \texttt{v}.
 At the end of a \lstinline!when! statement,
-the maps of the two execution paths are joined into one map.
+the intermediary maps of the two execution paths are joined into one.
 If the component has been declared in both paths%
 ---this means that the component has been declared before the \lstinline~when~ statement%
 ---but only defined in one, a \lstinline!validif! expression is produced.
