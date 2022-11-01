@@ -22,8 +22,12 @@ From the fact that $M$ is a LoFIRRTL module, it satisfies the following constrai
 %
 \item the dependency graph $G_M$ is acyclic.
 \end{itemize}
-Moreover, $M$ is said to be in \emph{pseudo-SSA form} if satisfies the following additional constraint:
-the sequence of heads of the connection statements in $M$ forms a topological sorting of $G_M$ (where the vertices without incoming edges are ignored), specifically, for every edge $(x, y)$ in $G_M$, $x$ is before $y$ in the sequence (if $x$ indeed occurs in the sequence), namely, the connection statement for $x$ (if there is any) is before the connection statement for $y$ in $M$. 
+Moreover, $M$ is said to be in \emph{pseudo-SSA form} if satisfies the following two additional  constraints,
+\begin{itemize}
+\item all variables are declared before they are used in the bodies and heads of connection statements (except that nodes are declared and used simultaneously),
+%
+\item the sequence of heads of the connection statements in $M$ forms a topological sorting of $G_M$ (where the vertices without incoming edges are ignored), specifically, for every edge $(x, y)$ in $G_M$, $x$ is before $y$ in the sequence (if $x$ indeed occurs in the sequence), namely, the connection statement for $x$ (if there is any) is before the connection statement for $y$ in $M$. 
+\end{itemize}
 
 For instance, the following LoFIRRTL program
 %[caption=My FIRRTL Example]
