@@ -117,7 +117,7 @@
 
 \usepackage{mathrsfs}
 \usepackage{blindtext}
-\usepackage[cache=false]{minted}
+%\usepackage[cache=false]{minted} % minted gives errors when I compile it -- DNJ
 \usepackage{eqnarray}
 %\usepackage{amssymb}
 \usepackage{mathtools}
@@ -308,17 +308,20 @@
 %% The abstract is a short summary of the work to be presented in the
 %% article.
 \begin{abstract}
-FIRRTL is an intermediate representation for Chisel hardware description language and has been intensively used in designing RISC-V CPUs.
-This paper presents Vefirrtl, a framework for reasoning
-about programs expressed in FIRRTL’s intermediate representation
-and lowering transformations that remove gradually the high-level constructs. Vefirrtl provides a
-mechanized formal semantics of FIRRTL’s intermediate representation and
+FIRRTL is an intermediate representation for the Chisel hardware description language
+and has been intensively used in designing RISC-V CPUs.
+This paper presents \emph{Vefirrtl,} a framework for reasoning
+about programs expressed in FIRRTL
+and about lowering transformations that remove some high-level constructs.
+Vefirrtl provides a
+mechanized formal semantics of FIRRTL and
 its type system. The framework is built using the Coq interactive theorem prover. It includes
-the axiomatic semantics for High FIRRTL and operational semantics for Low FIRRTL and proves relations among them.
+an axiomatic semantics for High FIRRTL and an operational semantics for Low FIRRTL and proves relations among them.
 To validate Vefirrtl's design, we extract an interpreter from the
-Coq formal semantics that can execute programs from FIRRTL test
+Coq formal semantics that can execute programs from the FIRRTL test
 suite and thus be compared against FIRRTL reference implementations.
-To demonstrate Vefirrtl's practicality, we formalize and verify two key transformations of FIRRTL programs, namely ``Infer Width'' and ``Expands When'', which infer bit widths of signals and expands the when statements respectively.
+To demonstrate Vefirrtl's practicality, we formalize and verify two key transformations of FIRRTL programs,
+namely ``Infer Width'' and ``Expand Whens'', which infer bit widths of signals and replace when statements with multiplexers, respectively.
 %
 \end{abstract}
 
