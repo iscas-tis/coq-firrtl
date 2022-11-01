@@ -33,7 +33,7 @@ port & = & (\mbox{``input''} \mid \mbox{``output''}), id, \mbox{``:''}, type, [i
  %\mbox{\bf Statment} & 
  stmt & = & \mbox{``wire''}, id, \mbox{``:''}, type, [info] \\
  %& 
- & &  \mid \mbox{``reg''}, id, \mbox{``:''}, type, exp, [\mbox{``(with:\{reset=>(''}, exp, \mbox{``,''}, exp, \mbox{``)\})''}], [info] \\
+ & &  \mid \mbox{``reg''}, id, \mbox{``:''}, type, \mbox{``,''}, exp, [\mbox{``(with:\{reset=>(''}, exp, \mbox{``,''}, exp, \mbox{``)\})''}], [info] \\
  %& 
   &   &  \mid memory \mid \mbox{``inst''}, id, \mbox{``of''}, id, [info] \mid \mbox{``node''}, id, \mbox{``=''}, id, [info]  \\
  %& 
