@@ -93,18 +93,24 @@ we compare the equivalence of output ports produced by  our LoFIRRTL OCaml Inter
 {\bf Testing results}.
 The results of conformance testing are reported in Table~\ref{tab:conformancetesting}, where
 column (\#LOC) shows the number of locations,
-column (Treadle) shows the execution time $t_1$ of Treadle in millisecond,
-column (Ours) shows the execution time $t_2$ of our LoFIRRTL OCaml Interpreter in millisecond,
+column (Treadle) shows the average execution time $t_1$ of Treadle in millisecond,
+column (Ours) shows the average execution time $t_2$ of our LoFIRRTL OCaml Interpreter in millisecond,
 column (Speedup) is calculated via $\frac{t_1-t_2}{t_2}$,
 column (Result) shows the comparison result of output ports between Treadle and our LoFIRRTL OCaml Interpreter with
 \checkmark indicating the same values of the output ports under all the 100 input tests.
 
 We can observe that our LoFIRRTL OCaml Interpreter produces the same results as Treadle on all the 38 benchmarks under all the input tests.
 Furthermore, our LoFIRRTL OCaml Interpreter is significantly more efficient than Treadle on almost all the benchmarks except for HardwareHashMaker.
+After an in-depth analysis, we found that HardwareHashMaker has 20 64-bit multiplication operations significantly more than the other benchmarks,
+our LoFIRRTL OCaml Interpreter is extracted from the bit-wise multiplication in Coq while Treadle uses (bit) integer multiplication.
+Though we could adopt (bit) integer multiplication as well, 
+we chose bit-wise multiplication based on the bit-vector library in Coq whose correctness has been formally proved. %and the ocaml bit-vector operations are extracted from coq code
+
+
 In order to have some measure of the effectiveness of our testing, we analyzed the branch coverage of our LoFIRRTL OCaml Interpreter.
 All the 38 benchmarks together cover 36 branches out of 45. To cover the remaining branches, we implement an additional benchmark, called mytest,
 on which Treadle and our LoFIRRTL OCaml Interpreter also produce the same results.
-\fu{Explain why it is slower on HardwareHashMaker and discuss coverage of testing.}
+%\fu{Explain why it is slower on HardwareHashMaker and discuss coverage of testing.}
 %
 %
 %%Coq's Extraction feature to translate lower firrtl (clk\_steps\_tail\_rec) into an OCaml program that is the Low FIRRTL OCaml Interpreter
