@@ -10,23 +10,23 @@ Without loss of generality, let us focus on one LoFIRRTL module, say $M$.
 
 Let $\iports(M)$ (resp. $\oports(M)$) denote the set of input (resp. output) ports of $M$,  $\ports(M) = \iports(M) \cup \oports(M)$, $\wires(M)$ denote the set of wires in $M$, $\nodes(M)$ denote the set of nodes in $M$, and $\registers(M)$ denote the set of registers in $M$. Moreover, we use $\varset(M)$ to denote the set of variables in $M$, that is, $\ports(M) \cup \wires(M) \cup \nodes(M) \cup \registers(M)$.
 
-A \emph{connection statement} for $x  \in \varset(M)$ is a statement of the form $x <= e$ or $\mbox{node } x = e$, where $x$ and $e$ are called the \emph{head} and \emph{body} of the connection statement respectively.
+A \emph{connect statement} for $x  \in \varset(M)$ is a statement of the form $x <= e$ or $\mbox{node } x = e$, where $x$ and $e$ are called the \emph{head} and \emph{body} of the connect statement respectively.
 %
-The \emph{dependency graph} of $M$ is $G_M = (\varset(M), E_M)$, where $E_M$ comprises the edges $(x, y)$ such that $y$ depends on $x$, more precisely, $x$ occurs in the right-hand side expression of the connection statement for $y$.
+The \emph{dependency graph} of $M$ is $G_M = (\varset(M), E_M)$, where $E_M$ comprises the edges $(x, y)$ such that $y$ depends on $x$, more precisely, $x$ occurs in the right-hand side expression of the connect statement for $y$.
 
 From the fact that $M$ is a LoFIRRTL module, it satisfies the following constraints,
 \begin{itemize}
-\item there is exactly one connection statement for each wire, node, and output port, 
+\item there is exactly one connect statement for each wire, node, and output port, 
 %
-\item there is at most one connection statement for each register, 
+\item there is at most one connect statement for each register, 
 %
 \item the dependency graph $G_M$ is acyclic.
 \end{itemize}
 Moreover, $M$ is said to be in \emph{pseudo-SSA form} if satisfies the following two additional  constraints,
 \begin{itemize}
-\item all variables are declared before they are used in the bodies and heads of connection statements (except that nodes are declared and used simultaneously),
+\item all variables are declared before they are used in the bodies and heads of connect statements (except that nodes are declared and used simultaneously),
 %
-\item the sequence of heads of the connection statements in $M$ forms a topological sorting of $G_M$ (where the vertices without incoming edges are ignored), specifically, for every edge $(x, y)$ in $G_M$, $x$ is before $y$ in the sequence (if $x$ indeed occurs in the sequence), namely, the connection statement for $x$ (if there is any) is before the connection statement for $y$ in $M$. 
+\item the sequence of heads of the connect statements in $M$ forms a topological sorting of $G_M$ (where the vertices without incoming edges are ignored), specifically, for every edge $(x, y)$ in $G_M$, $x$ is before $y$ in the sequence (if $x$ indeed occurs in the sequence), namely, the connect statement for $x$ (if there is any) is before the connect statement for $y$ in $M$. 
 \end{itemize}
 
 For instance, the following LoFIRRTL program
@@ -47,7 +47,7 @@ module A
   io_out <= a
   node a = add(io_in, UInt<32>("h1"))
 \end{lstlisting}
-is not, since $({\tt a}, {\tt io\_out})$ is an edge in the dependency graph, while the connection statement for {\tt a} is after the connection statement for {\tt io\_out}.
+is not, since $({\tt a}, {\tt io\_out})$ is an edge in the dependency graph, while the connect statement for {\tt a} is after the connect statement for {\tt io\_out}.
  
 In the sequel, we require that $M$ is in the pseudo-SSA form.
 

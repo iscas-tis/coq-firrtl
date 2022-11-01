@@ -2,13 +2,15 @@
 
 In this section, we describe the main ideas used in the formalization of HiFIRRTL.
 
+Let us focus on a HiFIRRTL module, say $M$.
+
 A structure called circuit diagram is used in the formalization to represent HiFIRRTL programs.
 
 \begin{definition}
-A \emph{circuit diagram} $D$ is a triple $(SS, CE, CM)$, where $SS$ is a sequence of statements, $CE$ is a component environment that maps each component to its type, and $CM$ is a connection mapping that maps each component to an expression that is connected to it. 
+A \emph{circuit diagram} $D$ is a triple $(SS, CE, CM)$, where $SS$ is a sequence of statements, $CE$ is a component environment that maps each component to its type, and $CM$ is a connect mapping that maps each component to an expression that is connected to it. 
 \end{definition}
 
-A HiFIRRTL program 
+A HiFIRRTL module $M$ will be first transformed into a circuit diagram $D_M = (SS, CE, CM)$, where $SS$ is the sequence of statements in $M$, $CE$ is the component environment obtained from the variable declarations in $M$, possibly with the types of some variables missing or partial, and $CM$ is the trivial mapping that maps each component to $\bot$ (Intuitively, this means that the connects of the components have not be determined yet). The missing or partial  types will be completed by the compilation passes during the transformation of $M$ into a LoFIRRTL module. Moreover, the connect mapping $CM$ will be updated by the ExpandWhen compilation pass. 
 
 formalization of high firrtl
 
