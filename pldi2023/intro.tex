@@ -1,3 +1,34 @@
 %!TEX root = main.tex
 
-this is the introduction
+Compilers are among the most fundamental and widely-used 
+software, based on which programs in high-level programming languages
+are translated into low-level code.
+However, due to the complexity of the compilation passes,
+despite intensive testing, compilers still suffer from massive bugs~\cite{LeAS14,ZhangSS17}.
+Even worse, compiler bugs could silently result in incorrect program executions that they compile and lead to catastrophic consequences  
+for safety-critical applications,
+while it is extremely difficult to determine whether
+an execution failure is caused by defects in the application or 
+bugs in the compiler. To address this deficiency, 
+formally verified compilers have been built for several realistic programming languages, such as CompCert for C~\cite{Leroy09,kastner2018compcert,Leroy2006,Leroy-BKSPF-2016,BlazyDL06,Kastner-LBSSF-2017},
+V\'{e}lus for Lustre~\cite{BourkeBDLPR17}, Vellvm~\cite{ZhaoNMZ12,ZhaoNMZ13} and Crellvm~\cite{KangKSLPSKCCHY18} for LLVM Intermediate Representation,
+and CakeML for ML~\cite{KumarMNO14,LoowKTMNAF19,TanMKFON19,OwensNKMT17}.
+Such compilers come with a mathematical, machine-checked proof of correctness
+that compilation passes preserve the behavior of programs,
+hence strengthen the guarantees that can be obtained by applying formal verification to high-level programs.
+
+The success of verified compilers on software programming languages has been ported to hardware description languages 
+very recently, e.g., the extension of CakeML (called Lutsig) for compiling register-transfer language Verilog to gate-level netlist~\cite{Loow21,loowphd21}
+and the extension of CompCert (called Vericert) for compiling C programs to Verilog programs~\cite{HerklotzPRW21}.
+Following this promising research direction, in this work, we 
+present the first formal operational semantics of the hardware description languages FIRRTL (Flexible Intermediate Representation for RTL)~\cite{firrtl-spec} and verify two key compilation passes of FIRRTL programs~\cite{firrtlcompiler,IzraelevitzKLLW17}, namely ``Infer Width'' and ``Expand Whens'',
+which infer bit widths of signals
+and replace conditional statements with multiplexers, respectively.
+
+FIRRTL is originated from the high-level hardware construction language Chisel~\cite{BachrachVRLWAWA12} that is
+a library of special class definitions, predefined objects, and usage conventions within Scala for writing highly-parameterized circuit design generators.
+High-level hardware designs in Chisel are developed by manipulating circuit components using Scala functions,
+and their interfaces are encoded in Scala types.
+Circuit libraries can also be developed by leveraging 
+Scala's object-orientation features, enabling
+expressive, reliable and type-safe generators that improve RTL design productivity and robustness.
