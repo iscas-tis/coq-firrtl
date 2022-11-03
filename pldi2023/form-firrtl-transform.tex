@@ -2,6 +2,65 @@
 
 formalization of firrtl transformation
 
+\subsection{``Infer Width''}
+Implicit Width is allowed to be defined in HiFIRRTL programs.
+Such unspecified widths are infered by the Infer Width pass. 
+The general rules are,
+\begin{itemize}
+\item The only allowed width for explicit defined width is itself.
+\item The implicit width will be assigned by the largest one that can
+  be found through signal connections.
+\item The last connection semantic is not considered at this stage,
+  all assigned signals are taking into account.
+\end{itemize}
+
+
+\begin{description}
+\item[The input] of InferWidth takes the statments and the component
+  environment $ce$ that passed from the InferType.  In $ce$ the
+  unspecified widths are recorded by zero width .  The statements
+  are assumed to contain only legal connections, which means the two
+  sides of the connection have equivalent type (mentioned?) and the
+  flow is from a smaller width to a lager one.
+\item[The output] of InferWidth give a new component environment $ce'$
+  where all unspecified types have been infered.  Still it is possible
+  that afer this pass, signals are infered to zero width.  The overall
+  compilation will use other passed to deal with zero width, which is
+  not concerned here.
+\end{description}
+
+To state the correctness of InferWidth that implement in Coq, we first
+state the semantics of width infering. According to each statement,
+
+
+\subsection{``Expand Connects''}
+In HiFirrtl connections can be made through full or partial
+connections.  They can both deal with connections between aggregate
+types. This pass is aim to flatten the connections of aggregate types
+to the connections of ground types. For example,
+\begin{lstlisting}
+module MyModule :
+  input myinput: {flip a: UInt, b: UInt[2]}
+  output myoutput: {flip a: UInt, b: UInt[3], c: UInt}
+  myoutput <- myinput
+\end{lstlisting}
+the connection between myinput and myoutput is a partial connection of
+aggregate types. It can then be expand through ExpandConnects pass and get,
+\begin{lstlisting}
+module MyModule :
+  input myinput: {flip a: UInt, b: UInt[2]}
+  output myoutput: {flip a: UInt, b: UInt[3], c: UInt}
+  myinput.a <- myoutput.a
+  myoutput.b[0] <- myinput.b[0]
+  myoutput.b[1] <- myinput.b[1]
+\end{lstlisting}
+
+\begin{description}
+\item[The input] of ExpandConnects 
+
+\item[The output]
+\end{description}
+
 \subsection{``Expand Whens''}
 
 HiFIRRTL allows to define conditional components,
