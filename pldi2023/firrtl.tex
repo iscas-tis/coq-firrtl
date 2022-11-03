@@ -45,15 +45,15 @@ HiFIRRTL programs are compiled into LoFIRRTL programs by the following compilati
 \begin{itemize}
 %\item ResolveKinds that resolves the k
 %
-\item InferType that infer the types of components, e.g. wires, nodes, registers,
+\item InferTypes that infer the types of components, e.g. wires, nodes, registers,
 %
-\item InferWidth that infer the bit-width of ground types,
+\item InferWidths that infer the bit-width of ground types,
 %
-\item InferReset that infers concrete resets, i.e. AsyncReset or UInt<1>,
+\item InferResets that infers concrete resets, i.e. AsyncReset or UInt<1>,
 %
-\item ExpandConnect that expands the connect statements, 
+\item ExpandConnects that expands the connect statements, 
 %
-\item ExpandWhen that expands the when statements, 
+\item ExpandWhens that expands the when statements, 
 %
 \item LowerTypes that lower down the aggregate types, i.e. bundle and vector types, 
 %
