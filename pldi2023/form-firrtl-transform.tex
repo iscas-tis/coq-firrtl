@@ -61,25 +61,32 @@ types. This pass is aim to flatten the connections of aggregate types
 to the connections of ground types. For example,
 \begin{lstlisting}
 module MyModule :
-  input myinput: {flip a: UInt, b: UInt[2]}
-  output myoutput: {flip a: UInt, b: UInt[3], c: UInt}
+  input myinput: {a: UInt<1> [1]}
+  output myoutput: {a: UInt<1> [2], b: UInt<1>}
   myoutput <- myinput
 \end{lstlisting}
 the connection between myinput and myoutput is a partial connection of
 aggregate types. It can then be expand through ExpandConnects pass and get,
 \begin{lstlisting}
 module MyModule :
-  input myinput: {flip a: UInt, b: UInt[2]}
-  output myoutput: {flip a: UInt, b: UInt[3], c: UInt}
-  myinput.a <- myoutput.a
-  myoutput.b[0] <- myinput.b[0]
-  myoutput.b[1] <- myinput.b[1]
+  input myinput_a: UInt<1>
+  output myoutput_a_0: UInt<1>
+  output myoutput_a_1: UInt<1>
+  output myoutput_b: UInt<1>
+  myoutput_a_0 <= myinput_a_0
 \end{lstlisting}
 
 \begin{description}
-\item[The input] of ExpandConnects 
-
-\item[The output]
+\item[The input] of ExpandConnects consists of the sequence of
+  statments representing the original program, the result component
+  enviroment $ce3$ from InferWidths pass. The $ce3$ collects the
+  component identifies to their types.
+\item[The output] of ExpandConnects contains a program in which all
+  connections between aggregate types are replaced by connections of
+  their sub elements and a corresponding $ce4$. In $ce4$, new
+  identifiers added and their types are consistent to the flattened
+  aggregate type. As the aboved example, ouput port \lstinline!myport!
+  is replaced by 3 output ports of ground types.
 \end{description}
 
 \subsection{``Expand Whens''}
