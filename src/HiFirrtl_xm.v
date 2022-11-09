@@ -1813,9 +1813,8 @@ Qed.
    Definition empty_wmap0 : wmap0 := CE.empty (ftype).
    Definition finds0 (v:var) (w:wmap0) := match CE.find v w with Some t => t | None => def_ftype end.
 
-   Parameter new_v_wmap_none:
-     forall v,
-     new_comp_name v ->
+   Parameter new_v_wmap_none :
+     forall v, new_comp_name v ->
      forall w: wmap0, CE.find v w = None.
    
    Fixpoint get_field_name r : V.t :=
@@ -2074,6 +2073,8 @@ Qed.
        inferWidth_stmts_sem' (st :: sts) ce1 ce3.
    (*End : new one*)
 
+   (*wmap & cenv are correspondent, then mapping such wmap to a cenv get the same cenv*)
+   (*if the object v is not in wmap, or wmap and cenv store the same value for v*)
    Definition correspond_wmap_cenv 
      v t (wm:wmap0) (ce:cenv) :=
        CE.find v wm = None /\ CE.find v ce = Some t\/
@@ -2145,7 +2146,8 @@ Qed.
    
    Lemma inferWidth_sinvalid_sem_conform' :
      forall v wm0 wm1 ce0 ce1 ,
-       CE.find (base_ref v) wm0 = None ->
+       (* CE.find (base_ref v) wm0 = None -> *)
+       correspond_wmap_cenv (base_ref v) (CE.vtyp (base_ref v) ce0) wm0 ce0 ->
        wm1 = inferWidth_wmap0 ce0 wm0 (Sinvalid v) ->
        ce1 = wmap_map2_cenv wm1 ce0 ->
        inferWidth_sstmt_sem' (Sinvalid v) ce0 ce1.
@@ -2153,7 +2155,8 @@ Qed.
 
    Lemma inferWidth_smem_sem_conform' :
      forall v m wm0 wm1 ce0 ce1,
-       CE.find v ce0 = Some (mem_typ m, Memory) ->
+       (* CE.find v ce0 = Some (mem_typ m, Memory) -> *)
+       correspond_wmap_cenv v (mem_typ m, Memory) wm0 ce0 ->
        wm1 = inferWidth_wmap0 ce0 wm0 (Smem v m) ->
        ce1 = wmap_map2_cenv wm1 ce0 ->
        inferWidth_sstmt_sem' (Smem v m) ce0 ce1.
@@ -2161,13 +2164,14 @@ Qed.
 
    Lemma inferWidth_sinst_sem_conform' :
      forall v1 v2 wm0 wm1 ce0 ce1,
-       CE.find v1 ce0 = CE.find v2 ce0 ->
+       (* CE.find v1 ce0 = CE.find v2 ce0 -> *)
+       correspond_wmap_cenv v1 (CE.vtyp (v2) ce0) wm0 ce0 ->
        wm1 = inferWidth_wmap0 ce0 wm0 (Sinst v1 v2) ->
        ce1 = wmap_map2_cenv wm1 ce0 ->
        inferWidth_sstmt_sem' (Sinst v1 v2) ce0 ce1.
    Proof. Admitted.
 
-   (*all the reset stmt...*)
+   (*all the reset stmts...*)
 
    (****** TODO. For KY ******)
    (** End **)   
@@ -2320,7 +2324,7 @@ Qed.
    Lemma inferWidth_snode_sem_conform :
      forall v e wm0 wm1 ce1 ce2,
        CE.find v ce1 = Some (aggr_typ (type_of_hfexpr e ce1), Node) ->
-       wm1 = inferWidth_wmap0 (Snode v e) ce1 wm0 ->
+       wm1 = inferWidth_wmap0  ce1 wm0 (Snode v e) ->
        ce2 = wmap_map2_cenv wm1 ce1 ->
        inferWidth_sstmt_sem (Snode v e) wm0 wm1 ce1 ce2.
    Proof.
