@@ -2145,9 +2145,9 @@ Qed.
    (** Begin **)   
    
    Lemma inferWidth_sinvalid_sem_conform' :
-     forall v wm0 wm1 ce0 ce1 ,
+     forall v t wm0 wm1 ce0 ce1 ,
        (* CE.find (base_ref v) wm0 = None -> *)
-       correspond_wmap_cenv (base_ref v) (CE.vtyp (base_ref v) ce0) wm0 ce0 ->
+       correspond_wmap_cenv (base_ref v) t wm0 ce0 ->
        wm1 = inferWidth_wmap0 ce0 wm0 (Sinvalid v) ->
        ce1 = wmap_map2_cenv wm1 ce0 ->
        inferWidth_sstmt_sem' (Sinvalid v) ce0 ce1.
