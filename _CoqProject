@@ -1,3 +1,10 @@
+-Q lib/mathcomp mathcomp
+lib/mathcomp/eqtype.v
+lib/mathcomp/seq.v
+lib/mathcomp/ssrbool.v
+lib/mathcomp/ssreflect.v
+lib/mathcomp/ssrint.v
+lib/mathcomp/ssrnat.v
 -Q lib/simplssrlib simplssrlib
 lib/simplssrlib/Types.v
 lib/simplssrlib/Tactics.v

@@ -109,13 +109,13 @@ Section HiFirrtl.
    match s1 with Qnil => s2
                | Qcons h1 tl1 => Qcons h1 (Qcat tl1 s2) end.
 
-   Fixpoint Qcatrev (s1 s2 : hfstmt_seq) : hfstmt_seq := (* calculates the reversal of s1, followed by s2 *)
+(* Fixpoint Qcatrev (s1 s2 : hfstmt_seq) : hfstmt_seq := (* calculates the reversal of s1, followed by s2 *)
    match s1 with Qnil => s2
                | Qcons h1 tl1 => Qcatrev tl1 (Qcons h1 s2) end.
 
    Definition Qrev (s : hfstmt_seq) : hfstmt_seq := Qcatrev s Qnil.
 
-(* Fixpoint Qfoldl {R : Type} (f : R -> hfstmt -> R) (s : hfstmt_seq) (default : R) :=
+   Fixpoint Qfoldl {R : Type} (f : R -> hfstmt -> R) (s : hfstmt_seq) (default : R) :=
    match s with Qnil => default
               | Qcons h tl => Qfoldl f tl (f default h) end.
    Fixpoint Qfoldr {R : Type} (f : hfstmt -> R -> R) (default : R) (s : hfstmt_seq) :=
@@ -1121,7 +1121,7 @@ Proof.
                                 end
     | Eprim_unop Uneg e1 => let t := type_of_hfexpr e1 ce in
                                 match t with
-                                | Gtyp (Fsint w) | Gtyp (Fuint w) => Gtyp (Fsint w)
+                                | Gtyp (Fsint w) | Gtyp (Fuint w) => Gtyp (Fsint (w + 1))
                                 | _ => def_ftype
                                 end
     | Eprim_unop Unot e1 => let t := type_of_hfexpr e1 ce in
@@ -1131,12 +1131,16 @@ Proof.
                                 end
     | Eprim_unop (Uextr n1 n2) e1 => let t := type_of_hfexpr e1 ce in
                                      match t with
-                                     | Gtyp (Fsint _) | Gtyp (Fuint _) => Gtyp (Fuint (n1 - n2 + 1))
+                                     | Gtyp (Fsint w) | Gtyp (Fuint w) =>
+                                                        if (n2 <= n1) && (n1 < w) then Gtyp (Fuint (n1 - n2 + 1))
+                                                        else def_ftype
                                      | _ => def_ftype
                                      end
     | Eprim_unop (Uhead n) e1 => let t := type_of_hfexpr e1 ce in
                                  match t with
-                                 | Gtyp (Fsint _) | Gtyp (Fuint _) => Gtyp (Fuint n)
+                                 | Gtyp (Fsint w) | Gtyp (Fuint w) => 
+                                                    if n <= w then Gtyp (Fuint n)
+                                                    else def_ftype
                                  | _ => def_ftype
                                  end
     | Eprim_unop (Utail n) e1 => let t := type_of_hfexpr e1 ce in
@@ -1207,7 +1211,7 @@ Proof.
                                 let t2 := type_of_hfexpr e2 ce in
                                 match t1, t2 with
                                 | Gtyp (Fuint w1), Gtyp (Fuint w2) => Gtyp (Fuint (w1 + w2))
-                                | Gtyp (Fsint w1), Gtyp (Fuint w2) => Gtyp (Fuint (w1 + w2))
+                                | Gtyp (Fsint w1), Gtyp (Fsint w2) => Gtyp (Fuint (w1 + w2))
                                 | _, _ => def_ftype
                                 end
     | Eprim_binop Band e1 e2
@@ -1216,7 +1220,7 @@ Proof.
                                 let t2 := type_of_hfexpr e2 ce in
                                 match t1, t2 with
                                 | Gtyp (Fuint w1), Gtyp (Fuint w2) => Gtyp (Fuint (maxn w1 w2))
-                                | Gtyp (Fsint w1), Gtyp (Fuint w2) => Gtyp (Fuint (maxn w1 w2))
+                                | Gtyp (Fsint w1), Gtyp (Fsint w2) => Gtyp (Fuint (maxn w1 w2))
                                 | _, _ => def_ftype
                                 end
     | Emux c e1 e2 => let t1 := type_of_hfexpr e1 ce in
@@ -1371,6 +1375,10 @@ Proof.
     | Smem v m => CE.add v (mem_typ m, Memory) ce
     | Swire v t => CE.add v (aggr_typ t, Wire) ce
     | Swhen _ _ _ (* DNJ: but when has substatements that may influence the type *) (* XM : only intuitive cases considered in this pass (according to scala implementation) *)
+                  (* detailed solution: make it a mutually recursive function with
+                     Swhen _ sts_true sts_false => inferType_stmts_fun sts_false (inferType_stmts_fun sts_true ce)
+                     also needs changing the proof of Lemma inferType_stmts_init_sem_conform
+                     to a mutual induction proof. *)
     | Sfcnct _ _
     | Spcnct _ _
     | Sinvalid _
@@ -1600,7 +1608,7 @@ Proof.
      | nil => true
      | cons h t => if (is_init h) then false else not_init_all t
      end.
-   
+
   Lemma inferType_stmts_init_sem_conform :
     forall ss ce0,
       inferType_stmts ss ce0 (inferType_stmts_fun ss ce0).
@@ -3388,7 +3396,7 @@ Qed.
    (*       rewrite /find_unknown/= in Hun. done. *)
    (* Qed. *)
 Admitted.
-         
+
 
    (*       rewrite (infer_stmt_lst _ Hi). *)
    (*       apply Hm with ce0 (*wmap_map2_cenv wm1 ce1*) ; try done. *)
@@ -3755,25 +3763,29 @@ Admitted.
 
    (** Pass ExpandConnect *)
 
-   Fixpoint size_of_ftype ft :=
+   Fixpoint size_of_ftype (ft : ftype) : nat :=
+   (* calculates the number of ground type elements in the type ft. *)
      match ft with
      | Gtyp t => 1
      | Atyp t n => (size_of_ftype t) * n
      | Btyp b => size_of_fields b
      end
-   with size_of_fields b :=
+   with size_of_fields (b : ffield) : nat :=
           match b with
           | Fnil => 0
           | Fflips v fl t fs => (size_of_ftype t) + size_of_fields fs
           end.
 
-   Fixpoint offset_of_subfield_b ft fid n :=
+   Fixpoint offset_of_subfield_b (ft : ffield) (fid : Var.var) (n : nat) : nat :=
+   (* calculates n + the offset of field fid in the bundle type ft. *)
      match ft with
      | Fnil => n
      | Fflips v fl t fs => if fid == v then n else offset_of_subfield_b fs fid (n + size_of_ftype t)
      end.
 
-   Definition offset_of_subfield ft fid n :=
+   Definition offset_of_subfield (ft : ftype) (fid : Var.var) (n : nat) : nat :=
+   (* calculates n + the offset of field fid, if ft is a bundle type;
+      if ft is a ground or an array type it returns 0. *)
      match ft with
      | Gtyp t => 0
      | Atyp t n => 0
@@ -3789,39 +3801,51 @@ Admitted.
    Parameter vtmp : var.
 
 
-   Fixpoint list_repeat_fn f n (l : list ftype) :=
+   Fixpoint list_repeat_fn (f : list ftype -> list ftype) (n : nat) (l : list ftype) : list ftype :=
+   (* calculates f(f(...(f l)...)) (n applications of f). *)
      match n with
      | 0 => l
      | S m => list_repeat_fn f m (f l)
      end.
 
-   Fixpoint ftype_list (ft : ftype) l :=
+   Fixpoint ftype_list (ft : ftype) (l : list ftype) : list ftype :=
+   (* prepends to l a list containing all the ground type elements' types in ft. *)
      match ft with
      | Gtyp t => Gtyp t :: l
      | Atyp t n => list_repeat_fn (ftype_list t) n l
      | Btyp b => ftype_list_btyp b l
      end
 
-   with ftype_list_btyp b l :=
+   with ftype_list_btyp (b : ffield) (l : list ftype) : list ftype :=
+   (* prepends to l a list containing all the ground type elements' types in the fields b.
+      Note that the list has reverse order of the fields in b. *)
      match b with
      | Fnil => l
      | Fflips v fl t fs => ftype_list_btyp fs (ftype_list t l)
      end.
 
-   Fixpoint vlist_repeat_fn f v i n (l : list (var * ftype)) {struct n}:=
+   Fixpoint vlist_repeat_fn (f : list (var * ftype) -> list (var * ftype)) (v : V.T) (i : nat) (n : nat) (l : list (var * ftype)) {struct n} : list (var * ftype) :=
+   (* calculates f(f(...(f l)...)) (n applications of f).
+      The parameteres v and i do not influence the result. *)
      match n with
      | 0 => l
      | S m => vlist_repeat_fn f (new_subvar v i) i m (f l)
      end.
 
-   Fixpoint ftype_vlist v (ft : ftype) l :=
+   Fixpoint ftype_vlist (v : var) (ft : ftype) (l : list (var * ftype)) : list (var * ftype) :=
+   (* prepends to l a list containing, for every ground type element in ft,
+      a pair (identifier, type).
+      However, I think the case of vector types is implemented wrongly. *)
      match ft with
      | Gtyp t => (v, Gtyp t) :: l
      | Atyp t n => vlist_repeat_fn (ftype_vlist v t) v (size_of_ftype t) n l
      | Btyp b => ftype_vlist_btyp v b l
      end
 
-   with ftype_vlist_btyp r b l :=
+   with ftype_vlist_btyp (r : var) (b : ffield) (l : list (var * ftype)) : list (var * ftype) :=
+   (* prepends to l a list containing, for every ground type element in bundle b,
+      a pair (identifier, type).  The order in l is the reverse of the order in b.
+      However, I think the case of vector types is implemented wrongly. *)
      match b with
      | Fnil => l
      | Fflips v fl t fs => ftype_vlist_btyp r fs (ftype_vlist (new_subvar r (offset_of_subfield_b b v 0)) t l)
@@ -3833,7 +3857,8 @@ Admitted.
    Definition findsd (v:var) (d:dmap) :=
      match CE.find v d with Some t => t | None => (Fuint 0, Node)  end.
 
-   Fixpoint expand_eref er ce : var :=
+   Fixpoint expand_eref (er : href) (ce : cenv) : var :=
+   (* find a var that corresponds to the reference er (which may be a complex reference) *)
      match er with
      | Eid v => v
      | Esubfield r v => new_subvar (expand_eref r ce) (offset_of_subfield (type_of_ref r ce) (v2var v) 0)
@@ -3855,7 +3880,9 @@ Admitted.
      end.
 *)
 
-   Fixpoint fcnct_list (l1 :list (var * ftype)) (l2:list (var * ftype)) cs :=
+   Fixpoint fcnct_list (l1 :list (var * ftype)) (l2:list (var * ftype)) (cs : cstate) : cstate :=
+   (* This function assumes that the i-th element of list l1 is assigned the value of the i-th element of list l2.
+      It updates cs accordingly. *)
      match l1, l2 with
      | nil, nil => cs
      | (v1, t1) :: tl1, (v2, t2):: tl2 => fcnct_list tl1 tl2 (SV.upd v1 (r_fexpr (Eref (Eid v2))) cs)
@@ -3864,7 +3891,10 @@ Admitted.
 
    (* premise : passive type, weak type equiv *)
 
-   Fixpoint pcnct_pair_b v1 v2 (t1 : ffield) (t2: ffield) cs :=
+   Fixpoint pcnct_pair_b (v1 : var) (v2 : var) (t1 : ffield) (t2: ffield) (cs : cstate) : cstate :=
+   (* This function expands a partial connect (Eid v1) <- (Eref (Eid v2)).
+      It assigns the value of the correct subfield of v2 to the first field of (Eid v1)
+      and adds the corresponding entry to cs. *)
      match t1 with
      | Fnil => cs
      | Fflips vt1 fp1 tf1 fs1 =>
@@ -3878,7 +3908,10 @@ Admitted.
        end
      end.
 
-   Fixpoint pcnct_pair (t1 : (var * ftype)) (t2: (var * ftype)) cs :=
+   Fixpoint pcnct_pair (t1 : (var * ftype)) (t2: (var * ftype)) (cs : cstate) : cstate :=
+   (* This function expands a partial connect (t1) <- (t2), depending on the types of t1 and t2
+      and returns the changed cs accordingly.
+      If the types are not weakly equivalent, cs is not changed. *)
      match t1, t2 with
      | (v1, Gtyp t1) , (v2, Gtyp t2) => SV.upd v1 (r_fexpr (Eref (Eid v2))) cs
      | (v1, Atyp t1 n1) , (v2, Atyp t2 n2) =>
@@ -3957,6 +3990,8 @@ Admitted.
        | Btyp bs1, Btyp bs2 => expand_fullconnect_subfield r1 r2 bs1
        | _, _ => qnil
        end
+     | Sfcnct r1 (Emux c r2a r2b) => TBD
+     | Sfcnct r1 (Evalidif c r2) => TBD
      | Spcnct r1 (Eref r2) =>
        let tr1 := type_of_ref r1 ce in
        let tr2 := type_of_ref r2 ce in
@@ -4004,22 +4039,63 @@ Admitted.
       to one where when statements are replaced by suitable multiplexers or validifs.
       It also handles the last connect semantics. *)
 
-   Definition map2_helper_cs_tf (c : hfexpr)
-                                (true_expr : option rhs_expr) (false_expr : option rhs_expr) : option rhs_expr :=
-   (* helper function to join connections made in separate branches of a when statement *)
-   match true_expr, false_expr with
-   | None, None (* nowhere declared *)
-   | Some _, None (* declared and defined only in the true branch *)
-   | Some R_default, Some R_default => true_expr (* declared in both branches but nowhere defined *)
-   | None, Some _ => false_expr (* declared and defined only in the false branch *)
-   | Some (R_fexpr t), Some R_default => Some (r_fexpr (Evalidif c t)) (* declared before when, only defined in true branch *)
-   | Some R_default, Some (R_fexpr f) => Some (r_fexpr (Evalidif (Eprim_unop Unot c) f)) (* declared before when, only defined in false branch *)
-   | Some (R_fexpr t), Some (R_fexpr f) => if t == f then true_expr (* both definitions match, no multiplexer needed *)
-                                           else Some (r_fexpr (emux c t f)) (* defined differently in both branches *)
+   (* a type to indicate connects *)
+   Inductive def_expr : Type := 
+   | D_undefined (* declared but not connected, no "is invalid" statement *)
+   | D_invalidated (* declared but not connected, there is a "is invalid" statement *)
+   | D_fexpr : hfexpr -> def_expr (* declared and connected *)
+   .
+
+   (* equality of def_expr is decidable [because equality of hfexpr is decidable] *)
+   Lemma def_expr_eq_dec : forall {x y : def_expr}, {x = y} + {x <> y}.
+   Proof.
+   intros ; induction x, y ; try (right ; discriminate) ; try (left ; reflexivity).
+   case Eq: (h == h0).
+   all: move /hfexpr_eqP : Eq => Eq.
+   left ; replace h0 with h ; reflexivity.
+   right ; injection ; apply Eq.
+   Qed.
+
+   Definition def_expr_eqn (x y : def_expr) : bool :=
+   match x, y with
+   | D_undefined, D_undefined => true
+   | D_invalidated, D_invalidated => true
+   | D_fexpr expr1, D_fexpr expr2 => expr1 == expr2
+   | _, _ => false
    end.
 
-   Definition combine_branches (c : hfexpr) (true_branch : (hfstmt_seq * cstate))
-                                            (false_branch: (hfstmt_seq * cstate)) : (hfstmt_seq * cstate) :=
+   Lemma def_expr_eqP : Equality.axiom def_expr_eqn.
+   Proof.
+   unfold Equality.axiom, def_expr_eqn.
+   intros ; induction x, y ; try (apply ReflectF ; discriminate) ; try (apply ReflectT ; reflexivity).
+   case Eq: (h == h0).
+   all: move /hfexpr_eqP : Eq => Eq.
+   apply ReflectT ; replace h0 with h ; reflexivity.
+   apply ReflectF ; injection ; apply Eq.
+   Qed.
+
+   Canonical def_expr_eqMixin := EqMixin def_expr_eqP.
+   Canonical def_expr_eqType := Eval hnf in EqType def_expr def_expr_eqMixin.
+
+   (* a map to store connects *)
+   Definition cmap := CE.t def_expr.
+   Definition empty_cmap : cmap := CE.empty def_expr.
+
+   Definition map2_helper_cs_tf (c : hfexpr)
+                                (true_expr : option def_expr) (false_expr : option def_expr) : option def_expr :=
+   (* helper function to join connections made in separate branches of a when statement *)
+   match true_expr, false_expr with
+   | Some (D_fexpr t), Some (D_fexpr f) => if t == f then true_expr (* both definitions match, no multiplexer needed *)
+                                           else Some (D_fexpr (emux c t f)) (* defined differently in both branches *)
+   | Some (D_fexpr t), Some D_invalidated => Some (D_fexpr (Evalidif c t)) (* declared before when, only defined in true branch *)
+   | Some D_invalidated, Some (D_fexpr f) => Some (D_fexpr (Evalidif (Eprim_unop Unot c) f)) (* declared before when, only defined in false branch *)
+   | None, _ (* only declared in the false branch *)
+   | _, Some D_undefined => false_expr (* not properly connected in the false branch *)
+   | _, _ => true_expr
+   end.
+
+   Definition combine_branches (c : hfexpr) (true_branch : (hfstmt_seq * cmap))
+                                            (false_branch: (hfstmt_seq * cmap)) : (hfstmt_seq * cmap) :=
    (* combines the two branches of a when statement into one sequence of declaration statements
       and one map of connections.
       Input:  * c = condition of the when statement
@@ -4035,104 +4111,458 @@ Admitted.
               * map of connections containing definitions (if necessary using multiplexers/validifs
                 to choose between the values defined in the branches) *)
          (Qcat (fst true_branch) (fst false_branch),
-          SV.map2 (map2_helper_cs_tf c) (snd true_branch) (snd false_branch))
+          CE.map2 (map2_helper_cs_tf c) (snd true_branch) (snd false_branch))
    .
 
-   Fixpoint expandBranch_fun (ss : hfstmt_seq) (ce : cenv) (cs : cstate) : (hfstmt_seq * cstate) :=
+   Definition option_and (simcond : option hfexpr) (cond : hfexpr) : hfexpr :=
+   (* calculates the conjunction between two conditions if present *)
+   match simcond with
+   | None => cond
+   | Some s => eprim_binop Band s cond
+   end.
+
+   (* Because nat and ftype are not mutually recursive types we cannot define a mutually recursive
+      initialization function for registers including array types.
+      Therefore we construct, in a mutual recursion, a function that initializes one element of the array.
+      After that we call the constructed function for every element of the array. *)
+
+   Fixpoint init_register_vector (v : nat -> href) (array_size : nat) (type : ftype) (ce : cenv) : (nat -> cmap -> cmap) * nat :=
+   (* Produces a function that initializes v to itself.
+      Input:  * v = href of the variable that needs to be initialized (possibly this is already an array)
+              * array_size = size of the array v (if it's not an array, array_size == 1)
+              * type = type of (a single element of the array) v <number>
+              * ce = component environment
+      Output: * nat -> cmap -> cmap : a function that initializes one element of the array (by modifying a cmap accordingly)
+              * nat : size of the array *)
+   match type with
+   | Gtyp _ => ((fun n : nat => CE.add (expand_eref (v n) ce) (D_fexpr (Eref (v n)))), array_size)
+   | Atyp el_type n => init_register_vector (fun m : nat => Esubindex (v (m / array_size)) (m mod array_size)) (array_size * n) el_type ce
+   | Btyp ff => init_register_bundle v array_size ff ce
+   end
+   with init_register_bundle (v : nat -> href) (array_size : nat) (ff : ffield) (ce : cenv) : (nat -> cmap -> cmap) * nat :=
+   match ff with
+   | Fnil => ((fun (n : nat) (cm : cmap) => cm), 0)
+   | Fflips field_name Nflip field_type ff_tail =>
+        let init_field := init_register_vector (fun n : nat => Esubfield (v n) (var2v field_name)) array_size field_type ce in
+        let init_tail := init_register_bundle v array_size ff_tail ce in
+        ((fun n : nat => if n < snd init_field then fst init_field n
+                                               else fst init_tail (n - snd init_field)),
+         snd init_field + snd init_tail)
+   | Fflips _ Flipped _ _ => (* error: a register must have a passive type *) ((fun (n : nat) (cm : cmap) => empty_cmap), 0)
+   end.
+
+   Fixpoint init_apply_initializer (fn : nat -> cmap -> cmap) (array_size : nat) (cm : cmap) : cmap :=
+   (* Applies initialization function fn, as produced by init_register_vector, to cm
+      so as to initialize the array fn 0 ... fn (array_size - 1). *)
+   match array_size with
+   | 0 => cm
+   | S m => init_apply_initializer fn m (fn m cm)
+   end.
+
+   Definition init_register (id : V.T) (type : ftype) (ce : cenv) (cm : cmap) : cmap :=
+   (* Initializes the register id, which is of type type. *)
+   let initializer := init_register_vector (fun n : nat => Eid id) 1 type ce in
+   init_apply_initializer (fst initializer) (snd initializer) cm.
+
+   (* Identifiers for the fields of a memory port *)
+   Parameter mem_port_addr : V.T.
+   Parameter mem_port_en : V.T.
+   Parameter mem_port_clk : V.T.
+   Parameter mem_port_data : V.T.
+   Parameter mem_port_mask : V.T.
+
+   Fixpoint init_memory_reader (id : V.T) (reader : seq V.T) (ce : cenv) (cm : cmap) : cmap :=
+   (* Helper function for init_memory. It initializes the read ports that are indicated in reader. *)
+   match reader with
+   | [::] => cm
+   | r :: rtail => init_memory_reader id rtail ce
+                   (CE.add (expand_eref (Esubfield (Esubfield (Eid id) r) mem_port_addr) ce) D_undefined
+                      (CE.add (expand_eref (Esubfield (Esubfield (Eid id) r) mem_port_en) ce) D_undefined
+                         (CE.add (expand_eref (Esubfield (Esubfield (Eid id) r) mem_port_clk) ce) D_undefined
+                            cm
+                         )
+                      )
+                   )
+   end.
+
+   Fixpoint init_undefined_vector (v : nat -> href) (array_size : nat) (type : ftype) (value : def_expr) (ce : cenv) : (nat -> cmap -> cmap) * nat :=
+   (* Produces a function that initializes v to value (mostly D_undefined or D_invalidated).
+      It can be used to initialize memory write ports (data and mask fields) and wires.
+      Memory ports have to be passive, but wires allow flipped fields,
+      so it does not check whether the type is passive.
+      Input:  * v = href of the variable that needs to be initialized (possibly this is already an array)
+              * array_size = size of the array v (if it's not an array, array_size == 1)
+              * type = type of v <number>
+              * ce = component environment
+      Output: * nat -> cmap -> cmap : a function that initializes one element of the array (by modifying a cmap accordingly)
+              * nat : size of the array *)
+   match type with
+   | Gtyp _ => ((fun n : nat => CE.add (expand_eref (v n) ce) value), array_size)
+   | Atyp el_type n => init_undefined_vector (fun m : nat => Esubindex (v (m / array_size)) (m mod array_size)) (array_size * n) el_type value ce
+   | Btyp ff => init_undefined_bundle v array_size ff value ce
+   end
+   with init_undefined_bundle (v : nat -> href) (array_size : nat) (ff : ffield) (value : def_expr) (ce : cenv) : (nat -> cmap -> cmap) * nat :=
+   match ff with
+   | Fnil => ((fun (n : nat) (cm : cmap) => cm), 0)
+   | Fflips field_name fflip field_type ff_tail =>
+        let init_field := match fflip with Nflip => init_undefined_vector  (fun n : nat => Esubfield (v n) (var2v field_name)) array_size field_type value ce
+                                       | Flipped => init_undefined_flipped (fun n : nat => Esubfield (v n) (var2v field_name)) array_size field_type value ce
+                          end in
+        let init_tail := init_undefined_bundle v array_size ff_tail value ce in
+        ((fun n : nat => if n < snd init_field then fst init_field n
+                                               else fst init_tail (n - snd init_field)),
+         snd init_field + snd init_tail)
+   end
+   with init_undefined_flipped (v : nat -> href) (array_size : nat) (type : ftype) (value : def_expr) (ce : cenv) : (nat -> cmap -> cmap) * nat :=
+   match type with
+   | Gtyp _ => ((fun (n : nat) (cm: cmap) => cm), 0)
+   | Atyp el_type n => init_undefined_flipped (fun m : nat => Esubindex (v (m / array_size)) (m mod array_size)) (array_size * n) el_type value ce
+   | Btyp ff => init_undefined_flipped_bundle v array_size ff value ce
+   end
+   with init_undefined_flipped_bundle (v : nat -> href) (array_size : nat) (ff : ffield) (value : def_expr) (ce : cenv) : (nat -> cmap -> cmap) * nat :=
+   match ff with
+   | Fnil => ((fun (n : nat) (cm : cmap) => cm), 0)
+   | Fflips field_name fflip field_type ff_tail =>
+        let init_field := match fflip with Nflip => init_undefined_flipped (fun n : nat => Esubfield (v n) (var2v field_name)) array_size field_type value ce
+                                       | Flipped => init_undefined_vector  (fun n : nat => Esubfield (v n) (var2v field_name)) array_size field_type value ce
+                          end in
+        let init_tail := init_undefined_flipped_bundle v array_size ff_tail value ce in
+        ((fun n : nat => if n < snd init_field then fst init_field n
+                                               else fst init_tail (n - snd init_field)),
+         snd init_field + snd init_tail)
+   end.
+
+   Fixpoint init_memory_writer (id : V.T) (data_type : ftype) (writer : seq V.T) (ce : cenv) (cm : cmap) : cmap :=
+   (* Helper function for init_memory. It initializes the write ports that are indicated in writer. *)
+   match writer with
+   | [::] => cm
+   | w :: wtail => let initializer_data := init_undefined_vector (fun n : nat => (Esubfield (Esubfield (Eid id) w) mem_port_data)) 1 data_type D_undefined ce in
+                   let initializer_mask := init_undefined_vector (fun n : nat => (Esubfield (Esubfield (Eid id) w) mem_port_mask)) 1 data_type D_undefined ce in
+                   init_memory_writer id data_type wtail ce
+                   (CE.add (expand_eref (Esubfield (Esubfield (Eid id) w) mem_port_addr) ce) D_undefined
+                      (CE.add (expand_eref (Esubfield (Esubfield (Eid id) w) mem_port_en) ce) D_undefined
+                         (CE.add (expand_eref (Esubfield (Esubfield (Eid id) w) mem_port_clk) ce) D_undefined
+                            (init_apply_initializer (fst initializer_data) (snd initializer_data)
+                               (init_apply_initializer (fst initializer_mask) (snd initializer_mask) cm)
+                            )
+                         )
+                      )
+                   )
+   end.
+
+   Definition init_memory (id : V.T) (m : hfmem) (ce : cenv) (cm : cmap) : cmap :=
+   (* This helper function initializes a memory named v with description m.
+      In particular, all reader and writer ports are declared undefined. *)
+   init_memory_writer id (data_type m) (writer m) ce (init_memory_reader id (reader m) ce cm).
+
+   Definition init_wire (id : V.T) (type : ftype) (ce : cenv) (cm : cmap) : cmap :=
+   (* Initializes a wire named id with type type. *)
+   let initializer := init_undefined_vector (fun n : nat => (Eid id)) 1 type D_undefined ce in
+   init_apply_initializer (fst initializer) (snd initializer) cm.
+
+(* Inductive error_type (T : Type) : Type :=
+   | ECorrect : T -> error_type
+   | Esyntax
+   | Etype
+   | Euninitialized (* a component should be connected but isn't *)
+   | Einternal (* e.g. if a pass receives input that should have been handled by earlier passes *)
+   | E...
+
+   Definition init_wire (id : V.T) (type : ftype) (ce : cenv) (cm : cmap) : error_type cmap :=
+   (* Initializes a wire named id with type type. May return an error message. *)
+   match init_undefined_vector (fun n : nat => (Eid id)) 1 type D_undefined ce with
+   Some initializer => init_apply_initializer (fst initializer) (snd initializer) cm
+   error => error
+   end. *)
+
+   Definition init_instance (id: V.T) (mdl: V.T) (ce : cenv) (cm : cmap) : cmap :=
+   (* This function should initialize the ports that connect the current module with module mdl under the name id,
+      which is instantiated here.
+      It is assumed that the type of the module is stored in ce already. *)
+   let initializer := init_undefined_flipped (fun n : nat => (Eid id)) 1 (type_of_cmpnttyp (fst (CE.vtyp mdl ce))) D_undefined ce in
+   init_apply_initializer (fst initializer) (snd initializer) cm.
+
+   Definition invalidate_cmpnt (ref : href) (ce : cenv) (cm : cmap) : cmap :=
+   (* Sets the component ref to invalid, to indicate that the programmer let it unconnected on purpose. *)
+   (* If "is invalid" statements are expanded by ExpandConnects, then it would suffice to return
+      CE.add (expand_eref ref ce) D_invalidated cm. *)
+   let initializer := init_undefined_vector (fun n : nat => ref) 1 (type_of_ref ref ce) D_invalidated ce in
+   init_apply_initializer (fst initializer) (snd initializer) cm.
+
+   Fixpoint expandBranch_fun (ss : hfstmt_seq) (ce : cenv) (cm : cmap) (simcond : option hfexpr) : (hfstmt_seq * cmap) :=
    (* This is the main function of ExpandWhens. It replaces when statements by expressions containing
       multiplexers/validifs where necessary.  It has the following interface:
       Input:  * ss = sequence of statements that are a final fragment of a module definition
                 or a final fragment of a branch
-                (not containing partial or aggregate connects;
-                possibly containing double connects and when statements)
+                (not containing partial or aggregate connects or aggregate "is invalid" statements;
+                possibly containing repeated connects and when statements)
               * ce = component environment, containing the type declarations
                 of the module (this has been found in earlier passes and is not updated)
-              * cs = map of connections that have been defined in the previous statements of the module definition
+              * cm = map of connections that have been defined in the previous statements of the module definition
                 (including, when applicable, in the previous statements of the branch).
                 This map is used in case a when statement only replaces a connect in one branch;
                 in that case, the other branch has to copy the connect from this map.
+              * simcond = condition of the outer when statement;
+                this is used to constrain simulation statement Sstop
+                in case it appears within a when statement.
       Output: a pair consisting of
               * sequence of statements, mainly containing declarations of registers and wires,
                 that should become part of the resulting code (because registers and wires etc.
                 declared in one branch should be included always in the translated code)
-              * cstate : map of connects that have been defined before or in the branch
-                (i.e. this map extends parameter cs by the connects in ss). *)
+              * cmap : map of connects that have been defined before or in the branch
+                (i.e. this map extends parameter cm by the connects in ss). *)
    match ss with
-   | Qnil => (qnil, cs)
-   | Qcons s sss => match s with
-                 | @Sinst _ _ _ (* ignore for now -- TBD *)
-                 | @Spcnct _ _ _ (* should not appear -- ignore *)
-                 | @Sskip _
-                 | @Sinvalid _ _
-                 | @Sstop _ _ _ _ => expandBranch_fun sss ce cs (* no translation needed *)
-                 | @Snode _ v e => let result := expandBranch_fun sss ce cs (* (SV.upd v (r_fexpr e) cs) *) in
-                                (Qcons s (fst result), snd result)
-                 | @Sreg _ v r => let result := expandBranch_fun sss ce (SV.upd v (r_fexpr (Eref (eid v))) cs) in
-                                                                  (* registers keep their old value by default.
-                                                                     The above code works for registers of basic type. *)
-                               (Qcons s (fst result), snd result)
-                 | @Smem _ v m => let result := expandBranch_fun sss ce cs (* but should assign R_default to all
-                                                                        input signals of ports *) in
-                                (Qcons s (fst result), snd result)
-                 | @Swire _ v t => let result := expandBranch_fun sss ce (SV.upd v r_default cs) in
-                                (Qcons s (fst result), snd result)
-                 | @Sfcnct _ v e => expandBranch_fun sss ce (SV.upd (expand_eref v ce) (r_fexpr e) cs)
-                 | @Swhen _ c sst ssf => let combined_branches := combine_branches c (expandBranch_fun sst ce cs) (expandBranch_fun ssf ce cs) in
-                                      let result := expandBranch_fun sss ce (snd combined_branches) in
-                                      (Qcat (fst combined_branches) (fst result), snd result)
+   | Qnil => (qnil, cm)
+   | Qcons s ss_tail => match s with
+                 | @Sskip _ => expandBranch_fun ss_tail ce cm simcond (* no translation needed *)
+                 | @Swire _ id type => let result := expandBranch_fun ss_tail ce (init_wire id type ce cm) simcond in
+                                       (Qcons s (fst result), snd result)
+                 | @Sreg _ id reg => let result := expandBranch_fun ss_tail ce (init_register id (type reg) ce cm) simcond in
+                                     (Qcons s (fst result), snd result)
+                 | @Smem _ id mem => let result := expandBranch_fun ss_tail ce (init_memory id mem ce cm) simcond in
+                                     (Qcons s (fst result), snd result)
+                 | @Sinst _ id mdl => let result := expandBranch_fun ss_tail ce (init_instance id mdl ce cm) simcond in
+                                   (Qcons s (fst result), snd result)
+                 | @Snode _ _ _ => let result := expandBranch_fun ss_tail ce cm simcond in
+                                   (Qcons s (fst result), snd result)
+                 | @Sfcnct _ ref expr => expandBranch_fun ss_tail ce (CE.add (expand_eref ref ce) (D_fexpr expr) cm) simcond
+                 | @Spcnct _ _ _ => (* error: should have been expanded earlier *) (qnil, empty_cmap)
+                 | @Sinvalid _ ref => expandBranch_fun ss_tail ce (invalidate_cmpnt ref ce cm) simcond
+                 | @Swhen _ cond ss_true ss_false => let combined_branches := combine_branches cond (expandBranch_fun ss_true  ce cm (Some (option_and simcond cond)))
+                                                                                                    (expandBranch_fun ss_false ce cm (Some (option_and simcond (eprim_unop Unot cond)))) in
+                                         let result := expandBranch_fun ss_tail ce (snd combined_branches) simcond in
+                                         (Qcat (fst combined_branches) (fst result), snd result)
+                 | @Sstop _ clk cond exit => let result := expandBranch_fun ss_tail ce cm simcond in
+                                             (Qcons (Sstop clk (option_and simcond cond) exit) (fst result), snd result)
                  end
    end.
 
-   Definition expandWhen_fun (ss : hfstmt_seq) (ce : cenv) : (hfstmt_seq * cstate) := expandBranch_fun ss ce SV.empty.
+   Fixpoint init_ports (ports : seq hfport) (ce : cenv) (cm : cmap) : cmap :=
+   (* This helper function sets the ports of a module to undefined. *)
+   match ports with
+   | [::] => cm
+   | Finput  id type :: ports_tail => let initializer := init_undefined_flipped (fun n : nat => Eid id) 1 type D_undefined ce in
+                                      init_ports ports_tail ce (init_apply_initializer (fst initializer) (snd initializer) cm)
+   | Foutput id type :: ports_tail => let initializer := init_undefined_vector  (fun n : nat => Eid id) 1 type D_undefined ce in
+                                      init_ports ports_tail ce (init_apply_initializer (fst initializer) (snd initializer) cm)
+   end.
+
+   Definition recode_cmap_entry (id : V.T) (dexpr : def_expr) (ss : hfstmt_seq) : hfstmt_seq :=
+   (* This helper function for recode_map translates one entry of the cmap into a statement
+      that is added to the statement sequence ss. *)
+   match dexpr with
+   | D_undefined => ss (* the user has erroneously not connected to id *)
+   | D_invalidated => Qcons (sinvalid (Eid id)) ss (* the user has given an "is invalid" statement. Copy it. *)
+   | D_fexpr expr => Qcons (sfcnct (Eid id) expr) ss
+   end.
+
+   Definition recode_cmap (cm : cmap) : hfstmt_seq :=
+   (* Translates the entries in cm to a sequence of statements (in a random order). *)
+   CE.fold recode_cmap_entry cm qnil.
+
+(* The following functions are an attempt to create a statement sequence that is sorted
+   according to dependencies between connect statements.  The idea is to repeatedly walk
+   through the cmap and every time emit those connect statements whose dependencies have
+   already been emitted earlier.  To do so, we need a proof that the dependency order is
+   well-founded.
+
+   However, in any case, the above expandBranch_fun does not do the job completely: it
+   leaves node statements as they are.  To get the order completely correct, one would
+   also have to move the node statements to the cmap and emit them in the correct position.
+   Additionally, register declarations and stop statements contain expressions that
+   may require some specific order.  (Stop statements do not influence any other statements,
+   so they could be placed at the end of the module, in the same order as they appear in
+   the original.  But registers cannot be handled that easily.)
+
+   Fixpoint dependencies_present (expr : hfexpr) (ce : cenv) (cm : cmap) : bool :=
+   (* Returns true iff expr contains a non-register component that is present in cm.
+      (Dependencies on registers can be disregarded because one always reads the old value
+      and writes the new value to a register.) *)
+   match expr with
+   | Econst _ _ => false
+   | Ecast _ expr0
+   | Eprim_unop _ expr0 => dependencies_present expr0 cm
+   | Eprim_binop _ expr0 expr1
+   | Evalidif expr0 expr1 => dependencies_present expr0 cm || dependencies_present expr1 cm
+   | Emux expr0 expr1 expr2 => dependencies_present expr0 cm || dependencies_present expr1 cm || dependencies_present expr2 cm
+   | Eref ref => dependencies_present_ref ref cm
+   end
+   with dependencies_present_ref (ref : href) (ce : cenv) (cm : cmap) : bool :=
+   match ref with
+   | Eid id => match find id ce with
+               | None (* error: undeclared identifier used *)
+               | Some (Reg_typ _, _) => false
+               | _ => CE.In id cm
+               end
+   | Esubfield ref _
+   | Esubindex ref _ => dependencies_present_ref ref cm
+   | Esubaccess ref expr => dependencies_present_ref ref cm || dependencies_present expr cm
+   end.
+
+   Definition recode_cmap_sorted_entry (ce : cenv) (id : V.T) (dexpr : def_expr) (ss_cm : hfstmt_seq * cmap) : hfstmt_seq * cmap :=
+   (* This helper function for recode_map_sorted translates one entry of the cmap into a statement
+      that is added to the statement sequence ss. However, the current entry is only added if all
+      its dependencies have been handled earlier. To this end, snd ss_cm is the map without the
+      entries that already have been copied to fst ss_cm. *)
+   match dexpr with
+   | D_undefined => (fst ss_cm, remove id (snd ss_cm)) (* the user has erroneously not connected to id *)
+   | D_invalidated => (Qcons (sinvalid (Eid id)) (fst ss_cm), remove id (snd ss_cm))
+   | D_fexpr expr => if dependencies_present expr ce (snd ss_cm) then ss_cm
+                     else (Qcons (sfcnct (Eid id) expr) (fst ss_cm), remove id (snd ss_cm))
+   end.
+
+   Function recode_cmap_sorted (ce : cenv) (cm : cmap) (ss : hfstmt_seq)
+   (cm_is_well_founded : forall cm' : cmap, (forall (id : V.T) (dexpr : def_expr), CE.MapsTo id dexpr cm' -> CE.MapsTo id dexpr cm) ->
+                                exists (id : V.T) (dexpr : def_expr),
+                                       CE.MapsTo id dexpr cm' /\
+                                       (dexpr = D_undefined \/
+                                        dexpr = D_invalidated \/
+                                        exists expr: hfexpr, dexpr = D_fexpr expr /\
+                                               ~dependencies_present expr cm')
+   { measure cardinal cm } : hfstmt_seq :=
+   (* This recursive function produces a sorted list of connections.
+      It requires that the connections in cmap are not circular---otherwise the recursion is infinite.
+      The last parameter is a proof that this is the case.  Based on that parameter, one can prove the
+      obligations that come with { measure cardinal cm }. *)
+   if CE.empty cm then ss
+   else let result := CE.fold (recode_cmap_sorted_entry ce) cm (ss, FSet.empty) in
+        recode_cmap_sorted (snd result) (fst result) cm_is_well_founded. *)
+
+   (* Perhaps a better way is to construct a dag.  The dag implicitly contains the proof
+      that there are no cycles.  That reminds me: there are already some graph functions
+      in some Coq library; in particular, the function to calculate sccs can be used for
+      this end. *)
+
+   Definition expandWhen_fun (mdl : hfmodule) (ce : cenv) : hfmodule :=
    (* This function provides an interface to the main function.
-      Input:  * ss = sequence of statements that form a module definition
-                (not containing partial or aggregate connects;
-                possibly containing double connects and when statements)
+      Input:  * mdl = module definition
+                (its statements do not contain partial or aggregate connects;
+                they may contain double connects and when statements)
               * ce = component environment, containing the type declarations
-                of the module (this has been found in earlier passes and is not updated)
-      Output: same as the main function expandBranch_fun.
+                of the module and the interface declarations of all other modules
+                (this has been found in earlier passes and is not updated)
+      Output: translated statement sequence of the module *)
+   match mdl with
+   | FInmod id ports ss => let result := expandBranch_fun ss ce (init_ports ports ce empty_cmap) None in
+                           FInmod id ports (Qcat (fst result) (recode_cmap (snd result)))
+   | FExmod _ _ ss => (* error: external modules cannot be handled for verification *) mdl
+   end.
 
-      The output can be used to generate a lowered FIRRTL module definition,
-      where the statements would be the statement sequence of the output,
-      extended by connects for all elements of the output map.
-      However, for the verification of correctness, it is easier to directly
-      verify the map instead of the generated code. *)
+   (* This data type is meant to describe the resulting value of a component depending on the execution path.
+      Whenever there is a when statement (and the component has been declared before,
+      so it is available in both execution paths), a T_choice node is inserted. *)
+   Inductive expr_tree : Type :=
+   | T_undeclared (* in this execution path, the component is not declared *)
+   | T_undefined (* the component is erroneously not connected *)
+   | T_invalidated (* the component is not connected but the programmer has indicated with an "is invalid" statement that this is ok *)
+   | T_fexpr : hfexpr -> expr_tree
+   | T_choice : hfexpr (* condition *) ->
+                expr_tree (* choice if condition is true *) ->
+                expr_tree (* choice if condition is false *) -> expr_tree
+   .
 
-   Fixpoint expandBranch_one_var_sem (ss : hfstmt_seq) (v : href) (default : option rhs_expr) : option rhs_expr :=
-   (* This function looks up to which value v is connected in the code ss.
+   (* equality of expr_trees is decidable *)
+   Lemma expr_tree_eq_dec : forall {x y : expr_tree}, {x = y} + {x <> y}.
+   Proof.
+   induction x, y ; try (right ; discriminate) ; try (left ; reflexivity).
+   case Eq: (h == h0).
+   move /hfexpr_eqP : Eq => Eq.
+   left ; replace h0 with h ; reflexivity.
+   move /hfexpr_eqP : Eq => Eq.
+   right ; injection ; apply Eq.
+   case Eq: (h == h0).
+   move /hfexpr_eqP : Eq => Eq.
+   replace h0 with h.
+   destruct IHx1 with (y := y1).
+   replace y1 with x1.
+   destruct IHx2 with (y := y2).
+   left ; replace y2 with x2 ; reflexivity.
+   right ; injection ; apply n.
+   right ; injection ; intro ; apply n.
+   move /hfexpr_eqP : Eq => Eq.
+   right ; injection ; intros until 2 ; apply Eq.
+   Qed.
+   Fixpoint expr_tree_eqn (x y : expr_tree) : bool :=
+   match x, y with
+   | T_undeclared, T_undeclared => true
+   | T_undefined, T_undefined => true
+   | T_invalidated, T_invalidated => true
+   | T_fexpr expr1, T_fexpr expr2 => expr1 == expr2
+   | T_choice cond1 true1 false1, T_choice cond2 true2 false2 => (cond1 == cond2) && (expr_tree_eqn true1 true2) && (expr_tree_eqn false1 false2)
+   | _, _ => false
+   end.
+   Lemma expr_tree_eqP : Equality.axiom expr_tree_eqn.
+   Proof.
+   unfold Equality.axiom ; unfold expr_tree_eqn.
+   induction x, y ; try (apply ReflectF ; discriminate) ; try (apply ReflectT ; reflexivity).
+   case Eq: (h == h0).
+   1, 2: move /hfexpr_eqP : Eq => Eq.
+   apply ReflectT ; replace h0 with h ; reflexivity.
+   apply ReflectF ; injection ; apply Eq.
+   fold expr_tree_eqn ; fold expr_tree_eqn in IHx1 ; fold expr_tree_eqn in IHx2.
+   case Eq: (h == h0).
+   all: move /hfexpr_eqP : Eq => Eq.
+   replace h0 with h.
+   destruct IHx1 with (y := y1).
+   replace y1 with x1.
+   destruct IHx2 with (y := y2).
+   replace y2 with x2.
+   apply ReflectT ; reflexivity.
+   apply ReflectF ; injection ; apply n.
+   apply ReflectF ; injection ; intro ; apply n.
+   apply ReflectF ; injection ; intros until 2 ; apply Eq.
+   Qed.
+   Canonical expr_tree_eqMixin := EqMixin expr_tree_eqP.
+   Canonical expr_tree_eqType := Eval hnf in EqType expr_tree expr_tree_eqMixin.
+
+   Fixpoint expandBranch_one_var_sem (ss : hfstmt_seq) (ref : href) (default : expr_tree) : expr_tree :=
+   (* This function looks up to which value ref is connected in the code ss.
+      It is assumed that ref has a ground type and is declared with sink or duplex flow.
+      (If the flow is source, the function may erroneously produce "T_undefined" to indicate that it should be connected to,
+      while this is not the case for sources.)
       If no connection is found, the function returns default. *)
    match ss with
    | Qnil => default
    | Qcons s tl => match s with
-                   | @Swire _ id _ => expandBranch_one_var_sem tl v (if v == (eid id) then Some r_default else default)
-                   | @Sreg _ id _ => expandBranch_one_var_sem tl v (if v == (eid id) then Some (r_fexpr (Eref (eid id))) else default)
-                   | @Sfcnct _ v0 e => expandBranch_one_var_sem tl v (if v == v0 then Some (r_fexpr e) else default)
-                   | @Swhen _ c sst ssf => let true_result  := expandBranch_one_var_sem sst v default in
-                                        let false_result := expandBranch_one_var_sem ssf v default in
-                                        match true_result, false_result with
-                                        | _, None
-                                        | Some R_default, Some R_default => expandBranch_one_var_sem tl v true_result
-                                        | None, Some _ => expandBranch_one_var_sem tl v false_result
-                                        | Some (R_fexpr t), Some (R_fexpr f) => expandBranch_one_var_sem tl v (if t == f then true_result else Some (r_fexpr (Emux c t f)))
-                                        | Some (R_fexpr t), Some R_default => expandBranch_one_var_sem tl v (Some (r_fexpr (Evalidif c t)))
-                                        | Some R_default, Some (R_fexpr f) => expandBranch_one_var_sem tl v (Some (r_fexpr (Evalidif (Eprim_unop Unot c) f)))
-                                       end
-                   | _ => expandBranch_one_var_sem tl v default
+                   | @Sreg _ id _ => expandBranch_one_var_sem tl ref (if base_ref ref == id then T_fexpr (Eref ref) else default)
+                   | @Swire _ id _
+                   (* In the two lines below we disregard that some subfields of an instance may be flipped
+                      and therefore have source flow direction; similarly, <memory id>.<read port id>.data
+                      has source flow direction.  That is why we have the precondition
+                      that ref must have sink (or duplex) flow direction. *)
+                   | @Smem _ id _
+                   | @Sinst _ id _ => expandBranch_one_var_sem tl ref (if base_ref ref == id then T_undefined else default)
+                   (* In the two lines below we assume that ref0 is a ground type, as ExpandConnects has already been applied. *)
+                   | @Sfcnct _ ref0 expr => expandBranch_one_var_sem tl ref (if ref == ref0 then T_fexpr expr else default)
+                   | @Sinvalid _ ref0 => expandBranch_one_var_sem tl ref (if ref == ref0 then T_invalidated else default)
+                   | @Swhen _ cond ss_true ss_false => let true_result  := expandBranch_one_var_sem ss_true  ref default in
+                                                       let false_result := expandBranch_one_var_sem ss_false ref default in
+                                                       match true_result, false_result with
+                                                       (* ignore execution paths where ref is not declared *)
+                                                       | T_undeclared, _ => expandBranch_one_var_sem tl ref false_result
+                                                       | _, T_undeclared => expandBranch_one_var_sem tl ref true_result
+                                                       | _, _ => expandBranch_one_var_sem tl ref
+                                                                 (if true_result == false_result then true_result
+                                                                  else T_choice cond true_result false_result)
+                                                       end
+                   | _ => expandBranch_one_var_sem tl ref default
                    end
    end.
 
-   Definition expandBranch_vars_sem (ss : hfstmt_seq) (cs : cstate) (default : cstate) : Prop :=
+   Parameter expandBranch_vars_sem (ss : hfstmt_seq) (ce : cmap) (cs : cstate) (default : cstate) : Prop.
+(* TBD :=
    (* Specification: cs contains the connects defined by ss.
       If there is no connect, then the value of cs is copied from default. *)
-   forall id : V.T, SV.find id cs = expandBranch_one_var_sem ss (eid id) (SV.find id default).
-
-   Fixpoint expandWhen_precondition_ss (ss : hfstmt_seq) : Prop:=
-   (* Precondition of expandWhen: there are no instance statements, no aggregate types, and no partial connects *)
+   forall id : V.T, match SV.find id cs, expandBranch_one_var_sem ss (eid id) (SV.find id default) with
+                    | None, D_undeclared => True
+                    | Some 
+*)
+   Fixpoint expandWhen_precondition_ss (ss : hfstmt_seq) : Prop :=
+   (* Precondition of expandWhen: there are no aggregate types and no partial connects *)
    match ss with
    | Qnil => True
    | Qcons s tl => match s with
                   | @Spcnct _ _ _ => False
-                  | @Sinst _ _ _ => False
                   | @Swire _ _ t => match t          with Gtyp _ => expandWhen_precondition_ss tl
                                                         | _ => False end
                   | @Sreg _ _ r => match type r      with Gtyp _ => expandWhen_precondition_ss tl
@@ -4152,35 +4582,35 @@ Admitted.
    (* Precondition of expandWhen: all declared components have ground types *)
    forall v : V.T, match CE.find v ce with
                    | None => True (* no constraints on types of undeclared components *)
-                   | Some (t, c) => match type_of_cmpnttyp t with Gtyp _ => True (* declared components have ground types *)
+                   | Some (t, _) => match type_of_cmpnttyp t with Gtyp _ => True (* declared components have ground types *)
                                                                 | _ => False end
                    end.
 
-   Definition expandBranch_sem_conform_P (ss : hfstmt_seq) :=
+   Definition expandBranch_hfstmt_seq_sem_conform (ss : hfstmt_seq) : Prop :=
    (* The statements in ss are being translated by expandBranch_fun to correct definitions in a StructStore (cstate). *)
       expandWhen_precondition_ss ss ->
       forall ce : cenv, expandWhen_precondition_ce ce ->
                         forall default : cstate, expandBranch_vars_sem ss (snd (expandBranch_fun ss ce default)) default.
 
 
-   Definition expandBranch_sem_conform_P0 (s : hfstmt) : Prop :=
+   Definition expandBranch_hfstmt_sem_conform (s : hfstmt) : Prop :=
    (* The statement sequences that are part of s are being translated correctly. *)
-   match s with @Swhen _ c sst ssf => expandBranch_sem_conform_P sst /\ expandBranch_sem_conform_P ssf
-              | _ => true end.
+   match s with @Swhen _ c sst ssf => expandBranch_hfstmt_seq_sem_conform sst /\ expandBranch_hfstmt_seq_sem_conform ssf
+              | _ => True end.
 
-   Lemma expandBranch_sem_conform : forall ss : hfstmt_seq, expandBranch_sem_conform_P ss.
+   Lemma expandBranch_sem_conform : forall ss : hfstmt_seq, expandBranch_hfstmt_seq_sem_conform ss.
    Proof.
    intro.
-   apply hfstmt_seq_hfstmt_ind with (P := expandBranch_sem_conform_P) (P0 := expandBranch_sem_conform_P0).
+   apply hfstmt_seq_hfstmt_ind with (P := expandBranch_hfstmt_seq_sem_conform) (P0 := expandBranch_hfstmt_sem_conform).
    (* case Qnil / empty program *)
-   unfold expandBranch_sem_conform_P.
+   unfold expandBranch_hfstmt_seq_sem_conform.
    intros.
    unfold expandBranch_vars_sem, expandBranch_fun, snd.
    unfold expandBranch_one_var_sem.
    reflexivity.
    (* case Qcons / concatenation of statements *)
    intros.
-   unfold expandBranch_sem_conform_P.
+   unfold expandBranch_hfstmt_seq_sem_conform.
    intros.
    (* now we need to distinguish cases: if h is Sfcnct or Swhen,
       need to do some work; otherwise, the resulting function does not change,
@@ -4191,7 +4621,7 @@ Admitted.
    fold expandBranch_fun.
    unfold expandBranch_one_var_sem.
    fold expandBranch_one_var_sem.
-   unfold expandBranch_sem_conform_P, expandBranch_vars_sem in H0.
+   unfold expandBranch_hfstmt_seq_sem_conform, expandBranch_vars_sem in H0.
    apply H0.
    unfold expandWhen_precondition_ss in H1.
    fold expandWhen_precondition_ss in H1.
@@ -4207,7 +4637,7 @@ Admitted.
    unfold expandWhen_precondition_ss in H1.
    fold expandWhen_precondition_ss in H1.
    induction f.
-   unfold expandBranch_sem_conform_P, expandBranch_vars_sem in H0.
+   unfold expandBranch_hfstmt_seq_sem_conform, expandBranch_vars_sem in H0.
    (* case distinction on whether id == s or not *)
    case Eq : (eid id == eid s).
    replace id with s.
@@ -4238,7 +4668,7 @@ Admitted.
    fold expandBranch_fun.
    unfold expandBranch_one_var_sem.
    fold expandBranch_one_var_sem.
-   unfold expandBranch_sem_conform_P, expandBranch_vars_sem in H0.
+   unfold expandBranch_hfstmt_seq_sem_conform, expandBranch_vars_sem in H0.
    intro.
    unfold expandWhen_precondition_ss in H1.
    fold expandWhen_precondition_ss in H1.
@@ -4282,7 +4712,16 @@ Admitted.
    contradiction H1.
    exact H2.
    (* subcase Qcons (Sinst _ _) _ *)
-   contradiction H1.
+   unfold expandBranch_vars_sem, expandBranch_fun.
+   fold expandBranch_fun.
+   unfold expandBranch_one_var_sem.
+   fold expandBranch_one_var_sem.
+   unfold expandBranch_vars_sem in H0.
+   apply H0.
+   unfold expandWhen_precondition_ss in H1.
+   fold expandWhen_precondition_ss in H1.
+   exact H1.
+   exact H2.
    (* subcase Qcons (Snode _ _) _ *)
    unfold expandBranch_vars_sem, expandBranch_fun.
    fold expandBranch_fun.
@@ -4299,7 +4738,7 @@ Admitted.
    fold expandBranch_fun.
    unfold expandBranch_one_var_sem.
    fold expandBranch_one_var_sem.
-   unfold expandBranch_sem_conform_P, expandBranch_vars_sem in H0.
+   unfold expandBranch_hfstmt_seq_sem_conform, expandBranch_vars_sem in H0.
    intro.
    unfold expandWhen_precondition_ss in H1.
    fold expandWhen_precondition_ss in H1.
@@ -4354,11 +4793,11 @@ Admitted.
    fold expandWhen_precondition_ss in H1.
    transitivity (expandBranch_one_var_sem h0 (eid id) (SV.find id (snd (combine_branches h (expandBranch_fun h1 ce default)
         (expandBranch_fun h2 ce default))))).
-   unfold expandBranch_sem_conform_P, expandBranch_vars_sem in H0.
+   unfold expandBranch_hfstmt_seq_sem_conform, expandBranch_vars_sem in H0.
    apply H0.
    apply H1.
    apply H2.
-   unfold expandBranch_sem_conform_P0, expandBranch_sem_conform_P, expandBranch_vars_sem in H.
+   unfold expandBranch_hfstmt_sem_conform, expandBranch_hfstmt_seq_sem_conform, expandBranch_vars_sem in H.
    (* Now comes a case distinction over expandBranch_one_var_sem h1 ...
       and over expandBranch_one_var_sem h2 ... *)
    unfold combine_branches.
