@@ -522,9 +522,13 @@ Module MakeHiFirrtl
   | Source | Sink | Duplex | Passive | Other.
 
   (** eq dec *)
-  Axiom forient_eq_dec : forall {x y : forient}, {x = y} + {x <> y}.
-  Parameter forient_eqn : forall (x y : forient), bool.
-  Axiom forient_eqP : Equality.axiom forient_eqn.
+  Lemma forient_eq_dec : forall {x y : forient}, {x = y} + {x <> y}.
+  Proof. induction x, y ; try (right ; discriminate) ; try (left ; reflexivity). Qed.
+  Definition forient_eqn (x y : forient) : bool :=
+  match x, y with Source, Source | Sink, Sink | Duplex, Duplex | Passive, Passive | Other, Other => true
+                | _, _ => false end.
+  Lemma forient_eqP : Equality.axiom forient_eqn.
+  Proof. unfold Equality.axiom, forient_eqn. induction x, y ; try (apply ReflectF ; discriminate) ; try (apply ReflectT ; reflexivity). Qed.
   Canonical forient_eqMixin := EqMixin forient_eqP.
   Canonical forient_eqType := Eval hnf in EqType forient forient_eqMixin.
 
@@ -568,9 +572,7 @@ Module MakeHiFirrtl
     | Ecast _ _ => true
     | Eprim_binop _ _ _ => true
     | Eprim_unop _ _ => true
-    (* DNJ: The arguments of a multiplexer or a validif need to be passive.
-    I am not sure whether something similar holds for primitive expression arguments;
-    I guess they should be valid_rhs_fexpr themselves. *)
+    (* DNJ: The arguments of a multiplexer or a validif need to be passive. *)
     | Emux _ e1 e2 => valid_rhs_fexpr e1 ce && (valid_rhs_fexpr e2 ce)
     | Evalidif _ e => valid_rhs_fexpr e ce
     end.
@@ -715,25 +717,25 @@ Module MakeHiFirrtl
       resolveKinds_stmt (sinvalid v) ce ce
   | Resolve_skip ce :
       resolveKinds_stmt sskip ce ce
-
-
   | Resolve_fcnct r e ce :
       resolveKinds_stmt (sfcnct r e) ce ce
   | Resolve_pcnct r e ce :
       resolveKinds_stmt (spcnct r e) ce ce
-  | Resolve_when e s1 s2 ce :
-      resolveKinds_stmt (swhen e s1 s2) ce ce
+  | Resolve_when e s1 s2 ce ce' ce'' :
+      resolveKinds_stmts s1 ce ce' ->
+      resolveKinds_stmts s2 ce' ce'' ->
+      resolveKinds_stmt (swhen e s1 s2) ce ce''
   | Resolve_stop e1 e2 n ce :
       resolveKinds_stmt (sstop e1 e2 n) ce ce
-  .
 
-  Inductive resolveKinds_stmts : hfstmt_seq -> cenv -> cenv -> Prop :=
+  with resolveKinds_stmts : hfstmt_seq -> cenv -> cenv -> Prop :=
   | Resolve_stmts_nil ce :
       resolveKinds_stmts qnil ce ce
   | Resolve_stmts_cons s ss ce ce' ce'' :
       resolveKinds_stmt s ce ce' ->
       resolveKinds_stmts ss ce' ce'' ->
-    resolveKinds_stmts (Qcons s ss) ce ce''.
+    resolveKinds_stmts (Qcons s ss) ce ce''
+  .
 
   Inductive resolveKinds_port : hfport -> CE.env -> CE.env -> Prop :=
   | Resolve_input v t ce ce' :
@@ -769,18 +771,22 @@ Module MakeHiFirrtl
       resolveKinds_modules ps ce' ce'' ->
       resolveKinds_modules (p :: ps) ce ce''.
 
-  Definition resolveKinds_stmt_fun st ce :=
+  Fixpoint resolveKinds_stmt_fun (st : hfstmt) (ce : cenv) : cenv :=
     match st with
+    | Sskip => ce
     | Swire v t => CE.add v (unknown_typ, Wire) ce
     | Sreg v r => CE.add v (unknown_typ, Register) ce
     | Smem v m => CE.add v (unknown_typ, Memory) ce
-    | Snode v e => CE.add v (unknown_typ, Node) ce
     | Sinst v m => CE.add v (unknown_typ, Instanceof) ce
-    | Sinvalid v => ce
-    | Skip => ce
-    end.
+    | Snode v e => CE.add v (unknown_typ, Node) ce
+    | Sfcnct _ _
+    | Spcnct _ _
+    | Sinvalid _ => ce
+    | Swhen _ sts_true sts_false => resolveKinds_stmts_fun sts_false (resolveKinds_stmts_fun sts_true ce)
+    | Sstop _ _ _ => ce
+    end
 
-  Fixpoint resolveKinds_stmts_fun (sts : hfstmt_seq) ce : CE.env := (*fold_right resolveKinds_stmt_fun ce sts.*)
+  with resolveKinds_stmts_fun (sts : hfstmt_seq) (ce : cenv) : CE.env := (*fold_right resolveKinds_stmt_fun ce sts.*)
     match sts with
     | Qnil => ce
     | Qcons s stl => resolveKinds_stmts_fun stl (resolveKinds_stmt_fun s ce)
@@ -864,10 +870,12 @@ Proof.
 Qed.
 
 Lemma resolveKinds_swhen_sem_conform :
-forall e s1 s2 ce0 ,
+forall (e : hfexpr) (s1 s2 : hfstmt_seq) (ce0 ce1 ce2: cenv),
+  resolveKinds_stmts s1 ce0 ce1 ->
+  resolveKinds_stmts s2 ce1 (resolveKinds_stmt_fun (swhen e s1 s2) ce0) ->
   resolveKinds_stmt (swhen e s1 s2) ce0 (resolveKinds_stmt_fun (swhen e s1 s2) ce0).
 Proof.
-  intros. apply Resolve_when.
+  intros. apply Resolve_when with (ce' := ce1). exact H. exact H0.
 Qed.
 
 Lemma resolveKinds_sstop_sem_conform :
@@ -894,14 +902,21 @@ Proof.
   rewrite /resolveKinds_stmt_fun /CE.add_fst (CELemmas.add_eq_o _ _ (eq_refl v1)) //.
 Qed.
 
-Lemma resolveKinds_stmts_sem_conform :
-  forall sts ce0 ,
+Definition resolveKinds_stmts_sem_conform_statement (sts : hfstmt_seq) : Prop :=
+forall ce0 : cenv,
   resolveKinds_stmts sts ce0 (resolveKinds_stmts_fun sts ce0).
+
+Lemma resolveKinds_stmts_sem_conform :
+  forall sts : hfstmt_seq, resolveKinds_stmts_sem_conform_statement sts.
 Proof.
-  elim. intros. apply Resolve_stmts_nil.
+  apply hfstmt_seq_hfstmt_ind with (P := resolveKinds_stmts_sem_conform_statement)
+                                   (P0 := fun st : hfstmt => match st with Swhen c s1 s2 => resolveKinds_stmts_sem_conform_statement s1 /\ resolveKinds_stmts_sem_conform_statement s2 | _ => True end) ; try done.
+  unfold resolveKinds_stmts_sem_conform_statement. apply Resolve_stmts_nil.
   intros.
-  apply Resolve_stmts_cons with (resolveKinds_stmt_fun h ce0).
-  elim h; intros;try done.
+  unfold resolveKinds_stmts_sem_conform_statement.
+  intros.
+  apply Resolve_stmts_cons with (ce' := resolveKinds_stmt_fun h ce0).
+  induction h.
   - apply resolveKinds_sskip_sem_conform.
   - apply resolveKinds_swire_sem_conform.
   - apply resolveKinds_sreg_sem_conform.
@@ -911,10 +926,11 @@ Proof.
   - apply resolveKinds_sfcnct_sem_conform.
   - apply resolveKinds_spcnct_sem_conform.
   - apply resolveKinds_sinvalid_sem_conform.
-  - apply resolveKinds_swhen_sem_conform.
+  - apply resolveKinds_swhen_sem_conform with (ce1 := resolveKinds_stmts_fun h1 ce0) ; try done.
+    apply H. apply H.
   - apply resolveKinds_sstop_sem_conform.
   rewrite /=.
-  apply (H (resolveKinds_stmt_fun h ce0)).
+  apply (H0 (resolveKinds_stmt_fun h ce0)).
   Qed.
 
 Lemma resolveKinds_inport_sem_conform :
