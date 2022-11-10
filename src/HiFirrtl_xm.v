@@ -3367,6 +3367,7 @@ Qed.
    (** Pass ExpandConnect *)
 
    Fixpoint size_of_ftype ft :=
+   (* calculates the number of ground type elements in ft : ftype. *)
      match ft with
      | Gtyp t => 1
      | Atyp t n => (size_of_ftype t) * n
@@ -3379,12 +3380,15 @@ Qed.
           end.
 
    Fixpoint offset_of_subfield_b ft fid n :=
+   (* calculates n + the offset of subfield fid : var in bundle type ft : ffield *)
      match ft with
      | Fnil => n
      | Fflips v fl t fs => if fid == v then n else offset_of_subfield_b fs fid (n + size_of_ftype t)
      end.
 
    Definition offset_of_subfield ft fid n :=
+   (* calculates n + the offset of subfield fid : var in type ft : ftype, if ft is a bundle type.
+      Otherwise, returns 0. *)
      match ft with
      | Gtyp t => 0
      | Atyp t n => 0
@@ -3392,6 +3396,7 @@ Qed.
      end.
 
    Definition offset_of_subindex ft m :=
+   (* checks whether ft : ftype is a vector type.  If yes, returns m; otherwise, returns 0. *)
      match ft with
      | Gtyp t => 0
      | Atyp t n => m
@@ -3416,11 +3421,13 @@ Qed.
    Parameter new_var_rep : var -> nat (*occurence*)-> var.
    
    Parameter new_var_diff_origin_var_field :
+   (* This assumption states that new variable identifiers in nvm are disjoint from those in ce. *)
      forall (v:var) f (nvm:nvmap) (ce:cenv) (c:nat),
        VM.find (new_subvar v (offset_of_subfield (type_of_cmpnttyp (fst (CE.vtyp v ce))) f 0) ) nvm = Some (v, c) ->
        CE.find (new_subvar v (offset_of_subfield (type_of_cmpnttyp (fst (CE.vtyp v ce))) f 0) ) ce = None.
    
    Parameter new_var_diff_origin_general :
+   (* This assumption states that new variable identifiers in nvm are disjoint from those in ce. *)
      forall v (nvm:nvmap) (ce:cenv) n c,
        VM.find (new_subvar v n ) nvm = Some (v, c) ->
        CE.find (new_subvar v n ) ce = None.
@@ -3428,12 +3435,14 @@ Qed.
    (*flatten bundle type to list of ground type*)
 
    Fixpoint list_repeat_fn f n (l : list ftype) :=
+   (* calculates f (f (...(f l)...)), i.e. n : nat applications of f : list ftype -> list ftype to l. *)
      match n with
      | 0 => l
      | S m => list_repeat_fn f m (f l)
      end.
 
    Fixpoint ftype_list (ft : ftype) l :=
+   (* prepends the types of ground elements of ft to l : list ftype. *)
      match ft with
      | Gtyp t => Gtyp t :: l
      | Atyp t n => list_repeat_fn (ftype_list t) n l
@@ -3441,6 +3450,9 @@ Qed.
      end
 
    with ftype_list_btyp b l :=
+   (* prepends the types of ground elements of bundle type b : ffield to l : list ftype.
+      The elements are prepended in the reverse order that they are in b -- is this correct?
+      Orientation information is not stored in the generated list. *)
      match b with
      | Fnil => l
      | Fflips v fl t fs => ftype_list_btyp fs (ftype_list t l)
@@ -3448,6 +3460,8 @@ Qed.
 
    
    Fixpoint vlist_repeat_fn (f : list (var * ftype) -> list (var * ftype)) v i n (l : list (var * ftype)) :=
+   (* calculates f (f (...(f l)...)), i.e. n : nat applications of f to l.
+      The parameters v and i have no influence on the result and could be dropped -- is this correct? *)
      match n with
      | 0 => l
      | S m => vlist_repeat_fn f (new_subvar v i) i m (f l)
@@ -3456,12 +3470,22 @@ Qed.
    (*create new var associate with flattened types, requires the base_ref & offset*)
 
    Fixpoint ftype_vlist v (ft : ftype) l :=
+   (* prepends to l : list (var * ftype), for each ground element of ft, a pair (identifier, type).
+      I guess that the identifier is supposed to be a new identifier for this ground element
+      but this does not work for vector types or bundle types:
+      for vector types, the identifier refers to the array instead of the element;
+      for bundle types, all identifiers refer to the first element of the bundle -- is this correct? *)
      match ft with
      | Gtyp t => (v, Gtyp t) :: l
      | Atyp t n => vlist_repeat_fn (ftype_vlist v t) v (size_of_ftype t) n l
      | Btyp b => ftype_vlist_btyp v b l
      end
    with ftype_vlist_btyp r b l  :=
+   (* prepends to l : list (var * ftype), for each ground element of bundle b : ffield,
+      a pair (identifier, type). The identifier is derived from r : var.
+      However, the offset of the subfield is set to 0 for every subfield -- is this correct?
+      The elements are prepended in the reverse order that they are in b.
+      Orientation information is not stored in the generated list. *)
      match b with
      | Fnil => l
      | Fflips v fl t fs => ftype_vlist_btyp r fs (ftype_vlist (new_subvar r (offset_of_subfield_b b v 0)) t l)
@@ -3469,6 +3493,8 @@ Qed.
 
    (*create new var according to eref*)
    Fixpoint newvar_eref er ce : var :=
+   (* For Esubaccess, the offset is based on the type, not on the value of expression e : hfexpr
+      -- is this correct?  I guess that subaccesses should have been removed by an earlier pass. *)
      match er with
      | Eid v => v
      | Esubfield r v => new_subvar (base_ref r) (offset_of_subfield (type_of_ref (eid (base_ref r)) ce) (v2var v) 0)
@@ -3483,8 +3509,9 @@ Qed.
      | Some (_,c) => c
      end.
 
-   (* premise : passive type, type equiv (same list length) , flow from small ge width *)
-   (*make new connections through paring elements. related diff occurent ones to the original one*)
+   (* premise : passive type, type equiv (same list length), flow from small ge width *)
+   (* make new connections through pairing elements. related diff occurent ones to the original one *)
+   (* nvm : nvmap is returned unchanged -- is this correct? *)
    Fixpoint fcnct_pair ov1 ov2 (l1 :list (var * ftype)) (l2:list (var * ftype)) cs nvm : cstate * nvmap :=
      match l1, l2 with
      | nil, nil => (cs, nvm)
@@ -3496,6 +3523,12 @@ Qed.
 
    (* premise : passive type, weak type equiv*)
    Fixpoint pcnct_pair_b v1 v2 (t1 : ffield) (t2: ffield) cs nvm : cstate * nvmap :=
+   (* extends cs : cstate with a connection to the first field of v1 : var, which is of bundle type t1,
+      from the corresponding field of v2 : var, which is of bundle type t2.
+      Only the first field of v1 : var is connected to -- is this correct?
+      It assumes that the fields are all ground types -- is this correct?
+      nvm : nvmap is returned unchanged -- is this correct?
+      The orientations of the fields are ignored; this is correct for passive types. *)
      match t1 with
      | Fnil => (cs, nvm)
      | Fflips vt1 fp1 tf1 fs1 =>
@@ -3513,6 +3546,10 @@ Qed.
      end.
 
    Definition pcnct_pair r1 r2 (t1 : (var * ftype)) (t2: (var * ftype)) cs nvm :=
+   (* extends cs : cstate with a partial connection to r1 : var, which is of type snd t1,
+      from r2 : var, which is of type snd t2.  fst t1 and fst t2 are the identifiers used
+      to access the ground elements of r1 and r2, respectively.
+      nvm is returned unchanged -- is this correct? *)
      match t1, t2 with
      | (v1, Gtyp t1) , (v2, Gtyp t2) => (SV.upd v1 (r_fexpr (Eref (Eid v2))) cs, nvm)
      | (v1, Atyp t1 n1) , (v2, Atyp t2 n2) =>
@@ -3524,6 +3561,11 @@ Qed.
      end.
 
    Fixpoint cnct_default r l (ce:cenv) cn {struct l} :=
+   (* updates cn : cstate * nvmap by setting the ground type elements of r : var to R_default in the cstate.
+      I am not sure I understand the update of the nvmap; perhaps it adds a pair
+      to prepare for the next call to cnct_default?
+      l : list (var * ftype) lists the ground type elements of r.
+      ce is also updated but the updated ce is not returned -- is this correct? *)
      match l with
      | nil => cn
      | cons (v1,t1) tl =>
@@ -3536,6 +3578,7 @@ Qed.
    (*main fun expand connections, return cstate with flattened connections and new referencs var name in nvmap*)
    (* premise : passive type, weak type equiv *)
    Definition store_rhsexpr (s : hfstmt) (cs : cstate) (nvm : nvmap) ce : cstate * nvmap * cenv:=
+   (* This function does not recurse into when statements -- is this correct? *)
      match s with
      (* | Swire v t => (SV.upd v r_default cs, nvm) *)
      | Snode v e => (SV.upd v (r_fexpr e) cs, nvm, ce)
@@ -3554,6 +3597,7 @@ Qed.
      end.
 
    Fixpoint expand_connect_cd (s: seq hfstmt)  ce (cn : cstate * nvmap) : cstate * nvmap * cenv :=
+   (* expands connect statements in s to updates of ce : cenv and cn. *)
      match s with
      | nil => (cn, ce)
      | cons hd tl => expand_connect_cd tl ce (fst (store_rhsexpr hd (fst cn) (snd cn) ce))
@@ -3561,6 +3605,8 @@ Qed.
 
    (*from cstate to program*)
    Fixpoint ce_elements_stmts (ce : list (var* (cmpnt_init_typs * fcomponent))) ss : seq hfstmt :=
+   (* prepends component declaration statements based on the entries of ce to ss.
+      The list ss will have the reverse order of ce -- is this correct? *)
      match ce with
      | nil => ss
      | cons e es =>
@@ -3574,6 +3620,8 @@ Qed.
      end.
 
    Fixpoint ce_elements_ports (ce :list (var* (cmpnt_init_typs * fcomponent))) ps : seq hfport :=
+   (* prepends port declarations based on the entries of ce to ps.
+      The list ps will have the reverse order of ce -- is this correct? *)
      match ce with
      | nil => ps
      | cons e es =>
@@ -3586,12 +3634,17 @@ Qed.
      end.
 
    Definition fexpr_of_rhsexpr r :=
+   (* extracts the hfexpr from r : rhs_expr.  If r = R_default, returns an empty (0-bit) constant.
+      The type of this constant is always UInt, even when it will be used in another context -- is this correct? *)
      match r with
      | R_fexpr e => e
      | R_default => econst (Fuint 0) [::]
      end.
 
    Fixpoint cs_elements_connects (cs : list (var * rhs_expr)) (nvm : nvmap) ss : seq hfstmt :=
+   (* prepends a list of full connect statements based on cs to ss.
+      If nvm contains an entry for the identifier in head cs, this is used as a new identifier.
+      If cs assigns R_default, one may instead have to prepend and "is invalid" statement -- is this correct? *)
      match cs with
      | nil => ss
      | cons c css =>
@@ -3603,6 +3656,9 @@ Qed.
      end.
 
    Definition expand_connects_stmts (ss : seq hfstmt) ce : seq hfport * seq hfstmt:=
+   (* splits the statements in ss into maps (cs, nvm, ce) and reconstructs from there a new sequence of statements
+      that contains expanded connects.
+      The seq hfport returned is always empty -- is this correct? *)
      let cs := fst (fst (expand_connect_cd ss ce (SV.empty, empty_nvmap))) in 
      let nvm := snd (fst (expand_connect_cd ss ce (SV.empty, empty_nvmap))) in
      let ce := snd (expand_connect_cd ss ce (SV.empty, empty_nvmap)) in
