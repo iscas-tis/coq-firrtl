@@ -1943,18 +1943,18 @@ address      = {Berlin},
 
 
 @INPROCEEDINGS{xiangshan,
-  author={Xu, Yinan and Yu, Zihao and Tang, Dan and Chen, Guokai and Chen, Lu and Gou, Lingrui and Jin, Yue and Li, Qianruo and Li, Xin and Li, Zuojun and Lin, Jiawei and Liu, Tong and Liu, Zhigang and Tan, Jiazhan and Wang, Huaqiang and Wang, Huizhe and Wang, Kaifan and Zhang, Chuanqi and Zhang, Fawang and Zhang, Linjuan and Zhang, Zifei and Zhao, Yangyang and Zhou, Yaoyang and Zhou, Yike and Zou, Jiangrui and Cai, Ye and Huan, Dandan and Li, Zusong and Zhao, Jiye and Chen, Zihao and He, Wei and Quan, Qiyuan and Liu, Xingwu and Wang, Sa and Shi, Kan and Sun, Ninghui and Bao, Yungang},
+  author={Xu, Yinan and Yu, Zihao and Tang, Dan and Chen, Guokai and Chen, Lu and Gou, Lingrui and Jin, Yue and Li, Qianruo and Li, Xin and Li, Zuojun and Lin, Jiawei and Liu, Tong and Liu, Zhigang and Tan, Jiazhan and Wang,
+  Huaqiang and Wang, Huizhe and Wang, Kaifan and Zhang, Chuanqi and Zhang, Fawang and Zhang, Linjuan and Zhang, Zifei and Zhao, Yangyang and Zhou, Yaoyang and Zhou, Yike and Zou, Jiangrui and Cai, Ye and Huan, Dandan and Li,
+  Zusong and Zhao, Jiye and Chen, Zihao and He, Wei and Quan, Qiyuan and Liu, Xingwu and Wang, Sa and Shi, Kan and Sun, Ninghui and Bao, Yungang},
   booktitle={Proceedings of the   55th IEEE/ACM International Symposium on Microarchitecture (MICRO)},
   title={Towards Developing High Performance RISC-V Processors Using Agile Methodology},
-  year={2022},
-  volume={},
-  number={},
-  pages={1178-1199},
-  doi={10.1109/MICRO56248.2022.00080}
+  year={2022}, 
+  pages={1178-1199}
   }
 
 @MISC{CIRCT,
   title =        {CIRCT project},
+  year={2022},
   howpublished = {\url{https://circt.llvm.org}}
 }
 @MISC{NutShell,
@@ -1965,19 +1965,22 @@ address      = {Berlin},
 @MISC{SiFive,
   author ={{SiFive}},
   title =        {{SiFive Core IP portfolio}},
+  year      = {2022},
   howpublished = {\url{https://www.sifive.com/risc-v-core-ip}}
 }
 
 @MISC{EdgeTPU,
   author ={{Google}},
   title =        {{Edge TPU}},
+  year      = {2022},
   howpublished = {\url{https://cloud.google.com/edge-tpu/}}
 }
 
 @MISC{FIRRTLissures,
   author ={{CHIPS Alliance}},
   title =        {{Issues of FIRRTL}},
-  howpublished = {\url{https://github.com/chipsalliance/firrtl/issues}}
+  howpublished = {\url{https://github.com/chipsalliance/firrtl/issues}},
+  year      = {2022}
 }
 
 @article{ChoiACM17,
@@ -1998,27 +2001,29 @@ address      = {Berlin},
   author    = {Nick Benton and
                Nicolas Tabareau},
   title     = {Compiling functional types to relational specifications for low level imperative code},
-  booktitle = {Proceedings of TLDI'09: 2009 {ACM} {SIGPLAN} International Workshop on Types in Languages Design and Implementation, Savannah, GA, USA, January 24, 2009},
+  booktitle = {Proceedings of the 2009 {ACM} {SIGPLAN} International Workshop on Types in Languages Design and Implementation},
   pages     = {3--14},
   year      = {2009}
 }
 
 @inproceedings{Chlipala10,
-author = {Chlipala, Adam},
-title = {A Verified Compiler for an Impure Functional Language},
-booktitle = {Proceedings of the 37th Annual ACM SIGPLAN-SIGACT Symposium on Principles of Programming Languages},
-pages = {93–106},
-year = {2010}
+  author    = {Adam Chlipala},
+  title     = {A verified compiler for an impure functional language},
+  booktitle = {Proceedings of the 37th {ACM} {SIGPLAN-SIGACT} Symposium on Principles
+               of Programming Languages ({POPL})},
+  pages     = {93--106},
+  year      = {2010},
+  doi       = {10.1145/1706299.1706312}
 }
-
 @article{Chlipala07,
-author = {Chlipala, Adam},
-title = {A Certified Type-Preserving Compiler from Lambda Calculus to Assembly Language},
-journal = {SIGPLAN Not.},
-volume = {42},
-number = {6},
-pages = {54–65},
-year = {2007}
+  author    = {Adam Chlipala},
+  title     = {A certified type-preserving compiler from lambda calculus to assembly
+               language},
+  booktitle = {Proceedings of the {ACM} {SIGPLAN} 2007 Conference on Programming
+               Language Design and Implementation (PLDI)},
+  pages     = {54--65},
+  year      = {2007},
+  doi       = {10.1145/1250734.1250742}
 }
 
 @InProceedings{Appel11,
@@ -2026,11 +2031,9 @@ year = {2007}
   editor    = {Alwyn Goodloe and
                Suzette Person},
   title     = {Verified Software Toolchain},
-  booktitle = {{NASA} Formal Methods - 4th International Symposium, {NFM} 2012, Norfolk, VA, USA, April 3-5, 2012. Proceedings},
-  series    = {Lecture Notes in Computer Science},
+  booktitle = {Proceedings of the 4th International Symposium on {NASA} Formal Methods},
   volume    = {7226},
   pages     = {2},
-  publisher = {Springer},
   year      = {2012}
 }
 
@@ -2040,14 +2043,9 @@ year = {2007}
                Andrew W. Appel},
   editor    = {Andrew D. Gordon},
   title     = {Formal Verification of Coalescing Graph-Coloring Register Allocation},
-  booktitle = {Programming Languages and Systems, 19th European Symposium on Programming,
-               {ESOP} 2010, Held as Part of the Joint European Conferences on Theory
-               and Practice of Software, {ETAPS} 2010, Paphos, Cyprus, March 20-28,
-               2010. Proceedings},
-  series    = {Lecture Notes in Computer Science},
+  booktitle = {Proceedings of the 19th European Symposium on Programming on Programming Languages and Systems ({ESOP})},
   volume    = {6012},
   pages     = {145--164},
-  publisher = {Springer},
   year      = {2010}
 }
 
@@ -2089,12 +2087,9 @@ author    = {Thomas Braibant},
   editor    = {Jean{-}Pierre Jouannaud and
                Zhong Shao},
   title     = {Coquet: {A} Coq Library for Verifying Hardware},
-  booktitle = {Certified Programs and Proofs - First International Conference, {CPP}
-               2011, Kenting, Taiwan, December 7-9, 2011. Proceedings},
-  series    = {Lecture Notes in Computer Science},
+  booktitle = {Proceedings of the 1st International Conference on Certified Programs and Proofs ({CPP})},
   volume    = {7086},
   pages     = {330--345},
-  publisher = {Springer},
   year      = {2011}
 }
 
@@ -2104,12 +2099,9 @@ author    = {Thomas Braibant},
   editor    = {Natasha Sharygina and
                Helmut Veith},
   title     = {Formal Verification of Hardware Synthesis},
-  booktitle = {Computer Aided Verification - 25th International Conference, {CAV}
-               2013, Saint Petersburg, Russia, July 13-19, 2013. Proceedings},
-  series    = {Lecture Notes in Computer Science},
+  booktitle = {Proceedings of the 25th International Conference on Computer Aided Verification ({CAV})},
   volume    = {8044},
   pages     = {213--228},
-  publisher = {Springer},
   year      = {2013}
 }
 
@@ -2130,8 +2122,7 @@ author    = {Thomas Braibant},
                Yorick Sijsling},
   editor    = {Tarmo Uustalu},
   title     = {Pi-Ware: Hardware Description and Verification in Agda},
-  booktitle = {21st International Conference on Types for Proofs and Programs, {TYPES}
-               2015, May 18-21, 2015, Tallinn, Estonia},
+  booktitle = {Proceedings of the 21st International Conference on Types for Proofs and Programs ({TYPES})},
   pages     = {9:1--9:27},
   year      = {2015}
 }
@@ -2167,9 +2158,8 @@ author    = {Thomas Braibant},
                Nancy A. Day and
                Matteo Rossi},
   title     = {A proof-producing translator for verilog development in {HOL}},
-  booktitle = {Proceedings of the 7th International Workshop on Formal Methods in Software Engineering, FormaliSE@ICSE 2019, Montreal, QC, Canada, May 27, 2019},
+  booktitle = {Proceedings of the 7th International Workshop on Formal Methods in Software Engineering},
   pages     = {99--108},
-  publisher = {{IEEE} / {ACM}},
   year      = {2019}
 }
 
@@ -2177,14 +2167,11 @@ author    = {Thomas Braibant},
   author    = {Wilayat Khan and
                Alwen Tiu and
                David San{\'{a}}n},
-  editor    = {Abhik Roychoudhury and
-               Yang Liu},
   title     = {VeriFormal: An Executable Formal Model of a Hardware Description Language},
-  booktitle = {A Systems Approach to Cyber Security - Proceedings of the 2nd Singapore Cyber-Security R{\&}D Conference {(SG-CRC} 2017), Singapore, February 21-22, 2017},
+  booktitle = {Proceedings of the 2nd Singapore Cyber-Security R{\&}D Conference {(SG-CRC)}},
   series    = {Cryptology and Information Security Series},
   volume    = {15},
   pages     = {19--36},
-  publisher = {{IOS} Press},
   year      = {2017}
 }
 
@@ -2192,9 +2179,8 @@ author    = {Thomas Braibant},
   author    = {William L. Harrison and
                Gerard Allwein},
   title     = {Verifiable Security Templates for Hardware},
-  booktitle = {2020 Design, Automation {\&} Test in Europe Conference {\&}
-               Exhibition, {DATE} 2020, Grenoble, France, March 9-13, 2020},
+  booktitle = {Proceedings of the 2020 Design, Automation {\&} Test in Europe Conference {\&}
+               Exhibition ({DATE})},
   pages     = {658--661},
-  publisher = {{IEEE}},
   year      = {2020}
   }
