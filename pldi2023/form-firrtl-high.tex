@@ -1,3 +1,46 @@
 %!TEX root = main.tex
 
-formalization of high firrtl
+In this section, we describe the main ideas used in the formalization of HiFIRRTL.
+
+Let us focus on a HiFIRRTL module, say $M$.
+
+A structure called circuit diagram is used in the formalization to represent HiFIRRTL programs.
+
+\begin{definition}
+A \emph{circuit diagram} $D$ is a triple $(ss, ce, cm)$, where $ss$ is a sequence of statements, $ce$ is a component environment that maps each component to its type, and $cm$ is a connect mapping that maps each component to an expression that is connected to it. 
+\end{definition}
+
+A HiFIRRTL module $M$ will be first transformed into a circuit diagram $D_M = (ss, ce, cm)$, where $ss$ is the sequence of statements in $M$, $ce$ is the component environment obtained from the variable declarations in $M$, possibly with the types of some variables missing or partial, and $cm$ is the trivial mapping that maps each component to $\bot$ (Intuitively, this means that the connects of the components have not be determined yet). The missing or partial  types in $ce$ will be completed by the compilation passes during the transformation of $M$ into a LoFIRRTL module. Moreover, the connect mapping $cm$ will be updated by the ExpandWhens compilation pass. Furthermore, the statement sequence $ss$ will be updated by ExpandConnects, ExpandWhens, LowerTypes, and RemoveReset, while they keep unchanged during the other compilation passes.  
+
+The formal semantics of HiFIRRTL will be defined by the axiomatic semantics of the compilation passes, plus the operational semantics of LoFIRRTL.
+%InferTypes, InferWidths, InferResets, ExpandConnects, ExpandWhens, LowerTypes, and RemoveReset.  
+%
+More precisely, the axiomatic semantics of each compilation pass $\pi$ will be specified by a formula $\varphi_{\pi}(\cdots)$, and 
+%Note that the sequence of statements in $ss$ will keep unchanged in the compilation passes.
+%
+%ce1 = φ_InferType(ss) /\
+%ce2 = φ_InferWidth(ss, ce1) /\
+%ce3 = φ_InferReset(ss, ce2) /\
+%(ss1, ce4) = φ_ExpandConnect(ss, ce3) /\
+%(ss2, cm) = φ_ExpandWhen(ss1, ce4) /\
+%(ss3, ce5, cm1) = φ_LowerTypes(ss2, ce4, cm) /\
+%(ss4, ce6, cm2) = φ_RemoveResets(ss3, ce5, cm1)
+the semantics of $M$ is defined by the formula
+\[
+\begin{array}{l c l}
+\varphi_M & \eqdef & \varphi_{ResolveKinds}(ss, ce_1)  \wedge  \varphi_{InferTypes}(ss, ce_1, ce_2)\ \wedge \\
+&& \varphi_{InferWidths}(ss, ce_2, ce_3) \wedge  \varphi_{InferResets}(ss, ce_3, ce_4)\ \wedge \\
+&& \varphi_{ExpandConnects}(ss, ce_4, ss_1, ce_5) \wedge \varphi_{ExpandWhens}(ss_1, ce_5, ss_2, cm)\ \wedge \\
+&& \varphi_{LowerTypes}(ss_2, ce_5, cm, ss_3, ce_6, cm_1) \wedge  \varphi_{RemoveReset}(ss_3, ce_6, cm_1, ss_4, ce_7, cm_2).
+\end{array}
+\]
+Note that each formula $\varphi_{\pi}$ actually specifies the graph of a function. For instance, the formula $\varphi_{InferWidths}(ss, ce_2, ce_3)$ specifies a function that takes $ss$ and $ce_2$ as inputs and has $ce_3$ as the ouput.  The final output $ss_4$ is actually a sequence of statements already in LoFIRRTL form, whose operational semantics has been defined in Section~\ref{sec-lofirrtl-sem}.
+
+In the sequel, we shall illustrate the definition of the semantics of compilation passes by describing $\varphi_{InferWidth}$ and $\varphi_{ExpandWhen}$. The semantics of the other compilation passes can be found in Appendix~\ref{sec-appen-sem-cpass}.  
+
+%Let us fix $ss = (s_1, \cdots, s_n)$ in the sequel.
+
+
+$\varphi_{InferWidths}$
+
+$\varphi_{ExpandWhens}$

@@ -78,20 +78,13 @@ statements
 statement
   : STM_SKIP
 	                                    { Sskip }
-  | STM_WHEN expr KEYWORD statement STM_ELSE KEYWORD statement
-                                            { Swhen ($2, $4, $7) }
   | expr STM_CONNECT expr
                                             { Sfcnct ( $1, $3) }
-  | expr STM_PCONNECT expr
-                                            { Spcnct ( $1, $3) } 
   | STM_WIRE symbol KEYWORD typ_def 
                                             { Swire ($2, $4) }
   | STM_NODE symbol STM_NASS expr           { Snode ($2, $4) }
-  | STM_INST symbol KEYWORD_OF symbol           { Sinst ($2, $4) }
   | STM_REG symbol KEYWORD typ_def SPRT expr REG_WITH KEYWORD REG_RST REG_RSTARR PAR_OPEN expr SPRT expr PAR_CLOSE
                                             { Sreg (mk_freg $2 $4 $6 $12 $14) }
-  | STM_DEFNAME STM_NASS symbol            { Sdefname ($3) }
-  | STM_PARAM symbol STM_NASS expr              { Sparam ($2, $4) }
   | symbol STM_INVALID                { Sinvalid ($1) }
   | STM_MEM symbol KEYWORD STM_DATATYPE REG_RSTARR typ_def STM_DEPTH REG_RSTARR numeral STM_READ_L REG_RSTARR numeral STM_WRITE_L REG_RSTARR numeral STM_READ REG_RSTARR symbols STM_WRITE REG_RSTARR symbols STM_READWRITE REG_RSTARR ruw
                                            { Smem (mk_fmem $2 $6 $9 $12 $15 $18 $21 $24)}
@@ -161,9 +154,9 @@ expr
     | EXPR_TAIL PAR_OPEN expr SPRT numeral PAR_CLOSE
                                             { Eprim_unop (Utail ($5), $3)}
     | EXPR_HEAD PAR_OPEN expr SPRT numeral PAR_CLOSE
-                                            { Eprim_unop ( Uhead ($5), $3)}
+                                            { Eprim_unop (Uhead ($5), $3)}
     | EXPR_PAD PAR_OPEN expr SPRT numeral PAR_CLOSE
-                                            { Eprim_unop ( Uhead ($5), $3)}
+                                            { Eprim_unop ( Upad ($5), $3)}
     | EXPR_SHL PAR_OPEN expr SPRT numeral PAR_CLOSE
                                             { Eprim_unop ( Ushl ($5), $3)}
     | EXPR_SHR PAR_OPEN expr SPRT numeral PAR_CLOSE
