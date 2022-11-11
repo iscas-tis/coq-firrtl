@@ -50,14 +50,21 @@ Section HiFirrtl.
 
   (****** Statements ******)
 
+  Record mem_port : Type :=
+    mk_mem_port
+      {
+        addr : var;
+        en : var;
+        clk : var
+      }.
+  
   Record hfmem : Type :=
     mk_fmem
       {
-        (* mid : var; *)
         data_type : ftype;
         depth : nat;
-        reader : seq var;
-        writer : seq var;
+        reader : seq mem_port;
+        writer : seq mem_port;
         read_latency : nat;
         write_latency : nat;
         read_write : ruw
@@ -88,7 +95,7 @@ Section HiFirrtl.
   | Sinvalid : href -> hfstmt
   (* | Sattach : seq var -> fstmt *)
   | Swhen : hfexpr -> hfstmt_seq -> hfstmt_seq -> hfstmt
-  | Sstop : hfexpr -> hfexpr -> nat -> hfstmt
+  (* | Sstop : hfexpr -> hfexpr -> nat -> hfstmt *)
   (* | Sprintf (* TBD *) *)
   (* | Sassert (* TBD *) *)
   (* | Sassume (* TBD *) *)
@@ -494,7 +501,7 @@ Module MakeHiFirrtl
   Definition spcnct v1 v2 := @Spcnct V.T v1 v2.
   Definition sinvalid v1 := @Sinvalid V.T v1.
   Definition swhen c s1 s2 := @Swhen V.T c s1 s2.
-  Definition sstop e1 e2 n := @Sstop V.T e1 e2 n.
+  (* Definition sstop e1 e2 n := @Sstop V.T e1 e2 n. *)
   Definition sinst v1 v2 := @Sinst V.T v1 v2.
 
   Definition hfreg := @hfreg V.T.
@@ -723,8 +730,8 @@ Module MakeHiFirrtl
       resolveKinds_stmt (spcnct r e) ce ce
   | Resolve_when e s1 s2 ce :
       resolveKinds_stmt (swhen e s1 s2) ce ce
-  | Resolve_stop e1 e2 n ce :
-      resolveKinds_stmt (sstop e1 e2 n) ce ce
+  (* | Resolve_stop e1 e2 n ce : *)
+  (*     resolveKinds_stmt (sstop e1 e2 n) ce ce *)
   .
 
   Inductive resolveKinds_stmts : hfstmt_seq -> cenv -> cenv -> Prop :=
@@ -870,12 +877,12 @@ Proof.
   intros. apply Resolve_when.
 Qed.
 
-Lemma resolveKinds_sstop_sem_conform :
-forall e1 e2 n ce0 ,
-  resolveKinds_stmt (sstop e1 e2 n) ce0 (resolveKinds_stmt_fun (sstop e1 e2 n) ce0).
-Proof.
-  intros. apply Resolve_stop.
-Qed.
+(* Lemma resolveKinds_sstop_sem_conform : *)
+(* forall e1 e2 n ce0 , *)
+(*   resolveKinds_stmt (sstop e1 e2 n) ce0 (resolveKinds_stmt_fun (sstop e1 e2 n) ce0). *)
+(* Proof. *)
+(*   intros. apply Resolve_stop. *)
+(* Qed. *)
 
 Lemma resolveKinds_swire_sem_conform :
   forall v e ce0 ,
@@ -912,7 +919,7 @@ Proof.
   - apply resolveKinds_spcnct_sem_conform.
   - apply resolveKinds_sinvalid_sem_conform.
   - apply resolveKinds_swhen_sem_conform.
-  - apply resolveKinds_sstop_sem_conform.
+  (* - apply resolveKinds_sstop_sem_conform. *)
   rewrite /=.
   apply (H (resolveKinds_stmt_fun h ce0)).
   Qed.
@@ -1173,16 +1180,14 @@ Proof.
                                 | Gtyp (Fsint w1) , Gtyp (Fsint w2) => Gtyp (Fsint (w1 + w2))
                                 | _, _ => def_ftype
                                 end
-    | Eprim_binop Bdiv e1 e2
-    | Eprim_binop Bsdiv e1 e2 => let t1 := type_of_hfexpr e1 ce in
+    | Eprim_binop Bdiv e1 e2  => let t1 := type_of_hfexpr e1 ce in
                                  let t2 := type_of_hfexpr e2 ce in
                                  match t1, t2 with
                                  | Gtyp (Fuint w1), Gtyp (Fuint w2) => Gtyp (Fuint w1)
                                  | Gtyp (Fsint w1), Gtyp (Fsint w2) => Gtyp (Fsint (w1 + 1))
                                  | _, _ => def_ftype
                                  end
-    | Eprim_binop Brem e1 e2
-    | Eprim_binop Bsrem e1 e2 => let t1 := type_of_hfexpr e1 ce in
+    | Eprim_binop Brem e1 e2 => let t1 := type_of_hfexpr e1 ce in
                                  let t2 := type_of_hfexpr e2 ce in
                                  match t1, t2 with
                                  | Gtyp (Fuint w1), Gtyp (Fuint w2) => Gtyp (Fuint (minn w1 w2))
@@ -1287,8 +1292,8 @@ Proof.
       inferType_stmt (sskip) ce ce
   | Infertype_swhen e s1 s2 ce :
       inferType_stmt (swhen e s1 s2) ce ce
-  | Infertype_sstop e1 e2 n ce :
-      inferType_stmt (sstop e1 e2 n) ce ce
+  (* | Infertype_sstop e1 e2 n ce : *)
+  (*     inferType_stmt (sstop e1 e2 n) ce ce *)
   .
 
    Definition find_unknown r (ce : cenv) :=
@@ -1374,7 +1379,7 @@ Proof.
     | Sfcnct _ _
     | Spcnct _ _
     | Sinvalid _
-    | Sstop _ _ _
+    (* | Sstop _ _ _ *)
     | Sskip => ce
     end.
 
@@ -1387,7 +1392,7 @@ Proof.
   Definition is_init (s : hfstmt) : bool :=
      match s with
      | Spcnct _ _ | Sfcnct _ _ | Sinvalid _ | Swhen _ _ _
-     | Sstop _ _ _ | Sskip => false
+     (* | Sstop _ _ _  *)| Sskip => false
      | _ => true
      end.
 
@@ -1575,12 +1580,12 @@ Proof.
     intros. apply Infertype_swhen.
   Qed.
 
-  Lemma inferType_sstop_sem_conform :
-  forall ce0 e1 e2 n,
-      inferType_stmt (Sstop e1 e2 n) ce0 (inferType_stmt_fun (Sstop e1 e2 n) ce0).
-  Proof.
-    intros. apply Infertype_sstop.
-  Qed.
+  (* Lemma inferType_sstop_sem_conform : *)
+  (* forall ce0 e1 e2 n, *)
+  (*     inferType_stmt (Sstop e1 e2 n) ce0 (inferType_stmt_fun (Sstop e1 e2 n) ce0). *)
+  (* Proof. *)
+  (*   intros. apply Infertype_sstop. *)
+  (* Qed. *)
 
   Lemma inferType_sskip_sem_conform :
   forall ce0 ,
@@ -1641,7 +1646,7 @@ Proof.
       rewrite Hf in Hni; discriminate.
     - apply inferType_sinvalid_sem_conform.
     - apply inferType_swhen_sem_conform.
-    - apply inferType_sstop_sem_conform.
+    (* - apply inferType_sstop_sem_conform. *)
     rewrite/=.
     exact : (H (inferType_stmt_fun h ce0) ). 
   Qed.
@@ -2112,13 +2117,13 @@ Qed.
        CE.find v wm1 = CE.find v wm2 /\
        CE.find v ce1 = CE.find v ce2) ->
        inferWidth_sstmt_sem (sskip) wm1 wm2 ce1 ce2
-   | inferWidth_sstop wm1 wm2 ce1 ce2 ss1 ss2 n :
-       (forall v t c ,
-       CE.find v ce1 = Some (t, c) ->
-       CE.find v wm1 = Some (type_of_cmpnttyp t) ->
-       CE.find v wm1 = CE.find v wm2 /\
-       CE.find v ce1 = CE.find v ce2) ->
-       inferWidth_sstmt_sem (sstop ss1 ss2 n) wm1 wm2 ce1 ce2
+   (* | inferWidth_sstop wm1 wm2 ce1 ce2 ss1 ss2 n : *)
+   (*     (forall v t c , *)
+   (*     CE.find v ce1 = Some (t, c) -> *)
+   (*     CE.find v wm1 = Some (type_of_cmpnttyp t) -> *)
+   (*     CE.find v wm1 = CE.find v wm2 /\ *)
+   (*     CE.find v ce1 = CE.find v ce2) -> *)
+   (*     inferWidth_sstmt_sem (sstop ss1 ss2 n) wm1 wm2 ce1 ce2 *)
    | inferWidth_sinvalid wm1 wm2 ce1 ce2 :
        forall v, (forall t c,
          CE.find (base_ref v) ce1 = Some (t, c) ->
@@ -3081,26 +3086,26 @@ Qed.
      case h; intros; rewrite //.
    Qed.
 
-   Lemma inferWidth_sstop_sem_conform :
-     forall wm1 wm2 ce1 ce2 ss1 ss2 n,
-       wm2 = inferWidth_wmap0 (sstop ss1 ss2 n) ce1 wm1 ->
-       ce2 = wmap_map2_cenv wm2 ce1 ->
-       inferWidth_sstmt_sem (sstop ss1 ss2 n) wm1 wm2 ce1 ce2.
-   Proof.
-     move => wm1 wm2 ce1 ce2 ss1 ss2 n H H1. rewrite /= in H.
-     apply inferWidth_sstop. intros.
-     rewrite H1 H.
-     have Hnone : (add_width_2_cenv None None = None) by done.
-     rewrite /wmap_map2_cenv (CELemmas.map2_1bis _ _ _ Hnone).
-     rewrite H0 H2.
-     split. done.
-     case t; rewrite /=; intros; try done.
-     case (is_deftyp f); done.
-     case (is_deftyp (type h)); try done.
-     case h; intros; rewrite /=//.
-     case (is_deftyp (data_type h)); try done.
-     case h; intros; rewrite //.
-   Qed.
+   (* Lemma inferWidth_sstop_sem_conform : *)
+   (*   forall wm1 wm2 ce1 ce2 ss1 ss2 n, *)
+   (*     wm2 = inferWidth_wmap0 (sstop ss1 ss2 n) ce1 wm1 -> *)
+   (*     ce2 = wmap_map2_cenv wm2 ce1 -> *)
+   (*     inferWidth_sstmt_sem (sstop ss1 ss2 n) wm1 wm2 ce1 ce2. *)
+   (* Proof. *)
+   (*   move => wm1 wm2 ce1 ce2 ss1 ss2 n H H1. rewrite /= in H. *)
+   (*   apply inferWidth_sstop. intros. *)
+   (*   rewrite H1 H. *)
+   (*   have Hnone : (add_width_2_cenv None None = None) by done. *)
+   (*   rewrite /wmap_map2_cenv (CELemmas.map2_1bis _ _ _ Hnone). *)
+   (*   rewrite H0 H2. *)
+   (*   split. done. *)
+   (*   case t; rewrite /=; intros; try done. *)
+   (*   case (is_deftyp f); done. *)
+   (*   case (is_deftyp (type h)); try done. *)
+   (*   case h; intros; rewrite /=//. *)
+   (*   case (is_deftyp (data_type h)); try done. *)
+   (*   case h; intros; rewrite //. *)
+   (* Qed. *)
 
    Lemma inferWidth_sinvalid_sem_conform :
      forall wm1 wm2 ce1 ce2 v,
@@ -3214,7 +3219,7 @@ Qed.
    Definition is_inital (s : hfstmt) : bool :=
      match s with
      | Spcnct _ _ | Sfcnct _ _ | Sinvalid _ | Swhen _ _ _
-     | Sstop _ _ _ | Sskip => false
+     (* | Sstop _ _ _  *)| Sskip => false
      | _ => true
      end.
 
@@ -3355,10 +3360,10 @@ Qed.
        (* rewrite /wmap_map2_cenv (CELemmas.map2_1bis _ _ _ Hnone) Hbrs1. *)
        (* move : (inferType_stmts_hd Hit) => Hits. *)
        (* inversion Hits; subst.  *)
-       + (*stop*)
-         intros.
-         move : (Hec (r) (aggr_typ def_ftype, Node) (* (Sstop h h0 n) *)) => [Hbrs1 [Hbrt [Hi[Hdt [Hndt [Hun Hit]]]]]].
-         rewrite //.
+       (* + (*stop*) *)
+       (*   intros. *)
+       (*   move : (Hec (r) (aggr_typ def_ftype, Node) (* (Sstop h h0 n) *)) => [Hbrs1 [Hbrt [Hi[Hdt [Hndt [Hun Hit]]]]]]. *)
+       (*   rewrite //. *)
          (* rewrite /= in Hiw; rewrite /= in Hbrs; rewrite /= in Hbrt. *)
          (* apply inferWidth_sstop with v; try rewrite //. *)
          (* rewrite Hiw//. *)
@@ -3713,7 +3718,7 @@ Admitted.
      | Spcnct r e => inferReset_rmap ce (let te := type_of_hfexpr e ce in
                                          add_ref_rmap r te ce m) sss
      | Sskip
-     | Sstop _ _ _ => inferReset_rmap ce m sss
+     (* | Sstop _ _ _*) => inferReset_rmap ce m sss
      | Swhen c s1 s2 => inferReset_rmap ce (inferReset_rmap ce (inferReset_rmap ce m s1) s2) sss
      end
    end.
@@ -4064,7 +4069,7 @@ Admitted.
                  | @Spcnct _ _ _ (* should not appear -- ignore *)
                  | @Sskip _
                  | @Sinvalid _ _
-                 | @Sstop _ _ _ _ => expandBranch_fun sss ce cs (* no translation needed *)
+                 (* | @Sstop _ _ _ _*) => expandBranch_fun sss ce cs (* no translation needed *)
                  | @Snode _ v e => let result := expandBranch_fun sss ce cs (* (SV.upd v (r_fexpr e) cs) *) in
                                 (Qcons s (fst result), snd result)
                  | @Sreg _ v r => let result := expandBranch_fun sss ce (SV.upd v (r_fexpr (Eref (eid v))) cs) in
@@ -4396,16 +4401,16 @@ Admitted.
    unfold map2_helper_cs_tf.
    apply eq_refl.
    (* subcase Qcons (Sstop _ _ _) _ *)
-   unfold expandBranch_vars_sem, expandBranch_fun.
-   fold expandBranch_fun.
-   unfold expandBranch_one_var_sem.
-   fold expandBranch_one_var_sem.
-   unfold expandBranch_vars_sem in H0.
-   apply H0.
-   unfold expandWhen_precondition_ss in H1.
-   fold expandWhen_precondition_ss in H1.
-   exact H1.
-   exact H2.
+   (* unfold expandBranch_vars_sem, expandBranch_fun. *)
+   (* fold expandBranch_fun. *)
+   (* unfold expandBranch_one_var_sem. *)
+   (* fold expandBranch_one_var_sem. *)
+   (* unfold expandBranch_vars_sem in H0. *)
+   (* apply H0. *)
+   (* unfold expandWhen_precondition_ss in H1. *)
+   (* fold expandWhen_precondition_ss in H1. *)
+   (* exact H1. *)
+   (* exact H2. *)
    (* case Sskip *)
    move => //.
    (* case Swire _ _ *)
@@ -4427,7 +4432,7 @@ Admitted.
    (* case Swhen _ _ _ *)
    move => //.
    (* case Sstop _ _ _ *)
-   move => //.
+   (* move => //. *)
    Qed.
 
 
