@@ -617,9 +617,9 @@ Section Lemmas.
   Proof.
     case Hmhd : mhd; last done. move => Hgt0.
     rewrite to_nat_dropmsb to_nat_joinlsb size_joinlsb addn1/=. 
-    move : (odd_exp 2 (size r)). have {2}->: 2 = 1.*2 by done. rewrite odd_double orbF.
+    move : (oddX 2 (size r)). have {2}->: 2 = 1.*2 by done. rewrite odd_double orbF.
     rewrite lt0n in Hgt0. rewrite (negbTE Hgt0). move => Hoddf.
-    move :(odd_mod ((to_nat r).*2 + 1) Hoddf). rewrite odd_add odd_double /=.
+    move :(odd_mod ((to_nat r).*2 + 1) Hoddf). rewrite oddD odd_double /=.
     move => Hoddt Htonat0. by rewrite Htonat0 in Hoddt. 
   Qed.
 
@@ -650,7 +650,7 @@ Section Lemmas.
   Proof.
     elim; first by rewrite/lsb/splitlsb/=.
     move => a l IH.
-    rewrite/lsb/=odd_add odd_double-negb_eqb. case Ha : a; done.
+    rewrite/lsb/=oddD odd_double-negb_eqb. case Ha : a; done.
   Qed.  
 
   Lemma to_nat_gt0_size : forall bs, 0 < to_nat bs -> 0 < size bs.
@@ -1640,7 +1640,7 @@ Section Lemmas.
   Lemma shrB_add bs i j :
     shrB i (shrB j bs) = shrB (i + j) bs .
   Proof .
-      by rewrite /shrB iter_add .
+      by rewrite /shrB iterD .
   Qed .
 
   Lemma msb_shrB1 bs : msb (shrB1 bs) = b0.
@@ -1770,7 +1770,7 @@ Section Lemmas.
   Lemma sarB_add bs i j :
     sarB i (sarB j bs) = sarB (i + j) bs .
   Proof .
-      by rewrite /sarB iter_add .
+      by rewrite /sarB iterD .
   Qed .
 
   Lemma msb_sarB1 bs : msb (sarB1 bs) = msb bs.
@@ -1921,7 +1921,7 @@ Section Lemmas.
   Lemma shlB_add bs i j :
     shlB i (shlB j bs) = shlB (i + j) bs .
   Proof .
-      by rewrite /shlB iter_add .
+      by rewrite /shlB iterD .
   Qed .
 
   Lemma shlB_dropmsb n (p: bits) : shlB n (dropmsb p) = dropmsb (shlB n p).
@@ -3065,18 +3065,18 @@ Section Lemmas.
     - move : c. elim p2 => [|phd2 ptl2 IH2] c/=; first done.
       move :(IH1 ptl2 c). rewrite/adcB/full_adder/=/bool_adder.
       case Hc : c; case Hphd1 : phd1; case Hphd2: phd2; move => Hfazt; case Hfadderzt : (full_adder_zip true (zip ptl1 ptl2)) =>[c0 tl0]; case Hfadderzf : (full_adder_zip false (zip ptl1 ptl2)) =>[c1 tl1]; try (rewrite Hfadderzt/= in Hfazt; rewrite Hfazt/=).
-      + rewrite!odd_add!odd_double/= size_from_nat-divn2 divnDl; last by rewrite dvdn2 odd_double.
+      + rewrite!oddD!odd_double/= size_from_nat-divn2 divnDl; last by rewrite dvdn2 odd_double.
         rewrite -2!muln2!(mulnK _ (ltn0Sn 1)) divnDr;[ by rewrite (divn_small (ltnSn 1)) add0n (mulnK _ (ltn0Sn 1)) add1n addSn |by rewrite div.dvdn_mull]. 
-      + rewrite add0n odd_add!odd_double/=size_from_nat-div.divn2 div.divnDr; last by rewrite div.dvdn2 odd_double. by rewrite-2!muln2!(div.mulnK _ (ltn0Sn 1)) add1n addSn. 
-      + rewrite add0n uphalf_half!odd_add!odd_double/=size_from_nat-div.divn2 div.divnDl; last by rewrite div.dvdn2 odd_double. rewrite div.divnDr; last by rewrite div.dvdn2 odd_double. rewrite-!muln2!(div.mulnK _ (ltn0Sn 1))div.divn_small; last done. by rewrite add0n addnA. 
-      + rewrite-!muln2!add0n-/joinlsb size_joinlsb addn1-from_nat_dhalf-addnA-mulnDl-div.divn2 div.divnDr; last by rewrite div.dvdn2 muln2 odd_double. rewrite div.divn_small; last done. rewrite (div.mulnK _ (ltn0Sn 1)) add0n odd_add muln2 odd_double/=.
+      + rewrite add0n oddD!odd_double/=size_from_nat-div.divn2 div.divnDr; last by rewrite div.dvdn2 odd_double. by rewrite-2!muln2!(div.mulnK _ (ltn0Sn 1)) add1n addSn. 
+      + rewrite add0n uphalf_half!oddD!odd_double/=size_from_nat-div.divn2 div.divnDl; last by rewrite div.dvdn2 odd_double. rewrite div.divnDr; last by rewrite div.dvdn2 odd_double. rewrite-!muln2!(div.mulnK _ (ltn0Sn 1))div.divn_small; last done. by rewrite add0n addnA. 
+      + rewrite-!muln2!add0n-/joinlsb size_joinlsb addn1-from_nat_dhalf-addnA-mulnDl-div.divn2 div.divnDr; last by rewrite div.dvdn2 muln2 odd_double. rewrite div.divn_small; last done. rewrite (div.mulnK _ (ltn0Sn 1)) add0n oddD muln2 odd_double/=.
         move: (IH1 ptl2 false); rewrite/adcB/full_adder Hfadderzf/=add0n. move=>Hfazf; by rewrite Hfazf/=size_from_nat.
-      + rewrite!add0n-/joinlsb size_joinlsb addn1-from_nat_dhalf!odd_add!odd_double-div.divn2 addnACA div.divnDl; last by rewrite div.dvdn2. rewrite div.divnn/=div.divnDr; last by rewrite div.dvdn2 odd_double.
+      + rewrite!add0n-/joinlsb size_joinlsb addn1-from_nat_dhalf!oddD!odd_double-div.divn2 addnACA div.divnDl; last by rewrite div.dvdn2. rewrite div.divnn/=div.divnDr; last by rewrite div.dvdn2 odd_double.
         rewrite-2!muln2!div.mulnK; try done. move : (IH1 ptl2 true); rewrite/adcB/full_adder Hfadderzt/=; move => Hfazf; by rewrite Hfazf size_from_nat addnA.
-      + rewrite!add0n-/joinlsb size_joinlsb addn1-from_nat_dhalf!odd_add!odd_double-div.divn2!div.divnDr; try by rewrite div.dvdn2 odd_double. rewrite-!muln2!div.mulnK; try done. rewrite div.divn_small/=; try done.
+      + rewrite!add0n-/joinlsb size_joinlsb addn1-from_nat_dhalf!oddD!odd_double-div.divn2!div.divnDr; try by rewrite div.dvdn2 odd_double. rewrite-!muln2!div.mulnK; try done. rewrite div.divn_small/=; try done.
         move: (IH1 ptl2 false); rewrite/adcB/full_adder size_full_adder_zip add0n Hfadderzf/=; move => Hfazf; by rewrite Hfazf size_from_nat.
-      + rewrite!add0n-/joinlsb size_joinlsb addn1-from_nat_dhalf!odd_add!odd_double-div.divn2 div.divnDl; last by rewrite div.dvdn2 odd_double. rewrite div.divnDr; last by rewrite div.dvdn2 odd_double. rewrite-!muln2!div.mulnK; try done. rewrite div.divn_small/=; try done. move : (IH1 ptl2 false); rewrite/adcB/full_adder Hfadderzf!add0n/=; move => Hfazf; by rewrite Hfazf size_from_nat.
-      + rewrite!add0n-/joinlsb size_joinlsb addn1-from_nat_dhalf odd_add!odd_double-div.divn2 div.divnDr; last by rewrite div.dvdn2 odd_double. rewrite-!muln2!div.mulnK; try done. move : (IH1 ptl2 false); rewrite/adcB/full_adder Hfadderzf add0n/=; move => Hfazf; by rewrite Hfazf size_from_nat.
+      + rewrite!add0n-/joinlsb size_joinlsb addn1-from_nat_dhalf!oddD!odd_double-div.divn2 div.divnDl; last by rewrite div.dvdn2 odd_double. rewrite div.divnDr; last by rewrite div.dvdn2 odd_double. rewrite-!muln2!div.mulnK; try done. rewrite div.divn_small/=; try done. move : (IH1 ptl2 false); rewrite/adcB/full_adder Hfadderzf!add0n/=; move => Hfazf; by rewrite Hfazf size_from_nat.
+      + rewrite!add0n-/joinlsb size_joinlsb addn1-from_nat_dhalf oddD!odd_double-div.divn2 div.divnDr; last by rewrite div.dvdn2 odd_double. rewrite-!muln2!div.mulnK; try done. move : (IH1 ptl2 false); rewrite/adcB/full_adder Hfadderzf add0n/=; move => Hfazf; by rewrite Hfazf size_from_nat.
   Qed.
 
   Corollary to_nat_adcB b p1 p2 : to_nat (adcB b p1 p2).2 = to_nat (from_nat (size (adcB b p1 p2).2) (b + to_nat p1 + to_nat p2)).

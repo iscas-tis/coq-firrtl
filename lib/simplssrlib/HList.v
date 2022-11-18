@@ -15,6 +15,7 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Import Prenex Implicits.
 
+Declare Scope hlist_scope.
 Delimit Scope hlist_scope with hlist.
 
 Reserved Notation "x '=i' y" (at level 70, no associativity).
@@ -38,7 +39,7 @@ Section HList.
   | Hnil : hlist nil
   | Hcons A E : T A -> hlist E -> hlist (A :: E).
 
-  Definition hnil : hlist [] := Hnil.
+  Definition hnil : hlist nil := Hnil.
 
 
 

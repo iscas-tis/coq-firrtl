@@ -163,6 +163,7 @@ Section Component_types.
   | Aggr_typ : ftype -> cmpnt_init_typs
   | Reg_typ : hfreg var -> cmpnt_init_typs
   | Mem_typ : hfmem var -> cmpnt_init_typs
+  (* | Inst_typ : ftype -> seq var -> cmpnt_init_typs *)
   | Unknown_typ : cmpnt_init_typs.
 
   (* data type of component *)

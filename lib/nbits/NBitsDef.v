@@ -495,7 +495,7 @@ Section Lemmas.
 
   Lemma copy_addn A n1 n2 (x : A) :
     copy (n1 + n2) x = copy n1 x ++ copy n2 x.
-  Proof. by rewrite cat_nseq /nseq /ncons iter_add. Qed.
+  Proof. by rewrite cat_nseq /nseq /ncons iterD. Qed.
 
   Lemma zeros_addn n m : zeros (n + m) = zeros n ++ zeros m.
   Proof. rewrite /zeros. exact: copy_addn. Qed.
@@ -1199,7 +1199,7 @@ Section Lemmas.
     elim: bs => /=.
     - reflexivity.
     - move=> hd tl IH. rewrite /from_nat -/from_nat. rewrite half_bit_double.
-      rewrite IH. rewrite odd_add odd_double. by case hd.
+      rewrite IH. rewrite oddD odd_double. by case hd.
   Qed.
 
   Lemma from_natn0 n : from_nat n 0  = zeros n.
@@ -1340,8 +1340,8 @@ Section Lemmas.
   Proof. induction n => //.
          rewrite expnS.
          move => m.
-         case ODD: (odd m); rewrite /from_nat-/from_nat /=ODD odd_add odd_mul/=ODD/= halfD ODD/=.
-         specialize (IHn m./2). by rewrite odd_mul/= add0n mul2n doubleK IHn.
+         case ODD: (odd m); rewrite /from_nat-/from_nat /=ODD oddD oddM/=ODD/= halfD ODD/=.
+         specialize (IHn m./2). by rewrite oddM/= add0n mul2n doubleK IHn.
          specialize (IHn m./2). by rewrite add0n mul2n doubleK IHn.
   Qed.
 
@@ -2092,7 +2092,7 @@ Lemma to_nat_take : forall n p, to_nat ((take n) p) = if n < size p then to_nat 
   elim p => [| phd ptl IHm]; first done.
   rewrite to_nat_cons/=.
   case Hlt : (ns.+1 < (size ptl).+1); rewrite ltnS in Hlt.
-  rewrite odd_add odd_double oddb. rewrite (IH ptl) Hlt.
+  rewrite oddD odd_double oddb. rewrite (IH ptl) Hlt.
   case phd; first by rewrite/=uphalf_double.
   by (rewrite/=3!add0n-3!muln2-div.divn2 div.mulnK; last done).
   by rewrite IH Hlt.
