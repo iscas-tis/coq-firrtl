@@ -1376,7 +1376,7 @@ Proof.
      (* | Sstop _ _ _  *)| Sskip => false
      | _ => true
      end.
-  
+
    Fixpoint is_init_all_t s : bool :=
      match (s) with
      | nil => true
@@ -1904,6 +1904,7 @@ Proof.
    | D_undefined => ss (* the user has erroneously not connected to id *)
    | D_invalidated => Qcons (sinvalid (Eid id)) ss (* the user has given an "is invalid" statement. Copy it. *)
    | D_fexpr expr => Qcons (sfcnct (Eid id) expr) ss
+   (* instead of Eid id, we should generate the appropriate (possibly structured) href above. *)
    end.
 
    Definition recode_cmap (cm : cmap) : hfstmt_seq :=
@@ -2099,26 +2100,52 @@ Proof.
                    end
    end.
 
-   Parameter expandBranch_vars_sem : forall (ss : hfstmt_seq) (ce : cmap) (cs : cstate) (default : cstate), Prop.
-(* TBD :=
-   (* Specification: cs contains the connects defined by ss.
-      If there is no connect, then the value of cs is copied from default. *)
-   forall id : V.T, match SV.find id cs, expandBranch_one_var_sem ss (eid id) (SV.find id default) with
-                    | None, D_undeclared => True
-                    | Some
-*)
+   Fixpoint expr_tree_to_def_expr (tree: expr_tree) : option def_expr :=
+   (* This function translates a def-expression (that represents the value of a connect, depending on the execution path)
+      to a rhs_expr (which should be the output of the ExpandWhen phase for this reference) *)
+   match tree with
+   | T_undeclared => None
+   | T_undefined => Some D_undefined
+   | T_invalidated => Some D_invalidated
+   | T_fexpr e => Some (D_fexpr e)
+   | T_choice cond true_tree false_tree => let true_expr  := expr_tree_to_def_expr true_tree  in
+                                           let false_expr := expr_tree_to_def_expr false_tree in
+                                           match true_expr, false_expr with
+                                           | None, _
+                                           | _, Some D_undefined => false_expr
+                                           | _, None
+                                           | Some D_undefined, _
+                                           | Some D_invalidated, Some D_invalidated => true_expr
+                                           | Some (D_fexpr te), Some D_invalidated => Some (D_fexpr (Evalidif cond te))
+                                           | Some D_invalidated, Some (D_fexpr fe) => Some (D_fexpr (Evalidif (Eprim_unop Unot cond) fe))
+                                           | Some (D_fexpr te), Some (D_fexpr fe) => if te == fe then Some (D_fexpr te)
+                                                                                     else Some (D_fexpr (Emux cond te fe))
+                                           end
+   end.
+
+   Definition expandBranch_vars_sem (ss : hfstmt_seq) (ce : cenv) (cm : cmap) (default : cmap) : Prop :=
+   (* Specification: If ce contains the types of components declared in ss, then cm contains the connects defined by ss.
+      If there is no connect, then the value of cm is copied from default. *)
+
+   forall id : V.T, match CE.find id ce with
+                    | None => false
+                    | Some (t, _) => is_passive (type_of_cmpnttyp t)
+                    end ->
+                    let default_value := match CE.find id default with
+                                         | None => T_undeclared
+                                         | Some D_undefined => T_undefined
+                                         | Some D_invalidated => T_invalidated
+                                         | Some (D_fexpr e) => T_fexpr e
+                                         end in
+                    CE.find id cm == expr_tree_to_def_expr (expandBranch_one_var_sem ss (eid id) default_value).
+   (* Instead of Eid id in the line above, one should construct the (possibly structured) reference *)
+
    Fixpoint expandWhen_precondition_ss (ss : hfstmt_seq) : Prop :=
    (* Precondition of expandWhen: there are no aggregate types and no partial connects *)
    match ss with
    | Qnil => True
    | Qcons s tl => match s with
                   | @Spcnct _ _ _ => False
-                  | @Swire _ _ t => match t          with Gtyp _ => expandWhen_precondition_ss tl
-                                                        | _ => False end
-                  | @Sreg _ _ r => match type r      with Gtyp _ => expandWhen_precondition_ss tl
-                                                        | _ => False end
-                  | @Smem _ _ m => match data_type m with Gtyp _ => expandWhen_precondition_ss tl
-                                                        | _ => False end
                   | @Sfcnct _ v _ => match v with Eid _ => expandWhen_precondition_ss tl
                                                 | _ => False end
                   | @Swhen _ _ sst ssf =>    expandWhen_precondition_ss sst
@@ -2128,20 +2155,30 @@ Proof.
                   end
    end.
 
-   Definition expandWhen_precondition_ce (ce : cenv) : Prop :=
-   (* Precondition of expandWhen: all declared components have ground types *)
-   forall v : V.T, match CE.find v ce with
-                   | None => True (* no constraints on types of undeclared components *)
-                   | Some (t, _) => match type_of_cmpnttyp t with Gtyp _ => True (* declared components have ground types *)
-                                                                | _ => False end
-                   end.
+   Fixpoint expandWhen_ce (ss : hfstmt_seq) (default : cenv) : cenv :=
+   (* ce contains exactly the component types as defined by ss, in addition to default. *)
+   match ss with
+   | Qnil => default
+   | Qcons s ss_tail => match s with
+                        | Sskip => expandWhen_ce ss_tail default
+                        | Swire id t => expandWhen_ce ss_tail (CE.add id (@Aggr_typ V.T t, Wire) default)
+                        | Sreg id reg => expandWhen_ce ss_tail (CE.add id (Reg_typ reg, Register) default)
+                        | Smem id mem => expandWhen_ce ss_tail (CE.add id (Mem_typ mem, Memory) default)
+                        | Sinst typ id => CE.empty (cmpnt_init_typs * fcomponent) (* TBD *)
+                        | Snode _ _ (* can be ignored *)
+                        | Sfcnct _ _
+                        | Spcnct _ _ (* should not appear *)
+                        | Sinvalid _ => expandWhen_ce ss_tail default
+                        | Swhen _ ss_true ss_false => expandWhen_ce ss_tail (expandWhen_ce ss_false (expandWhen_ce ss_true default))
+                        | Sstop _ _ _ => expandWhen_ce ss_tail default
+                        end
+   end.
 
    Definition expandBranch_hfstmt_seq_sem_conform (ss : hfstmt_seq) : Prop :=
-   (* The statements in ss are being translated by expandBranch_fun to correct definitions in a StructStore (cstate). *)
+   (* The statements in ss are being translated by expandBranch_fun to correct definitions in a cmap. *)
       expandWhen_precondition_ss ss ->
-      forall ce : cenv, expandWhen_precondition_ce ce ->
-                        forall default : cstate, expandBranch_vars_sem ss (snd (expandBranch_fun ss ce default)) default.
-
+      forall ce : cenv, ce = expandWhen_ce ss (CE.empty (cmpnt_init_typs * fcomponent)) ->
+                        forall default : cmap, expandBranch_vars_sem ss ce (snd (expandBranch_fun ss ce default None)) default.
 
    Definition expandBranch_hfstmt_sem_conform (s : hfstmt) : Prop :=
    (* The statement sequences that are part of s are being translated correctly. *)
@@ -2155,9 +2192,12 @@ Proof.
    (* case Qnil / empty program *)
    unfold expandBranch_hfstmt_seq_sem_conform.
    intros.
-   unfold expandBranch_vars_sem, expandBranch_fun, snd.
-   unfold expandBranch_one_var_sem.
-   reflexivity.
+   unfold expandBranch_fun, snd.
+   unfold expandBranch_vars_sem, expandBranch_one_var_sem.
+   intros.
+   destruct (CE.find id default).
+   induction d ; try (unfold expr_tree_to_def_expr ; apply eq_refl).
+   unfold expr_tree_to_def_expr ; apply eq_refl.
    (* case Qcons / concatenation of statements *)
    intros.
    unfold expandBranch_hfstmt_seq_sem_conform.
@@ -2176,7 +2216,6 @@ Proof.
    unfold expandWhen_precondition_ss in H1.
    fold expandWhen_precondition_ss in H1.
    exact H1.
-   exact H2.
    (* subcase Qcons (Swire _ _) _ *)
    unfold expandBranch_vars_sem, expandBranch_fun.
    unfold snd at 1.
