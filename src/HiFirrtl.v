@@ -284,8 +284,6 @@ Section Rhs_expr.
   Variable v : eqType.
   Inductive rhs_expr : Type :=
   | R_fexpr : hfexpr v -> rhs_expr
-  (*| R_ftype : ftype -> rhs_expr*)
-  (*| R_fstmt : hfstmt tmp -> rhs_expr*)
   | R_default
   .
 
@@ -543,8 +541,6 @@ Module MakeHiFirrtl
 
   Definition rhs_expr := rhs_expr V.T.
   Definition r_fexpr e := @R_fexpr V.T e.
-  (* Definition r_ftype t := @R_ftype V.T t. *)
-  (* Definition r_fstmt s := @R_fstmt V.T s. *)
   Definition r_default := @R_default V.T.
 
   (****** Oriented type ******)
@@ -1481,14 +1477,16 @@ Proof.
   (*   | _ => true *)
   (*   end. *)
 
-
+  (********************************************************************************)
 
    (** Pass ExpandWhens *)
-
+(* COMMENT OUT START HERE *)
+(*
+  
    (* The pass translates a FIRRTL statement sequence (but one without aggregate types/aggregate connects)
       to one where when statements are replaced by suitable multiplexers or validifs.
       It also handles the last connect semantics. *)
-(*
+
    (* a type to indicate connects *)
    Inductive def_expr : Type :=
    | D_undefined (* declared but not connected, no "is invalid" statement *)
@@ -2583,7 +2581,7 @@ Proof.
   (*   eval_fstmts_group (Qcons (sfcnct (eref v) e2) sts) ce cs ce' cs' -> *)
   (*   valid_rhs (SV.acc v cs') ce'. *)
 
-
+(* COMMENT OUT END HERE *)
 *)
 
 
@@ -2595,3 +2593,13 @@ End MakeHiFirrtl.
 
 
 Module HiF := MakeHiFirrtl VarOrder VS VM CE StructState.
+
+Section Preprocess.
+
+  Definition initial_index : N := 0.
+
+  Definition first_assigned_index : N := 1.
+
+  Definition 
+  
+End Preprocess.
