@@ -154,6 +154,111 @@ it does not make sense to put effort in external modules.
 
 End HiFirrtl.
 
+
+(********************************************************************************)
+
+(** Identifiers *)
+
+(* offset of sub-elements *)
+Fixpoint size_of_ftype ft :=
+  match ft with
+  | Gtyp t => 1
+  | Atyp t n => (size_of_ftype t) * n
+  | Btyp b => size_of_fields b
+  end
+with size_of_fields b :=
+       match b with
+       | Fnil => 0
+       | Fflips v fl t fs => (size_of_ftype t) + size_of_fields fs
+       end.
+
+Fixpoint offset_of_subfield_b ft fid n :=
+  match ft with
+  | Fnil => n
+  | Fflips v fl t fs => if fid == v then n else offset_of_subfield_b fs fid (n + size_of_ftype t)
+  end.
+
+Definition offset_of_subfield ft fid n :=
+  match ft with
+  | Gtyp t => 0
+  | Atyp t n => 0
+  | Btyp b => offset_of_subfield_b b fid n
+  end.
+
+Definition offset_of_subindex ft m :=
+  match ft with
+  | Gtyp t => 0
+  | Atyp t n => m
+  | Btyp b => 0
+  end.
+
+(* make modules for paired idents*)
+Module ProdVarOrder := MakeProdOrderWithDefaultSucc VarOrder VarOrder.
+Module PVS <: SsrFSetWithNew := FSets.MakeTreeSetWithNew ProdVarOrder.
+Module PVM <: SsrFMapWithNew := FMaps.MakeTreeMapWithNew ProdVarOrder.
+Module Ids_map2 := Map2 PVS PVS. 
+
+(* idents pair *)
+Definition pvar := ProdVarOrder.t.
+
+Section Preprocess.
+  
+  (* index *)
+  Definition initial_index : N := 0.
+  Definition first_index : N := 1.
+  Definition next_index i : N := i + 1.
+
+  (* A map from paired vars to indexes *)
+  Definition ind_map := PVM.t (N * N).
+  Definition ind_map_empty : ind_map := PVM.empty (N * N).
+
+  (* finds in idents_map*)
+  Definition find_base_index (m:ind_map) (v:pvar): option N :=
+    match PVM.find v m with
+    | Some i => Some (fst i)
+    | None => None
+    end.
+
+  Definition find_offset_index (m:ind_map) (v:pvar): option N :=
+    match PVM.find v m with
+    | Some i => Some (snd i)
+    | None => None
+    end.
+
+  Definition acc_indexes (m:ind_map) (v:pvar): N * N :=
+    match PVM.find v m with
+    | Some i => i
+    | None => (initial_index, initial_index)
+    end.
+
+  (* set/get indivual index with base index*)
+  Parameter set_pvar : forall m (p:pvar), acc_indexes m p = p.
+  Definition get_pvar m (p:pvar) : N * N := (p.1%N, N.add (acc_indexes m p).1%N (acc_indexes m p).2%N).
+  
+  Lemma pvar_preserve (m : ind_map) : Ids_map2.preserve (get_pvar m).
+  Proof.
+    move => x y H.
+    rewrite (eqP H) eq_refl//.
+  Qed.
+
+  Lemma pvar_injective (m : ind_map) : Ids_map2.injective (get_pvar m).
+  Proof.
+    move => x y /eqP H. 
+    case : H => H1 H2.
+    move : H2. rewrite !set_pvar.
+    rewrite H1 N.add_cancel_l. move : H1.
+    case x => x1 x2; case y => y1 y2 => /= H1 H2.
+    rewrite H1 H2//.
+  Qed.
+
+  Definition pvar_well m :=
+    Ids_map2.mkWellMap2 (pvar_preserve m) (pvar_injective (m:=m)).
+
+
+  
+End Preprocess.
+
+
 (********************************************************************************)
 
 (** Component Environment *)
@@ -181,6 +286,7 @@ Section Component_types.
     end.
 
 End Component_types.
+
 
 Module Type CmpntEnv (V : SsrOrder) <: SsrFMap.
   (* a module interface to store components in the form a map from (defined) identifiers
@@ -281,8 +387,14 @@ Module MakeCmpntEnv (V : SsrOrder) (VM : SsrFMap with Module SE := V) <:
 
 End MakeCmpntEnv.
 
+
+(********************************************************************************)
+
+(** Single var, Component Environment *)
 Module CE (*<: CmpntEnv VarOrder *) := MakeCmpntEnv VarOrder VM.
 
+(** Paired var, Component Environment *)
+Module CEP  := MakeCmpntEnv ProdVarOrder PVM.
 
 (********************************************************************************)
 
@@ -322,6 +434,8 @@ Section Rhs_expr.
   Canonical rhs_expr_eqType := Eval hnf in EqType rhs_expr rhs_expr_eqMixin.
 
 End Rhs_expr.
+
+(********************************************************************************)
 
 Module Type StructStore (V : SsrOrder) (CE : CmpntEnv V with Module SE := V).
   (* extension of the component environment above
@@ -483,113 +597,12 @@ Module MakeStructStore (V : SsrOrder) (CE : CmpntEnv V with Module SE := V) <:
   Qed.
 End MakeStructStore.
 
-Module StructState := MakeStructStore VarOrder CE.
-
-
-
 (********************************************************************************)
 
-(** Identifiers *)
-
-Fixpoint size_of_ftype ft :=
-  match ft with
-  | Gtyp t => 1
-  | Atyp t n => (size_of_ftype t) * n
-  | Btyp b => size_of_fields b
-  end
-with size_of_fields b :=
-       match b with
-       | Fnil => 0
-       | Fflips v fl t fs => (size_of_ftype t) + size_of_fields fs
-       end.
-
-Fixpoint offset_of_subfield_b ft fid n :=
-  match ft with
-  | Fnil => n
-  | Fflips v fl t fs => if fid == v then n else offset_of_subfield_b fs fid (n + size_of_ftype t)
-  end.
-
-Definition offset_of_subfield ft fid n :=
-  match ft with
-  | Gtyp t => 0
-  | Atyp t n => 0
-  | Btyp b => offset_of_subfield_b b fid n
-  end.
-
-Definition offset_of_subindex ft m :=
-  match ft with
-  | Gtyp t => 0
-  | Atyp t n => m
-  | Btyp b => 0
-  end.
-
-(* make modules for paired idents*)
-Module ProdVarOrder := MakeProdOrderWithDefaultSucc VarOrder VarOrder.
-Module PVS <: SsrFSetWithNew := FSets.MakeTreeSetWithNew ProdVarOrder.
-Module PVM <: SsrFMapWithNew := FMaps.MakeTreeMapWithNew ProdVarOrder.
-Module Ids_map2 := Map2 PVS PVS. 
-
-  
-(* idents pair *)
-Definition pvar := ProdVarOrder.t.
-
-
-Section Preprocess.
-  
-  (* index *)
-  Definition initial_index : N := 0.
-  Definition first_index : N := 1.
-  Definition next_index i : N := i + 1.
-
-  (* A map from paired vars to indexes *)
-  Definition ind_map := PVM.t (N * N).
-  Definition ind_map_empty : ind_map := PVM.empty (N * N).
-
-  (* finds in idents_map*)
-  Definition find_base_index (m:ind_map) (v:pvar): option N :=
-    match PVM.find v m with
-    | Some i => Some (fst i)
-    | None => None
-    end.
-
-  Definition find_offset_index (m:ind_map) (v:pvar): option N :=
-    match PVM.find v m with
-    | Some i => Some (snd i)
-    | None => None
-    end.
-
-  Definition acc_indexes (m:ind_map) (v:pvar): N * N :=
-    match PVM.find v m with
-    | Some i => i
-    | None => (initial_index, initial_index)
-    end.
-
-  (* set/get indivual index with base index*)
-  Parameter set_pvar : forall m (p:pvar), acc_indexes m p = p.
-  Definition get_pvar m (p:pvar) : N * N := (p.1%N, N.add (acc_indexes m p).1%N (acc_indexes m p).2%N).
-  
-  Lemma pvar_preserve (m : ind_map) : Ids_map2.preserve (get_pvar m).
-  Proof.
-    move => x y H.
-    rewrite (eqP H) eq_refl//.
-  Qed.
-
-  Lemma pvar_injective (m : ind_map) : Ids_map2.injective (get_pvar m).
-  Proof.
-    move => x y /eqP H. 
-    case : H => H1 H2.
-    move : H2. rewrite !set_pvar.
-    rewrite H1 N.add_cancel_l. move : H1.
-    case x => x1 x2; case y => y1 y2 => /= H1 H2.
-    rewrite H1 H2//.
-  Qed.
-
-  Definition pvar_well m :=
-    Ids_map2.mkWellMap2 (pvar_preserve m) (pvar_injective (m:=m)).
-
-
-  
-End Preprocess.
+(** Single var, Component Connections *)
+Module StructState := MakeStructStore VarOrder CE.
+(** Paired var, Component Connections *)
+Module StructStateP := MakeStructStore ProdVarOrder CEP.
 
 
 Module MakeHiFirrtl
@@ -599,17 +612,26 @@ Module MakeHiFirrtl
   (VS : SsrFSet with Module SE := V)
   (VM : SsrFMap with Module SE := V)
   (CE : CmpntEnv V with Module SE := V)
-  (SV : StructStore V CE). (* map from names of defined identifiers to their type and kind *)
+  (SV : StructStore V CE) (* map from names of defined identifiers to their type and kind *)
+  (PCE : CmpntEnv PV with Module SE := PV)
+  (PSV : StructStore PV PCE). (* map from names of defined identifiers to their type and kind *)
 
   (* Local Open Scope hifirrtl. *)
 
   Module CELemmas := FMapLemmas CE.
   Module VSLemmas := SsrFSetLemmas VS.
+  
+  Module PCELemmas := FMapLemmas PCE.
+  Module PVSLemmas := SsrFSetLemmas PVS.
 
   Local Notation var := V.t.
+  Local Notation pvar := (V.t * V.t).
 
   Local Notation cstate := SV.t.
   Local Notation cenv := @CE.env.
+
+  Local Notation pcstate := PSV.t.
+  Local Notation pcenv := PCE.env.
 
   Definition econst s c := @Econst V.T s c.
   Definition ecast u e := @Ecast V.T u e.
@@ -2710,4 +2732,4 @@ Proof.
 End MakeHiFirrtl.
 
 (* HiFirrtl module with variables of type N *)
-Module HiF := MakeHiFirrtl VarOrder ProdVarOrder PVS VS VM CE StructState.
+Module HiF := MakeHiFirrtl VarOrder ProdVarOrder PVS VS VM CE StructState CEP StructStateP.
