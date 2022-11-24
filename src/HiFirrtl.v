@@ -205,14 +205,15 @@ Section Preprocess.
   
   (* index *)
   Definition initial_index : N := 0.
-  Definition first_index : N := 1.
-  Definition next_index i : N := i + 1.
+  Definition first_index : N := 1. Search (nat -> N).
+  (* ig contain fst as next ident index, snd as current index *)
+  Definition index_gen (ig : N* N) ft : (N * N) := (N.add (fst ig) (N.of_nat (size_of_ftype ft)), (fst ig)).
 
   (* A map from paired vars to indexes *)
   Definition ind_map := PVM.t (N * N).
   Definition ind_map_empty : ind_map := PVM.empty (N * N).
 
-  (* finds in idents_map*)
+  (* finds/acc in idents_map*)
   Definition find_base_index (m:ind_map) (v:pvar): option N :=
     match PVM.find v m with
     | Some i => Some (fst i)
@@ -224,16 +225,22 @@ Section Preprocess.
     | Some i => Some (snd i)
     | None => None
     end.
-
+  
   Definition acc_indexes (m:ind_map) (v:pvar): N * N :=
     match PVM.find v m with
     | Some i => i
     | None => (initial_index, initial_index)
-    end.
+    end. 
 
-  (* set/get indivual index with base index*)
-  Parameter set_pvar : forall m (p:pvar), acc_indexes m p = p.
-  Definition get_pvar m (p:pvar) : N * N := (p.1%N, N.add (acc_indexes m p).1%N (acc_indexes m p).2%N).
+  (* set/get index with base and offset index*)
+  Definition upd_ind_map (v:pvar) (m:ind_map) : ind_map :=
+    match PVM.find v m with
+    | Some i => m
+    | None => PVM.add v v m
+    end.
+    
+  Parameter get_set_pvar : forall m (p:pvar), acc_indexes m p = p.
+  Definition get_pvar m (p:pvar) : N * N := ((acc_indexes m p).1%N, (acc_indexes m p).2%N).
   
   Lemma pvar_preserve (m : ind_map) : Ids_map2.preserve (get_pvar m).
   Proof.
@@ -244,9 +251,8 @@ Section Preprocess.
   Lemma pvar_injective (m : ind_map) : Ids_map2.injective (get_pvar m).
   Proof.
     move => x y /eqP H. 
-    case : H => H1 H2.
-    move : H2. rewrite !set_pvar.
-    rewrite H1 N.add_cancel_l. move : H1.
+    case : H.
+    rewrite !get_set_pvar.
     case x => x1 x2; case y => y1 y2 => /= H1 H2.
     rewrite H1 H2//.
   Qed.
@@ -254,7 +260,7 @@ Section Preprocess.
   Definition pvar_well m :=
     Ids_map2.mkWellMap2 (pvar_preserve m) (pvar_injective (m:=m)).
 
-
+  
   
 End Preprocess.
 
@@ -607,31 +613,21 @@ Module StructStateP := MakeStructStore ProdVarOrder CEP.
 
 Module MakeHiFirrtl
   (V : SsrOrder) (* identifier names *)
-  (PV : SsrOrder) (* identifier names *)
-  (PVS : SsrFSet with Module SE := PV)
   (VS : SsrFSet with Module SE := V)
   (VM : SsrFMap with Module SE := V)
   (CE : CmpntEnv V with Module SE := V)
-  (SV : StructStore V CE) (* map from names of defined identifiers to their type and kind *)
-  (PCE : CmpntEnv PV with Module SE := PV)
-  (PSV : StructStore PV PCE). (* map from names of defined identifiers to their type and kind *)
+  (SV : StructStore V CE). (* map from names of defined identifiers to their type and kind *)
 
   (* Local Open Scope hifirrtl. *)
 
   Module CELemmas := FMapLemmas CE.
   Module VSLemmas := SsrFSetLemmas VS.
-  
-  Module PCELemmas := FMapLemmas PCE.
-  Module PVSLemmas := SsrFSetLemmas PVS.
 
   Local Notation var := V.t.
   Local Notation pvar := (V.t * V.t).
 
   Local Notation cstate := SV.t.
   Local Notation cenv := @CE.env.
-
-  Local Notation pcstate := PSV.t.
-  Local Notation pcenv := PCE.env.
 
   Definition econst s c := @Econst V.T s c.
   Definition ecast u e := @Ecast V.T u e.
@@ -2732,4 +2728,77 @@ Proof.
 End MakeHiFirrtl.
 
 (* HiFirrtl module with variables of type N *)
-Module HiF := MakeHiFirrtl VarOrder ProdVarOrder PVS VS VM CE StructState CEP StructStateP.
+Module HiF := MakeHiFirrtl VarOrder (* ProdVarOrder PVS *) VS VM CE StructState (* CEP StructStateP *).
+
+
+
+Module MakeHiFirrtlP
+  (V : SsrOrder) (* identifier names *)
+  (PVS : SsrFSet with Module SE := V)
+  (PVM : SsrFMap with Module SE := V)
+  (PCE : CmpntEnv V with Module SE := V)
+  (PSV : StructStore V PCE). 
+
+
+  Module PCELemmas := FMapLemmas PCE.
+  Module PVSLemmas := SsrFSetLemmas PVS.
+
+  Local Notation pvar := (V.t * V.t).
+
+  Local Notation pcstate := PSV.t.
+  Local Notation pcenv := PCE.env. 
+
+  Definition econst s c := @Econst V.T s c.
+  Definition ecast u e := @Ecast V.T u e.
+  Definition eprim_unop u e := @Eprim_unop V.T u e.
+  Definition eprim_binop b e1 e2 := @Eprim_binop V.T b e1 e2.
+  Definition emux c e1 e2 := @Emux V.T c e1 e2.
+  Definition evalidif c e := @Evalidif V.T c e.
+  Definition hfexpr := hfexpr V.T.
+  Definition eref r := @Eref V.T r.
+  Definition eid v := @Eid V.T v.
+  Definition esubfield r v := @Esubfield V.T r v.
+  Definition esubindex r n := @Esubindex V.T r n.
+  Definition esubaccess r e := @Esubaccess V.T r e.
+  Definition href := href V.T.
+
+  Definition hfstmt := hfstmt V.T.
+  Definition hfstmt_seq := hfstmt_seq V.T.
+  Definition qnil := Qnil V.T.
+(*Definition qcons s ss := @Qcons V.T s ss.*)
+  Definition sskip := @Sskip V.T.
+  Definition swire v t := @Swire V.T v t.
+  Definition sreg v r := @Sreg V.T v r.
+  Definition smem v m := @Smem V.T v m.
+  Definition snode v e := @Snode V.T v e.
+  Definition sfcnct v1 v2 := @Sfcnct V.T v1 v2.
+  Definition spcnct v1 v2 := @Spcnct V.T v1 v2.
+  Definition sinvalid v1 := @Sinvalid V.T v1.
+  Definition swhen c s1 s2 := @Swhen V.T c s1 s2.
+  (* Definition sstop e1 e2 n := @Sstop V.T e1 e2 n. *)
+  Definition sinst v1 v2 := @Sinst V.T v1 v2.
+
+  Definition hfreg := @hfreg V.T.
+  Definition mk_hfreg := @mk_freg V.T.
+  Definition nrst := @NRst V.T.
+  Definition rrst e1 e2 := @Rst V.T e1 e2.
+  Definition mk_mem_port := @mk_mem_port V.T.
+  Definition mem_port := @mem_port V.T.
+  Definition hfmem := @hfmem V.T.
+  Definition mk_hfmem := @mk_fmem V.T.
+  Definition hfport := @hfport V.T.
+  Definition hinport v t := @Finput V.T v t.
+  Definition houtport v t := @Foutput V.T v t.
+  Definition hfmodule := @hfmodule V.T.
+  Definition hfinmod v ps ss := @FInmod V.T v ps ss.
+  Definition hfexmod v ps ss := @FExmod V.T v ps ss.
+  Definition hfcircuit := @hfcircuit V.T.
+
+  Definition rhs_expr := rhs_expr V.T.
+  Definition r_fexpr e := @R_fexpr V.T e.
+  Definition r_default := @R_default V.T.
+
+  
+End MakeHiFirrtlP.
+
+Module HiFP := MakeHiFirrtlP ProdVarOrder PVS PVM CEP StructStateP.
