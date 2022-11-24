@@ -1,11 +1,28 @@
-open Extraction
+(*open Extraction*)
 open Firrtl_lang
-(*open Printf
-open Extraction.NBitsDef*)
+open Printf
+(*open Extraction.NBitsDef*)
 
-let initflag = 0
 module StringMap = Map.Make(String)
 let initmap = StringMap.empty
+module IntMap = Map.Make(Int)
+let initmap0 = IntMap.empty
+
+let rec printf_list l = 
+  match l with
+    | [] -> printf "\n"
+    | h::t -> printf "%d " h; printf_list t
+
+let rec ls_max l = 
+  if (List.length l) == 0
+    then 0
+  else (if (List.length l) == 1
+        then (List.hd l)
+      else (if (List.hd l) > (ls_max (List.tl l))
+              then (List.hd l)
+            else (ls_max (List.tl l))
+      )
+  )
 
 let p_str2N (map,flag) p = 
   match p with
@@ -38,6 +55,111 @@ let str2N a_cir cm mm maplist flag =
   | (v, fmod) -> let (map0, mlist, flag0) = List.fold_left m_str2N (mm, maplist, flag) fmod in
   (StringMap.add v flag0 cm, map0, mlist, flag0 + 1)
 
+  (* have mod var -> all var in N (except main mod); *)
+let p_str2N (map,flag) p = 
+  match p with
+  | Ast.Finput (v, _) -> (StringMap.add v flag map,flag + 1)
+  | Ast.Foutput (v, _) -> (StringMap.add v flag map,flag + 1)
+
+let mem_str2N (m:Ast.fmem) map flag = 
+  let reader_str2N (a, b) v = 
+    (
+    let (a1,b1) = (StringMap.add (m.mid^"."^v^".data") b a,b + 1) in 
+    let (a2,b2) = (StringMap.add (m.mid^"."^v^".addr") b1 a1,b1 + 1) in 
+    let (a3,b3) = (StringMap.add (m.mid^"."^v^".en") b2 a2,b2 + 1) in 
+    (StringMap.add (m.mid^"."^v^".clk") b3 a3, b3 + 1)
+    ) in
+  let writer_str2N (a, b) v = 
+    (
+    let (a1,b1) = (StringMap.add (m.mid^"."^v^".data") b a,b + 1) in 
+    let (a2,b2) = (StringMap.add (m.mid^"."^v^".addr") b1 a1,b1 + 1) in 
+    let (a3,b3) = (StringMap.add (m.mid^"."^v^".en") b2 a2,b2 + 1) in 
+    let (a4,b4) = (StringMap.add (m.mid^"."^v^".mask") b3 a3,b3 + 1) in 
+    (StringMap.add (m.mid^"."^v^".clk") b4 a4, b4 + 1)
+    ) in
+  List.fold_left writer_str2N (List.fold_left reader_str2N (map,flag) (m.reader)) (m.writer)
+
+let s_str2N name2ports (map,flag) stmt = 
+  match stmt with
+  | Ast.Swire (v, _) -> (StringMap.add v flag map,flag + 1)
+  | Ast.Sreg r -> (StringMap.add r.rid flag map,flag + 1)
+  | Ast.Smem m -> let (map0,flag0) = mem_str2N m map flag in 
+    (StringMap.add m.mid flag0 map0,flag0 + 1)
+  | Ast.Snode (v, _) -> (StringMap.add v flag map,flag + 1)
+  | Ast.Sinst (v1, e) -> (match e with
+                        | Ast.Eref v2 -> List.fold_left (fun (a,b) p -> (match p with
+                                                        | Ast.Finput (v3, _) -> (StringMap.add (v1^"."^v3) b a,b + 1)
+                                                        | Ast.Foutput (v3, _) -> (StringMap.add (v1^"."^v3) b a,b + 1))) (map,flag) (StringMap.find v2 name2ports)
+                        | _ -> (map,flag))
+  | _ -> (map,flag)
+
+let g_modsmap name2ports (modsmap,ls) hd =  
+  match hd with 
+            | Ast.FInmod (mv, pl, sl) -> let (thismap,flag) = List.fold_left (s_str2N name2ports) (List.fold_left p_str2N (initmap,0) pl) sl in
+                                               (StringMap.add mv thismap modsmap, List.cons flag ls)
+            | _ -> (modsmap,ls)
+
+let generate_modsmap a_cir name2ports = 
+  match a_cir with
+  | (_, fmod) -> List.fold_left (g_modsmap name2ports) (initmap,[]) fmod
+
+(* var -> fport list *)
+let modbyname a_cir = 
+  match a_cir with
+  | (_, ml) -> List.fold_left (fun m x -> match x with 
+                                            | Ast.FInmod (mv, pl, _) -> StringMap.add mv pl m
+                                            | Ast.FExmod (mv, pl, _) -> StringMap.add mv pl m) initmap ml
+
+(* 对每次声明instance找到端口对应*)
+(* var -> map(N -> N)*)
+let mmapport name2ports modsmap mv (inin2exin,exout2inout) s = 
+  match s with
+  | Ast.Sinst (v1, e) -> (match e with
+                        | Ast.Eref v2 -> List.fold_left (fun (a,b) p -> (match p with
+                                                        | Ast.Finput (v3, _) -> (IntMap.add (StringMap.find v3 (StringMap.find v2 modsmap)) (StringMap.find (v1^v3) (StringMap.find mv modsmap)) a,b)
+                                                        | Ast.Foutput (v3, _) -> (a,IntMap.add (StringMap.find (v1^v3) (StringMap.find mv modsmap)) (StringMap.find v3 (StringMap.find v2 modsmap)) b))) (inin2exin,exout2inout) (StringMap.find v2 name2ports)
+                        | _ -> (inin2exin,exout2inout))
+  | _ -> (inin2exin,exout2inout)
+
+let mapport name2ports modsmap (inin2exin,exout2inout) m = 
+  match m with
+  | Ast.FInmod (mv, _, sl) -> let (a,b) =  List.fold_left (mmapport name2ports modsmap mv) (initmap0, initmap0) sl in
+                              (StringMap.add mv a inin2exin, StringMap.add mv b exout2inout)
+  | Ast.FExmod _ -> (inin2exin,exout2inout)
+
+let mapinstport a_cir name2ports modsmap = 
+  match a_cir with
+  | (_, ml) -> List.fold_left (mapport name2ports modsmap) (initmap, initmap) ml
+
+(* give the N name for modules *)
+(* map: string -> N *)
+let nummod flag modsmap = 
+  StringMap.fold (fun key _ (map,f) -> (StringMap.add key f map, f+1)) modsmap (initmap,flag)
+
+(* from circuit name find main module *)
+let findmainmod a_cir modsmap = 
+  match a_cir with
+  | (cv, _) -> StringMap.find cv modsmap
+(*
+let () = 
+  let parse f =
+  (let lexbuf = Lexing.from_channel (open_in f) in
+  FirrtlParser.file FirrtlLexer.token lexbuf) in
+  let lowf_ast = parse "./demo/treadle_lofir/sub/mem/SmallOdds5.lo.fir" in
+  (* var -> fport list *)
+  let name2ports = modbyname lowf_ast in
+  let (modsmap,flagls) = generate_modsmap lowf_ast name2ports in
+  let (modsnum,_) = nummod (ls_max flagls) modsmap in
+  let mainmod = findmainmod lowf_ast modsmap in (* has type int StringMap.t *)
+
+  (*let (inin2exin,exout2inout) = mapinstport lowf_ast name2ports modsmap in*)
+  StringMap.iter (fun key value -> (printf "%s: " key); printf "\n"; StringMap.iter (fun key0 value0 -> (printf "%s: %d" key0 value0); printf "\n") value; printf "\n") modsmap;
+  StringMap.iter (fun key0 value0 -> (printf "%s: %d" key0 value0); printf "\n") modsnum
+
+  (*StringMap.iter (fun key value -> (printf "%s: " key); printf "\n"; IntMap.iter (fun key0 value0 -> (printf "%d: %d" key0 value0); printf "\n") value; printf "\n") inin2exin;
+  StringMap.iter (fun key value -> (printf "%s: " key); printf "\n"; IntMap.iter (fun key0 value0 -> (printf "%d: %d" key0 value0); printf "\n") value; printf "\n") exout2inout
+*)
+*)
 (*transast*)
 
 let trans_ucast a_ucast = 
@@ -168,12 +290,12 @@ let trans_mod mm maplist fml a_mod =
   | Ast.FInmod (v, pl, sl) -> List.cons (Firrtl.FInmod(Obj.magic (StringMap.find v mm), List.fold_left (trans_port (StringMap.find v maplist)) [] pl, List.fold_left (trans_stmtl (StringMap.find v maplist)) [] sl)) fml
   | Ast.FExmod (v, pl, sl) -> List.cons (Firrtl.FExmod(Obj.magic (StringMap.find v mm), List.fold_left (trans_port (StringMap.find v maplist)) [] pl, List.fold_left (trans_stmtl (StringMap.find v maplist)) [] sl)) fml
 
-let trans_cir a_cir cm mm maplist= 
+let trans_cir a_cir cm mm maplist = 
   match a_cir with
   | (v, fmod) -> Firrtl.Fcircuit(Obj.magic (StringMap.find v cm), List.fold_left (trans_mod mm maplist) [] fmod)
 
 (*
-let lowf_ast = parse "./demo/mem.lo.fir"
+let lowf_ast = parse "./demo/Accumulator.lo.fir"
 
 let () = 
   let (cm, mm, maplist, _) = str2N lowf_ast initmap initmap initmap initflag in
