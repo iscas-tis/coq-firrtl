@@ -92,6 +92,7 @@ statement
                                            { Smem (mk_fmem_non $2 $6 $9 $12 $15 $18)}
   | STM_MEM symbol KEYWORD STM_DATATYPE REG_RSTARR typ_def STM_DEPTH REG_RSTARR numeral STM_READ_L REG_RSTARR numeral STM_WRITE_L REG_RSTARR numeral STM_READ REG_RSTARR symbols STM_READWRITE REG_RSTARR ruw
                                            { Smem (mk_fmem_r $2 $6 $9 $12 $15 $18 $21)}
+  | STM_INST symbol KEYWORD_OF expr      { Sinst ($2, $4) }
 ;
   
 /* expression */
