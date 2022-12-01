@@ -2123,22 +2123,49 @@ Qed.
    Proof.
      intros.
      rewrite /correspond_wmap_cenv in H.
-     have Hnone : (add_width_2_cenv None None = None) by done.
+     have Hnone : (add_width_2_cenv None None = None) by done. 
      move : H => [[Hn Hn']|[Hs Hs']].
      - apply inferWidth_snode_sem.
-       rewrite H1 H0/=Hn Hn' /wmap_map2_cenv.
+       rewrite H1.
+       rewrite H0.
+       simpl.
+       rewrite Hn.
+       rewrite Hn'.
+       rewrite /wmap_map2_cenv.
        case Hdf : (is_deftyp (type_of_hfexpr e ce0)).
        + rewrite (CELemmas.map2_1bis (CE.add v (type_of_hfexpr e ce0) wm0) ce0 v Hnone).
-         rewrite (CELemmas.add_eq_o _ _(eq_refl v)) Hn'/= Hdf//.
+         rewrite (CELemmas.add_eq_o _ _(eq_refl v)).
+         rewrite Hn'.
+         simpl.
+         rewrite Hdf.
+         reflexivity.
        + rewrite (CELemmas.map2_1bis wm0 ce0 v Hnone).
-         rewrite Hn Hn'//.
+         rewrite Hn.
+         rewrite Hn'.
+         simpl.
+         reflexivity.
      - apply inferWidth_snode_sem.
-       rewrite H1 Hs'/wmap_map2_cenv H0/= Hs/= max_width_ftype_ident.
+       rewrite H1.
+       rewrite Hs'.
+       rewrite /wmap_map2_cenv.
+       rewrite H0.
+       simpl.
+       rewrite Hs.
+       simpl.
+       rewrite max_width_ftype_ident.
        case Hdf : (is_deftyp (type_of_hfexpr e ce0)).
        + rewrite (CELemmas.map2_1bis (CE.add v (type_of_hfexpr e ce0) wm0) ce0 v Hnone).
-         rewrite (CELemmas.add_eq_o _ _(eq_refl v)) Hs'/= Hdf//.
+         rewrite (CELemmas.add_eq_o _ _(eq_refl v)).
+         rewrite Hs'.
+         simpl.
+         rewrite Hdf.
+         reflexivity.
        + rewrite (CELemmas.map2_1bis wm0 ce0 v Hnone).
-         rewrite Hs Hs'/=. by rewrite Hdf.
+         rewrite Hs.
+         rewrite Hs'.
+         simpl.
+         rewrite Hdf.
+         reflexivity.
    Qed.
 
    (****** TODO. For KY ******)
@@ -2151,7 +2178,58 @@ Qed.
        wm1 = inferWidth_wmap0 ce0 wm0 (Sinvalid v) ->
        ce1 = wmap_map2_cenv wm1 ce0 ->
        inferWidth_sstmt_sem' (Sinvalid v) ce0 ce1.
-   Proof. Admitted.
+   Proof. 
+     intros.
+     rewrite /correspond_wmap_cenv in H.
+     have Hnone : (add_width_2_cenv None None = None) by done. 
+     move : H => [[Hn Hn']|[Hs Hs']].
+     - apply inferWidth_sinvalid_sem.
+       rewrite H1.
+       rewrite H0.
+       simpl.
+       rewrite Hn'.
+       rewrite /wmap_map2_cenv.
+       rewrite (CELemmas.map2_1bis wm0 ce0 (base_ref v) Hnone).
+       rewrite Hn'.
+       rewrite Hn.
+       simpl.
+       reflexivity.
+     - apply inferWidth_sinvalid_sem.
+       rewrite H1.
+       rewrite H0.
+       rewrite /wmap_map2_cenv.
+       rewrite (CELemmas.map2_1bis (inferWidth_wmap0 ce0 wm0 (Sinvalid v)) ce0 (base_ref v) Hnone).
+       rewrite /inferWidth_wmap0.
+       rewrite Hs Hs'.
+       simpl.
+       case t => [a b].
+       case a.
+      + intros.
+        case Hdf : (is_deftyp f).
+        * simpl.
+          rewrite /aggr_typ.
+          try done.
+        * try done.
+      + intros.
+        case Hdf : (is_deftyp (type h)).
+        * simpl.
+          rewrite /reg_typ.
+          case h.
+          intros.
+          simpl.
+          reflexivity.
+        * reflexivity.
+      + intros.
+        case Hdf : (is_deftyp (data_type h)).
+        * simpl.
+          rewrite /mem_typ.
+          case h.
+          intros.
+          simpl.
+          reflexivity.
+        * reflexivity.
+      + reflexivity.
+   Qed.
 
    Lemma inferWidth_smem_sem_conform' :
      forall v m wm0 wm1 ce0 ce1,
@@ -2160,7 +2238,39 @@ Qed.
        wm1 = inferWidth_wmap0 ce0 wm0 (Smem v m) ->
        ce1 = wmap_map2_cenv wm1 ce0 ->
        inferWidth_sstmt_sem' (Smem v m) ce0 ce1.
-   Proof. Admitted.
+   Proof. 
+    intros.
+     rewrite /correspond_wmap_cenv in H.
+     have Hnone : (add_width_2_cenv None None = None) by done. 
+     move : H => [[Hn Hn']|[Hs Hs']].
+     - apply inferWidth_smem_sem.
+       rewrite H1.
+       rewrite H0.
+       simpl.
+       rewrite Hn'.
+       rewrite /wmap_map2_cenv.
+       rewrite (CELemmas.map2_1bis wm0 ce0 v Hnone).
+       rewrite Hn.
+       rewrite Hn'.
+       simpl.
+       reflexivity.
+     - apply inferWidth_smem_sem.
+       rewrite H1.
+       rewrite H0.
+       rewrite Hs'.
+       rewrite /wmap_map2_cenv.
+       simpl.
+       rewrite (CELemmas.map2_1bis wm0 ce0 v Hnone).
+       rewrite Hs.
+       rewrite Hs'.
+       simpl.
+       case Hdf : (is_deftyp (data_type m)).
+       + case m.
+         intros.
+         simpl.
+         reflexivity.
+       + reflexivity.
+       Qed.
 
    Lemma inferWidth_sinst_sem_conform' :
      forall v1 v2 wm0 wm1 ce0 ce1,
@@ -2169,11 +2279,171 @@ Qed.
        wm1 = inferWidth_wmap0 ce0 wm0 (Sinst v1 v2) ->
        ce1 = wmap_map2_cenv wm1 ce0 ->
        inferWidth_sstmt_sem' (Sinst v1 v2) ce0 ce1.
-   Proof. Admitted.
+   Proof.
+    intros.
+     rewrite /correspond_wmap_cenv in H.
+     have Hnone : (add_width_2_cenv None None = None) by done. 
+     move : H => [[Hn Hn']|[Hs Hs']].
+     - apply inferWidth_sinst_sem.
+       rewrite H1.
+       rewrite H0.
+       simpl.
+       rewrite /wmap_map2_cenv.
+       rewrite (CELemmas.map2_1bis wm0 ce0 v1 Hnone).
+       rewrite Hn.
+       simpl.
+       reflexivity.
+     - apply inferWidth_sinst_sem.
+       rewrite H1.
+       rewrite /wmap_map2_cenv.
+       rewrite (CELemmas.map2_1bis wm1 ce0 v1 Hnone).
+       rewrite H0.
+       simpl.
+       rewrite Hs.
+       rewrite Hs'.
+       simpl.
+       case (CE.vtyp v2 ce0) => [a b].
+       case a.
+      + intros.
+        case Hdf : (is_deftyp f).
+        * simpl.
+          rewrite /aggr_typ.
+          try done.
+        * try done.
+      + intros.
+        case Hdf : (is_deftyp (type h)).
+        * simpl.
+          rewrite /reg_typ.
+          case h.
+          intros.
+          simpl.
+          reflexivity.
+        * reflexivity.
+      + intros.
+        case Hdf : (is_deftyp (data_type h)).
+        * simpl.
+          rewrite /mem_typ.
+          case h.
+          intros.
+          simpl.
+          reflexivity.
+        * reflexivity.
+      + reflexivity.
+      Qed.
 
    (*all the reset stmts...*)
 
    (****** TODO. For KY ******)
+
+   Lemma inferWidth_swire_sem_conform' :
+    forall v e wm0 wm1 ce0 ce1,
+    (* CE.find v ce0 = Some (aggr_typ (type_of_hfexpr e ce0), Node) -> *)
+    correspond_wmap_cenv v (aggr_typ e, Wire) wm0 ce0 ->
+    wm1 = inferWidth_wmap0 ce0 wm0 (Swire v e) ->
+    ce1 = wmap_map2_cenv wm1 ce0 ->
+    inferWidth_sstmt_sem' (Swire v e) ce0 ce1.
+   Proof.
+    intros.
+     rewrite /correspond_wmap_cenv in H.
+     have Hnone : (add_width_2_cenv None None = None) by done. 
+     move : H => [[Hn Hn']|[Hs Hs']].
+     - apply inferWidth_swire_sem.
+       rewrite H1.
+       rewrite H0.
+       simpl.
+       rewrite Hn.
+       rewrite /wmap_map2_cenv.
+       case Hdf : (is_deftyp e).
+       + rewrite (CELemmas.map2_1bis (CE.add v e wm0) ce0 v Hnone).
+         rewrite (CELemmas.add_eq_o _ _(eq_refl v)).
+         rewrite Hn'.
+         simpl.
+         rewrite Hdf.
+         reflexivity.
+       + rewrite (CELemmas.map2_1bis wm0 ce0 v Hnone).
+         rewrite Hn.
+         rewrite Hn'.
+         simpl.
+         reflexivity.
+     - apply inferWidth_swire_sem.
+       rewrite H1 H0.
+       rewrite /wmap_map2_cenv.
+       simpl.
+       rewrite Hs.
+       simpl.
+       rewrite max_width_ftype_ident.
+       case Hdf : (is_deftyp e).
+       + rewrite (CELemmas.map2_1bis (CE.add v e wm0) ce0 v Hnone).
+         rewrite (CELemmas.add_eq_o _ _(eq_refl v)).
+         rewrite Hs'.
+         simpl.
+         rewrite Hdf.
+         reflexivity.
+       + rewrite (CELemmas.map2_1bis wm0 ce0 v Hnone).
+         rewrite Hs.
+         rewrite Hs'.
+         simpl.
+         rewrite Hdf.
+         reflexivity.
+         Qed.
+
+   Lemma inferWidth_sreg_sem_conform' :
+   forall v r wm0 wm1 ce0 ce1,
+   correspond_wmap_cenv v (reg_typ r, Register) wm0 ce0 ->
+   wm1 = inferWidth_wmap0 ce0 wm0 (Sreg v r) ->
+   ce1 = wmap_map2_cenv wm1 ce0 ->
+   inferWidth_sstmt_sem' (Sreg v r) ce0 ce1.
+  Proof.  
+    intros.
+     rewrite /correspond_wmap_cenv in H.
+     have Hnone : (add_width_2_cenv None None = None) by done. 
+     move : H => [[Hn Hn']|[Hs Hs']].
+     - apply inferWidth_sreg_sem.
+       rewrite H1.
+       rewrite H0.
+       rewrite /wmap_map2_cenv.
+       simpl.
+       case Hdf : (is_deftyp (type r)).
+      + rewrite Hn.
+        rewrite (CELemmas.map2_1bis (CE.add v (type r) wm0) ce0 v Hnone).
+        rewrite Hn'.
+        rewrite (CELemmas.add_eq_o _ _(eq_refl v)).
+        simpl.
+        rewrite Hdf.
+        case r.
+        intros.
+        simpl.
+        reflexivity.
+      + rewrite (CELemmas.map2_1bis wm0 ce0 v Hnone).
+        rewrite Hn Hn'.
+        simpl.
+        reflexivity.
+     - apply inferWidth_sreg_sem.
+       rewrite H1.
+       rewrite H0.
+       rewrite /wmap_map2_cenv.
+       simpl.
+       case Hdf : (is_deftyp (type r)).
+       + rewrite Hs.
+         simpl.
+         rewrite (CELemmas.map2_1bis (CE.add v (max_width (type r) (type r)) wm0) ce0 v Hnone).
+         rewrite Hs'.
+         rewrite (CELemmas.add_eq_o _ _(eq_refl v)).
+         rewrite max_width_ftype_ident.
+         simpl.
+         rewrite Hdf.
+         case r.
+         intros.
+         simpl.
+         reflexivity.
+       + rewrite (CELemmas.map2_1bis wm0 ce0 v Hnone).
+         rewrite Hs Hs'.
+         simpl.
+         rewrite Hdf.
+         reflexivity.
+         Qed.
+
+  
    (** End **)   
    
    (*Begin : old one*)

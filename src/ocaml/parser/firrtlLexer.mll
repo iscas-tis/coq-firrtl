@@ -15,7 +15,7 @@ let numeral = '0' | ['1'-'9'] digit*
 let s_binary_digit = binary_digit | ('-' binary_digit)
 let s_numeral = numeral | ('-' numeral)
 let letter = ['a'-'z' 'A'-'Z' '_']
-let special_char = ['+' '-' '/' '*' '=' '%' '?' '!' '$' '_' '~' '&' '^' '@' '\'']
+let special_char = ['+' '-' '/' '*' '=' '%' '?' '!' '$' '_' '~' '&' '^' '@' '\'' '.']
 let symbol = ('|' [^'|']+ '|') | (letter|special_char)(letter|special_char|digit)*
 let escape_space = "\"\""
 
@@ -51,8 +51,7 @@ and token = parse
 | "h" (s_hex+ as str)                           { upd_cnum lexbuf; S_HEX_DECIMAL str }
 | ':'                                   { upd_cnum lexbuf; KEYWORD }
 | ','                                   { upd_cnum lexbuf; SPRT }
-| '.'                                   { upd_cnum lexbuf; SUB_FIELD }
-| numeral '.' '0'* numeral as str       { upd_cnum lexbuf; DECIMAL str }
+(*| numeral '.' '0'* numeral as str       { upd_cnum lexbuf; DECIMAL str }*)
 | numeral as str                        { upd_cnum lexbuf; NUMERAL str }
 | s_numeral as str                        { upd_cnum lexbuf; S_NUMERAL str }
 (* | '"' (([^'"']|escape_space)* as str) '"'
@@ -110,7 +109,7 @@ and token = parse
 | "node"                                { upd_cnum lexbuf; STM_NODE }
 | "="                                   { upd_cnum lexbuf; STM_NASS }
 | "inst"                                { upd_cnum lexbuf; STM_INST }
-| "of"                                   { upd_cnum lexbuf; KEYWORD_OF }
+| "aof"                                   { upd_cnum lexbuf; KEYWORD_OF }
 | "is invalid"                      { upd_cnum lexbuf; STM_INVALID}
 | "data-type"                      { upd_cnum lexbuf; STM_DATATYPE}
 | "depth"                      { upd_cnum lexbuf; STM_DEPTH}
