@@ -8,8 +8,6 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Import Prenex Implicits.
 
-About VarOrder.
-
 (* Delimit Scope hifirrtl with hifirrtl. *)
 
 Section HiFirrtl.
@@ -59,7 +57,8 @@ Section HiFirrtl.
         id : var;
         addr : var;
         en : var;
-        clk : var
+        clk : var;
+        mask : var
       }.
 
   Axiom mem_port_eq_dec : forall {x y : mem_port}, {x = y} + {x <> y}.
@@ -92,6 +91,8 @@ Section HiFirrtl.
         clock : hfexpr;
         reset : rst
       }.
+
+  Definition inst_ports : Type := seq var.
 
   Inductive hfstmt : Type :=
   | Sskip
@@ -200,77 +201,35 @@ Definition offset_of_subindex ft m :=
   | Btyp b => 0
   end.
 
+Module Type EqNOrder <: DecidableType.
+  Parameter T : eqType.
+  Definition t : Type := T.
+  Definition eq : t -> t -> Prop := fun x y => x == y.
+  Axiom eq_refl : forall x : t, eq x x.
+  Axiom eq_sym : forall x y : t, eq x y -> eq y x.
+  Axiom eq_trans : forall x y z : t, eq x y -> eq y z -> eq x z.
+  Parameter eq_dec : forall x y : t, { eq x y } + { ~ eq x y }.
+End EqNOrder.
+  
+Module Type WFMap <: FMapInterface.WS.
+  Declare Module SE : DecidableType.
+  Module E : DecidableType
+  with Definition t := SE.t
+  with Definition eq := SE.eq
+  with Definition eq_refl := SE.eq_refl
+  with Definition eq_sym := SE.eq_sym
+  with Definition eq_trans := SE.eq_trans
+  with Definition eq_dec := SE.eq_dec
+    := SE.
+  Include WSfun E.
+End WFMap.
+
 (* make modules for paired idents*)
 Module ProdVarOrder := MakeProdOrderWithDefaultSucc VarOrder VarOrder.
 Module PVS <: SsrFSetWithNew := FSets.MakeTreeSetWithNew ProdVarOrder.
 Module PVM <: SsrFMapWithNew := FMaps.MakeTreeMapWithNew ProdVarOrder.
-Module Ids_map2 := Map2 PVS PVS. 
-
-(* idents pair *)
-Definition pvar := ProdVarOrder.t.
-
-Section Preprocess.
-  
-  (* index *)
-  Definition initial_index : N := 0.
-  Definition first_index : N := 1. Search (nat -> N).
-  (* ig contain fst as next ident index, snd as current index *)
-  Definition index_gen (ig : N* N) ft : (N * N) := (N.add (fst ig) (N.of_nat (size_of_ftype ft)), (fst ig)).
-
-  (* A map from paired vars to indexes *)
-  Definition ind_map := PVM.t (N * N).
-  Definition ind_map_empty : ind_map := PVM.empty (N * N).
-
-  (* finds/acc in idents_map*)
-  Definition find_base_index (m:ind_map) (v:pvar): option N :=
-    match PVM.find v m with
-    | Some i => Some (fst i)
-    | None => None
-    end.
-
-  Definition find_offset_index (m:ind_map) (v:pvar): option N :=
-    match PVM.find v m with
-    | Some i => Some (snd i)
-    | None => None
-    end.
-  
-  Definition acc_indexes (m:ind_map) (v:pvar): N * N :=
-    match PVM.find v m with
-    | Some i => i
-    | None => (initial_index, initial_index)
-    end. 
-
-  (* set/get index with base and offset index*)
-  Definition upd_ind_map (v:pvar) (m:ind_map) : ind_map :=
-    match PVM.find v m with
-    | Some i => m
-    | None => PVM.add v v m
-    end.
-    
-  Parameter get_set_pvar : forall m (p:pvar), acc_indexes m p = p.
-  Definition get_pvar m (p:pvar) : N * N := ((acc_indexes m p).1%N, (acc_indexes m p).2%N).
-  
-  Lemma pvar_preserve (m : ind_map) : Ids_map2.preserve (get_pvar m).
-  Proof.
-    move => x y H.
-    rewrite (eqP H) eq_refl//.
-  Qed.
-
-  Lemma pvar_injective (m : ind_map) : Ids_map2.injective (get_pvar m).
-  Proof.
-    move => x y /eqP H. 
-    case : H.
-    rewrite !get_set_pvar.
-    case x => x1 x2; case y => y1 y2 => /= H1 H2.
-    rewrite H1 H2//.
-  Qed.
-
-  Definition pvar_well m :=
-    Ids_map2.mkWellMap2 (pvar_preserve m) (pvar_injective (m:=m)).
-
-  
-  
-End Preprocess.
+Module Ids_map2 := Map2 PVS PVS.
+Module Ids_id_map2 := Map2 PVS VS.
 
 
 (********************************************************************************)
@@ -632,7 +591,6 @@ Module MakeHiFirrtl
   Module VSLemmas := SsrFSetLemmas VS.
 
   Local Notation var := V.t.
-  Local Notation pvar := (V.t * V.t).
 
   Local Notation cstate := SV.t.
   Local Notation cenv := @CE.env.
@@ -1625,8 +1583,12 @@ Proof.
 
 End MakeHiFirrtl.
 
+(********************************************************************************)
+
+
 (* HiFirrtl module with variables of type N *)
 Module HiF := MakeHiFirrtl VarOrder (* ProdVarOrder PVS *) VS VM CE StructState (* CEP StructStateP *).
+
 
 
 
@@ -1696,7 +1658,207 @@ Module MakeHiFirrtlP
   Definition r_fexpr e := @R_fexpr V.T e.
   Definition r_default := @R_default V.T.
 
+  Definition cmpnt_init_typs := @cmpnt_init_typs V.T.
+  Definition aggr_typ t := @Aggr_typ V.T t.
+  Definition reg_typ t := @Reg_typ V.T t.
+  Definition mem_typ t := @Mem_typ V.T t.
+  Definition unknown_typ := @Unknown_typ V.T.
   
 End MakeHiFirrtlP.
 
 Module HiFP := MakeHiFirrtlP ProdVarOrder PVS PVM CEP StructStateP.
+
+
+(* idents pair *)
+Definition pvar := ProdVarOrder.t.
+Definition def_pvar := ProdVarOrder.default.
+
+Section Preprocess.
+  
+  (* index *)
+  Definition initial_index : N := 0.
+  Definition first_index : N := 1.
+  
+  (* generator stores the next starting point *)
+  Definition generator := N.
+  (* ig contain fst as next ident index, snd as current index *)
+  Definition index_gen (g : generator * N) ft : (generator * N) := (N.add (fst g) (N.of_nat (size_of_ftype ft)), (fst g)).
+  Definition newer_than_current (g: generator * N) : bool := N.ltb (snd g) (fst g).
+  Definition new_index_gen (g : generator) ft : generator :=
+    let s := (size_of_ftype ft) in
+    if s==0 then N.add g 1
+    else
+      N.add g (N.of_nat (size_of_ftype ft).+1).
+
+  (* A map from paired vars to eref *) Print href.
+  Definition eids := (href ProdVarOrder.T).
+   Definition eid v := @Eid ProdVarOrder.T v. 
+  Definition esubfield r v := @Esubfield ProdVarOrder.T r v.
+  Definition esubindex r n := @Esubindex ProdVarOrder.T r n.
+  Definition esubaccess r e := @Esubaccess ProdVarOrder.T r e.
+  Definition hfstmt' := (@hfstmt ProdVarOrder.T).
+  Definition hfstmt_seq' := hfstmt_seq ProdVarOrder.T.
+  Definition qnil := Qnil ProdVarOrder.T.
+(*Definition qcons s ss' := @Qcons VarOrder.T s ss.*)
+  Definition sskip := @Sskip ProdVarOrder.T.
+  Definition swire v t := @Swire ProdVarOrder.T v t.
+  Definition sreg v r := @Sreg ProdVarOrder.T v r.
+  Definition smem v m := @Smem ProdVarOrder.T v m.
+  Definition snode v e := @Snode ProdVarOrder.T v e.
+  Definition sfcnct v1 v2 := @Sfcnct ProdVarOrder.T v1 v2.
+  Definition spcnct v1 v2 := @Spcnct ProdVarOrder.T v1 v2.
+  Definition sinvalid v1 := @Sinvalid ProdVarOrder.T v1.
+  Definition swhen c s1 s2 := @Swhen ProdVarOrder.T c s1 s2.
+  (* Definition sstop e1 e2 n := @Sstop VarOrder.T e1 e2 n. *)
+  Definition sinst v1 v2 := @Sinst ProdVarOrder.T v1 v2.
+  
+  Definition eid_map := PVM.t HiF.href.
+  Definition eid_map_empty : eid_map := PVM.empty HiF.href.
+
+  (* finds/acc in eid_map*)  
+  Definition acc_indexes (m:eid_map) (v:pvar): HiF.href :=
+    match PVM.find v m with
+    | Some i => i
+    | None => HiF.eid (initial_index)
+    end.
+
+  (* generator generates newer index*)
+  Definition gen_newer_than (g: generator * N) (m : eid_map) :=
+    forall v rs, PVM.find v m = Some rs -> N.ltb (fst v) (fst g).
+
+  Definition offset_ref r ce: N:=
+    match r with
+    | Eid v => 0
+    | Esubfield r1 v => N.of_nat (offset_of_subfield (HiF.type_of_hfexpr (HiF.eref r) ce) v 0)
+    | Esubindex r1 n => N.of_nat (offset_of_subindex (HiF.type_of_hfexpr (HiF.eref r) ce) n)
+    | _ => 0
+    end.
+
+  Fixpoint expr_pvar (em : eid_map) (ce : CE.env) (h : HiF.hfexpr) : HiFP.hfexpr :=
+    match h with
+    | Econst t b => HiFP.econst t b
+    | Ecast u e => HiFP.ecast u (expr_pvar em ce e)
+    | Eprim_unop u e => HiFP.eprim_unop u (expr_pvar em ce e)
+    | Eprim_binop b e1 e2 => HiFP.eprim_binop b (expr_pvar em ce e1) (expr_pvar em ce e2)
+    | Emux e1 e2 e3 => HiFP.emux (expr_pvar em ce e1) (expr_pvar em ce e2) (expr_pvar em ce e3)
+    | Evalidif e1 e2 => HiFP.evalidif (expr_pvar em ce e1) (expr_pvar em ce e2)
+    | Eref r => HiFP.eref (HiFP.eid (HiF.base_ref r, offset_ref r ce))
+    end.
+
+  (* Parameter rst_pvar : HiF.rst -> HiFP.rst. *)
+  
+  Parameter hfreg_pvar: HiF.hfreg -> HiFP.hfreg.
+    (* HiFP.mk_hfreg (type r) (clock (expr_pvar (clock h))) () *)
+  Parameter hfmem_pvar: HiF.hfmem -> HiFP.hfmem.
+  
+  Fixpoint hfstmt_indexes (* (g : generator) *) (em : eid_map) (ce : CE.env) (h : HiF.hfstmt) : (* generator **) eid_map * CE.env * hfstmt' :=
+    match h with
+    | Swire v t => ((* new_index_gen g t, *) PVM.add (v, initial_index) (HiF.eid v) em, CE.add v (HiF.aggr_typ t, Wire) ce, swire (v, initial_index) t)
+    | Sreg v r => ((* new_index_gen g (type r), *) PVM.add (v, initial_index) (HiF.eid v) em, CE.add v (HiF.reg_typ r, Register) ce, sreg (v, initial_index) (hfreg_pvar r))
+    | Smem v m => ( PVM.add (v, initial_index) (HiF.eid v) em, CE.add v (HiF.mem_typ m, Memory) ce, smem (v, initial_index) (hfmem_pvar m)) 
+    | Sinst v1 v2 => ( PVM.add (v1, initial_index) (HiF.eid v1) em, CE.add v1 ((fst (CE.vtyp v2 ce)), Instanceof) ce, sinst (v1, initial_index) (v2, initial_index))
+    | Snode v e => ( PVM.add (v, initial_index) (HiF.eid v) em, CE.add v (HiF.aggr_typ (HiF.type_of_hfexpr e ce), Node) ce, snode (v, initial_index) (expr_pvar em ce e))
+    | Sfcnct r e => (PVM.add (HiF.base_ref r, offset_ref r ce) (r) em, ce, sfcnct ( (HiFP.eid (HiF.base_ref r, (offset_ref r ce)))) (expr_pvar em ce e))
+    | Spcnct r e => (PVM.add (HiF.base_ref r, offset_ref r ce) (r) em, ce, spcnct ( (HiFP.eid (HiF.base_ref r, (offset_ref r ce)))) (expr_pvar em ce e))
+    | Sinvalid r => (PVM.add (HiF.base_ref r, offset_ref r ce) (r) em, ce, sinvalid ( (HiFP.eid (HiF.base_ref r, (offset_ref r ce)))))
+    | Swhen e s1 s2 => (em, ce, swhen (expr_pvar em ce e) (snd (hfstmt_seq_indexes em ce s1)) (snd (hfstmt_seq_indexes em ce s2)))
+    | Sskip => ( em, ce, sskip)
+    end
+  with hfstmt_seq_indexes em ce s : eid_map * CE.env * HiFP.hfstmt_seq :=
+         match s with
+         | Qnil => (em, ce, HiFP.qnil)
+         | Qcons s ss => hfstmt_seq_indexes (fst (fst (hfstmt_indexes em ce s))) (snd (fst (hfstmt_indexes em ce s))) ss
+    end.
+  
+  (* A map from paired vars to index *)
+  Definition ind_map := PVM.t (N * N).
+  Definition ind_map_empty : ind_map := PVM.empty (N * N).
+
+  (* finds/acc in idents_map*)
+  Definition find_base_index (m:ind_map) (v:pvar): option N :=
+    match PVM.find v m with
+    | Some i => Some (fst i)
+    | None => None
+    end.
+
+  Definition find_offset_index (m:ind_map) (v:pvar): option N :=
+    match PVM.find v m with
+    | Some i => Some (snd i)
+    | None => None
+    end.
+  
+  (* set/get index with base and offset index*)
+  Definition upd_ind_map (v:pvar) (m:ind_map) (ig : generator * N) ft: ind_map * (generator * N):=
+    match PVM.find v m with
+    | Some i => (m, ig)
+    | None => let idg := index_gen ig ft in (PVM.add v (snd ig, initial_index) m, idg)
+    end.
+
+  Definition newer_than (g: generator * N) (m : ind_map) :=
+  forall v rs, PVM.find v m = Some rs -> N.ltb (fst g) (fst rs).
+  
+  (* Parameter get_set_pvar : forall m (p:pvar), acc_indexes m p = p. *)
+  
+  (* Definition get_pvar m (p:pvar) : N * N := ((acc_indexes m p).1%N, (acc_indexes m p).2%N). *)
+
+  
+  
+  (* Lemma pvar_preserve1 (m : ind_map) : Ids_map2.preserve (get_pvar m). *)
+  (* Proof. *)
+  (*   move => x y H. *)
+  (*   rewrite (eqP H) eq_refl//. *)
+  (* Qed. *)
+
+  (* Lemma pvar_injective1 (m : ind_map) : Ids_map2.injective (get_pvar m). *)
+  (* Proof. *)
+  (*   move => x y /eqP H.  *)
+  (*   case : H. *)
+  (*   rewrite !get_set_pvar. *)
+  (*   case x => x1 x2; case y => y1 y2 => /= H1 H2. *)
+  (*   rewrite H1 H2//. *)
+  (* Qed. *)
+
+  (* Definition pvar_well m := *)
+  (*   Ids_map2.mkWellMap2 (pvar_preserve1 m) (pvar_injective1 (m:=m)). *)
+
+  (* (* Change var to idents in statements *) *)
+  (* Definition make_fstmt_ids st := *)
+  (*   match st with *)
+  (*   | Swire v t =>  *)
+  
+
+  (* (* A map from paired indexes to single index *) *)
+  (* Definition sind_map := PVM.t N . *)
+  (* Definition sind_map_empty : sind_map := PVM.empty N. *)
+
+  (* Definition get_sind (v : pvar) (m : sind_map) : N := *)
+  (*   match PVM.find v m with *)
+  (*   | None => initial_index *)
+  (*   | Some i => i *)
+  (*   end. *)
+
+  (* (* Definition set_sind (v : pvar) (m : sind_map) : sind_map := *) *)
+  (* (*   match PVM.find v m with *) *)
+  (* (*   | Some i =>  *) *)
+  
+  (* Definition get_svar m (p:pvar) : N := N.add (acc_indexes m p).1%N (acc_indexes m p).2%N. *)
+
+  (* (* Lemma pvar_svar_preserve (m : sind_map) : Ids_id_map2.preserve (get_svar m). *) *)
+  (* (* Proof. *) *)
+  (* (*   move => x y H. *) *)
+  (* (*   rewrite (eqP H) eq_refl//. *) *)
+  (* (* Qed. *) *)
+
+  (* (* Lemma pvar_svar_injective (m : ind_map) : Ids_id_map2.injective (get_svar m). *) *)
+  (* (* Proof. *) *)
+  (* (*   move => x y /eqP H.  *) *)
+  (* (*   case : H. *) *)
+  (* (* Admitted. *) *)
+
+  (* (* Definition svar_well m := *) *)
+  (* (*   Ids_id_map2.mkWellMap2 (pvar_svar_preserve m) (pvar_svar_injective (m:=m)). *) *)
+  
+End Preprocess.
+
+  
+
