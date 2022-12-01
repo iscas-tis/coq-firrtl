@@ -501,7 +501,7 @@ Close Scope N_scope.
       Input:  * mdl = module definition
                 (its statements do not contain partial or aggregate connects;
                 they may contain double connects and when statements)
-              * ce = component environment, containing the interface declarations of all other modules
+              * ce = component environment, containing the input/output port declarations of all other modules
                 (this has been found in earlier passes and is not updated)
       Output: translated statement sequence of the module *)
    match mdl with
@@ -524,6 +524,15 @@ Close Scope N_scope.
       | program is erroneous; in that case, ExpandWhens does not produce any   |
       | connect for this sink element.)                                        |
       +------------------------------------------------------------------------+
+
+      Example of an incorrect statement sequence and its translation:
+         Wire a : UInt<16>    --->   Wire a : UInt<16>
+         when c : a <= b             // no connect statement for a
+
+      Example of a correct statement sequence and its translation:
+         Wire a : UInt<16>    --->   Wire a : UInt<16>
+         when c : a <= b             a <= validif(c, b)
+         else : a is invalid
 
       To simplify matters, we mainly concentrate on the correctness of expandBranch_fun,
       i.e., we specify that the correct cmap is created (which will be translated to
@@ -797,17 +806,21 @@ Close Scope N_scope.
           end.
 
    Fixpoint expandWhen_precondition_ss (ss : hfstmt_seq) (ce : CE.env) : bool :=
-   (* Precondition of expandWhen: there are no partial connects *)
+   (* Precondition of expandWhen: there are no partial connects, all instance statements refer to defined modules.
+      Also: all references are to declared variables.
+      * ss = statement sequence that is tested whether it satisfies the precondition
+      * ce = component environment containing (at least) type descriptions of all instantiated modules
+      Result: true iff the precondition is satisfied. *)
    match ss with
    | Qnil => true
    | Qcons s tl => match s with
-                  | Spcnct _ _ => false
-                  | Sinst id def => if CE.find def ce is Some (_, Fmodule) then expandWhen_precondition_ss tl ce else false
-                  | Swhen _ sst ssf =>    expandWhen_precondition_ss sst ce
-                                          && expandWhen_precondition_ss ssf ce
-                                          && expandWhen_precondition_ss tl ce
-                  | _ => expandWhen_precondition_ss tl ce
-                  end
+                   | Spcnct _ _ => false
+                   | Sinst id def => if CE.find def ce is Some (_, Fmodule) then expandWhen_precondition_ss tl ce else false
+                   | Swhen _ sst ssf =>    expandWhen_precondition_ss sst ce
+                                        && expandWhen_precondition_ss ssf ce
+                                        && expandWhen_precondition_ss tl ce
+                   | _ => expandWhen_precondition_ss tl ce
+                   end
    end.
 
    Fixpoint expandWhen_ce (ss : hfstmt_seq) (ce : CE.env) (default : CE.env) : CE.env :=
