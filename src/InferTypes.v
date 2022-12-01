@@ -4,10 +4,11 @@ From simplssrlib Require Import Types SsrOrder FSets FMaps Tactics Var Store.
 From nbits Require Import NBits.
 From firrtl Require Import Firrtl Env HiEnv.
 
+
 From firrtl Require Import HiFirrtl.
 
   (** Pass InferType *)
-
+Section InferTypeS.
   (* infer type according to a statement *)
 
   Inductive inferType_stmt : HiF.hfstmt -> CE.env -> CE.env -> Prop :=
@@ -484,4 +485,63 @@ Qed.
     Qed.
 
   (** End **)
+End InferTypeS.
 
+Section InferTypeP.
+  
+  
+  Definition def_pvar := VarOrder.default. 
+  
+  Inductive inferType_stmtP : HiFP.hfstmt -> CEP.env -> CEP.env -> Prop :=
+  | Infertype_wireP  v  t ce ce' :
+      (* HiFP.new_comp_name v -> *)
+      (* CE.find v ce = None -> *)
+      CEP.find (v, def_pvar) ce' = Some (HiFP.aggr_typ t, Wire) ->
+      inferType_stmtP (HiFP.swire (v, def_pvar) t) ce ce'
+  | Infertype_regP v r ce ce' :
+      (* HiFP.new_comp_name v -> *)
+      (* CE.find v ce = None -> *)
+      CEP.find (v, def_pvar) ce' = Some (HiFP.reg_typ r, Register) ->
+      inferType_stmtP (HiFP.sreg (v, def_pvar) r) ce ce'
+  | Infertype_inst v1 v2 ce ce' :
+      HiFP.new_comp_name v1 ->
+      (* CE.find v1 ce = None -> *)
+      ~~ (v1 == v2) ->
+      (* CE.find v2 ce = Some t -> *)
+      CE.find v1 ce' = Some (fst (CE.vtyp v2 ce), Instanceof) ->
+      inferType_stmt (Sinst v1 v2) ce ce'
+  | Infertype_node v e ce ce' :
+      HiFP.new_comp_name v ->
+      (* CE.find v ce = None -> *)
+      (* ~~ fexpr_has_v v e -> *)
+      HiFP.type_of_hfexpr e ce = HiFP.type_of_hfexpr e ce' ->
+      CE.find v ce' = Some (HiFP.aggr_typ (HiFP.type_of_hfexpr e ce), Node) ->
+      inferType_stmt (Snode v e) ce ce'
+  | Infertype_mem v m ce ce' :
+      HiFP.new_comp_name v ->
+      (* CE.find v ce = None -> *)
+      CE.find v ce' = Some (Mem_typ m, Memory) ->
+      inferType_stmt (Smem v m) ce ce'
+  | Infertype_invalid v ce :
+      inferType_stmt (Sinvalid v) ce ce
+  | Infertype_sfcnct r e ce :
+      forall t t' c,
+      CE.find (HiFP.base_ref r) ce = Some (t, c) /\
+      HiFP.type_of_hfexpr e ce = t' /\
+      HiFP.ftype_equiv (type_of_cmpnttyp t) t' ->
+      inferType_stmt (Sfcnct r e) ce ce
+  | Infertype_spcnct r e ce :
+      forall t t' c,
+      CE.find (HiFP.base_ref r) ce = Some (t, c) /\
+      HiFP.type_of_hfexpr e ce = t' /\
+      HiFP.ftype_weak_equiv (type_of_cmpnttyp t) t' ->
+      inferType_stmt (Spcnct r e) ce ce
+  | Infertype_sskip ce :
+      inferType_stmt (HiFP.sskip) ce ce
+  | Infertype_swhen e s1 s2 ce ce' ce'' :
+      inferType_stmts s1 ce ce' ->
+      inferType_stmts s2 ce' ce'' ->
+      inferType_stmt (Swhen e s1 s2) ce ce''
+
+
+End InferTypeP.
