@@ -8,6 +8,8 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Import Prenex Implicits.
 
+About VarOrder.
+
 (* Delimit Scope hifirrtl with hifirrtl. *)
 
 Section HiFirrtl.
@@ -59,7 +61,13 @@ Section HiFirrtl.
         en : var;
         clk : var
       }.
-  
+
+  Axiom mem_port_eq_dec : forall {x y : mem_port}, {x = y} + {x <> y}.
+  Parameter mem_port_eqn : forall (x y : mem_port), bool.
+  Axiom mem_port_eqP : Equality.axiom mem_port_eqn.
+  Canonical mem_port_eqMixin := EqMixin mem_port_eqP.
+  Canonical mem_port_eqType := Eval hnf in EqType mem_port mem_port_eqMixin.
+
   Record hfmem : Type :=
     mk_fmem
       {
@@ -110,7 +118,7 @@ Section HiFirrtl.
    Scheme hfstmt_seq_hfstmt_ind := Induction for hfstmt_seq Sort Prop
    with hfstmt_hfstmt_seq_ind := Induction for hfstmt Sort Prop.
 
-   Fixpoint Qhead (default : hfstmt) (s : hfstmt_seq) : hfstmt :=
+   Definition Qhead (default : hfstmt) (s : hfstmt_seq) : hfstmt :=
    match s with Qnil => default
               | Qcons h tl => h end.
 
@@ -821,7 +829,7 @@ Module MakeHiFirrtl
   Fixpoint ftype_weak_equiv t1 t2 :=
     match t1, t2 with
     | Gtyp gt1, Gtyp gt2 => fgtyp_equiv gt1 gt2
-    | Atyp t1 n1, Atyp t2 n2 => ftype_equiv t1 t2
+    | Atyp t1 n1, Atyp t2 n2 => ftype_equiv t1 t2 (* DNJ: shouldn't that be "ftype_weak_equiv t1 t2"? *)
     | Btyp bt1, Btyp bt2 => fbtyp_weak_equiv bt1 bt2
     | _, _ => false
     end.
