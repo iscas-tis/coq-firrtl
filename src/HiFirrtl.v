@@ -158,6 +158,80 @@ it does not make sense to put effort in external modules.
 End HiFirrtl.
 
 
+  (* ground type equivalence *)
+  Definition fgtyp_equiv t1 t2 :=
+    match t1, t2 with
+    | Fuint _, Fuint _
+    | Fsint _, Fsint _
+    | Fclock, Fclock
+    | Freset, Freset
+    (* | Freset, Fuint 1 *)
+    | Fasyncreset, Fasyncreset => true
+    | _, _ => false
+    end.
+
+  (* type equivalence *)
+  Fixpoint ftype_equiv t1 t2 :=
+    match t1, t2 with
+    | Gtyp gt1, Gtyp gt2 => fgtyp_equiv gt1 gt2
+    | Atyp t1 n1, Atyp t2 n2 => (n1 == n2) && ftype_equiv t1 t2
+    | Btyp bt1, Btyp bt2 => fbtyp_equiv bt1 bt2
+    | _, _ => false
+    end
+  with fbtyp_equiv bt1 bt2 :=
+         match bt1, bt2 with
+         | Fnil, Fnil => true
+         | Fflips v1 Flipped t1 fs1, Fflips v2 Flipped t2 fs2 =>
+           (v1 == v2) && ftype_equiv t1 t2 && fbtyp_equiv fs1 fs2
+         | Fflips v1 Nflip t1 fs1, Fflips v2 Nflip t2 fs2 =>
+           (v1 == v2) && ftype_equiv t1 t2 && fbtyp_equiv fs1 fs2
+         | _, _ => false
+         end.
+
+  (* type weak equivalence *)
+  Fixpoint have_field bs f : bool :=
+    match bs with
+    | Fflips v fp t bs' => if v == f then true else have_field bs' f
+    | Fnil => false
+    end.
+
+  Fixpoint orient_of_field bs f : option fflip :=
+    match bs with
+    | Fflips v fp t bs' => if v == f then Some fp else orient_of_field bs' f
+    | Fnil => None
+    end.
+
+  Fixpoint type_of_field bs f : option ftype :=
+    match bs with
+    | Fflips v fp t bs' => if v == f then Some t else type_of_field bs' f
+    | Fnil => None
+    end.
+
+  Definition same_ffilp f1 f2 : bool :=
+    match f1, f2 with
+    | Flipped, Flipped => true
+    | Nflip, Nflip => true
+    | _, _ => false
+    end.
+
+  Fixpoint fbtyp_weak_equiv b1 b2 :=
+    match b1 with
+    | Fflips v1 fp1 t1 fs1 =>
+      match orient_of_field b1 v1, type_of_field b2 v1 with
+      | Some fp2, Some t2 => (same_ffilp fp1 fp2 && (ftype_equiv t1 t2))
+      | _, _ => fbtyp_weak_equiv fs1 b2
+      end
+    | Fnil => true
+    end.
+
+  Fixpoint ftype_weak_equiv t1 t2 :=
+    match t1, t2 with
+    | Gtyp gt1, Gtyp gt2 => fgtyp_equiv gt1 gt2
+    | Atyp t1 n1, Atyp t2 n2 => ftype_equiv t1 t2
+    | Btyp bt1, Btyp bt2 => fbtyp_weak_equiv bt1 bt2
+    | _, _ => false
+    end.
+
 (********************************************************************************)
 
 (** Identifiers *)
@@ -224,6 +298,7 @@ Module PVS <: SsrFSetWithNew := FSets.MakeTreeSetWithNew ProdVarOrder.
 Module PVM <: SsrFMapWithNew := FMaps.MakeTreeMapWithNew ProdVarOrder.
 Module Ids_map2 := Map2 PVS PVS.
 Module Ids_id_map2 := Map2 PVS VS.
+Module Id_ids_map2 := Map2 VS PVS.
 
 
 (********************************************************************************)
@@ -585,7 +660,6 @@ Module MakeHiFirrtl
   Module VSLemmas := SsrFSetLemmas VS.
 
   Local Notation var := V.t.
-
   Local Notation cstate := SV.t.
   Local Notation cenv := @CE.env.
 
@@ -621,6 +695,7 @@ Module MakeHiFirrtl
 
   Definition hfreg := @hfreg V.T.
   Definition mk_hfreg := @mk_freg V.T.
+  Definition rst := @rst V.T.
   Definition nrst := @NRst V.T.
   Definition rrst e1 e2 := @Rst V.T e1 e2.
   Definition mk_mem_port := @mk_mem_port V.T.
@@ -711,80 +786,6 @@ Module MakeHiFirrtl
     end.
 
   (****** Semantics ******)
-
-  (* ground type equivalence *)
-  Definition fgtyp_equiv t1 t2 :=
-    match t1, t2 with
-    | Fuint _, Fuint _
-    | Fsint _, Fsint _
-    | Fclock, Fclock
-    | Freset, Freset
-    (* | Freset, Fuint 1 *)
-    | Fasyncreset, Fasyncreset => true
-    | _, _ => false
-    end.
-
-  (* type equivalence *)
-  Fixpoint ftype_equiv t1 t2 :=
-    match t1, t2 with
-    | Gtyp gt1, Gtyp gt2 => fgtyp_equiv gt1 gt2
-    | Atyp t1 n1, Atyp t2 n2 => (n1 == n2) && ftype_equiv t1 t2
-    | Btyp bt1, Btyp bt2 => fbtyp_equiv bt1 bt2
-    | _, _ => false
-    end
-  with fbtyp_equiv bt1 bt2 :=
-         match bt1, bt2 with
-         | Fnil, Fnil => true
-         | Fflips v1 Flipped t1 fs1, Fflips v2 Flipped t2 fs2 =>
-           (v1 == v2) && ftype_equiv t1 t2 && fbtyp_equiv fs1 fs2
-         | Fflips v1 Nflip t1 fs1, Fflips v2 Nflip t2 fs2 =>
-           (v1 == v2) && ftype_equiv t1 t2 && fbtyp_equiv fs1 fs2
-         | _, _ => false
-         end.
-
-  (* type weak equivalence *)
-  Fixpoint have_field bs f : bool :=
-    match bs with
-    | Fflips v fp t bs' => if v == f then true else have_field bs' f
-    | Fnil => false
-    end.
-
-  Fixpoint orient_of_field bs f : option fflip :=
-    match bs with
-    | Fflips v fp t bs' => if v == f then Some fp else orient_of_field bs' f
-    | Fnil => None
-    end.
-
-  Fixpoint type_of_field bs f : option ftype :=
-    match bs with
-    | Fflips v fp t bs' => if v == f then Some t else type_of_field bs' f
-    | Fnil => None
-    end.
-
-  Definition same_ffilp f1 f2 : bool :=
-    match f1, f2 with
-    | Flipped, Flipped => true
-    | Nflip, Nflip => true
-    | _, _ => false
-    end.
-
-  Fixpoint fbtyp_weak_equiv b1 b2 :=
-    match b1 with
-    | Fflips v1 fp1 t1 fs1 =>
-      match orient_of_field b1 v1, type_of_field b2 v1 with
-      | Some fp2, Some t2 => (same_ffilp fp1 fp2 && (ftype_equiv t1 t2))
-      | _, _ => fbtyp_weak_equiv fs1 b2
-      end
-    | Fnil => true
-    end.
-
-  Fixpoint ftype_weak_equiv t1 t2 :=
-    match t1, t2 with
-    | Gtyp gt1, Gtyp gt2 => fgtyp_equiv gt1 gt2
-    | Atyp t1 n1, Atyp t2 n2 => ftype_equiv t1 t2
-    | Btyp bt1, Btyp bt2 => fbtyp_weak_equiv bt1 bt2
-    | _, _ => false
-    end.
 
   Definition cmpnt_init_typs := @cmpnt_init_typs V.T.
   Definition aggr_typ t := @Aggr_typ V.T t.
@@ -2690,7 +2691,6 @@ Module HiF := MakeHiFirrtl VarOrder (* ProdVarOrder PVS *) VS VM CE StructState 
 
 
 
-
 Module MakeHiFirrtlP
   (V : SsrOrder) (* identifier names *)
   (PVS : SsrFSet with Module SE := V)
@@ -2739,6 +2739,7 @@ Module MakeHiFirrtlP
 
   Definition hfreg := @hfreg V.T.
   Definition mk_hfreg := @mk_freg V.T.
+  Definition rst := @rst V.T.
   Definition nrst := @NRst V.T.
   Definition rrst e1 e2 := @Rst V.T e1 e2.
   Definition mk_mem_port := @mk_mem_port V.T.
@@ -2762,6 +2763,7 @@ Module MakeHiFirrtlP
   Definition reg_typ t := @Reg_typ V.T t.
   Definition mem_typ t := @Mem_typ V.T t.
   Definition unknown_typ := @Unknown_typ V.T.
+
   
 End MakeHiFirrtlP.
 
@@ -2783,33 +2785,33 @@ Section Preprocess.
   (* ig contain fst as next ident index, snd as current index *)
   Definition index_gen (g : generator * N) ft : (generator * N) := (N.add (fst g) (N.of_nat (size_of_ftype ft)), (fst g)).
   Definition newer_than_current (g: generator * N) : bool := N.ltb (snd g) (fst g).
-  Definition new_index_gen (g : generator) ft : generator :=
+  Definition new_index_gen  (g : generator) ft : generator :=
     let s := (size_of_ftype ft) in
     if s==0 then N.add g 1
     else
       N.add g (N.of_nat (size_of_ftype ft).+1).
 
-  (* A map from paired vars to eref *) Print href.
-  Definition eids := (href ProdVarOrder.T).
-   Definition eid v := @Eid ProdVarOrder.T v. 
-  Definition esubfield r v := @Esubfield ProdVarOrder.T r v.
-  Definition esubindex r n := @Esubindex ProdVarOrder.T r n.
-  Definition esubaccess r e := @Esubaccess ProdVarOrder.T r e.
-  Definition hfstmt' := (@hfstmt ProdVarOrder.T).
-  Definition hfstmt_seq' := hfstmt_seq ProdVarOrder.T.
-  Definition qnil := Qnil ProdVarOrder.T.
-(*Definition qcons s ss' := @Qcons VarOrder.T s ss.*)
-  Definition sskip := @Sskip ProdVarOrder.T.
-  Definition swire v t := @Swire ProdVarOrder.T v t.
-  Definition sreg v r := @Sreg ProdVarOrder.T v r.
-  Definition smem v m := @Smem ProdVarOrder.T v m.
-  Definition snode v e := @Snode ProdVarOrder.T v e.
-  Definition sfcnct v1 v2 := @Sfcnct ProdVarOrder.T v1 v2.
-  Definition spcnct v1 v2 := @Spcnct ProdVarOrder.T v1 v2.
-  Definition sinvalid v1 := @Sinvalid ProdVarOrder.T v1.
-  Definition swhen c s1 s2 := @Swhen ProdVarOrder.T c s1 s2.
-  (* Definition sstop e1 e2 n := @Sstop VarOrder.T e1 e2 n. *)
-  Definition sinst v1 v2 := @Sinst ProdVarOrder.T v1 v2.
+(*   (* A map from paired vars to eref *) *)
+(*   Definition eids := (href ProdVarOrder.T). *)
+(*   Definition eid v := @Eid ProdVarOrder.T v.  *)
+(*   Definition esubfield r v := @Esubfield ProdVarOrder.T r v. *)
+(*   Definition esubindex r n := @Esubindex ProdVarOrder.T r n. *)
+(*   Definition esubaccess r e := @Esubaccess ProdVarOrder.T r e. *)
+(*   Definition hfstmt' := (@hfstmt ProdVarOrder.T). *)
+(*   Definition hfstmt_seq' := hfstmt_seq ProdVarOrder.T. *)
+(*   Definition qnil := Qnil ProdVarOrder.T. *)
+(* (*Definition qcons s ss' := @Qcons VarOrder.T s ss.*) *)
+(*   Definition sskip := @Sskip ProdVarOrder.T. *)
+(*   Definition swire v t := @Swire ProdVarOrder.T v t. *)
+(*   Definition sreg v r := @Sreg ProdVarOrder.T v r. *)
+(*   Definition smem v m := @Smem ProdVarOrder.T v m. *)
+(*   Definition snode v e := @Snode ProdVarOrder.T v e. *)
+(*   Definition sfcnct v1 v2 := @Sfcnct ProdVarOrder.T v1 v2. *)
+(*   Definition spcnct v1 v2 := @Spcnct ProdVarOrder.T v1 v2. *)
+(*   Definition sinvalid v1 := @Sinvalid ProdVarOrder.T v1. *)
+(*   Definition swhen c s1 s2 := @Swhen ProdVarOrder.T c s1 s2. *)
+(*   (* Definition sstop e1 e2 n := @Sstop VarOrder.T e1 e2 n. *) *)
+(*   Definition sinst v1 v2 := @Sinst ProdVarOrder.T v1 v2. *)
   
   Definition eid_map := PVM.t HiF.href.
   Definition eid_map_empty : eid_map := PVM.empty HiF.href.
@@ -2825,11 +2827,12 @@ Section Preprocess.
   Definition gen_newer_than (g: generator * N) (m : eid_map) :=
     forall v rs, PVM.find v m = Some rs -> N.ltb (fst v) (fst g).
 
-  Definition offset_ref r ce: N:=
+  (* offset of subfiled/subindex recursive to the base ref *)
+  Fixpoint offset_ref r ce n: N:=
     match r with
-    | Eid v => 0
-    | Esubfield r1 v => N.of_nat (offset_of_subfield (HiF.type_of_hfexpr (HiF.eref r) ce) v 0)
-    | Esubindex r1 n => N.of_nat (offset_of_subindex (HiF.type_of_hfexpr (HiF.eref r) ce) n)
+    | Eid v => n
+    | Esubfield r1 v => offset_ref r1 ce (N.add (N.of_nat (offset_of_subfield (HiF.type_of_hfexpr (HiF.eref r1) ce) v 0)) (N.of_nat n))
+    | Esubindex r1 n => offset_ref r1 ce (N.add (N.of_nat (offset_of_subindex (HiF.type_of_hfexpr (HiF.eref r1) ce) n)) (N.of_nat n))
     | _ => 0
     end.
 
@@ -2841,35 +2844,75 @@ Section Preprocess.
     | Eprim_binop b e1 e2 => HiFP.eprim_binop b (expr_pvar em ce e1) (expr_pvar em ce e2)
     | Emux e1 e2 e3 => HiFP.emux (expr_pvar em ce e1) (expr_pvar em ce e2) (expr_pvar em ce e3)
     | Evalidif e1 e2 => HiFP.evalidif (expr_pvar em ce e1) (expr_pvar em ce e2)
-    | Eref r => HiFP.eref (HiFP.eid (HiF.base_ref r, offset_ref r ce))
+    | Eref r => HiFP.eref (HiFP.eid (HiF.base_ref r, offset_ref r ce 0))
     end.
 
-  (* Parameter rst_pvar : HiF.rst -> HiFP.rst. *)
+  (* Parameter rst_pvar : HiF.rst -> HiFP.rst. *) 
+  Definition rst_pvar (em : eid_map) (ce : CE.env) (r : HiF.rst) : HiFP.rst :=
+    match r with
+    | NRst => HiFP.nrst
+    | Rst e1 e2 => HiFP.rrst (expr_pvar em ce e1) (expr_pvar em ce e2)
+    end.
+
+  Definition hfreg_pvar (em : eid_map) (ce : CE.env) (r : HiF.hfreg) : HiFP.hfreg :=
+    let tp := type r in
+    let c := clock r in
+    let rs := reset r in
+    HiFP.mk_hfreg tp (expr_pvar em ce c) (rst_pvar em ce rs).
+
+  Definition memport_pvar (em : eid_map) (m : HiF.mem_port) : eid_map * HiFP.mem_port :=
+    let i := id m in
+    let a := addr m in
+    let e := en m in
+    let c := clk m in
+    let ms := mask m in
+    let em1 := (PVM.add (i, initial_index) (HiF.eid i) (PVM.add (a, initial_index) (HiF.eid a) (PVM.add (e, initial_index) (HiF.eid e) (PVM.add (c, initial_index) (HiF.eid c) (PVM.add (ms, initial_index) (HiF.eid ms) em))))) in
+    let mp := HiFP.mk_mem_port (i, initial_index) (a, initial_index) (e, initial_index) (c, initial_index) (ms, initial_index)
+    in  (em1, mp).
+
+  Fixpoint memports_pvars  (em : eid_map) (ms : seq HiF.mem_port) (msp : seq HiFP.mem_port) : eid_map * seq HiFP.mem_port :=
+    match ms with
+    | nil => (em , msp)
+    | cons m mss =>
+        let '(em1, pms) := memport_pvar em m in
+        memports_pvars em1 mss (pms :: msp)
+    end.
   
-  Parameter hfreg_pvar: HiF.hfreg -> HiFP.hfreg.
-    (* HiFP.mk_hfreg (type r) (clock (expr_pvar (clock h))) () *)
-  Parameter hfmem_pvar: HiF.hfmem -> HiFP.hfmem.
-  
-  Fixpoint hfstmt_indexes (* (g : generator) *) (em : eid_map) (ce : CE.env) (h : HiF.hfstmt) : (* generator **) eid_map * CE.env * hfstmt' :=
+  Definition hfmem_pvar (em : eid_map) (ce : CE.env) (m : HiF.hfmem) : eid_map * HiFP.hfmem :=
+    let tp := data_type m in
+    let d := depth m in
+    let rd := reader m in 
+    let wt := writer m in
+    let rl := read_latency m in
+    let wl := write_latency m in
+    let rw := read_write m in
+    let '(em', mp') := memports_pvars em rd nil in
+    let '(em'', mp'') := memports_pvars em wt nil in
+    (em'', HiFP.mk_hfmem tp d mp' mp'' rl wl rw).
+
+  (* translate original prog to the one with pvar, subfield/subindex references are represented by pair of ids, e.g. a.b => (a, offset of b) *)
+  Fixpoint hfstmt_indexes (* (g : generator) *) (em : eid_map) (ce : CE.env) (h : HiF.hfstmt) : (* generator **) eid_map * CE.env * HiFP.hfstmt :=
     match h with
-    | Swire v t => ((* new_index_gen g t, *) PVM.add (v, initial_index) (HiF.eid v) em, CE.add v (HiF.aggr_typ t, Wire) ce, swire (v, initial_index) t)
-    | Sreg v r => ((* new_index_gen g (type r), *) PVM.add (v, initial_index) (HiF.eid v) em, CE.add v (HiF.reg_typ r, Register) ce, sreg (v, initial_index) (hfreg_pvar r))
-    | Smem v m => ( PVM.add (v, initial_index) (HiF.eid v) em, CE.add v (HiF.mem_typ m, Memory) ce, smem (v, initial_index) (hfmem_pvar m)) 
-    | Sinst v1 v2 => ( PVM.add (v1, initial_index) (HiF.eid v1) em, CE.add v1 ((fst (CE.vtyp v2 ce)), Instanceof) ce, sinst (v1, initial_index) (v2, initial_index))
-    | Snode v e => ( PVM.add (v, initial_index) (HiF.eid v) em, CE.add v (HiF.aggr_typ (HiF.type_of_hfexpr e ce), Node) ce, snode (v, initial_index) (expr_pvar em ce e))
-    | Sfcnct r e => (PVM.add (HiF.base_ref r, offset_ref r ce) (r) em, ce, sfcnct ( (HiFP.eid (HiF.base_ref r, (offset_ref r ce)))) (expr_pvar em ce e))
-    | Spcnct r e => (PVM.add (HiF.base_ref r, offset_ref r ce) (r) em, ce, spcnct ( (HiFP.eid (HiF.base_ref r, (offset_ref r ce)))) (expr_pvar em ce e))
-    | Sinvalid r => (PVM.add (HiF.base_ref r, offset_ref r ce) (r) em, ce, sinvalid ( (HiFP.eid (HiF.base_ref r, (offset_ref r ce)))))
-    | Swhen e s1 s2 => (em, ce, swhen (expr_pvar em ce e) (snd (hfstmt_seq_indexes em ce s1)) (snd (hfstmt_seq_indexes em ce s2)))
-    | Sskip => ( em, ce, sskip)
+    | Swire v t => ((* new_index_gen g t, *) PVM.add (v, initial_index) (HiF.eid v) em, CE.add v (HiF.aggr_typ t, Wire) ce, HiFP.swire (v, initial_index) t)
+    | Sreg v r => ((* new_index_gen g (type r), *) PVM.add (v, initial_index) (HiF.eid v) em, CE.add v (HiF.reg_typ r, Register) ce, HiFP.sreg (v, initial_index) (hfreg_pvar em ce r))
+    | Smem v m =>
+        let '(em', ms') := hfmem_pvar em ce m in
+        (PVM.add (v, initial_index) (HiF.eid v) em', CE.add v (HiF.mem_typ m, Memory) ce, HiFP.smem (v, initial_index) ms')
+    | Sinst v1 v2 => ( PVM.add (v1, initial_index) (HiF.eid v1) em, CE.add v1 ((fst (CE.vtyp v2 ce)), Instanceof) ce, HiFP.sinst (v1, initial_index) (v2, initial_index))
+    | Snode v e => ( PVM.add (v, initial_index) (HiF.eid v) em, CE.add v (HiF.aggr_typ (HiF.type_of_hfexpr e ce), Node) ce, HiFP.snode (v, initial_index) (expr_pvar em ce e))
+    | Sfcnct r e => (PVM.add (HiF.base_ref r, offset_ref r ce 0) (r) em, ce, HiFP.sfcnct ( (HiFP.eid (HiF.base_ref r, (offset_ref r ce 0)))) (expr_pvar em ce e))
+    | Spcnct r e => (PVM.add (HiF.base_ref r, offset_ref r ce 0) (r) em, ce, HiFP.spcnct ( (HiFP.eid (HiF.base_ref r, (offset_ref r ce 0)))) (expr_pvar em ce e))
+    | Sinvalid r => (PVM.add (HiF.base_ref r, offset_ref r ce 0) (r) em, ce, HiFP.sinvalid ( (HiFP.eid (HiF.base_ref r, (offset_ref r ce 0)))))
+    | Swhen e s1 s2 => (em, ce, HiFP.swhen (expr_pvar em ce e) (snd (hfstmt_seq_indexes em ce s1)) (snd (hfstmt_seq_indexes em ce s2)))
+    | Sskip => ( em, ce, HiFP.sskip)
     end
   with hfstmt_seq_indexes em ce s : eid_map * CE.env * HiFP.hfstmt_seq :=
          match s with
          | Qnil => (em, ce, HiFP.qnil)
          | Qcons s ss => hfstmt_seq_indexes (fst (fst (hfstmt_indexes em ce s))) (snd (fst (hfstmt_indexes em ce s))) ss
-    end.
+         end.
   
-  (* A map from paired vars to index *)
+  (* A map from paired vars to signle index in N *)
   Definition ind_map := PVM.t (N * N).
   Definition ind_map_empty : ind_map := PVM.empty (N * N).
 
@@ -2894,7 +2937,7 @@ Section Preprocess.
     end.
 
   Definition newer_than (g: generator * N) (m : ind_map) :=
-  forall v rs, PVM.find v m = Some rs -> N.ltb (fst g) (fst rs).
+    forall v rs, PVM.find v m = Some rs -> N.ltb (fst g) (fst rs).
   
   (* Parameter get_set_pvar : forall m (p:pvar), acc_indexes m p = p. *)
   

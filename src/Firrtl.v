@@ -203,12 +203,12 @@ Notation "x '!->' v ';' m" := (t_update m x v)
 End Natlist0.
 
 Module MakeFirrtl
-       (V : SsrOrder)
-       (VS : SsrFSet with Module SE := V)
-       (VM : SsrFMap with Module SE := V)
+       (V : SsrOrder) 
+       (* (VS : SsrFSet with Module SE := V) *)
+       (* (VM : SsrFMap with Module SE := V) *)
        (TE : TypEnv with Module SE := V)
-       (SV : ValStore V TE)
-       (EV : ExprStore V TE).
+       (SV : ValStore V TE).
+       (* (EV : ExprStore V TE). *)
   Local Open Scope firrtl.
   Local Open Scope bits.
   
@@ -217,11 +217,6 @@ Module MakeFirrtl
   Local Notation var := V.t.
 
   Local Notation vstate := SV.t.
-
-  (* Definition EStore := Store.M.t (fexpr V.T). *)
-
-  Local Notation estate := EV.t.
-  
 
 (****** Semantics ******)
 
@@ -923,11 +918,12 @@ Module MakeFirrtl
       (* upd env expr e *)
       admit.
   Admitted.
+
   
 End MakeFirrtl.
 
- 
-Module LoFirrtl := MakeFirrtl VarOrder VS VM TE Store EStore.
+
+Module LoFirrtl := MakeFirrtl VarOrder (* VS VM *) TE Store .
 
 (*
 Definition init_vm := VM.empty.
