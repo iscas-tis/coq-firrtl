@@ -324,6 +324,13 @@ Section Component_types.
   (* | Inst_typ : ftype -> seq var -> cmpnt_init_typs *)
   | Unknown_typ : cmpnt_init_typs.
 
+  (* equality of cmpnt_init_typs is decidable *)
+   Axiom cmpnt_init_typs_eq_dec : forall {x y : cmpnt_init_typs}, {x = y} + {x <> y}.
+   Parameter cmpnt_init_typs_eqn: forall (x y : cmpnt_init_typs), bool.
+   Axiom cmpnt_init_typs_eqP : Equality.axiom cmpnt_init_typs_eqn.
+   Canonical cmpnt_init_typs_eqMixin := EqMixin cmpnt_init_typs_eqP.
+   Canonical cmpnt_init_typs_eqType := Eval hnf in EqType cmpnt_init_typs cmpnt_init_typs_eqMixin.
+
   (* data type of component *)
   Definition type_of_cmpnttyp ct :=
     match ct with

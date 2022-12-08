@@ -1,5 +1,5 @@
 From Coq Require Import BinNat ZArith.
-From mathcomp Require Import ssreflect ssrbool eqtype seq fintype.
+From mathcomp Require Import ssreflect ssrbool eqtype seq fintype ssrnat div.
 From simplssrlib Require Import SsrOrder Var.
 From firrtl Require Import Env Firrtl HiEnv HiFirrtl.
 
@@ -13,6 +13,36 @@ Unset Strict Implicit.
 Import Prenex Implicits. *)
 
 Include HiF.
+
+(* DNJ: What follows is my proposal for error handling:
+   a type that can store either an error message or some result. *)
+
+Inductive error_info : Type :=
+   | Esyntax (* syntax error *)
+   | Etype (* a component of a different type is expected *)
+   | Eflow_direction (* the component has the wrong flow direction, e.g. it is not passive while this is required *)
+   | Euninitialized (* a component should be connected but isn't *)
+   | Einternal (* e.g. if a pass receives input that should have been handled by earlier passes *)
+   | Eunimplemented (* some functionality has not been implemented, e.g. external modules are not hadnled *)
+   | Eundeclared (* a module (or component) should be declared but isn't *)
+   .
+
+   Lemma error_info_eq_dec : forall {x y : error_info}, {x = y} + {x <> y}.
+   Proof. induction x, y ; try (right ; discriminate) ; try (left ; reflexivity). Qed.
+   Definition error_info_eqn (x y : error_info) : bool :=
+   match x, y with Esyntax, Esyntax | Etype, Etype | Eflow_direction, Eflow_direction | Euninitialized, Euninitialized
+   | Einternal, Einternal | Eunimplemented, Eunimplemented | Eundeclared, Eundeclared => true
+   | _, _ => false end.
+   Lemma error_info_eqP : Equality.axiom error_info_eqn.
+   Proof. unfold Equality.axiom.
+   induction x, y ; try (apply ReflectF ; discriminate) ; try (apply ReflectT ; reflexivity). Qed.
+   Canonical error_info_eqMixin := EqMixin error_info_eqP.
+   Canonical error_info_eqType := Eval hnf in EqType error_info error_info_eqMixin.
+
+Inductive error_type {T : Type} : Type :=
+   | OK : T -> error_type
+   | Err : error_info -> error_type
+   .
 
 (* DNJ: What follows is my proposal to create a unique lowered index from a (high-level) reference.
    I do not know whether this is compatible with ExpandConnects or LowerTypes. *)
@@ -47,43 +77,70 @@ Lemma pair_proj : forall p : N, p = pair (proj1 p) (proj2 p).
 Admitted.
 
 (* mapping from a href that is not a subaccess to an index in CE.env *)
-Fixpoint ref2var (ref : href) : N :=
+Fixpoint ref2var (ref : href) : @error_type N :=
 match ref with
-| Eid v => v * 3 + 1
-| Esubfield ref0 v => match ref2var ref0 with
-                      | 0 => 0
-                      | n => (pair n v) * 3 + 2
-                      end
-| Esubindex ref0 i => match ref2var ref0 with
-                      | 0 => 0
-                      | n => (pair n (N.of_nat i)) * 3 + 3
-                      end
-| Esubaccess _ _ => 0 (* cannot be translated actually *)
+| Eid v => OK (v * 3 + 1)
+| Esubfield ref0 v => match ref2var ref0 with Err e => Err e
+                      | OK n => OK ((pair n v) * 3 + 2) end
+| Esubindex ref0 i => match ref2var ref0 with Err e => Err e
+                      | OK n => OK ((pair n (N.of_nat i)) * 3 + 3) end
+| Esubaccess _ _ => Err Einternal (* should have been changed in an earlier pass *)
 end.
+
+Fixpoint href_without_subaccess (ref : href) : bool :=
+match ref with
+| Eid _ => true
+| Esubfield ref0 _
+| Esubindex ref0 _ => href_without_subaccess ref0
+| Esubaccess _ _ => false
+end.
+
+Lemma ref2var_OK :
+   forall (ref : href), href_without_subaccess ref ->
+      forall e : error_info, ref2var ref <> Err e.
+Proof.
+induction ref ; try discriminate.
+* unfold href_without_subaccess ; fold href_without_subaccess.
+  intros.
+  unfold ref2var ; fold ref2var.
+  induction (ref2var ref).
+  + discriminate.
+  + apply IHref.
+    exact H.
+* unfold href_without_subaccess ; fold href_without_subaccess.
+  intros.
+  unfold ref2var ; fold ref2var.
+  induction (ref2var ref).
+  + discriminate.
+  + apply IHref.
+    exact H.
+Qed.
 
 (* mapping from an index in CE.env to a href. *)
 
 Definition to_var (n : N) : VarOrder.T := n.
 
-Fixpoint var2ref' (depth : nat) (n : N) : option href :=
+Fixpoint var2ref' (depth : nat) (n : N) : @error_type href :=
    match depth, n with
-   | 0%nat, _ | _, 0 => None
+   | 0%nat, _ | _, 0 => Err Einternal
    | S d', _ => match n mod 3 with
-                | 1 => Some (Eid (to_var ((n - 1) / 3)))
+                | 1 => OK (Eid (to_var ((n - 1) / 3)))
                 | 2 => let p := (n - 2) / 3 in
-                       match var2ref' d' (proj1 p) with
-                       | None => None
-                       | Some ref => Some (Esubfield ref (proj2 p))
-                       end
+                       match var2ref' d' (proj1 p) with Err e => Err e
+                       | OK ref => OK (Esubfield ref (proj2 p)) end
                 | _ => let p := (n - 3) / 3 in
-                       match var2ref' d' (proj1 p) with
-                       | None => None
-                       | Some ref => Some (Esubindex ref (N.to_nat (proj2 p)))
-                       end
+                       match var2ref' d' (proj1 p) with Err e => Err e
+                       | OK ref => OK (Esubindex ref (N.to_nat (proj2 p))) end
                 end
    end.
 
-Definition var2ref (n : N) : option href := var2ref' (N.to_nat n) n.
+Definition var2ref (n : N) : @error_type href := var2ref' (N.to_nat n) n.
+
+Lemma var2ref_OK : forall (n : N) (e : error_info), n <> 0 -> var2ref n <> Err e.
+Proof.
+(* Proof based on: 0 < n <= depth -> var2'ref depth n <> Err e,
+   which should be proven by induction over depth. *)
+Admitted.
 
 Close Scope N_scope.
 
@@ -164,9 +221,8 @@ Close Scope N_scope.
               * declaration statements containing the declarations from both branches
               * map of connections containing definitions (if necessary using multiplexers/validifs
                 to choose between the values defined in the branches) *)
-         (Qcat (fst true_branch) (fst false_branch),
-          CE.map2 (map2_helper_cs_tf c) (snd true_branch) (snd false_branch))
-   .
+   let combined_cm := CE.map2 (map2_helper_cs_tf c) (snd true_branch) (snd false_branch)
+   in (Qcat (fst true_branch) (fst false_branch), combined_cm).
 
    (* Definition option_and (simcond : option hfexpr) (cond : hfexpr) : hfexpr :=
    (* calculates the conjunction between two conditions if present.
@@ -181,7 +237,7 @@ Close Scope N_scope.
       Therefore we construct, in a mutual recursion, a function that initializes one element of the array.
       After that we call the constructed function for every element of the array. *)
 
-   Fixpoint init_register_vector (v : nat -> href) (array_size : nat) (type : ftype) : (nat -> cmap -> cmap) * nat :=
+   Fixpoint init_register_vector (v : nat -> @error_type href) (array_size : nat) (type : ftype) : @error_type ((nat -> cmap -> @error_type cmap) * nat) :=
    (* Produces a function that initializes v to itself.
       Input:  * v = href of the variable that needs to be initialized
                     (possibly this is already an array, that's why it is a function from nat to href)
@@ -191,34 +247,269 @@ Close Scope N_scope.
       Output: * nat -> cmap -> cmap : a function that initializes one element of the array (by modifying a cmap accordingly)
               * nat : size of the array *)
    match type with
-   | Gtyp _ => ((fun n : nat => CE.add (ref2var (v n)) (D_fexpr (Eref (v n)))), array_size)
-   | Atyp el_type n => init_register_vector (fun m : nat => Esubindex (v (m / array_size)) (m mod array_size)) (array_size * n) el_type
+   | Gtyp _ => OK ((fun (n : nat) (cm : cmap) =>
+                             match v n with Err e => Err e
+                             | OK vn => match ref2var vn with Err e => Err e
+                                        | OK ref => OK (CE.add ref (D_fexpr (Eref vn)) cm) end end), array_size)
+   | Atyp el_type n => init_register_vector (fun m : nat => match v (m %/ n) with Err e => Err e
+                                                            | OK vn => OK (Esubindex vn (m %% n)) end) (array_size * n) el_type
    | Btyp ff => init_register_bundle v array_size ff
    end
-   with init_register_bundle (v : nat -> href) (array_size : nat) (ff : ffield) : (nat -> cmap -> cmap) * nat :=
+   with init_register_bundle (v : nat -> @error_type href) (array_size : nat) (ff : ffield) : @error_type ((nat -> cmap -> @error_type cmap) * nat) :=
    match ff with
-   | Fnil => ((fun (n : nat) (cm : cmap) => cm), 0)
+   | Fnil => OK ((fun (n : nat) (cm : cmap) => Err Einternal), 0)
    | Fflips field_name Nflip field_type ff_tail =>
-        let init_field := init_register_vector (fun n : nat => Esubfield (v n) field_name) array_size field_type
-        in let init_tail := init_register_bundle v array_size ff_tail
-           in ((fun n : nat => if n <? snd init_field then fst init_field n
-                                                      else fst init_tail (n - snd init_field)),
-               snd init_field + snd init_tail)
-   | Fflips _ Flipped _ _ => (* error: a register must have a passive type *) ((fun (n : nat) (cm : cmap) => empty_cmap), 0)
+        match init_register_vector (fun n : nat => match v n with Err e => Err e
+                                                   | OK vn => OK (Esubfield vn field_name) end)
+                                   array_size field_type with Err e => Err e
+        | OK init_field =>
+           match init_register_bundle v array_size ff_tail with Err e => Err e
+           | OK init_tail => OK ((fun (n : nat) (cm : cmap) => if n < snd init_field then fst init_field n cm
+                                                                                     else fst init_tail (n - snd init_field) cm),
+                                 snd init_field + snd init_tail) end end
+   | Fflips _ Flipped _ _ => Err Eflow_direction
    end.
 
-   Fixpoint init_apply_initializer (fn : nat -> cmap -> cmap) (array_size : nat) (cm : cmap) : cmap :=
+   Definition fn_array_is_OK (fn : nat -> cmap -> @error_type cmap) (array_size : nat) : Prop :=
+      forall (n : nat) (cm : cmap), n < array_size -> forall e : error_info, fn n cm <> Err e.
+
+   Definition vn_array_is_OK (v : nat -> @error_type href) (array_size : nat) : Prop :=
+      forall n : nat, n < array_size -> if v n is OK t then href_without_subaccess t
+                                        else false.
+
+   Lemma init_register_vector_OK :
+      forall type : ftype, is_passive type ->
+         forall (v : nat -> @error_type href) (array_size : nat),
+            vn_array_is_OK v array_size ->
+               if init_register_vector v array_size type is OK (fn, array_size0)
+               then fn_array_is_OK fn array_size0
+               else False
+   with init_register_bundle_OK :
+      forall ff: ffield, is_passive_fields ff ->
+         forall (v : nat -> @error_type href) (array_size : nat),
+            vn_array_is_OK v array_size ->
+               if init_register_bundle v array_size ff is OK (fn, array_size0)
+               then fn_array_is_OK fn array_size0
+               else False.
+   Proof.
+   induction type.
+   * intros.
+     unfold init_register_vector.
+     unfold fn_array_is_OK.
+     intro.
+     induction (v n) eqn: Hvn.
+     + induction (ref2var t) eqn: Href2var.
+       - discriminate.
+       - intros.
+         contradict Href2var.
+         apply ref2var_OK.
+         unfold vn_array_is_OK in H0.
+         enough (match v n with
+                 | OK t => href_without_subaccess t
+                 | Err _ => false
+                 end).
+         replace (v n) with (OK t) in H2.
+         exact H2.
+         apply H0.
+         exact H1.
+     + intro ; intro.
+       unfold vn_array_is_OK in H0.
+       enough (match v n with
+               | OK t => href_without_subaccess t
+               | Err _ => false
+               end).
+       replace (v n) with (@Err href e) in H2.
+       contradict H2 ; done.
+       apply H0.
+       exact H1.
+   * unfold is_passive ; fold is_passive.
+     unfold init_register_vector ; fold init_register_vector.
+     intro ; intro ; intro ; intro.
+     apply IHtype.
+     exact H.
+     unfold vn_array_is_OK.
+     intro ; intro.
+     assert (n0 %/ n < array_size).
+       replace (n0 %/ n < array_size) with (n0 < array_size * n).
+       exact H1.
+       symmetry.
+       apply ltn_divLR.
+       destruct n.
+       contradict H1.
+       replace (array_size * 0) with 0 by (symmetry ; apply Nat.mul_0_r).
+       replace (n0 < 0) with false by (symmetry ; apply ltn0).
+       done.
+       apply ltn0Sn.
+     unfold vn_array_is_OK in H0.
+     enough (match v (n0 %/ n) with
+             | OK t => href_without_subaccess t
+             | Err _ => false
+             end).
+     destruct (v (n0 %/ n)) eqn: Hvn0n.
+     + unfold href_without_subaccess ; fold href_without_subaccess.
+       exact H3.
+     + exact H3.
+     apply H0.
+     exact H2.
+   * unfold is_passive ; fold is_passive_fields.
+     unfold init_register_vector ; fold init_register_bundle.
+     apply init_register_bundle_OK.
+   induction ff.
+   * unfold init_register_bundle, fn_array_is_OK.
+     intros.
+     contradict H1.
+     replace (n < 0) with false by (symmetry ; apply ltn0).
+     done.
+   * induction f.
+     + unfold is_passive_fields.
+       done.
+     + unfold is_passive_fields ; fold is_passive_fields ; fold is_passive.
+       intro ; intro ; intro.
+       move /andP : H => H.
+       unfold init_register_bundle ; fold init_register_bundle ; fold init_register_vector.
+       intro.
+       specialize init_register_vector_OK with
+             (type := f0) (v := (fun n : nat =>
+                     match v0 n with
+                     | OK vn => OK (Esubfield vn v)
+                     | Err e => Err e
+                     end)) (array_size := array_size).
+       destruct (init_register_vector
+                   (fun n : nat =>
+                    match v0 n with
+                    | OK vn => OK (Esubfield vn v)
+                    | Err e => Err e
+                    end) array_size f0) eqn: Hinit_vector_f0.
+       - destruct (init_register_bundle v0 array_size ff) eqn: Hinit_bundle_ff.
+         * unfold fn_array_is_OK.
+           intros.
+           destruct (n < snd p) eqn: Hnp.
+           + enough (match init_register_vector
+                              (fun n : nat =>
+                               match v0 n with
+                               | OK vn => OK (Esubfield vn v)
+                               | Err e => Err e
+                               end) array_size f0
+                     with
+                     | OK (fn, array_size0) =>
+                              fn_array_is_OK fn array_size0
+                     | Err _ => False
+                     end).
+             replace (init_register_vector
+                             (fun n : nat =>
+                                match v0 n with
+                                | OK vn => OK (Esubfield vn v)
+                                | Err e => Err e
+                                end) array_size f0) with (OK p) in H2.
+             replace p with ((fst p), (snd p)) in H2 by (symmetry ; apply surjective_pairing).
+             unfold fn_array_is_OK in H2.
+             apply H2.
+             apply Hnp.
+             apply init_register_vector_OK.
+             apply H.
+             unfold vn_array_is_OK.
+             intros.
+             unfold vn_array_is_OK in H0.
+             enough (match v0 n0 with
+                     | OK t => href_without_subaccess t
+                     | Err _ => false
+                     end).
+             destruct (v0 n0) eqn : Hv0n.
+             - unfold href_without_subaccess ; fold href_without_subaccess.
+               exact H3.
+             - exact H3.
+             apply H0.
+             exact H2.
+           + move /negbT/negP : Hnp => Hnp.
+             destruct (snd p0) eqn: Hp0.
+             - absurd (n < snd p).
+               + exact Hnp.
+               + replace (snd p) with (snd p + 0) by (apply addn0).
+                 exact H1.
+             - specialize IHff with (v := v0) (array_size := array_size).
+               replace (init_register_bundle v0 array_size ff) with (OK p0) in IHff.
+               replace p0 with (fst p0, snd p0) in IHff by (symmetry ; apply surjective_pairing).
+               unfold fn_array_is_OK in IHff.
+               apply IHff.
+               apply H.
+               exact H0.
+               replace (snd p0) with (n0.+1).
+               replace (n - snd p < n0.+1) with (n < snd p + n0.+1).
+               exact H1.
+               symmetry ; apply ltn_psubLR.
+               apply ltn0Sn. 
+         * specialize IHff with (v := v0) (array_size := array_size).
+           replace (init_register_bundle v0 array_size ff) with (@Err ((nat -> cmap -> @error_type cmap) * nat) e) in IHff.
+           apply IHff.
+           apply H.
+           exact H0.
+       - enough (match init_register_vector
+                              (fun n : nat =>
+                               match v0 n with
+                               | OK vn => OK (Esubfield vn v)
+                               | Err e => Err e
+                               end) array_size f0
+                          with
+                          | OK (fn, array_size0) =>
+                              fn_array_is_OK fn array_size0
+                          | Err _ => False
+                          end).
+         replace (init_register_vector
+                    (fun n : nat =>
+                     match v0 n with
+                     | OK vn => OK (Esubfield vn v)
+                     | Err e => Err e
+                     end) array_size f0) with (@Err ((nat -> cmap -> @error_type cmap) * nat) e) in H1.
+         exact H1.
+         apply init_register_vector_OK.
+         apply H.
+         unfold vn_array_is_OK.
+         unfold vn_array_is_OK in H0.
+         intros.
+         enough (match v0 n with
+                 | OK t => href_without_subaccess t
+                 | Err _ => false
+                 end).
+         destruct (v0 n).
+         + unfold href_without_subaccess ; fold href_without_subaccess.
+           exact H2.
+         + exact H2.
+         apply H0.
+         exact H1.
+   Qed.
+
+   Fixpoint init_apply_initializer (fn : nat -> cmap -> @error_type cmap) (array_size : nat) (cm : cmap) : @error_type cmap :=
    (* Applies initialization function fn, as produced by init_register_vector, to cm
       so as to initialize the array fn 0 ... fn (array_size - 1). *)
    match array_size with
-   | 0 => cm
-   | S m => init_apply_initializer fn m (fn m cm)
+   | 0 => OK cm
+   | S m => match fn m cm with Err e => Err e
+            | OK new_cm => init_apply_initializer fn m new_cm end
    end.
 
-   Definition init_register (id : VarOrder.T) (type : ftype) (cm : cmap) : cmap :=
+   Lemma init_apply_initializer_OK :
+      forall (fn : nat -> cmap -> @error_type cmap) (array_size : nat) (cm : cmap),
+         fn_array_is_OK fn array_size ->
+            forall e : error_info, init_apply_initializer fn array_size cm <> Err e.
+   Proof.
+   induction array_size.
+   * unfold init_apply_initializer ; discriminate.
+   * unfold init_apply_initializer ; fold init_apply_initializer.
+     intro.
+     induction (fn array_size cm) eqn: Hfn.
+     + intro.
+       apply IHarray_size.
+       intro ; intro ; intro.
+       apply H, leqW ; exact H0.
+     + intro.
+       replace (Err e) with (fn array_size cm).
+       apply H, ltnSn.
+   Qed.
+
+   Definition init_register (id : VarOrder.T) (type : ftype) (cm : cmap) : @error_type cmap :=
    (* Initializes the register id, which is of type type. *)
-   let initializer := init_register_vector (fun n : nat => Eid id) 1 type
-   in init_apply_initializer (fst initializer) (snd initializer) cm.
+   match init_register_vector (fun n : nat => OK (Eid id)) 1 type with Err e => Err e
+   | OK initializer => init_apply_initializer (fst initializer) (snd initializer) cm end.
 
    (* Identifiers for the fields of a memory port *)
    Parameter mem_port_addr : VarOrder.T.
@@ -227,21 +518,24 @@ Close Scope N_scope.
    Parameter mem_port_data : VarOrder.T.
    Parameter mem_port_mask : VarOrder.T.
 
-   Fixpoint init_memory_reader (id : VarOrder.T) (reader : seq VarOrder.T) (cm : cmap) : cmap :=
+   Fixpoint init_memory_reader (id : VarOrder.T) (reader : seq VarOrder.T) (cm : cmap) : @error_type cmap :=
    (* Helper function for init_memory. It initializes the read ports that are indicated in reader. *)
    match reader with
-   | [::] => cm
-   | r :: rtail => init_memory_reader id rtail
-                   (CE.add (ref2var (Esubfield (Esubfield (Eid id) r) mem_port_addr)) D_undefined
-                      (CE.add (ref2var (Esubfield (Esubfield (Eid id) r) mem_port_en)) D_undefined
-                         (CE.add (ref2var (Esubfield (Esubfield (Eid id) r) mem_port_clk)) D_undefined
-                            cm
-                         )
-                      )
-                   )
+   | [::] => OK cm
+   | r :: rtail => match ref2var (Esubfield (Esubfield (Eid id) r) mem_port_clk),
+                         ref2var (Esubfield (Esubfield (Eid id) r) mem_port_en),
+                         ref2var (Esubfield (Esubfield (Eid id) r) mem_port_addr) with
+                   | OK clk_var, OK en_var, OK addr_var =>
+                       init_memory_reader id rtail (CE.add addr_var D_undefined
+                                                      (CE.add en_var D_undefined
+                                                         (CE.add clk_var D_undefined cm)))
+                   | Err err, _, _
+                   | _, Err err, _
+                   | _, _, Err err => Err err
+                   end
    end.
 
-   Fixpoint init_undefined_vector (v : nat -> href) (array_size : nat) (type : ftype) (value : def_expr) : (nat -> cmap -> cmap) * nat :=
+   Fixpoint init_undefined_vector (v : nat -> @error_type href) (array_size : nat) (type : ftype) (value : def_expr) : @error_type ((nat -> cmap -> @error_type cmap) * nat) :=
    (* Produces a function that initializes v to value (mostly D_undefined or D_invalidated).
       It can be used to initialize memory write ports (data and mask fields) and wires.
       Memory ports have to be passive, but wires allow flipped fields,
@@ -252,57 +546,113 @@ Close Scope N_scope.
       Output: * nat -> cmap -> cmap : a function that initializes one element of the array (by modifying a cmap accordingly)
               * nat : size of the array *)
    match type with
-   | Gtyp _ => ((fun n : nat => CE.add (ref2var (v n)) value), array_size)
-   | Atyp el_type n => init_undefined_vector (fun m : nat => Esubindex (v (m / array_size)) (m mod array_size)) (array_size * n) el_type value
+   | Gtyp _ => OK ((fun (n : nat) (cm : cmap) =>
+                   match v n with Err e => Err e
+                   | OK vn => match ref2var vn with Err e => Err e
+                              | OK ref => OK (CE.add ref value cm) end end), array_size)
+   | Atyp el_type n => init_undefined_vector (fun m : nat => match v (m / n) with Err e => Err e
+                                                             | OK vmn => OK (Esubindex vmn (m mod n)) end) (array_size * n) el_type value
    | Btyp ff => init_undefined_bundle v array_size ff value
    end
-   with init_undefined_bundle (v : nat -> href) (array_size : nat) (ff : ffield) (value : def_expr) : (nat -> cmap -> cmap) * nat :=
+   with init_undefined_bundle (v : nat -> @error_type href) (array_size : nat) (ff : ffield) (value : def_expr) : @error_type ((nat -> cmap -> @error_type cmap) * nat) :=
    match ff with
-   | Fnil => ((fun (n : nat) (cm : cmap) => cm), 0)
+   | Fnil => OK ((fun (n : nat) (cm : cmap) => Err Einternal), 0)
    | Fflips field_name fflip field_type ff_tail =>
-        let init_field := match fflip with Nflip => init_undefined_vector  (fun n : nat => Esubfield (v n) field_name) array_size field_type value
-                                       | Flipped => init_undefined_flipped (fun n : nat => Esubfield (v n) field_name) array_size field_type value
-                          end
-        in let init_tail := init_undefined_bundle v array_size ff_tail value
-           in ((fun n : nat => if n <? snd init_field then fst init_field n
-                                                      else fst init_tail (n - snd init_field)),
-               snd init_field + snd init_tail)
+        match (match fflip with Nflip => init_undefined_vector | Flipped => init_undefined_flipped end)
+                                         (fun n : nat => match v n with Err e => Err e
+                                                         | OK vn => OK (Esubfield vn field_name) end) array_size field_type value
+        with Err e => Err e
+        | OK init_field => match init_undefined_bundle v array_size ff_tail value with Err e => Err e
+                           | OK init_tail => OK ((fun (n : nat) (cm : cmap) =>
+                                                 if n <? snd init_field then fst init_field n cm
+                                                                        else fst init_tail (n - snd init_field) cm),
+                                                 snd init_field + snd init_tail) end end
    end
-   with init_undefined_flipped (v : nat -> href) (array_size : nat) (type : ftype) (value : def_expr) : (nat -> cmap -> cmap) * nat :=
+   with init_undefined_flipped (v : nat -> @error_type href) (array_size : nat) (type : ftype) (value : def_expr) : @error_type ((nat -> cmap -> @error_type cmap) * nat) :=
    match type with
-   | Gtyp _ => ((fun (n : nat) (cm: cmap) => cm), 0)
-   | Atyp el_type n => init_undefined_flipped (fun m : nat => Esubindex (v (m / array_size)) (m mod array_size)) (array_size * n) el_type value
+   | Gtyp _ => OK ((fun (n : nat) (cm: cmap) => Err Einternal), 0)
+   | Atyp el_type n => init_undefined_flipped (fun m : nat => match v (m / n) with Err e => Err e
+                                                              | OK vmn => OK (Esubindex vmn (m mod n)) end) (array_size * n) el_type value
    | Btyp ff => init_undefined_flipped_bundle v array_size ff value
    end
-   with init_undefined_flipped_bundle (v : nat -> href) (array_size : nat) (ff : ffield) (value : def_expr) : (nat -> cmap -> cmap) * nat :=
+   with init_undefined_flipped_bundle (v : nat -> @error_type href) (array_size : nat) (ff : ffield) (value : def_expr) : @error_type ((nat -> cmap -> @error_type cmap) * nat) :=
    match ff with
-   | Fnil => ((fun (n : nat) (cm : cmap) => cm), 0)
+   | Fnil => OK ((fun (n : nat) (cm : cmap) => Err Einternal), 0)
    | Fflips field_name fflip field_type ff_tail =>
-        let init_field := match fflip with Nflip => init_undefined_flipped (fun n : nat => Esubfield (v n) field_name) array_size field_type value
-                                       | Flipped => init_undefined_vector  (fun n : nat => Esubfield (v n) field_name) array_size field_type value
-                          end
-        in let init_tail := init_undefined_flipped_bundle v array_size ff_tail value
-           in ((fun n : nat => if n <? snd init_field then fst init_field n
-                                                      else fst init_tail (n - snd init_field)),
-               snd init_field + snd init_tail)
+        match (match fflip with Nflip => init_undefined_flipped | Flipped => init_undefined_vector end) 
+                                            (fun n : nat => match v n with Err e => Err e
+                                                            | OK vn => OK (Esubfield vn field_name) end) array_size field_type value
+        with Err e => Err e
+        | OK init_field => match init_undefined_flipped_bundle v array_size ff_tail value with Err e => Err e
+                           | OK init_tail => OK ((fun (n : nat) (cm : cmap) =>
+                                                 if n <? snd init_field then fst init_field n cm
+                                                                        else fst init_tail (n - snd init_field) cm),
+                                                 snd init_field + snd init_tail) end end
    end.
 
-   Fixpoint init_memory_writer (id : VarOrder.T) (data_type : ftype) (writer : seq VarOrder.T) (cm : cmap) : cmap :=
+   Lemma init_undefined_vector_OK :
+      forall (type : ftype) (v : nat -> @error_type href) (array_size : nat),
+         vn_array_is_OK v array_size ->
+            forall value : def_expr,
+               if init_undefined_vector v array_size type value is OK (fn, array_size0)
+               then fn_array_is_OK fn array_size0
+               else False
+   with init_undefined_bundle_OK :
+      forall (ff: ffield) (v : nat -> @error_type href) (array_size : nat),
+         vn_array_is_OK v array_size ->
+            forall value : def_expr,
+               if init_undefined_bundle v array_size ff value is OK (fn, array_size0)
+               then fn_array_is_OK fn array_size0
+               else False
+   with init_undefined_flipped_OK :
+      forall (type : ftype) (v : nat -> @error_type href) (array_size : nat),
+         vn_array_is_OK v array_size ->
+            forall value : def_expr,
+               if init_undefined_flipped v array_size type value is OK (fn, array_size0)
+               then fn_array_is_OK fn array_size0
+               else False
+   with init_undefined_flipped_bundle_OK :
+      forall (ff: ffield) (v : nat -> @error_type href) (array_size : nat),
+         vn_array_is_OK v array_size ->
+            forall value : def_expr,
+               if init_undefined_flipped_bundle v array_size ff value is OK (fn, array_size0)
+               then fn_array_is_OK fn array_size0
+               else False.
+   Proof.
+   (* The proof is very similar to the one of init_register_vector_OK etc. *)
+   Admitted.
+
+   Fixpoint init_memory_writer (id : VarOrder.T) (data_type : ftype) (writer : seq VarOrder.T) (cm : cmap) : @error_type cmap :=
    (* Helper function for init_memory. It initializes the write ports that are indicated in writer. *)
    match writer with
-   | [::] => cm
-   | w :: wtail => let initializer_data := init_undefined_vector (fun n : nat => (Esubfield (Esubfield (Eid id) w) mem_port_data)) 1 data_type D_undefined
-                   in let initializer_mask := init_undefined_vector (fun n : nat => (Esubfield (Esubfield (Eid id) w) mem_port_mask)) 1 data_type D_undefined
-                      in init_memory_writer id data_type wtail
-                         (CE.add (ref2var (Esubfield (Esubfield (Eid id) w) mem_port_addr)) D_undefined
-                            (CE.add (ref2var (Esubfield (Esubfield (Eid id) w) mem_port_en)) D_undefined
-                               (CE.add (ref2var (Esubfield (Esubfield (Eid id) w) mem_port_clk)) D_undefined
-                                  (init_apply_initializer (fst initializer_data) (snd initializer_data)
-                                     (init_apply_initializer (fst initializer_mask) (snd initializer_mask) cm)
-                                  )
-                               )
-                            )
-                         )
+   | [::] => OK cm
+   | w :: wtail =>
+        match init_undefined_vector (fun n : nat => OK (Esubfield (Esubfield (Eid id) w) mem_port_data)) 1 data_type D_undefined,
+                   init_undefined_vector (fun n : nat => OK (Esubfield (Esubfield (Eid id) w) mem_port_mask)) 1 data_type D_undefined with
+        | OK initializer_data, OK initializer_mask =>
+             match init_apply_initializer (fst initializer_data) (snd initializer_data) cm with Err e => Err e
+             | OK cm_data_initialized =>
+                  match init_apply_initializer (fst initializer_mask) (snd initializer_mask) cm_data_initialized,
+                        ref2var (Esubfield (Esubfield (Eid id) w) mem_port_clk),
+                        ref2var (Esubfield (Esubfield (Eid id) w) mem_port_en),
+                        ref2var (Esubfield (Esubfield (Eid id) w) mem_port_addr) with
+                  | OK cm_mask_initialized, OK clk_var, OK en_var, OK addr_var =>
+                       init_memory_writer id data_type wtail
+                          (CE.add addr_var D_undefined
+                             (CE.add en_var D_undefined
+                                (CE.add clk_var D_undefined cm_mask_initialized
+                                )
+                             )
+                          )
+                  | Err err, _, _, _
+                  | _, Err err, _, _
+                  | _, _, Err err, _
+                  | _, _, _, Err err => Err err
+                  end
+             end
+        | Err err, _
+        | _, Err err => Err err
+        end
    end.
 
    Fixpoint memport_ids (m : seq mem_port) : seq VarOrder.T :=
@@ -311,45 +661,59 @@ Close Scope N_scope.
      | pid :: pids => (id pid) :: (memport_ids pids)
      end.
 
-   Definition init_memory (id : VarOrder.T) (m : hfmem) (cm : cmap) : cmap :=
+   Definition init_memory (id : VarOrder.T) (m : hfmem) (cm : cmap) : @error_type cmap :=
    (* This helper function initializes a memory named v with description m.
       In particular, all reader and writer ports are declared undefined. *)
-   init_memory_writer id (data_type m) (memport_ids (writer m)) (init_memory_reader id (memport_ids (reader m)) cm).
+   match init_memory_reader id (memport_ids (reader m)) cm with Err e => Err e
+   | OK reader_initialized => init_memory_writer id (data_type m) (memport_ids (writer m)) reader_initialized end.
 
-   Definition init_wire (id : VarOrder.T) (type : ftype) (cm : cmap) : cmap :=
+   Definition init_wire (id : VarOrder.T) (type : ftype) (cm : cmap) : @error_type cmap :=
    (* Initializes a wire named id with type type. *)
-   let initializer := init_undefined_vector (fun n : nat => (Eid id)) 1 type D_undefined
-   in init_apply_initializer (fst initializer) (snd initializer) cm.
+   match init_undefined_vector (fun n : nat => OK (Eid id)) 1 type D_undefined with Err e => Err e
+   | OK initializer => init_apply_initializer (fst initializer) (snd initializer) cm end.
 
-(* Inductive error_type (T : Type) : Type :=
-   | ECorrect : T -> error_type
-   | Esyntax
-   | Etype
-   | Euninitialized (* a component should be connected but isn't *)
-   | Einternal (* e.g. if a pass receives input that should have been handled by earlier passes *)
-   | E...
+   Lemma init_wire_OK :
+      forall (id : VarOrder.T) (type : ftype) (cm : cmap),
+         forall (e : error_info), init_wire id type cm <> Err e.
+   Proof.
+   unfold init_wire.
+   intro ; intro.
+   enough (if init_undefined_vector (fun _ : nat => OK (Eid (var:=VarOrder.T) id))
+                                     1 type D_undefined is OK (e, n)
+             then fn_array_is_OK e n
+             else False).
+   * destruct (init_undefined_vector (fun _ : nat => OK (Eid (var:=VarOrder.T) id))
+               1 type D_undefined) eqn: Hiuv.
+     + intro.
+       apply init_apply_initializer_OK.
+       destruct p.
+       unfold fst ; unfold snd.
+       exact H.
+     + contradiction.
+   * apply init_undefined_vector_OK.
+     unfold vn_array_is_OK, href_without_subaccess.
+     done.
+   Qed.
 
-   Definition init_wire (id : VarOrder.T) (type : ftype) (ce : CE.env) (cm : cmap) : error_type cmap :=
-   (* Initializes a wire named id with type type. May return an error message. *)
-   match init_undefined_vector (fun n : nat => (Eid id)) 1 type D_undefined ce with
-   Some initializer => init_apply_initializer (fst initializer) (snd initializer) cm
-   error => error
-   end. *)
-
-   Definition init_instance (id: VarOrder.T) (mdl: VarOrder.T) (ce : CE.env) (cm : cmap) : cmap :=
+   Definition init_instance (id: VarOrder.T) (mdl: VarOrder.T) (ce : CE.env) (cm : cmap) : @error_type cmap :=
    (* This function should initialize the ports that connect the current module with module mdl under the name id,
       which is instantiated here.
       It is assumed that the type of the module is stored in ce already. *)
-   let initializer := init_undefined_flipped (fun n : nat => Eid id) 1 (type_of_cmpnttyp (fst (CE.vtyp mdl ce))) D_undefined
-   in init_apply_initializer (fst initializer) (snd initializer) cm.
+   match CE.find mdl ce with
+   | Some (Aggr_typ type, Fmodule) => match init_undefined_flipped (fun n : nat => OK (Eid id)) 1 type D_undefined with Err e => Err e | OK initializer
+                                      => init_apply_initializer (fst initializer) (snd initializer) cm end
+   | Some _ => Err Etype
+   | _ => Err Eundeclared
+   end.
 
-   Definition invalidate_cmpnt (ref : href) (cm : cmap) : cmap :=
+   Definition invalidate_cmpnt (ref : href) (cm : cmap) : @error_type cmap :=
    (* Sets the component ref to invalid, to indicate that the programmer let it unconnected on purpose. *)
-      CE.add (ref2var ref) D_invalidated cm.
+   match ref2var ref with Err e => Err e | OK v
+   => OK (CE.add v D_invalidated cm) end.
    (*let initializer := init_undefined_vector (fun n : nat => ref) 1 (type_of_ref ref ce) D_invalidated ce in
    init_apply_initializer (fst initializer) (snd initializer) cm.*)
 
-   Fixpoint expandBranch_fun (ss : hfstmt_seq) (ce : CE.env) (cm : cmap) : (hfstmt_seq * cmap) :=
+   Fixpoint expandBranch_fun (ss : hfstmt_seq) (ce : CE.env) (cm : cmap) : @error_type (hfstmt_seq * cmap) :=
    (* This is the main function of ExpandWhens. It replaces when statements by expressions containing
       multiplexers/validifs where necessary.  It has the following interface:
       Input:  * ss = sequence of statements that are a final fragment of a module definition
@@ -369,59 +733,135 @@ Close Scope N_scope.
               * cmap : map of connects that have been defined before or in the branch
                 (i.e. this map extends parameter cm by the connects in ss). *)
    match ss with
-   | Qnil => (qnil, cm)
+   | Qnil => OK (qnil, cm)
    | Qcons s ss_tail => match s with
                         | @Sskip _ => expandBranch_fun ss_tail ce cm (* no translation needed *)
-                        | @Swire _ id type => let result := expandBranch_fun ss_tail ce (init_wire id type cm)
-                                              in (Qcons s (fst result), snd result)
-                        | @Sreg _ id reg => let result := expandBranch_fun ss_tail ce (init_register id (type reg) cm)
-                                            in (Qcons s (fst result), snd result)
-                        | @Smem _ id mem => let result := expandBranch_fun ss_tail ce (init_memory id mem cm)
-                                            in (Qcons s (fst result), snd result)
-                        | @Sinst _ id mdl => let result := expandBranch_fun ss_tail ce (init_instance id mdl ce cm)
-                                             in (Qcons s (fst result), snd result)
-                        | @Snode _ _ _ => let result := expandBranch_fun ss_tail ce cm
-                                          in (Qcons s (fst result), snd result)
-                        | @Sfcnct _ ref expr => expandBranch_fun ss_tail ce (CE.add (ref2var ref) (D_fexpr expr) cm)
-                        | @Spcnct _ _ _ => (* error: should have been expanded earlier *) (qnil, empty_cmap)
-                        | @Sinvalid _ ref => expandBranch_fun ss_tail ce (invalidate_cmpnt ref cm)
-                        | @Swhen _ cond ss_true ss_false => let combined_branches := combine_branches cond (expandBranch_fun ss_true  ce cm)
-                                                                                                           (expandBranch_fun ss_false ce cm)
-                                                            in let result := expandBranch_fun ss_tail ce (snd combined_branches)
-                                                               in (Qcat (fst combined_branches) (fst result), snd result)
+                        | @Swire _ id type => match init_wire id type cm with Err e => Err e | OK cm_wire
+                                              => match expandBranch_fun ss_tail ce cm_wire with Err e => Err e | OK result
+                                                 => OK (Qcons s (fst result), snd result) end end
+                        | @Sreg _ id reg => match init_register id (type reg) cm with Err e => Err e | OK cm_reg
+                                            => match expandBranch_fun ss_tail ce cm_reg with Err e => Err e | OK result
+                                               => OK (Qcons s (fst result), snd result) end end
+                        | @Smem _ id mem => match init_memory id mem cm with Err e => Err e | OK cm_mem
+                                            => match expandBranch_fun ss_tail ce cm_mem with Err e => Err e | OK result
+                                               => OK (Qcons s (fst result), snd result) end end
+                        | @Sinst _ id mdl => match init_instance id mdl ce cm with Err e => Err e | OK cm_inst
+                                             => match expandBranch_fun ss_tail ce cm_inst with Err e => Err e | OK result
+                                                => OK (Qcons s (fst result), snd result) end end
+                        | @Snode _ _ _ => match expandBranch_fun ss_tail ce cm with Err e => Err e | OK result
+                                          => OK (Qcons s (fst result), snd result) end
+                        | @Sfcnct _ ref expr => match ref2var ref with Err e => Err e | OK v
+                                                => expandBranch_fun ss_tail ce (CE.add v (D_fexpr expr) cm) end
+                        | @Spcnct _ _ _ => Err Einternal
+                        | @Sinvalid _ ref => match invalidate_cmpnt ref cm with Err e => Err e | OK cm_inv
+                                             => expandBranch_fun ss_tail ce cm_inv end
+                        | @Swhen _ cond ss_true ss_false =>
+                             match expandBranch_fun ss_true  ce cm,
+                                   expandBranch_fun ss_false ce cm with Err e, _ | _, Err e => Err e | OK cm_true, OK cm_false
+                             => let combined_branches := combine_branches cond cm_true cm_false
+                                in match expandBranch_fun ss_tail ce (snd combined_branches) with Err e => Err e | OK result
+                                   => OK (Qcat (fst combined_branches) (fst result), snd result) end end
                         (* | @Sstop _ clk cond exit => let result := expandBranch_fun ss_tail ce cm simcond *)
                         (*                             in (Qcons (Sstop clk (option_and simcond cond) exit) (fst result), snd result) *)
                         end
    end.
 
-   Fixpoint init_ports (ports : seq hfport) (cm : cmap) : cmap :=
-   (* This helper function sets the ports of a module to undefined. *)
+   Fixpoint init_ports (ports : seq hfport) (cm : cmap) (ce : CE.env) : @error_type (cmap * CE.env) :=
+   (* This helper function sets the ports of a module to undefined.
+      It also adds the port types to ce. *)
    match ports with
-   | [::] => cm
-   | Finput  id type :: ports_tail => let initializer := init_undefined_flipped (fun n : nat => Eid id) 1 type D_undefined
-                                      in init_ports ports_tail (init_apply_initializer (fst initializer) (snd initializer) cm)
-   | Foutput id type :: ports_tail => let initializer := init_undefined_vector  (fun n : nat => Eid id) 1 type D_undefined
-                                      in init_ports ports_tail (init_apply_initializer (fst initializer) (snd initializer) cm)
+   | [::] => OK (cm, ce)
+   | Finput  id type :: ports_tail =>
+        match init_undefined_flipped (fun n : nat => OK (Eid id)) 1 type D_undefined with Err e => Err e | OK initializer
+        => match init_apply_initializer (fst initializer) (snd initializer) cm with Err e => Err e | OK cm_initialized
+           => init_ports ports_tail cm_initialized (CE.add id (aggr_typ type, In_port) ce) end end
+   | Foutput id type :: ports_tail =>
+        match init_undefined_vector  (fun n : nat => OK (Eid id)) 1 type D_undefined with Err e => Err e | OK initializer
+        => match init_apply_initializer (fst initializer) (snd initializer) cm with Err e => Err e | OK cm_initialized
+           => init_ports ports_tail cm_initialized (CE.add id (aggr_typ type, Out_port) ce) end end
    end.
 
-   Definition recode_cmap_entry (id : VarOrder.T) (dexpr : def_expr) (ss : hfstmt_seq) : hfstmt_seq :=
+   Lemma init_ports_OK :
+      forall (ports : seq hfport) (cm : cmap) (ce : CE.env) (e : error_info),
+         init_ports ports cm ce <> Err e.
+   Proof.
+   induction ports.
+   * unfold init_ports.
+     discriminate.
+   * induction a.
+     + unfold init_ports ; fold init_ports.
+       destruct (init_undefined_flipped (fun _ : nat => OK (Eid (var:=VarOrder.T) s)) 1 f D_undefined) eqn: Hiuf.
+       - intro.
+         destruct (init_apply_initializer (fst p) (snd p) cm) eqn: Hiai.
+         * intro.
+           apply IHports.
+           intros.
+           contradict Hiai.
+           apply init_apply_initializer_OK.
+           enough (if init_undefined_flipped (fun _ : nat => OK (Eid (var:=VarOrder.T) s)) 1 f D_undefined is OK (fn, array_size0)
+                    then fn_array_is_OK fn array_size0
+                    else False).
+           replace (init_undefined_flipped (fun _ : nat => OK (Eid (var:=VarOrder.T) s)) 1
+                    f D_undefined) with (OK p) in H.
+           replace p with (fst p, snd p) in H by (symmetry ; apply surjective_pairing).
+           exact H.
+           apply init_undefined_flipped_OK.
+           unfold vn_array_is_OK, href_without_subaccess.
+           trivial.
+       - enough (if init_undefined_flipped (fun _ : nat => OK (Eid (var:=VarOrder.T) s)) 1 f D_undefined is OK (fn, array_size0)
+                    then fn_array_is_OK fn array_size0
+                    else False).
+         replace (init_undefined_flipped (fun _ : nat => OK (Eid (var:=VarOrder.T) s)) 1
+                  f D_undefined) with (@Err ((nat -> cmap -> @error_type cmap) * nat) e) in H.
+         contradiction.
+         apply init_undefined_flipped_OK.
+         unfold vn_array_is_OK, href_without_subaccess.
+         trivial.
+     + unfold init_ports ; fold init_ports.
+       destruct (init_undefined_vector (fun _ : nat => OK (Eid (var:=VarOrder.T) s)) 1 f D_undefined) eqn: Hiuf.
+       - intro.
+         destruct (init_apply_initializer (fst p) (snd p) cm) eqn: Hiai.
+         * intro.
+           apply IHports.
+           intros.
+           contradict Hiai.
+           apply init_apply_initializer_OK.
+           enough (if init_undefined_vector (fun _ : nat => OK (Eid (var:=VarOrder.T) s)) 1 f D_undefined is OK (fn, array_size0)
+                    then fn_array_is_OK fn array_size0
+                    else False).
+           replace (init_undefined_vector (fun _ : nat => OK (Eid (var:=VarOrder.T) s)) 1
+                    f D_undefined) with (OK p) in H.
+           replace p with (fst p, snd p) in H by (symmetry ; apply surjective_pairing).
+           exact H.
+           apply init_undefined_vector_OK.
+           unfold vn_array_is_OK, href_without_subaccess.
+           trivial.
+       - enough (if init_undefined_vector (fun _ : nat => OK (Eid (var:=VarOrder.T) s)) 1 f D_undefined is OK (fn, array_size0)
+                    then fn_array_is_OK fn array_size0
+                    else False).
+         replace (init_undefined_vector (fun _ : nat => OK (Eid (var:=VarOrder.T) s)) 1
+                  f D_undefined) with (@Err ((nat -> cmap -> @error_type cmap) * nat) e) in H.
+         contradiction.
+         apply init_undefined_vector_OK.
+         unfold vn_array_is_OK, href_without_subaccess.
+         trivial.
+   Qed.
+
+   Definition recode_cmap_entry (id : VarOrder.T) (dexpr : def_expr) (ss' : @error_type hfstmt_seq) : @error_type hfstmt_seq :=
    (* This helper function for recode_map translates one entry of the cmap into a statement
       that is added to the statement sequence ss. *)
-   match dexpr with
-   | D_undefined => ss (* the user has erroneously not connected to id *)
-   | D_invalidated => match var2ref id with
-                      | None => (* error *) qnil
-                      | Some ref => Qcons (sinvalid ref) ss (* the user has given an "is invalid" statement. Copy it. *)
-                      end
-   | D_fexpr expr => match var2ref id with
-                     | None => (* error *) qnil
-                     | Some ref => Qcons (sfcnct ref expr) ss
-                     end
-   end.
+   match ss' with Err e => Err e | OK ss
+   => match dexpr with
+      | D_undefined => Err Euninitialized (* the user has forgotten to connect the component *)
+      | D_invalidated => match var2ref id with Err e => Err e | OK ref
+                         => OK (Qcons (sinvalid ref) ss) end (* the user has given an "is invalid" statement. Copy it. *)
+      | D_fexpr expr => match var2ref id with Err e => Err e | OK ref
+                        => OK (Qcons (sfcnct ref expr) ss) end
+      end end.
 
-   Definition recode_cmap (cm : cmap) : hfstmt_seq :=
+   Definition recode_cmap (cm : cmap) : @error_type hfstmt_seq :=
    (* Translates the entries in cm to a sequence of statements (in a random order). *)
-   CE.fold recode_cmap_entry cm qnil.
+   CE.fold recode_cmap_entry cm (OK qnil).
 
 (* The following functions are an attempt to create a statement sequence that is sorted
    according to dependencies between connect statements.  The idea is to repeatedly walk
@@ -496,7 +936,7 @@ Close Scope N_scope.
       in some Coq library; in particular, the function to calculate sccs can be used for
       this end. *)
 
-   Definition expandWhen_fun (mdl : hfmodule) (ce : CE.env) : hfmodule :=
+   Definition expandWhen_fun (mdl : hfmodule) (ce : CE.env) : @error_type hfmodule :=
    (* This function provides an interface to the main function.
       Input:  * mdl = module definition
                 (its statements do not contain partial or aggregate connects;
@@ -505,9 +945,12 @@ Close Scope N_scope.
                 (this has been found in earlier passes and is not updated)
       Output: translated statement sequence of the module *)
    match mdl with
-   | FInmod id ports ss => let result := expandBranch_fun ss ce (init_ports ports empty_cmap)
-                           in FInmod id ports (Qcat (fst result) (recode_cmap (snd result)))
-   | FExmod _ _ _ => (* error: external modules cannot be handled for verification *) mdl
+   | FInmod id ports ss =>
+        match init_ports ports empty_cmap (CE.empty (cmpnt_init_typs * fcomponent)) with Err e => Err e | OK (cm_initialized, _)
+        => match expandBranch_fun ss ce cm_initialized with Err e => Err e | OK result
+           => match recode_cmap (snd result) with Err e => Err e | OK ss
+              => OK (FInmod id ports (Qcat (fst result) ss)) end end end
+   | FExmod _ _ _ => Err Eunimplemented
    end.
 
    (* Specification of the semantics.
@@ -519,15 +962,14 @@ Close Scope N_scope.
       | the module.  If there are multiple execution paths where the component |
       | containing this sink element is declared, ExpandWhens seleects between |
       | them using a multiplexer or validif expression.                        |
-      | (If there is some execution path where the sink element is declared    |
+      |    (If there is some execution path where the sink element is declared |
       | but is neither declared invalid [Sinvalid] not connected [Sfcnct], the |
-      | program is erroneous; in that case, ExpandWhens does not produce any   |
-      | connect for this sink element.)                                        |
+      | program is erroneous, and ExpandWhens produces an error message.)      |
       +------------------------------------------------------------------------+
 
       Example of an incorrect statement sequence and its translation:
-         Wire a : UInt<16>    --->   Wire a : UInt<16>
-         when c : a <= b             // no connect statement for a
+         Wire a : UInt<16>
+         when c : a <= b             // no connect statement for a if c is false
 
       Example of a correct statement sequence and its translation:
          Wire a : UInt<16>    --->   Wire a : UInt<16>
@@ -693,21 +1135,22 @@ Close Scope N_scope.
       Input ports (source flow) should be handled by the corresponding function for flipped data types.
       For wires, one should call both this function and the one for flipped data types to get a complete verification. *)
    match t with
-   | Gtyp _ => let default_value := match CE.find (ref2var ref) default with
-                                    | None => T_undeclared
-                                    | Some D_undefined => T_undefined
-                                    | Some D_invalidated => T_invalidated
-                                    | Some (D_fexpr e) => T_fexpr e
-                                    end
-               in CE.find (ref2var ref) cm == expr_tree_to_def_expr (expandBranch_one_var_sem ss ref default_value)
+   | Gtyp _ => match ref2var ref with Err _ => false | OK v
+               => let default_value := match CE.find v default with
+                                       | None => T_undeclared
+                                       | Some D_undefined => T_undefined
+                                       | Some D_invalidated => T_invalidated
+                                       | Some (D_fexpr e) => T_fexpr e
+                                       end
+                  in CE.find v cm == expr_tree_to_def_expr (expandBranch_one_var_sem ss ref default_value) end
    | Atyp t' array_size => [forall n: ordinal array_size, expandBranch_one_component_sem_conform (Esubindex ref n) t' ss cm default]
    | Btyp ff => expandBranch_one_component_sem_conform_fields ref ff ss cm default
    end
    with expandBranch_one_component_sem_conform_fields (ref : href) (ff : ffield) (ss : hfstmt_seq) (cm : cmap) (default : cmap) : bool :=
    match ff with
    | Fnil => true
-   | Fflips f Nflip t' ff_tail =>    expandBranch_one_component_sem_conform (Esubfield ref f) t' ss cm default
-                                  && expandBranch_one_component_sem_conform_fields ref ff_tail ss cm default
+   | Fflips f Nflip   t' ff_tail =>    expandBranch_one_component_sem_conform (Esubfield ref f) t' ss cm default
+                                    && expandBranch_one_component_sem_conform_fields ref ff_tail ss cm default
    | Fflips f Flipped t' ff_tail =>    expandBranch_one_component_sem_conform_flipped (Esubfield ref f) t' ss cm default
                                     && expandBranch_one_component_sem_conform_fields ref ff_tail ss cm default
    end
@@ -729,33 +1172,36 @@ Close Scope N_scope.
    with expandBranch_one_component_sem_conform_flipped_fields (ref : href) (ff : ffield) (ss : hfstmt_seq) (cm : cmap) (default : cmap) : bool :=
    match ff with
    | Fnil => true
-   | Fflips f Nflip t' ff_tail =>    expandBranch_one_component_sem_conform_flipped (Esubfield ref f) t' ss cm default
-                                  && expandBranch_one_component_sem_conform_flipped_fields ref ff_tail ss cm default
+   | Fflips f Nflip   t' ff_tail =>    expandBranch_one_component_sem_conform_flipped (Esubfield ref f) t' ss cm default
+                                    && expandBranch_one_component_sem_conform_flipped_fields ref ff_tail ss cm default
    | Fflips f Flipped t' ff_tail =>    expandBranch_one_component_sem_conform (Esubfield ref f) t' ss cm default
                                     && expandBranch_one_component_sem_conform_flipped_fields ref ff_tail ss cm default
    end.
 
-   Definition memory_readport_type (t : ftype) (addr_size : nat) : ftype :=
+(* Definition memory_readport_type (t : ftype) (addr_size : nat) : ftype :=
    Btyp (Fflips mem_port_addr Nflip (Gtyp (Fuint addr_size))
         (Fflips mem_port_en Nflip (Gtyp (Fuint 1))
         (Fflips mem_port_clk Nflip (Gtyp Fclock)
-        (Fflips mem_port_data Flipped t Fnil)))).
+        (Fflips mem_port_data Flipped t Fnil)))). *)
 
-   Fixpoint mask_type (t : ftype) : ftype :=
+   Fixpoint mask_type (t : ftype) : @error_type ftype :=
    (* the type of the mask field of a write port of a memory with type t *)
    match t with
-   | Gtyp _ => Gtyp (Fuint 1)
-   | Atyp t n => Atyp (mask_type t) n
-   | Btyp ff => Btyp (mask_type_fields ff)
+   | Gtyp _ => OK (Gtyp (Fuint 1))
+   | Atyp t n => match mask_type t with Err e => Err e | OK mtt
+                 => OK (Atyp mtt n) end
+   | Btyp ff => match mask_type_fields ff with Err e => Err e | OK mtff
+                => OK (Btyp mtff) end
    end
-   with mask_type_fields (ff : ffield) : ffield :=
+   with mask_type_fields (ff : ffield) : @error_type ffield :=
    match ff with
-   | Fnil => Fnil
-   | Fflips fieldname Nflip t ff_tail => Fflips fieldname Nflip (mask_type t) (mask_type_fields ff_tail)
-   | Fflips fieldname Flipped t ff_tail => Fnil (* error *)
+   | Fnil => OK Fnil
+   | Fflips fieldname Nflip t ff_tail => match mask_type t, mask_type_fields ff_tail with Err e, _ | _, Err e => Err e | OK mtt, OK mtff_tail
+                                         => OK (Fflips fieldname Nflip mtt mtff_tail) end
+   | Fflips fieldname Flipped t ff_tail => Err Etype (* error: type should be passive *)
    end.
 
-   Definition memory_writeport_type (t : ftype) (addr_size : nat) : ftype :=
+(* Definition memory_writeport_type (t : ftype) (addr_size : nat) : ftype :=
    Btyp (Fflips mem_port_addr Nflip (Gtyp (Fuint addr_size))
         (Fflips mem_port_en Nflip (Gtyp (Fuint 1))
         (Fflips mem_port_clk Nflip (Gtyp Fclock)
@@ -778,15 +1224,36 @@ Close Scope N_scope.
    | wp :: writeports_tail =>    expandBranch_one_component_sem_conform (Esubfield (Eid m_id) (id wp))
                                                    (memory_writeport_type t addr_size) ss cm default
                               && expandBranch_writeports_sem_conform m_id addr_size writeports_tail t ss cm default
-   end.
+   end. *)
 
-   Definition expandBranch_memory_sem_conform (id : var) (m : hfmem) (ss : hfstmt_seq) (cm : cmap) (default : cmap) : bool :=
+   Definition type_of_mem (m : hfmem) : @error_type ftype :=
+      (* data type of memory. Most fields are flipped so the memory has a source orientation. *)
+      let addr_size := if depth m <= 1 then 0 else Nat.log2 (depth m - 1) + 1
+      in let read_ports :=
+                     foldr (fun (r : mem_port) (tl : ffield) =>
+                               Fflips (id r) Flipped
+                                      (Btyp (Fflips mem_port_addr Nflip (Gtyp (Fuint addr_size))
+                                            (Fflips mem_port_en Nflip (Gtyp (Fuint 1))
+                                            (Fflips mem_port_clk Nflip (Gtyp Fclock)
+                                            (Fflips mem_port_data Flipped (data_type m) Fnil))))) tl)
+                                      Fnil (reader m)
+         in match mask_type (data_type m) with Err e => Err e | OK mask_t
+            => OK (Btyp (foldr (fun (w : mem_port) (tl : ffield) =>
+                               Fflips (id w) Flipped
+                                      (Btyp (Fflips mem_port_addr Nflip (Gtyp (Fuint addr_size))
+                                            (Fflips mem_port_en Nflip (Gtyp (Fuint 1))
+                                            (Fflips mem_port_clk Nflip (Gtyp Fclock)
+                                            (Fflips mem_port_data Nflip (data_type m)
+                                            (Fflips mem_port_mask Nflip mask_t Fnil)))))) tl)
+                                      read_ports (writer m))) end.
+
+(* Definition expandBranch_memory_sem_conform (id : var) (m : hfmem) (ss : hfstmt_seq) (cm : cmap) (default : cmap) : bool :=
    (* This adapter function calls the appropriate variants of expandBranch_one_component_sem_conform
       for memory defined by id. It basically goes through all ports and checks their interfaces. *)
    let addr_size := if depth m <=? 1 then 0 else Nat.log2 (depth m - 1) + 1
    in    expandBranch_readports_sem_conform  id addr_size (reader m) (data_type m) ss cm default
       && expandBranch_writeports_sem_conform id addr_size (writer m) (data_type m) ss cm default
-   .
+   . *)
 
    Definition expandBranch_sem_conform_helper (ss : hfstmt_seq) (cm : cmap) (default : cmap)
                                      (id : VarOrder.T) (def : cmpnt_init_typs * fcomponent) (val: bool) : bool :=
@@ -801,65 +1268,432 @@ Close Scope N_scope.
           | (Aggr_typ t, In_port) => expandBranch_one_component_sem_conform_flipped (Eid id) t ss cm default
           | (Aggr_typ t, Out_port) => expandBranch_one_component_sem_conform (Eid id) t ss cm default
           | (Reg_typ r, Register) => expandBranch_one_component_sem_conform (Eid id) (type r) ss cm default
-          | (Mem_typ m, Memory) => expandBranch_memory_sem_conform id m ss cm default
+          | (Mem_typ m, Memory) => match type_of_mem m with Err e => false | OK tm
+                                   => expandBranch_one_component_sem_conform_flipped (Eid id) tm ss cm default end
           | _ => false (* error *)
           end.
 
-   Fixpoint expandWhen_precondition_ss (ss : hfstmt_seq) (ce : CE.env) : bool :=
+   Fixpoint expandWhen_precondition_ss (ss : hfstmt_seq) (ce_modules : CE.env) : bool :=
    (* Precondition of expandWhen: there are no partial connects, all instance statements refer to defined modules.
       Also: all references are to declared variables.
       * ss = statement sequence that is tested whether it satisfies the precondition
-      * ce = component environment containing (at least) type descriptions of all instantiated modules
+      * ce_modules = component environment containing (at least) type descriptions of all instantiated modules
       Result: true iff the precondition is satisfied. *)
    match ss with
    | Qnil => true
    | Qcons s tl => match s with
+                   | Sreg _ reg => is_passive (type reg) && expandWhen_precondition_ss tl ce_modules
+                   | Smem _ mem => is_passive (data_type mem) && expandWhen_precondition_ss tl ce_modules
                    | Spcnct _ _ => false
-                   | Sinst id def => if CE.find def ce is Some (_, Fmodule) then expandWhen_precondition_ss tl ce else false
-                   | Swhen _ sst ssf =>    expandWhen_precondition_ss sst ce
-                                        && expandWhen_precondition_ss ssf ce
-                                        && expandWhen_precondition_ss tl ce
-                   | _ => expandWhen_precondition_ss tl ce
+                   | Sinst id def => if CE.find def ce_modules is Some (Aggr_typ _, Fmodule) then expandWhen_precondition_ss tl ce_modules else false
+                   | Swhen _ sst ssf =>    expandWhen_precondition_ss sst ce_modules
+                                        && expandWhen_precondition_ss ssf ce_modules
+                                        && expandWhen_precondition_ss tl ce_modules
+                   | _ => expandWhen_precondition_ss tl ce_modules
                    end
    end.
 
-   Fixpoint expandWhen_ce (ss : hfstmt_seq) (ce : CE.env) (default : CE.env) : CE.env :=
+   Fixpoint expandWhen_ce (ss : hfstmt_seq) (ce : CE.env) (default : CE.env) : @error_type CE.env :=
    (* The result contains exactly the component types as defined by ss, in addition to default.
       The parameter ce contains the port declarations of other modules. *)
    match ss with
-   | Qnil => default
+   | Qnil => OK default
    | Qcons s ss_tail => match s with
-                        | Swire id t => expandWhen_ce ss_tail ce (CE.add id (@Aggr_typ VarOrder.T t, Wire) default)
+                        | Swire id t => expandWhen_ce ss_tail ce (CE.add id (aggr_typ t, Wire) default)
                         | Sreg id reg => expandWhen_ce ss_tail ce (CE.add id (Reg_typ reg, Register) default)
                         | Smem id mem => expandWhen_ce ss_tail ce (CE.add id (Mem_typ mem, Memory) default)
-                        | Sinst id typ => expandWhen_ce ss_tail ce (CE.add id (fst (CE.vtyp typ ce), Instanceof) default)
+                        | Sinst id typ => match CE.find typ ce with
+                                          | Some (Aggr_typ type, Fmodule) => expandWhen_ce ss_tail ce (CE.add id (aggr_typ type, Instanceof) default)
+                                          | Some _ => Err Etype
+                                          | None => Err Eundeclared
+                                          end
                         | Sskip
                         | Snode _ _ (* can be ignored *)
                         | Sfcnct _ _
                         | Sinvalid _ => expandWhen_ce ss_tail ce default
-                        | Swhen _ ss_true ss_false => expandWhen_ce ss_tail ce (expandWhen_ce ss_false ce (expandWhen_ce ss_true ce default))
+                        | Swhen _ ss_true ss_false => match expandWhen_ce ss_true ce default with Err e => Err e | OK default_true
+                                                      => match expandWhen_ce ss_false ce default_true with Err e => Err e | OK default_false
+                                                         => expandWhen_ce ss_tail ce default_false end end
                         (* | Sstop _ _ _ => expandWhen_ce ss_tail default *)
-                        | Spcnct _ _ (* error: should not appear *) => CE.empty (cmpnt_init_typs * fcomponent)
+                        | Spcnct _ _ => Err Einternal
                         end
    end.
 
-   Definition expandBranch_sem_conform (mdl : hfmodule) (ce : CE.env) : bool :=
+(* Axiom cenv_elt_eq_dec : forall {x y : option (cmpnt_init_typs * fcomponent)}, {x = y} + {x <> y}.
+   Parameter cenv_elt_eqn: forall (x y : option (cmpnt_init_typs * fcomponent)), bool.
+   Axiom cenv_elt_eqP : Equality.axiom cenv_elt_eqn.
+   Canonical cenv_elt_eqMixin := EqMixin cenv_elt_eqP. *)
+
+   (* If a (hfstmt_seq * CE.env) satisfies the precondition,
+      then expandWhen_ce does not produce an error.
+      We need to prove this by a mutual induction over htstmt and hfstmt_seq. *)
+   Definition precond_impl_ce_OK_hfstmt_seq (ce : CE.env) (ss : hfstmt_seq) : Prop :=
+      forall (default : CE.env),
+         expandWhen_precondition_ss ss ce ->
+            forall e : error_info, expandWhen_ce ss ce default <> Err e.
+
+   Definition precond_impl_ce_OK_hfstmt (ce : CE.env) (s : hfstmt) : Prop :=
+      if s is Swhen c sst ssf then    precond_impl_ce_OK_hfstmt_seq ce sst
+                                   /\ precond_impl_ce_OK_hfstmt_seq ce ssf
+                              else True.
+
+   Lemma precond_impl_ce_OK :
+      forall (ce : CE.env) (ss : hfstmt_seq),
+         precond_impl_ce_OK_hfstmt_seq ce ss.
+   Proof.
+   intro.
+   apply hfstmt_seq_hfstmt_ind with (P := precond_impl_ce_OK_hfstmt_seq ce)
+                                    (P0 := precond_impl_ce_OK_hfstmt ce) ;
+         try (unfold precond_impl_ce_OK_hfstmt ; trivial) ;
+         try (unfold precond_impl_ce_OK_hfstmt_seq, expandWhen_precondition_ss, expandWhen_ce ;
+              discriminate).
+   unfold precond_impl_ce_OK_hfstmt_seq ; induction h ;
+         try (unfold expandWhen_precondition_ss ; fold expandWhen_precondition_ss ;
+              intros ;
+              unfold expandWhen_ce ; fold expandWhen_ce ;
+              apply H0 ;
+              exact H1).
+   * (* Sreg *)
+     unfold expandWhen_precondition_ss ; fold expandWhen_precondition_ss.
+     intros.
+     unfold expandWhen_ce ; fold expandWhen_ce.
+     apply H0.
+     move /andP : H1 => H1.
+     apply H1.
+   * (* Smem *)
+     unfold expandWhen_precondition_ss ; fold expandWhen_precondition_ss.
+     intros.
+     unfold expandWhen_ce ; fold expandWhen_ce.
+     apply H0.
+     move /andP : H1 => H1.
+     apply H1.
+   * (* Sinst *)
+     unfold expandWhen_precondition_ss ; fold expandWhen_precondition_ss.
+     intros.
+     unfold expandWhen_ce ; fold expandWhen_ce.
+     induction (CE.find s0 ce) eqn: Efind ; try done.
+     destruct a.
+     case (f == Fmodule) eqn : Hf.
+     - move /eqP : Hf => Hf.
+       induction c ; try done.
+       replace f with Fmodule ; replace f with Fmodule in H1.
+       apply H0.
+       exact H1.
+     - move /eqP : Hf => Hf.
+       induction f, c ; try done.
+   * (* Spcnct *)
+     done.
+   * (* Swhen *)
+     intro.
+     unfold expandWhen_precondition_ss ; fold expandWhen_precondition_ss.
+     intros.
+     move /andP : H1 => H1.
+     destruct H1.
+     move /andP : H1 => H1.
+     unfold expandWhen_ce ; fold expandWhen_ce.
+     induction (expandWhen_ce h0 ce default) eqn: He_h0.
+     + induction (expandWhen_ce h1 ce t) eqn: He_h1.
+       - apply H0.
+         exact H2.
+       - contradict He_h1.
+         apply H.
+         apply H1.
+     + contradict He_h0.
+       apply H.
+       apply H1.
+
+   done.
+   Qed.
+
+   Fixpoint type_and_dir_of_ref_fields (ref : href) (v : VarOrder.T) (ff : ffield) (ref_orient : forient) : @error_type (ftype * forient) :=
+      (* calculates the type and flow direction of Esubfield ref v.
+         * ref = some href
+         * v = a field within this ref
+         * ff = bundle type definition of ref
+         * ref_orient = orientation of ref *)
+      match ff with
+      | Fnil => Err Etype
+      | Fflips id Nflip t' ff_tail => if v == id then OK (t', ref_orient)
+                                                 else type_and_dir_of_ref_fields ref v ff_tail ref_orient
+      | Fflips id Flipped t' ff_tail => match ref_orient with
+                                        | Source => if v == id then OK (t', Sink)
+                                                               else type_and_dir_of_ref_fields ref v ff_tail ref_orient
+                                        | Sink => if v == id then OK (t', Source)
+                                                             else type_and_dir_of_ref_fields ref v ff_tail ref_orient
+                                        | Duplex => if v == id then OK (t', Duplex)
+                                                               else type_and_dir_of_ref_fields ref v ff_tail ref_orient
+                                        | _ => Err Etype (* passive type should not contain flipped fields *)
+                                        end
+      end.
+
+   Fixpoint type_and_dir_of_ref' (ref : href) (base_type : ftype) (base_orient : forient) : @error_type (ftype * forient) :=
+      (* calculates the type and flow direction of ref.
+         This is the internal helper function; the user should call type_and_dir_of_ref. *)
+      match ref with
+      | Eid _ => OK (base_type, base_orient)
+      | Esubindex ref' i => match type_and_dir_of_ref' ref' base_type base_orient with Err e => Err e | OK (ref'_type, ref'_orient)
+                            => match ref'_type with
+                               | Atyp t' n => (* if i >= n then Err Etype else *)
+                                              OK (t', ref'_orient)
+                               | _ => Err Etype
+                               end end
+      | Esubfield ref' v => match type_and_dir_of_ref' ref' base_type base_orient with Err e => Err e | OK (ref'_type, ref'_orient)
+                            => match ref'_type with
+                               | Btyp ff => type_and_dir_of_ref_fields ref' v ff ref'_orient
+                               | _ => Err Etype
+                               end end
+      | _ => Err Einternal (* subaccess should have been removed by an earlier pass *)
+      end.
+
+   Definition type_and_dir_of_ref (ref : href) (ce : CE.env) : @error_type (ftype * forient) :=
+      (* calculates the type and flow direction of ref.
+         * ref = some href that does not contain subaccesses
+         * ce = component environment that contains (at least) the declaration of
+           the base of ref.
+         Result: (type of ref, orientation of ref)
+
+         Example: Let a have type { b : Atyp (FUint 4) 5, c : Clock },
+         that is Fflips "b" Nflip (Atyp (Gtyp (FUint 4)) 5) (Fflips "c" Nflip (Gtyp Clock) Fnil).
+         Then a.b[2] is (Esubindex (Esubfield (Eid "a") "b") 2) in the abstract syntax,
+         and it is calculated as follows:
+         a has type { b : Atyp (FUint 4) 5, c : Clock }, so a.b has type Atyp (Gtyp (FUint 4)) 5.
+         From this, a.b[2] has type Gtyp (FUint 4). *)
+      match CE.find (base_ref ref) ce with
+      | Some (Aggr_typ t, Wire) => type_and_dir_of_ref' ref t Duplex
+      | Some (Aggr_typ t, Instanceof)
+      | Some (Aggr_typ t, In_port) => type_and_dir_of_ref' ref t Source
+      | Some (Aggr_typ t, Out_port) => type_and_dir_of_ref' ref t Sink
+      | Some (Reg_typ r, Register) => type_and_dir_of_ref' ref (type r) Passive
+      | Some (Mem_typ m, Memory) => match type_of_mem m with Err e => Err e | OK tm
+                                    => type_and_dir_of_ref' ref tm Source end
+      | _ => Err Etype
+      end.
+
+   Lemma type_and_dir_of_ref_OK :
+      forall (ref : href) (ce : CE.env),
+         (forall e : error_info, type_and_dir_of_ref ref ce <> Err e) ->
+            href_without_subaccess ref.
+   Proof.
+   induction ref.
+   * done.
+   * intros.
+     unfold href_without_subaccess ; fold href_without_subaccess.
+     apply IHref with (ce := ce).
+     unfold type_and_dir_of_ref.
+     unfold type_and_dir_of_ref in H.
+     unfold base_ref in H ; fold base_ref in H.
+     destruct (CE.find (base_ref ref) ce) ; try exact H.
+     destruct p.
+     destruct c.
+     + destruct f ; try exact H ;
+             try (intro ; contradict H ;
+                  unfold type_and_dir_of_ref' ; fold type_and_dir_of_ref' ;
+                  replace (type_and_dir_of_ref' ref f0 Source) with (@Err (ftype * forient) e) ;
+                  intro ; specialize H0 with (e0 := e) ; done).
+       - intro ; contradict H.
+         unfold type_and_dir_of_ref' ; fold type_and_dir_of_ref'.
+         replace (type_and_dir_of_ref' ref f0 Sink) with (@Err (ftype * forient) e).
+         intro ; specialize H0 with (e0 := e) ; done.
+       - intro ; contradict H.
+         unfold type_and_dir_of_ref' ; fold type_and_dir_of_ref'.
+         replace (type_and_dir_of_ref' ref f0 Duplex) with (@Err (ftype * forient) e).
+         intro ; specialize H0 with (e0 := e) ; done.
+     + destruct f ; try exact H.
+       intro ; contradict H.
+       unfold type_and_dir_of_ref' ; fold type_and_dir_of_ref'.
+       replace (type_and_dir_of_ref' ref (type h) Passive) with (@Err (ftype * forient) e).
+       intro ; specialize H0 with (e0 := e) ; done.
+     + destruct f ; try exact H.
+       destruct (type_of_mem h) ; try exact H.
+       intro ; contradict H.
+       unfold type_and_dir_of_ref' ; fold type_and_dir_of_ref'.
+       replace (type_and_dir_of_ref' ref f Source) with (@Err (ftype * forient) e).
+       intro ; specialize H0 with (e0 := e) ; done.
+     + exact H.
+   * intros.
+     unfold href_without_subaccess ; fold href_without_subaccess.
+     apply IHref with (ce := ce).
+     unfold type_and_dir_of_ref.
+     unfold type_and_dir_of_ref in H.
+     unfold base_ref in H ; fold base_ref in H.
+     destruct (CE.find (base_ref ref) ce) ; try exact H.
+     destruct p.
+     destruct c.
+     + destruct f ; try exact H ;
+             try (intro ; contradict H ;
+                  unfold type_and_dir_of_ref' ; fold type_and_dir_of_ref' ;
+                  replace (type_and_dir_of_ref' ref f0 Source) with (@Err (ftype * forient) e) ;
+                  intro ; specialize H0 with (e0 := e) ; done).
+       - intro ; contradict H.
+         unfold type_and_dir_of_ref' ; fold type_and_dir_of_ref'.
+         replace (type_and_dir_of_ref' ref f0 Sink) with (@Err (ftype * forient) e).
+         intro ; specialize H0 with (e0 := e) ; done.
+       - intro ; contradict H.
+         unfold type_and_dir_of_ref' ; fold type_and_dir_of_ref'.
+         replace (type_and_dir_of_ref' ref f0 Duplex) with (@Err (ftype * forient) e).
+         intro ; specialize H0 with (e0 := e) ; done.
+     + destruct f ; try exact H.
+       intro ; contradict H.
+       unfold type_and_dir_of_ref' ; fold type_and_dir_of_ref'.
+       replace (type_and_dir_of_ref' ref (type h) Passive) with (@Err (ftype * forient) e).
+       intro ; specialize H0 with (e0 := e) ; done.
+     + destruct f ; try exact H.
+       destruct (type_of_mem h) ; try exact H.
+       intro ; contradict H.
+       unfold type_and_dir_of_ref' ; fold type_and_dir_of_ref'.
+       replace (type_and_dir_of_ref' ref f Source) with (@Err (ftype * forient) e).
+       intro ; specialize H0 with (e0 := e) ; done.
+     + exact H.
+   * intros ; contradict H.
+     unfold type_and_dir_of_ref, type_and_dir_of_ref'.
+     destruct (CE.find (base_ref (Esubaccess ref h)) ce) ;
+           try (intro ;
+                specialize H with (e := Etype) ;
+                done).
+     destruct p.
+     destruct c.
+     + destruct f ;
+             try (intro ;
+                  specialize H with (e := Einternal) ;
+                  done) ;
+             try (intro ;
+                  specialize H with (e := Etype) ;
+                  done).
+     + destruct f ;
+             try (intro ;
+                  specialize H with (e := Etype) ;
+                  done) ;
+             try (intro ;
+                  specialize H with (e := Einternal) ;
+                  done).
+     + destruct f ;
+             try (intro ;
+                  specialize H with (e := Etype) ;
+                  done).
+       destruct (type_of_mem h0) ;
+             try (intro ;
+                  specialize H with (e := Einternal) ;
+                  done).
+       intro ; specialize H with (e0 := e) ; done.
+     + intro ; specialize H with (e := Etype) ; done.
+   Qed.
+
+(* Definition is_ground_sink (ref : href) (ce : CE.env) : bool :=
+      (* returns true if ref is a reference of ground type with sink, duplex or passive flow direction.
+         (Only registers are passive, and they have duplex flow). *)
+      match type_and_dir_of_ref ref ce with
+      | OK (Gtyp _, Sink)
+      | OK (Gtyp _, Duplex)
+      | OK (Gtyp _, Passive) => true
+      | _ => false
+      end. *)
+
+   Lemma expandWhen_one_var_sem_conform (ref : href) :
+      (* The variable ref, which has ground type and has sink (or duplex) flow,
+         is assigned the correct value.
+         (Probably needs additional precondition that ref is a correct reference.) *)
+      forall (mdl : hfmodule) (ce : CE.env),
+         match mdl with
+         | FInmod _ ports ss => forall (initial_cm : cmap) (initial_ce : CE.env),
+                                match init_ports ports initial_cm initial_ce with Err e => false | OK (ports_cmap, ports_ce)
+                                => expandWhen_precondition_ss ss ce ->
+                                   match expandWhen_ce ss ce ports_ce with Err e => false | OK ce_initialized
+                                   => match expandBranch_fun ss ce_initialized ports_cmap with Err e => false | OK (_, cm_result)
+                                      => match type_and_dir_of_ref ref ce_initialized with
+                                         | OK (Gtyp t, Sink) | OK (Gtyp t, Duplex) | OK (Gtyp t, Passive) =>
+                                              expandBranch_one_component_sem_conform ref (Gtyp t) ss cm_result ports_cmap
+                                         | _ => true end end end end
+         | FExmod _ _ _ => true (* cannot be checked *)
+         end.
+   Proof.
+   destruct mdl as [_ ports ss|] ; try done.
+   intros.
+   destruct (init_ports ports initial_cm initial_ce) eqn: Hipo ;
+         try (contradict Hipo ; apply init_ports_OK).
+   destruct p as [ports_cmap ports_ce].
+   destruct (expandWhen_ce ss ce ports_ce) as [ce_initialized|] eqn : HeWce ;
+         try (intros ; contradict HeWce ; apply precond_impl_ce_OK ; exact H).
+   move : initial_cm initial_ce ports_cmap ports_ce Hipo ce_initialized HeWce.
+   induction ss as [|s].
+   * intros.
+     unfold expandBranch_fun.
+     destruct (type_and_dir_of_ref ref ce_initialized) eqn: Htdr ; try done.
+     destruct p as [type_of_ref dir_of_ref].
+     destruct type_of_ref ; try done.
+     unfold expandBranch_one_component_sem_conform.
+     destruct (ref2var ref) eqn: Hr2v.
+     + destruct (CE.find n ports_cmap).
+       - destruct d ; unfold expandBranch_one_var_sem, expr_tree_to_def_expr ; destruct dir_of_ref ; done.
+       - unfold expr_tree_to_def_expr ; destruct dir_of_ref ; done.
+     + contradict Hr2v.
+       apply ref2var_OK.
+       apply type_and_dir_of_ref_OK with (ce := ce_initialized).
+       replace (type_and_dir_of_ref ref ce_initialized) with (OK (Gtyp f, dir_of_ref)).
+       discriminate.
+   * destruct s as [|id type|id reg|id mem| | | | | |].
+     + (* Sskip *)
+       unfold expandWhen_ce ; fold expandWhen_ce.
+       unfold expandWhen_precondition_ss ; fold expandWhen_precondition_ss.
+       unfold expandBranch_fun ; fold expandBranch_fun.
+       apply IHss.
+     + (* Swire *)
+       unfold expandWhen_ce ; fold expandWhen_ce.
+       unfold expandWhen_precondition_ss ; fold expandWhen_precondition_ss.
+       intros.
+       unfold expandBranch_fun ; fold expandBranch_fun.
+       destruct (init_wire id type ports_cmap) eqn: Hiw ;
+             try (contradict Hiw ;
+                  apply init_wire_OK).
+       specialize IHss with (initial_cm := match init_wire id type initial_cm with
+                                           | OK i_c => i_c
+                                           | Err _ => initial_cm end)
+                            (initial_ce := initial_ce)
+                            (ports_ce := CE.add id (aggr_typ type, Wire) ports_ce)
+                            (ce_initialized := ce_initialized).
+       destruct (init_wire id type initial_cm) eqn: Hiw_i ;
+             try (contradict Hiw_i ;
+                  apply init_wire_OK).
+       destruct (expandBranch_fun ss ce_initialized c) eqn: Hebf.
+       - destruct p as [ce_result cm_result].
+         unfold snd.
+         destruct (type_and_dir_of_ref ref ce_initialized) eqn: Htdf ; try done.
+         destruct p as [type_of_ref dir_of_ref].
+         destruct type_of_ref ; try done.
+         (*destruct dir_of_ref ; try done.*)
+         unfold expandBranch_one_component_sem_conform.
+         unfold expandBranch_one_component_sem_conform in IHss.
+         unfold expandBranch_one_var_sem ; fold expandBranch_one_var_sem.
+         destruct (ref2var ref) eqn: Hr2v.
+
+
+(* use a lemma about init_ports:
+   adding some definition to ports_ce transparantly moves through init_ports. *)
+Admitted.
+
+
+   Definition expandBranch_sem_conform (mdl : hfmodule) (ce : CE.env) : Prop :=
    (* Checks for all components declared in module mdl
       whether expandBranch_fun satisfies the specification.
       * mdl = module to be checked
       * ce = component environment containing all port declarations of other modules *)
    match mdl with
-   | FInmod _ ports ss => expandWhen_precondition_ss ss ce ==>
-                          let ports_cmap := init_ports ports empty_cmap
-                          in CE.fold (expandBranch_sem_conform_helper ss (snd (expandBranch_fun ss ce ports_cmap)) ports_cmap)
-                                     (expandWhen_ce ss ce (CE.empty (cmpnt_init_typs * fcomponent))) true
-   | FExmod _ _ _ => false (* error *)
+   | FInmod _ ports ss => expandWhen_precondition_ss ss ce ->
+                          match init_ports ports empty_cmap (CE.empty (cmpnt_init_typs * fcomponent)) with Err e => false | OK (ports_cmap, ports_ce)
+                          => match expandWhen_ce ss ce ports_ce with Err e => false | OK ce_initialized
+                             => match expandBranch_fun ss ce ports_cmap with Err e => false | OK result
+                                => CE.fold (expandBranch_sem_conform_helper ss (snd result) ports_cmap) ce_initialized
+                                            true end end end
+   | FExmod _ _ _ => True (* cannot be checked *)
    end.
 
-(* How to prove the correctness of this semantics?
-   Basically, we would like to show that for every correct (hfmodule * CE.env) pair,
-   we have that expandBranch_sem_conform returns true.
-   Preconditions are, in addition to expandWhen
+   Lemma expandBranch_sem_conform_OK:
+      forall (mdl : hfmodule) (ce : CE.env),
+         expandBranch_sem_conform mdl ce.
+
+(* OLDER MATERIAL -- NOT USED CURRENTLY
+
+What follows is a much simpler version of the proof of correctness, without much error handling,
+and without looking into expression trees.
 
    Definition expandBranch_hfstmt_seq_sem_conform (ss : hfstmt_seq) : Prop :=
    (* The statements in ss are being translated by expandBranch_fun to correct definitions in a cmap. *)
@@ -1144,8 +1978,9 @@ Close Scope N_scope.
    (* case Sstop _ _ _ *)
    (* move => //. *)
    Qed.
+END OF OLDER MATERIAL -- NOT USED CURRENTLY *)
 
-
+(* VERY OLD MATERIAL -- I, David, do not understand what this is meant.
   (** Semantics of declaim ports *)
   Inductive eval_port : hfport -> CE.env -> cstate -> CE.env -> cstate -> Prop :=
   (* in, ground type *)
@@ -1402,3 +2237,4 @@ Close Scope N_scope.
   (* Lemma valid_conncection v e2 sts ce cs ce' cs' : *)
   (*   eval_fstmts_group (Qcons (sfcnct (eref v) e2) sts) ce cs ce' cs' -> *)
   (*   valid_rhs (SV.acc v cs') ce'. *)
+END OF VERY OLD MATERIAL *)
