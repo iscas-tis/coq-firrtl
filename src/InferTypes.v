@@ -790,8 +790,71 @@ Section InferTypeP.
       inferType_stmtP (HiFP.sreg v r) ce0 (inferType_stmt_funP (HiFP.sreg v r) ce0).
   Proof.
     intros. apply Infertype_regP. try done.
-    rewrite /inferType_stmt_funP /CEP.add_fst (HiFP.PCELemmas.add_eq_o _ _ (eq_refl v)) //.
+    rewrite /inferType_stmt_funP.
+    rewrite /CEP.add_fst.
+    rewrite (HiFP.PCELemmas.add_eq_o _ _ (eq_refl v)) //.
   Qed.
 
-  
+  Lemma inferType_swire_sem_conformP :
+    forall (v : pvar) t ce0 ,
+      inferType_stmtP (HiFP.swire v t) ce0 (inferType_stmt_funP (HiFP.swire v t) ce0).
+  Proof.
+    intros. apply Infertype_wireP.
+    rewrite /inferType_stmt_funP.
+    rewrite (HiFP.PCELemmas.add_eq_o _ _ (eq_refl v)) //.
+  Qed.
+
+  Lemma inferType_sinst_sem_conformP :
+    forall (v1 : pvar) (v2 : pvar) ce0 ,
+      v1 != v2 ->
+      CEP.vtyp v2 ce0 = CEP.vtyp v2 (inferType_stmt_funP (HiFP.sinst v1 v2) ce0) ->
+      inferType_stmtP (HiFP.sinst v1 v2) ce0 (inferType_stmt_funP (HiFP.sinst v1 v2) ce0).
+  Proof.
+    intros. apply Infertype_instP.
+    apply H.
+    rewrite /inferType_stmt_funP.
+    rewrite (HiFP.PCELemmas.add_eq_o _ _ (eq_refl v1)).
+    reflexivity.
+  Qed.
+
+  Lemma inferType_smem_sem_conformP :
+    forall v m ce0 ,
+      inferType_stmtP (HiFP.smem v m) ce0 (inferType_stmt_funP (HiFP.smem v m) ce0).
+  Proof.
+    intros. apply Infertype_memP.
+    rewrite /inferType_stmt_funP.
+    rewrite (HiFP.PCELemmas.add_eq_o _ _ (eq_refl v)) //.
+  Qed.
+
+  Lemma inferType_sskip_sem_conformP :
+    forall ce0 ,
+      inferType_stmtP (HiFP.sskip) ce0 (inferType_stmt_funP (HiFP.sskip) ce0).
+  Proof.
+    intros. apply Infertype_sskipP.
+  Qed.
+
+  Lemma inferType_swhen_sem_conformP :
+    forall e s1 s2 ce0 ce1 (ce2 : CEP.env),
+      inferType_stmtsP s1 ce0 ce1 ->
+      inferType_stmtsP s2 ce1 (inferType_stmt_funP (HiFP.swhen e s1 s2) ce0) ->
+      inferType_stmtP (HiFP.swhen e s1 s2) ce0 (inferType_stmt_funP (HiFP.swhen e s1 s2) ce0).
+  Proof.
+    intros. apply Infertype_swhenP with (ce' := ce1).
+    apply H.
+    apply H0.
+  Qed.
+(*
+  Lemma inferType_sinvalid_sem_conformP :
+    forall v ce0 ,
+      inferType_stmtP (HiFP.sinvalid v) ce0 (inferType_stmt_funP (HiFP.sinvalid v) ce0).
+  Proof.
+    intros. apply Infertype_invalidP.
+  Qed.
+
+  Lemma inferType_sfcnct_sem_conformP :
+
+  Lemma inferType_spcnct_sem_conformP :
+
+  Lemma inferType_stmts_conformP :
+  *)
 End InferTypeP.
