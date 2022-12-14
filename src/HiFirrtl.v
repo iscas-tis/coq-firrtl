@@ -1632,7 +1632,7 @@ Module MakeHiFirrtlP
   Definition hfstmt := hfstmt V.T.
   Definition hfstmt_seq := hfstmt_seq V.T.
   Definition qnil := Qnil V.T.
-(*Definition qcons s ss := @Qcons V.T s ss.*)
+  Definition qcons s ss := @Qcons V.T s ss.
   Definition sskip := @Sskip V.T.
   Definition swire v t := @Swire V.T v t.
   Definition sreg v r := @Sreg V.T v r.
@@ -1683,6 +1683,7 @@ Definition pvar := ProdVarOrder.t.
 Definition def_pvar := ProdVarOrder.default.
 
 Section Preprocess.
+
   
   (* index *)
   Definition initial_index : N := 0.
@@ -1736,13 +1737,59 @@ Section Preprocess.
     forall v rs, PVM.find v m = Some rs -> N.ltb (fst v) (fst g).
 
   (* offset of subfiled/subindex recursive to the base ref *)
-  Fixpoint offset_ref r ce n: N:=
+  (* type of ref expressions in single index*)
+  Fixpoint type_of_refS (r : HiF.href) ce : ftype :=
+    match r with
+    | Eid v => type_of_cmpnttyp (fst (CE.vtyp v ce))
+    | Esubfield r v => let t := type_of_refS r ce in
+                       match t with
+                       | Btyp fs => let fix aux fx := (
+                                          match fx with
+                                          | Fflips v' f t fxs =>
+                                            if (v == v') then t
+                                            else aux fxs
+                                          | Fnil => Gtyp (Fuint 0)
+                                          end )
+                                    in aux fs
+                       | _ => Gtyp (Fuint 0)
+                       end
+    | Esubindex r n => let t := type_of_refS r ce in
+                       match t with
+                       | Atyp ty n => ty
+                       | _ => Gtyp (Fuint 0)
+                       end
+    | Esubaccess r e => let t := type_of_refS r ce in
+                        match t with
+                        | Atyp ty n => ty
+                        | _ => Gtyp (Fuint 0)
+                        end
+    end.
+  
+  Fixpoint offset_ref r ce n : N :=
     match r with
     | Eid v => n
-    | Esubfield r1 v => offset_ref r1 ce (N.add (N.of_nat (offset_of_subfield (HiF.type_of_hfexpr (HiF.eref r1) ce) v 0)) (N.of_nat n))
-    | Esubindex r1 n => offset_ref r1 ce (N.add (N.of_nat (offset_of_subindex (HiF.type_of_hfexpr (HiF.eref r1) ce) n)) (N.of_nat n))
-    | _ => 0
+    | Esubindex v i => N.of_nat (size_of_ftype (type_of_refS v ce) * (S i))
+    | Esubfield v f => let t := type_of_refS r ce in
+                       match t with
+                       | Btyp fs => let fix aux fx n := 
+                         (match fx with
+                          | Fflips v' fp t fxs =>
+                              if ~~(v' == f) then aux fxs (n + size_of_ftype t)
+                              else n
+                          | Fnil => n
+                          end ) in N.of_nat (aux fs n)
+                       | _ => n
+                       end
+    | Esubaccess r e => n
     end.
+        
+  (* Fixpoint offset_ref r ce n: N:= *)
+    (* match r with *)
+    (* | Eid v => n *)
+    (* | Esubfield r1 v => offset_ref r1 ce (N.add (N.of_nat (offset_of_subfield (HiF.type_of_hfexpr (HiF.eref r1) ce) v 0)) (N.of_nat n)) *)
+    (* | Esubindex r1 n => offset_ref r1 ce (N.add (N.of_nat (offset_of_subindex (HiF.type_of_hfexpr (HiF.eref r1) ce) n)) (N.of_nat n)) *)
+    (* | _ => 0 *)
+    (* end. *)
 
   Fixpoint expr_pvar (em : eid_map) (ce : CE.env) (h : HiF.hfexpr) : HiFP.hfexpr :=
     match h with
