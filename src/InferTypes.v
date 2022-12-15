@@ -4,10 +4,11 @@ From simplssrlib Require Import Types SsrOrder FSets FMaps Tactics Var Store.
 From nbits Require Import NBits.
 From firrtl Require Import Firrtl Env HiEnv.
 
+
 From firrtl Require Import HiFirrtl.
 
   (** Pass InferType *)
-
+Section InferTypeS.
   (* infer type according to a statement *)
 
   Inductive inferType_stmt : HiF.hfstmt -> CE.env -> CE.env -> Prop :=
@@ -46,13 +47,13 @@ From firrtl Require Import HiFirrtl.
       forall t t' c,
       CE.find (HiF.base_ref r) ce = Some (t, c) /\
       HiF.type_of_hfexpr e ce = t' /\
-      HiF.ftype_equiv (type_of_cmpnttyp t) t' ->
+      ftype_equiv (type_of_cmpnttyp t) t' ->
       inferType_stmt (Sfcnct r e) ce ce
   | Infertype_spcnct r e ce :
       forall t t' c,
       CE.find (HiF.base_ref r) ce = Some (t, c) /\
       HiF.type_of_hfexpr e ce = t' /\
-      HiF.ftype_weak_equiv (type_of_cmpnttyp t) t' ->
+      ftype_weak_equiv (type_of_cmpnttyp t) t' ->
       inferType_stmt (Spcnct r e) ce ce
   | Infertype_sskip ce :
       inferType_stmt (HiF.sskip) ce ce
@@ -181,10 +182,10 @@ From firrtl Require Import HiFirrtl.
     end.
 
   Lemma ftype_equiv_ident :
-    forall t , HiF.ftype_equiv t t
+    forall t , ftype_equiv t t
   with ffield_equiv_ident :
       forall(f:ffield),
-      HiF.fbtyp_equiv f f.
+      fbtyp_equiv f f.
   Proof.
     elim; rewrite /=; intros. elim f; done.
       rewrite eq_refl H//.
@@ -202,22 +203,22 @@ From firrtl Require Import HiFirrtl.
 
   Lemma ftype_weak_equiv_ident :
   forall t ,
-      HiF.ftype_weak_equiv t t.
+      ftype_weak_equiv t t.
   Proof.
     move => t.
-    rewrite /HiF.ftype_weak_equiv.
+    rewrite /ftype_weak_equiv.
     induction t.
-    rewrite /HiF.fgtyp_equiv.
+    rewrite /fgtyp_equiv.
     case f;try done.
 
-    rewrite /HiF.ftype_equiv.
+    rewrite /ftype_equiv.
     induction t.
     apply IHt.
     rewrite eq_refl.
     try done.
     admit.
 
-    rewrite /HiF.fbtyp_weak_equiv.
+    rewrite /fbtyp_weak_equiv.
     case f;try done.
     intros.
     case f2.
@@ -484,4 +485,418 @@ Qed.
     Qed.
 
   (** End **)
+End InferTypeS.
 
+Section InferTypeP.
+  
+  Definition def_pvar := VarOrder.default.
+
+  Definition def_ftype := Gtyp (Fuint 0).
+
+  (* type of mux expression *)
+  Fixpoint mux_types t1 t2 : ftype :=
+      match t1, t2 with
+      | Gtyp (Fuint w1), Gtyp (Fuint w2) => (Gtyp (Fuint (maxn w1 w2)))
+      | Gtyp (Fsint w1), Gtyp (Fsint w2) => (Gtyp (Fsint (maxn w1 w2)))
+      | Gtyp Fclock, Gtyp Fclock => (Gtyp Fclock)
+      | Atyp t1 n1, Atyp t2 n2 => if n1 == n2 then (Atyp (mux_types t1 t2) n1)
+                                  else def_ftype
+      | Btyp bs1, Btyp bs2 => match mux_btyps bs1 bs2 with
+                              | Fnil => def_ftype
+                              | t => Btyp t
+                              end
+      | _, _ => def_ftype
+      end
+  with mux_btyps bs1 bs2 : ffield :=
+         match bs1, bs2 with
+         | Fnil, Fnil => (Fnil)
+         | Fflips v1 Nflip t1 fs1, Fflips v2 Nflip t2 fs2 =>
+           if v1 == v2 then
+             (Fflips v1 Nflip (mux_types t1 t2) (mux_btyps fs1 fs2))
+           else Fnil
+         | _, _ => Fnil
+    end.
+
+  (* type of ref expressions *)
+  (* reference expression should have one kind of pattern "eid (x, y)" *)
+  Fixpoint type_of_refP (r : HiFP.href) ce : ftype :=
+    match r with
+    | Eid v => type_of_cmpnttyp (fst (CEP.vtyp v ce))
+    | _ => def_ftype
+    end.
+
+  (* type of expression *)
+  Fixpoint type_of_hfexprP (e : HiFP.hfexpr) (ce : CEP.env) : ftype :=
+    match e with
+    | Econst t bs => Gtyp t
+    | Eref r => type_of_refP r ce
+    | Ecast AsUInt e1 => let t := type_of_hfexprP e1 ce in
+                         match t with
+                         | Gtyp (Fsint w) | Gtyp (Fuint w) => Gtyp (Fuint w)
+                         | Gtyp Fclock => Gtyp (Fuint 1)
+                         | Gtyp Freset => Gtyp (Fuint 1)
+                         | Gtyp Fasyncreset => Gtyp (Fuint 1)
+                         | _ => def_ftype
+                         end
+    | Ecast AsSInt e1 => let t := type_of_hfexprP e1 ce in
+                         match t with
+                         | Gtyp (Fsint w) | Gtyp (Fuint w) => Gtyp (Fsint w)
+                         | Gtyp Fclock => Gtyp (Fsint 1)
+                         | Gtyp Freset => Gtyp (Fuint 1)
+                         | Gtyp Fasyncreset => Gtyp (Fuint 1)
+                         | _ => def_ftype
+                         end
+    | Ecast AsClock e1 => let t := type_of_hfexprP e1 ce in
+                          match t with
+                          | Gtyp _ =>  Gtyp Fclock
+                          | _ => def_ftype
+                          end
+    | Ecast AsReset e1 => let t := type_of_hfexprP e1 ce in
+                          match t with
+                          | Gtyp _ =>  Gtyp Freset
+                          | _ => def_ftype
+                          end
+    | Ecast AsAsync e1 => let t := type_of_hfexprP e1 ce in
+                          match t with
+                          | Gtyp _ =>  Gtyp Fasyncreset
+                          | _ => def_ftype
+                          end
+    | Eprim_unop (Upad n) e1 => let t := type_of_hfexprP e1 ce in
+                                match t with
+                                | Gtyp (Fsint w) => Gtyp (Fsint (maxn w n))
+                                | Gtyp (Fuint w) => Gtyp (Fuint (maxn w n))
+                                | _ => def_ftype
+                                end
+    | Eprim_unop (Ushl n) e1 => let t := type_of_hfexprP e1 ce in
+                                match t with
+                                | Gtyp (Fsint w) => Gtyp (Fsint (w + n))
+                                | Gtyp (Fuint w) => Gtyp (Fuint (w + n))
+                                | _ => def_ftype
+                                end
+    | Eprim_unop (Ushr n) e1 => let t := type_of_hfexprP e1 ce in
+                                match t with
+                                | Gtyp (Fsint w) => if n < w then Gtyp (Fsint (maxn (w - n) 1))
+                                                    else Gtyp (Fuint 1)
+                                | Gtyp (Fuint w) => if n < w then Gtyp (Fuint (maxn (w - n) 1))
+                                                    else Gtyp (Fuint 1)
+                                | _ => def_ftype
+                                end
+    | Eprim_unop Ucvt e1 => let t := type_of_hfexprP e1 ce in
+                                match t with
+                                | Gtyp (Fsint w) => Gtyp (Fsint w)
+                                | Gtyp (Fuint w) => Gtyp (Fsint (w + 1))
+                                | _ => def_ftype
+                                end
+    | Eprim_unop Uneg e1 => let t := type_of_hfexprP e1 ce in
+                                match t with
+                                | Gtyp (Fsint w) | Gtyp (Fuint w) => Gtyp (Fsint (w + 1))
+                                | _ => def_ftype
+                                end
+    | Eprim_unop Unot e1 => let t := type_of_hfexprP e1 ce in
+                                match t with
+                                | Gtyp (Fsint w) | Gtyp (Fuint w) => Gtyp (Fuint w)
+                                | _ => def_ftype
+                                end
+    | Eprim_unop (Uextr n1 n2) e1 => let t := type_of_hfexprP e1 ce in
+                                     match t with
+                                     | Gtyp (Fsint w) | Gtyp (Fuint w) =>
+                                                        if (n2 <= n1) && (n1 < w) then Gtyp (Fuint (n1 - n2 + 1))
+                                                        else def_ftype
+                                     | _ => def_ftype
+                                     end
+    | Eprim_unop (Uhead n) e1 => let t := type_of_hfexprP e1 ce in
+                                 match t with
+                                 | Gtyp (Fsint w) | Gtyp (Fuint w) =>
+                                                    if n <= w then Gtyp (Fuint n)
+                                                    else def_ftype
+                                 | _ => def_ftype
+                                 end
+    | Eprim_unop (Utail n) e1 => let t := type_of_hfexprP e1 ce in
+                                 match t with
+                                 | Gtyp (Fsint w) | Gtyp (Fuint w) =>
+                                                    if n <= w then Gtyp (Fuint (w - n))
+                                                    else def_ftype
+                                 | _ => def_ftype
+                                 end
+    | Eprim_unop _ e1 => let t := type_of_hfexprP e1 ce in
+                         match t with
+                         | Gtyp (Fsint _) | Gtyp (Fuint _) => Gtyp (Fuint 1)
+                         | _ => def_ftype
+                         end
+    | Eprim_binop (Bcomp _) e1 e2 => let t1 := type_of_hfexprP e1 ce in
+                                     let t2 := type_of_hfexprP e2 ce in
+                                     match t1, t2 with
+                                     | Gtyp (Fsint _), Gtyp (Fsint _)
+                                     | Gtyp (Fuint _), Gtyp (Fuint _) => Gtyp (Fuint 1)
+                                     | _, _ => def_ftype
+                                     end
+    | Eprim_binop Badd e1 e2
+    | Eprim_binop Bsub e1 e2 => let t1 := type_of_hfexprP e1 ce in
+                                let t2 := type_of_hfexprP e2 ce in
+                                match t1, t2 with
+                                | Gtyp (Fuint w1) , Gtyp (Fuint w2) => Gtyp (Fuint (maxn w1 w2 + 1))
+                                | Gtyp (Fsint w1) , Gtyp (Fsint w2) => Gtyp (Fsint (maxn w1 w2 + 1))
+                                | _, _ => def_ftype
+                                end
+    | Eprim_binop Bmul e1 e2 => let t1 := type_of_hfexprP e1 ce in
+                                let t2 := type_of_hfexprP e2 ce in
+                                match t1, t2 with
+                                | Gtyp (Fuint w1) , Gtyp (Fuint w2) => Gtyp (Fuint (w1 + w2))
+                                | Gtyp (Fsint w1) , Gtyp (Fsint w2) => Gtyp (Fsint (w1 + w2))
+                                | _, _ => def_ftype
+                                end
+    | Eprim_binop Bdiv e1 e2  => let t1 := type_of_hfexprP e1 ce in
+                                 let t2 := type_of_hfexprP e2 ce in
+                                 match t1, t2 with
+                                 | Gtyp (Fuint w1), Gtyp (Fuint w2) => Gtyp (Fuint w1)
+                                 | Gtyp (Fsint w1), Gtyp (Fsint w2) => Gtyp (Fsint (w1 + 1))
+                                 | _, _ => def_ftype
+                                 end
+    | Eprim_binop Brem e1 e2 => let t1 := type_of_hfexprP e1 ce in
+                                 let t2 := type_of_hfexprP e2 ce in
+                                 match t1, t2 with
+                                 | Gtyp (Fuint w1), Gtyp (Fuint w2) => Gtyp (Fuint (minn w1 w2))
+                                 | Gtyp (Fsint w1), Gtyp (Fsint w2) => Gtyp (Fsint (minn w1 w2))
+                                 | _, _ => def_ftype
+                                 end
+    | Eprim_binop Bdshl e1 e2 => let t1 := type_of_hfexprP e1 ce in
+                                 let t2 := type_of_hfexprP e2 ce in
+                                 match t1, t2 with
+                                 | Gtyp (Fuint w1), Gtyp (Fuint w2) => Gtyp (Fuint (w1 + 2 ^ w2 - 1))
+                                 | Gtyp (Fsint w1), Gtyp (Fuint w2) => Gtyp (Fsint (w1 + 2 ^ w2 - 1))
+                                 | _, _ => def_ftype
+                                 end
+    | Eprim_binop Bdshr e1 e2 => let t1 := type_of_hfexprP e1 ce in
+                                 let t2 := type_of_hfexprP e2 ce in
+                                 match t1, t2 with
+                                 | Gtyp (Fuint w1), Gtyp (Fuint w2) => Gtyp (Fuint w1)
+                                 | Gtyp (Fsint w1), Gtyp (Fuint w2) => Gtyp (Fsint w1)
+                                 | _, _ => def_ftype
+                                 end
+    | Eprim_binop Bcat e1 e2 => let t1 := type_of_hfexprP e1 ce in
+                                let t2 := type_of_hfexprP e2 ce in
+                                match t1, t2 with
+                                | Gtyp (Fuint w1), Gtyp (Fuint w2) => Gtyp (Fuint (w1 + w2))
+                                | Gtyp (Fsint w1), Gtyp (Fsint w2) => Gtyp (Fuint (w1 + w2))
+                                | _, _ => def_ftype
+                                end
+    | Eprim_binop Band e1 e2
+    | Eprim_binop Bor e1 e2
+    | Eprim_binop Bxor e1 e2 => let t1 := type_of_hfexprP e1 ce in
+                                let t2 := type_of_hfexprP e2 ce in
+                                match t1, t2 with
+                                | Gtyp (Fuint w1), Gtyp (Fuint w2) => Gtyp (Fuint (maxn w1 w2))
+                                | Gtyp (Fsint w1), Gtyp (Fsint w2) => Gtyp (Fuint (maxn w1 w2))
+                                | _, _ => def_ftype
+                                end
+    | Emux c e1 e2 => let t1 := type_of_hfexprP e1 ce in
+                      let t2 := type_of_hfexprP e2 ce in
+                      mux_types t1 t2
+    | Evalidif c e1 => type_of_hfexprP e1 ce
+    end.
+  
+  Inductive inferType_stmtP : HiFP.hfstmt -> CEP.env -> CEP.env -> Prop :=
+  | Infertype_wireP  v  t ce ce' :
+      (* HiFP.new_comp_name v -> *)
+      (* CE.find v ce = None -> *)
+      CEP.find v ce' = Some (HiFP.aggr_typ t, Wire) ->
+      inferType_stmtP (HiFP.swire v t) ce ce'
+  | Infertype_regP v r ce ce' :
+      (* HiFP.new_comp_name v -> *)
+      (* CE.find v ce = None -> *)
+      CEP.find v ce' = Some (HiFP.reg_typ r, Register) ->
+      inferType_stmtP (HiFP.sreg v r) ce ce'
+  | Infertype_instP v1 v2 ce ce' :
+      (* HiFP.new_comp_name v1 -> *)
+      (* CE.find v1 ce = None -> *)
+      ~~ (v1 == v2) ->
+      (* CE.find v2 ce = Some t -> *)
+      CEP.find v1 ce' = Some (fst (CEP.vtyp v2 ce), Instanceof) ->
+      inferType_stmtP (HiFP.sinst v1 v2) ce ce'
+  | Infertype_nodeP v e ce ce' :
+      (* HiFP.new_comp_name v -> *)
+      (* CE.find v ce = None -> *)
+      (* ~~ fexpr_has_v v e -> *)
+      type_of_hfexprP e ce = type_of_hfexprP e ce' ->
+      CEP.find v ce' = Some (HiFP.aggr_typ (type_of_hfexprP e ce), Node) ->
+      inferType_stmtP (HiFP.snode v e) ce ce'
+  | Infertype_memP v m ce ce' :
+      (* HiFP.new_comp_name v -> *)
+      (* CE.find v ce = None -> *)
+      CEP.find v ce' = Some (Mem_typ m, Memory) ->
+      inferType_stmtP (HiFP.smem v m) ce ce'
+  | Infertype_invalidP v ce :
+      inferType_stmtP (HiFP.sinvalid v) ce ce
+  | Infertype_sfcnctP r e ce :
+      forall t t' c,
+      CEP.find r ce = Some (t, c) /\
+      type_of_hfexprP e ce = t' /\
+      ftype_equiv (type_of_cmpnttyp t) t' ->
+      inferType_stmtP (Sfcnct (Eid r) e) ce ce
+  | Infertype_spcnctP r e ce :
+      forall t t' c,
+      CEP.find r ce = Some (t, c) /\
+      type_of_hfexprP e ce = t' /\
+      ftype_weak_equiv (type_of_cmpnttyp t) t' ->
+      inferType_stmtP (Spcnct (Eid r) e) ce ce
+  | Infertype_sskipP ce :
+      inferType_stmtP (HiFP.sskip) ce ce
+  | Infertype_swhenP e s1 s2 ce ce' ce'' :
+      inferType_stmtsP s1 ce ce' ->
+      inferType_stmtsP s2 ce' ce'' ->
+      inferType_stmtP (HiFP.swhen e s1 s2) ce ce''
+                     
+  with inferType_stmtsP : HiFP.hfstmt_seq -> CEP.env -> CEP.env -> Prop :=
+  | Infertype_stmts_nilP ce :
+      inferType_stmtsP HiFP.qnil ce ce
+  | Infertype_stmts_conP s ss ce ce' ce'' :
+      inferType_stmtP s ce ce' ->
+      inferType_stmtsP ss ce' ce'' ->
+      inferType_stmtsP (Qcons s ss) ce ce''.
+
+
+  Fixpoint list_repeat_fn (f : list ftype -> list ftype) (n : nat) (l : list ftype) : list ftype :=
+    match n with
+    | 0 => l
+    | S m => list_repeat_fn f m (f l)
+    end.
+
+  Fixpoint ftype_list (ft : ftype) (l : list ftype) : list ftype :=
+    match ft with
+    | Gtyp t => rcons l (Gtyp t)
+    | Atyp t n => list_repeat_fn (ftype_list t) n l
+    | Btyp b => ftype_list_btyp b l
+    end
+  with ftype_list_btyp (b : ffield) (l : list ftype) : list ftype :=
+         match b with
+         | Fnil => l
+         | Fflips v fl t fs => ftype_list_btyp fs (ftype_list t l)
+         end.
+
+  (*recursively add sub-elements accroding to the declared aggr_typ*)
+  Fixpoint upd_aggr_elements_aux (v:pvar) (ts: seq ftype) (c:fcomponent) (ce:CEP.env) (n:N) :CEP.env:=
+    match ts with
+    | nil => ce
+    | cons hd tl => upd_aggr_elements_aux v tl c (CEP.add (fst v, n) (HiFP.aggr_typ hd, c) ce) (N.add n 1%num)
+    end.
+  
+  Definition upd_aggr_elements (v:pvar) (t: cmpnt_init_typs ProdVarOrder.T * fcomponent) (ce:CEP.env) : CEP.env :=
+    let ts := ftype_list (type_of_cmpnttyp (fst t)) nil in
+    upd_aggr_elements_aux v ts (snd t) (CEP.add v t ce) first_index.
+  
+  Definition ce0 :CEP.env:= CEP.empty (cmpnt_init_typs ProdVarOrder.T * fcomponent).
+  Definition agt := HiFP.aggr_typ (Atyp (Btyp (Fflips 5%num Nflip (Gtyp (Fsint 1)) (Fflips 6%num Nflip (Atyp (Gtyp (Fsint 2)) 2) Fnil))) 3).
+  Definition tagt := type_of_cmpnttyp agt.
+  Compute tagt. Compute ftype_list tagt nil.
+  Definition uagt := upd_aggr_elements_aux (10%num, N0) (ftype_list tagt nil) Node ce0 1%num.
+  Compute CEP.vtyp (10%num , 7%num) uagt.
+  Definition uagt1 := upd_aggr_elements (10%num, N0) (agt, Node) ce0.
+  Compute (CEP.vtyp (10%num, 9%num) uagt1).
+  Definition ce00:CE.env:= CE.empty (cmpnt_init_typs VarOrder.T * fcomponent).
+  Definition ce11 := CE.add (10%num) (HiF.aggr_typ (Atyp (Btyp (Fflips 5%num Nflip (Gtyp (Fsint 1)) (Fflips 6%num Nflip (Atyp (Gtyp (Fsint 2)) 2) Fnil))) 3), Node) ce00.
+  Compute (type_of_refS (HiF.esubfield (HiF.eid 10%num) 6%num) ce11).
+  Compute (offset_ref (HiF.esubindex (HiF.eid 10%num) 4%num) ce11).
+
+  Fixpoint inferType_stmt_funP (st : HiFP.hfstmt) (ce : CEP.env) : CEP.env :=
+    match st with
+    | Snode v e => upd_aggr_elements v (HiFP.aggr_typ (type_of_hfexprP e ce), Node) ce
+    | Sinst v1 v2 => upd_aggr_elements v1 (fst (CEP.vtyp v2 ce), Instanceof) ce
+    | Sreg v r => upd_aggr_elements v (HiFP.reg_typ r, Register) ce
+    | Smem v m => upd_aggr_elements v (HiFP.mem_typ m, Memory) ce
+    | Swire v t => upd_aggr_elements v (HiFP.aggr_typ t, Wire) ce
+    | Swhen _ sts_true sts_false => inferType_stmts_funP sts_false (inferType_stmts_funP sts_true ce)
+    | Sfcnct _ _
+    | Spcnct _ _
+    | Sinvalid _
+    | Sskip => ce
+    end
+
+  with inferType_stmts_funP (sts : HiFP.hfstmt_seq) (ce : CEP.env) : CEP.env :=
+    match sts with
+    | Qnil => ce
+    | Qcons s stl => inferType_stmts_funP stl (inferType_stmt_funP s ce)
+    end.
+
+  
+  (* Lemma inferType_snode_sem_conformP : *)
+  (*   forall (v : pvar) e ce0 , *)
+  (*     type_of_hfexprP e ce0 = type_of_hfexprP e (inferType_stmt_funP (HiFP.snode v e) ce0) -> *)
+  (*     inferType_stmtP (HiFP.snode v e) ce0 (inferType_stmt_funP (HiFP.snode v e) ce0). *)
+  (* Proof. *)
+  (*   intros. apply Infertype_nodeP; try done. *)
+  (*   rewrite /inferType_stmt_funP (HiFP.PCELemmas.add_eq_o _ _ (eq_refl v)) //. *)
+  (* Qed. *)
+
+  (* Lemma inferType_sreg_sem_conformP : *)
+  (*   forall v r ce0 , *)
+  (*     inferType_stmtP (HiFP.sreg v r) ce0 (inferType_stmt_funP (HiFP.sreg v r) ce0). *)
+  (* Proof. *)
+  (*   intros. apply Infertype_regP. try done. *)
+  (*   rewrite /inferType_stmt_funP. *)
+  (*   rewrite /CEP.add_fst. *)
+  (*   rewrite (HiFP.PCELemmas.add_eq_o _ _ (eq_refl v)) //. *)
+  (* Qed. *)
+
+  (* Lemma inferType_swire_sem_conformP : *)
+  (*   forall (v : pvar) t ce0 , *)
+  (*     inferType_stmtP (HiFP.swire v t) ce0 (inferType_stmt_funP (HiFP.swire v t) ce0). *)
+  (* Proof. *)
+  (*   intros. apply Infertype_wireP. *)
+  (*   rewrite /inferType_stmt_funP. *)
+  (*   rewrite (HiFP.PCELemmas.add_eq_o _ _ (eq_refl v)) //. *)
+  (* Qed. *)
+
+  (* Lemma inferType_sinst_sem_conformP : *)
+  (*   forall (v1 : pvar) (v2 : pvar) ce0 , *)
+  (*     v1 != v2 -> *)
+  (*     CEP.vtyp v2 ce0 = CEP.vtyp v2 (inferType_stmt_funP (HiFP.sinst v1 v2) ce0) -> *)
+  (*     inferType_stmtP (HiFP.sinst v1 v2) ce0 (inferType_stmt_funP (HiFP.sinst v1 v2) ce0). *)
+  (* Proof. *)
+  (*   intros. apply Infertype_instP. *)
+  (*   apply H. *)
+  (*   rewrite /inferType_stmt_funP. *)
+  (*   rewrite (HiFP.PCELemmas.add_eq_o _ _ (eq_refl v1)). *)
+  (*   reflexivity. *)
+  (* Qed. *)
+
+  (* Lemma inferType_smem_sem_conformP : *)
+  (*   forall v m ce0 , *)
+  (*     inferType_stmtP (HiFP.smem v m) ce0 (inferType_stmt_funP (HiFP.smem v m) ce0). *)
+  (* Proof. *)
+  (*   intros. apply Infertype_memP. *)
+  (*   rewrite /inferType_stmt_funP. *)
+  (*   rewrite (HiFP.PCELemmas.add_eq_o _ _ (eq_refl v)) //. *)
+  (* Qed. *)
+
+  (* Lemma inferType_sskip_sem_conformP : *)
+  (*   forall ce0 , *)
+  (*     inferType_stmtP (HiFP.sskip) ce0 (inferType_stmt_funP (HiFP.sskip) ce0). *)
+  (* Proof. *)
+  (*   intros. apply Infertype_sskipP. *)
+  (* Qed. *)
+
+  (* Lemma inferType_swhen_sem_conformP : *)
+  (*   forall e s1 s2 ce0 ce1 (ce2 : CEP.env), *)
+  (*     inferType_stmtsP s1 ce0 ce1 -> *)
+  (*     inferType_stmtsP s2 ce1 (inferType_stmt_funP (HiFP.swhen e s1 s2) ce0) -> *)
+  (*     inferType_stmtP (HiFP.swhen e s1 s2) ce0 (inferType_stmt_funP (HiFP.swhen e s1 s2) ce0). *)
+  (* Proof. *)
+  (*   intros. apply Infertype_swhenP with (ce' := ce1). *)
+  (*   apply H. *)
+  (*   apply H0. *)
+  (* Qed. *)
+(*
+  Lemma inferType_sinvalid_sem_conformP :
+    forall v ce0 ,
+      inferType_stmtP (HiFP.sinvalid v) ce0 (inferType_stmt_funP (HiFP.sinvalid v) ce0).
+  Proof.
+    intros. apply Infertype_invalidP.
+  Qed.
+
+  Lemma inferType_sfcnct_sem_conformP :
+
+  Lemma inferType_spcnct_sem_conformP :
+
+  Lemma inferType_stmts_conformP :
+  *)
+End InferTypeP.

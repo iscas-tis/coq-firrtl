@@ -614,9 +614,11 @@ Fixpoint mylListIn (a:var) (l:list var) : bool :=
     end.
 
 Definition maptuple := TE.t (var * var).
+Definition mmaptuple := TE.t maptuple.
 Definition mapfmod := TE.t fmodule.
 Definition mapterss := TE.t (TE.env * vstate * vstate).
 Definition mapvar := TE.t var.
+Definition mmapvar := TE.t mapvar.
 
 Fixpoint bitsIn (a: bits) (l:list bits) : bool :=
     match l with
@@ -884,6 +886,7 @@ Fixpoint upd_inner s s0 (a2 : seq var) (finstinmap : mapvar) : vstate :=
                                                                 | Some aa => let '(te0,rs0,s0) := aa in (match TE.find a finstin with (* mod name -> inport name list *)
                                                                                                         | None => [::b0]
                                                                                                         | Some a2 => (let s1 := upd_inner s s0 a2 finstinmap in (* finstinmap 是参数直接传过来 *)
+                                                                                                        
                                                                                                           (*let s2 := eval_innerm a1 rs0 s1 te0 allrl allwl alldata2etc allmemmap in*)
                                                                                                           (match TE.find v finstoutmap with
                                                                                                           | None => [::b0]
@@ -976,7 +979,7 @@ Fixpoint upd_inner s s0 (a2 : seq var) (finstinmap : mapvar) : vstate :=
     end.
   *)
   Definition eval_module mainmod rs s te (readerls : mapls) (writerls : mapls) (data2etc : map2etc) (memmap : mapmodsmem)
-  (finstoutl : seq var) (finstoutm : maptuple) (ffmodsmap : mapfmod) (fterss : mapterss) (finstin : mapls) (finstinmap : mapvar) (finstoutmap : mapvar) (rl : mapls) (wl : mapls) (alldata2etc : map2etc) (allmemmap : mapmodsmem) : vstate * vstate * mapmodsmem :=
+  (finstoutl : mapls) (finstoutm : mmaptuple) (ffmodsmap : mapfmod) (fterss : mapterss) (finstin : mapls) (finstinmap : mmapvar) (finstoutmap : mmapvar) : vstate * vstate * mapmodsmem :=
     match mainmod with
     | FInmod v ps st => (*let te0 := upd_typenv_fports ps (TE.empty) in 在ocaml赋初值，因为要run多个周期，需放在clk_step外*)
                         let readerls0 := (match TE.find v readerls with
@@ -987,14 +990,30 @@ Fixpoint upd_inner s s0 (a2 : seq var) (finstinmap : mapvar) : vstate :=
                         | None =>  nil
                         | Some a => a 
                         end) in
+                        let finstoutl0 := (match TE.find v finstoutl with
+                        | None =>  nil
+                        | Some a => a 
+                        end) in
                         match TE.find v data2etc with
                         | None => (rs,s, memmap)
                         | Some a => let data2etc0 := a in 
-                          match TE.find v memmap with
+                          match TE.find v finstoutm with
                           | None =>  (rs,s, memmap)
-                          | Some a => let memmap0 := a in
-                          let '(rs1, s1, memmap1) := eval_fstmts (rev st) rs s te readerls0 writerls0 data2etc0 memmap0 finstoutl finstoutm ffmodsmap fterss finstin finstinmap finstoutmap rl wl alldata2etc allmemmap in
+                          | Some a => let finstoutm0 := a in
+                            match TE.find v finstinmap with
+                            | None =>  (rs,s, memmap)
+                            | Some a => let finstinmap0 := a in
+                              match TE.find v finstoutmap with
+                              | None =>  (rs,s, memmap)
+                              | Some a => let finstoutmap0 := a in
+                                match TE.find v memmap with
+                                | None =>  (rs,s, memmap)
+                                | Some a => let memmap0 := a in
+                          let '(rs1, s1, memmap1) := eval_fstmts (rev st) rs s te readerls0 writerls0 data2etc0 memmap0 finstoutl0 finstoutm0 ffmodsmap fterss finstin finstinmap0 finstoutmap0 readerls writerls data2etc memmap in
                           (rs1, s1, TE.add v memmap1 memmap)
+                                end
+                              end
+                            end
                           end
                         end
                         
@@ -1002,9 +1021,10 @@ Fixpoint upd_inner s s0 (a2 : seq var) (finstinmap : mapvar) : vstate :=
     end.
 
   Definition eval_innerm mainmod rs s te (readerls : mapls) (writerls : mapls) (data2etc : map2etc) (memmap : mapmodsmem) 
-  (finstoutl : seq var) (finstoutm : maptuple) (ffmodsmap : mapfmod) (fterss : mapterss) (finstin : mapls) (finstinmap : mapvar) (finstoutmap : mapvar) (rl : mapls) (wl : mapls) (alldata2etc : map2etc) (allmemmap : mapmodsmem) : vstate :=
+  (finstoutl : mapls) (finstoutm : mmaptuple) (ffmodsmap : mapfmod) (fterss : mapterss) (finstin : mapls) (finstinmap : mmapvar) (finstoutmap : mmapvar) : vstate :=
     match mainmod with
-    | FInmod v ps st => let readerls0 := (match TE.find v readerls with
+    | FInmod v ps st => (*let te0 := upd_typenv_fports ps (TE.empty) in 在ocaml赋初值，因为要run多个周期，需放在clk_step外*)
+                        let readerls0 := (match TE.find v readerls with
                         | None =>  nil
                         | Some a => a 
                         end) in
@@ -1012,30 +1032,46 @@ Fixpoint upd_inner s s0 (a2 : seq var) (finstinmap : mapvar) : vstate :=
                         | None =>  nil
                         | Some a => a 
                         end) in
+                        let finstoutl0 := (match TE.find v finstoutl with
+                        | None =>  nil
+                        | Some a => a 
+                        end) in
                         match TE.find v data2etc with
                         | None => s
                         | Some a => let data2etc0 := a in 
-                          match TE.find v memmap with
+                          match TE.find v finstoutm with
                           | None =>  s
-                          | Some a => let memmap0 := a in
-                                      let revst := rev st in
-                          let '(_, s2, _) := 
-                          List.fold_left (fun '(rs1, s1, memmap0) tempst => eval_fstmt tempst rs s te readerls0 writerls0 data2etc0 memmap0 finstoutl finstoutm ffmodsmap fterss finstin finstinmap finstoutmap rl wl alldata2etc allmemmap) revst (rs, s, memmap0) in
-                          s2
+                          | Some a => let finstoutm0 := a in
+                            match TE.find v finstinmap with
+                            | None =>  s
+                            | Some a => let finstinmap0 := a in
+                              match TE.find v finstoutmap with
+                              | None =>  s
+                              | Some a => let finstoutmap0 := a in
+                                match TE.find v memmap with
+                                | None =>  s
+                                | Some a => let memmap0 := a in
+                                let '(_, s2, _) := 
+                                List.fold_left (fun '(rs1, s1, memmap0) tempst => eval_fstmt tempst rs s te readerls0 writerls0 data2etc0 memmap0 finstoutl0 finstoutm0 ffmodsmap fterss finstin finstinmap0 finstoutmap0 readerls writerls data2etc memmap) (rev st) (rs, s, memmap0) in
+                                s2      
+                                end
+                              end
+                            end
                           end
                         end
+                        
     | _ => s
     end.
 
   Fixpoint run_module mainmod rs s te (io_in : mapioin) name readerls writerls data2etc memmap clk_num len 
-  (finstoutl : seq var) (finstoutm : maptuple) (ffmodsmap : mapfmod) (fterss : mapterss) (finstin : mapls) (finstinmap : mapvar) (finstoutmap : mapvar) (rl : mapls) (wl : mapls) (alldata2etc : map2etc) (allmemmap : mapmodsmem) : vstate * vstate * mapmodsmem :=
-    match clk_num with
+  (finstoutl : mapls) (finstoutm : mmaptuple) (ffmodsmap : mapfmod) (fterss : mapterss) (finstin : mapls) (finstinmap : mmapvar) (finstoutmap : mmapvar) : vstate * vstate * mapmodsmem :=
+  match clk_num with
     | 0 => (rs,s,memmap)
     | S m => let n := len - S m in
              let s1 := upd_argulist s io_in name n in
              (*let te1 := upd_typenv_fstmts st te s1 in*) (* 放在和upd fports同时？ *)
-             let '(rs2, s2, memmap0) := eval_module mainmod rs s1 te readerls writerls data2etc memmap finstoutl finstoutm ffmodsmap fterss finstin finstinmap finstoutmap rl wl alldata2etc allmemmap in (* 每个clk后 fterss 需要更新*)
-             run_module mainmod rs2 s2 te io_in name readerls writerls data2etc memmap0 m len finstoutl finstoutm ffmodsmap fterss finstin finstinmap finstoutmap rl wl alldata2etc allmemmap
+             let '(rs2, s2, memmap0) := eval_module mainmod rs s1 te readerls writerls data2etc memmap finstoutl finstoutm ffmodsmap fterss finstin finstinmap finstoutmap in (* 每个clk后 fterss 需要更新*)
+             run_module mainmod rs2 s2 te io_in name readerls writerls data2etc memmap0 m len finstoutl finstoutm ffmodsmap fterss finstin finstinmap finstoutmap
     end.
 (*
     Import Natlist0.
