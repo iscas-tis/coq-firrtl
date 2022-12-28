@@ -754,7 +754,7 @@ Section InferTypeP.
       inferType_stmtsP ss ce' ce'' ->
       inferType_stmtsP (Qcons s ss) ce ce''.
 
-
+  (*list only the ground types*)
   Fixpoint list_repeat_fn (f : list ftype -> list ftype) (n : nat) (l : list ftype) : list ftype :=
     match n with
     | 0 => l
@@ -763,7 +763,7 @@ Section InferTypeP.
 
   Fixpoint ftype_list (ft : ftype) (l : list ftype) : list ftype :=
     match ft with
-    | Gtyp t => rcons l (Gtyp t)
+    | Gtyp t => rcons l ft
     | Atyp t n => list_repeat_fn (ftype_list t) n l
     | Btyp b => ftype_list_btyp b l
     end
@@ -771,6 +771,19 @@ Section InferTypeP.
          match b with
          | Fnil => l
          | Fflips v fl t fs => ftype_list_btyp fs (ftype_list t l)
+         end.
+
+  (*list also the nested sub aggragate types*)
+  Fixpoint ftype_list_all (ft : ftype) (l : list ftype) : list ftype :=
+    match ft with
+    | Gtyp t => cons ft l
+    | Atyp t n => cons ft (list_repeat_fn (ftype_list_all t) n l)
+    | Btyp b => cons ft (ftype_list_btyp_all b l)
+    end
+  with ftype_list_btyp_all (b : ffield) (l : list ftype) : list ftype :=
+         match b with
+         | Fnil => l
+         | Fflips v fl t fs => ftype_list_all t (ftype_list_btyp_all fs l)
          end.
 
   (*recursively add sub-elements accroding to the declared aggr_typ*)
@@ -782,20 +795,41 @@ Section InferTypeP.
   
   Definition upd_aggr_elements (v:pvar) (t: cmpnt_init_typs ProdVarOrder.T * fcomponent) (ce:CEP.env) : CEP.env :=
     let ts := ftype_list (type_of_cmpnttyp (fst t)) nil in
-    upd_aggr_elements_aux v ts (snd t) (CEP.add v t ce) first_index.
+    CEP.add v t (upd_aggr_elements_aux v ts (snd t) ce first_index).
+
+  Definition upd_aggr_elements_all (v:pvar) (t: cmpnt_init_typs ProdVarOrder.T * fcomponent) (ce:CEP.env) : CEP.env :=
+    let ts := ftype_list_all (type_of_cmpnttyp (fst t)) nil in
+    CEP.add v t (upd_aggr_elements_aux v ts (snd t) ce first_index).
   
   Definition ce0 :CEP.env:= CEP.empty (cmpnt_init_typs ProdVarOrder.T * fcomponent).
   Definition agt := HiFP.aggr_typ (Atyp (Btyp (Fflips 5%num Nflip (Gtyp (Fsint 1)) (Fflips 6%num Nflip (Atyp (Gtyp (Fsint 2)) 2) Fnil))) 3).
   Definition tagt := type_of_cmpnttyp agt.
-  Compute tagt. Compute ftype_list tagt nil.
+  Compute tagt. Compute ftype_list_all tagt nil.
+       (* = [:: Atyp *)
+       (*       (Btyp *)
+       (*          (Fflips 5%num Nflip (Gtyp (Fsint 1)) *)
+       (*             (Fflips 6%num Nflip (Atyp (Gtyp (Fsint 2)) 2) Fnil))) 3; *)
+       (*     Btyp *)
+       (*       (Fflips 5%num Nflip (Gtyp (Fsint 1)) *)
+       (*          (Fflips 6%num Nflip (Atyp (Gtyp (Fsint 2)) 2) Fnil));  *)
+       (*    Gtyp (Fsint 1); Atyp (Gtyp (Fsint 2)) 2; Gtyp (Fsint 2);  *)
+       (*    Gtyp (Fsint 2); *)
+       (*     Btyp *)
+       (*       (Fflips 5%num Nflip (Gtyp (Fsint 1)) *)
+       (*          (Fflips 6%num Nflip (Atyp (Gtyp (Fsint 2)) 2) Fnil));  *)
+       (*    Gtyp (Fsint 1); Atyp (Gtyp (Fsint 2)) 2; Gtyp (Fsint 2);  *)
+       (*    Gtyp (Fsint 2); *)
+       (*     Btyp *)
+       (*       (Fflips 5%num Nflip (Gtyp (Fsint 1)) *)
+       (*          (Fflips 6%num Nflip (Atyp (Gtyp (Fsint 2)) 2) Fnil));  *)
+       (*    Gtyp (Fsint 1); Atyp (Gtyp (Fsint 2)) 2; Gtyp (Fsint 2);  *)
+       (*    Gtyp (Fsint 2)] *)
   Definition uagt := upd_aggr_elements_aux (10%num, N0) (ftype_list tagt nil) Node ce0 1%num.
   Compute CEP.vtyp (10%num , 7%num) uagt.
   Definition uagt1 := upd_aggr_elements (10%num, N0) (agt, Node) ce0.
   Compute (CEP.vtyp (10%num, 9%num) uagt1).
   Definition ce00:CE.env:= CE.empty (cmpnt_init_typs VarOrder.T * fcomponent).
   Definition ce11 := CE.add (10%num) (HiF.aggr_typ (Atyp (Btyp (Fflips 5%num Nflip (Gtyp (Fsint 1)) (Fflips 6%num Nflip (Atyp (Gtyp (Fsint 2)) 2) Fnil))) 3), Node) ce00.
-  Compute (type_of_refS (HiF.esubfield (HiF.eid 10%num) 6%num) ce11).
-  Compute (offset_ref (HiF.esubindex (HiF.eid 10%num) 4%num) ce11).
 
   Fixpoint inferType_stmt_funP (st : HiFP.hfstmt) (ce : CEP.env) : CEP.env :=
     match st with
@@ -818,73 +852,71 @@ Section InferTypeP.
     end.
 
   
-  (* Lemma inferType_snode_sem_conformP : *)
-  (*   forall (v : pvar) e ce0 , *)
-  (*     type_of_hfexprP e ce0 = type_of_hfexprP e (inferType_stmt_funP (HiFP.snode v e) ce0) -> *)
-  (*     inferType_stmtP (HiFP.snode v e) ce0 (inferType_stmt_funP (HiFP.snode v e) ce0). *)
-  (* Proof. *)
-  (*   intros. apply Infertype_nodeP; try done. *)
-  (*   rewrite /inferType_stmt_funP (HiFP.PCELemmas.add_eq_o _ _ (eq_refl v)) //. *)
-  (* Qed. *)
+  Lemma inferType_snode_sem_conformP :
+    forall (v : pvar) e ce0 ,
+      type_of_hfexprP e ce0 = type_of_hfexprP e (inferType_stmt_funP (HiFP.snode v e) ce0) ->
+      inferType_stmtP (HiFP.snode v e) ce0 (inferType_stmt_funP (HiFP.snode v e) ce0).
+  Proof.
+    intros. apply Infertype_nodeP; try done.
+    rewrite /=/upd_aggr_elements/= (HiFP.PCELemmas.add_eq_o _ _ (eq_refl v)) //.
+  Qed.
 
-  (* Lemma inferType_sreg_sem_conformP : *)
-  (*   forall v r ce0 , *)
-  (*     inferType_stmtP (HiFP.sreg v r) ce0 (inferType_stmt_funP (HiFP.sreg v r) ce0). *)
-  (* Proof. *)
-  (*   intros. apply Infertype_regP. try done. *)
-  (*   rewrite /inferType_stmt_funP. *)
-  (*   rewrite /CEP.add_fst. *)
-  (*   rewrite (HiFP.PCELemmas.add_eq_o _ _ (eq_refl v)) //. *)
-  (* Qed. *)
+  Lemma inferType_sreg_sem_conformP :
+    forall v r ce0 ,
+      inferType_stmtP (HiFP.sreg v r) ce0 (inferType_stmt_funP (HiFP.sreg v r) ce0).
+  Proof.
+    intros. apply Infertype_regP. try done.
+    rewrite /inferType_stmt_funP.
+    rewrite /CEP.add_fst.
+    rewrite (HiFP.PCELemmas.add_eq_o _ _ (eq_refl v)) //.
+  Qed.
 
-  (* Lemma inferType_swire_sem_conformP : *)
-  (*   forall (v : pvar) t ce0 , *)
-  (*     inferType_stmtP (HiFP.swire v t) ce0 (inferType_stmt_funP (HiFP.swire v t) ce0). *)
-  (* Proof. *)
-  (*   intros. apply Infertype_wireP. *)
-  (*   rewrite /inferType_stmt_funP. *)
-  (*   rewrite (HiFP.PCELemmas.add_eq_o _ _ (eq_refl v)) //. *)
-  (* Qed. *)
+  Lemma inferType_swire_sem_conformP :
+    forall (v : pvar) t ce0 ,
+      inferType_stmtP (HiFP.swire v t) ce0 (inferType_stmt_funP (HiFP.swire v t) ce0).
+  Proof.
+    intros. apply Infertype_wireP.
+    rewrite /inferType_stmt_funP.
+    rewrite (HiFP.PCELemmas.add_eq_o _ _ (eq_refl v)) //.
+  Qed.
 
-  (* Lemma inferType_sinst_sem_conformP : *)
-  (*   forall (v1 : pvar) (v2 : pvar) ce0 , *)
-  (*     v1 != v2 -> *)
-  (*     CEP.vtyp v2 ce0 = CEP.vtyp v2 (inferType_stmt_funP (HiFP.sinst v1 v2) ce0) -> *)
-  (*     inferType_stmtP (HiFP.sinst v1 v2) ce0 (inferType_stmt_funP (HiFP.sinst v1 v2) ce0). *)
-  (* Proof. *)
-  (*   intros. apply Infertype_instP. *)
-  (*   apply H. *)
-  (*   rewrite /inferType_stmt_funP. *)
-  (*   rewrite (HiFP.PCELemmas.add_eq_o _ _ (eq_refl v1)). *)
-  (*   reflexivity. *)
-  (* Qed. *)
+  Lemma inferType_sinst_sem_conformP :
+    forall (v1 : pvar) (v2 : pvar) ce0 ,
+      v1 != v2 ->
+      CEP.vtyp v2 ce0 = CEP.vtyp v2 (inferType_stmt_funP (HiFP.sinst v1 v2) ce0) ->
+      inferType_stmtP (HiFP.sinst v1 v2) ce0 (inferType_stmt_funP (HiFP.sinst v1 v2) ce0).
+  Proof.
+    intros. apply Infertype_instP.
+    apply H.
+    rewrite /inferType_stmt_funP.
+    rewrite (HiFP.PCELemmas.add_eq_o _ _ (eq_refl v1)).
+    reflexivity.
+  Qed.
 
-  (* Lemma inferType_smem_sem_conformP : *)
-  (*   forall v m ce0 , *)
-  (*     inferType_stmtP (HiFP.smem v m) ce0 (inferType_stmt_funP (HiFP.smem v m) ce0). *)
-  (* Proof. *)
-  (*   intros. apply Infertype_memP. *)
-  (*   rewrite /inferType_stmt_funP. *)
-  (*   rewrite (HiFP.PCELemmas.add_eq_o _ _ (eq_refl v)) //. *)
-  (* Qed. *)
+  Lemma inferType_smem_sem_conformP :
+    forall v m ce0 ,
+      inferType_stmtP (HiFP.smem v m) ce0 (inferType_stmt_funP (HiFP.smem v m) ce0).
+  Proof.
+    intros. apply Infertype_memP.
+    rewrite /inferType_stmt_funP.
+    rewrite (HiFP.PCELemmas.add_eq_o _ _ (eq_refl v)) //.
+  Qed.
 
-  (* Lemma inferType_sskip_sem_conformP : *)
-  (*   forall ce0 , *)
-  (*     inferType_stmtP (HiFP.sskip) ce0 (inferType_stmt_funP (HiFP.sskip) ce0). *)
-  (* Proof. *)
-  (*   intros. apply Infertype_sskipP. *)
-  (* Qed. *)
+  Lemma inferType_sskip_sem_conformP :
+    forall ce0 ,
+      inferType_stmtP (HiFP.sskip) ce0 (inferType_stmt_funP (HiFP.sskip) ce0).
+  Proof.
+    intros. apply Infertype_sskipP.
+  Qed.
 
-  (* Lemma inferType_swhen_sem_conformP : *)
-  (*   forall e s1 s2 ce0 ce1 (ce2 : CEP.env), *)
-  (*     inferType_stmtsP s1 ce0 ce1 -> *)
-  (*     inferType_stmtsP s2 ce1 (inferType_stmt_funP (HiFP.swhen e s1 s2) ce0) -> *)
-  (*     inferType_stmtP (HiFP.swhen e s1 s2) ce0 (inferType_stmt_funP (HiFP.swhen e s1 s2) ce0). *)
-  (* Proof. *)
-  (*   intros. apply Infertype_swhenP with (ce' := ce1). *)
-  (*   apply H. *)
-  (*   apply H0. *)
-  (* Qed. *)
+  Lemma inferType_swhen_sem_conformP :
+    forall e s1 s2 ce0 ce1 (ce2 : CEP.env),
+      inferType_stmtsP s1 ce0 ce1 ->
+      inferType_stmtsP s2 ce1 (inferType_stmt_funP (HiFP.swhen e s1 s2) ce0) ->
+      inferType_stmtP (HiFP.swhen e s1 s2) ce0 (inferType_stmt_funP (HiFP.swhen e s1 s2) ce0).
+  Proof.
+  Admitted.
+  
 (*
   Lemma inferType_sinvalid_sem_conformP :
     forall v ce0 ,

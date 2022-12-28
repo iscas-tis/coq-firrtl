@@ -1859,7 +1859,7 @@ Section Preprocess.
     | Spcnct r e => (PVM.add (HiF.base_ref r, offset_ref r ce 0) (r) em, ce, HiFP.spcnct ( (HiFP.eid (HiF.base_ref r, (offset_ref r ce 0)))) (expr_pvar em ce e))
     | Sinvalid r => (PVM.add (HiF.base_ref r, offset_ref r ce 0) (r) em, ce, HiFP.sinvalid ( (HiFP.eid (HiF.base_ref r, (offset_ref r ce 0)))))
     | Swhen e s1 s2 => (em, ce, HiFP.swhen (expr_pvar em ce e) (snd (hfstmt_seq_indexes em ce s1)) (snd (hfstmt_seq_indexes em ce s2)))
-    | Sskip => ( em, ce, HiFP.sskip)
+    | Sskip => (em, ce, HiFP.sskip)
     end
   with hfstmt_seq_indexes em ce s : eid_map * CE.env * HiFP.hfstmt_seq :=
          match s with
