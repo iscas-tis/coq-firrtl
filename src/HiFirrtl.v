@@ -469,6 +469,12 @@ Module MakeCmpntEnv (V : SsrOrder) (VM : SsrFMap with Module SE := V) <:
   Lemma Add_add_snd {v c e} : Add_snd v c e (add_snd v c e).
   Proof. done. Qed.
 
+  Lemma add_comm :
+     forall (x1 x2 : SE.t) (e1 e2 : SE.T) (m : t SE.T),
+      x1 != x2 ->
+      Equal (add x1 e1 (add x2 e2 m)) (add x2 e2 (add x1 e1 m)).
+  Proof. intros. apply Lemmas.add_comm. unfold VM.SE.eq.
+  move /eqP : H => H. contradict H. move /eqP : H => H. exact H. Qed.
 
 End MakeCmpntEnv.
 
@@ -1825,7 +1831,7 @@ Section Preprocess.
                         end
     end.
   
-  Fixpoint offset_ref r ce n : N :=
+  Definition offset_ref r ce n : N :=
     match r with
     | Eid v => n
     | Esubindex v i => N.of_nat (size_of_ftype (type_of_refS v ce) * (S i))
