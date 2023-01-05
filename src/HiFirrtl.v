@@ -458,23 +458,45 @@ Module CEP  := MakeCmpntEnv ProdVarOrder PVM.
 (* rhs expressions *)
 Section Rhs_expr.
   Variable v : eqType.
+
   Inductive rhs_expr : Type :=
   | R_fexpr : hfexpr v -> rhs_expr
   | R_default
   .
-
+  
+  Inductive rhs_expr' : Type :=
+  | R_cnct : hfexpr v -> rhs_expr'
+  (* | R_pcnct : hfexpr v -> rhs_expr *)
+  | R_invalid : hfexpr v -> rhs_expr'
+  | R_default'
+  .
 
   (** eq dec *)
   Lemma rhs_expr_eq_dec : forall {x y : rhs_expr}, {x = y} + {x <> y}.
-  Proof. induction x, y ; try (right ; discriminate) ; try (left ; reflexivity).
-  case Eq: (h == h0).
-  all: move /hfexpr_eqP : Eq => Eq.
-  left ; replace h0 with h ; reflexivity.
-  right ; injection ; apply Eq.
+  Proof.
+    intros x y.
+    elim x; elim y; try (right ; discriminate); try (left ; reflexivity);
+      intros; case Eq: (h == h0);
+      move/eqP: Eq => Eq;
+      try (left; rewrite Eq//).
+    all : right ; injection; auto.
+  Qed.
+
+  Lemma rhs_expr_eq_dec' : forall {x y : rhs_expr'}, {x = y} + {x <> y}.
+  Proof.
+    intros x y.
+    elim x; elim y; try (right ; discriminate); try (left ; reflexivity);
+      intros; case Eq: (h == h0);
+      move/eqP: Eq => Eq;
+      try (left; rewrite Eq//).
+    all : right ; injection; auto.
   Qed.
 
   Definition rhs_expr_eqn (x y : rhs_expr) : bool :=
-  match x, y with R_fexpr e1, R_fexpr e2 => e1 == e2 | R_default, R_default => true | _, _ => false end.
+    match x, y with R_fexpr e1, R_fexpr e2 => e1 == e2 | R_default, R_default => true | _, _ => false end.
+
+  Definition rhs_expr_eqn' (x y : rhs_expr') : bool :=
+  match x, y with R_cnct e1, R_cnct e2 => e1 == e2 | R_invalid e1, R_invalid e2 => e1 == e2 | R_default', R_default' => true | _, _ => false end.
 
   Lemma rhs_expr_eqP : Equality.axiom rhs_expr_eqn.
   Proof. unfold Equality.axiom, rhs_expr_eqn.
@@ -485,8 +507,21 @@ Section Rhs_expr.
   apply ReflectF ; injection ; apply Eq.
   Qed.
 
+  Lemma rhs_expr_eqP' : Equality.axiom rhs_expr_eqn'.
+  Proof. unfold Equality.axiom, rhs_expr_eqn'.
+  induction x, y ; try (apply ReflectF ; discriminate) ; try (apply ReflectT ; reflexivity);
+  case Eq: (h == h0);
+  move /eqP : Eq => Eq.
+  all : try (apply ReflectT ; replace h0 with h ; reflexivity).
+  all : apply ReflectF ; injection ; auto.
+  Qed.
+
   Canonical rhs_expr_eqMixin := EqMixin rhs_expr_eqP.
   Canonical rhs_expr_eqType := Eval hnf in EqType rhs_expr rhs_expr_eqMixin.
+
+  
+  Canonical rhs_expr_eqMixin' := EqMixin rhs_expr_eqP'.
+  Canonical rhs_expr_eqType' := Eval hnf in EqType rhs_expr' rhs_expr_eqMixin'.
 
 End Rhs_expr.
 
@@ -499,7 +534,7 @@ Module Type StructStore (V : SsrOrder) (CE : CmpntEnv V with Module SE := V).
   Module Lemmas := FMapLemmas CE.
 
   Local Notation var := V.t.
-  Local Notation value := (rhs_expr V.T).
+  Local Notation value := (rhs_expr' V.T).
 
   Parameter t : Type.
   Parameter empty : t.
@@ -563,8 +598,8 @@ Module Type StructStore (V : SsrOrder) (CE : CmpntEnv V with Module SE := V).
 End StructStore.
 
 Module StructType (V:SsrOrder)<: HasDefaultTyp.
-  Definition t : Type := rhs_expr V.T.
-  Definition default : t := R_default V.T.
+  Definition t : Type := rhs_expr' V.T.
+  Definition default : t := R_default' V.T.
 
 End StructType.
 
@@ -573,7 +608,7 @@ Module MakeStructStore (V : SsrOrder) (CE : CmpntEnv V with Module SE := V) <:
   Module StructTypeV := StructType V.
   Include MakeTStoreMap V StructTypeV.
   Module Lemmas := FMapLemmas CE.
-  Definition map2 (f : option (rhs_expr V.T) -> option (rhs_expr V.T) -> option (rhs_expr V.T)) (s1 s2 : t) : t :=
+  Definition map2 (f : option (rhs_expr' V.T) -> option (rhs_expr' V.T) -> option (rhs_expr' V.T)) (s1 s2 : t) : t :=
     M.map2 f s1 s2.
   Definition find (v: V.t) (s : t) := M.find v s.
   Module Lemmas_M := FMapLemmas M.
@@ -594,7 +629,7 @@ Module MakeStructStore (V : SsrOrder) (CE : CmpntEnv V with Module SE := V) <:
   contradiction.
   Qed.
   Lemma map2_eq : forall (m m': t)
-        (x:V.t)(f:option (rhs_expr V.T)->option (rhs_expr V.T)->option (rhs_expr V.T)),
+        (x:V.t)(f:option (rhs_expr' V.T)->option (rhs_expr' V.T)->option (rhs_expr' V.T)),
         f None None == None ->
         find x (map2 f m m') = f (find x m) (find x m').
   Proof.
