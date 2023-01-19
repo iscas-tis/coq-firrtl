@@ -540,6 +540,7 @@ Module Type StructStore (V : SsrOrder) (CE : CmpntEnv V with Module SE := V).
   Parameter empty : t.
   Parameter find : var -> t -> option value.
   Parameter map2 : (option value -> option value -> option value) -> t -> t -> t.
+  Parameter elements : t -> list (var * value).
   Parameter acc : var -> t -> value.
   Parameter upd : var -> value -> t -> t.
   Parameter upd2 : var -> value -> var -> value -> t -> t.
@@ -610,6 +611,7 @@ Module MakeStructStore (V : SsrOrder) (CE : CmpntEnv V with Module SE := V) <:
   Module Lemmas := FMapLemmas CE.
   Definition map2 (f : option (rhs_expr' V.T) -> option (rhs_expr' V.T) -> option (rhs_expr' V.T)) (s1 s2 : t) : t :=
     M.map2 f s1 s2.
+  Definition elements (s : t) := M.elements s.
   Definition find (v: V.t) (s : t) := M.find v s.
   Module Lemmas_M := FMapLemmas M.
   Lemma find_upd_eq : forall {x y v s}, x == y -> find x (upd y v s) = Some v.
@@ -1697,9 +1699,10 @@ Module MakeHiFirrtlP
   Definition hfexmod v ps ss := @FExmod V.T v ps ss.
   Definition hfcircuit := @hfcircuit V.T.
 
-  Definition rhs_expr := rhs_expr V.T.
-  Definition r_fexpr e := @R_fexpr V.T e.
-  Definition r_default := @R_default V.T.
+  Definition rhs_expr := rhs_expr' V.T.
+  Definition r_cnct e := @R_cnct V.T e.
+  Definition r_invalid e := @R_invalid V.T e.
+  Definition r_default := @R_default' V.T.
 
   Definition cmpnt_init_typs := @cmpnt_init_typs V.T.
   Definition aggr_typ t := @Aggr_typ V.T t.
@@ -1901,6 +1904,22 @@ Section Preprocess.
          | Qnil => (em, ce, HiFP.qnil)
          | Qcons s ss => hfstmt_seq_indexes (fst (fst (hfstmt_indexes em ce s))) (snd (fst (hfstmt_indexes em ce s))) ss
          end.
+
+  (*indexed by nested pair*)
+  Inductive pindex : Type :=
+  | Pid0 : N -> pindex
+  | Pidn : pindex -> N -> pindex.
+
+  Definition p1 : pindex := Pidn (Pidn (Pid0 0) 0) 0.
+
+  Fixpoint eref2pindex (e : HiF.href) : pindex :=
+    match e with
+    | Eid n => Pid0 n
+    | Esubaccess r n => Pidn (eref2pindex r) 0
+    | Esubindex r n => Pidn (eref2pindex r) (N.of_nat n)
+    | Esubfield r n => Pidn (eref2pindex r) n
+    end.
+  
   
   (* A map from paired vars to signle index in N *)
   Definition ind_map := PVM.t (N * N).
