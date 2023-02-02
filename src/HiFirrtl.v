@@ -407,11 +407,6 @@ Module Type CmpntEnv (V : SsrOrder) <: SsrFMap.
   Parameter add_snd : SE.t -> fcomponent -> env -> env.
   Parameter Add_snd : SE.t -> fcomponent -> env -> env -> Prop.
 
-  Axiom add_comm :
-     forall (x1 x2 : SE.t) (e1 e2 : SE.T) (m : t SE.T),
-      x1 != x2 ->
-      Equal (add x1 e1 (add x2 e2 m)) (add x2 e2 (add x1 e1 m)).
-
 End CmpntEnv.
 
 Module MakeCmpntEnv (V : SsrOrder) (VM : SsrFMap with Module SE := V) <:
@@ -468,13 +463,6 @@ Module MakeCmpntEnv (V : SsrOrder) (VM : SsrFMap with Module SE := V) <:
   Definition Add_snd x c e e' := forall y, snd (vtyp y e') = snd (vtyp y (add_snd x c e)).
   Lemma Add_add_snd {v c e} : Add_snd v c e (add_snd v c e).
   Proof. done. Qed.
-
-  Lemma add_comm :
-     forall (x1 x2 : SE.t) (e1 e2 : SE.T) (m : t SE.T),
-      x1 != x2 ->
-      Equal (add x1 e1 (add x2 e2 m)) (add x2 e2 (add x1 e1 m)).
-  Proof. intros. apply Lemmas.add_comm. unfold VM.SE.eq.
-  move /eqP : H => H. contradict H. move /eqP : H => H. exact H. Qed.
 
 End MakeCmpntEnv.
 

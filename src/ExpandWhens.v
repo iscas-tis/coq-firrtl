@@ -25,13 +25,14 @@ Inductive error_info : Type :=
    | Einternal (* e.g. if a pass receives input that should have been handled by earlier passes *)
    | Eunimplemented (* some functionality has not been implemented, e.g. external modules are not hadnled *)
    | Eundeclared (* a module (or component) should be declared but isn't *)
+   | Ealready_declared
    .
 
    Lemma error_info_eq_dec : forall {x y : error_info}, {x = y} + {x <> y}.
    Proof. induction x, y ; try (right ; discriminate) ; try (left ; reflexivity). Qed.
    Definition error_info_eqn (x y : error_info) : bool :=
    match x, y with Esyntax, Esyntax | Etype, Etype | Eflow_direction, Eflow_direction | Euninitialized, Euninitialized
-   | Einternal, Einternal | Eunimplemented, Eunimplemented | Eundeclared, Eundeclared => true
+   | Einternal, Einternal | Eunimplemented, Eunimplemented | Eundeclared, Eundeclared | Ealready_declared, Ealready_declared => true
    | _, _ => false end.
    Lemma error_info_eqP : Equality.axiom error_info_eqn.
    Proof. unfold Equality.axiom.
@@ -82,43 +83,46 @@ Inductive error_type {T : Type} : Type :=
 (* DNJ: What follows is my proposal to create a unique lowered index from a (high-level) reference.
    I do not know whether this is compatible with ExpandConnects or LowerTypes. *)
 
-Open Scope N_scope.
+(* A bijection between pairs of natural numbers and natural numbers.
+   There seems to be a library Coq.Arith.Cantor that contains a similar function but I cannot find it. *)
+Definition pair (x y : nat) : nat :=
+   (x + y) * (x + y + 1) %/ 2 + x.
 
-(* A bijection between pairs of natural numbers and natural numbers *)
-Definition pair (x y : N) : N :=
-   (x + y) * (x + y + 1) / 2 + x.
+Definition proj1 (p : nat) : nat :=
+   let x_plus_y := (Nat.sqrt (8 * p + 1) - 1) %/ 2 (* rounded down *) in
+   p - (x_plus_y * (x_plus_y + 1) %/ 2).
 
-Definition proj1 (p : N) : N :=
-   let x_plus_y := (N.sqrt (8 * p + 1) - 1) / 2 (* rounded down *) in
-   p - (x_plus_y * (x_plus_y + 1) / 2).
-
-Definition proj2 (p : N) : N :=
-   let x_plus_y := (N.sqrt (8 * p + 1) - 1) / 2 (* rounded down *) in
+Definition proj2 (p : nat) : nat :=
+   let x_plus_y := (Nat.sqrt (8 * p + 1) - 1) %/ 2 (* rounded down *) in
    (* x_plus_y - (proj1 p), which simplifies to: *)
-   x_plus_y * (x_plus_y + 3) / 2 - p.
+   x_plus_y * (x_plus_y + 3) %/ 2 - p.
 
 (* pair and (proj1, proj2) are each other's inverse functions. *)
-Lemma sqrt_spec : forall n: N, N.sqrt (n * n) = n.
+Lemma sqrt_spec : forall n: nat, Nat.sqrt (n * n) = n.
 Admitted. (* probably the proof can be based on something like
    forall p: positive, Pos.sqrtrem (p * p) = (p, IsNul). *)
 
-Lemma proj1_pair : forall (x y : N), x = proj1 (pair x y).
+Lemma proj1_pair : forall (x y : nat), x = proj1 (pair x y).
 Admitted.
 
-Lemma proj2_pair : forall (y x : N), y = proj2 (pair x y).
+Lemma proj2_pair : forall (y x : nat), y = proj2 (pair x y).
 Admitted.
 
-Lemma pair_proj : forall p : N, p = pair (proj1 p) (proj2 p).
+Lemma pair_proj : forall p : nat, p = pair (proj1 p) (proj2 p).
 Admitted.
+
+Definition nat_to_var (n : nat) : VarOrder.T := N.of_nat n.
+
+Definition var_to_nat (id: VarOrder.T) : nat := N.to_nat id.
 
 (* mapping from a href that is not a subaccess to an index in CE.env *)
-Fixpoint ref2var (ref : href) : @error_type N :=
+Fixpoint ref2var (ref : href) : @error_type VarOrder.T :=
 match ref with
-| Eid v => OK (v * 3 + 1)
+| Eid v => OK (nat_to_var (v * 3 + 1))
 | Esubfield ref0 v => match ref2var ref0 with Err e => Err e
-                      | OK n => OK ((pair n v) * 3 + 2) end
+                      | OK n => OK (nat_to_var (pair (var_to_nat n) v * 3 + 2)) end
 | Esubindex ref0 i => match ref2var ref0 with Err e => Err e
-                      | OK n => OK ((pair n (N.of_nat i)) * 3 + 3) end
+                      | OK n => OK (nat_to_var (pair (var_to_nat n) i * 3 + 3)) end
 | Esubaccess _ _ => Err Einternal (* should have been changed in an earlier pass *)
 end.
 
@@ -151,30 +155,46 @@ induction ref ; try discriminate.
     exact H.
 Qed.
 
+Lemma ref2var_inj :
+   forall (ref1 ref2 : href),
+      href_without_subaccess ref1 ->
+      ref2var ref1 = ref2var ref2 -> ref1 = ref2.
+Proof.
+(* based on the injectivity of * 3 + 1 etc. *)
+Admitted.
+
 (* mapping from an index in CE.env to a href. *)
 
-Definition to_var (n : N) : VarOrder.T := n.
-
-Fixpoint var2ref' (depth : nat) (n : N) : @error_type href :=
+Fixpoint var2ref' (depth n : nat) : @error_type href :=
    match depth, n with
-   | 0%nat, _ | _, 0 => Err Einternal
-   | S d', _ => match n mod 3 with
-                | 1 => OK (Eid (to_var ((n - 1) / 3)))
-                | 2 => let p := (n - 2) / 3 in
+   | 0, _ | _, 0 => Err Einternal
+   | S d', _ => match n %% 3 with
+                | 1 => OK (Eid (nat_to_var ((n - 1) %/ 3)))
+                | 2 => let p := (n - 2) %/ 3 in
                        match var2ref' d' (proj1 p) with Err e => Err e
-                       | OK ref => OK (Esubfield ref (proj2 p)) end
-                | _ => let p := (n - 3) / 3 in
+                       | OK ref => OK (Esubfield ref (nat_to_var (proj2 p))) end
+                | _ => let p := (n - 3) %/ 3 in
                        match var2ref' d' (proj1 p) with Err e => Err e
-                       | OK ref => OK (Esubindex ref (N.to_nat (proj2 p))) end
+                       | OK ref => OK (Esubindex ref (proj2 p)) end
                 end
    end.
 
-Definition var2ref (n : N) : @error_type href := var2ref' (N.to_nat n) n.
+Definition var2ref (id : VarOrder.T) : @error_type href := var2ref' (var_to_nat id) (var_to_nat id).
+
+Lemma var2ref_ref2var :
+   forall (id : VarOrder.T), if var2ref id is OK ref
+                  then ref2var ref = OK id
+                  else forall ref: href, ref2var ref <> OK id.
+Proof.
+(* difficult for me to find the relevant lemmas, they seem to be spread out over
+   several libraries and the Coq documentation appears incomplete. Also difficult
+   that there are two formalizations of N interacting here. *)
+Admitted.
 
 (* Note that we cannot get a lemma like n <> 0 -> var2ref n <> Err e.
 There may be numbers that are projected to 0. *)
 
-Close Scope N_scope.
+
 
 (** Pass ExpandWhens *)
 
@@ -290,8 +310,8 @@ Close Scope N_scope.
                              match v n with Err e => Err e
                              | OK vn => match ref2var vn with Err e => Err e
                                         | OK ref => OK (CE.add ref (D_fexpr (Eref vn)) cm) end end), array_size)
-   | Atyp el_type n => init_register_vector (fun m : nat => match v (m %/ n) with Err e => Err e
-                                                            | OK vn => OK (Esubindex vn (m %% n)) end) (array_size * n) el_type
+   | Atyp el_type n => init_register_vector (fun m : nat => match v (m %% array_size) with Err e => Err e
+                                                            | OK vn => OK (Esubindex vn (m %/ array_size)) end) (array_size * n) el_type
    | Btyp ff => init_register_bundle v array_size ff
    end
    with init_register_bundle (v : nat -> @error_type href) (array_size : nat) (ff : ffield) : @error_type ((nat -> cmap -> @error_type cmap) * nat) :=
@@ -309,87 +329,130 @@ Close Scope N_scope.
    | Fflips _ Flipped _ _ => Err Eflow_direction
    end.
 
-   Definition fn_array_is_OK (fn : nat -> cmap -> @error_type cmap) (array_size : nat) : Prop :=
-      forall (n : nat) (cm : cmap), n < array_size -> forall e : error_info, fn n cm <> Err e.
+   Lemma init_register_vector_nil :
+      forall (type : ftype) (v : nat -> @error_type href),
+         if init_register_vector v 0 type is OK (_, n)
+         then n = 0
+         else True
+   with init_register_bundle_nil :
+      forall (ff : ffield) (v : nat -> @error_type href),
+         if init_register_bundle v 0 ff is OK (_, n)
+         then n = 0
+         else True.
+   Proof.
+   induction type.
+   * unfold init_register_vector ; reflexivity.
+   * unfold init_register_vector ; fold init_register_vector.
+     rewrite mul0n.
+     intro.
+     apply IHtype.
+   * unfold init_register_vector ; fold init_register_bundle.
+     apply init_register_bundle_nil.
+   induction ff.
+   * unfold init_register_bundle ; intro.
+     reflexivity.
+   * unfold init_register_bundle ; fold init_register_vector ; fold init_register_bundle.
+     destruct f.
+     + trivial.
+     + intro.
+       destruct (init_register_vector
+                 (fun n : nat => match v0 n with
+                                 | OK vn => OK (Esubfield vn v)
+                                 | Err e => Err e
+                                 end) 0 f0) eqn: Hirv.
+       - destruct p.
+         unfold fst, snd.
+         specialize init_register_vector_nil with (type := f0)
+         (v := (fun n : nat => match v0 n with
+                               | OK vn => OK (Esubfield vn v)
+                               | Err e => Err e
+                               end)).
+         rewrite Hirv in init_register_vector_nil.
+         rewrite init_register_vector_nil.
+         destruct (init_register_bundle v0 0 ff) eqn: Hirb.
+         * specialize IHff with (v := v0).
+           rewrite Hirb in IHff.
+           destruct p.
+           rewrite add0n.
+           exact IHff.
+         * trivial.
+       - trivial.
+   Qed.
 
-   Definition vn_array_is_OK (v : nat -> @error_type href) (array_size : nat) : Prop :=
-      forall n : nat, n < array_size -> if v n is OK t then href_without_subaccess t
-                                        else false.
+   Definition fn_array_is_OK (id: VarOrder.T) (fn : nat -> cmap -> @error_type cmap) (array_size : nat) : Prop :=
+      forall n : nat, n < array_size ->
+         (* forall e : error_info, fn n cm <> Err e *)
+         exists (vn : href) (k : VarOrder.T) (elt : def_expr),
+               base_ref vn = id
+            /\ ref2var vn = OK k
+            /\ forall (cm : cmap), fn n cm = OK (CE.add k elt cm).
+
+   Definition vn_array_is_OK (id : VarOrder.T) (v : nat -> @error_type href) (array_size : nat) : Prop :=
+      forall n : nat, n < array_size ->
+         if v n is OK t then base_ref t = id /\ href_without_subaccess t
+         else False.
 
    Lemma init_register_vector_OK :
       forall type : ftype, is_passive type ->
-         forall (v : nat -> @error_type href) (array_size : nat),
-            vn_array_is_OK v array_size ->
+         forall (id : VarOrder.T) (v : nat -> @error_type href) (array_size : nat),
+            vn_array_is_OK id v array_size ->
                if init_register_vector v array_size type is OK (fn, array_size0)
-               then fn_array_is_OK fn array_size0
+               then fn_array_is_OK id fn array_size0
                else False
    with init_register_bundle_OK :
       forall ff: ffield, is_passive_fields ff ->
-         forall (v : nat -> @error_type href) (array_size : nat),
-            vn_array_is_OK v array_size ->
+         forall (id : VarOrder.T) (v : nat -> @error_type href) (array_size : nat),
+            vn_array_is_OK id v array_size ->
                if init_register_bundle v array_size ff is OK (fn, array_size0)
-               then fn_array_is_OK fn array_size0
+               then fn_array_is_OK id fn array_size0
                else False.
    Proof.
    induction type.
    * intros.
      unfold init_register_vector.
+     unfold vn_array_is_OK in H0.
      unfold fn_array_is_OK.
-     intro.
-     induction (v n) eqn: Hvn.
-     + induction (ref2var t) eqn: Href2var.
-       - discriminate.
-       - intros.
-         contradict Href2var.
+     intros.
+     specialize H0 with (n).
+     destruct (v n) eqn: Hvn.
+     + exists h.
+       assert (base_ref h = id /\ href_without_subaccess h).
+         move : H1 ; exact H0.
+       destruct (ref2var h) eqn: Href2var.
+       - exists s, (D_fexpr (Eref h)).
+         split.
+         * apply H2.
+         split.
+         * reflexivity.
+         * intro ; reflexivity.
+       - contradict Href2var.
          apply ref2var_OK.
-         unfold vn_array_is_OK in H0.
-         enough (match v n with
-                 | OK t => href_without_subaccess t
-                 | Err _ => false
-                 end).
-         replace (v n) with (OK t) in H2.
-         exact H2.
-         apply H0.
-         exact H1.
-     + intro ; intro.
-       unfold vn_array_is_OK in H0.
-       enough (match v n with
-               | OK t => href_without_subaccess t
-               | Err _ => false
-               end).
-       replace (v n) with (@Err href e) in H2.
-       contradict H2 ; done.
-       apply H0.
+         apply H2.
+     + contradict H0.
        exact H1.
    * unfold is_passive ; fold is_passive.
      unfold init_register_vector ; fold init_register_vector.
-     intro ; intro ; intro ; intro.
+     intros.
      apply IHtype.
      exact H.
      unfold vn_array_is_OK.
      intro ; intro.
-     assert (n0 %/ n < array_size).
-       replace (n0 %/ n < array_size) with (n0 < array_size * n).
-       exact H1.
-       symmetry.
-       apply ltn_divLR.
-       destruct n.
-       contradict H1.
-       replace (array_size * 0) with 0 by (symmetry ; apply Nat.mul_0_r).
-       replace (n0 < 0) with false by (symmetry ; apply ltn0).
-       done.
-       apply ltn0Sn.
      unfold vn_array_is_OK in H0.
-     enough (match v (n0 %/ n) with
-             | OK t => href_without_subaccess t
-             | Err _ => false
+     enough (match v (n0 %% array_size) with
+             | OK t => base_ref t = id /\ href_without_subaccess t
+             | Err _ => False
              end).
-     destruct (v (n0 %/ n)) eqn: Hvn0n.
-     + unfold href_without_subaccess ; fold href_without_subaccess.
-       exact H3.
-     + exact H3.
+     destruct (v (n0 %% array_size)) eqn: Hvn0n.
+     + unfold base_ref ; fold base_ref.
+       unfold href_without_subaccess ; fold href_without_subaccess.
+       exact H2.
+     + exact H2.
      apply H0.
-     exact H2.
+     apply ltn_pmod.
+     rewrite lt0n.
+     move : H1 ; apply contraTneq ; intro.
+     rewrite H1 mul0n ltn0.
+     done.
    * unfold is_passive ; fold is_passive_fields.
      unfold init_register_vector ; fold init_register_bundle.
      apply init_register_bundle_OK.
@@ -407,114 +470,67 @@ Close Scope N_scope.
        move /andP : H => H.
        unfold init_register_bundle ; fold init_register_bundle ; fold init_register_vector.
        intro.
-       specialize init_register_vector_OK with
-             (type := f0) (v := (fun n : nat =>
-                     match v0 n with
-                     | OK vn => OK (Esubfield vn v)
-                     | Err e => Err e
-                     end)) (array_size := array_size).
        destruct (init_register_vector
                    (fun n : nat =>
                     match v0 n with
                     | OK vn => OK (Esubfield vn v)
                     | Err e => Err e
                     end) array_size f0) eqn: Hinit_vector_f0.
-       - destruct (init_register_bundle v0 array_size ff) eqn: Hinit_bundle_ff.
+       - specialize IHff with (v := v0) (array_size := array_size).
+         destruct (init_register_bundle v0 array_size ff) eqn: Hinit_bundle_ff.
          * unfold fn_array_is_OK.
            intros.
            destruct (n < snd p) eqn: Hnp.
-           + enough (match init_register_vector
-                              (fun n : nat =>
-                               match v0 n with
-                               | OK vn => OK (Esubfield vn v)
-                               | Err e => Err e
-                               end) array_size f0
-                     with
-                     | OK (fn, array_size0) =>
-                              fn_array_is_OK fn array_size0
-                     | Err _ => False
-                     end).
-             replace (init_register_vector
-                             (fun n : nat =>
-                                match v0 n with
-                                | OK vn => OK (Esubfield vn v)
-                                | Err e => Err e
-                                end) array_size f0) with (OK p) in H2.
-             replace p with ((fst p), (snd p)) in H2 by (symmetry ; apply surjective_pairing).
-             unfold fn_array_is_OK in H2.
-             apply H2.
-             apply Hnp.
+           + specialize init_register_vector_OK with (v := (fun n : nat =>
+                       match v0 n with
+                       | OK vn => OK (Esubfield vn v)
+                       | Err e => Err e
+                       end)) (array_size := array_size) (type := f0).
+             rewrite Hinit_vector_f0 in init_register_vector_OK.
+             destruct p.
              apply init_register_vector_OK.
-             apply H.
-             unfold vn_array_is_OK.
-             intros.
-             unfold vn_array_is_OK in H0.
-             enough (match v0 n0 with
-                     | OK t => href_without_subaccess t
-                     | Err _ => false
-                     end).
-             destruct (v0 n0) eqn : Hv0n.
-             - unfold href_without_subaccess ; fold href_without_subaccess.
-               exact H3.
-             - exact H3.
-             apply H0.
-             exact H2.
-           + move /negbT/negP : Hnp => Hnp.
-             destruct (snd p0) eqn: Hp0.
-             - absurd (n < snd p).
-               + exact Hnp.
-               + replace (snd p) with (snd p + 0) by (apply addn0).
-                 exact H1.
-             - specialize IHff with (v := v0) (array_size := array_size).
-               replace (init_register_bundle v0 array_size ff) with (OK p0) in IHff.
-               replace p0 with (fst p0, snd p0) in IHff by (symmetry ; apply surjective_pairing).
-               unfold fn_array_is_OK in IHff.
-               apply IHff.
-               apply H.
-               exact H0.
-               replace (snd p0) with (n0.+1).
-               replace (n - snd p < n0.+1) with (n < snd p + n0.+1).
+             - apply H.
+             - unfold vn_array_is_OK.
+               intro.
+               unfold vn_array_is_OK in H0.
+               specialize H0 with (n := n1).
+               destruct (v0 n1) eqn: Hv0_n1.
+               * unfold base_ref ; fold base_ref.
+                 unfold href_without_subaccess ; fold href_without_subaccess.
+                 exact H0.
+               * exact H0.
+             - unfold snd in Hnp.
+               rewrite Hnp.
+               done.
+           + destruct p0.
+             unfold fst.
+             apply IHff.
+             - apply H.
+             - exact H0.
+             - unfold snd at 2 in H1.
+               rewrite <- subSn by (rewrite leqNgt Hnp ; done).
+               rewrite leq_subLR.
                exact H1.
-               symmetry ; apply ltn_psubLR.
-               apply ltn0Sn. 
-         * specialize IHff with (v := v0) (array_size := array_size).
-           replace (init_register_bundle v0 array_size ff) with (@Err ((nat -> cmap -> @error_type cmap) * nat) e) in IHff.
-           apply IHff.
+         * apply IHff.
            apply H.
-           exact H0.
-       - enough (match init_register_vector
-                              (fun n : nat =>
-                               match v0 n with
-                               | OK vn => OK (Esubfield vn v)
-                               | Err e => Err e
-                               end) array_size f0
-                          with
-                          | OK (fn, array_size0) =>
-                              fn_array_is_OK fn array_size0
-                          | Err _ => False
-                          end).
-         replace (init_register_vector
-                    (fun n : nat =>
+       - specialize init_register_vector_OK with (id := id) (v := (fun n : nat =>
                      match v0 n with
                      | OK vn => OK (Esubfield vn v)
                      | Err e => Err e
-                     end) array_size f0) with (@Err ((nat -> cmap -> @error_type cmap) * nat) e) in H1.
-         exact H1.
+                     end)) (array_size := array_size) (type  := f0).
+         rewrite Hinit_vector_f0 in init_register_vector_OK.
+         intro.
          apply init_register_vector_OK.
-         apply H.
-         unfold vn_array_is_OK.
-         unfold vn_array_is_OK in H0.
-         intros.
-         enough (match v0 n with
-                 | OK t => href_without_subaccess t
-                 | Err _ => false
-                 end).
-         destruct (v0 n).
-         + unfold href_without_subaccess ; fold href_without_subaccess.
-           exact H2.
-         + exact H2.
-         apply H0.
-         exact H1.
+         * apply H.
+         * unfold vn_array_is_OK.
+           intro.
+           unfold vn_array_is_OK in H0.
+           specialize H0 with (n := n).
+           destruct (v0 n) eqn: Hv0_n.
+           + unfold base_ref ; fold base_ref.
+             unfold href_without_subaccess ; fold href_without_subaccess.
+             exact H0.
+           + exact H0.
    Qed.
 
    Fixpoint init_apply_initializer (fn : nat -> cmap -> @error_type cmap) (array_size : nat) (cm : cmap) : @error_type cmap :=
@@ -527,28 +543,177 @@ Close Scope N_scope.
    end.
 
    Lemma init_apply_initializer_OK :
-      forall (fn : nat -> cmap -> @error_type cmap) (array_size : nat) (cm : cmap),
-         fn_array_is_OK fn array_size ->
-            forall e : error_info, init_apply_initializer fn array_size cm <> Err e.
+      forall (id : VarOrder.T) (fn : nat -> cmap -> @error_type cmap) (array_size : nat),
+         fn_array_is_OK id fn array_size ->
+               (forall (cm : cmap) (e : error_info), init_apply_initializer fn array_size cm <> Err e)
+
+               (* for a suitable base_type and base_orient, this needs to become:
+                forall (cm : cmap),
+                   if init_apply_initializer fn array_size cm is OK cm_initialized
+                   then (forall ref : href, base_ref ref = id ->
+                            match type_and_dir_of_ref' ref base_type base_orient with
+                            | OK (Gtyp _, Sink) | OK (Gtyp _, Duplex) | OK (Gtyp _, Passive) =>
+                                if ref2var ref is OK v then CE.find v cm_initialized <> None
+                                                       else True
+                            | _=>  True end)
+                   else False*)
+
+            /\ exists (seq_k_e : seq (href * def_expr)),
+                     (all (fun (k_e : href * def_expr) => base_ref (fst k_e) == id) seq_k_e)
+                  /\ forall cm : cmap,
+                        init_apply_initializer fn array_size cm =
+                        foldl (fun (e_cm : @error_type cmap) (k_e : href * def_expr) =>
+                                      match e_cm, ref2var (fst k_e) with Err e, _ | _, Err e => Err e
+                                      | OK cm, OK k => OK (CE.add k (snd k_e) cm) end)
+                              (OK cm) seq_k_e.
    Proof.
    induction array_size.
-   * unfold init_apply_initializer ; discriminate.
+   * unfold init_apply_initializer.
+     split.
+     + discriminate.
+     + exists [::].
+       split.
+       - rewrite all_nil ; done.
+       - unfold foldl ; reflexivity.
    * unfold init_apply_initializer ; fold init_apply_initializer.
      intro.
-     induction (fn array_size cm) eqn: Hfn.
-     + intro.
-       apply IHarray_size.
-       intro ; intro ; intro.
-       apply H, leqW ; exact H0.
-     + intro.
-       replace (Err e) with (fn array_size cm).
+     unfold fn_array_is_OK in H.
+     assert (exists (vn : href) (k : VarOrder.T) (elt : def_expr),
+                base_ref vn = id /\ ref2var vn = OK k /\
+                forall cm : cmap, fn array_size cm = OK (CE.add k elt cm)).
        apply H, ltnSn.
+     destruct H0, H0, H0, H0, H1.
+     split.
+     + intro.
+       specialize H2 with (cm := cm).
+       rewrite H2.
+       apply IHarray_size.
+       unfold fn_array_is_OK.
+       intro ; intro.
+       apply H, leqW ; exact H3.
+     + assert (exists seq_k_e : seq (href * def_expr),
+                  all (fun k_e : href * def_expr => base_ref (fst k_e) == id) seq_k_e /\
+                  forall cm : cmap,
+                     init_apply_initializer fn array_size cm =
+                     foldl (fun (e_cm : error_type) (k_e : href * def_expr) =>
+                            match e_cm with
+                            | OK cm0 => match ref2var (fst k_e) with
+                                        | OK k => OK (CE.add k (snd k_e) cm0)
+                                        | Err e => Err e
+                                        end
+                            | Err e => Err e
+                            end) (OK cm) seq_k_e).
+         apply IHarray_size.
+         unfold fn_array_is_OK.
+         intro ; intro.
+         apply H, leqW ; exact H3.
+       destruct H3.
+       exists ((x, x1) :: x2).
+       split.
+       + unfold all.
+         enough ((base_ref (fst (x, x1)) == id) /\
+                 (fix all (s : seq (href * def_expr)) : bool :=
+                  match s with
+                  | [::] => true
+                  | x3 :: s' => (base_ref (fst x3) == id) && all s'
+                  end) x2).
+           move /andP : H4 => H4 ; exact H4.
+         split.
+         - rewrite H0 ; apply eq_refl.
+         - apply H3.
+       + intro.
+         specialize H2 with (cm := cm).
+         rewrite H2.
+         unfold foldl.
+         unfold fst at 2 ; unfold snd at 2.
+         rewrite H1.
+         apply H3.
    Qed.
 
    Definition init_register (id : VarOrder.T) (type : ftype) (cm : cmap) : @error_type cmap :=
    (* Initializes the register id, which is of type type. *)
    match init_register_vector (fun n : nat => OK (Eid id)) 1 type with Err e => Err e
    | OK initializer => init_apply_initializer (fst initializer) (snd initializer) cm end.
+
+   Fixpoint type_and_dir_of_ref_fields (ref : href) (v : VarOrder.T) (ff : ffield) (ref_orient : forient) : @error_type (ftype * forient) :=
+      (* calculates the type and flow direction of Esubfield ref v.
+         * ref = some href
+         * v = a field within this ref
+         * ff = bundle type definition of ref
+         * ref_orient = orientation of ref *)
+      match ff with
+      | Fnil => Err Etype
+      | Fflips id Nflip t' ff_tail => if v == id then OK (t', ref_orient)
+                                                 else type_and_dir_of_ref_fields ref v ff_tail ref_orient
+      | Fflips id Flipped t' ff_tail => match ref_orient with
+                                        | Source => if v == id then OK (t', Sink)
+                                                               else type_and_dir_of_ref_fields ref v ff_tail ref_orient
+                                        | Sink => if v == id then OK (t', Source)
+                                                             else type_and_dir_of_ref_fields ref v ff_tail ref_orient
+                                        | Duplex => if v == id then OK (t', Duplex)
+                                                               else type_and_dir_of_ref_fields ref v ff_tail ref_orient
+                                        | _ => Err Etype (* passive type should not contain flipped fields *)
+                                        end
+      end.
+
+   Fixpoint type_and_dir_of_ref' (ref : href) (base_type : ftype) (base_orient : forient) : @error_type (ftype * forient) :=
+      (* calculates the type and flow direction of ref.
+         This is the internal helper function; the user should call type_and_dir_of_ref. *)
+      match ref with
+      | Eid _ => OK (base_type, base_orient)
+      | Esubindex ref' i => match type_and_dir_of_ref' ref' base_type base_orient with Err e => Err e | OK (ref'_type, ref'_orient)
+                            => match ref'_type with
+                               | Atyp t' n => (* if i >= n then Err Etype else *)
+                                              OK (t', ref'_orient)
+                               | _ => Err Etype
+                               end end
+      | Esubfield ref' v => match type_and_dir_of_ref' ref' base_type base_orient with Err e => Err e | OK (ref'_type, ref'_orient)
+                            => match ref'_type with
+                               | Btyp ff => type_and_dir_of_ref_fields ref' v ff ref'_orient
+                               | _ => Err Etype
+                               end end
+      | _ => Err Einternal (* subaccess should have been removed by an earlier pass *)
+      end.
+
+
+   Lemma init_register_OK :
+      forall (id : VarOrder.T) (type : ftype),
+         is_passive type ->
+               (forall (cm : cmap),
+                   if init_register id type cm is OK cm_reg
+                   then (forall ref : href, base_ref ref = id ->
+                            if type_and_dir_of_ref' ref type Passive is OK (Gtyp _, _)
+                            then if ref2var ref is OK v then CE.find v cm_reg <> None
+                                                       else True
+                            else True)
+                   else False)
+            /\ (exists (seq_k_e : seq (href * def_expr)),
+                     (all (fun (k_e : href * def_expr) => base_ref (fst k_e) == id) seq_k_e)
+                  /\ forall cm : cmap,
+                        init_register id type cm =
+                        foldl (fun (e_cm : @error_type cmap) (k_e : href * def_expr) =>
+                                      match e_cm, ref2var (fst k_e) with Err e, _ | _, Err e => Err e
+                                      | OK cm, OK k => OK (CE.add k (snd k_e) cm) end)
+                              (OK cm) seq_k_e).
+   Proof.
+   intros.
+   unfold init_register.
+   assert (if init_register_vector (fun _ : nat => OK (Eid id)) 1 type is OK (fn, array_size)
+               then fn_array_is_OK id fn array_size
+               else False).
+     apply init_register_vector_OK.
+     exact H.
+     unfold vn_array_is_OK.
+     split.
+     * unfold base_ref ; fold base_ref ; reflexivity.
+     * unfold href_without_subaccess ; fold href_without_subaccess ; done.
+   destruct (init_register_vector (fun _ : nat => OK (Eid id)) 1 type) ;
+         try contradiction.
+   destruct p.
+   unfold fst at 1 3, snd at 1 2.
+   (* apply init_apply_initializer_OK.
+   exact H0. *)
+   Admitted.
 
    (* Identifiers for the fields of a memory port *)
    Parameter mem_port_addr : VarOrder.T.
@@ -602,18 +767,18 @@ Close Scope N_scope.
    end.
 
    Lemma init_undefined_vector_OK :
-      forall (type : ftype) (orient : forient) (v : nat -> @error_type href) (array_size : nat),
-         orient <> Passive -> orient <> Other -> vn_array_is_OK v array_size ->
+      forall (type : ftype) (orient : forient) (id : VarOrder.T) (v : nat -> @error_type href) (array_size : nat),
+         orient <> Passive -> orient <> Other -> vn_array_is_OK id v array_size ->
             forall value : def_expr,
                if init_undefined_vector v array_size type orient value is OK (fn, array_size0)
-               then fn_array_is_OK fn array_size0
+               then fn_array_is_OK id fn array_size0
                else False
    with init_undefined_bundle_OK :
-      forall (ff: ffield) (orient : forient) (v : nat -> @error_type href) (array_size : nat),
-         orient <> Passive -> orient <> Other -> vn_array_is_OK v array_size ->
+      forall (ff: ffield) (orient : forient) (id : VarOrder.T) (v : nat -> @error_type href) (array_size : nat),
+         orient <> Passive -> orient <> Other -> vn_array_is_OK id v array_size ->
             forall value : def_expr,
                if init_undefined_bundle v array_size ff orient value is OK (fn, array_size0)
-               then fn_array_is_OK fn array_size0
+               then fn_array_is_OK id fn array_size0
                else False.
    Proof.
    (* The proof is very similar to the one of init_register_vector_OK etc. *)
@@ -625,28 +790,36 @@ Close Scope N_scope.
    => init_apply_initializer (fst initializer) (snd initializer) cm end.
 
    Lemma init_ref_OK :
-      forall (id : VarOrder.T) (type : ftype) (orient : forient) (cm : cmap),
+      forall (id : VarOrder.T) (type : ftype) (orient : forient),
          orient <> Passive -> orient <> Other ->
-            forall (e : error_info), init_ref id type orient cm <> Err e.
+               (forall (cm : cmap) (e : error_info), init_ref id type orient cm <> Err e)
+            /\ exists (seq_k_e : seq (href * def_expr)),
+                     (all (fun (k_e : href * def_expr) => base_ref (fst k_e) == id) seq_k_e)
+                  /\ forall cm : cmap,
+                        init_ref id type orient cm =
+                        foldl (fun (e_cm : @error_type cmap) (k_e : href * def_expr) =>
+                                      match e_cm, ref2var (fst k_e) with Err e, _ | _, Err e => Err e
+                                      | OK cm, OK k => OK (CE.add k (snd k_e) cm) end)
+                              (OK cm) seq_k_e.
    Proof.
+   intros.
    unfold init_ref.
-   intros until 2.
-   enough (if init_undefined_vector (fun _ : nat => OK (Eid (var:=VarOrder.T) id))
-                                     1 type orient D_undefined is OK (e, n)
-             then fn_array_is_OK e n
-             else False).
-   * destruct (init_undefined_vector (fun _ : nat => OK (Eid (var:=VarOrder.T) id))
-               1 type orient D_undefined) ;
-           try contradiction.
-     destruct orient ;
-           try contradiction ;
-           try (apply init_apply_initializer_OK ;
-                destruct p ; unfold fst ; unfold snd ;
-                exact H1).
-   * destruct orient ;
-           try contradiction ;
-           try (apply init_undefined_vector_OK ;
-                done).
+   assert (if init_undefined_vector (fun _ : nat => OK (Eid id)) 1 type orient D_undefined is OK (fn, array_size)
+               then fn_array_is_OK id fn array_size
+               else False).
+     apply init_undefined_vector_OK.
+     exact H.
+     exact H0.
+     unfold vn_array_is_OK.
+     split.
+     * unfold base_ref ; fold base_ref ; reflexivity.
+     * unfold href_without_subaccess ; fold href_without_subaccess ; done.
+   destruct (init_undefined_vector (fun _ : nat => OK (Eid id)) 1 type orient D_undefined) ;
+         try contradiction.
+   destruct p.
+   unfold fst at 1 3, snd at 1 2.
+   apply init_apply_initializer_OK.
+   exact H1.
    Qed.
 
    (*
@@ -661,116 +834,90 @@ Close Scope N_scope.
    rewrite H1.
    reflexivity.
    Qed.
+   *)
 
-   Lemma add_add_eq : forall (ce : cmap) (key1 key2 : VarOrder.T) (val1 val2 : def_expr),
-      key1 != key2 ->
-         CE.add key1 val1 (CE.add key2 val2 ce) == CE.add key2 val2 (CE.add key1 val1 ce).
-   (* Found it! add_comm in FMaps.v (simplssrlib) *)
+   Definition foldl_helper (e_cm : @error_type cmap) (k_e : href * def_expr) :=
+      match e_cm, ref2var (fst k_e) with Err e, _ | _, Err e => Err e
+      | OK cm, OK k => OK (CE.add k (snd k_e) cm) end.
+
+   Lemma add_seq_comm :
+      forall (ref1 ref2 : href) (e1 e2 : def_expr) (seq_k_e1 seq_k_e2 : seq (href * def_expr)) (cm : cmap),
+         href_without_subaccess ref1 ->
+         href_without_subaccess ref2 ->
+         ref1 != ref2 ->
+            if foldl foldl_helper (OK cm) (seq_k_e1 ++ (ref1, e1) :: (ref2, e2) :: seq_k_e2) is OK cm12
+            then
+            if foldl foldl_helper (OK cm) (seq_k_e1 ++ (ref2, e2) :: (ref1, e1) :: seq_k_e2) is OK cm21
+            then CE.Equal cm12 cm21
+            else True else True.
    Proof.
    intros.
-   apply CE.equal_1.
-   unfold CE.Equivb, CE.Equiv.
-   split.
-   * unfold CE.In.
-     split.
-     + intro.
-       destruct H0.
-       exists x.
-       case (k == key1) eqn: Hkey1.
-       - assert (x == val1).
-           apply MapsTo_2 with (ce := CE.add key1 val1 (CE.add key2 val2 ce)) (key1 := k) (key2 := key1).
-           * exact H0.
-           * apply CE.add_1 ; unfold CE.SE.eq ; apply eq_refl.
-           * rewrite Hkey1 ; done.
-         apply CE.add_2.
-         * unfold CE.SE.eq.
-           move /eqP : H => H ; contradict H ; move /eqP : H => H ; rewrite H.
-           symmetry ; move /eqP : Hkey1 => Hkey1 ; exact Hkey1.
-         * move /eqP : H1 => H1 ; rewrite H1.
-           apply CE.add_1 ; unfold CE.SE.eq.
-           rewrite eq_sym ; rewrite Hkey1 ; done.
-       - case (k == key2) eqn: Hkey2.
-         * assert (x == val2).
-             apply MapsTo_2 with (ce := CE.add key2 val2 ce) (key1 := k) (key2 := key2).
-             + apply CE.add_3 with (x := key1) (e' := val1).
-               - unfold CE.SE.eq. rewrite eq_sym ; rewrite Hkey1 ; done.
-               - exact H0.
-               - apply CE.add_1.
-                 unfold CE.SE.eq ; apply eq_refl.
-             + rewrite Hkey2 ; done.
-           move /eqP : H1 => H1 ; rewrite H1.
-           apply CE.add_1.
-           unfold CE.SE.eq ; rewrite eq_sym ; rewrite Hkey2 ; done.
-         * apply CE.add_2.
-           unfold CE.SE.eq ; rewrite eq_sym ; rewrite Hkey2 ; done.
-           apply CE.add_2.
-           unfold CE.SE.eq ; rewrite eq_sym ; rewrite Hkey1 ; done.
-           apply CE.add_3 with (x := key2) (e' := val2).
-           unfold CE.SE.eq ; rewrite eq_sym ; rewrite Hkey2 ; done.
-           apply CE.add_3 with (x := key1) (e' := val1).
-           unfold CE.SE.eq ; rewrite eq_sym ; rewrite Hkey1 ; done.
-           exact H0.
-     + admit. (* The proof is exactly the same as above. *)
+   destruct (foldl foldl_helper (OK cm) (seq_k_e1 ++ (ref1, e1) :: (ref2, e2) :: seq_k_e2)) as [cm12|] eqn: Hcm12 ;
+         try trivial.
+   destruct (foldl foldl_helper (OK cm) (seq_k_e1 ++ (ref2, e2) :: (ref1, e1) :: seq_k_e2)) as [cm21|] eqn: Hcm21 ;
+         try trivial.
+   destruct (ref2var ref1) as [id1|] eqn: Href1 ;
+      try (assert (ref2var ref1 <> Err e) by (apply ref2var_OK ; exact H) ;
+           contradiction).
+   destruct (ref2var ref2) as [id2|] eqn: Href2 ;
+      try (assert (ref2var ref2 <> Err e) by (apply ref2var_OK ; exact H0) ;
+           contradiction).
+   pose (OK_cm1 := foldl foldl_helper (OK cm) seq_k_e1).
+   destruct OK_cm1 as [cm1|] eqn: Hcm1.
+   rewrite foldl_cat in Hcm12 ; fold OK_cm1 in Hcm12.
+   rewrite foldl_cat in Hcm21 ; fold OK_cm1 in Hcm21.
+   replace (foldl foldl_helper OK_cm1 [:: (ref1, e1), (ref2, e2) & seq_k_e2]) with
+   (foldl foldl_helper (foldl_helper OK_cm1 (ref1, e1)) ((ref2, e2) :: seq_k_e2)) in Hcm12 by reflexivity.
+   replace (foldl_helper OK_cm1 (ref1, e1)) with (OK (CE.add id1 e1 cm1)) in Hcm12
+         by (rewrite Hcm1 ;
+             unfold foldl_helper, fst, snd ;
+             rewrite Href1 ;
+             reflexivity).
+   replace (foldl foldl_helper (OK (CE.add id1 e1 cm1)) ((ref2, e2) :: seq_k_e2))
+   with (foldl foldl_helper (foldl_helper (OK (CE.add id1 e1 cm1)) (ref2, e2)) seq_k_e2) in Hcm12 by reflexivity.
+   replace (foldl_helper (OK (CE.add id1 e1 cm1)) (ref2, e2)) with (OK (CE.add id2 e2 (CE.add id1 e1 cm1))) in Hcm12
+         by (unfold foldl_helper, fst, snd ;
+             rewrite Href2 ;
+             reflexivity).
+   replace (foldl foldl_helper OK_cm1 [:: (ref2, e2), (ref1, e1) & seq_k_e2]) with
+   (foldl foldl_helper (foldl_helper OK_cm1 (ref2, e2)) ((ref1, e1) :: seq_k_e2)) in Hcm21 by reflexivity.
+   replace (foldl_helper OK_cm1 (ref2, e2)) with (OK (CE.add id2 e2 cm1)) in Hcm21
+         by (rewrite Hcm1 ;
+             unfold foldl_helper, fst, snd ;
+             rewrite Href2 ;
+             reflexivity).
+   replace (foldl foldl_helper (OK (CE.add id2 e2 cm1)) ((ref1, e1) :: seq_k_e2))
+   with (foldl foldl_helper (foldl_helper (OK (CE.add id2 e2 cm1)) (ref1, e1)) seq_k_e2) in Hcm21 by reflexivity.
+   replace (foldl_helper (OK (CE.add id2 e2 cm1)) (ref1, e1)) with (OK (CE.add id1 e1 (CE.add id2 e2 cm1))) in Hcm21
+         by (unfold foldl_helper, fst, snd ;
+             rewrite Href1 ;
+             reflexivity).
+   move : cm1 Hcm1 Hcm12 Hcm21.
+   induction seq_k_e2.
    * intros.
-     unfold FMapInterface.Cmp.
-     case (k == key1) eqn: Hkey1.
-     + assert (e == val1).
-         apply MapsTo_2 with (ce := CE.add key1 val1 (CE.add key2 val2 ce)) (key1 := k) (key2 := key1).
-         - exact H0.
-         - apply CE.add_1 ; unfold CE.SE.eq ; apply eq_refl.
-         - rewrite Hkey1 ; done.
-       assert (e' == val1).
-         apply MapsTo_2 with (ce := CE.add key1 val1 ce) (key1 := k) (key2 := key1).
-         - apply CE.add_3 with (x := key2) (e' := val2).
-           * unfold CE.SE.eq.
-             move /eqP : H => H ; contradict H ; move /eqP : H => H ; rewrite H.
-             symmetry ; move /eqP : Hkey1 => Hkey1 ; exact Hkey1.
-           * exact H1.
-         - apply CE.add_1 ; unfold CE.SE.eq ; rewrite eq_refl ; done.
-         - rewrite Hkey1 ; done.
-       move /eqP : H2 => H2 ; rewrite H2.
-       move /eqP : H3 => H3 ; rewrite H3.
-       unfold def_expr_eqn.
-       destruct val1 ; try reflexivity.
-       rewrite eq_refl ; reflexivity.
-     + case (k == key2) eqn: Hkey2.
-       assert (e == val2).
-         apply MapsTo_2 with (ce := CE.add key2 val2 ce) (key1 := k) (key2 := key2).
-         - apply CE.add_3 with (x := key1) (e' := val1).
-           * unfold CE.SE.eq.
-             move /eqP : H => H ; contradict H ; move /eqP : H => H ; rewrite H.
-             move /eqP : Hkey2 => Hkey2 ; exact Hkey2.
-           * exact H0.
-         - apply CE.add_1 ; unfold CE.SE.eq ; rewrite eq_refl ; done.
-         - rewrite Hkey2 ; done.
-       assert (e' == val2).
-         apply MapsTo_2 with (ce := CE.add key2 val2 (CE.add key1 val1 ce)) (key1 := k) (key2 := key2).
-         - exact H1.
-         - apply CE.add_1 ; unfold CE.SE.eq ; apply eq_refl.
-         - rewrite Hkey2 ; done.
-       move /eqP : H2 => H2 ; rewrite H2.
-       move /eqP : H3 => H3 ; rewrite H3.
-       unfold def_expr_eqn.
-       destruct val2 ; try reflexivity.
-       rewrite eq_refl ; reflexivity.
-       enough (e == e').
-       - move /eqP : H2 => H2 ; rewrite H2.
-         unfold def_expr_eqn.
-         destruct e' ; try reflexivity.
-         rewrite eq_refl ; reflexivity.
-       - apply MapsTo_2 with (ce := ce) (key1 := k) (key2 := k).
-         * apply CE.add_3 with (x := key2) (e' := val2).
-           unfold CE.SE.eq ; rewrite eq_sym ; rewrite Hkey2 ; done.
-           apply CE.add_3 with (x := key1) (e' := val1).
-           unfold CE.SE.eq ; rewrite eq_sym ; rewrite Hkey1 ; done.
-           exact H0.
-         * apply CE.add_3 with (x := key1) (e' := val1).
-           unfold CE.SE.eq ; rewrite eq_sym ; rewrite Hkey1 ; done.
-           apply CE.add_3 with (x := key2) (e' := val2).
-           unfold CE.SE.eq ; rewrite eq_sym ; rewrite Hkey2 ; done.
-           exact H1.
-         * apply eq_refl.
-   Admitted. *)
+     unfold foldl in Hcm12.
+     unfold foldl in Hcm21.
+     injection Hcm12 ; injection Hcm21 ; intros.
+     rewrite <- H2, <- H3.
+     apply CELemmas.add_comm.
+     unfold CE.SE.eq.
+     move /eqP : H1 => H1.
+     contradict H1.
+     move /eqP : H1 => H1.
+     apply ref2var_inj.
+     exact H.
+     rewrite Href1 Href2 H1.
+     reflexivity.
+   * destruct a as [ref3 e3].
+     intros.
+     replace (foldl foldl_helper (OK (CE.add id2 e2 (CE.add id1 e1 cm1))) ((ref3, e3) :: seq_k_e2))
+     with (foldl foldl_helper (foldl_helper (OK (CE.add id2 e2 (CE.add id1 e1 cm1))) (ref3, e3)) seq_k_e2) in Hcm12 by reflexivity.
+     replace (foldl foldl_helper (OK (CE.add id1 e1 (CE.add id2 e2 cm1))) ((ref3, e3) :: seq_k_e2))
+     with (foldl foldl_helper (foldl_helper (OK (CE.add id1 e1 (CE.add id2 e2 cm1))) (ref3, e3)) seq_k_e2) in Hcm21 by reflexivity.
+     unfold foldl_helper at 2, fst, snd in Hcm12.
+     unfold foldl_helper at 2, fst, snd in Hcm21.
+     destruct (ref2var ref3) as [id3|] eqn: Href3.
+   Admitted.
 
    Lemma init_ref_transparant :
       forall (id1 id2 : VarOrder.T) (type1 type2 : ftype) (orient1 orient2 : forient) (cm : cmap),
@@ -799,6 +946,42 @@ Close Scope N_scope.
    destruct (init_ref id1 type1 orient1 cm2) as [cm21|] eqn: Hir21 ;
          try (apply init_ref_OK with (id := id1) (type := type1) (orient := orient1) (cm := cm2) (e := e) ;
               try done).
+   (* Based on init_ref_OK, find the sequence of additions to CE that init_ref creates. *)
+   assert (exists (seq_k_e : seq (href * def_expr)),
+                     (all (fun (k_e : href * def_expr) => base_ref (fst k_e) == id1) seq_k_e)
+                  /\ forall cm : cmap,
+                        init_ref id1 type1 orient1 cm =
+                        foldl (fun (e_cm : @error_type cmap) (k_e : href * def_expr) =>
+                                      match e_cm, ref2var (fst k_e) with Err e, _ | _, Err e => Err e
+                                      | OK cm, OK k => OK (CE.add k (snd k_e) cm) end)
+                              (OK cm) seq_k_e).
+     apply init_ref_OK.
+     exact H.
+     exact H0.
+   assert (exists (seq_k_e : seq (href * def_expr)),
+                     (all (fun (k_e : href * def_expr) => base_ref (fst k_e) == id2) seq_k_e)
+                  /\ forall cm : cmap,
+                        init_ref id2 type2 orient2 cm =
+                        foldl (fun (e_cm : @error_type cmap) (k_e : href * def_expr) =>
+                                      match e_cm, ref2var (fst k_e) with Err e, _ | _, Err e => Err e
+                                      | OK cm, OK k => OK (CE.add k (snd k_e) cm) end)
+                              (OK cm) seq_k_e).
+     apply init_ref_OK.
+     exact H1.
+     exact H2.
+   destruct H4 as [seq_k_e1], H4 as [H4_base_ref H4].
+   destruct H5 as [seq_k_e2], H5 as [H5_base_ref H5].
+   rewrite H4 in Hir1.
+   rewrite H5 in Hir2.
+   rewrite H4 in Hir21.
+   rewrite H5 in Hir12.
+   rewrite <- Hir2 in Hir21.
+   rewrite <- Hir1 in Hir12.
+   rewrite <- foldl_cat in Hir21.
+   rewrite <- foldl_cat in Hir12.
+   unfold CE.Equal.
+   intro.
+   destruct (var2ref y) eqn: Hvy.
    (* basically now I need to do induction over type1 and type2,
       to get down to ground elements. *)
    move : cm1 cm2 cm12 cm21 Hir1 Hir2 Hir12 Hir21.
@@ -811,117 +994,7 @@ Close Scope N_scope.
                 intros ; injection Hir1 ; injection Hir2 ; injection Hir12 ; injection Hir21 ; intros ;
                 rewrite <- H4, <- H5, <- H6, <- H7 ;
                 unfold CE.Equal ; intros ; reflexivity).
-     + unfold fst, snd, init_apply_initializer.
-       intros ; injection Hir1 ; injection Hir2 ; injection Hir12 ; injection Hir21 ; intros.
-       rewrite <- H4, <- H5, <- H6, <- H7.
-       apply CE.add_comm.
-
- ; reflexivity.
-
-Print CE.add_comm.
-
-
-
-
-
-   unfold init_ref ; unfold init_ref in Hir1 ; unfold init_ref in Hir2.
-   destruct (init_undefined_vector (fun _ : nat => OK (Eid (var:=VarOrder.T) id1))
-                                   1 type1 orient1 D_undefined) as [initializer1|] eqn: Hiuv1.
-   * destruct (init_undefined_vector (fun _ : nat => OK (Eid (var:=VarOrder.T) id2))
-                                     1 type2 orient2 D_undefined) as [initializer2|] eqn: Hiuv2.
-     + destruct initializer1 as [fn1 array_size1] ; unfold fst, snd in Hir1.
-       destruct initializer2 as [fn2 array_size2] ; unfold fst, snd in Hir2 ; unfold fst, snd.
-       induction type1, type2.
-       - unfold init_undefined_vector, ref2var in Hiuv1.
-         unfold init_undefined_vector, ref2var in Hiuv2.
-         destruct orient1 ; try done.
-         * injection Hiuv1 ; intros.
-           rewrite <- H4 in Hir1.
-           unfold init_apply_initializer in Hir1.
-           injection Hir1 ; intros.
-           rewrite <- H4.
-           unfold init_apply_initializer at 2.
-           rewrite <- H6 ; exact Hir2.
-         * injection Hiuv1 ; intros.
-           rewrite <- H4, <- H5 in Hir1.
-           unfold init_apply_initializer in Hir1.
-           injection Hir1 ; intros.
-           rewrite <- H4, <- H5, <- H6.
-           unfold init_apply_initializer at 2.
-           destruct orient2 ; try done.
-           + injection Hiuv2 ; intros.
-             rewrite <- H7 in Hir2.
-             unfold init_apply_initializer in Hir2.
-             injection Hir2 ; intros.
-             rewrite <- H7, <- H9.
-             unfold init_apply_initializer.
-             reflexivity.
-           + injection Hiuv2 ; intros.
-             rewrite <- H7, <- H8 in Hir2.
-             unfold init_apply_initializer in Hir2.
-             injection Hir2 ; intros.
-             rewrite <- H7, <- H8, <- H9.
-             unfold init_apply_initializer.
-             f_equal.
-
-             apply CE.add_comm.
-
-admit.
-     + enough (match init_undefined_vector (fun _ : nat => OK (Eid (var:=VarOrder.T) id2))
-                                           1 type2 orient2 D_undefined
-               with
-               | OK (fn, array_size) => fn_array_is_OK fn array_size
-               | Err _ => False
-               end).
-       - replace (init_undefined_vector (fun _ : nat => OK (Eid (var:=VarOrder.T) id2))
-                                        1 type2 orient2 D_undefined) with (@Err ((nat -> cmap -> @error_type cmap) * nat) e) in H4.
-         contradiction.
-       - apply init_undefined_vector_OK ; try done.
-   * enough (match init_undefined_vector (fun _ : nat => OK (Eid (var:=VarOrder.T) id1))
-                                         1 type1 orient1 D_undefined
-             with
-             | OK (fn, array_size) => fn_array_is_OK fn array_size
-             | Err _ => False
-             end).
-     + replace (init_undefined_vector (fun _ : nat => OK (Eid (var:=VarOrder.T) id1))
-                                      1 type1 orient1 D_undefined) with (@Err ((nat -> cmap -> @error_type cmap) * nat) e) in H4.
-       exact H4.
-     + apply init_undefined_vector_OK ; try done.
    Admitted.
-
-
-
-
-
-
-
-     + contradict Hiuv1.
-       enough (match init_undefined_vector (fun _ : nat => OK (Eid (var:=VarOrder.T) id1))
-                                           1 type2 orient1 D_undefined
-               with
-               | OK (fn, array_size) => fn_array_is_OK fn array_size
-               | Err _ => False
-               end).
-       contradict H4.
-       replace (init_undefined_vector
-              (fun _ : nat => OK (Eid (var:=VarOrder.T) id1)) 1 type1 orient1
-              D_undefined) with (@Err ((nat -> cmap -> @error_type cmap) * nat) e).
-       done.
-       apply init_undefined_vector_OK ; try done.
-   * contradict Hiuv2.
-     enough (match init_undefined_vector (fun _ : nat => OK (Eid (var:=VarOrder.T) id2))
-                                         1 type2 orient2 D_undefined
-             with
-             | OK (fn, array_size) => fn_array_is_OK fn array_size
-             | Err _ => False
-             end).
-     contradict H4.
-     replace (init_undefined_vector
-            (fun _ : nat => OK (Eid (var:=VarOrder.T) id2)) 1 type2 orient2
-            D_undefined) with (@Err ((nat -> cmap -> @error_type cmap) * nat) e).
-     done.
-     apply init_undefined_vector_OK ; try done.
-   Qed.
 
    Fixpoint mask_type (t : ftype) : @error_type ftype :=
    (* the type of the mask field of a write port of a memory with type t *)
@@ -1066,63 +1139,57 @@ admit.
    induction ports.
    * unfold init_ports.
      discriminate.
-   * induction a.
+   * destruct a.
      + unfold init_ports ; fold init_ports.
-       destruct (init_undefined_flipped (fun _ : nat => OK (Eid (var:=VarOrder.T) s)) 1 f D_undefined) eqn: Hiuf.
+       destruct (init_undefined_vector (fun _ : nat => OK (Eid s)) 1 f Source D_undefined) eqn: Hiuf.
        - intro.
          destruct (init_apply_initializer (fst p) (snd p) cm) eqn: Hiai.
          * intro.
            apply IHports.
            intros.
            contradict Hiai.
-           apply init_apply_initializer_OK.
-           enough (if init_undefined_flipped (fun _ : nat => OK (Eid (var:=VarOrder.T) s)) 1 f D_undefined is OK (fn, array_size0)
-                    then fn_array_is_OK fn array_size0
+           apply init_apply_initializer_OK with (id := s).
+           enough (if init_undefined_vector (fun _ : nat => OK (Eid s)) 1 f Source D_undefined is OK (fn, array_size0)
+                    then fn_array_is_OK s fn array_size0
                     else False).
-           replace (init_undefined_flipped (fun _ : nat => OK (Eid (var:=VarOrder.T) s)) 1
-                    f D_undefined) with (OK p) in H.
-           replace p with (fst p, snd p) in H by (symmetry ; apply surjective_pairing).
+           rewrite Hiuf (surjective_pairing p) in H.
            exact H.
-           apply init_undefined_flipped_OK.
-           unfold vn_array_is_OK, href_without_subaccess.
-           trivial.
-       - enough (if init_undefined_flipped (fun _ : nat => OK (Eid (var:=VarOrder.T) s)) 1 f D_undefined is OK (fn, array_size0)
-                    then fn_array_is_OK fn array_size0
+           apply init_undefined_vector_OK ; try discriminate.
+           unfold vn_array_is_OK, href_without_subaccess, base_ref.
+           done.
+       - enough (if init_undefined_vector (fun _ : nat => OK (Eid s)) 1 f Source D_undefined is OK (fn, array_size0)
+                    then fn_array_is_OK s fn array_size0
                     else False).
-         replace (init_undefined_flipped (fun _ : nat => OK (Eid (var:=VarOrder.T) s)) 1
-                  f D_undefined) with (@Err ((nat -> cmap -> @error_type cmap) * nat) e) in H.
+         rewrite Hiuf in H.
          contradiction.
-         apply init_undefined_flipped_OK.
-         unfold vn_array_is_OK, href_without_subaccess.
-         trivial.
+         apply init_undefined_vector_OK ; try discriminate.
+         unfold vn_array_is_OK, href_without_subaccess, base_ref.
+         done.
      + unfold init_ports ; fold init_ports.
-       destruct (init_undefined_vector (fun _ : nat => OK (Eid (var:=VarOrder.T) s)) 1 f D_undefined) eqn: Hiuf.
+       destruct (init_undefined_vector (fun _ : nat => OK (Eid (var:=VarOrder.T) s)) 1 f Sink D_undefined) eqn: Hiuf.
        - intro.
          destruct (init_apply_initializer (fst p) (snd p) cm) eqn: Hiai.
          * intro.
            apply IHports.
            intros.
            contradict Hiai.
-           apply init_apply_initializer_OK.
-           enough (if init_undefined_vector (fun _ : nat => OK (Eid (var:=VarOrder.T) s)) 1 f D_undefined is OK (fn, array_size0)
-                    then fn_array_is_OK fn array_size0
+           apply init_apply_initializer_OK with (id := s).
+           enough (if init_undefined_vector (fun _ : nat => OK (Eid s)) 1 f Sink D_undefined is OK (fn, array_size0)
+                    then fn_array_is_OK s fn array_size0
                     else False).
-           replace (init_undefined_vector (fun _ : nat => OK (Eid (var:=VarOrder.T) s)) 1
-                    f D_undefined) with (OK p) in H.
-           replace p with (fst p, snd p) in H by (symmetry ; apply surjective_pairing).
+           rewrite Hiuf (surjective_pairing p) in H.
            exact H.
-           apply init_undefined_vector_OK.
-           unfold vn_array_is_OK, href_without_subaccess.
-           trivial.
-       - enough (if init_undefined_vector (fun _ : nat => OK (Eid (var:=VarOrder.T) s)) 1 f D_undefined is OK (fn, array_size0)
-                    then fn_array_is_OK fn array_size0
+           apply init_undefined_vector_OK ; try discriminate.
+           unfold vn_array_is_OK, href_without_subaccess, base_ref.
+           done.
+       - enough (if init_undefined_vector (fun _ : nat => OK (Eid s)) 1 f Sink D_undefined is OK (fn, array_size0)
+                    then fn_array_is_OK s fn array_size0
                     else False).
-         replace (init_undefined_vector (fun _ : nat => OK (Eid (var:=VarOrder.T) s)) 1
-                  f D_undefined) with (@Err ((nat -> cmap -> @error_type cmap) * nat) e) in H.
+         rewrite Hiuf in H.
          contradiction.
-         apply init_undefined_vector_OK.
-         unfold vn_array_is_OK, href_without_subaccess.
-         trivial.
+         apply init_undefined_vector_OK ; try discriminate.
+         unfold vn_array_is_OK, href_without_subaccess, base_ref.
+         done.
    Qed.
 
    Fixpoint id_in_ports (id : VarOrder.T) (ports : seq hfport) : bool :=
@@ -1139,7 +1206,7 @@ admit.
             (forall ref : href, (var2ref id == OK ref) ==> ~~id_in_ports (base_ref ref) ports) ->
          forall (cm_ports : cmap) (ce_ports : CE.env),
             init_ports ports cm ce = OK (cm_ports, ce_ports) ->
-            init_ports ports () ce = OK (CE.add id value cm_ports, ce_ports).
+            init_ports ports (CE.add id value cm) ce = OK (CE.add id value cm_ports, ce_ports).
    Proof.
    induction ports as [|port ports_tail].
    * unfold init_ports.
@@ -1150,23 +1217,12 @@ admit.
    * unfold init_ports ; fold init_ports.
      intros.
      destruct port eqn: Hport.
-     + destruct (init_undefined_flipped (fun _ : nat => OK (Eid (var:=VarOrder.T) s))
-                 1 f D_undefined) eqn: Hiuf;
+     + destruct (init_undefined_vector (fun _ : nat => OK (Eid s)) 1 f Source D_undefined) eqn: Hiuf;
              try discriminate.
        destruct p as [v n].
        unfold fst, snd ; unfold fst, snd in H0.
        destruct (init_apply_initializer v n (CE.add id value cm)) eqn: Hiai.
-       - apply IHports_tail.
-
-
-Focus 2.
-contradict Hiai. apply init_apply_initializer_OK.
-enough (if init_undefined_flipped (fun _ : nat => OK (Eid (var:=VarOrder.T) s)) 1 f D_undefined is OK (fn, array_size)
-               then fn_array_is_OK fn array_size
-               else False).
-replace (init_undefined_flipped
-         (fun _ : nat => OK (Eid (var:=VarOrder.T) s)) 1 f D_undefined) with (OK (v,n)) in H1.
-exact H1.
+   Admitted.
 
    Definition recode_cmap_entry (id : VarOrder.T) (dexpr : def_expr) (ss' : @error_type hfstmt_seq) : @error_type hfstmt_seq :=
    (* This helper function for recode_map translates one entry of the cmap into a statement
@@ -1537,31 +1593,426 @@ exact H1.
                    end
    end.
 
-   Fixpoint expandWhen_ce (ss : hfstmt_seq) (ce : CE.env) (default : CE.env) : @error_type CE.env :=
+   Fixpoint expandWhen_ce (ss : hfstmt_seq) (ce_modules default : CE.env) : @error_type CE.env :=
    (* The result contains exactly the component types as defined by ss, in addition to default.
-      The parameter ce contains the port declarations of other modules. *)
+      The parameter ce_modules contains the port declarations of other modules. *)
    match ss with
    | Qnil => OK default
    | Qcons s ss_tail => match s with
-                        | Swire id t => expandWhen_ce ss_tail ce (CE.add id (aggr_typ t, Wire) default)
-                        | Sreg id reg => expandWhen_ce ss_tail ce (CE.add id (Reg_typ reg, Register) default)
-                        | Smem id mem => expandWhen_ce ss_tail ce (CE.add id (Mem_typ mem, Memory) default)
-                        | Sinst id typ => match CE.find typ ce with
-                                          | Some (Aggr_typ type, Fmodule) => expandWhen_ce ss_tail ce (CE.add id (aggr_typ type, Instanceof) default)
-                                          | Some _ => Err Etype
-                                          | None => Err Eundeclared
-                                          end
+                        | Swire id t => if CE.find id default is Some _ then Err Ealready_declared
+                                        else expandWhen_ce ss_tail ce_modules (CE.add id (aggr_typ t, Wire) default)
+                        | Sreg id reg => if CE.find id default is Some _ then Err Ealready_declared
+                                         else expandWhen_ce ss_tail ce_modules (CE.add id (Reg_typ reg, Register) default)
+                        | Smem id mem => if CE.find id default is Some _ then Err Ealready_declared
+                                         else expandWhen_ce ss_tail ce_modules (CE.add id (Mem_typ mem, Memory) default)
+                        | Sinst id typ => if CE.find id default is Some _ then Err Ealready_declared
+                                          else match CE.find typ ce_modules with
+                                               | Some (Aggr_typ type, Fmodule) => expandWhen_ce ss_tail ce_modules (CE.add id (aggr_typ type, Instanceof) default)
+                                               | Some _ => Err Etype
+                                               | None => Err Eundeclared
+                                               end
                         | Sskip
                         | Snode _ _ (* can be ignored *)
                         | Sfcnct _ _
-                        | Sinvalid _ => expandWhen_ce ss_tail ce default
-                        | Swhen _ ss_true ss_false => match expandWhen_ce ss_true ce default with Err e => Err e | OK default_true
-                                                      => match expandWhen_ce ss_false ce default_true with Err e => Err e | OK default_false
-                                                         => expandWhen_ce ss_tail ce default_false end end
+                        | Sinvalid _ => expandWhen_ce ss_tail ce_modules default
+                        | Swhen _ ss_true ss_false => match expandWhen_ce ss_true ce_modules default with Err e => Err e | OK default_true
+                                                      => match expandWhen_ce ss_false ce_modules default_true with Err e => Err e | OK default_false
+                                                         => expandWhen_ce ss_tail ce_modules default_false end end
                         (* | Sstop _ _ _ => expandWhen_ce ss_tail default *)
                         | Spcnct _ _ => Err Einternal
                         end
    end.
+
+   Fixpoint is_declared (ss : hfstmt_seq) (id : VarOrder.T) : Prop :=
+      (* is True if ss contains at least one declaration of a component with identifier id. *)
+      match ss with
+      | Qnil => False
+      | Qcons s ss_tail => match s with
+                           | Swire id' _
+                           | Sreg id' _
+                           | Smem id' _
+                           | Sinst id' _ => if id == id' then True else is_declared ss_tail id
+                           | Swhen _ ss_true ss_false =>    is_declared ss_true id
+                                                         \/ is_declared ss_false id
+                                                         \/ is_declared ss_tail id
+                           | _ => is_declared ss_tail id
+                           end
+      end.
+
+   Fixpoint is_repeatedly_declared (ss : hfstmt_seq) (id : VarOrder.T) : Prop :=
+      (* is True if ss contains at least two declarations of components with identifier id. *)
+      match ss with
+      | Qnil => False
+      | Qcons s ss_tail => match s with
+                           | Swire id' _
+                           | Sreg id' _
+                           | Smem id' _
+                           | Sinst id' _ => if id == id' then is_declared ss_tail id
+                                            else is_repeatedly_declared ss_tail id
+                           | Swhen _ ss_true ss_false =>
+                                is_repeatedly_declared ss_true id
+                             \/ is_declared ss_true id /\ (is_declared ss_false id \/ is_declared ss_tail id)
+                             \/ is_repeatedly_declared ss_false id
+                             \/ is_declared ss_false id /\ is_declared ss_tail id
+                             \/ is_repeatedly_declared ss_tail id
+                           | _ => is_repeatedly_declared ss_tail id
+                           end
+      end.
+
+   Definition expandWhen_ce_OK_hfstmt_seq (ss : hfstmt_seq) : Prop :=
+         (forall id : VarOrder.T, is_repeatedly_declared ss id ->
+             forall (ce_modules default : CE.env),
+                exists e : error_info, expandWhen_ce ss ce_modules default = Err e)
+      /\ (forall id : VarOrder.T, is_declared ss id ->
+             forall (ce_modules default : CE.env),
+                if CE.find id default is None
+                then (if expandWhen_ce ss ce_modules default is OK ce_initialized
+                      then CE.find id ce_initialized <> None
+                      else True)
+                else exists e : error_info, expandWhen_ce ss ce_modules default = Err e)
+      /\ (forall (id : VarOrder.T) (ce_modules default : CE.env),
+             if CE.find id default is Some (c, v)
+             then (if expandWhen_ce ss ce_modules default is OK ce_initialized
+                   then CE.find id ce_initialized = Some (c, v)
+                   else True)
+             else True).
+
+   Definition expandWhen_ce_OK_hfstmt (s : hfstmt) : Prop :=
+      if s is Swhen c sst ssf then    expandWhen_ce_OK_hfstmt_seq sst
+                                   /\ expandWhen_ce_OK_hfstmt_seq ssf
+                              else True.
+
+   Lemma expandWhen_ce_OK :
+      forall (ss : hfstmt_seq), expandWhen_ce_OK_hfstmt_seq ss.
+   Proof.
+   apply hfstmt_seq_hfstmt_ind with (P := expandWhen_ce_OK_hfstmt_seq)
+                                    (P0 := expandWhen_ce_OK_hfstmt) ;
+         try (unfold expandWhen_ce_OK_hfstmt_seq, is_repeatedly_declared ;
+              split ; try done ;
+              split ; try done ;
+              unfold expandWhen_ce ; intros ;
+              destruct (CE.find id default) ; try (destruct p ; reflexivity) ; done).
+   induction h ;
+         try (intros ; unfold expandWhen_ce_OK_hfstmt_seq, is_repeatedly_declared, expandWhen_ce ;
+              exact H0).
+   * (* Swire *)
+     (* This is similar to Sreg below *)
+     admit.
+   * (* Sreg *)
+     unfold expandWhen_ce_OK_hfstmt_seq.
+     intros.
+     destruct H0.
+     destruct H1.
+     split.
+     + unfold is_repeatedly_declared ; fold is_repeatedly_declared.
+       intros.
+       unfold expandWhen_ce ; fold expandWhen_ce.
+       destruct (CE.find s default) eqn: Hfs ;
+             try (exists Ealready_declared ; reflexivity).
+       destruct (id == s) eqn: Hid_s ;
+             try (apply H0 with (id := id) ; exact H3).
+       move /eqP : Hid_s => Hid_s.
+       specialize H1 with (id := id) (default := (CE.add s (Reg_typ h, Register) default)).
+       rewrite CELemmas.find_add_eq in H1 ; try (unfold CE.SE.eq ; rewrite Hid_s ; apply eq_refl).
+       apply H1.
+       exact H3.
+     split.
+     + unfold is_declared ; fold is_declared.
+       intros.
+       unfold expandWhen_ce ; fold expandWhen_ce.
+       destruct (CE.find id default) eqn: Hfid.
+       - destruct (CE.find s default) eqn: Hfs ;
+               try (exists Ealready_declared ; reflexivity).
+         destruct (id == s) eqn: Hid_s ;
+               try (move /eqP : Hid_s => Hid_s ;
+                    rewrite Hid_s Hfs in Hfid ;
+                    done).
+         specialize H1 with (id := id) (default := (CE.add s (Reg_typ h, Register) default)).
+         rewrite CELemmas.find_add_neq in H1 ;
+               try (unfold CE.SE.eq ; rewrite Hid_s ; done).
+         rewrite Hfid in H1.
+         apply H1.
+         exact H3.
+       - destruct (CE.find s default) eqn: Hfs ;
+               try done.
+         destruct (id == s) eqn: Hid_s.
+         * move /eqP : Hid_s => Hid_s.
+           rewrite <- Hid_s.
+           specialize H2 with (id := id) (ce_modules := ce_modules) (default := (CE.add id (Reg_typ h, Register) default)).
+           rewrite CELemmas.find_add_eq in H2 ;
+                 try (unfold CE.SE.eq ; rewrite Hid_s ; apply eq_refl).
+           destruct (expandWhen_ce h0 ce_modules (CE.add id (Reg_typ h, Register) default)) ;
+                 try trivial.
+           rewrite H2 ; discriminate.
+         * specialize H1 with (id := id) (default := (CE.add s (Reg_typ h, Register) default)).
+           rewrite CELemmas.find_add_neq in H1 ;
+                 try (unfold CE.SE.eq ; rewrite Hid_s ; done).
+           rewrite Hfid in H1.
+           apply H1.
+           exact H3.
+     + intros.
+       destruct (CE.find id default) eqn: Hfid ; try trivial.
+       destruct p.
+       unfold expandWhen_ce ; fold expandWhen_ce.
+       destruct (CE.find s default) eqn: Hfs ; try trivial.
+       specialize H2 with (id := id) (default := CE.add s (Reg_typ h, Register) default).
+       destruct (id == s) eqn: Hid_s ;
+             try (move /eqP : Hid_s => Hid_s ;
+                  rewrite Hid_s Hfs in Hfid ;
+                  done).
+       rewrite CELemmas.find_add_neq in H2 ; try (unfold CE.SE.eq ; rewrite Hid_s ; done).
+       rewrite Hfid in H2.
+       apply H2.
+   * (* Smem *)
+     (* This is similar to Sreg above *)
+     admit.
+   * (* Sinst *)
+     (* This is similar to Sreg above *)
+     admit.
+   * (* Spcnct *)
+     intros.
+     unfold expandWhen_ce_OK_hfstmt_seq, expandWhen_ce.
+     split.
+     + intros ; exists Einternal ; reflexivity.
+     split.
+     + intros.
+       destruct (CE.find id default) ; try trivial.
+       exists Einternal ; reflexivity.
+     + intros ; destruct (CE.find id default) ; try trivial.
+       destruct p ; trivial.
+   * (* Swhen *)
+     unfold expandWhen_ce_OK_hfstmt, expandWhen_ce_OK_hfstmt_seq.
+     intros.
+     destruct H, H, H0, H1, H2, H3, H4.
+     split.
+     + unfold is_repeatedly_declared ; fold is_repeatedly_declared.
+       intros.
+       unfold expandWhen_ce ; fold expandWhen_ce.
+       destruct H8.
+       - assert (exists e : error_info, expandWhen_ce h0 ce_modules default = Err e)
+               by (apply H with (id := id) ; exact H8).
+         destruct H9.
+         rewrite H9.
+         exists x.
+         reflexivity.
+       destruct (expandWhen_ce h0 ce_modules default) as [default_true|] eqn: Hew_h0 ;
+             try (exists e ; reflexivity).
+       destruct (expandWhen_ce h1 ce_modules default_true) as [default_false|] eqn: Hew_h1 ;
+             try (exists e ; reflexivity).
+       destruct H8.
+       - destruct H8.
+         specialize H2 with (id := id) (ce_modules := ce_modules) (default := default).
+         rewrite Hew_h0 in H2.
+         destruct H9.
+         * absurd (CE.find id default_true = None).
+           + enough (match CE.find id default with
+                     | Some _ => exists e : error_info, OK default_true = Err e
+                     | None => CE.find id default_true <> None
+                     end).
+             destruct (CE.find id default) ; try (destruct H10 ; discriminate).
+             exact H10.
+             apply H2 ; exact H8.
+           + specialize H4 with (id := id) (ce_modules := ce_modules) (default := default_true).
+             rewrite Hew_h1 in H4.
+             destruct (CE.find id default_true) ; try reflexivity.
+             destruct H4.
+             - exact H9.
+             - discriminate.
+         * destruct (expandWhen_ce h2 ce_modules default_false) eqn: Hew_h2 ;
+                 try (exists e ; reflexivity).
+           specialize H3 with (id := id) (ce_modules := ce_modules) (default := default_false).
+           rewrite Hew_h2 in H3.
+           destruct (CE.find id default_false) eqn: Hfif ; try (apply H3 ; exact H9).
+           absurd (CE.find id default_false = None) ; try (exact Hfif).
+           specialize H7 with (id := id) (ce_modules := ce_modules) (default := default_true).
+           rewrite Hew_h1 in H7.
+           destruct (CE.find id default_true) eqn: Hfit ;
+                 try (destruct p ; rewrite H7 ; discriminate).
+           destruct (CE.find id default).
+           + destruct H2 ; try (exact H8) ; discriminate.
+           + destruct H2 ; try (exact H8) ; reflexivity.
+       destruct H8.
+       - specialize H1 with (id := id) (ce_modules := ce_modules) (default := default_true).
+         rewrite Hew_h1 in H1.
+         destruct H1 ; try (exact H8).
+         discriminate.
+       destruct H8.
+       - specialize H3 with (id := id) (ce_modules := ce_modules) (default := default_false).
+         destruct (CE.find id default_false) eqn: Hfif ; try (apply H3, H8).
+         absurd (CE.find id default_false = None) ; try (exact Hfif).
+         specialize H4 with (id := id) (ce_modules := ce_modules) (default := default_true).
+         rewrite Hew_h1 in H4.
+         destruct (CE.find id default_true) ; try (apply H4, H8).
+         destruct H4 ; try (apply H8).
+         discriminate.
+       - specialize H0 with (id := id) (ce_modules := ce_modules) (default := default_false).
+         apply H0.
+         exact H8.
+     split.
+     + unfold is_declared ; fold is_declared.
+       intros.
+       unfold expandWhen_ce ; fold expandWhen_ce.
+       destruct H8.
+       - specialize H2 with (id := id) (ce_modules := ce_modules) (default := default).
+         destruct (CE.find id default) eqn: Hfi.
+         + destruct H2 ; try (exact H8).
+           rewrite H2.
+           exists x ; reflexivity.
+         + destruct (expandWhen_ce h0 ce_modules default) as [default_true|] eqn: Hew_h0 ; try trivial.
+           specialize H7 with (id := id) (ce_modules := ce_modules) (default := default_true).
+           destruct (expandWhen_ce h1 ce_modules default_true) as [default_false|] eqn: Hew_h1 ; try trivial.
+           specialize H6 with (id := id) (ce_modules := ce_modules) (default := default_false).
+           destruct (expandWhen_ce h2 ce_modules default_false) as [default_end|] eqn: Hew_h2 ; try trivial.
+           destruct (CE.find id default_false) eqn: Hfif ; try (destruct p ; rewrite H6 ; discriminate).
+           contradict Hfif.
+           destruct (CE.find id default_true) eqn: Hfit ; try (destruct p; rewrite H7 ; discriminate).
+           destruct H2 ; try (exact H8).
+           reflexivity.
+       specialize H5 with (id := id) (ce_modules := ce_modules) (default := default).
+       destruct H8.
+       - destruct (CE.find id default) eqn: Hfi.
+         * destruct (expandWhen_ce h0 ce_modules default) as [default_true|] eqn: Hew_h0 ; try (exists e ; reflexivity).
+           destruct p.
+           specialize H4 with (id := id) (ce_modules := ce_modules) (default := default_true).
+           rewrite H5 in H4.
+           destruct H4 ; try (exact H8).
+           rewrite H4.
+           exists x ; reflexivity.
+         * destruct (expandWhen_ce h0 ce_modules default) as [default_true|] eqn: Hew_h0 ; try trivial.
+           specialize H4 with (id := id) (ce_modules := ce_modules) (default := default_true).
+           destruct (expandWhen_ce h1 ce_modules default_true) as [default_false|] eqn: Hew_h1 ; try trivial.
+           specialize H6 with (id := id) (ce_modules := ce_modules) (default := default_false).
+           destruct (expandWhen_ce h2 ce_modules default_false) as [default_end|] eqn: Hew_h2 ; try trivial.
+           destruct (CE.find id default_false) eqn: Hfif ; try (destruct p ; rewrite H6 ; discriminate).
+           destruct (CE.find id default_true) eqn: Hfit ; try (destruct H4 ; try (exact H8) ; discriminate).
+           destruct H4 ; try (exact H8) ; reflexivity.
+       - destruct (CE.find id default) eqn: Hfi.
+         * destruct (expandWhen_ce h0 ce_modules default) as [default_true|] eqn: Hew_h0 ; try (exists e ; reflexivity).
+           destruct p.
+           specialize H7 with (id := id) (ce_modules := ce_modules) (default := default_true).
+           rewrite H5 in H7.
+           destruct (expandWhen_ce h1 ce_modules default_true) as [default_false|] eqn: Hew_h1 ; try (exists e ; reflexivity).
+           specialize H3 with (id := id) (ce_modules := ce_modules) (default := default_false).
+           rewrite H7 in H3.
+           apply H3.
+           exact H8.
+         * destruct (expandWhen_ce h0 ce_modules default) as [default_true|] eqn: Hew_h0 ; try trivial.
+           specialize H7 with (id := id) (ce_modules := ce_modules) (default := default_true).
+           destruct (expandWhen_ce h1 ce_modules default_true) as [default_false|] eqn: Hew_h1 ; try trivial.
+           specialize H3 with (id := id) (ce_modules := ce_modules) (default := default_false).
+           destruct (expandWhen_ce h2 ce_modules default_false) as [default_end|] eqn: Hew_h2 ; try trivial.
+           destruct (CE.find id default_false) eqn: Hfif ; try (apply H3 ; exact H8).
+           destruct H3 ; try (apply H8).
+           discriminate.
+     + intros.
+       unfold expandWhen_ce ; fold expandWhen_ce.
+       specialize H5 with (id := id) (ce_modules := ce_modules) (default := default).
+       destruct (CE.find id default) eqn: Hfi ; try trivial.
+       destruct p.
+       destruct (expandWhen_ce h0 ce_modules default) as [default_true|] eqn: Hew_h0 ; try trivial.
+       specialize H7 with (id := id) (ce_modules := ce_modules) (default := default_true).
+       rewrite H5 in H7.
+       destruct (expandWhen_ce h1 ce_modules default_true) as [default_false|] eqn: Hew_h1 ; try trivial.
+       specialize H6 with (id := id) (ce_modules := ce_modules) (default := default_false).
+       rewrite H7 in H6.
+       exact H6.
+   Admitted.
+
+   Definition is_declared_OK_hfstmt_seq (ss : hfstmt_seq) : Prop :=
+      forall (ce_modules default : CE.env),
+         if expandWhen_ce ss ce_modules default is OK ce_initialized
+         then (forall (id : VarOrder.T),
+                  if CE.find id ce_initialized is Some (c, v)
+                  then is_declared ss id \/ CE.find id default = Some (c, v)
+                  else True)
+         else True.
+
+   Definition is_declared_OK_hfstmt (s : hfstmt) : Prop :=
+      if s is Swhen _ sst ssf
+      then is_declared_OK_hfstmt_seq sst /\ is_declared_OK_hfstmt_seq ssf
+      else True.
+
+   Lemma is_declared_OK :
+       forall (ss : hfstmt_seq), is_declared_OK_hfstmt_seq ss.
+   Proof.
+   apply hfstmt_seq_hfstmt_ind with (P := is_declared_OK_hfstmt_seq)
+                                    (P0 := is_declared_OK_hfstmt) ;
+         try (unfold is_declared_OK_hfstmt ; trivial).
+   * (* Qnil *)
+     unfold is_declared_OK_hfstmt_seq, expandWhen_ce, is_declared.
+     intros.
+     destruct (CE.find id default) ; try trivial.
+     destruct p ; right ; reflexivity.
+   * (* Qcons *)
+     induction h ;
+           try (intros ;
+                unfold is_declared_OK_hfstmt_seq, is_declared, expandWhen_ce ;
+                fold expandWhen_ce ;
+                fold is_declared ;
+                exact H0).
+     + (* Swire *)
+       (* This is similar to Sreg below *)
+       admit.
+     + (* Sreg *)
+       unfold is_declared_OK_hfstmt_seq, is_declared, expandWhen_ce ;
+       fold expandWhen_ce ;
+       fold is_declared.
+       intros.
+       destruct (CE.find s default) eqn: Hfis ; try trivial.
+       specialize H0 with (ce_modules := ce_modules) (default := CE.add s (Reg_typ h, Register) default).
+       destruct (expandWhen_ce h0 ce_modules (CE.add s (Reg_typ h, Register) default)) eqn: He_h0 ; try trivial.
+       intro.
+       specialize H0 with (id := id).
+       destruct (CE.find id e) eqn: Hfid ; try trivial.
+       destruct p.
+       destruct (id == s) eqn: Hid_s ; try auto.
+       rewrite CELemmas.find_add_neq in H0 ; try (unfold CE.SE.eq ; rewrite Hid_s ; done).
+       exact H0.
+     + (* Smem *)
+       (* This is similar to Sreg above *)
+       admit.
+     + (* Sinst *)
+       (* This is similar to Sreg above *)
+       admit.
+     + (* Spcnct *)
+       unfold is_declared_OK_hfstmt_seq, expandWhen_ce.
+       trivial.
+     + (* Swhen *)
+       unfold is_declared_OK_hfstmt_seq, is_declared, expandWhen_ce ;
+       fold expandWhen_ce ;
+       fold is_declared.
+       intros.
+       destruct H.
+       specialize H with (ce_modules := ce_modules) (default := default).
+       destruct (expandWhen_ce h0 ce_modules default) as [default_true|] eqn: Hew_h0 ; try trivial.
+       specialize H1 with (ce_modules := ce_modules) (default := default_true).
+       destruct (expandWhen_ce h1 ce_modules default_true) as [default_false|] eqn: Hew_h1 ; try trivial.
+       specialize H0 with (ce_modules := ce_modules) (default := default_false).
+       destruct (expandWhen_ce h2 ce_modules default_false) as [default_end|] eqn: Hew_h2 ; try trivial.
+       intro.
+       specialize H0 with (id := id).
+       destruct (CE.find id default_end) eqn: Hfie ; try trivial.
+       destruct p.
+       destruct H0.
+       + left ; right ; right ; exact H0.
+       + specialize H1 with (id := id).
+         rewrite H0 in H1.
+         destruct H1.
+         - left ; right ; left ; exact H1.
+         - specialize H with (id := id).
+           rewrite H1 in H.
+           destruct H.
+           * left ; left ; exact H.
+           * right ; exact H.
+   * (* subgoal related to Swhen *)
+     intros ; split.
+     exact H.
+     exact H0.
+   Admitted.
+
+   Definition no_repeated_declarations (ss : hfstmt_seq) (default : CE.env) : Prop :=
+      forall (id : VarOrder.T), if CE.find id default is Some _ then ~is_declared ss id
+                                else ~is_repeatedly_declared ss id.
 
 (* Axiom cenv_elt_eq_dec : forall {x y : option (cmpnt_init_typs * fcomponent)}, {x = y} + {x <> y}.
    Parameter cenv_elt_eqn: forall (x y : option (cmpnt_init_typs * fcomponent)), bool.
@@ -1571,123 +2022,194 @@ exact H1.
    (* If a (hfstmt_seq * CE.env) satisfies the precondition,
       then expandWhen_ce does not produce an error.
       We need to prove this by a mutual induction over htstmt and hfstmt_seq. *)
-   Definition precond_impl_ce_OK_hfstmt_seq (ce : CE.env) (ss : hfstmt_seq) : Prop :=
+   Definition precond_impl_ce_OK_hfstmt_seq (ce_modules : CE.env) (ss : hfstmt_seq) : Prop :=
       forall (default : CE.env),
-         expandWhen_precondition_ss ss ce ->
-            forall e : error_info, expandWhen_ce ss ce default <> Err e.
+         expandWhen_precondition_ss ss ce_modules ->
+         no_repeated_declarations ss default ->
+            forall e : error_info, expandWhen_ce ss ce_modules default <> Err e.
 
-   Definition precond_impl_ce_OK_hfstmt (ce : CE.env) (s : hfstmt) : Prop :=
-      if s is Swhen c sst ssf then    precond_impl_ce_OK_hfstmt_seq ce sst
-                                   /\ precond_impl_ce_OK_hfstmt_seq ce ssf
+   Definition precond_impl_ce_OK_hfstmt (ce_modules : CE.env) (s : hfstmt) : Prop :=
+      if s is Swhen c sst ssf then    precond_impl_ce_OK_hfstmt_seq ce_modules sst
+                                   /\ precond_impl_ce_OK_hfstmt_seq ce_modules ssf
                               else True.
 
    Lemma precond_impl_ce_OK :
-      forall (ce : CE.env) (ss : hfstmt_seq),
-         precond_impl_ce_OK_hfstmt_seq ce ss.
+      forall (ce_modules : CE.env) (ss : hfstmt_seq),
+         precond_impl_ce_OK_hfstmt_seq ce_modules ss.
    Proof.
    intro.
-   apply hfstmt_seq_hfstmt_ind with (P := precond_impl_ce_OK_hfstmt_seq ce)
-                                    (P0 := precond_impl_ce_OK_hfstmt ce) ;
+   apply hfstmt_seq_hfstmt_ind with (P := precond_impl_ce_OK_hfstmt_seq ce_modules)
+                                    (P0 := precond_impl_ce_OK_hfstmt ce_modules) ;
          try (unfold precond_impl_ce_OK_hfstmt ; trivial) ;
          try (unfold precond_impl_ce_OK_hfstmt_seq, expandWhen_precondition_ss, expandWhen_ce ;
-              discriminate).
-   unfold precond_impl_ce_OK_hfstmt_seq ; induction h ;
+              discriminate) ;
+         try (intros ; split ; try (exact H) ; exact H0).
+   unfold precond_impl_ce_OK_hfstmt_seq.
+   induction h ;
          try (unfold expandWhen_precondition_ss ; fold expandWhen_precondition_ss ;
               intros ;
               unfold expandWhen_ce ; fold expandWhen_ce ;
-              apply H0 ;
-              exact H1).
+              apply H0 ; try (exact H1) ;
+              unfold no_repeated_declarations, is_declared, is_repeatedly_declared in H2 ;
+              exact H2).
+   * (* Swire *)
+     (* This case is similar to Sreg below. So we skip it. *)
+     admit.
    * (* Sreg *)
-     unfold expandWhen_precondition_ss ; fold expandWhen_precondition_ss.
      intros.
+     unfold expandWhen_precondition_ss in H1 ; fold expandWhen_precondition_ss in H1.
      unfold expandWhen_ce ; fold expandWhen_ce.
-     apply H0.
-     move /andP : H1 => H1.
-     apply H1.
+     unfold no_repeated_declarations in H2.
+     destruct (CE.find s default) eqn: Hsdef.
+     + specialize H2 with (id := s).
+       rewrite Hsdef in H2.
+       unfold is_declared in H2.
+       rewrite eq_refl in H2.
+       contradiction.
+     + apply H0.
+       move /andP : H1 => H1.
+       apply H1.
+       unfold no_repeated_declarations.
+       intro.
+       specialize H2 with (id := id).
+       destruct (id == s) eqn: Hid_s.
+       - move/eqP : Hid_s => Hid_s.
+         rewrite Hid_s.
+         replace (CE.find s (CE.add s (Reg_typ h, Register) default)) with (Some (Reg_typ h, Register))
+                by (symmetry ; apply CELemmas.find_add_eq, eq_refl).
+         unfold is_repeatedly_declared in H2.
+         rewrite Hid_s Hsdef eq_refl in H2.
+         exact H2.
+       - replace (CE.find id (CE.add s (Reg_typ h, Register) default)) with (CE.find id default)
+                by (symmetry ; apply CELemmas.find_add_neq ;
+                    unfold CE.SE.eq ;
+                    rewrite Hid_s ; done).
+         destruct (CE.find id default) eqn: Hfind.
+         * unfold is_declared in H2.
+           rewrite Hid_s in H2.
+           exact H2.
+         * unfold is_repeatedly_declared in H2.
+           rewrite Hid_s in H2.
+           exact H2.
    * (* Smem *)
-     unfold expandWhen_precondition_ss ; fold expandWhen_precondition_ss.
-     intros.
-     unfold expandWhen_ce ; fold expandWhen_ce.
-     apply H0.
-     move /andP : H1 => H1.
-     apply H1.
+     (* This case is similar to Sreg above. So we skip it. *)
+     admit.
    * (* Sinst *)
-     unfold expandWhen_precondition_ss ; fold expandWhen_precondition_ss.
-     intros.
-     unfold expandWhen_ce ; fold expandWhen_ce.
-     induction (CE.find s0 ce) eqn: Efind ; try done.
-     destruct a.
-     case (f == Fmodule) eqn : Hf.
-     - move /eqP : Hf => Hf.
-       induction c ; try done.
-       replace f with Fmodule ; replace f with Fmodule in H1.
-       apply H0.
-       exact H1.
-     - move /eqP : Hf => Hf.
-       induction f, c ; try done.
+     (* This case is similar to Sreg above. So we skip it. *)
+     admit.
    * (* Spcnct *)
      done.
    * (* Swhen *)
-     intro.
+     intro ; intro ; intro.
      unfold expandWhen_precondition_ss ; fold expandWhen_precondition_ss.
      intros.
      move /andP : H1 => H1.
      destruct H1.
      move /andP : H1 => H1.
      unfold expandWhen_ce ; fold expandWhen_ce.
-     induction (expandWhen_ce h0 ce default) eqn: He_h0.
-     + induction (expandWhen_ce h1 ce t) eqn: He_h1.
+     destruct H.
+     specialize H with (default := default).
+     assert (is_declared_OK_hfstmt_seq h0) by (apply is_declared_OK).
+     unfold is_declared_OK_hfstmt_seq in H5.
+     specialize H5 with (ce_modules := ce_modules) (default := default).
+     destruct (expandWhen_ce h0 ce_modules default) as [default_true|] eqn: He_h0.
+     + specialize H4 with (default := default_true).
+       assert (is_declared_OK_hfstmt_seq h1) by (apply is_declared_OK).
+       unfold is_declared_OK_hfstmt_seq in H6.
+       specialize H6 with (ce_modules := ce_modules) (default := default_true).
+       destruct (expandWhen_ce h1 ce_modules default_true) as [default_false|] eqn: He_h1.
        - apply H0.
-         exact H2.
-       - contradict He_h1.
-         apply H.
+         exact H3.
+         unfold no_repeated_declarations.
+         unfold no_repeated_declarations, is_declared, is_repeatedly_declared in H2.
+         fold is_repeatedly_declared in H2.
+         fold is_declared in H2.
+         intro.
+         specialize H2 with (id := id).
+         destruct (CE.find id default) eqn: Hf_def.
+         * assert (forall (ss : hfstmt_seq) (id : VarOrder.T) (ce_modules default : CE.env),
+                      if CE.find id default is Some (c, v)
+                      then (if expandWhen_ce ss ce_modules default is OK ce_initialized
+                            then CE.find id ce_initialized = Some (c, v)
+                            else True)
+                      else True)
+                 by (apply expandWhen_ce_OK).
+           assert (CE.find id default_true = Some p).
+             specialize H7 with (ss := h0) (id := id) (ce_modules := ce_modules) (default := default).
+             destruct p.
+             rewrite Hf_def He_h0 in H7.
+             exact H7.
+           assert (CE.find id default_false = Some p).
+             specialize H7 with (ss := h1) (id := id) (ce_modules := ce_modules) (default := default_true).
+             destruct p.
+             rewrite H8 He_h1 in H7.
+             exact H7.
+           rewrite H9.
+           contradict H2.
+           right ; right ; exact H2.
+         * specialize H6 with (id := id).
+           destruct (CE.find id default_false) eqn: Hfif.
+           + destruct p.
+             destruct H6.
+             - contradict H2.
+               right ; right ; right ; left.
+               split.
+               * exact H6.
+               * exact H2.
+             - specialize H5 with (id := id).
+               destruct (CE.find id default_true) eqn: Hfit ; try discriminate.
+               destruct p.
+               destruct H5 ; try (rewrite Hf_def in H5 ; discriminate).
+               contradict H2.
+               right ; left ; split.
+               - exact H5.
+               - right ; exact H2.
+           + contradict H2.
+             right ; right ; right ; right.
+             exact H2.
+       - apply H4.
          apply H1.
-     + contradict He_h0.
-       apply H.
+         unfold no_repeated_declarations.
+         unfold no_repeated_declarations in H2.
+         intro.
+         specialize H2 with (id := id).
+         specialize H5 with (id := id).
+         destruct (CE.find id default_true) eqn: Hfit.
+         * destruct p.
+           destruct H5.
+           + destruct (CE.find id default) eqn: Hfi.
+             - unfold is_declared in H2 ; fold is_declared in H2.
+               contradict H2.
+               left ; exact H5.
+             - unfold is_repeatedly_declared in H2 ; fold is_repeatedly_declared in H2.
+               contradict H2.
+               right ; left ; split.
+               * exact H5.
+               * left ; exact H2.
+           + rewrite H5 in H2.
+             unfold is_declared in H2 ; fold is_declared in H2.
+             contradict H2.
+             right ; left ; exact H2.
+         * destruct (CE.find id default) eqn: Hfi.
+           + absurd (CE.find id default_true = None) ; try (exact Hfit).
+             assert (if CE.find id default is Some (c, v)
+                     then (if expandWhen_ce h0 ce_modules default is OK ce_initialized
+                           then CE.find id ce_initialized = Some (c, v)
+                           else True)
+                     else True) by (apply expandWhen_ce_OK).
+             rewrite Hfi in H7.
+             destruct p.
+             rewrite He_h0 in H7.
+             rewrite H7.
+             discriminate.
+           + unfold is_repeatedly_declared in H2 ; fold is_repeatedly_declared in H2.
+             contradict H2.
+             right ; right ; left ; exact H2.
+     + apply H.
        apply H1.
-
-   done.
-   Qed.
-
-   Fixpoint type_and_dir_of_ref_fields (ref : href) (v : VarOrder.T) (ff : ffield) (ref_orient : forient) : @error_type (ftype * forient) :=
-      (* calculates the type and flow direction of Esubfield ref v.
-         * ref = some href
-         * v = a field within this ref
-         * ff = bundle type definition of ref
-         * ref_orient = orientation of ref *)
-      match ff with
-      | Fnil => Err Etype
-      | Fflips id Nflip t' ff_tail => if v == id then OK (t', ref_orient)
-                                                 else type_and_dir_of_ref_fields ref v ff_tail ref_orient
-      | Fflips id Flipped t' ff_tail => match ref_orient with
-                                        | Source => if v == id then OK (t', Sink)
-                                                               else type_and_dir_of_ref_fields ref v ff_tail ref_orient
-                                        | Sink => if v == id then OK (t', Source)
-                                                             else type_and_dir_of_ref_fields ref v ff_tail ref_orient
-                                        | Duplex => if v == id then OK (t', Duplex)
-                                                               else type_and_dir_of_ref_fields ref v ff_tail ref_orient
-                                        | _ => Err Etype (* passive type should not contain flipped fields *)
-                                        end
-      end.
-
-   Fixpoint type_and_dir_of_ref' (ref : href) (base_type : ftype) (base_orient : forient) : @error_type (ftype * forient) :=
-      (* calculates the type and flow direction of ref.
-         This is the internal helper function; the user should call type_and_dir_of_ref. *)
-      match ref with
-      | Eid _ => OK (base_type, base_orient)
-      | Esubindex ref' i => match type_and_dir_of_ref' ref' base_type base_orient with Err e => Err e | OK (ref'_type, ref'_orient)
-                            => match ref'_type with
-                               | Atyp t' n => (* if i >= n then Err Etype else *)
-                                              OK (t', ref'_orient)
-                               | _ => Err Etype
-                               end end
-      | Esubfield ref' v => match type_and_dir_of_ref' ref' base_type base_orient with Err e => Err e | OK (ref'_type, ref'_orient)
-                            => match ref'_type with
-                               | Btyp ff => type_and_dir_of_ref_fields ref' v ff ref'_orient
-                               | _ => Err Etype
-                               end end
-      | _ => Err Einternal (* subaccess should have been removed by an earlier pass *)
-      end.
+        (* The rest of this branch is almost the same as the previous branch. *)
+       admit.
+   Admitted.
 
    Definition type_and_dir_of_ref (ref : href) (ce : CE.env) : @error_type (ftype * forient) :=
       (* calculates the type and flow direction of ref.
@@ -1822,7 +2344,7 @@ exact H1.
      + intro ; specialize H with (e := Etype) ; done.
    Qed.
 
-(* Definition is_ground_sink (ref : href) (ce : CE.env) : bool :=
+   Definition is_ground_sink (ref : href) (ce : CE.env) : bool :=
       (* returns true if ref is a reference of ground type with sink, duplex or passive flow direction.
          (Only registers are passive, and they have duplex flow). *)
       match type_and_dir_of_ref ref ce with
@@ -1830,19 +2352,22 @@ exact H1.
       | OK (Gtyp _, Duplex)
       | OK (Gtyp _, Passive) => true
       | _ => false
-      end. *)
+      end.
 
    Lemma expandWhen_one_var_sem_conform (ref : href) :
       (* The variable ref, which has ground type and has sink (or duplex) flow,
          is assigned the correct value.
+         ce = contains definitions of other modules.
          (Probably needs additional precondition that ref is a correct reference.) *)
-      forall (mdl : hfmodule) (ce : CE.env),
+      href_without_subaccess ref ->
+      forall (mdl : hfmodule) (ce_modules : CE.env),
          match mdl with
          | FInmod _ ports ss => forall (initial_cm : cmap) (initial_ce : CE.env),
                                 match init_ports ports initial_cm initial_ce with Err e => false | OK (ports_cmap, ports_ce)
-                                => expandWhen_precondition_ss ss ce ->
-                                   match expandWhen_ce ss ce ports_ce with Err e => false | OK ce_initialized
-                                   => match expandBranch_fun ss ce_initialized ports_cmap with Err e => false | OK (_, cm_result)
+                                => expandWhen_precondition_ss ss ce_modules ->
+                                   match expandWhen_ce ss ce_modules ports_ce with Err e => false | OK ce_initialized
+                                   => is_ground_sink ref ce_initialized ->
+                                      match expandBranch_fun ss ce_initialized ports_cmap with Err e => false | OK (_, cm_result)
                                       => match type_and_dir_of_ref ref ce_initialized with
                                          | OK (Gtyp t, Sink) | OK (Gtyp t, Duplex) | OK (Gtyp t, Passive) =>
                                               expandBranch_one_component_sem_conform ref (Gtyp t) ss cm_result ports_cmap
@@ -1855,8 +2380,8 @@ exact H1.
    destruct (init_ports ports initial_cm initial_ce) eqn: Hipo ;
          try (contradict Hipo ; apply init_ports_OK).
    destruct p as [ports_cmap ports_ce].
-   destruct (expandWhen_ce ss ce ports_ce) as [ce_initialized|] eqn : HeWce ;
-         try (intros ; contradict HeWce ; apply precond_impl_ce_OK ; exact H).
+   destruct (expandWhen_ce ss ce_modules ports_ce) as [ce_initialized|] eqn : HeWce ;
+         try (intros ; contradict HeWce ; apply precond_impl_ce_OK ; exact H0).
    move : initial_cm initial_ce ports_cmap ports_ce Hipo ce_initialized HeWce.
    induction ss as [|s].
    * intros.
@@ -1866,13 +2391,13 @@ exact H1.
      destruct type_of_ref ; try done.
      unfold expandBranch_one_component_sem_conform.
      destruct (ref2var ref) eqn: Hr2v.
-     + destruct (CE.find n ports_cmap).
+     + destruct (CE.find s ports_cmap).
        - destruct d ; unfold expandBranch_one_var_sem, expr_tree_to_def_expr ; destruct dir_of_ref ; done.
        - unfold expr_tree_to_def_expr ; destruct dir_of_ref ; done.
      + contradict Hr2v.
        apply ref2var_OK.
        apply type_and_dir_of_ref_OK with (ce := ce_initialized).
-       replace (type_and_dir_of_ref ref ce_initialized) with (OK (Gtyp f, dir_of_ref)).
+       rewrite Htdr.
        discriminate.
    * destruct s as [|id type|id reg|id mem| | | | | |].
      + (* Sskip *)
@@ -1880,59 +2405,58 @@ exact H1.
        unfold expandWhen_precondition_ss ; fold expandWhen_precondition_ss.
        unfold expandBranch_fun ; fold expandBranch_fun.
        apply IHss.
-     + (* Swire *)
+     + (* Swire -- this case is similar to Sreg *)
+       admit.
+     + (* Sreg *)
        unfold expandWhen_ce ; fold expandWhen_ce.
        unfold expandWhen_precondition_ss ; fold expandWhen_precondition_ss.
        intros.
+       move /andP : H0 => H0.
        unfold expandBranch_fun ; fold expandBranch_fun.
-       destruct (init_wire id type ports_cmap) eqn: Hiw ;
+       destruct (init_register id (type reg) ports_cmap) as [cm_reg|] eqn: Hiw ;
              try (contradict Hiw ;
-                  apply init_wire_OK).
-       specialize IHss with (initial_cm := match init_wire id type initial_cm with
-                                           | OK i_c => i_c
-                                           | Err _ => initial_cm end)
-                            (initial_ce := initial_ce)
-                            (ports_ce := CE.add id (aggr_typ type, Wire) ports_ce)
+                  apply init_register_OK, H0).
+       specialize IHss with (initial_ce := initial_ce)
+                            (ports_cmap := cm_reg)
+                            (ports_ce := CE.add id (aggr_typ (type reg), Register) ports_ce)
                             (ce_initialized := ce_initialized).
-       destruct (init_wire id type initial_cm) eqn: Hiw_i ;
+       (* destruct (init_register id (type reg) initial_cm) eqn: Hiw_i ;
              try (contradict Hiw_i ;
-                  apply init_wire_OK).
-       destruct (expandBranch_fun ss ce_initialized c) eqn: Hebf.
+                  apply init_register_OK, H0). *)
+       destruct (expandBranch_fun ss ce_initialized cm_reg) eqn: Hebf.
        - destruct p as [ce_result cm_result].
          unfold snd.
+         unfold is_ground_sink in H1.
          destruct (type_and_dir_of_ref ref ce_initialized) eqn: Htdf ; try done.
          destruct p as [type_of_ref dir_of_ref].
-         destruct type_of_ref ; try done.
+         destruct type_of_ref  ; try done.
          (*destruct dir_of_ref ; try done.*)
          unfold expandBranch_one_component_sem_conform.
          unfold expandBranch_one_component_sem_conform in IHss.
          unfold expandBranch_one_var_sem ; fold expandBranch_one_var_sem.
+         destruct (base_ref ref == id) eqn: Href_id.
          destruct (ref2var ref) eqn: Hr2v.
+         assert (CE.find s cm_reg <> None) by (admit) (* based on init_register_OK *).
+   Admitted.
 
-
-(* use a lemma about init_ports:
-   adding some definition to ports_ce transparantly moves through init_ports. *)
-Admitted.
-
-
-   Definition expandBranch_sem_conform (mdl : hfmodule) (ce : CE.env) : Prop :=
+   Definition expandBranch_sem_conform (mdl : hfmodule) (ce_modules : CE.env) : Prop :=
    (* Checks for all components declared in module mdl
       whether expandBranch_fun satisfies the specification.
       * mdl = module to be checked
-      * ce = component environment containing all port declarations of other modules *)
+      * ce_modules = component environment containing all port declarations of other modules *)
    match mdl with
-   | FInmod _ ports ss => expandWhen_precondition_ss ss ce ->
+   | FInmod _ ports ss => expandWhen_precondition_ss ss ce_modules ->
                           match init_ports ports empty_cmap (CE.empty (cmpnt_init_typs * fcomponent)) with Err e => false | OK (ports_cmap, ports_ce)
-                          => match expandWhen_ce ss ce ports_ce with Err e => false | OK ce_initialized
-                             => match expandBranch_fun ss ce ports_cmap with Err e => false | OK result
+                          => match expandWhen_ce ss ce_modules ports_ce with Err e => false | OK ce_initialized
+                             => match expandBranch_fun ss ce_modules ports_cmap with Err e => false | OK result
                                 => CE.fold (expandBranch_sem_conform_helper ss (snd result) ports_cmap) ce_initialized
                                             true end end end
    | FExmod _ _ _ => True (* cannot be checked *)
    end.
 
    Lemma expandBranch_sem_conform_OK:
-      forall (mdl : hfmodule) (ce : CE.env),
-         expandBranch_sem_conform mdl ce.
+      forall (mdl : hfmodule) (ce_modules : CE.env),
+         expandBranch_sem_conform mdl ce_modules.
 
 (* OLDER MATERIAL -- NOT USED CURRENTLY
 
