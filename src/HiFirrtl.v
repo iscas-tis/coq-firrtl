@@ -1710,6 +1710,209 @@ Module MakeHiFirrtlP
   Definition mem_typ t := @Mem_typ V.T t.
   Definition unknown_typ := @Unknown_typ V.T.
 
+  Definition def_ftype := Gtyp (Fuint 0).
+
+  (* type of mux expression *)
+  Fixpoint mux_types t1 t2 : ftype :=
+      match t1, t2 with
+      | Gtyp (Fuint w1), Gtyp (Fuint w2) => (Gtyp (Fuint (maxn w1 w2)))
+      | Gtyp (Fsint w1), Gtyp (Fsint w2) => (Gtyp (Fsint (maxn w1 w2)))
+      | Gtyp Fclock, Gtyp Fclock => (Gtyp Fclock)
+      | Atyp t1 n1, Atyp t2 n2 => if n1 == n2 then (Atyp (mux_types t1 t2) n1)
+                                  else def_ftype
+      | Btyp bs1, Btyp bs2 => match mux_btyps bs1 bs2 with
+                              | Fnil => def_ftype
+                              | t => Btyp t
+                              end
+      | _, _ => def_ftype
+      end
+  with mux_btyps bs1 bs2 : ffield :=
+         match bs1, bs2 with
+         | Fnil, Fnil => (Fnil)
+         | Fflips v1 Nflip t1 fs1, Fflips v2 Nflip t2 fs2 =>
+           if v1 == v2 then
+             (Fflips v1 Nflip (mux_types t1 t2) (mux_btyps fs1 fs2))
+           else Fnil
+         | _, _ => Fnil
+    end.
+
+  (* type of ref expressions *) 
+  Fixpoint type_of_ref (r : href) ce : ftype :=
+    match r with
+    | Eid v => type_of_cmpnttyp (fst (PCE.vtyp v ce))
+    | _ => def_ftype
+    end.
+
+  (* type of expression *)
+  Fixpoint type_of_hfexpr (e : hfexpr) (ce : pcenv) : ftype :=
+    match e with
+    | Econst t bs => Gtyp t
+    | Eref r => type_of_ref r ce
+    | Ecast AsUInt e1 => let t := type_of_hfexpr e1 ce in
+                         match t with
+                         | Gtyp (Fsint w) | Gtyp (Fuint w) => Gtyp (Fuint w)
+                         | Gtyp Fclock => Gtyp (Fuint 1)
+                         | Gtyp Freset => Gtyp (Fuint 1)
+                         | Gtyp Fasyncreset => Gtyp (Fuint 1)
+                         | _ => def_ftype
+                         end
+    | Ecast AsSInt e1 => let t := type_of_hfexpr e1 ce in
+                         match t with
+                         | Gtyp (Fsint w) | Gtyp (Fuint w) => Gtyp (Fsint w)
+                         | Gtyp Fclock => Gtyp (Fsint 1)
+                         | Gtyp Freset => Gtyp (Fuint 1)
+                         | Gtyp Fasyncreset => Gtyp (Fuint 1)
+                         | _ => def_ftype
+                         end
+    | Ecast AsClock e1 => let t := type_of_hfexpr e1 ce in
+                          match t with
+                          | Gtyp _ =>  Gtyp Fclock
+                          | _ => def_ftype
+                          end
+    | Ecast AsReset e1 => let t := type_of_hfexpr e1 ce in
+                          match t with
+                          | Gtyp _ =>  Gtyp Freset
+                          | _ => def_ftype
+                          end
+    | Ecast AsAsync e1 => let t := type_of_hfexpr e1 ce in
+                          match t with
+                          | Gtyp _ =>  Gtyp Fasyncreset
+                          | _ => def_ftype
+                          end
+    | Eprim_unop (Upad n) e1 => let t := type_of_hfexpr e1 ce in
+                                match t with
+                                | Gtyp (Fsint w) => Gtyp (Fsint (maxn w n))
+                                | Gtyp (Fuint w) => Gtyp (Fuint (maxn w n))
+                                | _ => def_ftype
+                                end
+    | Eprim_unop (Ushl n) e1 => let t := type_of_hfexpr e1 ce in
+                                match t with
+                                | Gtyp (Fsint w) => Gtyp (Fsint (w + n))
+                                | Gtyp (Fuint w) => Gtyp (Fuint (w + n))
+                                | _ => def_ftype
+                                end
+    | Eprim_unop (Ushr n) e1 => let t := type_of_hfexpr e1 ce in
+                                match t with
+                                | Gtyp (Fsint w) => if n < w then Gtyp (Fsint (maxn (w - n) 1))
+                                                    else Gtyp (Fuint 1)
+                                | Gtyp (Fuint w) => if n < w then Gtyp (Fuint (maxn (w - n) 1))
+                                                    else Gtyp (Fuint 1)
+                                | _ => def_ftype
+                                end
+    | Eprim_unop Ucvt e1 => let t := type_of_hfexpr e1 ce in
+                                match t with
+                                | Gtyp (Fsint w) => Gtyp (Fsint w)
+                                | Gtyp (Fuint w) => Gtyp (Fsint (w + 1))
+                                | _ => def_ftype
+                                end
+    | Eprim_unop Uneg e1 => let t := type_of_hfexpr e1 ce in
+                                match t with
+                                | Gtyp (Fsint w) | Gtyp (Fuint w) => Gtyp (Fsint (w + 1))
+                                | _ => def_ftype
+                                end
+    | Eprim_unop Unot e1 => let t := type_of_hfexpr e1 ce in
+                                match t with
+                                | Gtyp (Fsint w) | Gtyp (Fuint w) => Gtyp (Fuint w)
+                                | _ => def_ftype
+                                end
+    | Eprim_unop (Uextr n1 n2) e1 => let t := type_of_hfexpr e1 ce in
+                                     match t with
+                                     | Gtyp (Fsint w) | Gtyp (Fuint w) =>
+                                                        if (n2 <= n1) && (n1 < w) then Gtyp (Fuint (n1 - n2 + 1))
+                                                        else def_ftype
+                                     | _ => def_ftype
+                                     end
+    | Eprim_unop (Uhead n) e1 => let t := type_of_hfexpr e1 ce in
+                                 match t with
+                                 | Gtyp (Fsint w) | Gtyp (Fuint w) =>
+                                                    if n <= w then Gtyp (Fuint n)
+                                                    else def_ftype
+                                 | _ => def_ftype
+                                 end
+    | Eprim_unop (Utail n) e1 => let t := type_of_hfexpr e1 ce in
+                                 match t with
+                                 | Gtyp (Fsint w) | Gtyp (Fuint w) =>
+                                                    if n <= w then Gtyp (Fuint (w - n))
+                                                    else def_ftype
+                                 | _ => def_ftype
+                                 end
+    | Eprim_unop _ e1 => let t := type_of_hfexpr e1 ce in
+                         match t with
+                         | Gtyp (Fsint _) | Gtyp (Fuint _) => Gtyp (Fuint 1)
+                         | _ => def_ftype
+                         end
+    | Eprim_binop (Bcomp _) e1 e2 => let t1 := type_of_hfexpr e1 ce in
+                                     let t2 := type_of_hfexpr e2 ce in
+                                     match t1, t2 with
+                                     | Gtyp (Fsint _), Gtyp (Fsint _)
+                                     | Gtyp (Fuint _), Gtyp (Fuint _) => Gtyp (Fuint 1)
+                                     | _, _ => def_ftype
+                                     end
+    | Eprim_binop Badd e1 e2
+    | Eprim_binop Bsub e1 e2 => let t1 := type_of_hfexpr e1 ce in
+                                let t2 := type_of_hfexpr e2 ce in
+                                match t1, t2 with
+                                | Gtyp (Fuint w1) , Gtyp (Fuint w2) => Gtyp (Fuint (maxn w1 w2 + 1))
+                                | Gtyp (Fsint w1) , Gtyp (Fsint w2) => Gtyp (Fsint (maxn w1 w2 + 1))
+                                | _, _ => def_ftype
+                                end
+    | Eprim_binop Bmul e1 e2 => let t1 := type_of_hfexpr e1 ce in
+                                let t2 := type_of_hfexpr e2 ce in
+                                match t1, t2 with
+                                | Gtyp (Fuint w1) , Gtyp (Fuint w2) => Gtyp (Fuint (w1 + w2))
+                                | Gtyp (Fsint w1) , Gtyp (Fsint w2) => Gtyp (Fsint (w1 + w2))
+                                | _, _ => def_ftype
+                                end
+    | Eprim_binop Bdiv e1 e2  => let t1 := type_of_hfexpr e1 ce in
+                                 let t2 := type_of_hfexpr e2 ce in
+                                 match t1, t2 with
+                                 | Gtyp (Fuint w1), Gtyp (Fuint w2) => Gtyp (Fuint w1)
+                                 | Gtyp (Fsint w1), Gtyp (Fsint w2) => Gtyp (Fsint (w1 + 1))
+                                 | _, _ => def_ftype
+                                 end
+    | Eprim_binop Brem e1 e2 => let t1 := type_of_hfexpr e1 ce in
+                                 let t2 := type_of_hfexpr e2 ce in
+                                 match t1, t2 with
+                                 | Gtyp (Fuint w1), Gtyp (Fuint w2) => Gtyp (Fuint (minn w1 w2))
+                                 | Gtyp (Fsint w1), Gtyp (Fsint w2) => Gtyp (Fsint (minn w1 w2))
+                                 | _, _ => def_ftype
+                                 end
+    | Eprim_binop Bdshl e1 e2 => let t1 := type_of_hfexpr e1 ce in
+                                 let t2 := type_of_hfexpr e2 ce in
+                                 match t1, t2 with
+                                 | Gtyp (Fuint w1), Gtyp (Fuint w2) => Gtyp (Fuint (w1 + 2 ^ w2 - 1))
+                                 | Gtyp (Fsint w1), Gtyp (Fuint w2) => Gtyp (Fsint (w1 + 2 ^ w2 - 1))
+                                 | _, _ => def_ftype
+                                 end
+    | Eprim_binop Bdshr e1 e2 => let t1 := type_of_hfexpr e1 ce in
+                                 let t2 := type_of_hfexpr e2 ce in
+                                 match t1, t2 with
+                                 | Gtyp (Fuint w1), Gtyp (Fuint w2) => Gtyp (Fuint w1)
+                                 | Gtyp (Fsint w1), Gtyp (Fuint w2) => Gtyp (Fsint w1)
+                                 | _, _ => def_ftype
+                                 end
+    | Eprim_binop Bcat e1 e2 => let t1 := type_of_hfexpr e1 ce in
+                                let t2 := type_of_hfexpr e2 ce in
+                                match t1, t2 with
+                                | Gtyp (Fuint w1), Gtyp (Fuint w2) => Gtyp (Fuint (w1 + w2))
+                                | Gtyp (Fsint w1), Gtyp (Fsint w2) => Gtyp (Fuint (w1 + w2))
+                                | _, _ => def_ftype
+                                end
+    | Eprim_binop Band e1 e2
+    | Eprim_binop Bor e1 e2
+    | Eprim_binop Bxor e1 e2 => let t1 := type_of_hfexpr e1 ce in
+                                let t2 := type_of_hfexpr e2 ce in
+                                match t1, t2 with
+                                | Gtyp (Fuint w1), Gtyp (Fuint w2) => Gtyp (Fuint (maxn w1 w2))
+                                | Gtyp (Fsint w1), Gtyp (Fsint w2) => Gtyp (Fuint (maxn w1 w2))
+                                | _, _ => def_ftype
+                                end
+    | Emux c e1 e2 => let t1 := type_of_hfexpr e1 ce in
+                      let t2 := type_of_hfexpr e2 ce in
+                      mux_types t1 t2
+    | Evalidif c e1 => type_of_hfexpr e1 ce
+    end.
+
   
 End MakeHiFirrtlP.
 

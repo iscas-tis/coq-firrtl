@@ -9,17 +9,18 @@ From firrtl Require Import Firrtl Env HiEnv HiFirrtl InferTypes.
 Section ExpandConnectsP.
   
   (*recursively add sub-elements accroding to the declared aggr_typ*)
-  (*for element declaration statement, add a default connection*)
-  Fixpoint upd_aggr_elements_aux_rdef (v:pvar) (ts: seq ftype) (sv:StructStateP.t) (n:N) :StructStateP.t:=
+  (*as for element declaration statement, add a default connection*)
+  (*as for element invalid statement, add an invalid connection*)
+  Fixpoint upd_aggr_elements_aux_rdef (v:pvar) (ts:seq ftype) (r:HiFP.rhs_expr) (sv:StructStateP.t) (n:N) :StructStateP.t:=
     match ts with
     | nil => sv
-    | cons hd tl => upd_aggr_elements_aux_rdef v tl (StructStateP.upd (fst v, n) HiFP.r_default sv) (N.add n 1%num)
+    | cons hd tl => upd_aggr_elements_aux_rdef v tl r (StructStateP.upd (fst v, n) r sv) (N.add n 1%num)
     end.
 
   (*use the types recorded in ce, since ce inclueds the result of type infering*)
-  Definition upd_aggr_elements_rdef (v:pvar) (ce : CEP.env) (sv:StructStateP.t) : StructStateP.t :=
+  Definition upd_aggr_elements_rdef (v:pvar) (ce : CEP.env) (r:HiFP.rhs_expr) (sv:StructStateP.t) : StructStateP.t :=
     let ts := ftype_list_all (type_of_cmpnttyp (fst (CEP.vtyp v ce))) nil in
-    StructStateP.upd v HiFP.r_default (upd_aggr_elements_aux_rdef v ts sv initial_index).
+    StructStateP.upd v HiFP.r_default (upd_aggr_elements_aux_rdef v ts r sv initial_index).
   
   (*recursively expand reference on rhs*) 
   Fixpoint expand_eref_aux (r : pvar) (sz : nat) (rs : seq HiFP.hfexpr) : seq HiFP.hfexpr :=
@@ -33,7 +34,7 @@ Section ExpandConnectsP.
     let sz := size ts in
     expand_eref_aux r sz nil.
 
-  (*recursively expand mux on rhs*) 
+  (*recursively expand mux, output a sequence of expressions*) 
   Fixpoint expand_emux (c : HiFP.hfexpr) (ze : seq (HiFP.hfexpr * HiFP.hfexpr)) (es : seq HiFP.hfexpr) : seq HiFP.hfexpr :=
     match ze with
     | nil => es
@@ -49,41 +50,76 @@ Section ExpandConnectsP.
     | e => e :: es
     end.
 
+  (*update the structure according to expanded expressions*)
+  (*full connection only, connected sub-elements are all the offsets of the original target*)
   Fixpoint upd_expand_expr (v:pvar) (es: seq HiFP.hfexpr) (sv:StructStateP.t) (n:N) :StructStateP.t:=
     match es with
     | nil => sv
     | cons hd tl => upd_expand_expr v tl (StructStateP.upd (fst v, n) (HiFP.r_cnct (nth (HiFP.econst (Fuint 0) [::]) es n)) sv) (N.add n 1%num)
     end.
+
+  (* (*tests*) *)
+  (* Definition p1 : pvar := (N.of_nat 1, N0). *)
+  (* Compute (expand_eref p1 (Atyp (Gtyp (Fuint 5)) 2)). *)
+  (* Definition ec1 := (HiFP.econst (Fuint 1) [::b1]). *)
+  (* Definition ec2 := (HiFP.econst (Fuint 1) [::b0]). *)
+  (* Definition ev1 := HiFP.eref (Eid p1). *)
+  (* Definition cem := CEP.empty (cmpnt_init_typs ProdVarOrder.T * fcomponent). *)
+  (* Definition ce1 := CEP.add p1 (HiFP.aggr_typ (Atyp (Gtyp (Fuint 1)) 3), Wire) cem. *)
+  (* Compute (expand_expr (HiFP.emux ec1 (HiFP.emux ec1 ev1 ev1) (HiFP.emux ec1 ev1 ev1)) ce1 nil). *)
+
+  Fixpoint expand_pcnct_atyp v1 v2 (sv:StructStateP.t) n  :StructStateP.t:=
+    match n with
+    | O => sv
+    | S n' => expand_pcnct_atyp v1 v2 (StructStateP.upd (fst v1, N.add (snd v1) (N.of_nat n')) (HiFP.r_cnct (HiFP.eref (HiFP.eid (fst v2, N.add (snd v2) (N.of_nat n))))) sv) n'
+    end.
+
+  Fixpoint expand_pcnct_btyp (v1 v2: pvar) (t1 t2:ffield) (sv:StructStateP.t) :StructStateP.t:=
+    match t1 with
+    | Fnil => sv
+    | Fflips vb1 f1 tf1 fs1 =>
+        match t2 with
+        | Fnil => sv
+        | Fflips vb2 f2 tf2 fs2 =>
+            if (vb1 == vb2)
+            then expand_pcnct_btyp v1 v2 fs1 fs2 (StructStateP.upd (fst v1, N.add (snd v2) vb1) (HiFP.r_cnct (HiFP.eref (HiFP.eid (fst v2, N.add (snd v2) vb2)))) sv)
+            else expand_pcnct_btyp v1 v2 t1 fs2 sv
+        end
+    end.
+                                     
   
-  Definition p1 : pvar := (N.of_nat 1, N0).
-  Compute (expand_eref p1 (Atyp (Gtyp (Fuint 5)) 2)).
-  Definition ec1 := (HiFP.econst (Fuint 1) [::b1]).
-  Definition ec2 := (HiFP.econst (Fuint 1) [::b0]).
-  Definition ev1 := HiFP.eref (Eid p1).
-  Definition cem := CEP.empty (cmpnt_init_typs ProdVarOrder.T * fcomponent).
-  Definition ce1 := CEP.add p1 (HiFP.aggr_typ (Atyp (Gtyp (Fuint 1)) 3), Wire) cem.
-  Compute (expand_expr (HiFP.emux ec1 (HiFP.emux ec1 ev1 ev1) (HiFP.emux ec1 ev1 ev1)) ce1 nil).
-
-  Fixpoint align_weak_equiv_ftype (t1 t2 : ftype) : ftype :=
+  Definition upd_expand_pcnct_eref v1 v2 (t1 t2:ftype) (sv:StructStateP.t) :StructStateP.t:=
     match t1, t2 with
-    | Gtyp gt1, Gtyp gt2 => t1
-    | Atyp at1 n1, Atyp at2 n2 => Atyp (align_weak_equiv_ftype at1 at2) (minn n1 n2)
-    | Btyp bs1, Btyp bs2 => Btyp (align_weak_equiv_ffields bs1 bs2)
-    | _ , _ => t1
-    end
-  with align_weak_equiv_ffields (bs1 bs2 : ffield) : ffield :=
-         match bs1 with
-         | Fnil => bs1
-         | Fflips v1 f1 tf1 fs1 =>
-             match bs2 with
-             | Fnil => bs1
-             | Fflips v2 f2 tf2 fs2 =>
-                 if (v1 == v2)
-                 then Fflips v1 f1 (align_weak_equiv_ftype tf1 tf2) (align_weak_equiv_ffields fs1 fs2)
-                 else align_weak_equiv_ffields bs1 fs2
-             end
-         end.
-
+    | Gtyp gt1, Gtyp gt2 => StructStateP.upd v1 (HiFP.r_cnct (HiFP.eref (HiFP.eid v2))) sv
+    | Atyp at1 n1, Atyp at2 n2 => expand_pcnct_atyp v1 v2 sv (minn n1 n2)
+    | Btyp bs1, Btyp bs2 => expand_pcnct_btyp v1 v2 bs1 bs2 sv
+    | _, _ => sv
+    end.
+  
+  (* Fixpoint expand_expr_weak_eq (v1 v2:pvar) (ce:CEP.env)(sv:StructStateP.t) (n m:N) :StructStateP.t:= *)
+  (*   let t1 := CEP.find (fst v1, initial_index) ce in *)
+  (*   let t2 := CEP.find (fst v2, initial_index) ce in *)
+  
+  (* Fixpoint align_weak_equiv_ftype (t1 t2 : ftype) : ftype := *)
+  (*   match t1, t2 with *)
+  (*   | Gtyp gt1, Gtyp gt2 => t1 *)
+  (*   | Atyp at1 n1, Atyp at2 n2 => Atyp (align_weak_equiv_ftype at1 at2) (minn n1 n2) *)
+  (*   | Btyp bs1, Btyp bs2 => Btyp (align_weak_equiv_ffields bs1 bs2) *)
+  (*   | _ , _ => t1 *)
+  (*   end *)
+  (* with align_weak_equiv_ffields (bs1 bs2 : ffield) : ffield := *)
+  (*        match bs1 with *)
+  (*        | Fnil => bs1 *)
+  (*        | Fflips v1 f1 tf1 fs1 => *)
+  (*            match bs2 with *)
+  (*            | Fnil => bs1 *)
+  (*            | Fflips v2 f2 tf2 fs2 => *)
+  (*                if (v1 == v2) *)
+  (*                then Fflips v1 f1 (align_weak_equiv_ftype tf1 tf2) (align_weak_equiv_ffields fs1 fs2) *)
+  (*                else align_weak_equiv_ffields bs1 fs2 *)
+  (*            end *)
+  (*        end. *)
+  
   Fixpoint upd_expand_expr_weak_eq (v1 v2:pvar) (es: seq HiFP.hfexpr) (ce : CEP.env) (sv:StructStateP.t) (n:N) :StructStateP.t:=
     match es with
     | nil => sv
@@ -93,24 +129,25 @@ Section ExpandConnectsP.
                         upd_expand_expr v1 tl (StructStateP.upd (fst v1, n) (HiFP.r_cnct (nth (HiFP.econst (Fuint 0) [::]) es n)) sv) (N.add n 1%num)
                     end
     end.
-
-  Fixpoint upd_expand_expr_inv (v:pvar) (es: seq HiFP.hfexpr) (sv:StructStateP.t) (n:N) :StructStateP.t:=
-    match es with
-    | nil => sv
-    | cons hd tl => upd_expand_expr v tl (StructStateP.upd (fst v, n) (HiFP.r_invalid (nth (HiFP.econst (Fuint 0) [::]) es n)) sv) (N.add n 1%num)
-    end.
   
-  Definition expandconnects_stmt (s : HiFP.hfstmt) (ce : CEP.env) (sv : StructStateP.t): StructStateP.t :=
+  Fixpoint expandconnects_stmt (s : HiFP.hfstmt) (ce : CEP.env) (sv : StructStateP.t): StructStateP.t :=
     match s with
     | Sskip => sv
-    | Swire v t => upd_aggr_elements_rdef v ce sv
-    | Sreg v t => upd_aggr_elements_rdef v ce sv
-    | Smem v t => upd_aggr_elements_rdef v ce sv
+    | Swire v t => upd_aggr_elements_rdef v ce HiFP.r_default sv
+    | Sreg v t => upd_aggr_elements_rdef v ce HiFP.r_default sv
+    | Smem v t => upd_aggr_elements_rdef v ce HiFP.r_default sv
     | Snode v e => upd_expand_expr v (expand_expr e ce nil) sv 0
     | Sfcnct (Eid v) e => upd_expand_expr v (expand_expr e ce nil) sv 0
-    | Spcnct (Eid v) e => upd_expand_expr v (expand_expr e ce nil) sv 0
-    | Sinvalid (Eid v) => upd_expand_expr_inv v nil sv 0
+    | Spcnct (Eid v1) (Eref (Eid v2)) => upd_expand_pcnct_eref v1 v2 (type_of_cmpnttyp (CEP.vtyp v1 ce).1) (type_of_cmpnttyp (CEP.vtyp v2 ce).1) sv
+    | Sinvalid (Eid v) => upd_aggr_elements_rdef v ce (HiFP.r_invalid (HiFP.econst (Fuint 0) [::])) sv
+    | Sinst v1 v2 => upd_expand_expr v1 (expand_expr (Eref (Eid v2)) ce nil) sv 0
+    | Swhen c s1 s2 => expandconnects_stmt_seq s2 ce (expandconnects_stmt_seq s1 ce sv)
     | _ => sv
+    end
+      with expandconnects_stmt_seq (ss : HiFP.hfstmt_seq) (ce : CEP.env) (sv : StructStateP.t): StructStateP.t :=
+      match ss with
+      | Qnil => sv
+      | Qcons s sts => expandconnects_stmt_seq sts ce (expandconnects_stmt s ce sv)
     end.
 
   Definition elements_declaration (ce : CEP.env) (sts : HiFP.hfstmt_seq) : HiFP.hfstmt_seq :=
@@ -135,6 +172,24 @@ Section ExpandConnectsP.
                 | (v, R_default') => sts
                 end
     end.
+
+  Definition is_gtyp t := match t with | Gtyp _ => true | _ => false end.
+
+  (* Check the type of all the sub elements connected is ground type *)
+  Inductive expand_connects_stmt_weak_sem : HiFP.hfstmt -> StructStateP.t -> StructStateP.t -> Prop :=
+  | ExpandConnects_fcnct :
+    forall v1 e sv1 sv2 ce n exs,
+      StructStateP.find (fst v1, n) sv2 = Some (HiFP.r_cnct exs) ->
+      is_gtyp (HiFP.type_of_hfexpr exs ce) ->
+      sv2 = expandconnects_stmt (Sfcnct (Eid v1) e) ce sv1 ->
+      expand_connects_stmt_weak_sem (Sfcnct (Eid v1) e) sv1 sv2
+  | ExpandConnects_pcnct :
+    forall v1 e sv1 sv2 ce n exs,
+      StructStateP.find (fst v1, n) sv2 = Some (HiFP.r_cnct exs) ->
+      is_gtyp (HiFP.type_of_hfexpr exs ce) ->
+      sv2 = expandconnects_stmt (Sfcnct (Eid v1) e) ce sv1 ->
+      expand_connects_stmt_weak_sem (Sfcnct (Eid v1) e) sv1 sv2.
+  
 
 End ExpandConnectsP.
     
