@@ -230,13 +230,37 @@ End HiFirrtl.
     | Fnil => true
     end.
 
-  Fixpoint ftype_weak_equiv t1 t2 :=
+  Definition ftype_weak_equiv t1 t2 :=
     match t1, t2 with
     | Gtyp gt1, Gtyp gt2 => fgtyp_equiv gt1 gt2
     | Atyp t1 n1, Atyp t2 n2 => ftype_equiv t1 t2
     | Btyp bt1, Btyp bt2 => fbtyp_weak_equiv bt1 bt2
     | _, _ => false
     end.
+
+(* The definition could perhaps be replaced by something like the following,
+   but this definition is ill-formed.
+  Fixpoint fbtyp_weak_equiv_one (v1 : var) (fp1 : fflip) (t1 : ftype) (b2 : ffield) { struct b2 } : bool :=
+  (* If b2 contains a field named v1, then it is weakly equivalent to fp1 / t1. *)
+  match b2 with
+  | Fnil => true
+  | Fflips v2 fp2 t2 b2_tail =>
+       if v1 == v2 then same_ffilp fp1 fp2 && ftype_weak_equiv t1 t2
+       else fbtyp_weak_equiv_one v1 fp1 t1 b2_tail
+  end
+  with fbtyp_weak_equiv (b1 b2 : ffield) { struct b1 } : bool :=
+    match b1 with
+    | Fflips v1 fp1 t1 fs1 =>
+         fbtyp_weak_equiv_one v1 fp1 t1 b2 && fbtyp_weak_equiv fs1 b2
+    | Fnil => true
+    end
+  with ftype_weak_equiv (t1 t2 : ftype) { struct t1 } : bool :=
+    match t1, t2 with
+    | Gtyp gt1, Gtyp gt2 => fgtyp_equiv gt1 gt2
+    | Atyp t1 n1, Atyp t2 n2 => ftype_weak_equiv t1 t2
+    | Btyp bt1, Btyp bt2 => fbtyp_weak_equiv bt1 bt2
+    | _, _ => false
+    end. *)
 
 (********************************************************************************)
 
@@ -474,22 +498,14 @@ Section Rhs_expr.
   (** eq dec *)
   Lemma rhs_expr_eq_dec : forall {x y : rhs_expr}, {x = y} + {x <> y}.
   Proof.
-    intros x y.
-    elim x; elim y; try (right ; discriminate); try (left ; reflexivity);
-      intros; case Eq: (h == h0);
-      move/eqP: Eq => Eq;
-      try (left; rewrite Eq//).
-    all : right ; injection; auto.
+    decide equality.
+    apply hfexpr_eq_dec.
   Qed.
 
   Lemma rhs_expr_eq_dec' : forall {x y : rhs_expr'}, {x = y} + {x <> y}.
   Proof.
-    intros x y.
-    elim x; elim y; try (right ; discriminate); try (left ; reflexivity);
-      intros; case Eq: (h == h0);
-      move/eqP: Eq => Eq;
-      try (left; rewrite Eq//).
-    all : right ; injection; auto.
+    decide equality.
+    all: apply hfexpr_eq_dec.
   Qed.
 
   Definition rhs_expr_eqn (x y : rhs_expr) : bool :=
@@ -770,7 +786,7 @@ Module MakeHiFirrtl
 
   (** eq dec *)
   Lemma forient_eq_dec : forall {x y : forient}, {x = y} + {x <> y}.
-  Proof. induction x, y ; try (right ; discriminate) ; try (left ; reflexivity). Qed.
+  Proof. decide equality. Qed.
   Definition forient_eqn (x y : forient) : bool :=
   match x, y with Source, Source | Sink, Sink | Duplex, Duplex | Passive, Passive | Other, Other => true
                 | _, _ => false end.
@@ -2006,7 +2022,7 @@ Section Preprocess.
                         end
     end.
   
-  Fixpoint offset_ref r ce n : N :=
+  Definition offset_ref r ce n : N :=
     match r with
     | Eid v => n
     | Esubindex v i => N.of_nat (size_of_ftype (type_of_refS v ce) * (S i))
