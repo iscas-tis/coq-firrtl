@@ -1993,8 +1993,8 @@ Section Preprocess.
   Definition gen_newer_than (g: generator * N) (m : eid_map) :=
     forall v rs, PVM.find v m = Some rs -> N.ltb (fst v) (fst g).
 
-  (* offset of subfiled/subindex recursive to the base ref *)
-  (* type of ref expressions in single index*)
+  (* offset of subfield/subindex recursive to the base ref *)
+  (* type of ref expressions *)
   Fixpoint type_of_refS (r : HiF.href) ce : ftype :=
     match r with
     | Eid v => type_of_cmpnttyp (fst (CE.vtyp v ce))
@@ -2012,7 +2012,7 @@ Section Preprocess.
                        end
     | Esubindex r n => let t := type_of_refS r ce in
                        match t with
-                       | Atyp ty n => ty
+                       | Atyp ty na => if n< na then ty else Gtyp (Fuint 0)
                        | _ => Gtyp (Fuint 0)
                        end
     | Esubaccess r e => let t := type_of_refS r ce in
@@ -2021,32 +2021,43 @@ Section Preprocess.
                         | _ => Gtyp (Fuint 0)
                         end
     end.
+
+  Definition g_typ := Gtyp (Fuint 8).
+  Definition a_typ := Atyp g_typ 3.
+  Definition b_typ := Btyp (Fflips 2%num Nflip g_typ (Fflips 3%num Nflip a_typ Fnil)).
+  Print HiF.aggr_typ.
+  Definition cenv0 := CE.empty (HiF.cmpnt_init_typs * fcomponent).
+  Definition cenv1 := CE.add 1%num (HiF.aggr_typ b_typ, Node) cenv0.
+  Definition eid1 := (HiF.eid 1%num).
+  Definition esf12 := (HiF.esubfield eid1 2%num).
+  Definition esf13 := (HiF.esubfield eid1 3%num).
+  Definition esf130 := HiF.esubindex esf13 0.
+  Definition esf131 := HiF.esubindex esf13 1.
+  Definition esf132 := HiF.esubindex esf13 2.
+  Compute (type_of_refS esf12 cenv1).
+  Compute (type_of_refS esf131 cenv1).
   
-  Definition offset_ref r ce n : N :=
+  Fixpoint offset_ref r ce n : N :=
     match r with
     | Eid v => n
-    | Esubindex v i => N.of_nat (size_of_ftype (type_of_refS v ce) * (S i))
-    | Esubfield v f => let t := type_of_refS r ce in
+    | Esubindex v i => offset_ref v ce n + N.of_nat (S i)
+    | Esubfield v f => let t := type_of_refS v ce in
                        match t with
                        | Btyp fs => let fix aux fx n := 
                          (match fx with
                           | Fflips v' fp t fxs =>
                               if ~~(v' == f) then aux fxs (n + size_of_ftype t)
-                              else n
+                              else n + 1
                           | Fnil => n
                           end ) in N.of_nat (aux fs n)
                        | _ => n
                        end
     | Esubaccess r e => n
     end.
-        
-  (* Fixpoint offset_ref r ce n: N:= *)
-    (* match r with *)
-    (* | Eid v => n *)
-    (* | Esubfield r1 v => offset_ref r1 ce (N.add (N.of_nat (offset_of_subfield (HiF.type_of_hfexpr (HiF.eref r1) ce) v 0)) (N.of_nat n)) *)
-    (* | Esubindex r1 n => offset_ref r1 ce (N.add (N.of_nat (offset_of_subindex (HiF.type_of_hfexpr (HiF.eref r1) ce) n)) (N.of_nat n)) *)
-    (* | _ => 0 *)
-    (* end. *)
+
+  Compute (size_of_ftype b_typ).
+  Compute (offset_ref esf130 cenv1 0).
+  Compute (HiF.base_ref esf12).
 
   Fixpoint expr_pvar (em : eid_map) (ce : CE.env) (h : HiF.hfexpr) : HiFP.hfexpr :=
     match h with
@@ -2059,7 +2070,6 @@ Section Preprocess.
     | Eref r => HiFP.eref (HiFP.eid (HiF.base_ref r, offset_ref r ce 0))
     end.
 
-  (* Parameter rst_pvar : HiF.rst -> HiFP.rst. *) 
   Definition rst_pvar (em : eid_map) (ce : CE.env) (r : HiF.rst) : HiFP.rst :=
     match r with
     | NRst => HiFP.nrst
@@ -2105,8 +2115,8 @@ Section Preprocess.
   (* translate original prog to the one with pvar, subfield/subindex references are represented by pair of ids, e.g. a.b => (a, offset of b) *)
   Fixpoint hfstmt_indexes (* (g : generator) *) (em : eid_map) (ce : CE.env) (h : HiF.hfstmt) : (* generator **) eid_map * CE.env * HiFP.hfstmt :=
     match h with
-    | Swire v t => ((* new_index_gen g t, *) PVM.add (v, initial_index) (HiF.eid v) em, CE.add v (HiF.aggr_typ t, Wire) ce, HiFP.swire (v, initial_index) t)
-    | Sreg v r => ((* new_index_gen g (type r), *) PVM.add (v, initial_index) (HiF.eid v) em, CE.add v (HiF.reg_typ r, Register) ce, HiFP.sreg (v, initial_index) (hfreg_pvar em ce r))
+    | Swire v t => ( PVM.add (v, initial_index) (HiF.eid v) em, CE.add v (HiF.aggr_typ t, Wire) ce, HiFP.swire (v, initial_index) t)
+    | Sreg v r => (PVM.add (v, initial_index) (HiF.eid v) em, CE.add v (HiF.reg_typ r, Register) ce, HiFP.sreg (v, initial_index) (hfreg_pvar em ce r))
     | Smem v m =>
         let '(em', ms') := hfmem_pvar em ce m in
         (PVM.add (v, initial_index) (HiF.eid v) em', CE.add v (HiF.mem_typ m, Memory) ce, HiFP.smem (v, initial_index) ms')
@@ -2124,20 +2134,20 @@ Section Preprocess.
          | Qcons s ss => hfstmt_seq_indexes (fst (fst (hfstmt_indexes em ce s))) (snd (fst (hfstmt_indexes em ce s))) ss
          end.
 
-  (*indexed by nested pair*)
-  Inductive pindex : Type :=
-  | Pid0 : N -> pindex
-  | Pidn : pindex -> N -> pindex.
+  (* (*indexed by nested pair*) *)
+  (* Inductive pindex : Type := *)
+  (* | Pid0 : N -> pindex *)
+  (* | Pidn : pindex -> N -> pindex. *)
 
-  Definition p1 : pindex := Pidn (Pidn (Pid0 0) 0) 0.
+  (* Definition p1 : pindex := Pidn (Pidn (Pid0 0) 0) 0. *)
 
-  Fixpoint eref2pindex (e : HiF.href) : pindex :=
-    match e with
-    | Eid n => Pid0 n
-    | Esubaccess r n => Pidn (eref2pindex r) 0
-    | Esubindex r n => Pidn (eref2pindex r) (N.of_nat n)
-    | Esubfield r n => Pidn (eref2pindex r) n
-    end.
+  (* Fixpoint eref2pindex (e : HiF.href) : pindex := *)
+  (*   match e with *)
+  (*   | Eid n => Pid0 n *)
+  (*   | Esubaccess r n => Pidn (eref2pindex r) 0 *)
+  (*   | Esubindex r n => Pidn (eref2pindex r) (N.of_nat n) *)
+  (*   | Esubfield r n => Pidn (eref2pindex r) n *)
+  (*   end. *)
   
   
   (* A map from paired vars to signle index in N *)
