@@ -19,7 +19,7 @@ circuit ContextNestingTop : @[:@2.0]
 
   module ContextNestingBottom_1 : @[:@20.2]
     input clock : Clock @[:@21.4]
-    input reset2 : UInt<1> @[:@22.4]
+    input reset1 : UInt<1> @[:@22.4]
     input io_in1 : UInt<4> @[:@23.4]
     input io_in2 : UInt<4> @[:@23.4]
     output io_outDefault : UInt<5> @[:@23.4]
@@ -36,7 +36,7 @@ circuit ContextNestingTop : @[:@2.0]
 
   module ContextNestingTop : @[:@36.2]
     input clock : Clock @[:@37.4]
-    input reset3 : UInt<1> @[:@38.4]
+    input reset1 : UInt<1> @[:@38.4]
     input io_in1 : UInt<4> @[:@39.4]
     input io_in2 : UInt<4> @[:@39.4]
     output io_mod1Default : UInt<5> @[:@39.4]
@@ -46,8 +46,8 @@ circuit ContextNestingTop : @[:@2.0]
     output io_mod2Wrap : UInt<5> @[:@39.4]
     output io_mod2Grow : UInt<5> @[:@39.4]
   
-    inst ContextNestingBottom of ContextNestingBottom @[DspContextSpec.scala 107:64:@44.4]
-    inst ContextNestingBottom_1 of ContextNestingBottom_1 @[DspContextSpec.scala 108:64:@48.4]
+    inst ContextNestingBottom aof ContextNestingBottom @[DspContextSpec.scala 107:64:@44.4]
+    inst ContextNestingBottom_1 aof ContextNestingBottom_1 @[DspContextSpec.scala 108:64:@48.4]
     io_mod1Default <= ContextNestingBottom.io_outDefault
     io_mod1Wrap <= ContextNestingBottom.io_outWrap
     io_mod1Grow <= ContextNestingBottom.io_outGrow
@@ -57,8 +57,8 @@ circuit ContextNestingTop : @[:@2.0]
     ContextNestingBottom.io_in1 <= io_in1
     ContextNestingBottom.io_in2 <= io_in2
     ContextNestingBottom.clock <= clock
-    ContextNestingBottom.reset <= reset
+    ContextNestingBottom.reset1 <= reset1
     ContextNestingBottom_1.io_in1 <= io_in1
     ContextNestingBottom_1.io_in2 <= io_in2
     ContextNestingBottom_1.clock <= clock
-    ContextNestingBottom_1.reset <= reset
+    ContextNestingBottom_1.reset1 <= reset1
