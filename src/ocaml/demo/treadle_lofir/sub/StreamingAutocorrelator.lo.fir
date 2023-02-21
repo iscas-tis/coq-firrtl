@@ -1,7 +1,7 @@
 circuit StreamingAutocorrelator : @[:@2.0]
   module TransposedStreamingFIR : @[:@3.2]
     input clock : Clock @[:@4.4]
-    input reset : UInt<1> @[:@5.4]
+    input reset1 : UInt<1> @[:@5.4]
     input io_input : SInt<10> @[:@6.4]
     output io_output : SInt<20> @[:@6.4]
     input io_taps_0 : SInt<10> @[:@6.4]
@@ -30,7 +30,7 @@ circuit StreamingAutocorrelator : @[:@2.0]
 
   module StreamingAutocorrelator : @[:@28.2]
     input clock : Clock @[:@29.4]
-    input reset : UInt<1> @[:@30.4]
+    input reset1 : UInt<1> @[:@30.4]
     input io_input : SInt<10> @[:@31.4]
     output io_output : SInt<20> @[:@31.4]
   
@@ -44,7 +44,7 @@ circuit StreamingAutocorrelator : @[:@2.0]
       reset => (UInt<1>("h0"), delays_4) @[StreamingAutocorrelator.scala 20:22:@42.4]
     reg delays_5 : SInt<10>, clock with :
       reset => (UInt<1>("h0"), delays_5) @[StreamingAutocorrelator.scala 20:22:@44.4]
-    inst firFilter of TransposedStreamingFIR @[StreamingAutocorrelator.scala 28:11:@46.4]
+    inst firFilter aof TransposedStreamingFIR @[StreamingAutocorrelator.scala 28:11:@46.4]
     io_output <= firFilter.io_output
     delays_1 <= io_input
     delays_2 <= delays_1
@@ -56,4 +56,4 @@ circuit StreamingAutocorrelator : @[:@2.0]
     firFilter.io_taps_1 <= delays_4
     firFilter.io_taps_2 <= delays_3
     firFilter.clock <= clock
-    firFilter.reset <= reset
+    firFilter.reset1 <= reset1
