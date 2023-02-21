@@ -799,31 +799,20 @@ Section InferTypeP.
 
   Definition upd_aggr_elements_all (v:pvar) (t: cmpnt_init_typs ProdVarOrder.T * fcomponent) (ce:CEP.env) : CEP.env :=
     let ts := ftype_list_all (type_of_cmpnttyp (fst t)) nil in
-    CEP.add v t (upd_aggr_elements_aux v ts (snd t) ce first_index).
+    CEP.add v t (upd_aggr_elements_aux v ts (snd t) ce initial_index).
   
   Definition ce0 :CEP.env:= CEP.empty (cmpnt_init_typs ProdVarOrder.T * fcomponent).
   Definition agt := HiFP.aggr_typ (Atyp (Btyp (Fflips 5%num Nflip (Gtyp (Fsint 1)) (Fflips 6%num Nflip (Atyp (Gtyp (Fsint 2)) 2) Fnil))) 3).
   Definition tagt := type_of_cmpnttyp agt.
-  Compute tagt. Compute ftype_list_all tagt nil.
-       (* = [:: Atyp *)
-       (*       (Btyp *)
-       (*          (Fflips 5%num Nflip (Gtyp (Fsint 1)) *)
-       (*             (Fflips 6%num Nflip (Atyp (Gtyp (Fsint 2)) 2) Fnil))) 3; *)
-       (*     Btyp *)
-       (*       (Fflips 5%num Nflip (Gtyp (Fsint 1)) *)
-       (*          (Fflips 6%num Nflip (Atyp (Gtyp (Fsint 2)) 2) Fnil));  *)
-       (*    Gtyp (Fsint 1); Atyp (Gtyp (Fsint 2)) 2; Gtyp (Fsint 2);  *)
-       (*    Gtyp (Fsint 2); *)
-       (*     Btyp *)
-       (*       (Fflips 5%num Nflip (Gtyp (Fsint 1)) *)
-       (*          (Fflips 6%num Nflip (Atyp (Gtyp (Fsint 2)) 2) Fnil));  *)
-       (*    Gtyp (Fsint 1); Atyp (Gtyp (Fsint 2)) 2; Gtyp (Fsint 2);  *)
-       (*    Gtyp (Fsint 2); *)
-       (*     Btyp *)
-       (*       (Fflips 5%num Nflip (Gtyp (Fsint 1)) *)
-       (*          (Fflips 6%num Nflip (Atyp (Gtyp (Fsint 2)) 2) Fnil));  *)
-       (*    Gtyp (Fsint 1); Atyp (Gtyp (Fsint 2)) 2; Gtyp (Fsint 2);  *)
-       (*    Gtyp (Fsint 2)] *)
+  Compute tagt. Compute ftype_list_all tagt nil.  
+       (* = [:: Atyp (Btyp (Fflips 5%num Nflip (Gtyp (Fsint 1)) (Fflips 6%num Nflip (Atyp (Gtyp (Fsint 2)) 2) Fnil))) 3; *)
+       (*     Btyp (Fflips 5%num Nflip (Gtyp (Fsint 1)) (Fflips 6%num Nflip (Atyp (Gtyp (Fsint 2)) 2) Fnil)); *)
+       (*     Gtyp (Fsint 1); Atyp (Gtyp (Fsint 2)) 2; Gtyp (Fsint 2); Gtyp (Fsint 2); *)
+       (*     Btyp (Fflips 5%num Nflip (Gtyp (Fsint 1)) (Fflips 6%num Nflip (Atyp (Gtyp (Fsint 2)) 2) Fnil)); *)
+       (*     Gtyp (Fsint 1); Atyp (Gtyp (Fsint 2)) 2; Gtyp (Fsint 2); Gtyp (Fsint 2); *)
+       (*     Btyp (Fflips 5%num Nflip (Gtyp (Fsint 1)) (Fflips 6%num Nflip (Atyp (Gtyp (Fsint 2)) 2) Fnil)); *)
+       (*     Gtyp (Fsint 1); Atyp (Gtyp (Fsint 2)) 2; Gtyp (Fsint 2); Gtyp (Fsint 2)] *)
+
   Definition uagt := upd_aggr_elements_aux (10%num, N0) (ftype_list tagt nil) Node ce0 1%num.
   Compute CEP.vtyp (10%num , 7%num) uagt.
   Definition uagt1 := upd_aggr_elements (10%num, N0) (agt, Node) ce0.
