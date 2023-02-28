@@ -1202,10 +1202,12 @@ Proof.
       | Gtyp (Fuint w1), Gtyp (Fuint w2) => (Gtyp (Fuint (maxn w1 w2)))
       | Gtyp (Fsint w1), Gtyp (Fsint w2) => (Gtyp (Fsint (maxn w1 w2)))
       | Gtyp Fclock, Gtyp Fclock => (Gtyp Fclock)
+      | Gtyp Freset, Gtyp Freset => Gtyp Freset
+      | Gtyp Fasyncreset, Gtyp Fasyncreset => Gtyp Fasyncreset
       | Atyp t1 n1, Atyp t2 n2 => if n1 == n2 then (Atyp (mux_types t1 t2) n1)
                                   else def_ftype
       | Btyp bs1, Btyp bs2 => match mux_btyps bs1 bs2 with
-                              | Fnil => def_ftype
+                              | Fnil => Btyp Fnil
                               | t => Btyp t
                               end
       | _, _ => def_ftype
@@ -1216,6 +1218,10 @@ Proof.
          | Fflips v1 Nflip t1 fs1, Fflips v2 Nflip t2 fs2 =>
            if v1 == v2 then
              (Fflips v1 Nflip (mux_types t1 t2) (mux_btyps fs1 fs2))
+           else Fnil
+         | Fflips v1 Flipped t1 fs1, Fflips v2 Flipped t2 fs2 =>
+             if v1 == v2 then
+             (Fflips v1 Flipped (mux_types t1 t2) (mux_btyps fs1 fs2))
            else Fnil
          | _, _ => Fnil
     end.
@@ -1734,10 +1740,12 @@ Module MakeHiFirrtlP
       | Gtyp (Fuint w1), Gtyp (Fuint w2) => (Gtyp (Fuint (maxn w1 w2)))
       | Gtyp (Fsint w1), Gtyp (Fsint w2) => (Gtyp (Fsint (maxn w1 w2)))
       | Gtyp Fclock, Gtyp Fclock => (Gtyp Fclock)
+      | Gtyp Freset, Gtyp Freset => Gtyp Freset
+      | Gtyp Fasyncreset, Gtyp Fasyncreset => Gtyp Fasyncreset
       | Atyp t1 n1, Atyp t2 n2 => if n1 == n2 then (Atyp (mux_types t1 t2) n1)
                                   else def_ftype
       | Btyp bs1, Btyp bs2 => match mux_btyps bs1 bs2 with
-                              | Fnil => def_ftype
+                              | Fnil => Btyp Fnil
                               | t => Btyp t
                               end
       | _, _ => def_ftype
@@ -1748,6 +1756,10 @@ Module MakeHiFirrtlP
          | Fflips v1 Nflip t1 fs1, Fflips v2 Nflip t2 fs2 =>
            if v1 == v2 then
              (Fflips v1 Nflip (mux_types t1 t2) (mux_btyps fs1 fs2))
+           else Fnil
+         | Fflips v1 Flipped t1 fs1, Fflips v2 Flipped t2 fs2 =>
+             if v1 == v2 then
+             (Fflips v1 Flipped (mux_types t1 t2) (mux_btyps fs1 fs2))
            else Fnil
          | _, _ => Fnil
     end.
@@ -1928,6 +1940,21 @@ Module MakeHiFirrtlP
                       mux_types t1 t2
     | Evalidif c e1 => type_of_hfexpr e1 ce
     end.
+  
+  Fixpoint is_deftyp t :=
+    match t with
+    | Gtyp (Fsint 0)
+    | Gtyp (Fuint 0) => true
+    | Atyp tn _ => is_deftyp tn
+    | Btyp Fnil => true
+    | Btyp bt => is_deftyp_f bt
+    | _ => false
+    end
+  with is_deftyp_f bt :=
+         match bt with
+         | Fnil => false
+         | Fflips v f tv fs => is_deftyp tv || (is_deftyp_f fs)
+         end.
 
   
 End MakeHiFirrtlP.

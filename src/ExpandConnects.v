@@ -79,12 +79,19 @@ Section ExpandConnectsP.
     | cons hd tl => upd_expand_expr v tl (StructStateP.upd (fst v, n) (HiFP.r_cnct (nth (HiFP.econst (Fuint 0) [::]) es n)) sv) (N.add n 1%num)
     end.
 
-  Fixpoint expand_fcnct_stmts (v:pvar) (es: seq HiFP.hfexpr) (sts : HiFP.hfstmt_seq) n : HiFP.hfstmt_seq :=
-    match es with
-    | nil => sts
-    | cons e ess => expand_fcnct_stmts v ess (HiFP.qcons (HiFP.sfcnct (HiFP.eid (v.1, N.of_nat n)) e) sts) (n-1)
-    end.
+  (* Fixpoint expand_fcnct_stmts (v:pvar) (es: seq HiFP.hfexpr) (sts : HiFP.hfstmt_seq) n : HiFP.hfstmt_seq := *)
+  (*   match es with *)
+  (*   | nil => sts *)
+  (*   | cons e ess => expand_fcnct_stmts v ess (HiFP.qcons (HiFP.sfcnct (HiFP.eid (v.1, N.of_nat n)) e) sts) (n-1) *)
+  (*   end. *)
 
+  Fixpoint upd_expand_expr' (es: seq (HiFP.hfexpr * HiFP.hfexpr)) (sv:StructStateP.t) :StructStateP.t:=
+    match es with
+    | nil => sv
+    | cons (Eref (Eid l), r) tl => upd_expand_expr' tl (StructStateP.upd l (HiFP.r_cnct r) sv)
+    | cons _ tl => upd_expand_expr' tl sv
+    end.
+  
   (*tests*)
   Definition p1 : pvar := (N.of_nat 1, N0).
   Definition cem := CEP.empty (cmpnt_init_typs ProdVarOrder.T * fcomponent).
@@ -96,7 +103,10 @@ Section ExpandConnectsP.
   Compute (CEP.find (1%num, 0%num) ce1).
   Compute (expand_eref (1%num, 0%num) ce1).
   Compute es1.
-  Compute (expand_fcnct_stmts p1 es1 HiFP.qnil) (size es1).
+  Definition sv0 := StructStateP.empty.
+  Definition sv1 := (upd_expand_expr' (zip (expand_eref (1%num, 0%num) ce1) es1) sv0).
+  Compute (StructStateP.find (1%num, 2%num) sv1).
+  (* Compute (expand_fcnct_stmts p1 es1 HiFP.qnil) (size es1). *)
   
   Fixpoint expand_pcnct_atyp v1 v2 (sv:StructStateP.t) n  :StructStateP.t :=
     match n with
@@ -170,7 +180,7 @@ Section ExpandConnectsP.
     | Sreg _ _
     | Smem _ _ 
     | Snode _ _ => sts
-    | Sfcnct (Eid v) e => Qcat (element_connection (upd_expand_expr v (expand_expr e ce nil) sv (N.of_nat (size (expand_expr e ce nil)))) sts) sts
+    | Sfcnct (Eid v) e => Qcat (element_connection (upd_expand_expr' (zip (expand_eref v ce) (expand_expr e ce nil)) sv) sts) sts
     | Spcnct (Eid v1) (Eref (Eid v2)) => Qcat (element_connection (upd_expand_pcnct_eref v1 v2 (type_of_cmpnttyp (CEP.vtyp v1 ce).1) (type_of_cmpnttyp (CEP.vtyp v2 ce).1) sv) sts) sts
     | Sinvalid (Eid v) => Qcat (element_connection (upd_aggr_elements_rdef v ce (HiFP.r_invalid (HiFP.econst (Fuint 0) [::])) sv) sts) sts
     | Sinst v1 v2 => sts
@@ -353,7 +363,7 @@ Section ExpandConnectsP.
       is_gtyp (HiFP.mux_types t1 t2).
   Proof.
     elim; try done.
-    elim; try done; [intro|intro|]; elim; try done; elim; try done.
+    elim; try done; [intro|intro| | |]; elim; try done; elim; try done.
   Qed.
     
   (* expanding emux results in a list of expressions of ground types*) Print expand_emux.
@@ -471,6 +481,221 @@ Section ExpandConnectsP.
       intros; by apply expand_ref_expr_ground_ftype.
   Qed.
 
+  Lemma size_expand_emux :
+    forall z h se,
+      size (expand_emux h z se) = size se + size z.
+  Proof.
+    elim. intros; rewrite /= addn0//.
+    intros. rewrite/=.
+    case a; intros.
+    rewrite expand_emux_rcons/= seq.size_cat/= addnS (H h nil) /= add0n addnS//.
+  Qed.
+
+  Lemma size_mux_types :
+    forall h0 h1 ce,
+      size (ftype_list (HiFP.mux_types (HiFP.type_of_hfexpr h0 ce) (HiFP.type_of_hfexpr h1 ce)) [::])
+      = maxn (size (ftype_list (HiFP.type_of_hfexpr h0 ce) nil)) (size (ftype_list (HiFP.type_of_hfexpr h1 ce) nil)).
+  Proof. Admitted.
+
+  Lemma ftype_equiv_mux_l :
+    forall a1 a2,
+      ftype_equiv a1 a2 ->
+      ftype_equiv (HiFP.mux_types a1 a2) a1
+  with ftype_equiv_mux_l_btyps :
+         forall bs1 bs2,
+           fbtyp_equiv bs1 bs2 ->
+           fbtyp_equiv (HiFP.mux_btyps bs1 bs2) bs1.
+  Proof.
+    elim => [g1|a1 Hn n12|b1]; elim => [g2|a2 Hm n22|b2]; rewrite /=//.
+    - case g1 => [tg1|tg1| | |]; case g2 => [tg2|tg2| | |]; rewrite /=//.
+    - move /andP => [Heq Hfeq]; rewrite Heq /= eq_refl andTb Hn//.
+    - move => Haux. move : (ftype_equiv_mux_l_btyps _ _ Haux).
+      case b1 => [|v1 f1 t1 fs1]; case b2 => [|v2 f2 t2 fs2]; rewrite /=//.
+      + case f1; rewrite //.
+      + case f1; case f2; rewrite //; case (v1 == v2); rewrite/=//.
+
+    elim => [|v1 f1 t1 fs1 Hn]; elim => [|v2 f2 t2 fs2 Hm]; rewrite /=//.
+    - case f1; rewrite /=//.
+    - case f1; case f2;
+        rewrite //;
+          case (v1 == v2); rewrite/=//;
+                             move /andP => [Hfeq Hfbeq]; rewrite (Hn fs2 Hfbeq) eq_refl (ftype_equiv_mux_l t1 t2 Hfeq)//.
+  Qed.
+      
+  Lemma ftype_equiv_mux_l_hfexpr :
+    forall e1 e2 c ce,
+      ftype_equiv (HiFP.type_of_hfexpr e1 ce) (HiFP.type_of_hfexpr e2 ce) ->
+      ftype_equiv (HiFP.type_of_hfexpr (HiFP.emux c e1 e2) ce) (HiFP.type_of_hfexpr e1 ce).
+  Proof.
+    intros. rewrite /=.
+    exact : (ftype_equiv_mux_l (HiFP.type_of_hfexpr e1 ce) (HiFP.type_of_hfexpr e2 ce) H).
+  Qed.
+
+  Lemma ftype_equiv_mux_not_def :
+    forall a1 a2,
+      ~~ HiFP.is_deftyp a1 -> ~~ HiFP.is_deftyp a2 -> 
+      ftype_equiv (HiFP.mux_types a1 a2) a1 \/ ftype_equiv .
+  Proof.
+    
+    
+  Lemma size_expand_eref :
+    forall r t c ce ,
+      CEP.find r ce = Some (t, c) ->
+      size (expand_eref r ce) = size (ftype_list (type_of_cmpnttyp t) nil).
+  Proof.
+  Admitted.
+
+  Lemma ftype_equiv_ftype_list_len_ss :
+    forall t1 t2,
+      ftype_equiv t1 t2 -> size (ftype_list t1 nil) = size (ftype_list t2 nil).
+  Proof.
+  Admitted.
+  
+  Lemma size_expand_expr :
+    forall e ce ,
+      size (expand_expr e ce nil) = size (ftype_list (HiFP.type_of_hfexpr e ce) nil).
+  Proof.
+    elim; try done.
+    - (*ucast*)
+      intros u h; case u; rewrite /=; intros; case (HiFP.type_of_hfexpr h ce); try done; intro f; case f; done.
+    - (*unary*)
+      intros e h; case e; rewrite /=; intros; case (HiFP.type_of_hfexpr h ce); try done; intro f; case f; try done.
+      + intros; case (n < n0); rewrite //.
+      + intros; case (n < n0); rewrite //.
+      + intros; case (n0 <= n < n1); rewrite //.
+      + intros; case (n0 <= n < n1); rewrite //.
+      + intros; case (n <= n0); rewrite //.
+      + intros; case (n <= n0); rewrite //.
+      + intros; case (n <= n0); rewrite //.
+      + intros; case (n <= n0); rewrite //.
+    - (*binary*)
+      + intros e h; case e; rewrite/=; intros; case (HiFP.type_of_hfexpr h ce); case (HiFP.type_of_hfexpr h0 ce); try done; intros; case f; case f0; try done.
+    - (*mux*)
+      intros; rewrite/= size_expand_emux add0n/=.
+      rewrite size_mux_types -(H0 ce) -(H1 ce) size_extzip//.
+    - (*valid*)
+      intros h H.
+      elim; intros; try done; try (rewrite -(H1 ce)//).
+      rewrite/=; case e; case (HiFP.type_of_hfexpr h0 ce); intros; try done; case f; intros; try done; case (HiFP.type_of_hfexpr h1 ce); intros; case f0; intros; done.
+  Admitted.
+
+  Lemma expand_emux_1 :
+    forall c e1 e2 g ce,
+      (HiFP.mux_types (HiFP.type_of_hfexpr e1 ce) (HiFP.type_of_hfexpr e2 ce))= Gtyp g ->
+      (expand_emux c
+          (extzip (HiFP.econst (Fuint 0) [::]) (HiFP.econst (Fuint 0) [::]) (expand_expr e1 ce [::])
+             (expand_expr e2 ce [::])) [::])
+       = [::HiFP.emux c e1 e2].
+  Proof.
+  Admitted.
+
+  Lemma gtyp_expand_expr_1 :
+    forall e ce,
+      is_gtyp (HiFP.type_of_hfexpr e ce) ->
+      expand_expr e ce nil = [::e].
+  Proof.
+  Admitted.
+
+  Lemma type_of_ucast_gtyp :
+    forall u e ce,
+      is_gtyp (HiFP.type_of_hfexpr (HiFP.ecast u e) ce).
+  Proof.
+    elim; intros; rewrite /=; case (HiFP.type_of_hfexpr e ce); intros; try done.
+    case f; done. case f; done.
+  Qed.
+
+  Lemma type_of_unop_gtyp :
+    forall u e ce,
+      is_gtyp (HiFP.type_of_hfexpr (HiFP.eprim_unop u e) ce).
+  Proof.
+    elim; intros; rewrite /=; case (HiFP.type_of_hfexpr e ce); intros; try done;
+      case f; try done; intros.
+    intros; case (n < n0); rewrite //.
+    intros; case (n < n0); rewrite //.
+    intros; case (n0 <= n < n1); rewrite //.
+    intros; case (n0 <= n < n1); rewrite //.
+    intros; case (n <= n0); rewrite //.
+    intros; case (n <= n0); rewrite //.
+    intros; case (n <= n0); rewrite //.
+    intros; case (n <= n0); rewrite //.
+  Qed.
+
+  Lemma type_of_binop_gtyp :
+    forall u e1 e2 ce,
+      is_gtyp (HiFP.type_of_hfexpr (HiFP.eprim_binop u e1 e2) ce).
+  Proof.
+    elim; intros; rewrite/=; case He1 : (HiFP.type_of_hfexpr e1 ce) => [g||]; try done; case He2 :( HiFP.type_of_hfexpr e2 ce) => [g2||]; case g; try done; intros; case g2; try done.
+  Qed.
+    
+  Lemma ftype_equiv_is_gtyp_ss :
+    forall t1 t2,
+      ftype_equiv t1 t2 -> is_gtyp t1 -> is_gtyp t2.
+  Proof.
+    elim; intros f; try discriminate.
+    elim; try done.
+  Qed.
+    
+  Lemma ftype_equiv_all2 :
+    forall e1 e2 ce,
+      ftype_equiv (HiFP.type_of_hfexpr e1 ce) (HiFP.type_of_hfexpr e2 ce) ->
+      all2 (fun a b => ftype_equiv (HiFP.type_of_hfexpr a ce) (HiFP.type_of_hfexpr b ce)) (expand_expr e1 ce nil) (expand_expr e2 ce nil).
+  Proof.
+    intros. rewrite all2E.
+    rewrite !size_expand_expr.
+    rewrite (ftype_equiv_ftype_list_len_ss _ _ H) eq_refl andTb.
+    move : ce H.
+    elim : e1; intros.
+    - rewrite /= in H; move : H. case Ht2 : (HiFP.type_of_hfexpr e2 ce) => [g||]; try done.
+      have Hg : (is_gtyp (HiFP.type_of_hfexpr e2 ce)) by rewrite Ht2.
+      rewrite (gtyp_expand_expr_1 e2 ce Hg)/=; intro; rewrite Ht2 H//.
+    - move : (gtyp_expand_expr_1 _ _ (ftype_equiv_is_gtyp_ss _ _ H0 (type_of_ucast_gtyp u h ce))) => He.
+      move : (gtyp_expand_expr_1 _ _ (type_of_ucast_gtyp u h ce)) => Hg.
+      rewrite (lock HiFP.type_of_hfexpr) He Hg/= -lock H0//.
+    - move : (gtyp_expand_expr_1 _ _ (ftype_equiv_is_gtyp_ss _ _ H0 (type_of_unop_gtyp e h ce))) => He.
+      move : (gtyp_expand_expr_1 _ _ (type_of_unop_gtyp e h ce)) => Hg.
+      rewrite (lock HiFP.type_of_hfexpr) He Hg/= -lock H0//.
+    - move : (gtyp_expand_expr_1 _ _ (ftype_equiv_is_gtyp_ss _ _ H1 (type_of_binop_gtyp e h h0 ce))) => He.
+      move : (gtyp_expand_expr_1 _ _ (type_of_binop_gtyp e h h0 ce)) => Hg.
+      rewrite (lock HiFP.type_of_hfexpr) He Hg/= -lock H1//.
+    (* - rewrite /= in H. rewrite /= H//. *)
+    (* - move : H0; case u; rewrite /=; intros; rewrite H0//. *)
+    (* - move : H0; case e; rewrite /=; intros; try rewrite H0//. *)
+    (* - move : H1; case e; rewrite /=; intros; try rewrite H1//. *)
+    - 
+      move : H2; rewrite /=.
+      
+      case Hm: (HiFP.mux_types (HiFP.type_of_hfexpr h0 ce) (HiFP.type_of_hfexpr h1 ce)) => [gt||]; try done.
+      rewrite (expand_emux_1 h h0 h1 gt ce Hm). Hm. H2//.
+    - move : H1; rewrite /=.
+      
+  Admitted.
+      
+  Lemma expand_expr_ftype_equiv :
+    forall v t c e ce ,
+      CEP.find v ce = Some (t, c) ->
+      ftype_equiv (type_of_cmpnttyp t) (HiFP.type_of_hfexpr e ce) ->
+      (* zes = (zip (expand_eref v ce) (expand_expr e ce nil))-> *)
+      all2 (fun a b => ftype_equiv (HiFP.type_of_hfexpr a ce) (HiFP.type_of_hfexpr b ce)) (expand_eref v ce) (expand_expr e ce nil).
+  Proof.
+    intros v t c e ce Hf Hteq. rewrite all2E.
+    rewrite /=.
+    rewrite size_expand_expr (size_expand_eref v t c ce Hf) (ftype_equiv_ftype_list_len_ss _ _ Hteq) eq_refl andTb.
+    move : Hteq.
+
+    rewrite zip_nil//.
+    case H
+
+    
+    elim : (expand_eref v ce) (expand_expr e ce [::]); try done.
+    intros.
+    rewrite/= zip_nil//. 
+    intros a l Hn. 
+    elim; first done.
+    intros a0 l0 Hm Hfeq. rewrite /=.
+    rewrite (Hn l0 Hfeq) andbT.
+    
+
+    
   Lemma upd_expand_expr_ground_ftype :
     forall se1 ce,
       forallb (fun ex => is_gtyp (HiFP.type_of_hfexpr ex ce)) se1 ->
