@@ -1,5 +1,5 @@
 
-From Coq Require Import Arith ZArith OrderedType.
+From Coq Require Import Arith ZArith OrderedType Lia.
 From mathcomp Require Import ssreflect ssrbool ssrnat ssralg ssrfun choice eqtype.
 From simplssrlib Require Import Types SsrOrder Nats.
 
@@ -52,12 +52,16 @@ Section PositiveEqType.
 
   Definition pos_eqMixin := EqMixin pos_eqP.
   Definition pos_countMixin := CountMixin pos_count.
-  Definition pos_choiceMixin := CountChoiceMixin pos_countMixin.
+  Definition pos_choiceMixin := CountChoiceMixin pos_countMixin. 
   Canonical pos_eqType := Eval hnf in EqType positive pos_eqMixin.
   Canonical pos_choiceType := Eval hnf in ChoiceType positive pos_choiceMixin.
   Canonical pos_countType := Eval hnf in CountType positive pos_countMixin.
 
 End PositiveEqType.
+
+From mathcomp Require Import fintype.
+Print seq_sub.
+
 
 Notation "m <=? n <=? p" :=
   ((m <=? n) && (n <=? p))%positive (at level 70, n at next level) : positive_scope.
@@ -241,6 +245,11 @@ Section NEqType.
   Canonical N_countType := Eval hnf in CountType N N_countMixin.
 
 End NEqType.
+
+
+Definition to_fin (vs : list N) := seq_sub vs.
+Compute (to_fin (cons N0 nil)).
+
 
 Notation "m <=? n <=? p" :=
   ((m <=? n) && (n <=? p))%num (at level 70, n at next level) : N_scope.
@@ -775,7 +784,7 @@ Section ZLemmas.
     0 <= x < p -> 0 <= y < p -> (x * y) / p < p.
   Proof.
     move=> [Hx1 Hx2] [Hy1 Hy2].
-    have: 0 < p by omega.
+    have: 0 < p by lia.
     move=> Hp.
     exact: (Zdiv_lt_upper_bound (x * y) p p Hp (Z.mul_lt_mono_nonneg _ _ _ _ Hx1 Hx2 Hy1 Hy2)) => H.
   Qed.
