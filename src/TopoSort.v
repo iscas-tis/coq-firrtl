@@ -2,7 +2,7 @@ From mathcomp Require Import ssreflect ssrbool ssrnat eqtype seq.
 
 Section TopoSort.
 
-Variable node : eqType.
+Context {node : eqType}.
 Variable vertices : seq node.
 Variable g : node -> seq node.
 
@@ -67,35 +67,16 @@ and that it *only* returns Cycle _ if the graph is not acyclic. *)
 Fixpoint respects_topological_order (v : seq node) : bool :=
 match v with
 | [::] => true
-| a :: tail => subset (g a) tail && respects_topological_order tail
+| a :: tail => subset (g a) tail && (a \notin tail) && respects_topological_order tail
 end.
-
-Local Lemma in_cat : forall (T : eqType) (a : T) (s t : seq T), (a \in s ++ t) = (a \in s) || (a \in t).
-Proof.
-induction s.
-* intro.
-  rewrite cat0s in_nil.
-  reflexivity.
-* intro.
-  rewrite cat_cons.
-  destruct (a == a0) eqn: Ha.
-  + rewrite in_cons in_cons Ha.
-    reflexivity.
-  + rewrite in_cons in_cons Ha.
-    unfold orb.
-    apply IHs.
-Qed.
 
 Local Lemma subset_cat : forall (s t : seq node), subset s (t ++ s) = true.
 Proof.
 induction s.
 * unfold subset ; reflexivity.
 * intro.
-  unfold subset.
-  rewrite in_cat in_cons eq_refl orbT.
-  unfold andb at 1.
-  fold subset.
-  rewrite <- cat1s, catA.
+  unfold subset ; fold subset.
+  rewrite mem_cat mem_head orbT andTb -cat1s catA.
   apply IHs.
 Qed.
 
@@ -103,7 +84,7 @@ Lemma subset_cons_cons : forall (x : node) (s t : seq node), subset s t -> subse
 Proof.
 induction s.
 + intros ; unfold subset.
-  rewrite in_cons eq_refl orTb andTb ; trivial.
+  rewrite mem_head ; trivial.
 + unfold subset at 1 ; fold subset ; intros.
   move /andP : H => [Ha Hs].
   unfold subset ; fold subset.
@@ -116,6 +97,13 @@ Proof.
 intro.
 rewrite <- cat0s at 2.
 apply subset_cat.
+Qed.
+
+Lemma subset_nil : forall (s : seq node), subset s [::] -> s = [::].
+Proof.
+destruct s.
+* intro ; reflexivity.
+* unfold subset ; rewrite in_nil andFb ; done.
 Qed.
 
 (*
@@ -146,13 +134,12 @@ induction s.
 * rewrite in_cons.
   unfold subset ; fold subset.
   intros.
-  move /orP : H => H.
   move /andP : H0 => H0.
-  destruct H.
+  move /orP : H => [H|H].
   + move /eqP : H => H ; rewrite H ; apply H0.
   + apply IHs.
-    apply H.
-    apply H0.
+    - apply H.
+    - apply H0.
 Qed.
 
 Lemma subset_trans : forall (s t u : seq node),
@@ -174,164 +161,47 @@ induction s.
     - exact H0.
 Qed.
 
-(*
-Lemma take_subset : forall (i : nat) (s t : seq node),
-   subset s t -> subset (take i s) t.
+Local Lemma respects_topological_order_gx :
+   forall (v : seq node) (x : node),
+      respects_topological_order v -> x \in v -> subset (g x) v.
 Proof.
-induction i, s;
-      try (intros ;
-           unfold take, subset ;
-           done).
-intro.
-replace (take i.+1 (s :: s0)) with (s :: take i s0).
-unfold subset.
-fold subset.
-intro.
-move /andP : H => H.
-apply rwP with (P := (s \in t) /\ subset (take i s0) t).
-exact andP.
-split. 
-apply H.
-apply IHi.
-apply H.
-reflexivity.
-Qed.
-*)
-
-Fixpoint reachable' (n : nat) (root : node) (already_found : seq node) : seq node :=
-   if n is S n'
-   then foldr (reachable' n')
-              (if root \in already_found then already_found else root :: already_found)
-              (g root)
-   else (* root :: *) already_found.
-
-Lemma reachable'_subset :
-   forall (n k : nat) (l m : seq node) (root : node),
-      n <= k -> (subset l m) ->
-         subset (reachable' n root l) (reachable' k root m).
-Proof.
-induction n.
-* intros ; unfold reachable' at 1.
-  clear H.
-  move : root l m H0.
-  induction k.
-  + intros.
-    exact H0.
-  + unfold reachable' ; fold reachable'.
-    intro ; induction (g root).
-    - intros ; unfold foldr.
-      destruct (root \in m) ; try apply H0.
-      apply subset_trans with (t := m) ; try apply H0.
-      rewrite <- cat1s ; apply subset_cat.
-    - intros.
-      replace (foldr (reachable' k)
-                     (if root \in m then m else root :: m)
-                     (a :: l))
-      with (reachable' k a
-              (foldr (reachable' k)
-                     (if root \in m then m else root :: m)
-                     l))
-      by reflexivity.
-      apply IHk, IHl, H0.
-* intros.
-  rewrite <- ltn_predK with (m := n) (n := k) ; try apply H.
-  unfold reachable' ; fold reachable'.
-  induction (g root).
-  + unfold foldr.
-    destruct (root \in l) eqn: Hroot_in_l.
-    - replace ((root \in l) = true) with (is_true (root \in l)) in Hroot_in_l by reflexivity.
-      apply in_subset_trans with (t := m) in Hroot_in_l ; try apply H0.
-      rewrite Hroot_in_l ; apply H0.
-    - destruct (root \in m) eqn: Hroot_in_m.
-      * unfold subset ; rewrite Hroot_in_m andTb ; exact H0.
-      * unfold subset ; fold subset.
-        rewrite in_cons eq_refl orTb andTb.
-        apply subset_trans with (t := m) ; try apply H0.
-        rewrite <- cat1s ; apply subset_cat.
-  + replace (foldr (reachable' n)
-                   (if root \in l then l else root :: l)
-                   (a :: l0))
-    with (reachable' n a
-            (foldr (reachable' n)
-                   (if root \in l then l else root :: l)
-                   l0))
-    by reflexivity.
-    replace (foldr (reachable' k.-1)
-                   (if root \in m then m else root :: m)
-                   (a :: l0))
-    with (reachable' k.-1 a
-            (foldr (reachable' k.-1)
-                   (if root \in m then m else root :: m)
-                   l0))
-    by reflexivity.
-    apply IHn, IHl0.
-    rewrite <- ltn_predK with (m := n) (n := k) in H ; apply H.
+induction v.
+* intro ; rewrite in_nil ; done.
+* intro ; rewrite in_cons.
+  intros.
+  apply subset_trans with (t := v).
+  + move : H => /andP [/andP [H H1] H2].
+    fold respects_topological_order in H2.
+    destruct (eqVneq x a).
+    - rewrite e ; exact H.
+    - apply IHv ; done.
+  + rewrite -cat1s subset_cat ; trivial.
 Qed.
 
-(*
-Lemma reachable'_correct :
-   forall (x : node) (n : nat) (already_found : seq node) (root : node),
-         subset already_found (reachable' n root already_found)
-      /\ (* reachable' ... root only contains successors of root *)
-         (x \in reachable' n root already_found ->
-             x == root \/ x \in already_found \/
-             exists y : node, y \in reachable' n root already_found /\ x \in g y)
-      /\ (* reachable' ... root contains all successors of root. *)
-         ((exists p : seq node, path_from x p /\ size p <= n /\ last x p == root) ->
-             x \in reachable' n root already_found).
-Proof.
-intros.
-induction n.
-* unfold reachable'.
-  destruct (root \in already_found) eqn: Hroot_in_already_found.
-  + split ; try apply subset_refl.
-    split.
-    - intro ; rewrite H.
-      right ; left ; trivial.
-    - intro ; destruct H ; destruct H ; destruct H0.
-      rewrite leqn0 in H0 ; move /eqP : H0 => H0.
-      apply size0nil in H0.
-      rewrite H0 in H1 ; unfold last in H1 ; move /eqP : H1 => H1.
-      rewrite H1 Hroot_in_already_found ; trivial.
-  + split ; try apply subset_refl.
-    split.
-    - intro.
-      rewrite in_cons in H ; move /orP : H => H.
-      destruct H.
-      * left ; rewrite H ; trivial.
-      * right ; left ; rewrite H ; trivial.
-    - intro ; destruct H ; destruct H ; destruct H0.
-      rewrite leqn0 in H0 ; move /eqP : H0 => H0.
-      apply size0nil in H0.
-      rewrite H0 in H1 ; unfold last in H1 ; move /eqP : H1 => H1.
-      rewrite H1 in_cons eq_refl orTb ; trivial.
--- not sure whether I actually need this --
-Admitted.
-
-Definition reachable (root : node) : seq node :=
-   reachable' (size vertices) root [::].
-
-Definition reachable_seq (roots : seq node) : seq node :=
-   foldr (reachable' (size vertices)) [::] roots.
-*)
+Definition disjoint (s t : seq node) :=
+   forall (x : node), (x \notin s) || (x \notin t).
 
 Theorem topo_tree_correct :
    forall (n : nat) (gray_nodes already_found : seq node) (root : node),
       size vertices <= size gray_nodes + n ->
       subset gray_nodes vertices ->
+      subset already_found vertices ->
+      disjoint gray_nodes already_found ->
       root \in vertices ->
       path_from root gray_nodes ->
       respects_topological_order already_found ->
          match topo_tree n gray_nodes root (Some already_found) with
-         | Some result => subset (reachable' n root already_found) result /\
-                          subset result (reachable' n root already_found) /\
+         | Some result => subset already_found result /\
+                          disjoint gray_nodes result /\
+                          root \in result /\
+                          subset result vertices /\
                           respects_topological_order result
          | Cycle _ => ~graph_acyclic
          | _ => False
          end.
 Proof.
 induction n.
-* intros gray_nodes already_found root Hn Hgray_nodes_ok Hroot_ok Hpath_ok Halready_found_ok.
+* intros gray_nodes already_found root Hn Hgray_nodes_closed Halready_found_closed Hdisjoint Hroot_ok Hpath_ok Halready_found_ok.
   rewrite addn0 in Hn.
   unfold topo_tree.
   (* we prove that root \in gray_nodes, through the following steps:
@@ -376,13 +246,10 @@ induction n.
             induction q.
             * rewrite in_nil in H0 ; done.
             * rewrite in_cons in H0.
-              move /orP : H0 => H0.
-              destruct H0.
+              move /orP : H0 => [H0|H0].
               + move /eqP : H0 => H0.
                 apply negbTE in H.
-                rewrite rem_cons eq_sym.
-                rewrite <- H0.
-                rewrite H in_cons eq_refl orTb ; trivial.
+                rewrite rem_cons eq_sym -H0 H mem_head ; trivial.
               + rewrite rem_cons.
                 destruct (a0 == b) ; try exact H0.
                 rewrite in_cons.
@@ -404,22 +271,21 @@ induction n.
             rewrite in_cons i orFb Ha andTb.
             apply IHq, Hb.
   assert (Hvertices_in_gray_nodes : subset vertices gray_nodes).
-         clear -Hn Hgray_nodes_ok Hgray_nodes_uniq subset_reml subset_remr.
-         move : vertices Hn Hgray_nodes_ok Hgray_nodes_uniq.
+         clear -Hn Hgray_nodes_closed Hgray_nodes_uniq subset_reml subset_remr.
+         move : vertices Hn Hgray_nodes_closed Hgray_nodes_uniq.
          induction gray_nodes.
         + unfold size at 2.
           intros.
           rewrite leqn0 in Hn ; move /nilP : Hn => Hn ; rewrite Hn.
           apply subset_refl.
         + intros.
-          (*specialize IHgray_nodes with (rem a q).*)
           unfold size at 2 in Hn ; fold (@size node) in Hn.
-          unfold subset in Hgray_nodes_ok ; fold subset in Hgray_nodes_ok ; move /andP : Hgray_nodes_ok => Hgray_nodes_ok.
+          unfold subset in Hgray_nodes_closed ; fold subset in Hgray_nodes_closed ; move /andP : Hgray_nodes_closed => Hgray_nodes_closed.
           unfold uniq in Hgray_nodes_uniq ; fold (@uniq node) in Hgray_nodes_uniq ; move /andP : Hgray_nodes_uniq => Hgray_nodes_uniq.
           apply subset_reml, IHgray_nodes.
-          - rewrite size_rem ; try apply Hgray_nodes_ok.
-            rewrite leqNgt ltn_predRL ; rewrite <- leqNgt ; exact Hn.
-          - apply subset_remr ; try apply Hgray_nodes_uniq ; apply Hgray_nodes_ok.
+          - rewrite size_rem ; try apply Hgray_nodes_closed.
+            rewrite leqNgt ltn_predRL -leqNgt ; exact Hn.
+          - apply subset_remr ; try apply Hgray_nodes_uniq ; apply Hgray_nodes_closed.
           - apply Hgray_nodes_uniq.
   assert (Hroot_in_gray_nodes : root \in gray_nodes).
         apply in_subset_trans with (s := vertices).
@@ -432,9 +298,9 @@ induction n.
   contradict Hroot_in_gray_nodes ; rename Hroot_in_gray_nodes into Hgraph_acyclic.
   apply Hgraph_acyclic.
   + exact Hroot_ok.
-  + exact Hgray_nodes_ok.
+  + exact Hgray_nodes_closed.
   + exact Hpath_ok.
-* intros gray_nodes already_found root Hn Hgray_nodes_ok Hroot_ok Hpath_ok Halready_found_ok.
+* intros gray_nodes already_found root Hn Hgray_nodes_closed Halready_found_closed Hdisjoint Hroot_ok Hpath_ok Halready_found_ok.
   unfold topo_tree ; fold topo_tree.
   destruct (root \in gray_nodes) eqn: Hroot_in_gray_nodes.
   + unfold graph_acyclic.
@@ -443,92 +309,122 @@ induction n.
     contradict Hroot_in_gray_nodes ; rename Hroot_in_gray_nodes into Hgraph_acyclic.
     apply Hgraph_acyclic.
     - exact Hroot_ok.
-    - exact Hgray_nodes_ok.
+    - exact Hgray_nodes_closed.
     - exact Hpath_ok.
-  + assert (foldr_topo_tree_correct :
-       forall (adjacents : seq node), subset adjacents (g root) ->
-             match foldr (topo_tree n (root :: gray_nodes)) (Some already_found) adjacents with
-             | Some result => subset (foldr (reachable' n) already_found adjacents) result /\
-                              subset result (foldr (reachable' n) already_found adjacents) /\
-                              respects_topological_order result
-             | Cycle _ => ~graph_acyclic
-             | _ => False
-             end).
-        induction adjacents.
-        - intro.
-          unfold foldr.
-          split ; try apply subset_refl.
-          split ; try apply subset_refl.
-          exact Halready_found_ok.
-        - replace (foldr (topo_tree n (root :: gray_nodes)) (Some already_found) (a :: adjacents))
-          with (topo_tree n (root :: gray_nodes) a (foldr (topo_tree n (root :: gray_nodes)) (Some already_found) adjacents))
-          by reflexivity.
-          destruct (foldr (topo_tree n (root :: gray_nodes)) (Some already_found) adjacents) ;
-                try (unfold topo_tree ; destruct n ; unfold subset ;
-                     move /andP => [_ Hadjacents_g_root] ;
-                     apply IHadjacents, Hadjacents_g_root).
-          intro.
-          replace (foldr (reachable' n) already_found (a :: adjacents))
-          with (reachable' n a (foldr (reachable' n) already_found adjacents))
-          by reflexivity.
-          unfold subset in H ; fold subset in H ; move /andP : H => [Ha Hadjacents].
-          assert (IHn' : match topo_tree n (root :: gray_nodes) a (Some l) with
-                         | Some result => 
-                              subset (reachable' n a l) result /\
-                              subset result (reachable' n a l) /\
-                              respects_topological_order result
-                         | Cycle _ => ~ graph_acyclic
-                         | N_too_small => False
-                         end).
-                apply IHn.
-                * unfold size at 2 ; fold (@size node).
-                  rewrite addSnnS ; exact Hn.
-                * unfold subset ; fold subset.
-                  rewrite Hroot_ok Hgray_nodes_ok ; trivial.
-                * apply in_subset_trans with (s := g root) ; try apply Ha.
-                  apply graph_closed ; exact Hroot_ok.
-                * unfold path_from ; fold path_from.
-                  rewrite Ha Hroot_in_gray_nodes Hpath_ok ; trivial.
-                * apply IHadjacents, Hadjacents.
-          clear IHn.
-          destruct (topo_tree n (root :: gray_nodes) a (Some l)) ;
-                try exact IHn'.
-          split.
-          * apply subset_trans with (t := reachable' n a l) ; try apply IHn'.
-            apply reachable'_subset ; try apply leqnn.
-            apply IHadjacents, Hadjacents.
-          * split ; try apply IHn'.
-            apply subset_trans with (t := reachable' n a l) ; try apply IHn'.
-            apply reachable'_subset ; try apply leqnn.
-            apply IHadjacents, Hadjacents.
-    specialize foldr_topo_tree_correct with (adjacents := g root).
-    rewrite subset_refl in foldr_topo_tree_correct.
-    destruct (foldr (topo_tree n (root :: gray_nodes)) 
-                    (Some already_found) (g root)) eqn: Hfoldr_topo_tree.
-    - destruct (root \in already_found) eqn: Hroot_in_already_found.
-      * rewrite Halready_found_ok.
-        (* I think we need a property like:
-           forall (k : nat) (root : node),
-              respects_topological_order already_found -> root \in already_found ->
-                 subset (reachable' k root already_found) already_found.
-           This holds in particular because reachable' only adds g-successors
-           to a set, but they are already in the set that respects the topological order.
-           It should be provable by induction over k. *)
-        admit.
-      * (* we mainly use foldr_topo_tree_correct.
-           We also need the property that g root is a subset of l,
-           which may require a slight change of the definition of reachable',
-           so that subset (foldr (reachable' n) already_found (g root)) l
-           ensures this even when n == 0. *)
-        admit.
-    - (* There is a cycle in some successor of root; therefore we cannot have
-         root \in already_found /\ respects_topological_order already_found.
-         So we can assume that root \notin already_found. *)
-      replace (root \in already_found) with false.
-      apply foldr_topo_tree_correct ; done.
-      admit.
-    - contradict foldr_topo_tree_correct ; done.
-Admitted.
+  + destruct (root \in already_found) eqn: Hroot_in_already_found.
+    - split ; try apply subset_refl.
+      split ; try apply Hdisjoint.
+      rewrite Hroot_in_already_found Halready_found_closed Halready_found_ok ; done.
+    - assert (foldr_topo_tree_correct :
+         forall (adjacents : seq node), subset adjacents (g root) ->
+               match foldr (topo_tree n (root :: gray_nodes)) (Some already_found) adjacents with
+               | Some result => subset already_found result /\
+                                disjoint (root :: gray_nodes) result /\
+                                subset adjacents result /\
+                                subset result vertices /\
+                                respects_topological_order result
+               | Cycle _ => ~graph_acyclic
+               | _ => False
+               end).
+          induction adjacents.
+          * intro.
+            unfold foldr.
+            split ; try apply subset_refl.
+            split.
+            + unfold disjoint ; intro.
+              rewrite in_cons.
+              destruct (eqVneq x root).
+              - rewrite orTb orFb e Hroot_in_already_found ; trivial.
+              - rewrite orFb ; apply Hdisjoint.
+            + unfold subset at 1 ; rewrite Halready_found_closed Halready_found_ok ; done.
+          * replace (foldr (topo_tree n (root :: gray_nodes)) (Some already_found) (a :: adjacents))
+            with (topo_tree n (root :: gray_nodes) a (foldr (topo_tree n (root :: gray_nodes)) (Some already_found) adjacents))
+            by reflexivity.
+            destruct (foldr (topo_tree n (root :: gray_nodes)) (Some already_found) adjacents) ;
+                  try (unfold topo_tree ; destruct n ; unfold subset ;
+                       move /andP => [_ Hadjacents_g_root] ;
+                       apply IHadjacents, Hadjacents_g_root).
+            intro.
+            unfold subset in H ; fold subset in H ; move /andP : H => [Ha Hadjacents].
+            assert (IHn' : match topo_tree n (root :: gray_nodes) a (Some l) with
+                           | Some result =>
+                                subset l result /\
+                                disjoint (root :: gray_nodes) result /\
+                                a \in result /\
+                                subset result vertices /\
+                                respects_topological_order result
+                           | Cycle _ => ~ graph_acyclic
+                           | N_too_small => False
+                           end).
+                  apply IHn ; try apply IHadjacents, Hadjacents.
+                  + unfold size at 2 ; fold (@size node).
+                    rewrite addSnnS ; exact Hn.
+                  + unfold subset ; fold subset.
+                    rewrite Hroot_ok Hgray_nodes_closed ; trivial.
+                  + apply in_subset_trans with (s := g root) ; try apply Ha.
+                    apply graph_closed, Hroot_ok.
+                  + unfold path_from ; fold path_from.
+                    rewrite Ha Hroot_in_gray_nodes Hpath_ok ; trivial.
+            clear IHn.
+            destruct (topo_tree n (root :: gray_nodes) a (Some l)) ;
+                  try exact IHn'.
+            split.
+            + apply subset_trans with (t := l) ; try apply IHn'.
+              apply IHadjacents, Hadjacents.
+            split.
+            + apply IHn'.
+            split.
+            + unfold subset at 1 ; fold subset.
+              apply rwP with (P := a \in l0 /\ subset adjacents l0) ; try exact andP.
+              split ; try apply IHn'.
+              apply subset_trans with (t := l) ; try apply IHn'.
+              apply IHadjacents, Hadjacents.
+            + apply IHn'.
+      specialize foldr_topo_tree_correct with (adjacents := g root).
+      rewrite subset_refl in foldr_topo_tree_correct.
+      destruct (foldr (topo_tree n (root :: gray_nodes)) 
+                      (Some already_found) (g root)) eqn: Hfoldr_topo_tree ;
+            try (apply foldr_topo_tree_correct ; trivial).
+      assert (disjoint (root :: gray_nodes) l) by (apply foldr_topo_tree_correct ; trivial).
+      split.
+      * apply subset_trans with (t := l) ; try (apply foldr_topo_tree_correct ; trivial).
+        rewrite -cat1s subset_cat ; trivial.
+      split.
+      * unfold disjoint ; intro.
+        rewrite in_cons negb_or.
+        destruct (eqVneq x root).
+        + rewrite andFb orbF e Hroot_in_gray_nodes ; trivial.
+        + unfold disjoint in H ; specialize H with (x := x).
+          rewrite in_cons negb_or i andTb in H.
+          rewrite andTb H ; trivial.
+      split.
+      * apply mem_head.
+      split.
+      * unfold subset ; fold subset.
+        rewrite Hroot_ok andTb.
+        apply foldr_topo_tree_correct ; trivial.
+      * unfold respects_topological_order ; fold respects_topological_order.
+        apply rwP with (P := subset (g root) l && (root \notin l) /\ respects_topological_order l) ; try exact andP.
+        split ; try (apply foldr_topo_tree_correct ; trivial).
+        apply rwP with (P := subset (g root) l /\ root \notin l) ; try exact andP.
+        split ; try (apply foldr_topo_tree_correct ; trivial).
+        unfold disjoint in H ; specialize H with (x := root).
+        rewrite mem_head orFb in H.
+        exact H.
+Qed.
+
+Lemma index_behead :
+   forall (x y : node) (s : seq node), x != y -> index x (y :: s) = (index x s).+1.
+Proof.
+intros.
+unfold index at 1.
+rewrite -cat1s find_cat.
+unfold has.
+apply negbTE in H.
+rewrite orbF pred1E H.
+unfold size.
+done.
+Qed.
 
 Theorem topo_sort_correct :
    match topo_sort with
@@ -541,6 +437,154 @@ Theorem topo_sort_correct :
    end.
 Proof.
 (* mainly use topo_tree_correct. *)
-Admitted.
+unfold topo_sort.
+assert (foldr_topo_sort_correct : forall v : seq node,
+   subset v vertices ->
+      match foldr (topo_tree (size vertices) [::]) (Some [::]) v with
+      | Some result => subset v result /\
+                       subset result vertices /\ respects_topological_order result
+      | Cycle _ => ~ graph_acyclic
+      | N_too_small => False
+      end).
+      induction v.
+      * intro ; unfold foldr.
+        split ; try apply subset_refl.
+        split ; trivial.
+      * unfold subset at 1 ; fold subset ; move /andP => [Ha_in_vertices Hv_in_vertices].
+        replace (foldr (topo_tree (size vertices) [::]) (Some [::]) (a :: v))
+        with (topo_tree (size vertices) [::] a (foldr (topo_tree (size vertices) [::]) (Some [::]) v))
+        by reflexivity.
+        destruct (foldr (topo_tree (size vertices) [::]) (Some [::]) v) ;
+              try (unfold topo_tree ; destruct (size vertices) ;
+                   apply IHv, Hv_in_vertices).
+        assert (match topo_tree (size vertices) [::] a (Some l) with
+                | Some result => subset l result /\
+                                 disjoint [::] result /\
+                                 a \in result /\
+                                 subset result vertices /\
+                                 respects_topological_order result
+                | Cycle _ => ~graph_acyclic
+                | _ => False
+                end).
+              apply topo_tree_correct ; try done ; apply IHv, Hv_in_vertices.
+        destruct (topo_tree (size vertices) [::] a (Some l)) ; try exact H.
+        split ; try apply H.
+        unfold subset ; fold subset.
+        apply rwP with (P := a \in l0 /\ subset v l0) ; try exact andP.
+        split ; try apply H.
+        apply subset_trans with (t := l) ; try apply H.
+        apply IHv, Hv_in_vertices.
+specialize foldr_topo_sort_correct with (v := vertices) ; rewrite subset_refl in foldr_topo_sort_correct.
+destruct (foldr (topo_tree (size vertices) [::]) (Some [::]) vertices) ;
+      try (apply foldr_topo_sort_correct ; trivial).
+split ; try (apply foldr_topo_sort_correct ; trivial).
+unfold graph_acyclic.
+intros.
+assert (Huniq : uniq l).
+      assert (respects_topological_order l) by (apply foldr_topo_sort_correct ; trivial).
+      clear -H2.
+      induction l.
+      * unfold uniq ; trivial.
+      * unfold uniq ; fold (@uniq node).
+        unfold respects_topological_order in H2 ;
+        fold respects_topological_order in H2.
+        move /andP : H2 => [H2 Hrespects_topological_order].
+        move /andP : H2 => [_ Ha_notin_l].
+        rewrite Ha_notin_l andTb.
+        apply IHl, Hrespects_topological_order.
+assert (forall (x y : node), x \in l -> y \in l -> y \in g x -> index x l < index y l).
+      assert (respects_topological_order l) by (apply foldr_topo_sort_correct ; trivial).
+      clear -Huniq H2.
+      induction l.
+      * intro ; rewrite in_nil ; done.
+      * intros x y.
+        unfold uniq in Huniq ; fold (@uniq node) in Huniq.
+        move /andP : Huniq => [/negP Ha_notin_l Huniq].
+        destruct (eqVneq x a).
+        + rewrite !e ; intros.
+          unfold respects_topological_order in H2 ; fold respects_topological_order in H2 ;
+          move /andP : H2 => [H2 Hrespects_topological_order_l].
+          move /andP : H2 => [Hg_a_l _].
+          rewrite index_head index_behead.
+          - apply ltn0Sn.
+          - apply rwP with (P := ~y == a) ; try exact negP.
+            contradict Ha_notin_l.
+            move /eqP : Ha_notin_l => Ha_notin_l ; rewrite -Ha_notin_l.
+            apply in_subset_trans with (s := g a) ; try exact H1.
+            exact Hg_a_l.
+        + rewrite index_behead ; try (exact i).
+          intros.
+          apply negbTE in i.
+          rewrite in_cons in H ; rewrite i in H ; rewrite orFb in H.
+          move /andP : H2 => [_ H2].
+          assert (y != a).
+                apply rwP with (P := ~ y == a) ; try exact negP.
+                contradict Ha_notin_l.
+                move /eqP : Ha_notin_l => Ha_notin_l ; rewrite -Ha_notin_l.
+                apply in_subset_trans with (s := g x) ; try exact H1.
+                apply respects_topological_order_gx ; done.
+          rewrite index_behead ; try exact H3.
+          apply negbTE in H3.
+          rewrite in_cons in H0 ; rewrite H3 in H0 ; rewrite orFb in H0.
+          rewrite ltnS.
+          apply IHl ; try done.
+assert (subset p (take (index r l) l)).
+      move : r H0 H H1.
+      induction p.
+      * intros ; unfold subset ; trivial.
+      * intros.
+        specialize IHp with (r := a).
+        move : H1 => /andP [/andP [Hr_in_ga Ha_notin_p] Hpath_from] ;
+        fold path_from in Hpath_from.
+        unfold subset ; fold subset.
+        apply rwP with (P := a \in take (index r l) l /\ subset p (take (index r l) l)) ; try exact andP.
+        unfold subset in H0 ; fold subset in H0.
+        move /andP : H0 => H0.
+        assert (index a l < index r l).
+              apply H2 ; try done.
+              + apply in_subset_trans with (s := vertices) ; try apply H0.
+                apply foldr_topo_sort_correct ; trivial.
+              + apply in_subset_trans with (s := vertices) ; try apply H.
+                apply foldr_topo_sort_correct ; trivial.
+        split.
+        + rewrite in_take_leq ; try exact H1.
+          apply index_size.
+        + apply subset_trans with (t := (take (index a l) l)).
+          - apply IHp ; try done ; apply H0.
+          - clear -H1.
+            induction l.
+            * unfold take, subset ; trivial.
+            * destruct (eqVneq a a0).
+              + rewrite -!e index_head take0 ; unfold subset ; trivial.
+              + rewrite index_behead ; try exact i.
+                rewrite take_cons.
+                assert (r != a0).
+                      apply rwP with (P := ~ r == a0) ; try exact negP.
+                      contradict H1.
+                      move /eqP : H1 => H1.
+                      rewrite H1 index_head ltn0 ; done.
+                rewrite index_behead ; try exact H.
+                rewrite take_cons.
+                apply subset_cons_cons, IHl.
+                - rewrite index_behead in H1 ; try exact i.
+                  rewrite index_behead in H1 ; try exact H.
+                  rewrite ltnS in H1.
+                  exact H1.
+assert (~index r l < index r l)
+      by (apply rwP with (b := ~~ (index r l < index r l)) ; try exact negP ;
+          apply negbT, ltnn).
+apply rwP with (P := ~ r \in p) ; try exact negP.
+contradict H4.
+rewrite -(@has_take node (pred1 r) l (index r l)).
++ rewrite has_find index_mem.
+  apply in_subset_trans with (s := p) ; done.
++ rewrite has_find index_mem.
+  apply in_subset_trans with (s := vertices) ; try exact H.
+  apply foldr_topo_sort_correct ; trivial.
+Qed.
 
 End TopoSort.
+
+Print topo_sort.
+Check topo_sort_correct.
+
