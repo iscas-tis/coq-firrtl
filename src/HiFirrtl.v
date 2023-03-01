@@ -1094,21 +1094,20 @@ Proof.
   rewrite /resolveKinds_stmt_fun /CE.add_fst (CELemmas.add_eq_o _ _ (eq_refl v1)) //.
 Qed.
 
+Definition resolveKinds_stmt_sem_conform_statement (st : hfstmt) : Prop :=
+forall ce0 : cenv,
+  resolveKinds_stmt st ce0 (resolveKinds_stmt_fun st ce0).
+
 Definition resolveKinds_stmts_sem_conform_statement (sts : hfstmt_seq) : Prop :=
 forall ce0 : cenv,
   resolveKinds_stmts sts ce0 (resolveKinds_stmts_fun sts ce0).
 
-Lemma resolveKinds_stmts_sem_conform :
+Lemma resolveKinds_stmt_sem_conform :
+  forall st : hfstmt, resolveKinds_stmt_sem_conform_statement st
+with resolveKinds_stmts_sem_conform :
   forall sts : hfstmt_seq, resolveKinds_stmts_sem_conform_statement sts.
 Proof.
-  apply hfstmt_seq_hfstmt_ind with (P := resolveKinds_stmts_sem_conform_statement)
-                                   (P0 := fun st : hfstmt => match st with Swhen c s1 s2 => resolveKinds_stmts_sem_conform_statement s1 /\ resolveKinds_stmts_sem_conform_statement s2 | _ => True end) ; try done.
-  unfold resolveKinds_stmts_sem_conform_statement. apply Resolve_stmts_nil.
-  intros.
-  unfold resolveKinds_stmts_sem_conform_statement.
-  intros.
-  apply Resolve_stmts_cons with (ce' := resolveKinds_stmt_fun h ce0).
-  induction h.
+  elim => [|v t|r t| m t| v1 v2| n t| d e| d e| v | c s1 s2]; rewrite /resolveKinds_stmt_sem_conform_statement.
   - apply resolveKinds_sskip_sem_conform.
   - apply resolveKinds_swire_sem_conform.
   - apply resolveKinds_sreg_sem_conform.
@@ -1118,11 +1117,41 @@ Proof.
   - apply resolveKinds_sfcnct_sem_conform.
   - apply resolveKinds_spcnct_sem_conform.
   - apply resolveKinds_sinvalid_sem_conform.
-  - apply resolveKinds_swhen_sem_conform with (ce1 := resolveKinds_stmts_fun h1 ce0) ; try done.
-    apply H. apply H.
-  rewrite /=.
-  apply (H0 (resolveKinds_stmt_fun h ce0)).
-  Qed.
+  - intro. apply resolveKinds_swhen_sem_conform with (ce1 := resolveKinds_stmts_fun s1 ce0); try done.
+    exact: (resolveKinds_stmts_sem_conform s1).
+    exact: (resolveKinds_stmts_sem_conform s2).
+
+  elim; rewrite /resolveKinds_stmts_sem_conform_statement; first by apply Resolve_stmts_nil.
+  - intros. apply Resolve_stmts_cons with (resolveKinds_stmt_fun h ce0).
+    exact: (resolveKinds_stmt_sem_conform).
+    exact: (H ((resolveKinds_stmt_fun h ce0))).
+Qed.
+
+(* Lemma resolveKinds_stmts_sem_conform : *)
+(*   forall sts : hfstmt_seq, resolveKinds_stmts_sem_conform_statement sts. *)
+(* Proof.  *)
+(*   apply hfstmt_seq_hfstmt_ind with (resolveKinds_stmts_sem_conform_statement). *)
+(*                                    (fun st : hfstmt => True). match st with Swhen c s1 s2 => resolveKinds_stmts_sem_conform_statement s1 /\ resolveKinds_stmts_sem_conform_statement s2 | _ => True end) ; try done. *)
+(*   unfold resolveKinds_stmts_sem_conform_statement. apply Resolve_stmts_nil. *)
+(*   intros. *)
+(*   unfold resolveKinds_stmts_sem_conform_statement. *)
+(*   intros. *)
+(*   apply Resolve_stmts_cons with (ce' := resolveKinds_stmt_fun h ce0). *)
+(*   induction h. *)
+(*   - apply resolveKinds_sskip_sem_conform. *)
+(*   - apply resolveKinds_swire_sem_conform. *)
+(*   - apply resolveKinds_sreg_sem_conform. *)
+(*   - apply resolveKinds_smem_sem_conform. *)
+(*   - apply resolveKinds_sinst_sem_conform. *)
+(*   - apply resolveKinds_snode_sem_conform. *)
+(*   - apply resolveKinds_sfcnct_sem_conform. *)
+(*   - apply resolveKinds_spcnct_sem_conform. *)
+(*   - apply resolveKinds_sinvalid_sem_conform. *)
+(*   - apply resolveKinds_swhen_sem_conform with (ce1 := resolveKinds_stmts_fun h1 ce0) ; try done. *)
+(*     apply H. apply H. *)
+(*   rewrite /=. *)
+(*   apply (H0 (resolveKinds_stmt_fun h ce0)). *)
+(*   Qed. *)
 
 Lemma resolveKinds_inport_sem_conform :
   forall v t ce0 ,
