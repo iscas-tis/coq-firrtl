@@ -1,0 +1,35 @@
+[
+  {
+    "class":"firrtl.stage.FirrtlFileAnnotation",
+    "file":"MemMappedRV.lo.fir"
+  },
+  {
+    "class":"firrtl.EmitCircuitAnnotation",
+    "emitter":"firrtl.LowFirrtlEmitter"
+  },
+  {
+    "class":"firrtl.transforms.BlackBoxTargetDirAnno",
+    "targetDir":"."
+  },
+  {
+    "class":"firrtl.transforms.CombinationalPath",
+    "sink":"~MemMappedRV|MemMappedRV>io_tx_bits",
+    "sources":[
+      "~MemMappedRV|MemMappedRV>io_mem_wrData"
+    ]
+  },
+  {
+    "class":"firrtl.transforms.CombinationalPath",
+    "sink":"~MemMappedRV|MemMappedRV>io_mem_rdData",
+    "sources":[
+      "~MemMappedRV|MemMappedRV>io_rx_bits"
+    ]
+  },
+  {
+    "class":"firrtl.transforms.CombinationalPath",
+    "sink":"~MemMappedRV|MemMappedRV>io_tx_valid",
+    "sources":[
+      "~MemMappedRV|MemMappedRV>io_mem_wr"
+    ]
+  }
+]

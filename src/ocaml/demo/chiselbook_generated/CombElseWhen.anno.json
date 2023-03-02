@@ -1,0 +1,22 @@
+[
+  {
+    "class":"firrtl.stage.FirrtlFileAnnotation",
+    "file":"CombElseWhen.lo.fir"
+  },
+  {
+    "class":"firrtl.EmitCircuitAnnotation",
+    "emitter":"firrtl.LowFirrtlEmitter"
+  },
+  {
+    "class":"firrtl.transforms.BlackBoxTargetDirAnno",
+    "targetDir":"."
+  },
+  {
+    "class":"firrtl.transforms.CombinationalPath",
+    "sink":"~CombElseWhen|CombElseWhen>io_out",
+    "sources":[
+      "~CombElseWhen|CombElseWhen>io_cond",
+      "~CombElseWhen|CombElseWhen>io_cond2"
+    ]
+  }
+]

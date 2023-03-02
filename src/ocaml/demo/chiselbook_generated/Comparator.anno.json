@@ -1,0 +1,30 @@
+[
+  {
+    "class":"firrtl.stage.FirrtlFileAnnotation",
+    "file":"Comparator.lo.fir"
+  },
+  {
+    "class":"firrtl.EmitCircuitAnnotation",
+    "emitter":"firrtl.LowFirrtlEmitter"
+  },
+  {
+    "class":"firrtl.transforms.BlackBoxTargetDirAnno",
+    "targetDir":"."
+  },
+  {
+    "class":"firrtl.transforms.CombinationalPath",
+    "sink":"~Comparator|Comparator>io_equ",
+    "sources":[
+      "~Comparator|Comparator>io_a",
+      "~Comparator|Comparator>io_b"
+    ]
+  },
+  {
+    "class":"firrtl.transforms.CombinationalPath",
+    "sink":"~Comparator|Comparator>io_gt",
+    "sources":[
+      "~Comparator|Comparator>io_a",
+      "~Comparator|Comparator>io_b"
+    ]
+  }
+]

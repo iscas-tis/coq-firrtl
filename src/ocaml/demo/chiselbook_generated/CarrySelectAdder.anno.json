@@ -1,0 +1,32 @@
+[
+  {
+    "class":"firrtl.stage.FirrtlFileAnnotation",
+    "file":"CarrySelectAdder.lo.fir"
+  },
+  {
+    "class":"firrtl.EmitCircuitAnnotation",
+    "emitter":"firrtl.LowFirrtlEmitter"
+  },
+  {
+    "class":"firrtl.transforms.BlackBoxTargetDirAnno",
+    "targetDir":"."
+  },
+  {
+    "class":"firrtl.transforms.CombinationalPath",
+    "sink":"~CarrySelectAdder|CarrySelectAdder>io_cout",
+    "sources":[
+      "~CarrySelectAdder|CarrySelectAdder>io_a",
+      "~CarrySelectAdder|CarrySelectAdder>io_b",
+      "~CarrySelectAdder|CarrySelectAdder>io_cin"
+    ]
+  },
+  {
+    "class":"firrtl.transforms.CombinationalPath",
+    "sink":"~CarrySelectAdder|CarrySelectAdder>io_c",
+    "sources":[
+      "~CarrySelectAdder|CarrySelectAdder>io_cin",
+      "~CarrySelectAdder|CarrySelectAdder>io_a",
+      "~CarrySelectAdder|CarrySelectAdder>io_b"
+    ]
+  }
+]

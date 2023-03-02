@@ -1,0 +1,32 @@
+[
+  {
+    "class":"firrtl.stage.FirrtlFileAnnotation",
+    "file":"CarryRippleAdder.lo.fir"
+  },
+  {
+    "class":"firrtl.EmitCircuitAnnotation",
+    "emitter":"firrtl.LowFirrtlEmitter"
+  },
+  {
+    "class":"firrtl.transforms.BlackBoxTargetDirAnno",
+    "targetDir":"."
+  },
+  {
+    "class":"firrtl.transforms.CombinationalPath",
+    "sink":"~CarryRippleAdder|CarryRippleAdder>io_cout",
+    "sources":[
+      "~CarryRippleAdder|CarryRippleAdder>io_cin",
+      "~CarryRippleAdder|CarryRippleAdder>io_a",
+      "~CarryRippleAdder|CarryRippleAdder>io_b"
+    ]
+  },
+  {
+    "class":"firrtl.transforms.CombinationalPath",
+    "sink":"~CarryRippleAdder|CarryRippleAdder>io_c",
+    "sources":[
+      "~CarryRippleAdder|CarryRippleAdder>io_cin",
+      "~CarryRippleAdder|CarryRippleAdder>io_a",
+      "~CarryRippleAdder|CarryRippleAdder>io_b"
+    ]
+  }
+]
