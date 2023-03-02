@@ -1094,21 +1094,20 @@ Proof.
   rewrite /resolveKinds_stmt_fun /CE.add_fst (CELemmas.add_eq_o _ _ (eq_refl v1)) //.
 Qed.
 
+Definition resolveKinds_stmt_sem_conform_statement (st : hfstmt) : Prop :=
+forall ce0 : cenv,
+  resolveKinds_stmt st ce0 (resolveKinds_stmt_fun st ce0).
+
 Definition resolveKinds_stmts_sem_conform_statement (sts : hfstmt_seq) : Prop :=
 forall ce0 : cenv,
   resolveKinds_stmts sts ce0 (resolveKinds_stmts_fun sts ce0).
 
-Lemma resolveKinds_stmts_sem_conform :
+Lemma resolveKinds_stmt_sem_conform :
+  forall st : hfstmt, resolveKinds_stmt_sem_conform_statement st
+with resolveKinds_stmts_sem_conform :
   forall sts : hfstmt_seq, resolveKinds_stmts_sem_conform_statement sts.
 Proof.
-  apply hfstmt_seq_hfstmt_ind with (P := resolveKinds_stmts_sem_conform_statement)
-                                   (P0 := fun st : hfstmt => match st with Swhen c s1 s2 => resolveKinds_stmts_sem_conform_statement s1 /\ resolveKinds_stmts_sem_conform_statement s2 | _ => True end) ; try done.
-  unfold resolveKinds_stmts_sem_conform_statement. apply Resolve_stmts_nil.
-  intros.
-  unfold resolveKinds_stmts_sem_conform_statement.
-  intros.
-  apply Resolve_stmts_cons with (ce' := resolveKinds_stmt_fun h ce0).
-  induction h.
+  elim => [|v t|r t| m t| v1 v2| n t| d e| d e| v | c s1 s2]; rewrite /resolveKinds_stmt_sem_conform_statement.
   - apply resolveKinds_sskip_sem_conform.
   - apply resolveKinds_swire_sem_conform.
   - apply resolveKinds_sreg_sem_conform.
@@ -1118,11 +1117,41 @@ Proof.
   - apply resolveKinds_sfcnct_sem_conform.
   - apply resolveKinds_spcnct_sem_conform.
   - apply resolveKinds_sinvalid_sem_conform.
-  - apply resolveKinds_swhen_sem_conform with (ce1 := resolveKinds_stmts_fun h1 ce0) ; try done.
-    apply H. apply H.
-  rewrite /=.
-  apply (H0 (resolveKinds_stmt_fun h ce0)).
-  Qed.
+  - intro. apply resolveKinds_swhen_sem_conform with (ce1 := resolveKinds_stmts_fun s1 ce0); try done.
+    exact: (resolveKinds_stmts_sem_conform s1).
+    exact: (resolveKinds_stmts_sem_conform s2).
+
+  elim; rewrite /resolveKinds_stmts_sem_conform_statement; first by apply Resolve_stmts_nil.
+  - intros. apply Resolve_stmts_cons with (resolveKinds_stmt_fun h ce0).
+    exact: (resolveKinds_stmt_sem_conform).
+    exact: (H ((resolveKinds_stmt_fun h ce0))).
+Qed.
+
+(* Lemma resolveKinds_stmts_sem_conform : *)
+(*   forall sts : hfstmt_seq, resolveKinds_stmts_sem_conform_statement sts. *)
+(* Proof.  *)
+(*   apply hfstmt_seq_hfstmt_ind with (resolveKinds_stmts_sem_conform_statement). *)
+(*                                    (fun st : hfstmt => True). match st with Swhen c s1 s2 => resolveKinds_stmts_sem_conform_statement s1 /\ resolveKinds_stmts_sem_conform_statement s2 | _ => True end) ; try done. *)
+(*   unfold resolveKinds_stmts_sem_conform_statement. apply Resolve_stmts_nil. *)
+(*   intros. *)
+(*   unfold resolveKinds_stmts_sem_conform_statement. *)
+(*   intros. *)
+(*   apply Resolve_stmts_cons with (ce' := resolveKinds_stmt_fun h ce0). *)
+(*   induction h. *)
+(*   - apply resolveKinds_sskip_sem_conform. *)
+(*   - apply resolveKinds_swire_sem_conform. *)
+(*   - apply resolveKinds_sreg_sem_conform. *)
+(*   - apply resolveKinds_smem_sem_conform. *)
+(*   - apply resolveKinds_sinst_sem_conform. *)
+(*   - apply resolveKinds_snode_sem_conform. *)
+(*   - apply resolveKinds_sfcnct_sem_conform. *)
+(*   - apply resolveKinds_spcnct_sem_conform. *)
+(*   - apply resolveKinds_sinvalid_sem_conform. *)
+(*   - apply resolveKinds_swhen_sem_conform with (ce1 := resolveKinds_stmts_fun h1 ce0) ; try done. *)
+(*     apply H. apply H. *)
+(*   rewrite /=. *)
+(*   apply (H0 (resolveKinds_stmt_fun h ce0)). *)
+(*   Qed. *)
 
 Lemma resolveKinds_inport_sem_conform :
   forall v t ce0 ,
@@ -1202,10 +1231,12 @@ Proof.
       | Gtyp (Fuint w1), Gtyp (Fuint w2) => (Gtyp (Fuint (maxn w1 w2)))
       | Gtyp (Fsint w1), Gtyp (Fsint w2) => (Gtyp (Fsint (maxn w1 w2)))
       | Gtyp Fclock, Gtyp Fclock => (Gtyp Fclock)
+      | Gtyp Freset, Gtyp Freset => Gtyp Freset
+      | Gtyp Fasyncreset, Gtyp Fasyncreset => Gtyp Fasyncreset
       | Atyp t1 n1, Atyp t2 n2 => if n1 == n2 then (Atyp (mux_types t1 t2) n1)
                                   else def_ftype
       | Btyp bs1, Btyp bs2 => match mux_btyps bs1 bs2 with
-                              | Fnil => def_ftype
+                              | Fnil => Btyp Fnil
                               | t => Btyp t
                               end
       | _, _ => def_ftype
@@ -1216,6 +1247,10 @@ Proof.
          | Fflips v1 Nflip t1 fs1, Fflips v2 Nflip t2 fs2 =>
            if v1 == v2 then
              (Fflips v1 Nflip (mux_types t1 t2) (mux_btyps fs1 fs2))
+           else Fnil
+         | Fflips v1 Flipped t1 fs1, Fflips v2 Flipped t2 fs2 =>
+             if v1 == v2 then
+             (Fflips v1 Flipped (mux_types t1 t2) (mux_btyps fs1 fs2))
            else Fnil
          | _, _ => Fnil
     end.
@@ -1734,10 +1769,12 @@ Module MakeHiFirrtlP
       | Gtyp (Fuint w1), Gtyp (Fuint w2) => (Gtyp (Fuint (maxn w1 w2)))
       | Gtyp (Fsint w1), Gtyp (Fsint w2) => (Gtyp (Fsint (maxn w1 w2)))
       | Gtyp Fclock, Gtyp Fclock => (Gtyp Fclock)
+      | Gtyp Freset, Gtyp Freset => Gtyp Freset
+      | Gtyp Fasyncreset, Gtyp Fasyncreset => Gtyp Fasyncreset
       | Atyp t1 n1, Atyp t2 n2 => if n1 == n2 then (Atyp (mux_types t1 t2) n1)
                                   else def_ftype
       | Btyp bs1, Btyp bs2 => match mux_btyps bs1 bs2 with
-                              | Fnil => def_ftype
+                              | Fnil => Btyp Fnil
                               | t => Btyp t
                               end
       | _, _ => def_ftype
@@ -1748,6 +1785,10 @@ Module MakeHiFirrtlP
          | Fflips v1 Nflip t1 fs1, Fflips v2 Nflip t2 fs2 =>
            if v1 == v2 then
              (Fflips v1 Nflip (mux_types t1 t2) (mux_btyps fs1 fs2))
+           else Fnil
+         | Fflips v1 Flipped t1 fs1, Fflips v2 Flipped t2 fs2 =>
+             if v1 == v2 then
+             (Fflips v1 Flipped (mux_types t1 t2) (mux_btyps fs1 fs2))
            else Fnil
          | _, _ => Fnil
     end.
@@ -1928,6 +1969,21 @@ Module MakeHiFirrtlP
                       mux_types t1 t2
     | Evalidif c e1 => type_of_hfexpr e1 ce
     end.
+  
+  Fixpoint is_deftyp t :=
+    match t with
+    | Gtyp (Fsint 0)
+    | Gtyp (Fuint 0) => true
+    | Atyp tn _ => is_deftyp tn
+    | Btyp Fnil => true
+    | Btyp bt => is_deftyp_f bt
+    | _ => false
+    end
+  with is_deftyp_f bt :=
+         match bt with
+         | Fnil => false
+         | Fflips v f tv fs => is_deftyp tv || (is_deftyp_f fs)
+         end.
 
   
 End MakeHiFirrtlP.

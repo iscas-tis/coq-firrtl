@@ -356,61 +356,74 @@ Section InferTypeS.
     intros. apply Infertype_sskip.
   Qed.
 
+  Definition inferType_stmt_sem_conform_statement (st : HiF.hfstmt) : Prop :=
+    forall ce0 : CE.env,
+      inferType_stmt st ce0 (inferType_stmt_fun st ce0).
+
   Definition inferType_stmts_sem_conform_statement (ss : HiF.hfstmt_seq) : Prop :=
     forall ce0 : CE.env,
       inferType_stmts ss ce0 (inferType_stmts_fun ss ce0).
 
-  Lemma inferType_stmts_init_sem_conform :
+  Lemma inferType_stmt_init_sem_conform :
+    forall st : HiF.hfstmt, inferType_stmt_sem_conform_statement st
+  with inferType_stmts_init_sem_conform :
     forall ss : HiF.hfstmt_seq, inferType_stmts_sem_conform_statement ss.
   Proof.
-    apply hfstmt_seq_hfstmt_ind with (P := inferType_stmts_sem_conform_statement)
-                                     (P0 := fun st : HiF.hfstmt => match st with
-                                                               | Swhen c s1 s2 => inferType_stmts_sem_conform_statement s1
-                                                                               /\ inferType_stmts_sem_conform_statement s2
-                                                               | _ => True end) ;
-    try done.
-    unfold inferType_stmts_sem_conform_statement. apply Infertype_stmts_nil.
-    intros.
-    unfold inferType_stmts_sem_conform_statement.
-    intros.
-    apply Infertype_stmts_con with (inferType_stmt_fun h ce0).
-    have Hin : ((HiF.is_init h) \/ ~~(HiF.is_init h)) by (case (HiF.is_init h); [by left| by right]).
-    move : Hin.
-    induction h; intros; move : Hin => [Hin | Hin]; try done.
-    - exact : (inferType_sskip_sem_conform). 
-    - exact : (inferType_swire_sem_conform s f ce0 (init_new_comp_name _ Hin s)).
-    - exact : (inferType_sreg_sem_conform s h ce0 (init_new_comp_name _ Hin s)).
-    - exact : (inferType_smem_sem_conform s h ce0 (init_new_comp_name _  Hin s)).
-    - exact : (inferType_sinst_sem_conform s s0 ce0 (init_new_comp_name _ Hin s) (new_comp_name_not_rep s s0 (init_new_comp_name _ Hin s))).
-    - have Hte : (HiF.type_of_hfexpr h ce0 = HiF.type_of_hfexpr h (inferType_stmt_fun (Snode s h) ce0)).
-      rewrite/=.
-      apply upd_new_comp_same_expr with s (HiF.aggr_typ (HiF.type_of_hfexpr h ce0), Node); try done.
-      exact : (init_new_comp_name _ Hin).
-      exact : (inferType_snode_sem_conform s h ce0 (init_new_comp_name _ Hin _) Hte).
-    - case Hf : (CE.find (HiF.base_ref h) ce0) => [[t c]|].
-      move : (not_init_cefind_some _ Hin (HiF.base_ref h) ce0 (HiF.aggr_typ (HiF.type_of_hfexpr h1 ce0), c)) => Hni.
-      apply inferType_sfcnct_sem_conform with t c; try done.
-      move : (CE.find_some_vtyp Hf) => Hfv.
-      move : (CE.find_some_vtyp Hni) => Hnv.
-      rewrite Hfv in Hnv.
-      inversion Hnv. rewrite /=//.
-      move : (not_init_cefind_some _ Hin (HiF.base_ref h) ce0 (HiF.aggr_typ (HiF.type_of_hfexpr h1 ce0), Node)) => Hni.
-      rewrite Hf in Hni; discriminate.
-    - case Hf : (CE.find (HiF.base_ref h) ce0) => [[t c]|].
-      move : (not_init_cefind_some _ Hin (HiF.base_ref h) ce0 (HiF.aggr_typ (HiF.type_of_hfexpr h1 ce0), c)) => Hni.
-      apply inferType_spcnct_sem_conform with t c; try done.
-      move : (CE.find_some_vtyp Hf) => Hfv.
-      move : (CE.find_some_vtyp Hni) => Hnv.
-      rewrite Hfv in Hnv.
-      inversion Hnv. rewrite /=//.
-      move : (not_init_cefind_some _ Hin (HiF.base_ref h) ce0 (HiF.aggr_typ (HiF.type_of_hfexpr h1 ce0), Node)) => Hni.
-      rewrite Hf in Hni; discriminate.
-    - apply inferType_sinvalid_sem_conform.
-    - apply inferType_swhen_sem_conform with (ce1 := inferType_stmts_fun h1 ce0) ; try done.
-      apply H. apply H.
-    rewrite/=.
-    exact : (H0 (inferType_stmt_fun h ce0) ).
-  Qed.
+    elim => [|v t|r t| m t| v1 v2| n t| d e| d e| v | c s1 s2]; rewrite /inferType_stmt_sem_conform_statement.
+    - apply inferType_sskip_sem_conform.
+  Admitted.
+    
+  (* Lemma inferType_stmts_init_sem_conform : *)
+  (*   forall ss : HiF.hfstmt_seq, inferType_stmts_sem_conform_statement ss. *)
+  (* Proof. *)
+  (*   apply hfstmt_seq_hfstmt_ind with (P := inferType_stmts_sem_conform_statement) *)
+  (*                                    (P0 := fun st : HiF.hfstmt => match st with *)
+  (*                                                              | Swhen c s1 s2 => inferType_stmts_sem_conform_statement s1 *)
+  (*                                                                              /\ inferType_stmts_sem_conform_statement s2 *)
+  (*                                                              | _ => True end) ; *)
+  (*   try done. *)
+  (*   unfold inferType_stmts_sem_conform_statement. apply Infertype_stmts_nil. *)
+  (*   intros. *)
+  (*   unfold inferType_stmts_sem_conform_statement. *)
+  (*   intros. *)
+  (*   apply Infertype_stmts_con with (inferType_stmt_fun h ce0). *)
+  (*   have Hin : ((HiF.is_init h) \/ ~~(HiF.is_init h)) by (case (HiF.is_init h); [by left| by right]). *)
+  (*   move : Hin. *)
+  (*   induction h; intros; move : Hin => [Hin | Hin]; try done. *)
+  (*   - exact : (inferType_sskip_sem_conform).  *)
+  (*   - exact : (inferType_swire_sem_conform s f ce0 (init_new_comp_name _ Hin s)). *)
+  (*   - exact : (inferType_sreg_sem_conform s h ce0 (init_new_comp_name _ Hin s)). *)
+  (*   - exact : (inferType_smem_sem_conform s h ce0 (init_new_comp_name _  Hin s)). *)
+  (*   - exact : (inferType_sinst_sem_conform s s0 ce0 (init_new_comp_name _ Hin s) (new_comp_name_not_rep s s0 (init_new_comp_name _ Hin s))). *)
+  (*   - have Hte : (HiF.type_of_hfexpr h ce0 = HiF.type_of_hfexpr h (inferType_stmt_fun (Snode s h) ce0)). *)
+  (*     rewrite/=. *)
+  (*     apply upd_new_comp_same_expr with s (HiF.aggr_typ (HiF.type_of_hfexpr h ce0), Node); try done. *)
+  (*     exact : (init_new_comp_name _ Hin). *)
+  (*     exact : (inferType_snode_sem_conform s h ce0 (init_new_comp_name _ Hin _) Hte). *)
+  (*   - case Hf : (CE.find (HiF.base_ref h) ce0) => [[t c]|]. *)
+  (*     move : (not_init_cefind_some _ Hin (HiF.base_ref h) ce0 (HiF.aggr_typ (HiF.type_of_hfexpr h1 ce0), c)) => Hni. *)
+  (*     apply inferType_sfcnct_sem_conform with t c; try done. *)
+  (*     move : (CE.find_some_vtyp Hf) => Hfv. *)
+  (*     move : (CE.find_some_vtyp Hni) => Hnv. *)
+  (*     rewrite Hfv in Hnv. *)
+  (*     inversion Hnv. rewrite /=//. *)
+  (*     move : (not_init_cefind_some _ Hin (HiF.base_ref h) ce0 (HiF.aggr_typ (HiF.type_of_hfexpr h1 ce0), Node)) => Hni. *)
+  (*     rewrite Hf in Hni; discriminate. *)
+  (*   - case Hf : (CE.find (HiF.base_ref h) ce0) => [[t c]|]. *)
+  (*     move : (not_init_cefind_some _ Hin (HiF.base_ref h) ce0 (HiF.aggr_typ (HiF.type_of_hfexpr h1 ce0), c)) => Hni. *)
+  (*     apply inferType_spcnct_sem_conform with t c; try done. *)
+  (*     move : (CE.find_some_vtyp Hf) => Hfv. *)
+  (*     move : (CE.find_some_vtyp Hni) => Hnv. *)
+  (*     rewrite Hfv in Hnv. *)
+  (*     inversion Hnv. rewrite /=//. *)
+  (*     move : (not_init_cefind_some _ Hin (HiF.base_ref h) ce0 (HiF.aggr_typ (HiF.type_of_hfexpr h1 ce0), Node)) => Hni. *)
+  (*     rewrite Hf in Hni; discriminate. *)
+  (*   - apply inferType_sinvalid_sem_conform. *)
+  (*   - apply inferType_swhen_sem_conform with (ce1 := inferType_stmts_fun h1 ce0) ; try done. *)
+  (*     apply H. apply H. *)
+  (*   rewrite/=. *)
+  (*   exact : (H0 (inferType_stmt_fun h ce0) ). *)
+  (* Qed. *)
 
   Lemma inferType_inport_sem_conform :
   forall v t ce0 ,
@@ -799,31 +812,20 @@ Section InferTypeP.
 
   Definition upd_aggr_elements_all (v:pvar) (t: cmpnt_init_typs ProdVarOrder.T * fcomponent) (ce:CEP.env) : CEP.env :=
     let ts := ftype_list_all (type_of_cmpnttyp (fst t)) nil in
-    CEP.add v t (upd_aggr_elements_aux v ts (snd t) ce first_index).
+    CEP.add v t (upd_aggr_elements_aux v ts (snd t) ce initial_index).
   
   Definition ce0 :CEP.env:= CEP.empty (cmpnt_init_typs ProdVarOrder.T * fcomponent).
   Definition agt := HiFP.aggr_typ (Atyp (Btyp (Fflips 5%num Nflip (Gtyp (Fsint 1)) (Fflips 6%num Nflip (Atyp (Gtyp (Fsint 2)) 2) Fnil))) 3).
   Definition tagt := type_of_cmpnttyp agt.
-  Compute tagt. Compute ftype_list_all tagt nil.
-       (* = [:: Atyp *)
-       (*       (Btyp *)
-       (*          (Fflips 5%num Nflip (Gtyp (Fsint 1)) *)
-       (*             (Fflips 6%num Nflip (Atyp (Gtyp (Fsint 2)) 2) Fnil))) 3; *)
-       (*     Btyp *)
-       (*       (Fflips 5%num Nflip (Gtyp (Fsint 1)) *)
-       (*          (Fflips 6%num Nflip (Atyp (Gtyp (Fsint 2)) 2) Fnil));  *)
-       (*    Gtyp (Fsint 1); Atyp (Gtyp (Fsint 2)) 2; Gtyp (Fsint 2);  *)
-       (*    Gtyp (Fsint 2); *)
-       (*     Btyp *)
-       (*       (Fflips 5%num Nflip (Gtyp (Fsint 1)) *)
-       (*          (Fflips 6%num Nflip (Atyp (Gtyp (Fsint 2)) 2) Fnil));  *)
-       (*    Gtyp (Fsint 1); Atyp (Gtyp (Fsint 2)) 2; Gtyp (Fsint 2);  *)
-       (*    Gtyp (Fsint 2); *)
-       (*     Btyp *)
-       (*       (Fflips 5%num Nflip (Gtyp (Fsint 1)) *)
-       (*          (Fflips 6%num Nflip (Atyp (Gtyp (Fsint 2)) 2) Fnil));  *)
-       (*    Gtyp (Fsint 1); Atyp (Gtyp (Fsint 2)) 2; Gtyp (Fsint 2);  *)
-       (*    Gtyp (Fsint 2)] *)
+  Compute tagt. Compute ftype_list_all tagt nil.  
+       (* = [:: Atyp (Btyp (Fflips 5%num Nflip (Gtyp (Fsint 1)) (Fflips 6%num Nflip (Atyp (Gtyp (Fsint 2)) 2) Fnil))) 3; *)
+       (*     Btyp (Fflips 5%num Nflip (Gtyp (Fsint 1)) (Fflips 6%num Nflip (Atyp (Gtyp (Fsint 2)) 2) Fnil)); *)
+       (*     Gtyp (Fsint 1); Atyp (Gtyp (Fsint 2)) 2; Gtyp (Fsint 2); Gtyp (Fsint 2); *)
+       (*     Btyp (Fflips 5%num Nflip (Gtyp (Fsint 1)) (Fflips 6%num Nflip (Atyp (Gtyp (Fsint 2)) 2) Fnil)); *)
+       (*     Gtyp (Fsint 1); Atyp (Gtyp (Fsint 2)) 2; Gtyp (Fsint 2); Gtyp (Fsint 2); *)
+       (*     Btyp (Fflips 5%num Nflip (Gtyp (Fsint 1)) (Fflips 6%num Nflip (Atyp (Gtyp (Fsint 2)) 2) Fnil)); *)
+       (*     Gtyp (Fsint 1); Atyp (Gtyp (Fsint 2)) 2; Gtyp (Fsint 2); Gtyp (Fsint 2)] *)
+
   Definition uagt := upd_aggr_elements_aux (10%num, N0) (ftype_list tagt nil) Node ce0 1%num.
   Compute CEP.vtyp (10%num , 7%num) uagt.
   Definition uagt1 := upd_aggr_elements (10%num, N0) (agt, Node) ce0.

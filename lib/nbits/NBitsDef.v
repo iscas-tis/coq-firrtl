@@ -1,5 +1,5 @@
 
-From Coq Require Import ZArith Arith List Ascii String.
+From Coq Require Import ZArith Arith List Ascii String Lia.
 From mathcomp Require Import ssreflect eqtype ssrbool ssrnat ssrfun seq div.
 From nbits Require Import AuxLemmas.
 
@@ -1564,11 +1564,10 @@ Section Lemmas.
     forall (a : bool) (n : seq bool), to_Zpos (joinmsb n a) = (a * 2 ^ Z.of_nat (size n) + to_Zpos n)%Z.
   Proof.
     intros.
-    move : a. elim n=>[|nhd ntl IH] a. by rewrite/=; omega.
+    move : a. elim n=>[|nhd ntl IH] a. by rewrite/=; lia.
     symmetry.
     rewrite (lock Z.of_nat)/= (IH a) Z.add_comm -Z.add_assoc -addn1 -lock Nat2Z.inj_add /=Z.pow_add_r;
-      try omega.
-    rewrite Z.pow_1_r Z.mul_assoc. omega.
+      try lia.
   Qed.
     
   Lemma to_Zpos_dropmsb_sub_msb :
@@ -1581,7 +1580,7 @@ Section Lemmas.
   
   Lemma to_Zpos_droplsb bs : to_Zpos (droplsb bs) = (to_Zpos bs / 2)%Z.
   Proof.
-    elim bs => [|bshd bstl _]; first (rewrite /= Z.div_0_l; omega).
+    elim bs => [|bshd bstl _]; first (rewrite /= Z.div_0_l; lia).
     rewrite -/joinlsb droplsb_joinlsb /= Z.mul_comm Z.add_b2z_double_div2//.
   Qed.
 
@@ -1794,7 +1793,7 @@ Section Lemmas.
   Lemma to_Zpos_from_Zpos_bounded : forall n z, 
       (0 <= z)%Z -> (z < 2 ^ Z.of_nat n)%Z -> to_Zpos (from_Zpos n z) = z.
   Proof.
-    elim => [/= | n IH] z; first omega. move=> Hz0 Hz /=. 
+    elim => [/= | n IH] z; first lia. move=> Hz0 Hz /=. 
     rewrite (IH (Z.div2 z)); first by rewrite Z.add_comm Z.mul_comm -Z.div2_odd.
     - by rewrite Z.div2_nonneg.
     - apply (Z.mul_lt_mono_pos_r 2); first done. 
