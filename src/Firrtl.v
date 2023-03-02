@@ -338,24 +338,42 @@ Module MakeFirrtl
   (* Comparison operations *)
   Definition binop_bcmp (o : bcmp) : bits -> bits -> bits :=
     match o with
-    | Blt => fun b1 b2 => [::ltB b1 b2]
-    | Bleq => fun b1 b2 => [::leB b1 b2]
-    | Bgt => fun b1 b2 => [::gtB b1 b2]
-    | Bgeq => fun b1 b2 => [::geB b1 b2]
+    | Blt => fun b1 b2 => let bs1 := zext ((maxn (size b1) (size b2)) - (size b1)) b1 in
+                          let bs2 := zext ((maxn (size b1) (size b2)) - (size b2)) b2 in
+                          [::ltB bs1 bs2]
+    | Bleq => fun b1 b2 => let bs1 := zext ((maxn (size b1) (size b2)) - (size b1)) b1 in
+                          let bs2 := zext ((maxn (size b1) (size b2)) - (size b2)) b2 in
+                          [::leB bs1 bs2]
+    | Bgt => fun b1 b2 => let bs1 := zext ((maxn (size b1) (size b2)) - (size b1)) b1 in
+                          let bs2 := zext ((maxn (size b1) (size b2)) - (size b2)) b2 in
+                          [::gtB bs1 bs2]
+    | Bgeq => fun b1 b2 => let bs1 := zext ((maxn (size b1) (size b2)) - (size b1)) b1 in
+                          let bs2 := zext ((maxn (size b1) (size b2)) - (size b2)) b2 in
+                          [::geB bs1 bs2]
     | Beq => fun b1 b2 => let bs1 := zext ((maxn (size b1) (size b2)) - (size b1)) b1 in
                           let bs2 := zext ((maxn (size b1) (size b2)) - (size b2)) b2 in
-    [::bs1 == bs2]
+                          [::bs1 == bs2]
     | Bneq => fun b1 b2 => let bs1 := zext ((maxn (size b1) (size b2)) - (size b1)) b1 in
                            let bs2 := zext ((maxn (size b1) (size b2)) - (size b2)) b2 in
-    [::(~~ (bs1 == bs2))]
+                          [::(~~ (bs1 == bs2))]
     end.
-  
+    Compute (binop_bcmp Bgeq [::true;false;true] [::true;false;true]).
+    Compute (binop_bcmp Bgeq [::true;false;true] [::true;false;true;false]).
+
   Definition binop_sbcmp (o : bcmp) : bits -> bits -> bits :=
     match o with
-    | Blt => fun b1 b2 => [::sltB b1 b2]
-    | Bleq => fun b1 b2 => [::sleB b1 b2]
-    | Bgt => fun b1 b2 => [::sgtB b1 b2]
-    | Bgeq => fun b1 b2 => [::sgeB b1 b2]
+    | Blt => fun b1 b2 => let bs1 := sext ((maxn (size b1) (size b2)) - (size b1)) b1 in
+                          let bs2 := sext ((maxn (size b1) (size b2)) - (size b2)) b2 in
+                          [::sltB bs1 bs2]
+    | Bleq => fun b1 b2 => let bs1 := sext ((maxn (size b1) (size b2)) - (size b1)) b1 in
+                          let bs2 := sext ((maxn (size b1) (size b2)) - (size b2)) b2 in
+                          [::sleB bs1 bs2]
+    | Bgt => fun b1 b2 => let bs1 := sext ((maxn (size b1) (size b2)) - (size b1)) b1 in
+                          let bs2 := sext ((maxn (size b1) (size b2)) - (size b2)) b2 in
+                          [::sgtB bs1 bs2]
+    | Bgeq => fun b1 b2 => let bs1 := sext ((maxn (size b1) (size b2)) - (size b1)) b1 in
+                          let bs2 := sext ((maxn (size b1) (size b2)) - (size b2)) b2 in
+                          [::sgeB bs1 bs2]
     | Beq => fun b1 b2 => let bs1 := sext ((maxn (size b1) (size b2)) - (size b1)) b1 in
                           let bs2 := sext ((maxn (size b1) (size b2)) - (size b2)) b2 in
                           [::bs1 == bs2]
@@ -441,6 +459,7 @@ Module MakeFirrtl
   (*Compute (sext 2 [::b1;b0]).
   Compute (joinlsb false(addB (zeros ((size [::b1;b0])+1)) (addB (invB (sext (size [::b1]) [::b1;b0])) (zext (size [::b1;b0]) [::b1])))).*)
   Compute (Sfull_mul [::b1;b1] [::b0;b1]).
+  Compute (cat [::b1;b1] [::b0;b1]).
   
   Definition ebinop_op (o : ebinop) (t1 t2 : fgtyp) : bits -> bits -> bits :=
     match t1, t2 with
@@ -461,7 +480,7 @@ Module MakeFirrtl
       | Band => andB ea eb
       | Bor => orB ea eb
       | Bxor => xorB ea eb
-      | Bcat => cat b a
+      | Bcat => cat (*(zext (w2 - size b) b) (zext (w1 - size a) a)*) b a
       | Bdshl => cat (zeros (to_nat b)) a
       | Bdshr => (shrB (to_nat b) a)
       end
@@ -482,7 +501,7 @@ Module MakeFirrtl
       | Band => andB ea eb
       | Bor => orB ea eb
       | Bxor => xorB ea eb
-      | Bcat => cat b a
+      | Bcat => cat (*sext (w2 - size b) b) (sext (w1 - size a) a*) b a
       | _ => a
       end
     | Fsint _, Fuint _ =>
@@ -494,8 +513,7 @@ Module MakeFirrtl
       end
     | _, _ => fun a b => a
     end.
-
-
+    
   Fixpoint type_of_fexpr (e : fexpr) (te : TE.env) : fgtyp :=
     match e with
     | Econst t c => t
@@ -579,7 +597,11 @@ Module MakeFirrtl
                                        | Fsint s1, Fsint s2 => Fsint (minn s1 s2)
                                        | _, _ => TE.deftyp
                                        end
-                             | _ => type_of_fexpr e1 te
+                             | Bcat => match type_of_fexpr e1 te, type_of_fexpr e2 te with
+                                      | Fuint s1, Fuint s2 => Fuint (s1 + s2)
+                                      | Fsint s1, Fsint s2 => Fuint (s1 + s2)
+                                      | _, _ => TE.deftyp
+                                      end
                              end
     | Emux c e1 e2 => let t1 := (type_of_fexpr e1 te) in
                       let t2 := (type_of_fexpr e2 te) in
@@ -668,7 +690,11 @@ Fixpoint upd_inner s s0 (a2 : seq var) (finstinmap : mapvar) : vstate :=
 
   Fixpoint eval_fexpr (e : fexpr) (s : vstate) (te : TE.env) (readerls : seq var) (writerls : seq var) (data2etc : mapdata2etc) (memmap : mapmem) : bits :=
     match e with
-    | Econst t c => c
+    | Econst t c => match t with
+                    | Fuint w1 => zext (w1 - size c) c
+                    | Fsint w2 => sext (w2 - size c) c
+                    | _ => c
+                    end
     | Eref v => (* SV.acc v s
     have map data2addr、data2en、data2mask、data2mid
     have list reader.data、writer.data
@@ -727,10 +753,10 @@ Fixpoint upd_inner s s0 (a2 : seq var) (finstinmap : mapvar) : vstate :=
     | Ecast AsAsync e => [::lsb (eval_fexpr e s te readerls writerls data2etc memmap)]
     end.
   
+  Compute (ebinop_op Bcat (Fuint 4) (Fuint 4) [::true; true;true; true] [:: true]).
   Compute (ebinop_op Bsub (Fuint 16) (Fuint 16) [:: false] [:: false]).
   (*Compute (from_Z 6 (-3)). (*[:: true; false; true; true; true; true] *)
   Compute (from_Z 11 (-56)). (*[:: false; false; false; true; false; false; true; true; true; true; true]*)
-  Compute (ebinop_op Badd (Fsint 6) (Fsint 11) [:: true; false; true; true; true; true] [:: false; false; false; true; false; false; true; true; true; true; true]).
   Compute (ebinop_op Badd (Fsint 4) (Fsint 4) [:: true;true;true;true] [:: false; true; true; false]).
   Compute (eunop_op (Ucvt) (Fuint 6) [:: true; false; true; true; true; true]).*)
   
@@ -1052,18 +1078,26 @@ Fixpoint upd_inner s s0 (a2 : seq var) (finstinmap : mapvar) : vstate :=
              run_module0 mainmod rs2 s2 te io_in0 name ols readerls writerls data2etc memmap0 m len finstoutl finstoutm ffmodsmap fterss0 finstin finstportmap iternum
     end.
     
+
+Fixpoint expr2varlist (expr : fexpr) (ls : seq var) : seq var := 
+  match expr with
+  | Econst _ _ => ls
+  | Eref v => List.cons v ls
+  | Eprim_unop _ e1 => expr2varlist e1 ls
+  | Eprim_binop _ e1 e2 => expr2varlist e2 (expr2varlist e1 ls)
+  | Emux e1 e2 e3 => expr2varlist e3 (expr2varlist e2 (expr2varlist e1 ls))
+  | Evalidif e1 e2 => expr2varlist e2 (expr2varlist e1 ls)
+  | Ecast _ e => expr2varlist e ls
+  end.
+
 Definition findreg (ls roots : seq var) (st : fstmt) : seq var * seq var :=
   match st with
   | Sreg r => (List.cons (rid r) ls, List.cons (rid r) roots)
-  | Snode v e => (match e with
-                | Econst _ _ => (ls, List.cons v roots)
-                | _ => (ls, roots)
-                end)
+  | Snode v e => if (expr2varlist e [::] == [::]) then (ls, List.cons v roots)
+                  else (ls, roots)
   | Sfcnct e1 e2 => (match e1 with
-                    | Eref v1 => (match e2 with
-                                | Econst _ _ => (ls, List.cons v1 roots)
-                                | _ => (ls, roots)
-                                end)
+                    | Eref v1 => if (expr2varlist e2 [::] == [::]) then (ls, List.cons v1 roots)
+                                else (ls, roots)
                     | _ => (ls, roots)
                     end)
   | Sinvalid v => (ls, List.cons v roots)
@@ -1077,16 +1111,12 @@ Definition def_known_reg_order (regls : seq var) (defls : seq fstmt) (knownls : 
   | Sreg _ => (cons st defls, knownls, regstmtls)
   | Smem m => (cons st defls, knownls, regstmtls) 
   | Sinst _ => (defls, knownls, cons st regstmtls) (*TBD*)
-  | Snode v e => (match e with
-                | Econst _ _ => (defls, cons st knownls, regstmtls)
-                | _ => (defls, knownls, regstmtls)
-                end)
+  | Snode v e => if (expr2varlist e [::] == [::]) then (defls, cons st knownls, regstmtls)
+                else (defls, knownls, regstmtls)
   | Sfcnct e1 e2 => (match e1 with
-                    | Eref v1 => (match e2 with
-                                | Econst _ _ => (defls, cons st knownls, regstmtls)
-                                | _ => (if (varIn v1 regls) then (defls, knownls, cons st regstmtls) 
-                                        else (defls, knownls, regstmtls))
-                                end)
+                    | Eref v1 => if (expr2varlist e2 [::] == [::]) then (defls, cons st knownls, regstmtls)
+                                 else (if (varIn v1 regls) then (defls, knownls, cons st regstmtls)
+                                                          else (defls, knownls, regstmtls))
                     | _ => (defls, knownls, regstmtls)
                     end)
   | Sinvalid _ => (defls, cons st knownls, regstmtls)
@@ -1100,17 +1130,6 @@ Definition known_reg_orders (oldstmts : seq fstmt) : seq fstmt * seq fstmt * seq
   let regstmtls := List.rev revregstmtls in
   let defls := List.rev revdefls in
   (defls, knownls, regstmtls).
-
-Fixpoint expr2varlist (expr : fexpr) (ls : seq var) : seq var := 
-  match expr with
-  | Econst _ _ => ls
-  | Eref v => List.cons v ls
-  | Eprim_unop _ e1 => expr2varlist e1 ls
-  | Eprim_binop _ e1 e2 => expr2varlist e2 (expr2varlist e1 ls)
-  | Emux e1 e2 e3 => expr2varlist e3 (expr2varlist e2 (expr2varlist e1 ls))
-  | Evalidif e1 e2 => expr2varlist e2 (expr2varlist e1 ls)
-  | Ecast _ e => expr2varlist e ls
-  end.
 
 Definition addreader2g (tempg : g) (tempr : freader_port) : g :=
   let g0 := updg (addr tempr) (cons (data tempr) (findg (addr tempr) tempg)) tempg in
@@ -1224,6 +1243,10 @@ Definition buildg (regls : seq var) (flagmap : fmap) (inportsmap : mapvar) (outp
   | Sinvalid _ => (fing, var2stmt)
   | _ => (fing, var2stmt) (*Swhen\Sstop*)
   end.
+(*
+Inductive result_type : Type :=
+  | OK : seq var => result_type
+  *)
 
 Fixpoint topo_tree (fing : g) (n : nat) (gray_nodes : seq var) (already_found : option (seq var)) (root : var) : option (seq var) :=
 match already_found, n with
@@ -1256,7 +1279,6 @@ match v with
 | a :: t => subset (fing a) t && respects_topological_order fing t 
 end.
 
-(*
 Theorem topo_tree_correct : 
      forall (vertices : seq var) (fing : g) (n : nat) (gray_nodes already_found : seq var) (root : var),
      (forall x : var, x \in vertices -> subset (fing x) vertices) ->
@@ -1273,7 +1295,9 @@ Proof.
   unfold topo_tree.
      
 Admitted.
-*)
+
+
+
 Definition topo_sort (fing : g) (n : nat) (vertices : seq var) : option (seq var) :=
 foldl (topo_tree fing n [::]) (Some [::]) vertices.
 
