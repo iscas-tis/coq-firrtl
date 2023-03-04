@@ -79,47 +79,42 @@ end.
 
 Local Lemma subset_cat : forall (s t : seq node), subset s (t ++ s) = true.
 Proof.
-induction s.
+elim => [|a l IHs t].
 * unfold subset ; reflexivity.
-* intro.
-  rewrite /subset mem_cat mem_head orbT andTb -cat1s catA.
+* rewrite /subset mem_cat mem_head orbT andTb -cat1s catA.
   apply IHs.
 Qed.
 
-Lemma subset_cons_cons : forall (x : node) (s t : seq node), subset s t -> subset (x :: s) (x :: t).
+Lemma subset_cons_cons : forall (s t : seq node) (x : node), subset s t -> subset (x :: s) (x :: t).
 Proof.
-induction s.
-+ intros ; rewrite /subset mem_head //.
-+ rewrite /subset.
-  move => t /andP [Ha Hs].
-  rewrite (in_cons x t a) Ha orbT andTb.
-  apply IHs ; exact Hs.
+elim => [t x _|a l IHs t x /andP [Ha Hs]].
++ rewrite /subset mem_head //.
++ rewrite /subset (in_cons x t a) Ha orbT andTb.
+  apply IHs, Hs.
 Qed.
 
 Lemma subset_refl : forall (s : seq node), subset s s = true.
 Proof.
 move => s.
-rewrite -{2}(cat0s s).
-apply subset_cat.
+rewrite -{2}(cat0s s) subset_cat //.
 Qed.
 
 Lemma subset_nil : forall (s : seq node), subset s [::] -> s = [::].
 Proof.
-destruct s.
-* intro ; reflexivity.
+elim => [s|a l _].
+* reflexivity.
 * rewrite /subset in_nil andFb //.
 Qed.
 
 Lemma in_subset_trans : forall (s : seq node) (x : node) (t : seq node),
    x \in s -> subset s t -> x \in t.
 Proof.
-move => s x ; elim s => [|a l IHs].
+elim => [x|a l IHs x].
 * rewrite in_nil //.
-* rewrite in_cons /subset.
-  move =>> /orP [/eqP H|H] /andP H0.
-  + rewrite H ; apply H0.
-  + apply IHs ; try trivial.
-    apply H0.
+* rewrite in_cons.
+  move =>> /orP [/eqP H|H] /andP [Ha Hl].
+  + rewrite H Ha //.
+  + rewrite IHs //.
 Qed.
 
 Lemma subset_trans : forall (t s u : seq node),
@@ -127,27 +122,22 @@ Lemma subset_trans : forall (t s u : seq node),
 Proof.
 induction s.
 * rewrite /subset //.
-* move => u /andP H H0.
-Print rwP.
-  apply (@rwP (a \in u /\ subset s u)) ; try apply andP.
-  split.
-  + apply (in_subset_trans t) ; try trivial ; apply H.
-  + apply IHs ; try trivial ; apply H.
+* move => u /andP [Ha Hs] H0.
+  rewrite /subset (in_subset_trans t) // andTb -/subset IHs //.
 Qed.
 
 Local Lemma respects_topological_order_gx :
    forall (v : seq node) (x : node),
       respects_topological_order v -> x \in v -> subset (g x) v.
 Proof.
-induction v.
-* intro ; rewrite in_nil //.
-* intro ; rewrite in_cons.
-  intros.
+elim => [x _|a v IHv x].
+* rewrite in_nil //.
+* rewrite in_cons.
+  move => /andP [/andP [H H1] H2] H0.
   apply (subset_trans v).
-  + move : H => /andP [/andP [H H1] H2].
-    destruct (eqVneq x a).
-    - rewrite e ; exact H.
-    - apply IHv ; done.
+  + destruct (eqVneq x a).
+    - rewrite e H //.
+    - rewrite IHv //.
   + rewrite -cat1s subset_cat //.
 Qed.
 
@@ -230,17 +220,15 @@ induction n.
           - rewrite IHp //.
   assert (subset_reml : forall (q p : seq node) (a : node), subset (rem a q) p -> subset q (a :: p)).
         clear.
-        induction q.
-        + intros ; rewrite /subset //.
-        + intros p b.
-          rewrite rem_cons.
+        elim => [p a _|a q IHq p b].
+        + rewrite /subset //.
+        + rewrite rem_cons.
           destruct (eqVneq a b).
           - rewrite e.
             apply subset_cons_cons.
-          - unfold subset ; fold subset.
-            apply negbTE in i.
+          - apply negbTE in i.
             move /andP => [Ha Hb].
-            rewrite in_cons i orFb Ha andTb.
+            rewrite /subset in_cons i orFb Ha andTb.
             apply IHq, Hb.
   assert (Hroot_in_gray_nodes : root \in gray_nodes).
         apply (in_subset_trans vertices) ; try trivial.
@@ -257,7 +245,7 @@ induction n.
           unfold uniq in Hgray_nodes_uniq ; fold (@uniq node) in Hgray_nodes_uniq ; move /andP : Hgray_nodes_uniq => Hgray_nodes_uniq.
           apply subset_reml, IHgray_nodes.
           - rewrite size_rem ; try apply Hgray_nodes_closed.
-            rewrite leqNgt ltn_predRL -leqNgt ; exact Hn.
+            rewrite leqNgt ltn_predRL -leqNgt Hn //.
           - apply subset_remr ; try apply Hgray_nodes_uniq ; apply Hgray_nodes_closed.
           - apply Hgray_nodes_uniq.
   rewrite Hroot_in_gray_nodes /graph_acyclic.
