@@ -11,11 +11,11 @@ circuit InitMemory :
     mem mem1 : @[memory.scala 114:24]
       data-type => UInt<8>
       depth => 1024
-      read-latency => 1
+      read-latency => 0
       write-latency => 1
       reader => io_rdData_MPORT
       writer => MPORT
-      read-under-write => undefined
+      read-under-write => old
     node _GEN_0 = validif(UInt<1>("h1"), io_rdAddr) @[memory.scala 119:{24,24}]
     node _io_rdData_WIRE = _GEN_0 @[memory.scala 119:24]
     node _io_rdData_T = or(_io_rdData_WIRE, UInt<10>("h0")) @[memory.scala 119:24]

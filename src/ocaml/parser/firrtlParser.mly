@@ -83,7 +83,7 @@ statement
   | STM_WIRE symbol KEYWORD typ_def 
                                             { Swire ($2, $4) }
   | STM_NODE symbol STM_NASS expr           { Snode ($2, $4) }
-  | STM_REG symbol KEYWORD typ_def SPRT expr REG_WITH KEYWORD REG_RST REG_RSTARR PAR_OPEN expr SPRT expr PAR_CLOSE
+  | STM_REG symbol KEYWORD typ_def SPRT symbol REG_WITH KEYWORD REG_RST REG_RSTARR PAR_OPEN expr SPRT expr PAR_CLOSE
                                             { Sreg (mk_freg $2 $4 $6 $12 $14) }
   | symbol STM_INVALID                { Sinvalid ($1) }
   | STM_MEM symbol KEYWORD STM_DATATYPE REG_RSTARR typ_def STM_DEPTH REG_RSTARR numeral STM_READ_L REG_RSTARR numeral STM_WRITE_L REG_RSTARR numeral STM_READ REG_RSTARR symbols STM_WRITE REG_RSTARR symbols STM_READWRITE REG_RSTARR ruw

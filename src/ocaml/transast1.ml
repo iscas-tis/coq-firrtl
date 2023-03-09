@@ -448,8 +448,7 @@ let parse f =
   let lexbuf = Lexing.from_channel (open_in f) in
   FirrtlParser.file FirrtlLexer.token lexbuf
 
-let lowf_ast = parse "./demo/treadle_lofir/sub/mem/TopOfVisualizer.lo.fir"
-
+let lowf_ast = parse "./demo/chiselbook_generated/lofir/InitMemory.lo.fir" 
 let writeinp =  Env.TE.add (Obj.magic 4) [[true];[true]] Env.TE.empty
 let writeinp =  Env.TE.add (Obj.magic 2) [[true;true;true;true]; [true;true;true;false]] writeinp
 let writeinp =  Env.TE.add (Obj.magic 3) [[true;true;false;true]; [true;false;true;true]] writeinp
@@ -563,9 +562,9 @@ let () =
   *)
   let fflagmap = StringMap.fold (fun key value -> Env.TE.add (Obj.magic (StringMap.find key modsnum)) value) flagmap Env.TE.empty in
 
-  (*let inp_bitsmap = StringMap.add "io_readAddress" [[true;];[true;];[true;];[true;];] inp_bitsmap in
-  let inp_bitsmap = StringMap.add "io_writeAddress" [[true;];[true;];[true;];[true;];] inp_bitsmap in
-  let inp_bitsmap = StringMap.add "io_select" [[true;];[true;];[true;];[true;];[true;]] inp_bitsmap in
+  (*let inp_bitsmap = StringMap.add "io_rdAddr" [[true;];[true;];[true;];[true;];] inp_bitsmap in
+  let inp_bitsmap = StringMap.add "io_wrAddr" [[true;];[false;];[true;];[false;];] inp_bitsmap in
+  let inp_bitsmap = StringMap.add "io_wrEna" [[true;];[true;];[true;];[true;];] inp_bitsmap in
   *)let finp_bitsmap = StringMap.fold (fun key value -> Env.TE.add (Obj.magic (StringMap.find key mainmap)) value) inp_bitsmap Env.TE.empty in
 
   (*let mainmod = IntMap.find (StringMap.find cv modsnum) fmodsmap in
@@ -587,10 +586,10 @@ let () =
   let ut1 = (Unix.times()).tms_utime in
 (*
   let (((_,sor),_),_)= Firrtl.LoFirrtl.modname2g (Obj.magic morder) fflagmap ffstmtsmap fnewinstportmap finsti2e_outmap finstin finstout finstoutl Env.TE.empty Env.TE.empty Env.TE.empty Env.TE.empty in
-  match (Env.TE.find (Obj.magic 11) sor) with
-  | None -> printf "no 11";
+  match (Env.TE.find (Obj.magic 42) sor) with
+  | None -> printf "no 42";
   | Some sorder -> List.iter p_stmt sorder;
-  
+
   match (Env.TE.find (Obj.magic 40) allg) with
   | None -> printf "no 44g";
   | Some kg -> if (Firrtl.LoFirrtl.dfs_path kg 44 (Obj.magic 12) (Obj.magic 2)) then printf "12->2\n";
@@ -616,8 +615,6 @@ let () =
   match (Firrtl.LoFirrtl.topo_sort kg len (List.append inps roots)) with
               | None -> printf "meipai";
               | Some tseq -> printf_list (Obj.magic tseq);
-
-
   
   let (inportsmap, outportsmap) =
         match Env.TE.find (Obj.magic 40) fnewinstportmap with
@@ -631,20 +628,21 @@ let () =
             tempst) (Firrtl.LoFirrtl.emptyg, Env.TE.empty) olds
       in
 
-  let (_, varorder) = Firrtl.LoFirrtl.reorder (Obj.magic morder) fflagmap ffstmtsmap fnewinstportmap finstin fisntout in
+  let (newstmts, varorder) = Firrtl.LoFirrtl.reorder (Obj.magic morder) fflagmap ffstmtsmap fnewinstportmap finsti2e_outmap finstin finstout finstoutl in
   
   printf "varorder:\n";
-  match (Env.TE.find (Obj.magic 40) varorder) with
-  | None -> printf "no var45";
+  match (Env.TE.find (Obj.magic 29) varorder) with
+  | None -> printf "no var42";
   | Some tor -> printf_list (Obj.magic tor); printf "len: %d\n" (List.length tor);
 
-  match (Env.TE.find (Obj.magic 45) ffstmtsmap) with
-  | None -> printf "no var45";
-  | Some tor -> printf "%d\n" (List.length tor); 
+  match (Env.TE.find (Obj.magic 29) ffstmtsmap) with
+  | None -> printf "no var42";
+  | Some tor -> printf "old stmts length:%d\n" (List.length tor); 
 
-  match (Env.TE.find (Obj.magic 38) newsts) with
+  match (Env.TE.find (Obj.magic 29) newstmts) with
   | None -> printf "no var38";
-  | Some tnewsts -> List.iter p_stmt tnewsts;
+  | Some tnewsts -> List.iter p_stmt tnewsts; printf "new length:%d\n" (List.length tnewsts); 
+  
   match (Env.TE.find (Obj.magic 9) var2stmt) with
   | None -> printf "no9stmt\n";
   | Some _ -> printf "yes9stmt\n";
@@ -656,7 +654,7 @@ let () =
   (*printf "vars: %d\n" (List.length tor);
   printf "news: %d\n" (List.length tst);*)
 *)
-  let ((((rs2,s2),_),fterss2), outputmap) = Firrtl.LoFirrtl.run_module (Obj.magic morder) fflagmap fnewinstportmap finsti2e_outmap (Obj.magic (StringMap.find cv modsnum)) rs0 s0 te0 finp_bitsmap (List.map Obj.magic inp_intlst) (List.map Obj.magic ointls) readerls writerls data2etc mem0 clks clks finstoutl finstoutm ffstmtsmap finitterss finstin finstout finstportmap iternum in
+  let ((((rs2,s2),_),_), outputmap) = Firrtl.LoFirrtl.run_module (Obj.magic morder) fflagmap fnewinstportmap finsti2e_outmap (Obj.magic (StringMap.find cv modsnum)) rs0 s0 te0 finp_bitsmap (List.map Obj.magic inp_intlst) (List.map Obj.magic ointls) readerls writerls data2etc mem0 clks clks finstoutl finstoutm ffstmtsmap finitterss finstin finstout finstportmap iternum in
   (*let ((((rs2,s2),_),fterss2), outputmap) = Firrtl.LoFirrtl.run_module (Obj.magic morder) fflagmap fnewinstportmap (Obj.magic (StringMap.find cv modsnum)) rs0 s0 te0 finp_bitsmap (List.map Obj.magic inp_intlst) (List.map Obj.magic ointls) readerls writerls data2etc mem0 clks clks finstoutl finstoutm ffstmtsmap finitterss finstin finstportmap iternum in
 *)
   printf "%f\n" (Float.sub (Unix.times()).tms_utime ut1);
@@ -696,25 +694,41 @@ let () =
   StringMap.iter (fun key value -> if (String.equal cv key) then ((fprintf oc "%s:" key); StringMap.iter (fun key0 value0 -> (fprintf oc "\n"; fprintf oc "%s:%d" key0 value0)) value)
                                     ) modsmap;
   (*StringMap.iter (fun key0 value0 -> (fprintf oc "%s: %d" key0 value0); fprintf oc "\n") modsnum;
-  *)StringMap.iter (fun key0 value0 -> (fprintf oc "%s: %d" key0 value0); fprintf oc "\n") insnum;
-  close_out oc;
+  StringMap.iter (fun key0 value0 -> (fprintf oc "%s: %d" key0 value0); fprintf oc "\n") insnum;
+  *)close_out oc;
 
-
-  printf "modin:%d\n" (Z.to_int (nat_of_bits (Env.Store.acc (Obj.magic 17) s2)));
-  printf "modout:%d\n" (Z.to_int (nat_of_bits (Env.Store.acc (Obj.magic 18) s2)));
-  printf "17:%d\n" (Z.to_int (nat_of_bits (Env.Store.acc (Obj.magic 13) s2)));
-  printf "18:%d\n" (Z.to_int (nat_of_bits (Env.Store.acc (Obj.magic 14) s2)));
+  printf "t:%d\n" (Z.to_int (nat_of_bits (Env.Store.acc (Obj.magic 7) rs2)));
+  printf "t1:%d\n" (Z.to_int (nat_of_bits (Env.Store.acc (Obj.magic 8) s2)));
+  printf "t2:%d\n" (Z.to_int (nat_of_bits (Env.Store.acc (Obj.magic 9) s2)));
   
-  match Env.TE.find (Obj.magic 41) fterss2 with
-  | None -> printf "no inst24 te s rs mem.\n";
-  | Some a -> 
-    
+  (*
+  printf "wradd:%d\n" (Z.to_int (nat_of_bits (Env.Store.acc (Obj.magic 13) s2)));
+  printf "wrclk:%d\n" (Z.to_int (nat_of_bits (Env.Store.acc (Obj.magic 16) s2)));
+  printf "wrdata:%d\n" (Z.to_int (nat_of_bits (Env.Store.acc (Obj.magic 12) s2)));
+  printf "wren:%d\n" (Z.to_int (nat_of_bits (Env.Store.acc (Obj.magic 14) s2)));
+  printf "wrmsk:%d\n" (Z.to_int (nat_of_bits (Env.Store.acc (Obj.magic 15) s2)));
 
-  
-  match (Env.TE.vtyp (Obj.magic 13) te0) with
+  printf "rdadd:%d\n" (Z.to_int (nat_of_bits (Env.Store.acc (Obj.magic 9) s2)));
+  printf "rdclk:%d\n" (Z.to_int (nat_of_bits (Env.Store.acc (Obj.magic 11) s2)));
+  printf "rddata:%d\n" (Z.to_int (nat_of_bits (Env.Store.acc (Obj.magic 8) s2)));
+  printf "rden:%d\n" (Z.to_int (nat_of_bits (Env.Store.acc (Obj.magic 10) s2)));
+
+  match Env.TE.find (Obj.magic 7) mem2 with
+  | None -> printf "no mem.\n";
+  | Some a -> printf "1:%d\n" (Z.to_int (nat_of_bits (Firrtl.LoFirrtl.memfind [true;] a)));
+  printf "0:%d\n" (Z.to_int (nat_of_bits (Firrtl.LoFirrtl.memfind [false;] a)));
+*)
+  (*  printf "word:%d\n" (Seq.size (Env.Store.acc (Obj.magic 27) s2));
+  match (Env.TE.vtyp (Obj.magic 27) te0) with
   | Env.Fuint w1 -> printf "uint %d\n" (w1);
   | Env.Fsint w1 -> printf "sint %d\n" (w1);
   | _ -> printf "shayebushi";
+
+  printf "gen14:%d\n" (Z.to_int (nat_of_bits (Env.Store.acc (Obj.magic 41) s2)));
+
+  match Env.TE.find (Obj.magic 41) fterss2 with
+  | None -> printf "no inst24 te s rs mem.\n";
+  | Some a -> 
     
     let (((te3,rs3),s3),_) = a in
   List.iter (fun key -> printf "a: %d: %d\n" key (Z.to_int (nat_of_bits (Env.Store.acc (Obj.magic key) s3)));) [2;3;4;5;6;7;8;9;10;12;20;21;22;23;24;25;26;27;28;29;30;31;32;33;34;35;36;37;38];
@@ -731,4 +745,4 @@ let () =
   printf "12: %d\n" (Z.to_int (nat_of_bits (Env.Store.acc (Obj.magic 12) rs3)));
   printf "%d\n" (Seq.size (Env.Store.acc (Obj.magic 3) s2));
   printf "%d\n" (Env.TE.vsize (Obj.magic 4) te3);
-  
+  *)

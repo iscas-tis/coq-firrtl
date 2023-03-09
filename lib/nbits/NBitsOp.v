@@ -7973,7 +7973,7 @@ Section Lemmas.
       apply Z.div_pos;
         [exact: to_Zpos_ge0| done].
   Qed.
-
+(*
   Lemma to_Z_zdiv_diff sb1 sb2:
       ~~ (msb sb1 == msb sb2) -> ~~ (sb2 == zeros (size sb2)) ->
       (to_Z sb1 / to_Z sb2 <= 0)%Z.
@@ -8018,7 +8018,7 @@ Section Lemmas.
           rewrite -{1}(to_nat_zeros (size sb2)) -to_nat_ltB.
           rewrite to_Zpos_ltB to_Zpos_zeros; move => Hgt0.
           apply Z.div_pos; [apply to_Zpos_ge0| apply Zle_lt_succ; exact: to_Zneg_ge0].  Qed.
-
+*)
   Lemma absB_neq0 sb1 : ~~((sb1) == zeros (size (sb1)))
                         -> ~~ (absB sb1 == zeros (size (sb1))).
   Proof.

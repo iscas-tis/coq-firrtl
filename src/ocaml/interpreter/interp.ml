@@ -1,5 +1,5 @@
 
-open Extraction.FMaps
+(*open Extraction.FMaps
 open Extraction.ExtrOcamlIntConv
 open Extraction.Datatypes
 open Extraction.BinNums
@@ -42,3 +42,4 @@ let interp_fmodule_demo n m =
   
 let print_demo out =
    List.iter (output_string out) (print_res (interp_fmodule_demo 10 fm1))
+*)
