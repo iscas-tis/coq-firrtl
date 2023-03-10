@@ -86,12 +86,10 @@ statement
   | STM_REG symbol KEYWORD typ_def SPRT symbol REG_WITH KEYWORD REG_RST REG_RSTARR PAR_OPEN expr SPRT expr PAR_CLOSE
                                             { Sreg (mk_freg $2 $4 $6 $12 $14) }
   | symbol STM_INVALID                { Sinvalid ($1) }
-  | STM_MEM symbol KEYWORD STM_DATATYPE REG_RSTARR typ_def STM_DEPTH REG_RSTARR numeral STM_READ_L REG_RSTARR numeral STM_WRITE_L REG_RSTARR numeral STM_READ REG_RSTARR symbols STM_WRITE REG_RSTARR symbols STM_READWRITE REG_RSTARR ruw
-                                           { Smem (mk_fmem $2 $6 $9 $12 $15 $18 $21 $24)}
-  | STM_MEM symbol KEYWORD STM_DATATYPE REG_RSTARR typ_def STM_DEPTH REG_RSTARR numeral STM_READ_L REG_RSTARR numeral STM_WRITE_L REG_RSTARR numeral STM_READWRITE REG_RSTARR ruw
-                                           { Smem (mk_fmem_non $2 $6 $9 $12 $15 $18)}
-  | STM_MEM symbol KEYWORD STM_DATATYPE REG_RSTARR typ_def STM_DEPTH REG_RSTARR numeral STM_READ_L REG_RSTARR numeral STM_WRITE_L REG_RSTARR numeral STM_READ REG_RSTARR symbols STM_READWRITE REG_RSTARR ruw
-                                           { Smem (mk_fmem_r $2 $6 $9 $12 $15 $18 $21)}
+  | STM_MEM symbol KEYWORD STM_DATATYPE REG_RSTARR typ_def STM_DEPTH REG_RSTARR numeral STM_READ_L REG_RSTARR numeral STM_WRITE_L REG_RSTARR numeral memrdports memwrports STM_READWRITE REG_RSTARR ruw
+                                           { Smem (mk_fmem $2 $6 $9 $12 $15 $16 $17 $20)}
+  /*| STM_MEM symbol KEYWORD STM_DATATYPE REG_RSTARR typ_def STM_DEPTH REG_RSTARR numeral STM_READ_L REG_RSTARR numeral STM_WRITE_L REG_RSTARR numeral STM_READ REG_RSTARR symbols STM_WRITE REG_RSTARR symbols STM_READWRITE REG_RSTARR ruw
+                                           { Smem (mk_fmem $2 $6 $9 $12 $15 $18 $21 $24)}*/
   | STM_INST symbol KEYWORD_OF expr      { Sinst ($2, $4) }
 ;
   
@@ -162,7 +160,7 @@ expr
                                             { Eprim_unop ( Ushl ($5), $3)}
     | EXPR_SHR PAR_OPEN expr SPRT numeral PAR_CLOSE
                                             { Eprim_unop ( Ushr ($5), $3)}
-     | EXPR_BITS PAR_OPEN expr SPRT numeral SPRT numeral PAR_CLOSE
+    | EXPR_BITS PAR_OPEN expr SPRT numeral SPRT numeral PAR_CLOSE
                                             { Eprim_unop ( Ubits ($5, $7), $3)}
 
     | EXPR_ASUINT PAR_OPEN expr PAR_CLOSE
@@ -202,9 +200,23 @@ symbol
 
 symbols
   :                                      { [] }
-  | symbol symbols                 { $1::$2 }
-  ;    
+  | symbol symbols                    { $1::$2 }
 
+/* memports */
+
+memrdport 
+  : STM_READ REG_RSTARR symbol            { $3 }
+
+memrdports
+  :                                       { [] }
+  | memrdport memrdports                { $1::$2 }
+
+memwrport 
+  : STM_WRITE REG_RSTARR symbol            { $3 }
+
+memwrports
+  :                                       { [] }
+  | memwrport memwrports                { $1::$2 }
 
 /* spec_constant */
 
