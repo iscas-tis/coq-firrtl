@@ -1,0 +1,32 @@
+[
+  {
+    "class":"firrtl.stage.FirrtlFileAnnotation",
+    "file":"MinFanoutPrefixAdder.lo.fir"
+  },
+  {
+    "class":"firrtl.EmitCircuitAnnotation",
+    "emitter":"firrtl.LowFirrtlEmitter"
+  },
+  {
+    "class":"firrtl.transforms.BlackBoxTargetDirAnno",
+    "targetDir":"."
+  },
+  {
+    "class":"firrtl.transforms.CombinationalPath",
+    "sink":"~MinFanoutPrefixAdder|MinFanoutPrefixAdder>io_cout",
+    "sources":[
+      "~MinFanoutPrefixAdder|MinFanoutPrefixAdder>io_cin",
+      "~MinFanoutPrefixAdder|MinFanoutPrefixAdder>io_a",
+      "~MinFanoutPrefixAdder|MinFanoutPrefixAdder>io_b"
+    ]
+  },
+  {
+    "class":"firrtl.transforms.CombinationalPath",
+    "sink":"~MinFanoutPrefixAdder|MinFanoutPrefixAdder>io_c",
+    "sources":[
+      "~MinFanoutPrefixAdder|MinFanoutPrefixAdder>io_a",
+      "~MinFanoutPrefixAdder|MinFanoutPrefixAdder>io_b",
+      "~MinFanoutPrefixAdder|MinFanoutPrefixAdder>io_cin"
+    ]
+  }
+]

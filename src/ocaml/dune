@@ -7,5 +7,5 @@
 (executables
 ; (names            main)
  (names            pparser transast1);transast1
- (libraries        firrtl_lang);interpreter
+ (libraries        firrtl_lang ocamlgraph unix);interpreter
 )

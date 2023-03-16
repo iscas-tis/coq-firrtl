@@ -96,11 +96,11 @@ type freg =
   {
     rid : var;
     rtype : fgtyp;
-    clock : fexpr;
+    clock : var;
     reset : rst
   }
 
-let mk_freg v t c e1 e2 = { rid = v; rtype = t; clock = c; reset = Rst (e1, e2) }
+let mk_freg v t c e1 e2 = { rid = v; rtype = t; clock = c; reset = Rst(e1,e1) }
 let mk_fmem v e z1 z2 z3 vl1 vl2 r = { mid = v; data_type = e; depth = z1;  read_latency = z2; write_latency = z3; reader = vl1; writer = vl2; read_write = r }
 let  mk_fmem_non v e z1 z2 z3 r = { mid = v; data_type = e; depth = z1;  read_latency = z2; write_latency = z3; reader = []; writer = []; read_write = r }
 let mk_fmem_r v e z1 z2 z3 vl r = { mid = v; data_type = e; depth = z1;  read_latency = z2; write_latency = z3; reader = vl; writer = []; read_write = r }
@@ -229,9 +229,9 @@ and  pp_statement out s =
   | Sinvalid v -> output_string out "(sinvalid "; output_string out (v^" "); output_string out ")\n"
   | Sreg r ->
      (match r.reset with
-     | NRst -> output_string out "sreg (mk_freg "; output_string out ((r.rid)^" "); pp_type out (r.rtype); output_string out " "; pp_expr out (r.clock); output_string out "NRst)\n"
+     | NRst -> output_string out "sreg (mk_freg "; output_string out ((r.rid)^" "); pp_type out (r.rtype); output_string out " "; output_string out ((r.clock)^" "); output_string out "NRst)\n"
      | Rst (e1, e2) ->
-        output_string out "sreg (mk_freg "; output_string out ((r.rid)^" "); pp_type out (r.rtype); output_string out " "; pp_expr out (r.clock); output_string out " "; output_string out "(rrst "; pp_expr out e1; output_string out " "; pp_expr out e2; output_string out "))\n")
+        output_string out "sreg (mk_freg "; output_string out ((r.rid)^" "); pp_type out (r.rtype); output_string out " "; output_string out ((r.clock)^" "); output_string out " "; output_string out "(rrst "; pp_expr out e1; output_string out " "; pp_expr out e2; output_string out "))\n")
   | Snode (v, e) -> output_string out "(snode "; output_string out (v^" "); pp_expr out e; output_string out ")\n"
   | Sinst (v, e) -> output_string out "(sinst "; output_string out (v^" "); output_string out "of "; pp_expr out e; output_string out ")\n"
           
