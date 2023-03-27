@@ -469,7 +469,6 @@ Module MakeFirrtl
     rewrite Hzp //.
     rewrite (size_extzip b0 b0 bs1 bs2) in Hzp0.
     symmetry.
-
     rewrite /maxn in Hzp0.
     case Hlt: (size bs1 < size bs2).
     rewrite Hlt in Hzp0.
@@ -477,7 +476,6 @@ Module MakeFirrtl
     discriminate.
     rewrite Hlt in Hzp0.
     rewrite Hzp0 in Hlt.
-
     move /negbT : Hlt.
     rewrite <- (eqn0Ngt (size bs2)).
     intro.
@@ -498,16 +496,8 @@ Module MakeFirrtl
   - move => b bs Hzs. case: Hzs => H1 H2.
     have ->: zip (copy (size bs) b0) bs = extzip0 [::] bs by rewrite /extzip0/=; elim bs =>//.
     move => H3.
-    move: (IH _ _ H3 c0). (*rewrite /=Hadder Hfull/=; by move=> ->.
-  - move => b bs Hzs. case : Hzs => H1 H2.
-    have ->: zip bs (copy (size bs) b0) = extzip0 bs [::] by rewrite /extzip0/=; elim bs =>//.
-    move => H3.
-    move: (IH _ _ H3 c0). rewrite /=Hadder Hfull/=; by move=> ->.
-  - move => b11 bs1 b21 bs2 Hzs. case: Hzs => H1 H2 H3.
-    move : (IH _ _ H3 c0). rewrite /=Hadder Hfull/=; by move => ->.
-
-
-
+    move: (IH _ _ H3 c0). rewrite H2.
+    (*
     to_Z_rcons:
   forall (bs : seq bool) (b : bool),
   to_Z (rcons bs b) = (if b then (- Z.succ (to_Zneg bs))%Z else to_Zpos bs)
@@ -516,8 +506,6 @@ Module MakeFirrtl
   forall bs : bits,
   to_Zpos (-# bs) = (- to_Zpos bs mod 2 ^ Z.of_nat (size bs))%Z
 
-  
-    
       *)  
     
   Admitted.
@@ -533,39 +521,24 @@ Module MakeFirrtl
   Compute (subB_ext [::false;false] [::false;false]).
   Compute (wky_subB_ext [::false;false] [::false;true]).
 
-  Search (zext).
-
   Lemma size_subB_ext bs1 bs2 : size bs1 = size bs2 -> size (wky_subB_ext bs1 bs2) = (maxn (size bs1) (size bs2))+1.
   Proof. 
     rewrite /wky_subB_ext.
     move=> Heql.
     rewrite /maxn Heql ltnn addn1 subSnn.
     rewrite /sbbB_ext /adcB_ext.
-
     rewrite size_full_adder_ext.
-    fold bs1 (@cat (bits)).
-    (*    size_rcons:
-  forall [T : Type] (s : seq T) (x : T), size (rcons s x) = (size s).+1*)
+    fold (@cat bool bs1 (zeros 1)).
+    rewrite size_invB size_zext addn1 size_cat size_zeros Heql addn1.
+    rewrite /maxn ltnn.
+    reflexivity.
+  Qed.
 
-    rewrite (lock zext) size_full_adder_ext -lock.
+  (*Lemma to_Zpos_subB_ext bs1 bs2 : size bs1 = size bs2 -> Z.geq (to_Zpos bs1) (to_Zpos bs2) -> to_Zpos (wky_subB_ext bs1 bs2) = Z.sub (to_Zpos bs1) (to_Zpos bs2).
+  Proof.
     
-    rewrite size_invB size_zext addn1.
-
-
-    case Hadc : (full_adder_ext (~~ false) (zext 1 bs1) (~~# zext 1 bs2)) => [c r].
-
-
-    case Hadc : (sbbB_ext false (zext (maxn (size bs1) (size bs2) + 1 - size bs1) bs1)
-    (zext (maxn (size bs1) (size bs2) + 1 - size bs2) bs2)) => [c r].
-    rewrite Heql.
-    simpl.
-    
-    rewrite -size_addB_ext.
-    case Hadc : (sbbB_ext false (zext (maxn (size bs1) (size bs2) + 1 - size bs1) bs1)
-    (zext (maxn (size bs1) (size bs2) + 1 - size bs2) bs2)) => [c r].
-
-  Admitted.
-  Print maxn.
+  Qed.
+  *)
 
   Fixpoint Sfull_mul (bs1 bs2 : bits) : bits :=
     match bs1 with
@@ -582,17 +555,50 @@ Module MakeFirrtl
 
   Lemma size_Sfull_mul bs1 bs2: size (Sfull_mul bs1 bs2) = (size bs1) + (size bs2).
   Proof.
-    rewrite /Sfull_mul.
-    induction bs1 as [| bs' Ibsn'].
-    simpl.
-    apply add0n.
-  Admitted.
+    elim: bs1 => [| b bs1 IH] /=.
+    - by rewrite /full_mul add0n size_from_nat.
+    - case Hbs1 : (bs1 == [::]).
+      + case b.
+      move /eqP : Hbs1 => Hbs1.
+      rewrite Hbs1 size_addB size_invB size_sext size_zext.
+      simpl.
+      rewrite addn1 add1n /minn ltnn //.
+      move /eqP : Hbs1 => Hbs1.
+      rewrite Hbs1 size_addB size_invB size_sext size_zext size_zeros.
+      simpl.
+      rewrite addn1 add1n /minn ltnn //.
+      + case b.
+      rewrite size_addB size_sext size_joinlsb IH.
+      rewrite addnACl add1n /minn ltnn addnC.
+      reflexivity.
+      by rewrite size_joinlsb IH addSn addn1.
+  Qed.
 
   Lemma to_Zpos_Sfull_mul bs1 bs2: to_Zpos (Sfull_mul bs1 bs2) = Z.mul (to_Zpos bs1) (to_Zpos bs2).
   Proof.
-    (*to_Zpos_full_mul:
-  forall bs1 bs2 : bits,
-  to_Zpos (full_mul bs1 bs2) = (to_Zpos bs1 * to_Zpos bs2)%Z*)
+    move : bs2. elim bs1 => [|hd1 tl1 IH] bs2 /=.
+     first by rewrite!from_natn0 size_zeros!add0n. 
+    move : (to_nat_bounded ptl1) => Hbd1; move : (to_nat_bounded p2) => Hbd2.
+    move : (ltn_mul Hbd1 Hbd2); rewrite -expnD; move => Hbd. generalize Hbd.
+    rewrite -(ltn_pmul2l (ltn0Sn 1)) -expnS mulnC in Hbd. move => Hbd'.
+    case phd1. 
+    - rewrite/= to_nat_addB size_addB size_joinlsb to_nat_joinlsb (IH p2)
+             size_full_mul size_zext to_nat_zext addn1
+      -addSn addnC minnn addn0 !to_nat_from_nat -!muln2 muln_modl.
+      rewrite addnS expnS.
+      have-> :(2 * 2 ^ (size p2 + size ptl1) = (2 ^ (size ptl1 + size p2) * 2)) by rewrite mulnC addnC. rewrite div.modnDml.
+      have->:(((1 + to_nat ptl1 * 2) * to_nat p2) = to_nat ptl1 * to_nat p2 * 2 + to_nat p2) by rewrite mulnDl mul1n; ring. done.
+    - rewrite size_joinlsb to_nat_joinlsb (IH p2) size_full_mul addn0 add0n-!muln2!to_nat_from_nat_bounded; first ring; try exact. by rewrite addn1 mulnAC.
+
+    (*
+    Lemma to_Zpos_full_mul bs1 bs2 :
+    to_Zpos (full_mul bs1 bs2) = (to_Zpos bs1 * to_Zpos bs2)%Z.
+  Proof.
+    move: (to_nat_full_mul' bs1 bs2) => Hnat.
+    apply (f_equal Z.of_nat) in Hnat. rewrite Nat2Z.inj_mul -!to_Zpos_nat in Hnat.
+    exact: Hnat.
+  Qed.
+  *)
   Admitted.
 
   (*Compute (sext 2 [::b1;b0]).
