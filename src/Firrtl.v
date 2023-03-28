@@ -452,51 +452,77 @@ Module MakeFirrtl
 
   Search to_Zpos.
 
+  Lemma extzip0_zext bs1 bs2 :
+    extzip0 bs1 bs2 = zip (zext (size bs2 - size bs1) bs1) (zext ((size bs1) - size bs2) bs2) .
+  Proof.
+    rewrite /extzip0. rewrite /zext /zeros extzip_zip//.
+  Qed.
+  
   Lemma to_Zpos_addB_ext bs1 bs2 :
     to_Zpos (addB_ext bs1 bs2) = Z.add (to_Zpos bs1) (to_Zpos bs2).
   Proof.
     rewrite /addB_ext /adcB_ext /full_adder_ext.
-    dcase (extzip0 bs1 bs2) => [zp Hzp].
-    case Hadc : (full_adder_zip false zp) => [c r].
-    move: Hadc.
-    elim : zp bs1 bs2 Hzp c => [|zh zt IH] bs1 bs2 Hzp c.
-    rewrite /full_adder_zip.
-    move => Hadc.
-    rewrite to_Zpos_rcons.
-    inversion Hadc.
-    simpl.
-    assert (Hzp0: size (extzip0 bs1 bs2) = 0).
-    rewrite Hzp //.
-    rewrite (size_extzip b0 b0 bs1 bs2) in Hzp0.
-    symmetry.
-    rewrite /maxn in Hzp0.
-    case Hlt: (size bs1 < size bs2).
-    rewrite Hlt in Hzp0.
-    rewrite Hzp0 in Hlt.
-    discriminate.
-    rewrite Hlt in Hzp0.
-    rewrite Hzp0 in Hlt.
-    move /negbT : Hlt.
-    rewrite <- (eqn0Ngt (size bs2)).
-    intro.
-    move /eqP : Hlt => Hlt.
-    apply size0nil in Hzp0.
-    apply size0nil in Hlt.
-    rewrite Hzp0 Hlt.
-    simpl.
-    reflexivity.
+
+    rewrite extzip0_zext.
+    case Hadc : (full_adder_zip false (zip (zext (size bs2 - size bs1) bs1) (zext (size bs1 - size bs2) bs2))) => [c r].
+    have ->: r = snd (full_adder_zip false (zip (zext (size bs2 - size bs1) bs1) (zext (size bs1 - size bs2) bs2))) by rewrite Hadc//.
+    have ->: c = fst (full_adder_zip false (zip (zext (size bs2 - size bs1) bs1) (zext (size bs1 - size bs2) bs2))) by rewrite Hadc//.
+    rewrite -/(full_adder false (zext (size bs2 - size bs1) bs1) (zext (size bs1 - size bs2) bs2)).
+    rewrite -/(adcB false (zext (size bs2 - size bs1) bs1) (zext (size bs1 - size bs2) bs2)).
+    rewrite -/(addB (zext (size bs2 - size bs1) bs1) (zext (size bs1 - size bs2) bs2)).
+    rewrite -/(carry_addB (zext (size bs2 - size bs1) bs1) (zext (size bs1 - size bs2) bs2)).
+    rewrite to_Zpos_rcons. rewrite size_addB 2!size_zext. rewrite -2!maxnE maxnC minnn maxnC maxnE.
+    have ->: ((size bs1 + (size bs2 - size bs1)) = size (zext (size bs2 - size bs1) bs1)).
+    rewrite size_zext//.
+    rewrite to_Zpos_addB. rewrite 2!to_Zpos_zext//.
+    rewrite 2!size_zext. rewrite -2!maxnE maxnC//.
+  Qed.
+    
+    
+  (*   dcase (extzip0 bs1 bs2) => [zp Hzp]. *)
+  (*   case Hadc : (full_adder_zip false zp) => [c r]. *)
+  (*   move: Hadc. *)
+  (*   elim : zp bs1 bs2 Hzp c => [|zh zt IH] bs1 bs2 Hzp c. *)
+  (*   rewrite /full_adder_zip. *)
+  (*   move => Hadc. *)
+  (*   rewrite to_Zpos_rcons. *)
+  (*   inversion Hadc. *)
+  (*   simpl. *)
+  (*   assert (Hzp0: size (extzip0 bs1 bs2) = 0). *)
+  (*   rewrite Hzp //. *)
+  (*   rewrite (size_extzip b0 b0 bs1 bs2) in Hzp0. *)
+  (*   symmetry. *)
+  (*   rewrite /maxn in Hzp0. *)
+  (*   case Hlt: (size bs1 < size bs2). *)
+  (*   rewrite Hlt in Hzp0. *)
+  (*   rewrite Hzp0 in Hlt. *)
+  (*   discriminate. *)
+  (*   rewrite Hlt in Hzp0. *)
+  (*   rewrite Hzp0 in Hlt. *)
+  (*   move /negbT : Hlt. *)
+  (*   rewrite <- (eqn0Ngt (size bs2)). *)
+  (*   intro. *)
+  (*   move /eqP : Hlt => Hlt. *)
+  (*   apply size0nil in Hzp0. *)
+  (*   apply size0nil in Hlt. *)
+  (*   rewrite Hzp0 Hlt. *)
+  (*   simpl. *)
+  (*   reflexivity. *)
+
+
+  (*   move: Hzp. *)
+  (*   dcase zh => [[hd1 hd2] Hz]. *)
+  (*   dcase (bool_adder c hd1 hd2) => [[c0 hd] Hadder]. *)
+  (*   dcase (full_adder_zip c0 zt) => [[c1 tl] Hfull].   *)
+
+  (*   case hd1; case hd2 => /=//. *)
     
 
-    move: Hzp.
-    dcase zh => [[hd1 hd2] Hz].
-    dcase (bool_adder c hd1 hd2) => [[c0 hd] Hadder].
-    dcase (full_adder_zip c0 zt) => [[c1 tl] Hfull].
-
-    case: bs1; case: bs2 => //.
-  - move => b bs Hzs. case: Hzs => H1 H2.
-    have ->: zip (copy (size bs) b0) bs = extzip0 [::] bs by rewrite /extzip0/=; elim bs =>//.
-    move => H3.
-    move: (IH _ _ H3 c0). rewrite H2.
+  (*   case: bs1; case: bs2 => //. *)
+  (* - move => b bs Hzs. case: Hzs => H1 H2. *)
+  (*   have ->: zip (copy (size bs) b0) bs = extzip0 [::] bs by rewrite /extzip0/=; elim bs =>//. *)
+  (*   move => H3. *)
+  (*   move: (IH _ _ H3 c0). rewrite H2. *)
     (*
     to_Z_rcons:
   forall (bs : seq bool) (b : bool),
