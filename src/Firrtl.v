@@ -521,24 +521,98 @@ Module MakeFirrtl
   Compute (subB_ext [::false;false] [::false;false]).
   Compute (wky_subB_ext [::false;false] [::false;true]).
 
-  Lemma size_subB_ext bs1 bs2 : size bs1 = size bs2 -> size (wky_subB_ext bs1 bs2) = (maxn (size bs1) (size bs2))+1.
+  Lemma size_subB_ext bs1 bs2 : size (wky_subB_ext bs1 bs2) = (maxn (size bs1) (size bs2))+1.
   Proof. 
     rewrite /wky_subB_ext.
-    move=> Heql.
-    rewrite /maxn Heql ltnn addn1 subSnn.
     rewrite /sbbB_ext /adcB_ext.
     rewrite size_full_adder_ext.
-    fold (@cat bool bs1 (zeros 1)).
-    rewrite size_invB size_zext addn1 size_cat size_zeros Heql addn1.
-    rewrite /maxn ltnn.
-    reflexivity.
+    fold (@cat bool bs1 (zeros (maxn (size bs1) (size bs2) + 1 - size bs1))).
+    rewrite size_cat size_invB size_zext size_zeros addn1 subnKC maxnC.
+    rewrite subnKC.
+    unfold maxn at 1.
+    rewrite ltnn //.
+    move : (leq_maxl (size bs2) (size bs1)) => Hbd2.
+    rewrite maxnC in Hbd2.
+    move : (leqnSn (maxn (size bs1) (size bs2))) => Hmax1.
+    rewrite (leq_trans Hbd2 Hmax1) //.
+    move : (leq_maxl (size bs1) (size bs2)) => Hbd1.
+    rewrite maxnC in Hbd1.
+    move : (leqnSn (maxn (size bs2) (size bs1))) => Hmax1.
+    rewrite (leq_trans Hbd1 Hmax1) //.
   Qed.
 
-  (*Lemma to_Zpos_subB_ext bs1 bs2 : size bs1 = size bs2 -> Z.geq (to_Zpos bs1) (to_Zpos bs2) -> to_Zpos (wky_subB_ext bs1 bs2) = Z.sub (to_Zpos bs1) (to_Zpos bs2).
+  Lemma to_Zpos_subB_ext bs1 bs2 : Z.lt (to_Zpos bs2) (to_Zpos bs1) -> to_Zpos (wky_subB_ext bs1 bs2) = Z.sub (to_Zpos bs1) (to_Zpos bs2).
   Proof.
-    
+
+  Admitted.
+
+  Definition SadcB_ext ea eb := let (c, r) := adcB false ea eb in 
+            (if (msb ea) == (msb eb) then (rcons r c) else (rcons r (~~c))).
+
+  Lemma size_SadcB_ext bs1 bs2 : size bs1 = size bs2 -> size (SadcB_ext bs1 bs2) = (maxn (size bs1) (size bs2))+1.
+  Proof. 
+    rewrite /SadcB_ext.
+    move=> Heql.
+    rewrite Heql.
+    case Hmsb : (msb bs1 == msb bs2).
+    case Hadc : (adcB false bs1 bs2) => [c r].
+    rewrite /adcB in Hadc. 
+    rewrite size_rcons /maxn ltnn addn1.
+    move : (size_full_adder bs1 bs2 false) => Hbd1.
+    rewrite Hadc in Hbd1.
+    rewrite Heql /minn ltnn in Hbd1.
+    rewrite Hbd1 //.
+
+    case Hadc : (adcB false bs1 bs2) => [c r].
+    rewrite /adcB in Hadc. 
+    rewrite size_rcons /maxn ltnn addn1.
+    move : (size_full_adder bs1 bs2 false) => Hbd1.
+    rewrite Hadc in Hbd1.
+    rewrite Heql /minn ltnn in Hbd1.
+    rewrite Hbd1 //.
   Qed.
+
+  Lemma to_Z_SadcB_ext bs1 bs2 : to_Z (SadcB_ext bs1 bs2) = Z.add (to_Z bs1) (to_Z bs2).
+  Proof.
+  Admitted.
+
+  Definition SsbbB_ext ea eb := let (b, r) := sbbB false ea eb in 
+            (if (msb ea) == (msb eb) then (rcons r b) else (rcons r (~~b))).
+
+  Lemma size_SsbbB_ext bs1 bs2 : size bs1 = size bs2 -> size (SsbbB_ext bs1 bs2) = (maxn (size bs1) (size bs2))+1.
+  Proof. 
+    rewrite /SsbbB_ext.
+    move=> Heql.
+    rewrite Heql.
+    case Hmsb : (msb bs1 == msb bs2).
+    case Hsbb : (sbbB false bs1 bs2) => [c r].
+    move : (size_sbbB false bs1 bs2) => Hbd1.
+    rewrite Hsbb in Hbd1.
+    rewrite Heql /minn ltnn in Hbd1.
+    rewrite size_rcons /maxn ltnn addn1 Hbd1 //.
+    
+    case Hsbb : (sbbB false bs1 bs2) => [c r].
+    move : (size_sbbB false bs1 bs2) => Hbd1.
+    rewrite Hsbb in Hbd1.
+    rewrite Heql /minn ltnn in Hbd1.
+    rewrite size_rcons /maxn ltnn addn1 Hbd1 //.
+  Qed.
+
+  Lemma to_Z_SsbbB_ext bs1 bs2 : size bs1 = size bs2 -> to_Z (SsbbB_ext bs1 bs2) = Z.sub (to_Z bs1) (to_Z bs2).
+  Proof.
+    intros.
+    rewrite /SsbbB_ext /sbbB.
+    case Hmsb : (msb bs1 == msb bs2).
+    move /eqP : Hmsb => Hmsb.
+
+        (*to_Z_subB:
+  forall [bs1 bs2 : seq bool],
+  size bs1 = size bs2 ->
+  msb bs1 && ~~ msb bs2 && msb (bs1 -# bs2)
+  || ~~ msb bs1 && msb bs1 && ~~ msb (bs1 -# bs2) ->
+  to_Z (bs1 -# bs2) = (to_Z bs1 - to_Z bs2)%Z
   *)
+  Admitted.
 
   Fixpoint Sfull_mul (bs1 bs2 : bits) : bits :=
     match bs1 with
@@ -573,22 +647,31 @@ Module MakeFirrtl
       reflexivity.
       by rewrite size_joinlsb IH addSn addn1.
   Qed.
-
-  Lemma to_Zpos_Sfull_mul bs1 bs2: to_Zpos (Sfull_mul bs1 bs2) = Z.mul (to_Zpos bs1) (to_Zpos bs2).
+Search (full_mul).
+  Lemma to_Z_Sfull_mul bs1 bs2: to_Z (Sfull_mul bs1 bs2) = Z.mul (to_Z bs1) (to_Z bs2).
   Proof.
-    move : bs2. elim bs1 => [|hd1 tl1 IH] bs2 /=.
-     first by rewrite!from_natn0 size_zeros!add0n. 
-    move : (to_nat_bounded ptl1) => Hbd1; move : (to_nat_bounded p2) => Hbd2.
-    move : (ltn_mul Hbd1 Hbd2); rewrite -expnD; move => Hbd. generalize Hbd.
-    rewrite -(ltn_pmul2l (ltn0Sn 1)) -expnS mulnC in Hbd. move => Hbd'.
-    case phd1. 
-    - rewrite/= to_nat_addB size_addB size_joinlsb to_nat_joinlsb (IH p2)
-             size_full_mul size_zext to_nat_zext addn1
-      -addSn addnC minnn addn0 !to_nat_from_nat -!muln2 muln_modl.
-      rewrite addnS expnS.
-      have-> :(2 * 2 ^ (size p2 + size ptl1) = (2 ^ (size ptl1 + size p2) * 2)) by rewrite mulnC addnC. rewrite div.modnDml.
-      have->:(((1 + to_nat ptl1 * 2) * to_nat p2) = to_nat ptl1 * to_nat p2 * 2 + to_nat p2) by rewrite mulnDl mul1n; ring. done.
-    - rewrite size_joinlsb to_nat_joinlsb (IH p2) size_full_mul addn0 add0n-!muln2!to_nat_from_nat_bounded; first ring; try exact. by rewrite addn1 mulnAC.
+    (*to_Z_rcons:
+  forall (bs : seq bool) (b : bool),
+  to_Z (rcons bs b) = (if b then (- Z.succ (to_Zneg bs))%Z else to_Zpos bs)
+  
+  to_Z_to_Zpos:
+  forall bs : bits,
+  to_Z bs = (to_Zpos bs - msb bs * 2 ^ Z.of_nat (size bs))%Z
+  
+  to_Z_cat:
+  forall (bs1 : seq bool) [bs2 : seq bool],
+  0 < size bs2 ->
+  to_Z (bs1 ++ bs2) = (to_Zpos bs1 + to_Z bs2 * 2 ^ Z.of_nat (size bs1))%Z
+
+  to_Z_Zmul:
+  forall [bs1 bs2 : seq bool],
+  size bs1 = size bs2 ->
+  msb bs1 ->
+  msb bs2 ->
+  (to_Z bs1 * to_Z bs2)%Z =
+  (to_Zpos bs1 * to_Zpos bs2 + 2 ^ Z.of_nat (size bs1 + size bs1) -
+   2 ^ Z.of_nat (size bs1) * (to_Zpos bs1 + to_Zpos bs2))%Z
+*)
 
     (*
     Lemma to_Zpos_full_mul bs1 bs2 :
@@ -625,7 +708,7 @@ Module MakeFirrtl
       | Band => andB ea eb
       | Bor => orB ea eb
       | Bxor => xorB ea eb
-      | Bcat => cat (*(zext (w2 - size b) b) (zext (w1 - size a) a)*) b a
+      | Bcat => cat b a
       | Bdshl => cat (zeros (to_nat b)) a
       | Bdshr => (shrB (to_nat b) a)
       end
@@ -635,10 +718,8 @@ Module MakeFirrtl
         let ea := sext (w-w1) a in
         let eb := sext (w-w2) b in
       match o with
-      | Badd => let (c, r) := adcB false ea eb in 
-      (if (msb ea) == (msb eb) then (rcons r c) else (rcons r (~~c)))
-      | Bsub => let (b, r) := sbbB false ea eb in 
-      (if (msb ea) == (msb eb) then (rcons r b) else (rcons r (~~b)))
+      | Badd => SadcB_ext ea eb
+      | Bsub => SsbbB_ext ea eb
       | Bdiv => sext 1 (sdivB a b)
       | Brem => low (minn w1 w2) (sremB a b)
       | Bmul => Sfull_mul a b
@@ -646,7 +727,7 @@ Module MakeFirrtl
       | Band => andB ea eb
       | Bor => orB ea eb
       | Bxor => xorB ea eb
-      | Bcat => cat (*sext (w2 - size b) b) (sext (w1 - size a) a*) b a
+      | Bcat => cat b a
       | _ => a
       end
     | Fsint _, Fuint _ =>
