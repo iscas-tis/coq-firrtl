@@ -309,7 +309,7 @@ Section ExpandConnectsP.
     case Hg : (is_gtyp (type_of_cmpnttyp t)).
     rewrite (H e ce (HiFP.eref (HiFP.eid (e.1, (e.2 + N.of_nat n)%num))) (id :: se)).
     rewrite (H e ce (HiFP.eref (HiFP.eid (e.1, (e.2 + N.of_nat n)%num))) nil).
-    rewrite -catA cat1s//.
+    rewrite -catA cat1s//. 
     done.
   Qed.
 
@@ -823,24 +823,51 @@ Section ExpandConnectsP.
     forall n (l1 l2 : seq ftype),
       size l1 = size l2 ->
       zip (repeat n l1)  (repeat n l2) = repeat n (zip l1 l2).
-  Proof. Admitted.
+  Proof.
+    elim ; intros; first done.
+    rewrite /= zip_cat//. rewrite -H//.
+  Qed.
 
+  Lemma repeat_map :
+    forall A (f : A -> A) n (l : seq A),
+      [seq f z | z : A <- repeat n l] = repeat n ([seq f z | z <- l]).
+  Proof.
+    move => A f n l. move : n A f l.
+    elim; intros; first done.
+    rewrite /= map_cat H//.
+  Qed.
+
+  Lemma zip_map_pair :
+    forall {A B} l1 l2 (f1 : A -> A -> A) (f2 : B -> A),
+      [seq (let (a, b) := z in f1 (f2 a) (f2 b))
+      | z : B * B <- zip l1 l2] =
+        [seq (let (a, b) := z in f1 a b)
+        | z : A * A <- zip [seq f2 a | a <- l1]
+                 [seq f2 b | b <- l2]].
+  Proof.
+    intros A B. elim => [|hd1 tl1 Hn1]; elim => [|hd2 tl2 Hn2]; try (rewrite zip_nil/=//); try (rewrite zip_nil_r//).
+    intros. rewrite /= (Hn1 tl2)//.
+  Qed.
+  
   Lemma repeat_map_n : 
     forall n a1 a2,
     [seq (let (a, b) := z in HiFP.mux_types a b)
      | z : ftype * ftype <- repeat n (zip (ftype_list a1 [::]) (ftype_list a2 [::]))] =
     repeat n (ftype_list (HiFP.mux_types a1 a2) [::]).
-  Proof. Admitted.
+  Proof.
+    elim; intros; first done.
+    rewrite /= map_cat H. rewrite zip_map_pair.
+  Admitted.
 
-  Lemma repeat_map :
-    forall A (f : A -> A) n (l : seq A),
-      [seq f z | z : A <- repeat n l] = repeat n ([seq f z | z <- l]).
-  Proof. Admitted.
 
   Lemma size_repeat_n :
     forall A n (s : seq A),
       size (repeat n s) = n * size s.
-  Proof. Admitted.
+  Proof.
+    move => A n s. move : n A s.
+    elim; intros; first done.
+    rewrite /= seq.size_cat H -mulSn//. 
+  Qed.
 
   Lemma mux_types_ftype_list :
     forall te1 te2,
@@ -869,6 +896,7 @@ Section ExpandConnectsP.
       rewrite zip_cat; last (apply ftype_equiv_ftype_list_len_ss; rewrite //). 
       rewrite map_cat. rewrite -{1}(Hn1 a2 Hfeq).
       rewrite zip_repeat_n; last (apply ftype_equiv_ftype_list_len_ss; rewrite //).
+      move: (repeat_map (fun z => (let (a, b) := z in HiFP.mux_types a b)) n (zip (ftype_list a1 [::]) (ftype_list a2 [::]))).
       rewrite repeat_map_n//.
     - generalize Hfeq. rewrite /= => Hfeqb. rewrite Hfeqb/=.
       move : (mux_btype_ftype_list bs1 bs2 Hfeq).
@@ -891,17 +919,6 @@ Section ExpandConnectsP.
         rewrite (Haux Hbeq) (mux_types_ftype_list t1 t2 Heq). symmetry. rewrite ftype_list_btyp_list//.
   Qed.
 
-  Lemma zip_map_pair :
-    forall {A B} l1 l2 (f1 : A -> A -> A) (f2 : B -> A),
-      [seq (let (a, b) := z in f1 (f2 a) (f2 b))
-      | z : B * B <- zip l1 l2] =
-        [seq (let (a, b) := z in f1 a b)
-        | z : A * A <- zip [seq f2 a | a <- l1]
-                 [seq f2 b | b <- l2]].
-  Proof.
-    intros A B. elim => [|hd1 tl1 Hn1]; elim => [|hd2 tl2 Hn2]; try (rewrite zip_nil/=//); try (rewrite zip_nil_r//).
-    intros. rewrite /= (Hn1 tl2)//.
-  Qed.
       
   Lemma expand_emux_zip_mux_types :
     forall h0 h1 h ce,
@@ -1004,7 +1021,11 @@ Section ExpandConnectsP.
   Lemma cat_repeat :
     forall A (s : seq A) n ,
       s ++ repeat n s = repeat n s ++ s.
-  Proof. Admitted.
+  Proof.
+    move => A s n. move : n A s.
+    elim; intros. rewrite /= cats0//.
+    rewrite /=. rewrite {1}H catA//.
+  Qed.
 
   Axiom find_atyp_find_subindex :
     forall an tn c a b (ce : CEP.t (cmpnt_init_typs ProdVarOrder.T * fcomponent)),
