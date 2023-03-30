@@ -76,7 +76,8 @@ Section LoFirrtl.
         addr : var;
         data : var;
         en : var;
-        clk : var
+        clk : var;
+        flag : var
       }.
 
 Record fwriter_port : Type :=
@@ -96,7 +97,7 @@ Record fwriter_port : Type :=
         data_type : fgtyp;
         depth : nat;
         reader : seq freader_port;
-        writer : seq fwriter_port;                    
+        writer : seq fwriter_port;
         read_latency : nat;
         write_latency : nat;
         read_write : ruw
@@ -190,43 +191,6 @@ Module MakeExprStore (V : SsrOrder) (TE : TypEnv with Module SE := V) <:
 End MakeExprStore.
 
 Module EStore := MakeExprStore VarOrder TE.
-(*
-Module Natlist0. 
-Delimit Scope natlist_scope with natlist0.
-
-Inductive natlist : Type :=
-  | nil
-  | cons (n : nat) (l : natlist).
-Notation "[ x ; .. ; y ]" := (cons x .. (cons y nil) ..) (x at level 10, right associativity) : natlist0.
-Fixpoint nth_bad (l:natlist) (n:nat) : nat :=
-  match l with
-  | nil => 42
-  | cons a l' => match n with
-               | 0 => a
-               | S n' => nth_bad l' n'
-               end
-  end.
-
-Local Open Scope natlist0.
-
-Eval compute in nth_bad [1;2;3] 2.
-
-Definition in_map := N -> natlist.
-
-Definition eqb_N (x y : N) : bool :=
-  if x==y then true else false.
-Definition t_update (m : in_map) (x : N) (v : natlist) :=
-  fun x' => if eqb_N x x' then v else m x'.
-Definition t_empty (v : natlist) : in_map :=
-  (fun _ => v).
-
-Notation "'_' '!->' v" := (t_empty v)
-  (at level 100, right associativity) : natlist0.
-Notation "x '!->' v ';' m" := (t_update m x v)
-                              (at level 100, v at next level, right associativity) : natlist0.
-
-End Natlist0.
-*)
 
 Module MakeFirrtl
        (V : SsrOrder)
@@ -256,7 +220,6 @@ Module MakeFirrtl
   Definition fexpr := fexpr V.T.
   Definition econst c := @Econst V.T c.
   Definition eref v := @Eref V.T v.
-  (* Definition edeclare v t := @Edeclare V.T v t. *)
   Definition ecast u e := @Ecast V.T u e.
   Definition eprim_unop u e := @Eprim_unop V.T u e.
   Definition eprim_binop b e1 e2 := @Eprim_binop V.T b e1 e2.
@@ -285,6 +248,68 @@ Module MakeFirrtl
   Definition mk_finst := @mk_finst V.T.
   Definition fmodule := @fmodule V.T.
   Definition fcircuit := @fcircuit V.T.
+
+  Definition memory_map := bits -> bits.
+  Definition memfind (key : bits) (map : memory_map) : bits := map key.
+  Definition memupd (key : bits) (v : bits) (memmap : memory_map) : memory_map :=
+    fun (y : bits) => if y == key then v else memfind y memmap.
+  Definition memempty : memory_map := (fun _ => [::]).
+
+  Definition mapls := TE.t (seq var).
+  Definition mapioin := TE.t (seq bits).
+  Definition mapdata2etc := TE.t (var * var * var * var * var).
+  Definition map2etc := TE.t (mapdata2etc).
+
+  Definition mapmem := TE.t memory_map. 
+
+  Fixpoint mylListIn (a:var) (l:list var) : bool :=
+      match l with
+        | nil => b0
+        | b :: m => if b == a then b1 else (mylListIn a m)
+      end.
+
+  Definition maptuple := TE.t (var * var).
+  Definition mmaptuple := TE.t maptuple.
+  Definition mapfstmt := TE.t (seq fstmt).
+  Definition mapterss := TE.t (TE.env * vstate * vstate * mapmem).
+  Definition mapvar := TE.t var.
+  Definition mvar := TE.t mapvar.
+  Definition mmapvar := TE.t (mvar * mapvar).
+  Definition mmvar := TE.t (mapvar * mapvar).
+
+  Fixpoint bitsIn (a: bits) (l:list bits) : bool :=
+      match l with
+        | nil => b0
+        | b :: m => if ((to_nat b) == (to_nat a)) then b1 else (bitsIn a m)
+      end.
+  Fixpoint varIn (a: var) (l:seq var) : bool :=
+      match l with
+        | nil => b0
+        | b :: m => if (b == a) then b1 else (varIn a m)
+      end.
+
+  Definition g := var -> seq var.
+  Definition mapg := TE.t g.
+  Definition emptyg : g := (fun _ => [::]).
+  Definition findg (key : var) (map : g) : seq var := map key.
+  Definition updg (key : var) (v : seq var) (map : g) : g :=
+    fun (y : var) => if y == key then v else findg y map.
+
+  Definition var2stmtmap := TE.t fstmt.
+  Definition allvar2stmtmap := TE.t var2stmtmap.
+  Definition fmap := TE.t nat.
+  Definition boolmap := TE.t bool.
+  Definition allboolmap := TE.t boolmap.
+
+  Fixpoint upd_inner s s0 (a2 : seq var) (finstinmap : mapvar) : vstate :=
+      match a2 with
+      | [:: ] => s0
+      | h::t => let s1 := match TE.find h finstinmap with
+                            | None => s0
+                            | Some a => SV.upd h (SV.acc a s) s0
+                            end in
+      upd_inner s s1 t finstinmap
+      end.
   
   (* From Coq Require Import ZArith. *)
   
@@ -357,8 +382,8 @@ Module MakeFirrtl
                            let bs2 := zext ((maxn (size b1) (size b2)) - (size b2)) b2 in
                           [::(~~ (bs1 == bs2))]
     end.
-    Compute (binop_bcmp Bgeq [::true;false;true] [::true;false;true]).
-    Compute (binop_bcmp Bgeq [::true;false;true] [::true;false;true;false]).
+    (*Compute (binop_bcmp Bgeq [::true;false;true] [::true;false;true]).
+    Compute (binop_bcmp Bgeq [::true;false;true] [::true;false;true;false]).*)
 
   Definition binop_sbcmp (o : bcmp) : bits -> bits -> bits :=
     match o with
@@ -389,17 +414,18 @@ Module MakeFirrtl
   Definition adcB_ext c bs1 bs2 := full_adder_ext c bs1 bs2.
   Definition addB_ext bs1 bs2 : bits := let (c, r) := (adcB_ext false bs1 bs2) in rcons r c.
 
-  Compute (extzip0 [::false;false;false] [::true;true;true;true]).
+  (*Compute (extzip0 [::false;false;false] [::true;true;true;true]).*)
 
   Lemma size_full_adder_ext c bs1 bs2 : size (snd (full_adder_ext c bs1 bs2)) = maxn (size bs1) (size bs2).
   Proof.
     rewrite /full_adder_ext.
     dcase (extzip0 bs1 bs2) => [zp Hzp].
     rewrite -(size_extzip b0 b0 bs1 bs2) -/extzip0 Hzp.
-    elim : zp bs1 bs2 Hzp c => [|zh zt IH] bs1 bs2 Hzp c //.
+    elim : zp bs1 bs2 Hzp c => [|zh zt IH] bs1 bs2 Hzp c. rewrite //.
     dcase zh => [[hd1 hd2] Hz]. rewrite Hz in Hzp => {Hz zh}.
     dcase (bool_adder c hd1 hd2) => [[c0 hd] Hadder].
-    dcase (full_adder_zip c0 zt) => [[c1 tl] Hfull]. move: Hzp.
+    dcase (full_adder_zip c0 zt) => [[c1 tl] Hfull].
+    move: Hzp.
     case: bs1; case: bs2 => //.
     - move=> b bs Hzs. case: Hzs => H1 H2.
       have ->: zip (copy (size bs) b0) bs = extzip0 [::] bs by rewrite /extzip0/=; elim bs =>//.
@@ -415,20 +441,101 @@ Module MakeFirrtl
       
   Lemma size_adcB_ext bs1 bs2: size (snd (adcB_ext false bs1 bs2)) = maxn (size bs1) (size bs2).
   Proof.
-    rewrite /adcB_ext size_full_adder_ext//.
+    rewrite /adcB_ext size_full_adder_ext //.
   Qed.
 
   Lemma size_addB_ext bs1 bs2 : size (addB_ext bs1 bs2) = (maxn (size bs1) (size bs2)).+1.
   Proof.
     rewrite /addB_ext. case Hadc : (adcB_ext false bs1 bs2) => [c r].
-    rewrite /=-size_adcB_ext Hadc size_rcons//.
+    rewrite /=-size_adcB_ext Hadc size_rcons //.
   Qed.
 
+  Search to_Zpos.
+
+  Lemma extzip0_zext bs1 bs2 :
+    extzip0 bs1 bs2 = zip (zext (size bs2 - size bs1) bs1) (zext ((size bs1) - size bs2) bs2) .
+  Proof.
+    rewrite /extzip0. rewrite /zext /zeros extzip_zip//.
+  Qed.
+  
   Lemma to_Zpos_addB_ext bs1 bs2 :
     to_Zpos (addB_ext bs1 bs2) = Z.add (to_Zpos bs1) (to_Zpos bs2).
   Proof.
-  Admitted.
+    rewrite /addB_ext /adcB_ext /full_adder_ext.
+
+    rewrite extzip0_zext.
+    case Hadc : (full_adder_zip false (zip (zext (size bs2 - size bs1) bs1) (zext (size bs1 - size bs2) bs2))) => [c r].
+    have ->: r = snd (full_adder_zip false (zip (zext (size bs2 - size bs1) bs1) (zext (size bs1 - size bs2) bs2))) by rewrite Hadc//.
+    have ->: c = fst (full_adder_zip false (zip (zext (size bs2 - size bs1) bs1) (zext (size bs1 - size bs2) bs2))) by rewrite Hadc//.
+    rewrite -/(full_adder false (zext (size bs2 - size bs1) bs1) (zext (size bs1 - size bs2) bs2)).
+    rewrite -/(adcB false (zext (size bs2 - size bs1) bs1) (zext (size bs1 - size bs2) bs2)).
+    rewrite -/(addB (zext (size bs2 - size bs1) bs1) (zext (size bs1 - size bs2) bs2)).
+    rewrite -/(carry_addB (zext (size bs2 - size bs1) bs1) (zext (size bs1 - size bs2) bs2)).
+    rewrite to_Zpos_rcons. rewrite size_addB 2!size_zext. rewrite -2!maxnE maxnC minnn maxnC maxnE.
+    have ->: ((size bs1 + (size bs2 - size bs1)) = size (zext (size bs2 - size bs1) bs1)).
+    rewrite size_zext//.
+    rewrite to_Zpos_addB. rewrite 2!to_Zpos_zext//.
+    rewrite 2!size_zext. rewrite -2!maxnE maxnC//.
+  Qed.
     
+    
+  (*   dcase (extzip0 bs1 bs2) => [zp Hzp]. *)
+  (*   case Hadc : (full_adder_zip false zp) => [c r]. *)
+  (*   move: Hadc. *)
+  (*   elim : zp bs1 bs2 Hzp c => [|zh zt IH] bs1 bs2 Hzp c. *)
+  (*   rewrite /full_adder_zip. *)
+  (*   move => Hadc. *)
+  (*   rewrite to_Zpos_rcons. *)
+  (*   inversion Hadc. *)
+  (*   simpl. *)
+  (*   assert (Hzp0: size (extzip0 bs1 bs2) = 0). *)
+  (*   rewrite Hzp //. *)
+  (*   rewrite (size_extzip b0 b0 bs1 bs2) in Hzp0. *)
+  (*   symmetry. *)
+  (*   rewrite /maxn in Hzp0. *)
+  (*   case Hlt: (size bs1 < size bs2). *)
+  (*   rewrite Hlt in Hzp0. *)
+  (*   rewrite Hzp0 in Hlt. *)
+  (*   discriminate. *)
+  (*   rewrite Hlt in Hzp0. *)
+  (*   rewrite Hzp0 in Hlt. *)
+  (*   move /negbT : Hlt. *)
+  (*   rewrite <- (eqn0Ngt (size bs2)). *)
+  (*   intro. *)
+  (*   move /eqP : Hlt => Hlt. *)
+  (*   apply size0nil in Hzp0. *)
+  (*   apply size0nil in Hlt. *)
+  (*   rewrite Hzp0 Hlt. *)
+  (*   simpl. *)
+  (*   reflexivity. *)
+
+
+  (*   move: Hzp. *)
+  (*   dcase zh => [[hd1 hd2] Hz]. *)
+  (*   dcase (bool_adder c hd1 hd2) => [[c0 hd] Hadder]. *)
+  (*   dcase (full_adder_zip c0 zt) => [[c1 tl] Hfull].   *)
+
+  (*   case hd1; case hd2 => /=//. *)
+    
+
+  (*   case: bs1; case: bs2 => //. *)
+  (* - move => b bs Hzs. case: Hzs => H1 H2. *)
+  (*   have ->: zip (copy (size bs) b0) bs = extzip0 [::] bs by rewrite /extzip0/=; elim bs =>//. *)
+  (*   move => H3. *)
+  (*   move: (IH _ _ H3 c0). rewrite H2. *)
+    (*
+    to_Z_rcons:
+  forall (bs : seq bool) (b : bool),
+  to_Z (rcons bs b) = (if b then (- Z.succ (to_Zneg bs))%Z else to_Zpos bs)
+
+  to_Zpos_negB:
+  forall bs : bits,
+  to_Zpos (-# bs) = (- to_Zpos bs mod 2 ^ Z.of_nat (size bs))%Z
+
+      *)  
+    
+  Admitted.
+
   (* subtraction with extended bits *)
   Definition sbbB_ext b bs1 bs2 : bool * bits := adcB_ext (~~ b) bs1 (~~# bs2).
   Definition subB_ext bs1 bs2 := let (b, r) := (sbbB_ext false bs1 bs2) in rcons r b.
@@ -437,11 +544,27 @@ Module MakeFirrtl
                                      let nbs2 := zext (newl-(size bs2)) bs2 in
     let (b, r) := (sbbB_ext false nbs1 nbs2) in r.
   Compute (sbbB_ext false [::false;false] [::false;false]).
-  Compute (subB_ext [::false;false] [::false]).
+  Compute (subB_ext [::false;false] [::false;false]).
   Compute (wky_subB_ext [::false;false] [::false;true]).
 
-  Lemma size_subB_ext bs1 bs2 : size (subB_ext bs1 bs2) = (maxn (size bs1) (size bs2))+1.
-  Proof. Admitted.
+  Lemma size_subB_ext bs1 bs2 : size bs1 = size bs2 -> size (wky_subB_ext bs1 bs2) = (maxn (size bs1) (size bs2))+1.
+  Proof. 
+    rewrite /wky_subB_ext.
+    move=> Heql.
+    rewrite /maxn Heql ltnn addn1 subSnn.
+    rewrite /sbbB_ext /adcB_ext.
+    rewrite size_full_adder_ext.
+    fold (@cat bool bs1 (zeros 1)).
+    rewrite size_invB size_zext addn1 size_cat size_zeros Heql addn1.
+    rewrite /maxn ltnn.
+    reflexivity.
+  Qed.
+
+  (*Lemma to_Zpos_subB_ext bs1 bs2 : size bs1 = size bs2 -> Z.geq (to_Zpos bs1) (to_Zpos bs2) -> to_Zpos (wky_subB_ext bs1 bs2) = Z.sub (to_Zpos bs1) (to_Zpos bs2).
+  Proof.
+    
+  Qed.
+  *)
 
   Fixpoint Sfull_mul (bs1 bs2 : bits) : bits :=
     match bs1 with
@@ -456,10 +579,58 @@ Module MakeFirrtl
         else joinlsb false (Sfull_mul tl bs2))
     end.
 
+  Lemma size_Sfull_mul bs1 bs2: size (Sfull_mul bs1 bs2) = (size bs1) + (size bs2).
+  Proof.
+    elim: bs1 => [| b bs1 IH] /=.
+    - by rewrite /full_mul add0n size_from_nat.
+    - case Hbs1 : (bs1 == [::]).
+      + case b.
+      move /eqP : Hbs1 => Hbs1.
+      rewrite Hbs1 size_addB size_invB size_sext size_zext.
+      simpl.
+      rewrite addn1 add1n /minn ltnn //.
+      move /eqP : Hbs1 => Hbs1.
+      rewrite Hbs1 size_addB size_invB size_sext size_zext size_zeros.
+      simpl.
+      rewrite addn1 add1n /minn ltnn //.
+      + case b.
+      rewrite size_addB size_sext size_joinlsb IH.
+      rewrite addnACl add1n /minn ltnn addnC.
+      reflexivity.
+      by rewrite size_joinlsb IH addSn addn1.
+  Qed.
+
+  Lemma to_Zpos_Sfull_mul bs1 bs2: to_Zpos (Sfull_mul bs1 bs2) = Z.mul (to_Zpos bs1) (to_Zpos bs2).
+  Proof.
+    move : bs2. elim bs1 => [|hd1 tl1 IH] bs2 /=.
+     first by rewrite!from_natn0 size_zeros!add0n. 
+    move : (to_nat_bounded ptl1) => Hbd1; move : (to_nat_bounded p2) => Hbd2.
+    move : (ltn_mul Hbd1 Hbd2); rewrite -expnD; move => Hbd. generalize Hbd.
+    rewrite -(ltn_pmul2l (ltn0Sn 1)) -expnS mulnC in Hbd. move => Hbd'.
+    case phd1. 
+    - rewrite/= to_nat_addB size_addB size_joinlsb to_nat_joinlsb (IH p2)
+             size_full_mul size_zext to_nat_zext addn1
+      -addSn addnC minnn addn0 !to_nat_from_nat -!muln2 muln_modl.
+      rewrite addnS expnS.
+      have-> :(2 * 2 ^ (size p2 + size ptl1) = (2 ^ (size ptl1 + size p2) * 2)) by rewrite mulnC addnC. rewrite div.modnDml.
+      have->:(((1 + to_nat ptl1 * 2) * to_nat p2) = to_nat ptl1 * to_nat p2 * 2 + to_nat p2) by rewrite mulnDl mul1n; ring. done.
+    - rewrite size_joinlsb to_nat_joinlsb (IH p2) size_full_mul addn0 add0n-!muln2!to_nat_from_nat_bounded; first ring; try exact. by rewrite addn1 mulnAC.
+
+    (*
+    Lemma to_Zpos_full_mul bs1 bs2 :
+    to_Zpos (full_mul bs1 bs2) = (to_Zpos bs1 * to_Zpos bs2)%Z.
+  Proof.
+    move: (to_nat_full_mul' bs1 bs2) => Hnat.
+    apply (f_equal Z.of_nat) in Hnat. rewrite Nat2Z.inj_mul -!to_Zpos_nat in Hnat.
+    exact: Hnat.
+  Qed.
+  *)
+  Admitted.
+
   (*Compute (sext 2 [::b1;b0]).
-  Compute (joinlsb false(addB (zeros ((size [::b1;b0])+1)) (addB (invB (sext (size [::b1]) [::b1;b0])) (zext (size [::b1;b0]) [::b1])))).*)
+  Compute (joinlsb false(addB (zeros ((size [::b1;b0])+1)) (addB (invB (sext (size [::b1]) [::b1;b0])) (zext (size [::b1;b0]) [::b1])))).
   Compute (Sfull_mul [::b1;b1] [::b0;b1]).
-  Compute (cat [::b1;b1] [::b0;b1]).
+  Compute (cat [::b1;b1] [::b0;b1]).*)
   
   Definition ebinop_op (o : ebinop) (t1 t2 : fgtyp) : bits -> bits -> bits :=
     match t1, t2 with
@@ -518,7 +689,6 @@ Module MakeFirrtl
     match e with
     | Econst t c => t
     | Eref v => TE.vtyp v te
-    (* | Edeclare v t => t *)
     | Ecast AsUInt e => Fuint (sizeof_fgtyp (type_of_fexpr e te))
     | Ecast AsSInt e => Fsint (sizeof_fgtyp (type_of_fexpr e te))
     | Ecast AsClock e => Fuint 1
@@ -624,72 +794,10 @@ Module MakeFirrtl
     | Ecast AsReset (Eref v) => TE.add v (Fuint 1) te
     | Ecast AsAsync (Eref v) => TE.add v (Fuint 1) te
     | _ => te
-    end.*)
-  Compute (List.In b1 [::b0;b1]).
+    end.
+  Compute (List.In b1 [::b0;b1]).*)
+
   (* Expression evaluation, value *)
-
-Definition memory_map := bits -> bits.
-Definition memfind (key : bits) (map : memory_map) : bits := map key.
-Definition memupd (key : bits) (v : bits) (memmap : memory_map) : memory_map :=
-  fun (y : bits) => if y == key then v else memfind y memmap.
-Definition memempty : memory_map := (fun _ => [::]).
-
-Definition mapls := TE.t (seq var).
-Definition mapioin := TE.t (seq bits).
-Definition mapdata2etc := TE.t (var * var * var * var).
-Definition map2etc := TE.t (mapdata2etc).
-
-Definition mapmem := TE.t memory_map. 
-
-Fixpoint mylListIn (a:var) (l:list var) : bool :=
-    match l with
-      | nil => b0
-      | b :: m => if b == a then b1 else (mylListIn a m)
-    end.
-
-Definition maptuple := TE.t (var * var).
-Definition mmaptuple := TE.t maptuple.
-Definition mapfstmt := TE.t (seq fstmt).
-Definition mapterss := TE.t (TE.env * vstate * vstate * mapmem).
-Definition mapvar := TE.t var.
-Definition mvar := TE.t mapvar.
-Definition mmapvar := TE.t (mvar * mapvar).
-Definition mmvar := TE.t (mapvar * mapvar).
-
-Fixpoint bitsIn (a: bits) (l:list bits) : bool :=
-    match l with
-      | nil => b0
-      | b :: m => if ((to_nat b) == (to_nat a)) then b1 else (bitsIn a m)
-    end.
-Fixpoint varIn (a: var) (l:seq var) : bool :=
-    match l with
-      | nil => b0
-      | b :: m => if (b == a) then b1 else (varIn a m)
-    end.
-
-Definition g := var -> seq var.
-Definition mapg := TE.t g.
-Definition emptyg : g := (fun _ => [::]).
-Definition findg (key : var) (map : g) : seq var := map key.
-Definition updg (key : var) (v : seq var) (map : g) : g :=
-  fun (y : var) => if y == key then v else findg y map.
-
-Definition var2stmtmap := TE.t fstmt.
-Definition allvar2stmtmap := TE.t var2stmtmap.
-Definition fmap := TE.t nat.
-Definition boolmap := TE.t bool.
-Definition allboolmap := TE.t boolmap.
-
-Fixpoint upd_inner s s0 (a2 : seq var) (finstinmap : mapvar) : vstate :=
-    match a2 with
-     | [:: ] => s0
-     | h::t => let s1 := match TE.find h finstinmap with
-                          | None => s0
-                          | Some a => SV.upd h (SV.acc a s) s0
-                          end in
-     upd_inner s s1 t finstinmap
-    end.
-
   Fixpoint eval_fexpr (e : fexpr) (rs : vstate) (s : vstate) (te : TE.env) (readerls : seq var) (writerls : seq var) (data2etc : mapdata2etc) (memmap : mapmem) (read_la : boolmap) : vstate * bits :=
     match e with
     | Econst t c => let val := match t with
@@ -697,31 +805,35 @@ Fixpoint upd_inner s s0 (a2 : seq var) (finstinmap : mapvar) : vstate :=
                     | Fsint w2 => sext (w2 - size c) c
                     | _ => c
                     end in (rs, val)
-    | Eref v => (* SV.acc v s
-    have map data2addr、data2en、data2mask、data2mid
-    have list reader.data、writer.data
-    have memmap mid->emptymap(addr value -> data value)*)
+    | Eref v => (* SV.acc v s*)
     if mylListIn v readerls (* reader ports *)
     then match TE.find v data2etc with
         | None => (rs, [::b0])
         | Some a => 
-          let '(addrvar, envar, midvar, ruw) := a in 
+          let '(addrvar, envar, midvar, flagvar, clkvar) := a in 
           match TE.find midvar read_la with(* 没有找到m是同步或异步 *)
           | None => (rs, [::b0])
           | Some thisread_la =>
           let addrval := SV.acc addrvar s in
           let enval := SV.acc envar s in
+          let clk0val := SV.acc clkvar s in
+          let clkval := SV.acc clkvar rs in
+          let flagval := SV.acc flagvar s in
           let readv := 
           (if enval == [:: b0]
             then [::b0]
-          else
+          else 
           (match TE.find midvar memmap with
           | None => [::b0]
           | Some b => memfind addrval b
-          end)) in
+          end)) in 
           if thisread_la == false
-          then (rs, readv)
-          else (SV.upd v readv rs, SV.acc v s)
+          then (*if (((clk0val == [:: b0]) && (clkval == [:: b1])) || (flagval == [::b1]))
+              then*) (rs, readv)
+              (*else (rs, [:: b0])*)
+          else if (((clk0val == [:: b0]) && (clkval == [:: b1])) || (flagval == [::b1]))
+              then (*(SV.upd v readv rs, SV.acc v s)*)(rs, readv)
+              else ((*SV.upd v readv *)rs, [::b0])
           end
         end
     else (rs, SV.acc v s) (* inst ports & others *)
@@ -769,70 +881,9 @@ Fixpoint upd_inner s s0 (a2 : seq var) (finstinmap : mapvar) : vstate :=
                          let val := [::lsb val1] in (rs0, val)
     end.
   
-(*
-  Fixpoint eval_fexpr (e : fexpr) (s : vstate) (te : TE.env) (readerls : seq var) (writerls : seq var) (data2etc : mapdata2etc) (memmap : mapmem) : bits :=
-    match e with
-    | Econst t c => match t with
-                    | Fuint w1 => zext (w1 - size c) c
-                    | Fsint w2 => sext (w2 - size c) c
-                    | _ => c
-                    end
-    | Eref v => (* SV.acc v s
-    have map data2addr、data2en、data2mask、data2mid
-    have list reader.data、writer.data
-    have memmap mid->emptymap(addr value -> data value)*)
-    if mylListIn v readerls (* reader ports *)
-    then (match TE.find v data2etc with
-        | None => [::b0]
-        | Some a => (let '(addrvar, envar, midvar, ruw) := a in 
-          let addrval := SV.acc addrvar s in
-          let enval := SV.acc envar s in
-          if enval == [:: b0]
-            then [::b1]
-          else
-          (match TE.find midvar memmap with
-          | None => [::b0]
-          | Some b => memfind addrval b
-          end)
-    ) end)
-    else SV.acc v s (* inst ports & others *)
-    | Eprim_binop b e1 e2 =>
-      let ve1 := (eval_fexpr e1 s te readerls writerls data2etc memmap) in
-      let ve2 := (eval_fexpr e2 s te readerls writerls data2etc memmap) in
-      let te1 := type_of_fexpr e1 te in
-      let te2 := type_of_fexpr e2 te in
-      (ebinop_op b te1 te2) ve1 ve2
-    | Eprim_unop u e =>
-      let t := type_of_fexpr e te in
-      (eunop_op u t) (eval_fexpr e s te readerls writerls data2etc memmap)
-    | Emux c e1 e2 =>
-      let t1 := (type_of_fexpr e1 te) in
-      let t2 := (type_of_fexpr e2 te) in
-      match t1, t2 with
-      | Fuint w1, Fuint w2 => if ~~ (is_zero (eval_fexpr c s te readerls writerls data2etc memmap)) 
-      then (zext ((max w1 w2) - w1) (eval_fexpr e1 s te readerls writerls data2etc memmap)) else(zext ((max w1 w2) - w2) (eval_fexpr e2 s te readerls writerls data2etc memmap))
-      | Fsint w1, Fsint w2 => if ~~ (is_zero (eval_fexpr c s te readerls writerls data2etc memmap)) 
-      then (sext ((max w1 w2) - w1) (eval_fexpr e1 s te readerls writerls data2etc memmap)) else(sext ((max w1 w2) - w2) (eval_fexpr e2 s te readerls writerls data2etc memmap))
-      (*| Fuint w1, Fsint w2 => [:: true;false]
-      | Fsint w1, Fuint w2 => [:: true;true]*)
-      | _, _ => [::]
-      end       
-    | Evalidif c e => if ~~ (is_zero (eval_fexpr c s te readerls writerls data2etc memmap)) then (eval_fexpr e s te readerls writerls data2etc memmap) else [::]
-    (* | Edeclare v t => zeros (sizeof_fgtyp t) *)
-    | Ecast AsUInt e => eval_fexpr e s te readerls writerls data2etc memmap
-    | Ecast AsSInt e => eval_fexpr e s te readerls writerls data2etc memmap
-    | Ecast AsClock e => [::lsb (eval_fexpr e s te readerls writerls data2etc memmap)]
-    | Ecast AsReset e => [::lsb (eval_fexpr e s te readerls writerls data2etc memmap)]
-    | Ecast AsAsync e => [::lsb (eval_fexpr e s te readerls writerls data2etc memmap)]
-    end.
-*)
-  Compute (ebinop_op Bcat (Fuint 4) (Fuint 4) [::true; true;true; true] [:: true]).
-  Compute (ebinop_op Bsub (Fuint 16) (Fuint 16) [:: false] [:: false]).
-  (*Compute (from_Z 6 (-3)). (*[:: true; false; true; true; true; true] *)
-  Compute (from_Z 11 (-56)). (*[:: false; false; false; true; false; false; true; true; true; true; true]*)
-  Compute (ebinop_op Badd (Fsint 4) (Fsint 4) [:: true;true;true;true] [:: false; true; true; false]).
-  Compute (eunop_op (Ucvt) (Fuint 6) [:: true; false; true; true; true; true]).*)
-  
+  (*Compute (ebinop_op Bcat (Fuint 4) (Fuint 4) [::true; true;true; true] [:: true]).
+  Compute (ebinop_op Bsub (Fuint 16) (Fuint 16) [:: false] [:: false]).*)
+
   Definition upd_typenv_fport (p : fport) (te : TE.env) : TE.env :=
     match p with
     | Finput v t => TE.add v t te
@@ -850,7 +901,6 @@ Fixpoint upd_inner s s0 (a2 : seq var) (finstinmap : mapvar) : vstate :=
     match s with
     | Swire v t  => TE.add v t te
     | Sreg r => TE.add (rid r) (type r) te
-    (* | Snode v e => TE.add v (type_of_fexpr e (upd_typenv_fexpr e te)) (upd_typenv_fexpr e te) *)
     | Snode v e => TE.add v (type_of_fexpr e te) te
     | Smem m => let te1 := List.fold_left (fun tt tr => let tt0 := TE.add (addr tr) (Fuint ((Nat.log2 (depth m)) )) tt in
                                              let tt1 := TE.add (data tr) (data_type m) tt0 in
@@ -866,7 +916,6 @@ Fixpoint upd_inner s s0 (a2 : seq var) (finstinmap : mapvar) : vstate :=
     | Sinst inst => upd_typenv_fports (iports inst) te
     | Sfcnct (Eref v) e2 => TE.add v (type_of_fexpr e2 te) te
     | _ => te
-
     end.
 
   Fixpoint upd_typenv_fstmts (ss : seq fstmt) (te : TE.env) (s : vstate) : TE.env :=
@@ -874,76 +923,7 @@ Fixpoint upd_inner s s0 (a2 : seq var) (finstinmap : mapvar) : vstate :=
     | [::] => te
     | h :: tl => upd_typenv_fstmts tl (upd_typenv_fstmt h te s) s
     end.
-(*
-Definition eval_noninst_fstmt (st : fstmt) (rs : vstate) (s : vstate) (te : TE.env) (readerls : seq var) (writerls : seq var) (data2etc : mapdata2etc) (memmap : mapmem) (read_la : boolmap)
- : vstate * vstate * mapmem :=
-    match st with
-        | Sskip => (rs, s, memmap)
-        | Swire v t => (rs, SV.upd v (zeros (sizeof_fgtyp t)) s, memmap)
-        | Sreg r =>
-          let (rs0, s0) := if SV.acc (rid r) rs == [::]
-                          then (SV.upd (rid r) (zeros (sizeof_fgtyp (type r))) rs,
-                                SV.upd (rid r) (zeros (sizeof_fgtyp (type r))) s)
-                          else (rs, SV.upd (rid r) (SV.acc (rid r) rs) s) in
-                    match reset r with
-                    | NRst => (rs0, s0, memmap)
-                    | Rst e1 e2 =>
-                        let te1 := type_of_fexpr e1 te in
-                        let ve1 := eval_fexpr e1 s0 te readerls writerls data2etc memmap in
-                        let ve2 := eval_fexpr e2 s0 te readerls writerls data2etc memmap in
-                        if (is_zero ve1) then (rs0, s0, memmap)
-                        else
-                          match te1 with
-                          | Fuint 1 => (SV.upd (rid r) ve2 rs0, s0, memmap)
-                          | Fasyncreset => (SV.upd (rid r) ve2 rs0, SV.upd (rid r) ve2 s0, memmap)
-                          | _ => (rs0, s0, memmap)
-                          end
-                    end
-        | Smem m => (*match TE.find (mid m) read_la with
-                  | None => (rs, s, memmap)
-                  | Some thisread_la =>
-                    if thisread_la == false 
-                    then (rs, s, memmap)
-                    else*) let (rs0, s0) := List.fold_left (fun '(trs, ts) tr => if SV.acc (data tr) trs == [::]
-                                                                              then (SV.upd (data tr) (zeros (sizeof_fgtyp (data_type m))) trs,
-                                                                                    SV.upd (data tr) (zeros (sizeof_fgtyp (data_type m))) ts)
-                                                                              else (trs, SV.upd (data tr) (SV.acc (data tr) trs) ts)
-                    ) (reader m) (rs, s)
-                    in (rs0, s0, memmap)
-                  end
-        | Sinst inst => (rs, s, memmap) (* 在拓扑排序时始终放在每个mod的最后，用来对所有的inst更新rs/s/memory *)
-        | Snode v e => (rs, SV.upd v (eval_fexpr e s te readerls writerls data2etc memmap) s, memmap)
-        | Sfcnct (Eref v) e2 => let newv := eval_fexpr e2 s te readerls writerls data2etc memmap in 
-                                let memmap0 := 
-                                (if mylListIn v writerls (* writer ports *)
-                                then match TE.find v data2etc with
-                                      | None => memmap
-                                      | Some a => (let '(addrvar,envar, midvar, maskvar) := a in 
-                                        match TE.find midvar memmap with
-                                        | None => memmap (* parse ast时已生成所有mem的map TE.add midvar (memupd (from_nat 4 10) (from_nat 4 11) memempty) memmap*)
-                                        | Some b => let maskval := SV.acc maskvar s in
-                                                    let addrval := SV.acc addrvar s in 
-                                                    let enval := SV.acc envar s in
-                                                    if enval == [:: b1] (* en = low *)
-                                                      then (if maskval == [:: b1]
-                                                        then TE.add midvar (memupd addrval newv b) memmap(*TE.add midvar (memupd (from_nat 2 3) (from_nat 4 13) b) memmap*)
-                                                        else TE.add midvar (memupd addrval [:: b0] b) memmap(*TE.add midvar (memupd (from_nat 2 3) (from_nat 4 12) b) memmap*)
-                                                      )
-                                                      else
-                                                      (*TE.add midvar (memupd (from_nat 2 3) (from_nat 4 10) b) *)memmap
-                                                    end
-                                )
-                                end
-                                else memmap)in
-                                if SV.acc v rs == [::]
-                                  then (rs, SV.upd v newv s, memmap0)
-                                else (SV.upd v newv rs, s, memmap0) (* regs *)
-        | Sinvalid v =>
-          let tv := TE.vtyp v te in
-          (rs, SV.upd v (zeros (sizeof_fgtyp tv)) s, memmap)
-        | _ => (rs, s, memmap)
-        end.
-*)
+
   Definition eval_noninst_fstmt (st : fstmt) (rs : vstate) (s : vstate) (te : TE.env) (readerls : seq var) (writerls : seq var) (data2etc : mapdata2etc) (memmap : mapmem) (read_la : boolmap)
  : vstate * vstate * mapmem :=
     match st with
@@ -968,18 +948,50 @@ Definition eval_noninst_fstmt (st : fstmt) (rs : vstate) (s : vstate) (te : TE.e
                           | _ => (rs0, s0, memmap)
                           end
                     end
-        | Smem m => match TE.find (mid m) read_la with
-                  | None => (rs, s, memmap)
+        | Smem m => (* mem.clk 放入rs *)
+          let (rs1, s1) := List.fold_left (fun '(trs, ts) tr => if SV.acc (clk tr) trs == [::]
+                                                then (SV.upd (clk tr) [:: b0] trs, SV.upd (flag tr) [:: b0] (SV.upd (clk tr) [:: b1] ts))
+                                                else if (SV.acc (flag tr) ts == [::b1])
+                                                  then (trs,ts)
+                                                  else if ((SV.acc (clk tr) trs == [::b1]) && (SV.acc (clk tr) ts == [::b0]) && (SV.acc (flag tr) ts == [::b0]))
+                                                  then (trs, SV.upd (flag tr) [::b1] ts)
+                                                  else (trs, SV.upd (clk tr) (SV.acc (clk tr) trs) ts)
+          ) (reader m) (rs, s) in
+          let (rs2, s2) := List.fold_left (fun '(trs, ts) tr => if SV.acc (clk0 tr) trs == [::]
+                                                then (SV.upd (clk0 tr) [:: b0] trs, SV.upd (clk0 tr) [:: b1] ts)
+                                                else (trs, SV.upd (clk0 tr) (SV.acc (clk0 tr) trs) ts)
+          ) (writer m) (rs1, s1) in
+          (* write延迟 *)
+          let (rs3, s3) := List.fold_left (fun '(trs, ts) tr => let '(trs0, ts0) := if SV.acc (data0 tr) trs == [::]
+                                                                then (SV.upd (data0 tr) (zeros (sizeof_fgtyp (data_type m))) trs,
+                                                                      SV.upd (data0 tr) (zeros (sizeof_fgtyp (data_type m))) ts)
+                                                                else (trs, SV.upd (data0 tr) (SV.acc (data0 tr) trs) ts) in
+                                                                let '(trs1, ts1) := if SV.acc (addr0 tr) trs == [::]
+                                                                then (SV.upd (addr0 tr) (zeros (Nat.log2 (depth m))) trs0,
+                                                                      SV.upd (addr0 tr) (zeros (Nat.log2 (depth m))) ts0)
+                                                                else (trs0, SV.upd (addr0 tr) (SV.acc (addr0 tr) trs0) ts0) in
+                                                                let '(trs2, ts2) := if SV.acc (en0 tr) trs == [::]
+                                                                then (SV.upd (en0 tr) [::b0] trs1,
+                                                                      SV.upd (en0 tr) [::b0] ts1)
+                                                                else (trs1, SV.upd (en0 tr) (SV.acc (en0 tr) trs1) ts1) in
+                                                                if SV.acc (mask tr) trs == [::]
+                                                                then (SV.upd (mask tr) [::b0] trs2,
+                                                                      SV.upd (mask tr) [::b0] ts2)
+                                                                else (trs2, SV.upd (mask tr) (SV.acc (mask tr) trs2) ts2)
+          ) (writer m) (rs2, s2) in (rs3, s3, memmap)
+          (*
+        match TE.find (mid m) read_la with (* read延迟 *)
+                  | None => (rs3, s3, memmap)
                   | Some thisread_la =>
                     if thisread_la == false 
-                    then (rs, s, memmap)
+                    then (rs3, s3, memmap)
                     else let (rs0, s0) := List.fold_left (fun '(trs, ts) tr => if SV.acc (data tr) trs == [::]
                                                                     then (SV.upd (data tr) (zeros (sizeof_fgtyp (data_type m))) trs,
                                                                           SV.upd (data tr) (zeros (sizeof_fgtyp (data_type m))) ts)
                                                                     else (trs, SV.upd (data tr) (SV.acc (data tr) trs) ts)
-                    ) (reader m) (rs, s)
+                    ) (reader m) (rs3, s3)
                     in (rs0, s0, memmap)
-                  end
+                  end*)
         | Sinst inst => (rs, s, memmap) (* 在拓扑排序时始终放在每个mod的最后，用来对所有的inst更新rs/s/memory *)
         | Snode v e => let (rs0, ve) := eval_fexpr e rs s te readerls writerls data2etc memmap read_la in
                       (rs0, SV.upd v ve s, memmap)
@@ -988,23 +1000,26 @@ Definition eval_noninst_fstmt (st : fstmt) (rs : vstate) (s : vstate) (te : TE.e
                                 (if mylListIn v writerls (* writer ports *)
                                 then match TE.find v data2etc with
                                       | None => memmap
-                                      | Some a => (let '(addrvar,envar, midvar, maskvar) := a in 
+                                      | Some a => (let '(addrvar,envar, midvar, maskvar, clkvar) := a in 
                                         match TE.find midvar memmap with
                                         | None => memmap (* parse ast时已生成所有mem的map TE.add midvar (memupd (from_nat 4 10) (from_nat 4 11) memempty) memmap*)
                                         | Some b => let maskval := SV.acc maskvar s in
                                                     let addrval := SV.acc addrvar s in 
                                                     let enval := SV.acc envar s in
-                                                    if enval == [:: b1] (* en = low *)
+                                                    let clkval := SV.acc clkvar rs in
+                                                    let clk0val := SV.acc clkvar s in 
+                                                    if ((enval == [:: b1]) && (clk0val == [:: b0]) && (clkval == [:: b1]))
                                                       then (if maskval == [:: b1]
-                                                        then TE.add midvar (memupd addrval newv b) memmap(*TE.add midvar (memupd (from_nat 2 3) (from_nat 4 13) b) memmap*)
-                                                        else TE.add midvar (memupd addrval [:: b0] b) memmap(*TE.add midvar (memupd (from_nat 2 3) (from_nat 4 12) b) memmap*)
+                                                        then TE.add midvar (memupd addrval (SV.acc v s) b) memmap
+                                                        else TE.add midvar (memupd addrval [:: b0] b) memmap
                                                       )
                                                       else
-                                                      (*TE.add midvar (memupd (from_nat 2 3) (from_nat 4 10) b) *)memmap
+                                                      memmap
                                                     end
                                 )
                                 end
-                                else memmap)in
+                                else memmap)
+                                in
                                 if SV.acc v rs0 == [::]
                                   then (rs0, SV.upd v newv s, memmap0)
                                 else (SV.upd v newv rs0, s, memmap0) (* regs *)
@@ -1084,15 +1099,17 @@ Definition eval_noninst_fstmt (st : fstmt) (rs : vstate) (s : vstate) (te : TE.e
                             (if mylListIn v writerls (* writer ports *)
                             then match TE.find v data2etc with
                                   | None => memmap
-                                  | Some a => (let '(addrvar,envar, midvar, maskvar) := a in 
+                                  | Some a => (let '(addrvar,envar, midvar, maskvar, clkvar) := a in 
                                     match TE.find midvar memmap with
                                     | None => memmap (* parse ast时已生成所有mem的map TE.add midvar (memupd (from_nat 4 10) (from_nat 4 11) memempty) memmap*)
                                     | Some b => let maskval := SV.acc maskvar s in
                                                 let addrval := SV.acc addrvar s in 
+                                                let clkval := SV.acc clkvar rs in
+                                                let clk0val := SV.acc clkvar s in 
                                                 let enval := SV.acc envar s in
-                                                if enval == [:: b1] (* en = low *)
+                                                if ((enval == [:: b1]) && (clk0val == [:: b0]) && (clkval == [:: b1]))
                                                   then (if maskval == [:: b1]
-                                                    then TE.add midvar (memupd addrval newv b) memmap(*TE.add midvar (memupd (from_nat 2 3) (from_nat 4 13) b) memmap*)
+                                                    then TE.add midvar (memupd addrval (SV.acc v s) b) memmap(*TE.add midvar (memupd (from_nat 2 3) (from_nat 4 13) b) memmap*)
                                                     else TE.add midvar (memupd addrval [:: b0] b) memmap(*TE.add midvar (memupd (from_nat 2 3) (from_nat 4 12) b) memmap*)
                                                   )
                                                   else
@@ -1153,149 +1170,8 @@ Definition eval_noninst_fstmt (st : fstmt) (rs : vstate) (s : vstate) (te : TE.e
                   end
     | _ => let '(rs0,s0,memmap0) := eval_noninst_fstmt st rs s te1 readerls writerls data2etc memmap read_la in (rs0,s0,memmap0,fterss)
     end)
-    end.  (*
-
-Fixpoint eval_fstmt (st : fstmt) (rs : vstate) (s : vstate) (te : TE.env) (readerls : seq var) (writerls : seq var) (data2etc : mapdata2etc) (memmap : mapmem) (read_la : boolmap)
-  (finstoutl : seq var) (finstoutm : maptuple) (ffmodsmap : mapfstmt) (fterss : mapterss) (fread_la : allboolmap) (finstin : mapls) (finstinmap : mvar) (finstoutmap : mapvar) 
-  (rl : mapls) (wl : mapls) (alldata2etc : map2etc) (allfinstoutl : mapls) (allfinstoutm : mmaptuple) (allfinstportmap : mmapvar) iternum : vstate * vstate * mapmem * mapterss :=
-  let te1 := upd_typenv_fstmt st te s in 
-  match iternum with
-  | 0 => let '(rs0,s0,memmap0) := eval_noninst_fstmt st rs s te1 readerls writerls data2etc memmap read_la in (rs0,s0,memmap0,fterss)
-  | S iternum0 =>
-    (match st with
-        | Sfcnct (Eref v) e2 => let newv := (match e2 with 
-                            | Eref v1 => if mylListIn v1 finstoutl
-                                        then (match TE.find v1 finstoutm with (* outport -> (mod name a4, inst name a0) *)
-                                        | None => [::b1] (* 不知道inst.output对应的fmodule*)
-                                        | Some (a4,a0) => (match TE.find a4 ffmodsmap with (* mod name -> fstmt seq mst *) 
-                                                    | None => [::b1;b1]
-                                                    | Some mst => (match TE.find a0 fterss with
-                                                                | None => [::b1;b1;b1]
-                                                                | Some aa => let '(te0,rs0,s0,mem0) := aa in (match TE.find a4 finstin with (* mod name -> inport name list *)
-                                                                                                        | None => [::b1;b1;b1;b1]
-                                                                                                        | Some a2 => (match TE.find a0 finstinmap with
-                                                                                                                    | None => [::b1;b1;b1;b1]
-                                                                                                                    | Some a5 => (let updfinstin := a5 in
-                                                                                                        (let s1 := upd_inner s s0 a2 updfinstin in 
-                                                                                                          (* evaluate inner module *)
-                                                                                                          let s2 := (let readerls0 := (match TE.find a4 rl with
-                                                                                                                              | None =>  nil
-                                                                                                                              | Some a => a 
-                                                                                                                              end) in
-                                                                                                                              let writerls0 := (match TE.find a4 wl with
-                                                                                                                              | None =>  nil
-                                                                                                                              | Some a => a 
-                                                                                                                              end) in
-                                                                                                                              let finstoutl0 := (match TE.find a4 allfinstoutl with
-                                                                                                                              | None =>  nil
-                                                                                                                              | Some a => a 
-                                                                                                                              end) in
-                                                                                                                              match TE.find a4 alldata2etc with
-                                                                                                                              | None => s
-                                                                                                                              | Some a => let data2etc0 := a in 
-                                                                                                                              match TE.find a4 fread_la with
-                                                                                                                              | None => s
-                                                                                                                              | Some a => let read_la0 := a in
-                                                                                                                                match TE.find a4 allfinstoutm with
-                                                                                                                                | None =>  s
-                                                                                                                                | Some a => let finstoutm0 := a in
-                                                                                                                                  match TE.find a4 allfinstportmap with
-                                                                                                                                  | None =>  s
-                                                                                                                                  | Some a => let (finstinmap0,finstoutmap0) := a in
-                                                                                                                                      let '(_, s2, _, _) := 
-                                                                                                                                      List.fold_left (fun '(trs, ts, tmemmap, tfterss) tempst => eval_fstmt tempst trs ts te0 readerls0 writerls0 data2etc0 mem0 read_la0 finstoutl0 finstoutm0 ffmodsmap tfterss fread_la finstin finstinmap0 finstoutmap0 rl wl alldata2etc allfinstoutl allfinstoutm allfinstportmap iternum0) (rev mst) (rs0, s1, mem0, fterss) in
-                                                                                                                                      s2   
-                                                                                                                                  end
-                                                                                                                                end
-                                                                                                                                end
-                                                                                                                              end) in
-                                                                                                          (match TE.find v1 finstoutmap with
-                                                                                                          | None => [::b1;b1;b1;b1;b1]
-                                                                                                          | Some a3 => (*[::b1;b1;b1;b1;b1;b1]*)SV.acc a3 s2
-                                                                                                          end)))
-                                                                                                          end)
-                                                                                                        end)
-                                                                end)
-                                                    end)
-                                        end)                                  
-                                        else (eval_fexpr e2 s te1 readerls writerls data2etc memmap)
-                            | _ => (eval_fexpr e2 s te1 readerls writerls data2etc memmap)
-                            end) in 
-                            let memmap0 := 
-                            (if mylListIn v writerls (* writer ports *)
-                            then match TE.find v data2etc with
-                                  | None => memmap
-                                  | Some a => (let '(addrvar,envar, midvar, maskvar) := a in 
-                                    match TE.find midvar memmap with
-                                    | None => memmap (* parse ast时已生成所有mem的map TE.add midvar (memupd (from_nat 4 10) (from_nat 4 11) memempty) memmap*)
-                                    | Some b => let maskval := SV.acc maskvar s in
-                                                let addrval := SV.acc addrvar s in 
-                                                let enval := SV.acc envar s in
-                                                if enval == [:: b1] (* en = low *)
-                                                  then (if maskval == [:: b1]
-                                                    then TE.add midvar (memupd addrval newv b) memmap(*TE.add midvar (memupd (from_nat 2 3) (from_nat 4 13) b) memmap*)
-                                                    else TE.add midvar (memupd addrval [:: b0] b) memmap(*TE.add midvar (memupd (from_nat 2 3) (from_nat 4 12) b) memmap*)
-                                                  )
-                                                  else
-                                                  (*TE.add midvar (memupd (from_nat 2 3) (from_nat 4 10) b) *)memmap
-                                                end
-                            )
-                            end
-                            else memmap)in
-                            if SV.acc v rs == [::]
-                              then (rs, SV.upd v newv s, memmap0, fterss)
-                            else (SV.upd v newv rs, s, memmap0, fterss) (* regs *)
-    | Sinst inst => let v := iid inst in
-                  match TE.find (imid inst) ffmodsmap with (* mod name -> fstmt seq mst *) 
-                  | None => (SV.upd v [:: b1] rs,s,memmap,fterss)
-                  | Some mst => (match TE.find (iid inst) fterss with
-                              | None => (SV.upd v [:: b1;b1] rs,s,memmap,fterss)
-                              | Some aa => let '(te0,rs0,s0,mem0) := aa in (match TE.find (imid inst) finstin with (* mod name -> inport name list *)
-                                                                          | None => (SV.upd v [:: b1;b1;b1] rs,s,memmap,fterss)
-                                                                          | Some a2 => (match TE.find v finstinmap with
-                                                                                      | None => (rs,s,memmap,fterss)
-                                                                                      | Some a3 => (let updfinstin := a3 in
-                                                                          (let s1 := upd_inner s s0 a2 updfinstin in
-                                                                           (* evaluate inner module *)
-                                                                           let readerls0 := (match TE.find (imid inst) rl with
-                                                                                  | None =>  nil
-                                                                                  | Some a => a 
-                                                                                  end) in
-                                                                                  let writerls0 := (match TE.find (imid inst) wl with
-                                                                                  | None =>  nil
-                                                                                  | Some a => a 
-                                                                                  end) in
-                                                                                  let finstoutl0 := (match TE.find (imid inst) allfinstoutl with
-                                                                                  | None =>  nil
-                                                                                  | Some a => a 
-                                                                                  end) in
-                                                                                  match TE.find (imid inst) alldata2etc with
-                                                                                  | None => (SV.upd v [:: b1;b1;b1] rs,s,memmap,fterss)
-                                                                                  | Some a => let data2etc0 := a in 
-                                                                                  match TE.find (imid inst) fread_la with
-                                                                                  | None => (SV.upd v [:: b1;b1;b1] rs,s,memmap,fterss)
-                                                                                  | Some a => let read_la0 := a in
-                                                                                    match TE.find (imid inst) allfinstoutm with
-                                                                                    | None =>  (SV.upd v [:: b1;b1;b1;b1] rs,s,memmap,fterss)
-                                                                                    | Some a => let finstoutm0 := a in
-                                                                                      match TE.find (imid inst) allfinstportmap with
-                                                                                      | None =>  (SV.upd v [:: b1;b1;b1;b1;b1] rs,s,memmap,fterss)
-                                                                                      | Some a => let (finstinmap0,finstoutmap0) := a in
-                                                                                          let '(rs2, s2, memmap2, fterss2) := 
-                                                                                          List.fold_left (fun '(trs, ts, tmemmap, tfterss) tempst => eval_fstmt tempst trs ts te0 readerls0 writerls0 data2etc0 mem0 read_la0 finstoutl0 finstoutm0 ffmodsmap tfterss fread_la finstin finstinmap0 finstoutmap0 rl wl alldata2etc allfinstoutl allfinstoutm allfinstportmap iternum0) (rev mst) (rs0, s1, mem0, fterss) in
-                                                                                          (rs, s, memmap, TE.add v (te0,rs2,s2,memmap2) fterss2)
-                                                                                      end
-                                                                                    end
-                                                                                    end
-                                                                                  end))
-                                                                                  end)
-                                                                          end)
-                              end)
-                  end
-    | _ => let '(rs0,s0,memmap0) := eval_noninst_fstmt st rs s te1 readerls writerls data2etc memmap read_la in (rs0,s0,memmap0,fterss)
-    end)
     end.  
-*)
+
   Fixpoint eval_fstmts st rs s te (readerls : seq var) (writerls : seq var) (data2etc : mapdata2etc) (memmap : mapmem) (read_la : boolmap)
   (finstoutl : seq var) (finstoutm : maptuple) (ffmodsmap : mapfstmt) (fterss : mapterss) (fread_la : allboolmap) (finstin : mapls) (finstinmap : mvar) (finstoutmap : mapvar) 
   (rl : mapls) (wl : mapls) (alldata2etc : map2etc) (allfinstoutl : mapls) (allfinstoutm : mmaptuple) (allfinstportmap : mmapvar) iternum : vstate * vstate * mapmem * mapterss :=
@@ -1362,7 +1238,7 @@ Fixpoint eval_fstmt (st : fstmt) (rs : vstate) (s : vstate) (te : TE.env) (reade
     | None => (rs,s, memmap, fterss, io_in)
     end.
 
-  Fixpoint run_module0 (mainmod : var) rs s te (io_in : mapioin) name ols readerls writerls data2etc memmap clk_num len 
+Fixpoint run_module0 (mainmod : var) rs s te (io_in : mapioin) name ols readerls writerls data2etc memmap clk_num len 
   (finstoutl : mapls) (finstoutm : mmaptuple) (ffmodsmap : mapfstmt) (fterss : mapterss) (fread_la : allboolmap) (finstin : mapls) (finstportmap : mmapvar) iternum : vstate * vstate * mapmem * mapterss * mapioin :=
   match clk_num with
     | 0 => (rs,s,memmap,fterss,io_in)
@@ -1397,6 +1273,21 @@ Definition findreg (ls roots : seq var) (st : fstmt) : seq var * seq var :=
                     end)
   | Sinvalid v => (ls, List.cons v roots)
   | _ => (ls, roots)
+  end.
+
+  Definition findallvar (ls : seq var) (st : fstmt) : seq var :=
+  match st with
+  | Sreg r => List.cons (rid r) ls
+  | Snode v _ => List.cons v ls
+  | Swire v _ => List.cons v ls
+  | Smem m => let ls0 := List.fold_left (fun tl tr => List.cons (addr tr) ls) (reader m) ls in
+              List.fold_left (fun tl tr => List.cons (addr0 tr) ls) (writer m) ls0
+  | Sinst inst => List.fold_left (fun tl tp => match tp with
+                                  | Finput v _ => List.cons v tl
+                                  | Foutput v _ => List.cons v tl
+                                  end) (iports inst) ls
+  | Sinvalid v => List.cons v ls
+  | _ => ls
   end.
 
 Definition def_known_reg_order (regls : seq var) (defls : seq fstmt) (knownls : seq fstmt) (regstmtls : seq fstmt) (st : fstmt) : seq fstmt * seq fstmt * seq fstmt :=
@@ -1455,16 +1346,7 @@ Fixpoint dfs (fing : g) (n : nat) (v : seq var) (x : var) : seq var :=
     | S n' => foldl (dfs fing n') (x :: v) (fing x)
     | 0 => v
     end).
-(*
-Fixpoint bfs (fing : g) (n : nat) (v : seq var) (xl : seq var) : seq var :=
-  match n with 
-  | S n' => (match xl with
-            | h :: t => if (varIn h v) then (bfs fing n' v t) else (bfs fing n' (h::v) (t ++ (fing h)))
-            | [::] => v
-            end)
-  | 0 => v
-  end.
-*)
+
 (* y是否依赖于x *)
 Definition dfs_path (fing : g) (n : nat) (x : var) (y : var) : bool :=
   let xchildren := dfs fing n [::] x in
@@ -1534,10 +1416,51 @@ Definition buildg (regls : seq var) (flagmap : fmap) (inportsmap : mapvar) (outp
   | Sinvalid _ => (fing, var2stmt)
   | _ => (fing, var2stmt) (*Swhen\Sstop*)
   end.
+
+Definition findkinstps (kpsmap : mapls) (finsti2e_outmap : mvar) (ls : seq var) (st : fstmt) : seq var :=
+match st with
+| Sinst inst => let mv := imid inst in
+                let iv := iid inst in
+                match (TE.find mv kpsmap) with
+                | None => ls
+                | Some kps => 
+                match (TE.find iv finsti2e_outmap) with
+                              | None => ls
+                              | Some outmap =>
+                              (let exkps := List.fold_left (fun tls p => match (TE.find p outmap) with
+                                                                        | None => tls
+                                                                        | Some exp => (exp :: tls)
+                                                                        end) kps [::] in
+                              ls ++ exkps)
+                              end
+                end
+| _ => ls
+end.
 (*
 Inductive result_type : Type :=
-  | OK : seq var => result_type
-  *)
+   | Some : seq var -> result_type
+   | Cycle : seq var -> result_type
+   | N_too_small : result_type.
+
+Fixpoint topo_tree (vertices : seq var) (fing : g) (n : nat) (gray_nodes : seq var)
+                   (root : var) (maybe_already_found: result_type) : result_type :=
+match maybe_already_found with
+| Cycle _ | N_too_small => maybe_already_found (* propagate earlier error *)
+| Some already_found =>
+if root \in gray_nodes then Cycle (root :: gray_nodes) (* error: there is a cycle *)
+else if root \in already_found then maybe_already_found
+else match n with
+     | 0 => N_too_small (* error: n was too small *)
+     | S n' => match foldr (topo_tree vertices fing n' (root :: gray_nodes)) maybe_already_found (fing root) with
+               | Some result => Some (root :: result)
+               | e => e (* propagate resursive error *)
+               end
+     end
+end.
+
+Definition topo_sort (vertices : seq var) (fing : g) : result_type :=
+   foldr (topo_tree vertices fing (size vertices) [::]) (Some [::]) vertices.
+*)
 
 Fixpoint topo_tree (fing : g) (n : nat) (gray_nodes : seq var) (already_found : option (seq var)) (root : var) : option (seq var) :=
 match already_found, n with
@@ -1552,67 +1475,12 @@ else match (foldl (topo_tree fing n' (root :: gray_nodes)) already_found (fing r
   end)
 end.
 
-Fixpoint subset (s1 s2 : seq var) : bool :=
-match s1 with
-| [::] => true
-| a :: t => (a \in s2) && subset t s2
-end.
-
-Fixpoint reverse_path_to (fing : g) (r : var) (p :seq var) : bool :=
-match p with
-| [::] => true
-| a :: t => (r \in fing a) && ~~(a \in t) && reverse_path_to fing a t
-end.
-
-Fixpoint respects_topological_order (fing : g) (v : seq var) : bool :=
-match v with
-| [::] => true
-| a :: t => subset (fing a) t && respects_topological_order fing t 
-end.
-
-Theorem topo_tree_correct : 
-     forall (vertices : seq var) (fing : g) (n : nat) (gray_nodes already_found : seq var) (root : var),
-     (forall x : var, x \in vertices -> subset (fing x) vertices) ->
-     n + size gray_nodes = size vertices ->
-     subset gray_nodes vertices ->
-     reverse_path_to fing root gray_nodes ->
-     (forall v' : seq var, subset v' vertices -> v' <> [::] ->
-     exists v0 : var, v0 \in v' /\ forall v1 : var, v1 \in v' -> ~~ (v0 \in fing v1)) ->
-     respects_topological_order fing already_found ->
-     if topo_tree fing n gray_nodes (Some already_found) root is Some result
-     then (root \in result) && respects_topological_order fing result
-     else false.
-Proof.
-  unfold topo_tree.
-     
-Admitted.
-
-
-
 Definition topo_sort (fing : g) (n : nat) (vertices : seq var) : option (seq var) :=
 foldl (topo_tree fing n [::]) (Some [::]) vertices.
 
-Definition findkinstps (kpsmap : mapls) (finsti2e_outmap : mvar) (ls : seq var) (st : fstmt) : seq var :=
-match st with
-| Sinst inst => let mv := imid inst in
-                let iv := iid inst in
-                let kps := (match (TE.find mv kpsmap) with
-                              | Some tstmts => tstmts 
-                              | None => [::]
-                              end) in 
-                match (TE.find iv finsti2e_outmap) with
-                              | None => ls
-                              | Some outmap =>
-                              (let exkps := List.fold_left (fun tls p => match (TE.find p outmap) with
-                                                                        | None => tls
-                                                                        | Some exp => (exp :: tls)
-                                                                        end) kps [::] in
-                              ls ++ exkps)
-                end
-| _ => ls
-end.
 
 (* 有module依赖关系的list: [C,B,C] C->B->A, A中有B的inst, B中有C的inst. mapg为mod name->mod graph *)
+
 Fixpoint modname2g (modorder : seq var) (flagmap : fmap) (oldstmtsmap : mapfstmt) (instportsmap : mmvar) (finsti2e_outmap : mvar) (inpsmap : mapls) (outpsmap : mapls) (instoutl : mapls) (fingmap : mapg) (newstmtsmap : mapfstmt) (newvarmap : mapls) (kpsmap : mapls) : mapg * mapfstmt * mapls * mapls :=
   match modorder with
   | [::] => (fingmap, newstmtsmap, newvarmap, kpsmap)
@@ -1650,10 +1518,17 @@ Fixpoint modname2g (modorder : seq var) (flagmap : fmap) (oldstmtsmap : mapfstmt
               | Some tseq => List.fold_left (fun ls op => if (varIn op tseq) then (op :: ls) else ls) outps [::]
               end) in
               
+              let allvar := List.fold_left (fun ls tst => findallvar ls tst) tempstmts [::] in
               (* 起点 : fcnct到常数、reg、node到常数、所有input、invalid 、inst中的reg、const*)
-              match (topo_sort newg len (inps ++ roots ++ kinstps)) with
+              match (topo_sort newg len (inps ++ roots ++ kinstps)(*allvar*)) with
               | None => (TE.add h newg fingmap, TE.add h [::] newstmtsmap, TE.add h [::] newvarmap, TE.add h [::] kpsmap)
               | Some tseq => let newvarorder := tseq in
+              
+(*match (topo_sort allvar newg) with
+| Cycle cycleseq => (TE.add h newg fingmap, TE.add h [::] newstmtsmap, TE.add h cycleseq newvarmap, TE.add h kps kpsmap)
+| N_too_small => (TE.add h newg fingmap, TE.add h [::] newstmtsmap, TE.add h [::] newvarmap, TE.add h [::] kpsmap)
+| Some tseq => let newvarorder := tseq in*)
+
               let newstorder := List.map (fun tv => match (TE.find tv var2stmt) with 
                                                     | None => if varIn tv instoutps then Sfcnct (Eref tv) (Eref tv)
                                                     else sskip
@@ -1941,271 +1816,9 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
   Admitted.
   *)
 End MakeFirrtl.
-
  
 Module LoFirrtl := MakeFirrtl VarOrder (*VS VM*) TE Store (*EStore*).
 
-
-Module ReorderStmts.
-  Import LoFirrtl.
-
-  (* fcnct到常数、reg、node到常数、所有input、invalid *)
-(* Definition findreg (ls roots : seq var) (st : fstmt) : seq var * seq var :=
-  match st with
-  | Sreg r => (List.cons (rid r) ls, List.cons (rid r) roots)
-  | Snode v e => (match e with
-                | Econst _ _ => (ls, List.cons v roots)
-                | _ => (ls, roots)
-                end)
-  | Sfcnct e1 e2 => (match e1 with
-                    | Eref v1 => (match e2 with
-                                | Econst _ _ => (ls, List.cons v1 roots)
-                                | _ => (ls, roots)
-                                end)
-                    | _ => (ls, roots)
-                    end)
-  | Sinvalid v => (ls, List.cons v roots)
-  | _ => (ls, roots)
-  end.
-
-Definition known_reg_order (regls : seq var) (knownls : seq fstmt) (regstmtls : seq fstmt) (st : fstmt) : seq fstmt * seq fstmt :=
-  match st with
-  | Sskip => (cons st knownls, regstmtls)
-  | Swire _ _ => (cons st knownls, regstmtls)
-  | Sreg _ => (cons st knownls, regstmtls)
-  | Smem m => (cons st knownls, regstmtls) 
-  | Sinst _ => (cons st knownls, regstmtls) (*TBD*)
-  | Snode v e => (match e with
-                | Econst _ _ => (cons st knownls, regstmtls)
-                | _ => (knownls, regstmtls)
-                end)
-  | Sfcnct e1 e2 => (match e1 with
-                    | Eref v1 => (match e2 with
-                                | Econst _ _ => (cons st knownls, regstmtls)
-                                | _ => (if (varIn v1 regls) then (knownls, cons st regstmtls) 
-                                        else (knownls, regstmtls))
-                                end)
-                    | _ => (knownls, regstmtls)
-                    end)
-  | Sinvalid _ => (cons st knownls, regstmtls)
-  | _ => (knownls, regstmtls) (*Swhen\Sstop*)
-  end.
-
-Definition known_reg_orders (oldstmts : seq fstmt) : seq fstmt * seq fstmt := 
-  let (regls, _) := List.fold_left (fun '(ls1, ls2) tst => findreg ls1 ls2 tst) oldstmts ([::], [::]) in
-  let (revknownls, revregstmtls) := List.fold_left (fun '(templ1, templ2) st => known_reg_order regls templ1 templ2 st) oldstmts ([::],[::]) in
-  let knownls := List.rev revknownls in 
-  let regstmtls := List.rev revregstmtls in
-  (knownls, regstmtls).
-
-Fixpoint expr2varlist (expr : fexpr) (ls : seq var) : seq var := 
-  match expr with
-  | Econst _ _ => ls
-  | Eref v => List.cons v ls
-  | Eprim_unop _ e1 => expr2varlist e1 ls
-  | Eprim_binop _ e1 e2 => expr2varlist e2 (expr2varlist e1 ls)
-  | Emux e1 e2 e3 => expr2varlist e3 (expr2varlist e2 (expr2varlist e1 ls))
-  | Evalidif e1 e2 => expr2varlist e2 (expr2varlist e1 ls)
-  | Ecast _ e => expr2varlist e ls
-  end.
-
-Definition addreader2g (tempg : g) (tempr : freader_port) : g :=
-  let g0 := updg (addr tempr) (cons (data tempr) (findg (addr tempr) tempg)) tempg in
-  let g1 := updg (en tempr) (cons (data tempr) (findg (en tempr) g0)) g0 in
-  updg (clk tempr) (cons (data tempr) (findg (clk tempr) g1)) g1.
-
-Definition addwriter2g (tempg : g) (tempw : fwriter_port) : g :=
-  let g0 := updg (addr0 tempw) (cons (data0 tempw) (findg (addr0 tempw) tempg)) tempg in
-  let g1 := updg (en0 tempw) (cons (data0 tempw) (findg (en0 tempw) g0)) g0 in
-  let g2 := updg (clk0 tempw) (cons (data0 tempw) (findg (clk0 tempw) g1)) g1 in
-  updg (mask tempw) (cons (data0 tempw) (findg (mask tempw) g2)) g2.
-
-Definition addnewruw2g0 (temprl : seq freader_port) (tempg : g) (tempw : fwriter_port) : g :=
-  List.fold_left (fun tg tempr => updg (data0 tempw) (cons (data tempr) (findg (data0 tempw) tg)) tg) temprl tempg.
-
-Definition addnewruw2g1 (temprl : seq freader_port) (tempg : g) (tempw : fwriter_port) : g :=
-  List.fold_left (fun tg tempr => updg (data tempr) (cons (data0 tempw) (findg (data tempr) tg)) tg) temprl tempg.
-
-Definition inst_inoutlist (pl : seq fport) : seq var * seq var :=
-  List.fold_left (fun '(il, ol) tempp => match tempp with
-                                        | Finput v _ => (List.cons v il, ol)
-                                        | Foutput v _ => (il, List.cons v ol)
-                                        end) pl ([::],[::]).
-
-Fixpoint dfs (fing : g) (n : nat) (v : seq var) (x : var) : seq var :=
-  if (varIn x v) then v else (
-    match n with 
-    | S n' => foldl (dfs fing n') (x :: v) (fing x)
-    | 0 => v
-    end).
-(*
-Fixpoint bfs (fing : g) (n : nat) (v : seq var) (xl : seq var) : seq var :=
-  match n with 
-  | S n' => (match xl with
-            | h :: t => if (varIn h v) then (bfs fing n' v t) else (bfs fing n' (h::v) (t ++ (fing h)))
-            | [::] => v
-            end)
-  | 0 => v
-  end.
-*)
-(* y是否依赖于x *)
-Definition dfs_path (fing : g) (n : nat) (x : var) (y : var) : bool :=
-  let xchildren := dfs fing n [::] x in
-  varIn y xchildren.
-
-Definition buildg (regls : seq var) (oldstmtsmap : mapfstmt) (inportsmap : mapvar) (outportsmap : mapvar) (knowng : mapg) (fing : g) (var2stmt : var2stmtmap) (st : fstmt) 
-  : g * var2stmtmap :=
-  match st with
-  | Sskip => (fing, var2stmt)
-  | Swire _ _ => (fing, var2stmt)
-  | Sreg _ => (fing, var2stmt)
-  | Smem m => let readerls := reader m in
-              let newg0 := List.fold_left addreader2g readerls fing in
-              let writerls := writer m in
-              let newg1 := List.fold_left addwriter2g writerls newg0 in
-              let newg := (match (read_write m) with
-              | old => List.fold_left (addnewruw2g1 readerls) writerls newg1  (* reader的后继是writer *)
-              | new => List.fold_left (addnewruw2g0 readerls) writerls newg1  (* writer后继是reader *)
-              | undefined => newg1
-              end) in
-              (newg, var2stmt) 
-  | Sinst inst => let instmod := imid inst in
-                  let instg := (match (TE.find instmod knowng) with
-                              | None => emptyg
-                              | Some tempg => tempg
-                              end) in
-                  let (inports, outports) := inst_inoutlist (iports inst) in
-                  let instlen := (match (TE.find instmod oldstmtsmap) with
-                              | None => 0
-                              | Some tempg => List.length tempg
-                              end) + (List.length inports) in
-                  let newg := List.fold_left (fun tempg inp => (match (TE.find inp inportsmap) with
-                                                              | Some ininp => List.fold_left (fun tempg0 outp => (match (TE.find outp outportsmap) with
-                                                                                                                | Some inoutp => (if (dfs_path instg instlen ininp inoutp) 
-                                                                                                                  then (updg inp (cons outp (findg inp tempg0)) tempg0) else tempg0)
-                                                                                                                | None => tempg0
-                                                                                                                end)) outports tempg
-                                                              | None => tempg
-                                                              end)) inports fing in
-                    (newg, var2stmt) (*TBD*)
-  | Snode v e => (match e with
-                | Econst _ _ => (fing,  var2stmt)
-                | _ => (let preset := expr2varlist e [::] in
-                        let newg := List.fold_left (fun tempg tempv => updg tempv (cons v (findg tempv tempg)) tempg) preset fing in
-                              (newg, TE.add v st var2stmt))
-                end)
-  | Sfcnct e1 e2 => (match e1 with
-                    | Eref v1 => (match e2 with
-                                | Econst _ _ => (fing, var2stmt)
-                                | _ => (if (varIn v1 regls) then (fing, var2stmt) 
-                                        else (let preset := expr2varlist e2 [::] in
-                                              let newg := List.fold_left (fun tempg tempv => updg tempv (cons v1 (findg tempv tempg)) tempg) preset fing in
-                                              (newg, TE.add v1 st var2stmt)))
-                                end)
-                    | _ => (fing, var2stmt)
-                    end)
-  | Sinvalid _ => (fing, var2stmt)
-  | _ => (fing, var2stmt) (*Swhen\Sstop*)
-  end.
-
-Fixpoint topo_tree (fing : g) (n : nat) (gray_nodes : seq var) (already_found : option (seq var)) (root : var) : option (seq var) :=
-match already_found, n with
-| None, _ => already_found (* propagate earlier error *)
-| _, 0 => None 
-| Some already_found', S n' => 
-(if (root \in gray_nodes) then None (* cycle *)
-else if (root \in already_found') then already_found
-else match (foldl (topo_tree fing n' (root :: gray_nodes)) already_found (fing root)) with
-  | Some result => Some (root :: result)
-  | None => None
-  end)
-end.
-
-Definition topo_sort (fing : g) (n : nat) (vertices : seq var) : option (seq var) :=
-foldl (topo_tree fing n [::]) (Some [::]) vertices.
-
-(* 有module依赖关系的list: [C,B,C] C->B->A, A中有B的inst, B中有C的inst. mapg为mod name->mod graph *)
-Fixpoint modname2g (modorder : seq var) (flagmap : fmap) (oldstmtsmap : mapfstmt) (instportsmap : mmvar) (inpsmap : mapls) (fingmap : mapg) (newstmtsmap : mapfstmt) : mapg * mapfstmt :=
-  match modorder with
-  | [::] => (fingmap, newstmtsmap)
-  | h :: t => let tempstmts := (match (TE.find h oldstmtsmap) with
-                                | Some tstmts => tstmts 
-                                | None => [::]
-                                end) in 
-              let '(inportsmap, outportsmap) := (match (TE.find h instportsmap) with
-                                | Some tempm => tempm 
-                                | None => (TE.empty var, TE.empty var)
-                                end) in 
-              let inps := (match (TE.find h inpsmap) with
-                                | Some tstmts => tstmts 
-                                | None => [::]
-                                end) in 
-              let len := (match (TE.find h flagmap) with
-                                | Some n => n 
-                                | None => 0
-                                end) in 
-              let '(regls, roots) := List.fold_left (fun '(ls1, ls2) tst => findreg ls1 ls2 tst) tempstmts ([::], [::]) in
-              let '(newg, var2stmt) := List.fold_left (fun '(tempg, tempm) tempst => buildg regls oldstmtsmap inportsmap outportsmap fingmap tempg tempm tempst) tempstmts (emptyg, TE.empty fstmt) in
-              (* 起点 : fcnct到常数、reg、node到常数、所有input、invalid *)
-              match (topo_sort newg len (inps ++ roots)) with
-              | None => (TE.add h newg fingmap, TE.add h [:: sskip] newstmtsmap)
-              | Some tseq => let newvarorder := tseq in
-              let newstorder := List.map (fun tv => match (TE.find tv var2stmt) with 
-                                                    | None => sskip
-                                                    | Some tempst => tempst
-                                                    end) newvarorder in
-              let '(fingmap0, newstmtsmap0) := (TE.add h newg fingmap, TE.add h newstorder newstmtsmap) in
-              modname2g t flagmap oldstmtsmap instportsmap inpsmap fingmap0 newstmtsmap0
-              end
-  end.
-
-Definition reorder (modorder : seq var) (flagmap : fmap) (oldstmtsmap : mapfstmt) (instportsmap : mmvar) (inpsmap : mapls) : mapfstmt :=
-  let (knownmap, regstmtmap) := List.fold_left (fun '(tempm1, tempm2) modname => let tempstmts := (match (TE.find modname oldstmtsmap) with
-                                                        | None => [::]
-                                                        | Some tstmts => tstmts 
-                                                        end) in 
-                                                        let '(newknown, newreg) := known_reg_orders tempstmts in
-                                                        (TE.add modname newknown tempm1, TE.add modname newreg tempm2)) modorder (TE.empty (seq fstmt), TE.empty (seq fstmt)) in
-  let (_, orderedmap) := modname2g modorder flagmap oldstmtsmap instportsmap inpsmap (TE.empty g) (TE.empty (seq fstmt)) in
-  let newstmtsmap := List.fold_left (fun tmap modname => match (TE.find modname regstmtmap) with
-                                                        | None => tmap 
-                                                        | Some tregs => match (TE.find modname orderedmap) with
-                                                                        | None => tmap
-                                                                        | Some tordered => match (TE.find modname knownmap) with
-                                                                                          | None => tmap
-                                                                                          | Some tknown => let allordered := tknown ++ (tordered ++ tregs) in TE.add modname allordered tmap
-                                                                                          end
-                                                                        end
-                                                        end) modorder (TE.empty (seq fstmt)) in
-  newstmtsmap
-  .
-
-Fixpoint run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : mmvar) (mainmod : var) rs s te (io_in : mapioin) name ols readerls writerls data2etc memmap clk_num len 
-  (finstoutl : mapls) (finstoutm : mmaptuple) (ffmodsmap : mapfstmt) (fterss : mapterss) (finstin : mapls) (finstportmap : mmapvar) iternum : vstate * vstate * mapmem * mapterss * mapioin :=
-  match clk_num with
-    | 0 => (rs,s,memmap,fterss,io_in)
-    | S m => let n := len - S m in
-             let s1 := upd_argulist s io_in name n in
-             (*let te1 := upd_typenv_fstmts st te s1 in*) (* 放在和upd fports同时？ *)
-             let newffmodsmap := reorder modorder flagmap ffmodsmap newinstportsmap finstin in
-             let '(rs2, s2, memmap0, fterss0, io_in0) := eval_module mainmod rs s1 te io_in ols readerls writerls data2etc memmap finstoutl finstoutm ffmodsmap fterss finstin finstportmap iternum in (* 每个clk后 fterss 需要更新*)
-             run_module mainmod rs2 s2 te io_in0 name ols readerls writerls data2etc memmap0 m len finstoutl finstoutm ffmodsmap fterss0 finstin finstportmap iternum
-    end.
-*)
-  Definition a := VarOrder.default. 
-  Definition b := VarOrder.succ a.
-  Definition c := VarOrder.succ b.
-  Definition d := VarOrder.succ c.
-  Definition g0 := updg b [:: c] emptyg.
-  Definition g1 := updg a [:: b] g0.
-  Eval compute in (g1 b).
-  Eval compute in (dfs g1 3 [::] a).
-  Eval compute in (dfs_path g1 3 a c).
-  Eval compute in (dfs_path g1 3 c a).
-  Eval compute in (topo_sort g1 3 [::a]).
-
- 
-End ReorderStmts.
 (*
 Definition init_vm := VM.empty.
 Definition init_vs := VS.empty.

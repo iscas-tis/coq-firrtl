@@ -201,23 +201,26 @@ symbol
 symbols
   :                                      { [] }
   | symbol symbols                    { $1::$2 }
-
+;
 /* memports */
 
 memrdport 
   : STM_READ REG_RSTARR symbol            { $3 }
+;
 
 memrdports
   :                                       { [] }
-  | memrdport memrdports                { $1::$2 }
+  | memrdport memrdports               { $1::$2 }
+;
 
 memwrport 
   : STM_WRITE REG_RSTARR symbol            { $3 }
+;
 
 memwrports
   :                                       { [] }
   | memwrport memwrports                { $1::$2 }
-
+;
 /* spec_constant */
 
 numeral

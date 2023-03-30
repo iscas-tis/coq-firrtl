@@ -1233,9 +1233,14 @@ Proof.
       | Gtyp Fclock, Gtyp Fclock => (Gtyp Fclock)
       | Gtyp Freset, Gtyp Freset => Gtyp Freset
       | Gtyp Fasyncreset, Gtyp Fasyncreset => Gtyp Fasyncreset
-      | Atyp t1 n1, Atyp t2 n2 => if n1 == n2 then (Atyp (mux_types t1 t2) n1)
+      | Atyp t1 n1, Atyp t2 n2 => if ftype_equiv (Atyp t1 n1) (Atyp t2 n2)
+                                  then (Atyp (mux_types t1 t2) n1)
                                   else def_ftype
-      | Btyp bs1, Btyp bs2 => match mux_btyps bs1 bs2 with
+      | Btyp bs1, Btyp bs2 => 
+          if ~~ (fbtyp_equiv bs1 bs2)
+          then def_ftype
+          else
+            match mux_btyps bs1 bs2 with
                               | Fnil => Btyp Fnil
                               | t => Btyp t
                               end
@@ -1771,12 +1776,17 @@ Module MakeHiFirrtlP
       | Gtyp Fclock, Gtyp Fclock => (Gtyp Fclock)
       | Gtyp Freset, Gtyp Freset => Gtyp Freset
       | Gtyp Fasyncreset, Gtyp Fasyncreset => Gtyp Fasyncreset
-      | Atyp t1 n1, Atyp t2 n2 => if n1 == n2 then (Atyp (mux_types t1 t2) n1)
+      | Atyp t1 n1, Atyp t2 n2 => if ftype_equiv (Atyp t1 n1) (Atyp t2 n2)
+                                  then (Atyp (mux_types t1 t2) n1)
                                   else def_ftype
-      | Btyp bs1, Btyp bs2 => match mux_btyps bs1 bs2 with
-                              | Fnil => Btyp Fnil
-                              | t => Btyp t
-                              end
+      | Btyp bs1, Btyp bs2 =>
+          if ~~ (fbtyp_equiv bs1 bs2)
+          then def_ftype
+          else
+            match mux_btyps bs1 bs2 with
+            | Fnil => Btyp Fnil
+            | t => Btyp t
+            end
       | _, _ => def_ftype
       end
   with mux_btyps bs1 bs2 : ffield :=
