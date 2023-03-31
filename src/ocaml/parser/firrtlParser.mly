@@ -108,11 +108,19 @@ expr
 
     | SINT ANG_OPEN numeral ANG_CLOSE PAR_OPEN QUOT s_hexadecimal QUOT PAR_CLOSE
                                             { Econst (Fsint($3), $7)}
+    | SINT ANG_OPEN numeral ANG_CLOSE PAR_OPEN QUOT hexadecimal QUOT PAR_CLOSE
+                                            { Econst (Fsint($3), $7)}
     | SINT ANG_OPEN numeral ANG_CLOSE PAR_OPEN QUOT s_binary QUOT PAR_CLOSE
+                                            { Econst (Fsint($3), $7)}
+    | SINT ANG_OPEN numeral ANG_CLOSE PAR_OPEN QUOT binary QUOT PAR_CLOSE
                                             { Econst (Fsint($3), $7)}
     | SINT ANG_OPEN numeral ANG_CLOSE PAR_OPEN QUOT s_octal QUOT PAR_CLOSE
                                             { Econst (Fsint($3), $7)}
+    | SINT ANG_OPEN numeral ANG_CLOSE PAR_OPEN QUOT octal QUOT PAR_CLOSE
+                                            { Econst (Fsint($3), $7)}
     | SINT ANG_OPEN numeral ANG_CLOSE PAR_OPEN s_numeral PAR_CLOSE
+                                            { Econst (Fsint($3), $6)}
+    | SINT ANG_OPEN numeral ANG_CLOSE PAR_OPEN numeral PAR_CLOSE
                                             { Econst (Fsint($3), $6)}
 
     | EXPR_ADD PAR_OPEN expr SPRT expr PAR_CLOSE
