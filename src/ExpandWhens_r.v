@@ -368,11 +368,11 @@ There may be numbers that are projected to 0. *)
    match ff with
    | Fnil => OK cm
    | Fflips field_name fl field_type ff_tail =>
+        match init_ref_bundle id ff_tail orient cm with Err e => Err e | OK cm_tail =>
         let field_orient := match fl, orient with Flipped, Sink => Source
                                                 | Flipped, Source => Sink
                                                 | _, _ => orient end
-        in match init_ref (Esubfield id field_name) field_type field_orient cm with Err e => Err e | OK cm_tail =>
-           init_ref_bundle id ff_tail orient cm_tail end
+        in init_ref (Esubfield id field_name) field_type field_orient cm_tail end
    end.
 
    Fixpoint init_register_vector (v : nat -> @error_type href) (array_size : nat) (type : ftype) : @error_type ((nat -> cmap -> @error_type cmap) * nat) :=
@@ -458,12 +458,13 @@ There may be numbers that are projected to 0. *)
                                             (Fflips mem_port_mask Nflip mask_t Fnil)))))) tl)
                                       read_ports (writer m))) end.
 
-   Definition init_instance (id: VarOrder.T) (mdl: VarOrder.T) (ce : CE.env) (cm : cmap) : @error_type cmap :=
+   Definition init_instance (id: VarOrder.T) (mdl: VarOrder.T) (ce_other_modules : CE.env) (cm : cmap) : @error_type cmap :=
    (* This function should initialize the ports that connect the current module with module mdl under the name id,
       which is instantiated here.
-      It is assumed that the type of the module is stored in ce already. *)
-   match CE.find mdl ce with
-   | Some (Aggr_typ type, Fmodule) => init_ref (Eid id) type Source cm
+      It is assumed that the type of the module is stored in ce_other_modules already.
+      (Input ports are flipped.) *)
+   match CE.find mdl ce_other_modules with
+   | Some (Aggr_typ type, Fmodule) => init_ref (Eid id) type Sink cm
    | Some _ => Err Etype
    | _ => Err Eundeclared
    end.
@@ -908,6 +909,50 @@ There may be numbers that are projected to 0. *)
       else true
    end end.
 
+Fixpoint in_ffield (v : VarOrder.T) (ff : ffield) : bool :=
+match ff with
+| Fnil => false
+| Fflips v' _ _ ff_tail => (v == v') || in_ffield v ff_tail
+end.
+
+Fixpoint ffield_uniq (ff : ffield) : bool :=
+match ff with
+| Fnil => true
+| Fflips v _ _ ff_tail => ~~in_ffield v ff && ffield_uniq ff_tail
+end.
+
+(* a technical lemma used later in the correctness proof *)
+Lemma init_ref_add : forall (id : href) (v : VarOrder.T) (f0 : fgtyp) (id' : VarOrder.T) (f1 : ffield) (cm_result c d : cmap),
+(* perhaps also an additional condition, similar to:
+   ffield_uniq (Fflips v Nflip (Gtyp f0) f1) -> *)
+   init_ref id (Btyp                           f1 ) Sink cm_result = OK c ->
+   init_ref id (Btyp (Fflips v Nflip (Gtyp f0) f1)) Sink cm_result = OK d ->
+   ref2var id = OK id' ->
+   CE.Equal (CE.add (nat_to_var (pair id' v * 3 + 2)) D_undefined c) d.
+Proof.
+induction f1.
+* intros.
+  simpl init_ref in H0.
+  injection H ; clear H ; intro H.
+  simpl init_ref in H0.
+  destruct (ref2var id) ; try done.
+  injection H0 ; clear H0 ; intro H0.
+(*
+  rewrite -H H0.
+  done.
+* intros.
+  simpl init_ref in H.
+  destruct f.
+  + destruct (init_ref (Esubfield id v0) f1 Source cm_result) eqn: Hid_v.
+    - destruct (ref2var id) ; try done.
+   We now should apply IHf1, but perhaps not directly:
+   in c, first (Esubfield id v0) is initialized and then f2,
+   and by CE.add finally v is initialized;
+   in d, first v, then v0, then f2 is initialized.
+   So we should probably use something extensionally equal to d instead of d. *)
+Admitted.
+
+
 (* Correctness theorem:
    If ...
    then expandBranch_sem_conform is true. *)
@@ -978,7 +1023,7 @@ all: intros.
   clear H.
   simpl expandBranch_precondition_declarations.
   destruct (expandBranch_precondition_declarations h ce_other_modules ce_previous_declarations) as [ce_declarations|] eqn: Hdeclarations ; try done.
-  destruct h0 eqn: Hstmt.
+  destruct h0 eqn: Hstmt ; try done.
   + (* Skip *)
     simpl expandBranch_fun.
     destruct (expandBranch_fun h ce_other_modules empty_cmap) ; try done.
@@ -1074,7 +1119,11 @@ all: intros.
     admit.
   + (* Sinst s s0, i.e. s = identifier and s0 = type of the module. *)
     simpl expandBranch_fun.
-    destruct (expandBranch_fun h ce_other_modules empty_cmap) ; try done.
+    destruct (expandBranch_fun h ce_other_modules empty_cmap) eqn: Hebf ;
+          try (destruct (CE.find s0 ce_other_modules) ;
+               try done ;
+               destruct p, c, f, (CE.find (nat_to_var (s * 3 + 1)) ce_declarations) ;
+               done).
     destruct p as [ss_result cm_result].
     destruct (CE.find s0 ce_other_modules) eqn: Hs0 ; try done.
     destruct p as [ss_result0 cm_result0].
@@ -1092,10 +1141,10 @@ all: intros.
       rewrite e in Hinit_instance.
       unfold aggr_typ.
       (* Now we should argue as follows:
-         1. (to simplify) the type f is some (Btyp ff),
-            where ff is a list of ground type entries.
+         1. (to simplify) the type f is some (Btyp f0),
+            where f0 is a list of ground type entries.
             (This should be based on H1 and Hs0.)
-         2. induction over ff. *)
+         2. induction over f0. *)
       unfold expandBranch_precondition_ce in H1.
       specialize H1 with (id := s0).
       unfold init_instance in Hinit_instance.
@@ -1107,61 +1156,61 @@ all: intros.
       rewrite -Hf0 ; clear Hf0 f.
       simpl expandBranch_one_component_sem_conform.
       move : H1 c Hinit_instance.
+      simpl init_ref.
       induction f0.
       * intros.
         unfold expandBranch_one_component_sem_conform_fields ; done.
       * simpl expandBranch_precondition_ce_module_fields ; intros.
         destruct f0 ; try done.
         simpl expandBranch_one_component_sem_conform_fields.
+        simpl init_ref_bundle in Hinit_instance.
         destruct f.
-        + simpl init_ref in Hinit_instance.
-          unfold var_to_nat, nat_to_var in Hinit_instance.
-          rewrite bin_of_natK in Hinit_instance.
-          (* I think here I mixed up Source and Sink. Which of the two is the orientation of an instance exactly? *)
-Focus 2.
-rewrite eq_refl /expr_tree_to_def_expr.
-simpl init_ref in Hinit_instance.
---- Now I need to check the above comment about the orientation of an Instance.
-
-        + (* we cannot apply IHf0 directly, because the cmap in IHf0 is different from c. *)
-          (* I would like a lemma on the relation
-             between init_ref id (Btyp (Fflips v _ (Gtyp f0) f1)) Source cm_result
-                 and init_ref id (Btyp                       f1 ) Source cm_result.
-
-Perhaps this:
-simplify the definition of init_ref so it is no longer recursive
-but only can handle up to one (or two) level(s) of subfield.
-Otherwise it produces an error.
-Then, as we assume that ports have ground types, there should be no problem any more.
-
-match init_ref id (Btyp                             f1 ) Source cm_result,
-      init_ref id (Btyp (Fflips v Flipped (Gtyp f0) f1)) Source cm_result with
-| Err e, Err f => True
-| Err e, OK c => False
-| OK c, Err e => ? (* probably True *)
-| OK c, OK d => CE.add .... c = d
-end.
-
-then 
-
-
-init_ref id (Btyp (Fflips v Flipped (Gtyp f0) f1)) Source cm_result =
-
-             It should be something like the upper CE.env is the lower with one additional entry. *)
-          unfold init_ref in Hinit_instance.
-          simpl init_undefined_vector in Hinit_instance.
-          unfold init_ref in IHf0.
-          simpl init_undefined_vector in IHf0.
-          destruct (init_undefined_bundle
-                       (fun=> OK (Eid (var:=VarOrder.T) id)) 1 f1
-                       Source D_undefined) eqn : Hiub ; try done.
-          
-apply IHf0 ; try apply H1 ; admit.
-          (* should follow from Hs0_type and Hinit_instance *)
-        + rewrite eq_refl IHf0 ; try apply H1.
-          rewrite andbT.
-          unfold expr_tree_to_def_expr.
-
-
-
-
+        + apply IHf0 ; try done.
+          destruct (init_ref_bundle (Eid id) f1 Sink cm_result) ; done.
+        + rewrite eq_refl /expr_tree_to_def_expr /var_to_nat bin_of_natK.
+          rewrite /var_to_nat bin_of_natK in Hinit_instance.
+          destruct (init_ref_bundle (Eid (var:=VarOrder.T) id) f1 Sink
+                     cm_result) eqn: Hirb ; try done.
+          injection Hinit_instance ; clear Hinit_instance ; intro Hinit_instance.
+          rewrite -{1}Hinit_instance CELemmas.find_add_eq ;
+                try rewrite /CE.SE.eq eq_refl //.
+          rewrite andTb.
+          specialize IHf0 with (c := c0).
+          (* Now, because f1 does not contain field v,
+             we can use IHf0 to prove the semantic conformity. *)
+          admit.
+    - rewrite CELemmas.find_add_neq.
+      * (* This can be proven using H2 and Hinit_instance.
+           Similar to the above, we use that s != id and therefore
+           the relevant parts of cm_result and c are equal. *)
+        admit.
+      * rewrite /CE.SE.eq /nat_to_var.
+        move /eqP : i => i ; contradict i ; move /eqP : i => i.
+        assert (id * 3 + 1 == s * 3 + 1) by (rewrite -(bin_of_natK (id * 3 + 1)) i bin_of_natK eq_refl //).
+        rewrite addn1 addn1 eqSS eqn_pmul2r // in H.
+        move /eqP : H => H.
+        rewrite -(nat_of_binK id) H nat_of_binK ; reflexivity.
+  + (* Snode s h1 *)
+    simpl expandBranch_fun.
+    destruct (expandBranch_fun h ce_other_modules empty_cmap) ; try done.
+    destruct p as [ss_result cm_result].
+    (* expandBranch_one_component_sem_conform ignores the Snode statement,
+       so it should be possible to prove this based on H2. *)
+    admit.
+  + (* Sfcnct h1 h2 *)
+    (* I do not know yet how to handle this case. *)
+    admit.
+  + (* Sinvalid h1. This is similar to Sfcnct, so we can skip this case. *)
+    admit.
+  + (* Swhen h1 h2 h3, where h1 is a condition and h2 and h3 are statement sequences. *)
+    destruct (expandBranch_precondition_declarations h2 ce_other_modules
+      ce_declarations) as [ce_true_result|] eqn: Htrue_declarations ; try done.
+    destruct (expandBranch_precondition_declarations h3 ce_other_modules
+      ce_true_result) as [ce_false_result|] eqn: Hfalse_declarations ; try done.
+    simpl expandBranch_fun.
+    destruct (expandBranch_fun h ce_other_modules empty_cmap) ; try done.
+    destruct p as [_ cm_result].
+    unfold expandBranch_correct_hfstmt_seq, expandBranch_sem_conform in H0.
+    (* Here I do not know yet how to continue. *)
+    admit.
+Admitted.
