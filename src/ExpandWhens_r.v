@@ -779,7 +779,8 @@ There may be numbers that are projected to 0. *)
       end.
 
    Fixpoint expandBranch_precondition_declarations (ss : hfstmt_seq) (ce_other_modules : CE.env) (ce_previous : CE.env) : @error_type CE.env :=
-   (* If all declarations are ground types and there are no partial connects in ss
+   (* If all declarations are ground types, there are no partial connects in ss,
+      and all full connects concern ground types,
       then the result is a CE.env containing types for all declared components.
       (ce_previous is the map containing types for the code before ss,
        or possibly CE.empty (cmpnt_init_typs * fcomponent).)
@@ -817,6 +818,11 @@ There may be numbers that are projected to 0. *)
                                        else OK (CE.add var (aggr_typ mdl_type, Instanceof) ce_butlast_result)
                                     end
                                else Err Etype
+          | @Sfcnct _ ref _ => if ref2var ref is OK id
+                               then if CE.find id ce_butlast_result is Some (Aggr_typ (Gtyp _), _)
+                                    then OK ce_butlast_result
+                                    else Err Etype
+                               else Err Eundeclared
           | @Spcnct _ _ _ => Err Einternal
           | @Swhen _ _ sst ssf =>
                match expandBranch_precondition_declarations sst ce_other_modules ce_butlast_result with
@@ -1198,8 +1204,74 @@ all: intros.
        so it should be possible to prove this based on H2. *)
     admit.
   + (* Sfcnct h1 h2 *)
-    (* I do not know yet how to handle this case. *)
-    admit.
+    simpl expandBranch_fun.
+    destruct (ref2var h1) eqn: Hh1 ; try done.
+    destruct (CE.find s ce_declarations) eqn: Hfinds ; try done.
+    destruct p as [comp_typ_s fcomp_s].
+    destruct comp_typ_s ; try done.
+    destruct f ; try done.
+    destruct (expandBranch_fun h ce_other_modules empty_cmap) ; try done.
+    destruct p as [ss_result cm_result].
+    intro.
+    specialize H2 with (id := id).
+    destruct (eqVneq (Eid id) h1).
+    - rewrite e Hh1 ; rewrite e Hh1 in H2.
+      destruct (CE.find s ce_declarations) ; try done.
+      destruct p as [comp_typ fcomp].
+      injection Hfinds ; clear Hfinds ; intros.
+      rewrite H3 ; rewrite H3 in H2.
+      simpl expandBranch_one_component_sem_conform.
+      rewrite Hh1 CELemmas.find_add_eq ; try (unfold CE.SE.eq ; done).
+      rewrite eq_refl /expr_tree_to_def_expr eq_refl //.
+    - destruct (ref2var (Eid id)) eqn: Hid ; try done.
+      destruct (CE.find s0 ce_declarations) eqn: Hfind ; try done.
+      destruct p as [comp_typ fcomp].
+      destruct comp_typ as [ft|reg|mem|] ; try done.
+      * assert (exists t : fgtyp, ft = Gtyp t) by admit.
+        destruct H as [t].
+        rewrite H ; rewrite H in H2.
+        unfold expandBranch_one_component_sem_conform, ref2var ;
+        unfold expandBranch_one_component_sem_conform, ref2var in H2.
+        rewrite CELemmas.find_add_neq.
+        + simpl expandBranch_one_var_sem.
+          apply negbTE in i ; rewrite i.
+          replace (CE.find (nat_to_var (id * 3 + 1)) empty_cmap) with (@None def_expr) in H2 by (done).
+          exact H2.
+        + unfold CE.SE.eq.
+          move /eqP : i => i ; contradict i ; move /eqP : i => i.
+          rewrite -i in Hh1.
+          destruct h1.
+          - unfold ref2var in Hh1.
+            injection Hh1 ; clear Hh1 ; unfold nat_to_var ; intro Hh1.
+            assert (s1 * 3 + 1 == id * 3 + 1) by (rewrite -(bin_of_natK (s1 * 3 + 1)) Hh1 bin_of_natK eq_refl //).
+            rewrite addn1 addn1 eqSS eqn_pmul2r // in H3.
+            move /eqP : H3 => H3.
+            rewrite -(nat_of_binK s1) H3 nat_of_binK ; reflexivity.
+          - contradict Hh1.
+            clear.
+            simpl ref2var.
+            destruct (ref2var h1) ; try done.
+            injection ; unfold nat_to_var ; intro Hh1.
+            enough (2 == 1) by done.
+            replace 1 with ((id * 3 + 1) %% 3) at 2 by (rewrite modnD // modnMl //).
+            replace 2 with ((pair (var_to_nat s) s1 * 3 + 2) %% 3) at 1 by (rewrite modnD // modnMl //).
+            rewrite -(bin_of_natK (pair (var_to_nat s) s1 * 3 + 2)) Hh1 bin_of_natK eq_refl //.
+          - contradict Hh1.
+            clear.
+            simpl ref2var.
+            destruct (ref2var h1) ; try done.
+            injection ; unfold nat_to_var ; intro Hh1.
+            enough (0 == 1) by done.
+            replace 1 with ((id * 3 + 1) %% 3) by (rewrite modnD // modnMl //).
+            replace 0 with ((pair (var_to_nat s) n * 3 + 3) %% 3) at 1 by (rewrite modnD // modnMl //).
+            rewrite -(bin_of_natK (pair (var_to_nat s) n * 3 + 3)) Hh1 bin_of_natK eq_refl //.
+          - contradict Hh1.
+            simpl ref2var.
+            discriminate.
+      * (* register is similar to variable *)
+        admit.
+      * (* memory is similar to variable *)
+        admit.
   + (* Sinvalid h1. This is similar to Sfcnct, so we can skip this case. *)
     admit.
   + (* Swhen h1 h2 h3, where h1 is a condition and h2 and h3 are statement sequences. *)
