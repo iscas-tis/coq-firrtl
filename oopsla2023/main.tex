@@ -378,11 +378,11 @@ and replace conditional statements with multiplexers, respectively.
 
 \input{intro}
 
-\section{FIRRTL IR}\label{sec-firrtl}
+\section{FIRRTL IR and Its Transformations}\label{sec-firrtl}
 
 \input{firrtl}
 
-\section{Formalization of FIRRTL}
+\section{Formalization of Low FIRRTL}
 
 \subsection{Operational Semantics of LoFIRRTL}\label{sec-lofirrtl-sem}
 
@@ -391,17 +391,23 @@ and replace conditional statements with multiplexers, respectively.
 
 \zhilin{stopped here}
 
+\subsection{Extraction of the OCaml LoFIRRTL Interpreter}
 
-\subsection{Low FIRRTL OCaml Interpreter: Extraction and Validation}
+\input{firrtl-interpret-extraction}
 
-\input{firrtl-interpret}
+\subsection{Validation of the OCaml LoFIRRTL Interpreter}
+
+\input{firrtl-interpret-validation}
+
+%\subsection{Low FIRRTL OCaml Interpreter: Extraction and Validation}
+
+
+
+\section{Formalization of High FIRRTL and its transformations}
 
 \subsection{Formalization of High FIRRTL}
 
 \input{form-firrtl-high}
-
-
-\section{Formalization and verification of FIRRTL transformations}
 
 \input{form-firrtl-transform}
 

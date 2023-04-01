@@ -1,0 +1,14 @@
+%!TEX root = main.tex
+
+\zhilin{Add more information about the extraction, in particular, the topological sorting}
+
+Formalizing the operational semantics of LoFIRRTL in Coq not only provides a formal reference of LoFIRRTL,
+but only yields an executable interpreter in OCaml, called LoFIRRTL OCaml Interpreter, via the Coq's extraction feature.
+The former would greatly facilitate developers' understanding, freeing them from lengthy, ambiguous and elusive documentations.
+The latter enables developers' to conveniently test correctness of FIRRTL circuit designs and test conformance of any other
+LoFIRRTL interpreter or simulator via difference testing.
+In this subsection, to understand the performance and ensure confidence of the formalized operational semantics,
+we conduct conformance testing between our LoFIRRTL OCaml Interpreter and
+the official FIRRTL circuit simulator, called Treadle, which executes LoFIRRTL circuts
+based on the earlier scala-based LoFIRRTL Interpreter.
+

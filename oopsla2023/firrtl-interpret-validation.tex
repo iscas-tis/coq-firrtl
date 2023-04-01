@@ -1,14 +1,4 @@
 %!TEX root = main.tex
-Formalizing the operational semantics of LoFIRRTL in Coq not only provides a formal reference of LoFIRRTL,
-but only yields an executable interpreter in OCaml, called LoFIRRTL OCaml Interpreter, via the Coq's extraction feature.
-The former would greatly facilitate developers' understanding, freeing them from lengthy, ambiguous and elusive documentations.
-The latter enables developers' to conveniently test correctness of FIRRTL circuit designs and test conformance of any other
-LoFIRRTL interpreter or simulator via difference testing.
-In this subsection, to understand the performance and ensure confidence of the formalized operational semantics,
-we conduct conformance testing between our LoFIRRTL OCaml Interpreter and
-the official FIRRTL circuit simulator, called Treadle, which executes LoFIRRTL circuts
-based on the earlier scala-based LoFIRRTL Interpreter.
-
 
 \smallskip\noindent
 {\bf Benchmarks}. We mainly collect LoFIRRTL circuits from Treadle,
@@ -119,8 +109,8 @@ on which Treadle and our LoFIRRTL OCaml Interpreter also produce the same result
 %%and Accumulator.lo.fir, Combinational.lo.fir, FibCircuit.lo.fir, ShiftRegister.lo.fir (all the benchmarks from ``A Mechanized Semantic Metalanguage for
 %%High Level Synthesis").
 %
-%% treadle例子一共55个，18有external module或者多个module用到subfield（是不符合lofir语法），一致的37个,3
-%%7个里还有2个例子是电路本身没有output端口没法比较，还有1个是有循环连接的，treadle那边会直接报一个error，ocaml这边我会写一个判断报错
+%% treadle脌媒脳脫脪禄鹿虏55啪枚拢卢18脫脨external module禄貌脮脽露脿啪枚module脫脙碌艙subfield拢拧脢脟虏禄路没潞脧lofir脫茂路拧拢漏拢卢脪禄脰脗碌脛37啪枚,3
+%%7啪枚脌茂禄鹿脫脨2啪枚脌媒脳脫脢脟碌莽脗路卤鸥脡铆脙禄脫脨output露脣驴脷脙禄路拧卤脠艙脧拢卢禄鹿脫脨1啪枚脢脟脫脨脩颅禄路脕卢艙脫碌脛拢卢treadle脛脟卤脽禄谩脰卤艙脫卤拧脪禄啪枚error拢卢ocaml脮芒卤脽脦脪禄谩脨沤脪禄啪枚脜脨露脧卤拧沤铆
 %
 %%Testing:  Treadle vs. Interpreter
 %
