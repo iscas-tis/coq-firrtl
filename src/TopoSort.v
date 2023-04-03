@@ -1,6 +1,14 @@
+(* This module defines an algorithm to topologically sort a graph.
+   In contrast to fingraph.v, we do not require the underlying type
+   of vertices to be intrinsically finite.  The set of vertices
+   is given as a (finite) sequence, and that is sufficient for us.
+   The module also provides a correctness theorem. *)
+
 From mathcomp Require Import ssreflect ssrbool ssrnat eqtype seq.
 
-Section TopoSort.
+Module TopoSort.
+
+Section TopoSortS.
 
 (* general parameters of the functions in this file:
    the nodes are an eqType,
@@ -27,7 +35,7 @@ end.
 
 (* We assume that every graph is closed, but perhaps not every graph is acyclic.
    In the relevant theorems we will add graph_acyclic as a precondition. *)
-Hypothesis graph_closed : forall v, v \in vertices -> subset (g v) vertices.
+Hypothesis graph_closed : forall v : node, v \in vertices -> subset (g v) vertices.
 
 Definition graph_acyclic :=
    forall (r : node) (p : seq node),
@@ -36,7 +44,7 @@ Definition graph_acyclic :=
 
 (* a type to present results or error messages from topological sorting *)
 Inductive result_type : Type :=
-   | Some : seq node -> result_type
+   | Sorted : seq node -> result_type
    | Cycle : seq node -> result_type
    | N_too_small : result_type
    .
@@ -45,27 +53,27 @@ Fixpoint topo_tree (n : nat) (gray_nodes : seq node)
                    (root : node) (maybe_already_found: result_type) : result_type :=
 match maybe_already_found with
 | Cycle _ | N_too_small => maybe_already_found (* propagate earlier error *)
-| Some already_found =>
+| Sorted already_found =>
 if root \in gray_nodes then Cycle (root :: gray_nodes) (* error: there is a cycle *)
 else if root \in already_found then maybe_already_found
 else match n with
      | 0 => N_too_small (* error: n was too small *)
      | S n' => match foldr (topo_tree n' (root :: gray_nodes)) maybe_already_found (g root) with
-               | Some result => Some (root :: result)
+               | Sorted result => Sorted (root :: result)
                | e => e (* propagate resursive error *)
                end
      end
 end.
 
 Definition topo_sort : result_type :=
-   foldr (topo_tree (size vertices) [::]) (Some [::]) vertices.
+   foldr (topo_tree (size vertices) [::]) (Sorted [::]) vertices.
 
 (* Now we start to work on the correctness proof of topo_sort. We first want to express
 an inductive property on topo_tree that will allow us to prove the correctness of
 topo_sort. Basically, we request the following:
 - if topo_tree returns Cycle _, then the graph is not acyclic.
 - if topo_tree returns N_too_small, then n was smaller than size vertices - size gray_nodes.
-- if topo_tree return Some _, then the result contains the successors of root in addition
+- if topo_tree return Sorted _, then the result contains the successors of root in addition
   to what had been already found earlier.
 
 Then we can request on topo_sort that it never returns N_too_small,
@@ -154,8 +162,8 @@ Theorem topo_tree_correct :
       root \in vertices ->
       path_from root gray_nodes ->
       respects_topological_order already_found ->
-         match topo_tree n gray_nodes root (Some already_found) with
-         | Some result => subset already_found result /\
+         match topo_tree n gray_nodes root (Sorted already_found) with
+         | Sorted result => subset already_found result /\
                           disjoint gray_nodes result /\
                           root \in result /\
                           subset result vertices /\
@@ -268,8 +276,8 @@ induction n.
       rewrite Hroot_in_already_found Halready_found_closed Halready_found_ok //.
     - assert (foldr_topo_tree_correct :
          forall (adjacents : seq node), subset adjacents (g root) ->
-               match foldr (topo_tree n (root :: gray_nodes)) (Some already_found) adjacents with
-               | Some result => subset already_found result /\
+               match foldr (topo_tree n (root :: gray_nodes)) (Sorted already_found) adjacents with
+               | Sorted result => subset already_found result /\
                                 disjoint (root :: gray_nodes) result /\
                                 subset adjacents result /\
                                 subset result vertices /\
@@ -290,11 +298,11 @@ induction n.
             + simpl subset ; rewrite Halready_found_closed Halready_found_ok //.
           * simpl foldr.
             move /andP => [Ha Hadjacents].
-            destruct (foldr (topo_tree n (root :: gray_nodes)) (Some already_found) adjacents) ;
+            destruct (foldr (topo_tree n (root :: gray_nodes)) (Sorted already_found) adjacents) ;
                   try (simpl topo_tree ; destruct n ; simpl subset ;
                        apply IHadjacents, Hadjacents).
-            assert (IHn' : match topo_tree n (root :: gray_nodes) a (Some l) with
-                           | Some result =>
+            assert (IHn' : match topo_tree n (root :: gray_nodes) a (Sorted l) with
+                           | Sorted result =>
                                 subset l result /\
                                 disjoint (root :: gray_nodes) result /\
                                 a \in result /\
@@ -310,7 +318,7 @@ induction n.
                     apply graph_closed, Hroot_ok.
                   + simpl path_from ; rewrite Ha Hroot_in_gray_nodes Hpath_ok //.
             clear IHn.
-            destruct (topo_tree n (root :: gray_nodes) a (Some l)) ;
+            destruct (topo_tree n (root :: gray_nodes) a (Sorted l)) ;
                   try exact IHn'.
             split.
             + apply (subset_trans l) ; try apply IHn'.
@@ -326,7 +334,7 @@ induction n.
             + apply IHn'.
       specialize foldr_topo_tree_correct with (adjacents := g root).
       destruct (foldr (topo_tree n (root :: gray_nodes)) 
-                      (Some already_found) (g root)) eqn: Hfoldr_topo_tree ;
+                      (Sorted already_found) (g root)) eqn: Hfoldr_topo_tree ;
             try (apply foldr_topo_tree_correct, subset_refl).
       assert (disjoint (root :: gray_nodes) l) by (apply foldr_topo_tree_correct, subset_refl).
       split.
@@ -365,7 +373,7 @@ Qed.
 
 Theorem topo_sort_correct :
    match topo_sort with
-   | Some result => graph_acyclic /\
+   | Sorted result => graph_acyclic /\
                     subset vertices result /\
                     subset result vertices /\
                     respects_topological_order result
@@ -377,8 +385,8 @@ Proof.
 unfold topo_sort.
 assert (foldr_topo_sort_correct : forall v : seq node,
    subset v vertices ->
-      match foldr (topo_tree (size vertices) [::]) (Some [::]) v with
-      | Some result => subset v result /\
+      match foldr (topo_tree (size vertices) [::]) (Sorted [::]) v with
+      | Sorted result => subset v result /\
                        subset result vertices /\
                        respects_topological_order result
       | Cycle _ => ~ graph_acyclic
@@ -390,11 +398,11 @@ assert (foldr_topo_sort_correct : forall v : seq node,
         split ; trivial.
       * move /andP => [Ha_in_vertices Hv_in_vertices].
         simpl foldr.
-        destruct (foldr (topo_tree (size vertices) [::]) (Some [::]) v) ;
+        destruct (foldr (topo_tree (size vertices) [::]) (Sorted [::]) v) ;
               try (simpl topo_tree ; destruct (size vertices) ;
                    apply IHv, Hv_in_vertices).
-        assert (match topo_tree (size vertices) [::] a (Some l) with
-                | Some result => subset l result /\
+        assert (match topo_tree (size vertices) [::] a (Sorted l) with
+                | Sorted result => subset l result /\
                                  disjoint [::] result /\
                                  a \in result /\
                                  subset result vertices /\
@@ -403,7 +411,7 @@ assert (foldr_topo_sort_correct : forall v : seq node,
                 | _ => False
                 end).
               apply topo_tree_correct ; try done ; apply IHv, Hv_in_vertices.
-        destruct (topo_tree (size vertices) [::] a (Some l)) ; try exact H.
+        destruct (topo_tree (size vertices) [::] a (Sorted l)) ; try exact H.
         split ; try apply H.
         simpl subset.
         apply (@rwP (a \in l0 /\ subset v l0)) ; try exact andP.
@@ -411,7 +419,7 @@ assert (foldr_topo_sort_correct : forall v : seq node,
         apply (subset_trans l) ; try apply H.
         apply IHv, Hv_in_vertices.
 specialize foldr_topo_sort_correct with (v := vertices).
-destruct (foldr (topo_tree (size vertices) [::]) (Some [::]) vertices) ;
+destruct (foldr (topo_tree (size vertices) [::]) (Sorted [::]) vertices) ;
       try (apply foldr_topo_sort_correct, subset_refl).
 split ; try (apply foldr_topo_sort_correct, subset_refl).
 unfold graph_acyclic.
@@ -496,5 +504,7 @@ rewrite -has_take.
 + rewrite has_find index_mem (in_subset_trans vertices) //.
   apply foldr_topo_sort_correct, subset_refl.
 Qed.
+
+End TopoSortS.
 
 End TopoSort.

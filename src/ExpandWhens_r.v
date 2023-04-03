@@ -1,7 +1,7 @@
 From Coq Require Import BinNat ZArith.
 From mathcomp Require Import ssreflect ssrbool eqtype seq fintype ssrnat div ssrfun.
 From simplssrlib Require Import SsrOrder Var FMaps.
-From firrtl Require Import Env Firrtl HiEnv HiFirrtl.
+From firrtl Require Import Env Firrtl HiEnv HiFirrtl_r.
 
 (* From Coq Require Import FunInd FMaps FMapAVL OrderedType ZArith.
 From mathcomp Require Import ssrnat ssrint seq ssrfun.
@@ -113,6 +113,9 @@ Admitted.
 Definition nat_to_var (n : nat) : VarOrder.T := bin_of_nat n.
 
 Definition var_to_nat (id: VarOrder.T) : nat := (* nat_of_bin *) id.
+
+(* The above two are each other's inverse.
+This is proven by lemmas bin_of_natK and nat_of_binK. *)
 
 (* mapping from a href that is not a subaccess to an index in CE.env *)
 Fixpoint ref2var (ref : href) : @error_type VarOrder.T :=
@@ -282,7 +285,13 @@ There may be numbers that are projected to 0. *)
    (* Because nat and ftype are not mutually recursive types we cannot define a mutually recursive
       initialization function for registers including array types.
       Therefore we construct, in a mutual recursion, a function that initializes one element of the array.
-      After that we call the constructed function for every element of the array. *)
+      After that we call the constructed function for every element of the array.
+
+      However, this makes the proofs too complex.
+      Therefore, we simplify as follows:
+      we assume that there are no array types in a type definition.
+      Then, init_ref etc. can be defined directly as resursive functions
+      (that produce an error if there is an array type anyway).
 
    Fixpoint init_undefined_vector (v : nat -> @error_type href) (array_size : nat) (type : ftype) (orient : forient) (value : def_expr) : @error_type ((nat -> cmap -> @error_type cmap) * nat) :=
    (* Produces a function that initializes v to value (mostly D_undefined or D_invalidated).
@@ -326,7 +335,7 @@ There may be numbers that are projected to 0. *)
               => OK ((fun (n : nat) (cm : cmap) => if n <? snd init_field then fst init_field n cm
                                                                           else fst init_tail (n - snd init_field) cm),
                      snd init_field + snd init_tail) end end
-   end.
+   end. *)
 
    Fixpoint init_apply_initializer (fn : nat -> cmap -> @error_type cmap) (array_size : nat) (cm : cmap) : @error_type cmap :=
    (* Applies initialization function fn, as produced by init_register_vector, to cm
@@ -336,11 +345,35 @@ There may be numbers that are projected to 0. *)
    | S m => match fn m cm with Err e => Err e
             | OK new_cm => init_apply_initializer fn m new_cm end
    end.
-
+(*
    Definition init_ref (id : VarOrder.T) (type : ftype) (orient : forient) (cm : cmap) : @error_type cmap :=
    (* sets all ground-type elements of (Eid id) to D_undefined. *)
    match init_undefined_vector (fun n : nat => OK (Eid id)) 1 type orient D_undefined with Err e => Err e | OK initializer
    => init_apply_initializer (fst initializer) (snd initializer) cm end.
+*)
+
+   Fixpoint init_ref (id : href) (type : ftype) (orient : forient) (cm : cmap) : @error_type cmap :=
+   (* sets all ground-type elements of id to D_undefined. *)
+   match type with
+   | Gtyp _ => match orient with
+               | Sink | Duplex => match ref2var id with Err e => Err e | OK ref
+                                  => OK (CE.add ref D_undefined cm) end
+               | Source => OK cm
+               | _ => Err Einternal
+               end
+   | Atyp _ _ => Err Etype
+   | Btyp ff => init_ref_bundle id ff orient cm
+   end
+   with init_ref_bundle (id : href) (ff : ffield) (orient : forient) (cm : cmap) : @error_type cmap :=
+   match ff with
+   | Fnil => OK cm
+   | Fflips field_name fl field_type ff_tail =>
+        match init_ref_bundle id ff_tail orient cm with Err e => Err e | OK cm_tail =>
+        let field_orient := match fl, orient with Flipped, Sink => Source
+                                                | Flipped, Source => Sink
+                                                | _, _ => orient end
+        in init_ref (Esubfield id field_name) field_type field_orient cm_tail end
+   end.
 
    Fixpoint init_register_vector (v : nat -> @error_type href) (array_size : nat) (type : ftype) : @error_type ((nat -> cmap -> @error_type cmap) * nat) :=
    (* Produces a function that initializes v to itself.
@@ -425,12 +458,13 @@ There may be numbers that are projected to 0. *)
                                             (Fflips mem_port_mask Nflip mask_t Fnil)))))) tl)
                                       read_ports (writer m))) end.
 
-   Definition init_instance (id: VarOrder.T) (mdl: VarOrder.T) (ce : CE.env) (cm : cmap) : @error_type cmap :=
+   Definition init_instance (id: VarOrder.T) (mdl: VarOrder.T) (ce_other_modules : CE.env) (cm : cmap) : @error_type cmap :=
    (* This function should initialize the ports that connect the current module with module mdl under the name id,
       which is instantiated here.
-      It is assumed that the type of the module is stored in ce already. *)
-   match CE.find mdl ce with
-   | Some (Aggr_typ type, Fmodule) => init_ref id type Source cm
+      It is assumed that the type of the module is stored in ce_other_modules already.
+      (Input ports are flipped.) *)
+   match CE.find mdl ce_other_modules with
+   | Some (Aggr_typ type, Fmodule) => init_ref (Eid id) type Sink cm
    | Some _ => Err Etype
    | _ => Err Eundeclared
    end.
@@ -468,12 +502,12 @@ There may be numbers that are projected to 0. *)
         | OK (ss_result, cm_result) =>
              match last with
              | @Sskip _ => OK (ss_result, cm_result) (* no translation needed *)
-             | @Swire _ id type => match init_ref id type Duplex cm_result with Err e => Err e | OK cm_wire
+             | @Swire _ id type => match init_ref (Eid id) type Duplex cm_result with Err e => Err e | OK cm_wire
                                    => OK (Qrcons ss_result last, cm_wire) end
              | @Sreg _ id reg => match init_register id (type reg) cm_result with Err e => Err e | OK cm_reg
                                  => OK (Qrcons ss_result last, cm_reg) end
              | @Smem _ id mem => match type_of_mem mem with Err e => Err e | OK mem_type
-                                 => match init_ref id mem_type Source cm_result with Err e => Err e | OK cm_mem
+                                 => match init_ref (Eid id) mem_type Source cm_result with Err e => Err e | OK cm_mem
                                     => OK (Qrcons ss_result last, cm_mem) end end
              | @Sinst _ id mdl => match init_instance id mdl ce_other_modules cm_result with Err e => Err e | OK cm_inst
                                   => OK (Qrcons ss_result last, cm_inst) end
@@ -719,30 +753,42 @@ There may be numbers that are projected to 0. *)
 (* 5. Function expandBranch_sem_conform.
       To define this function we first need to formulate the preconditions of expandBranch_fun. *)
 
-   Definition expandBranch_precondition_ce_helper (_ : VarOrder.T) (entry: (cmpnt_init_typs * fcomponent)) (in_bool : bool) : bool :=
-   (* the entry is an input or output port, and it has a ground type *)
-   match entry with
-   | (Aggr_typ (Gtyp _), In_port)
-   | (Aggr_typ (Gtyp _), Out_port) => in_bool
+   (* conditions on ce_other_modules:
+      a module type is a bundle containing in-ports (flipped) and out-ports (not flipped).
+      The ports themselves are of ground types (to simplify the recursions). *)
+
+   Fixpoint expandBranch_precondition_ce_module_fields (ff : ffield) : bool :=
+   (* all fields in ff are of a ground type *)
+   match ff with
+   | Fnil => true
+   | Fflips _ _ (Gtyp _) ff' => expandBranch_precondition_ce_module_fields ff'
    | _ => false
    end.
 
-   Definition expandBranch_precondition_ce (ce_other_modules : CE.env) : bool :=
+   Definition expandBranch_precondition_ce (ce_other_modules : CE.env) : Prop :=
    (* in/out ports of other modules are ground types:
       all entries in ce_other_modules are input or output ports,
       and they have ground types. *)
-   CE.fold expandBranch_precondition_ce_helper ce_other_modules true.
+   forall (id : VarOrder.T),
+      match CE.find id ce_other_modules with
+      | None
+      | Some (Aggr_typ (Gtyp _), In_port)
+      | Some (Aggr_typ (Gtyp _), Out_port) => true
+      | Some (Aggr_typ (Btyp ff), Fmodule) => expandBranch_precondition_ce_module_fields ff
+      | Some _ => false
+      end.
 
-   Fixpoint expandBranch_precondition_declarations (ss : hfstmt_seq) (ce_previous : CE.env) : @error_type CE.env :=
-   (* If all declarations are ground types and there are no partial connects in ss
+   Fixpoint expandBranch_precondition_declarations (ss : hfstmt_seq) (ce_other_modules : CE.env) (ce_previous : CE.env) : @error_type CE.env :=
+   (* If all declarations are ground types, there are no partial connects in ss,
+      and all full connects concern ground types,
       then the result is a CE.env containing types for all declared components.
-      (ce_previous is the map containing types for the code before ss.)
-      (or possibly CE.empty (cmpnt_init_typs * fcomponent))
+      (ce_previous is the map containing types for the code before ss,
+       or possibly CE.empty (cmpnt_init_typs * fcomponent).)
       Otherwise the result is an error message. *)
    match ss with
    | Qnil => OK ce_previous
    | Qrcons ss_butlast last =>
-       match expandBranch_precondition_declarations ss_butlast ce_previous with Err e => Err e | OK ce_butlast_result
+       match expandBranch_precondition_declarations ss_butlast ce_other_modules ce_previous with Err e => Err e | OK ce_butlast_result
        => match last with
           | @Swire _ id t  => if t is Gtyp _
                               then match ref2var (Eid id) with Err e => Err e | OK var
@@ -765,12 +811,24 @@ There may be numbers that are projected to 0. *)
                                       else OK (CE.add var (Mem_typ mem, Memory) ce_butlast_result)
                                    end
                               else Err Etype
+          | @Sinst _ id mdl => if CE.find mdl ce_other_modules is Some (Aggr_typ mdl_type, Fmodule)
+                               then match ref2var (Eid id) with Err e => Err e | OK var
+                                    => if CE.find var ce_butlast_result is Some _
+                                       then Err Ealready_declared
+                                       else OK (CE.add var (aggr_typ mdl_type, Instanceof) ce_butlast_result)
+                                    end
+                               else Err Etype
+          | @Sfcnct _ ref _ => if ref2var ref is OK id
+                               then if CE.find id ce_butlast_result is Some (Aggr_typ (Gtyp _), _)
+                                    then OK ce_butlast_result
+                                    else Err Etype
+                               else Err Eundeclared
           | @Spcnct _ _ _ => Err Einternal
           | @Swhen _ _ sst ssf =>
-               match expandBranch_precondition_declarations sst ce_butlast_result with
+               match expandBranch_precondition_declarations sst ce_other_modules ce_butlast_result with
                | Err e => Err e
                | OK ce_true_result =>
-                    expandBranch_precondition_declarations ssf ce_true_result
+                    expandBranch_precondition_declarations ssf ce_other_modules ce_true_result
                end
           | _ => OK ce_butlast_result
                  (* for Sinst, one has to check ce_other_modules as well.
@@ -780,8 +838,8 @@ There may be numbers that are projected to 0. *)
    end.
 
    Lemma expandBranch_precondition_declarations_does_not_contain_modules :
-      forall (ss : hfstmt_seq) (ce_previous : CE.env),
-         if expandBranch_precondition_declarations ss ce_previous is OK ce_declarations
+      forall (ss : hfstmt_seq) (ce_other_modules ce_previous : CE.env),
+         if expandBranch_precondition_declarations ss ce_other_modules ce_previous is OK ce_declarations
          then forall var : VarOrder.T,
                  match CE.find var ce_declarations with
                  | Some (_, Fmodule)
@@ -842,7 +900,7 @@ There may be numbers that are projected to 0. *)
       * cm_previous = (containing only port declarations at the beginning of a module)
                       definitions of components, based on code before the beginning of this branch *)
    expandBranch_precondition_ce ce_other_modules (* in/out ports of other modules are ground types *) ->
-   match expandBranch_precondition_declarations ss ce_previous_declarations with Err e => true | OK ce_declarations =>
+   match expandBranch_precondition_declarations ss ce_other_modules ce_previous_declarations with Err e => true | OK ce_declarations =>
    match expandBranch_fun ss ce_other_modules cm_previous with Err e => true | OK (ss_result, cm_result)
    => forall id : VarOrder.T,
       if ref2var (Eid id) is OK var
@@ -856,6 +914,50 @@ There may be numbers that are projected to 0. *)
            end
       else true
    end end.
+
+Fixpoint in_ffield (v : VarOrder.T) (ff : ffield) : bool :=
+match ff with
+| Fnil => false
+| Fflips v' _ _ ff_tail => (v == v') || in_ffield v ff_tail
+end.
+
+Fixpoint ffield_uniq (ff : ffield) : bool :=
+match ff with
+| Fnil => true
+| Fflips v _ _ ff_tail => ~~in_ffield v ff && ffield_uniq ff_tail
+end.
+
+(* a technical lemma used later in the correctness proof *)
+Lemma init_ref_add : forall (id : href) (v : VarOrder.T) (f0 : fgtyp) (id' : VarOrder.T) (f1 : ffield) (cm_result c d : cmap),
+(* perhaps also an additional condition, similar to:
+   ffield_uniq (Fflips v Nflip (Gtyp f0) f1) -> *)
+   init_ref id (Btyp                           f1 ) Sink cm_result = OK c ->
+   init_ref id (Btyp (Fflips v Nflip (Gtyp f0) f1)) Sink cm_result = OK d ->
+   ref2var id = OK id' ->
+   CE.Equal (CE.add (nat_to_var (pair id' v * 3 + 2)) D_undefined c) d.
+Proof.
+induction f1.
+* intros.
+  simpl init_ref in H0.
+  injection H ; clear H ; intro H.
+  simpl init_ref in H0.
+  destruct (ref2var id) ; try done.
+  injection H0 ; clear H0 ; intro H0.
+(*
+  rewrite -H H0.
+  done.
+* intros.
+  simpl init_ref in H.
+  destruct f.
+  + destruct (init_ref (Esubfield id v0) f1 Source cm_result) eqn: Hid_v.
+    - destruct (ref2var id) ; try done.
+   We now should apply IHf1, but perhaps not directly:
+   in c, first (Esubfield id v0) is initialized and then f2,
+   and by CE.add finally v is initialized;
+   in d, first v, then v0, then f2 is initialized.
+   So we should probably use something extensionally equal to d instead of d. *)
+Admitted.
+
 
 (* Correctness theorem:
    If ...
@@ -899,28 +1001,53 @@ all: intros.
     admit.
 * specialize H with (ce_other_modules := ce_other_modules)
                     (ce_previous_declarations := ce_previous_declarations).
-  apply H in H1 ; clear H.
+  assert (match expandBranch_precondition_declarations h ce_other_modules ce_previous_declarations with
+          | OK ce_declarations =>
+               match expandBranch_fun h ce_other_modules empty_cmap with
+               | OK (_, cm_result) => forall id : VarOrder.T,
+                    match ref2var (Eid (var:=VarOrder.T) id) with
+                    | OK var =>
+                         match CE.find var ce_declarations with
+                         | Some (@Aggr_typ _ t, _) =>
+                              expandBranch_one_component_sem_conform (Eid (var:=VarOrder.T) id) t h cm_result empty_cmap
+                         | Some (Reg_typ reg, _) =>
+                              expandBranch_one_component_sem_conform (Eid (var:=VarOrder.T) id) (type reg) h cm_result empty_cmap
+                         | Some (Mem_typ mem, _) =>
+                              match type_of_mem mem with
+                              | OK tom =>
+                                   expandBranch_one_component_sem_conform_flipped (Eid (var:=VarOrder.T) id) tom h cm_result empty_cmap
+                              | Err _ => false
+                              end
+                         | _ => true
+                         end
+                    | Err _ => true
+                    end
+               | Err _ => true
+               end
+          | Err _ => true
+          end) by (apply H, H1).
+  clear H.
   simpl expandBranch_precondition_declarations.
-  destruct (expandBranch_precondition_declarations h ce_previous_declarations) as [ce_declarations|] eqn: Hdeclarations ; try done.
-  destruct h0 eqn: Hstmt.
+  destruct (expandBranch_precondition_declarations h ce_other_modules ce_previous_declarations) as [ce_declarations|] eqn: Hdeclarations ; try done.
+  destruct h0 eqn: Hstmt ; try done.
   + (* Skip *)
     simpl expandBranch_fun.
     destruct (expandBranch_fun h ce_other_modules empty_cmap) ; try done.
     destruct p as [_ cm_result].
     intro.
-    specialize H1 with (id := id).
-    unfold ref2var ; unfold ref2var in H1.
+    specialize H2 with (id := id).
+    unfold ref2var ; unfold ref2var in H2.
     destruct (CE.find (nat_to_var (id * 3 + 1)) ce_declarations) eqn: Hfind ; try done.
     destruct p as [comp_typ fcomp].
     destruct comp_typ as [ft|reg|mem|] ; try done.
     - assert (exists t : fgtyp, ft = Gtyp t) by admit.
       destruct H.
-      rewrite H ; rewrite H in H1.
+      rewrite H ; rewrite H in H2.
       unfold expandBranch_one_component_sem_conform, ref2var ;
-      unfold expandBranch_one_component_sem_conform, ref2var in H1.
+      unfold expandBranch_one_component_sem_conform, ref2var in H2.
       simpl expandBranch_one_var_sem.
-      replace (CE.find (nat_to_var (id * 3 + 1)) empty_cmap) with (@None def_expr) in H1 by (done).
-      exact H1.
+      replace (CE.find (nat_to_var (id * 3 + 1)) empty_cmap) with (@None def_expr) in H2 by (done).
+      exact H2.
     - (* register is similar to variable *)
       admit.
     - (* memory is similar to variable *)
@@ -934,23 +1061,13 @@ all: intros.
     destruct (expandBranch_fun h ce_other_modules empty_cmap) ; try done.
     destruct p as [_ cm_result].
     intro.
-    specialize H1 with (id := id).
-    unfold ref2var ; unfold ref2var in H1.
+    specialize H2 with (id := id).
+    unfold ref2var ; unfold ref2var in H2.
     destruct (eqVneq s id).
     - rewrite e.
-      replace (CE.find (nat_to_var (id * 3 + 1)) (CE.add (nat_to_var (id * 3 + 1))
-               (aggr_typ (Gtyp x), Wire) ce_declarations))
-      with (Some (aggr_typ (Gtyp x), Wire))
-      by (symmetry ;
-          apply CELemmas.find_add_eq ;
-          rewrite /CE.SE.eq eq_refl //).
+      rewrite CELemmas.find_add_eq ; try rewrite /CE.SE.eq eq_refl //.
       unfold aggr_typ, expandBranch_one_component_sem_conform, ref2var.
-      replace (CE.find (nat_to_var (id * 3 + 1))
-              (CE.add (nat_to_var (id * 3 + 1)) D_undefined cm_result))
-      with (Some D_undefined)
-      by (symmetry ;
-          apply CELemmas.find_add_eq ;
-          rewrite /CE.SE.eq eq_refl //).
+      rewrite CELemmas.find_add_eq ; try rewrite /CE.SE.eq eq_refl //.
       simpl expandBranch_one_var_sem.
       rewrite eq_refl /expr_tree_to_def_expr eq_refl //.
     - assert (forall val (ce : CE.env), CE.find (nat_to_var (id * 3 + 1))
@@ -977,17 +1094,17 @@ all: intros.
             unfold injective in H0.
             apply H0 in i.
             done.
-      rewrite H2.
+      rewrite H3.
       destruct (CE.find (nat_to_var (id * 3 + 1)) ce_declarations) ; try done.
       destruct p as [comp_typ fcomp].
       destruct comp_typ as [ft|reg|mem|] ; try done.
       * assert (exists t : fgtyp, ft = Gtyp t) by admit.
-        destruct H3.
-        rewrite H3 ; rewrite H3 in H1.
+        destruct H4.
+        rewrite H4 ; rewrite H4 in H2.
         unfold expandBranch_one_component_sem_conform, ref2var ;
-        unfold expandBranch_one_component_sem_conform, ref2var in H1.
+        unfold expandBranch_one_component_sem_conform, ref2var in H2.
         simpl expandBranch_one_var_sem.
-        replace (CE.find (nat_to_var (id * 3 + 1)) empty_cmap) with (@None def_expr) in H1 by (done).
+        replace (CE.find (nat_to_var (id * 3 + 1)) empty_cmap) with (@None def_expr) in H2 by (done).
         replace (CE.find (nat_to_var (id * 3 + 1))
         (CE.add (nat_to_var (s * 3 + 1))
            D_undefined cm_result))
@@ -995,7 +1112,7 @@ all: intros.
         by admit. (* same proof as above, assertion H2 *)
         apply negbTE in i.
         rewrite (eq_sym id) i.
-        exact H1.
+        exact H2.
       * (* register is similar to variable *)
         admit.
       * (* memory is similar to variable *)
@@ -1006,14 +1123,166 @@ all: intros.
   + (* Smem *)
     (* Smem is similar to Swire *)
     admit.
-  + (* Sinst *)
+  + (* Sinst s s0, i.e. s = identifier and s0 = type of the module. *)
+    simpl expandBranch_fun.
+    destruct (expandBranch_fun h ce_other_modules empty_cmap) eqn: Hebf ;
+          try (destruct (CE.find s0 ce_other_modules) ;
+               try done ;
+               destruct p, c, f, (CE.find (nat_to_var (s * 3 + 1)) ce_declarations) ;
+               done).
+    destruct p as [ss_result cm_result].
+    destruct (CE.find s0 ce_other_modules) eqn: Hs0 ; try done.
+    destruct p as [ss_result0 cm_result0].
+    destruct ss_result0 ; try done.
+    destruct cm_result0 ; try done.
+    destruct (CE.find (nat_to_var (s * 3 + 1)) ce_declarations) eqn: Hs ; try done.
+    destruct (init_instance s s0 ce_other_modules cm_result) eqn: Hinit_instance ; try done.
+    intro.
+    specialize H2 with (id := id).
+    unfold ref2var ; unfold ref2var in H2.
+    destruct (eqVneq s id).
+    - (* id now does not have a ground type but is part of the instance.
+         That means, it has type (Btyp ...) where each field has a ground type. *)
+      rewrite !e CELemmas.find_add_eq ; try rewrite /CE.SE.eq eq_refl //.
+      rewrite e in Hinit_instance.
+      unfold aggr_typ.
+      (* Now we should argue as follows:
+         1. (to simplify) the type f is some (Btyp f0),
+            where f0 is a list of ground type entries.
+            (This should be based on H1 and Hs0.)
+         2. induction over f0. *)
+      unfold expandBranch_precondition_ce in H1.
+      specialize H1 with (id := s0).
+      unfold init_instance in Hinit_instance.
+      destruct (CE.find s0 ce_other_modules) ; try done.
+      destruct p.
+      destruct c0, f0 ; try discriminate.
+      destruct f1 ; try done.
+      injection Hs0 ; intro Hf0 ; clear Hs0.
+      rewrite -Hf0 ; clear Hf0 f.
+      simpl expandBranch_one_component_sem_conform.
+      move : H1 c Hinit_instance.
+      simpl init_ref.
+      induction f0.
+      * intros.
+        unfold expandBranch_one_component_sem_conform_fields ; done.
+      * simpl expandBranch_precondition_ce_module_fields ; intros.
+        destruct f0 ; try done.
+        simpl expandBranch_one_component_sem_conform_fields.
+        simpl init_ref_bundle in Hinit_instance.
+        destruct f.
+        + apply IHf0 ; try done.
+          destruct (init_ref_bundle (Eid id) f1 Sink cm_result) ; done.
+        + rewrite eq_refl /expr_tree_to_def_expr /var_to_nat bin_of_natK.
+          rewrite /var_to_nat bin_of_natK in Hinit_instance.
+          destruct (init_ref_bundle (Eid (var:=VarOrder.T) id) f1 Sink
+                     cm_result) eqn: Hirb ; try done.
+          injection Hinit_instance ; clear Hinit_instance ; intro Hinit_instance.
+          rewrite -{1}Hinit_instance CELemmas.find_add_eq ;
+                try rewrite /CE.SE.eq eq_refl //.
+          rewrite andTb.
+          specialize IHf0 with (c := c0).
+          (* Now, because f1 does not contain field v,
+             we can use IHf0 to prove the semantic conformity. *)
+          admit.
+    - rewrite CELemmas.find_add_neq.
+      * (* This can be proven using H2 and Hinit_instance.
+           Similar to the above, we use that s != id and therefore
+           the relevant parts of cm_result and c are equal. *)
+        admit.
+      * rewrite /CE.SE.eq /nat_to_var.
+        move /eqP : i => i ; contradict i ; move /eqP : i => i.
+        assert (id * 3 + 1 == s * 3 + 1) by (rewrite -(bin_of_natK (id * 3 + 1)) i bin_of_natK eq_refl //).
+        rewrite addn1 addn1 eqSS eqn_pmul2r // in H.
+        move /eqP : H => H.
+        rewrite -(nat_of_binK id) H nat_of_binK ; reflexivity.
+  + (* Snode s h1 *)
     simpl expandBranch_fun.
     destruct (expandBranch_fun h ce_other_modules empty_cmap) ; try done.
     destruct p as [ss_result cm_result].
-    destruct (init_instance s s0 ce_other_modules cm_result) eqn: Hinit_instance ; try done.
+    (* expandBranch_one_component_sem_conform ignores the Snode statement,
+       so it should be possible to prove this based on H2. *)
+    admit.
+  + (* Sfcnct h1 h2 *)
+    simpl expandBranch_fun.
+    destruct (ref2var h1) eqn: Hh1 ; try done.
+    destruct (CE.find s ce_declarations) eqn: Hfinds ; try done.
+    destruct p as [comp_typ_s fcomp_s].
+    destruct comp_typ_s ; try done.
+    destruct f ; try done.
+    destruct (expandBranch_fun h ce_other_modules empty_cmap) ; try done.
+    destruct p as [ss_result cm_result].
     intro.
-    specialize H1 with (id := id).
-    unfold ref2var ; unfold ref2var in H1.
-    destruct (eqVneq s0 id).
-    - (* id now does not have a ground type but is part of the instance.
-         That means, it has type (Btyp ...) where each field has a ground type. *)
+    specialize H2 with (id := id).
+    destruct (eqVneq (Eid id) h1).
+    - rewrite e Hh1 ; rewrite e Hh1 in H2.
+      destruct (CE.find s ce_declarations) ; try done.
+      destruct p as [comp_typ fcomp].
+      injection Hfinds ; clear Hfinds ; intros.
+      rewrite H3 ; rewrite H3 in H2.
+      simpl expandBranch_one_component_sem_conform.
+      rewrite Hh1 CELemmas.find_add_eq ; try (unfold CE.SE.eq ; done).
+      rewrite eq_refl /expr_tree_to_def_expr eq_refl //.
+    - destruct (ref2var (Eid id)) eqn: Hid ; try done.
+      destruct (CE.find s0 ce_declarations) eqn: Hfind ; try done.
+      destruct p as [comp_typ fcomp].
+      destruct comp_typ as [ft|reg|mem|] ; try done.
+      * assert (exists t : fgtyp, ft = Gtyp t) by admit.
+        destruct H as [t].
+        rewrite H ; rewrite H in H2.
+        unfold expandBranch_one_component_sem_conform, ref2var ;
+        unfold expandBranch_one_component_sem_conform, ref2var in H2.
+        rewrite CELemmas.find_add_neq.
+        + simpl expandBranch_one_var_sem.
+          apply negbTE in i ; rewrite i.
+          replace (CE.find (nat_to_var (id * 3 + 1)) empty_cmap) with (@None def_expr) in H2 by (done).
+          exact H2.
+        + unfold CE.SE.eq.
+          move /eqP : i => i ; contradict i ; move /eqP : i => i.
+          rewrite -i in Hh1.
+          destruct h1.
+          - unfold ref2var in Hh1.
+            injection Hh1 ; clear Hh1 ; unfold nat_to_var ; intro Hh1.
+            assert (s1 * 3 + 1 == id * 3 + 1) by (rewrite -(bin_of_natK (s1 * 3 + 1)) Hh1 bin_of_natK eq_refl //).
+            rewrite addn1 addn1 eqSS eqn_pmul2r // in H3.
+            move /eqP : H3 => H3.
+            rewrite -(nat_of_binK s1) H3 nat_of_binK ; reflexivity.
+          - contradict Hh1.
+            clear.
+            simpl ref2var.
+            destruct (ref2var h1) ; try done.
+            injection ; unfold nat_to_var ; intro Hh1.
+            enough (2 == 1) by done.
+            replace 1 with ((id * 3 + 1) %% 3) at 2 by (rewrite modnD // modnMl //).
+            replace 2 with ((pair (var_to_nat s) s1 * 3 + 2) %% 3) at 1 by (rewrite modnD // modnMl //).
+            rewrite -(bin_of_natK (pair (var_to_nat s) s1 * 3 + 2)) Hh1 bin_of_natK eq_refl //.
+          - contradict Hh1.
+            clear.
+            simpl ref2var.
+            destruct (ref2var h1) ; try done.
+            injection ; unfold nat_to_var ; intro Hh1.
+            enough (0 == 1) by done.
+            replace 1 with ((id * 3 + 1) %% 3) by (rewrite modnD // modnMl //).
+            replace 0 with ((pair (var_to_nat s) n * 3 + 3) %% 3) at 1 by (rewrite modnD // modnMl //).
+            rewrite -(bin_of_natK (pair (var_to_nat s) n * 3 + 3)) Hh1 bin_of_natK eq_refl //.
+          - contradict Hh1.
+            simpl ref2var.
+            discriminate.
+      * (* register is similar to variable *)
+        admit.
+      * (* memory is similar to variable *)
+        admit.
+  + (* Sinvalid h1. This is similar to Sfcnct, so we can skip this case. *)
+    admit.
+  + (* Swhen h1 h2 h3, where h1 is a condition and h2 and h3 are statement sequences. *)
+    destruct (expandBranch_precondition_declarations h2 ce_other_modules
+      ce_declarations) as [ce_true_result|] eqn: Htrue_declarations ; try done.
+    destruct (expandBranch_precondition_declarations h3 ce_other_modules
+      ce_true_result) as [ce_false_result|] eqn: Hfalse_declarations ; try done.
+    simpl expandBranch_fun.
+    destruct (expandBranch_fun h ce_other_modules empty_cmap) ; try done.
+    destruct p as [_ cm_result].
+    unfold expandBranch_correct_hfstmt_seq, expandBranch_sem_conform in H0.
+    (* Here I do not know yet how to continue. *)
+    admit.
+Admitted.

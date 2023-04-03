@@ -8,7 +8,7 @@ From firrtl Require Import Firrtl Env HiEnv HiFirrtl InferTypes.
 (** Pass ExpandConnect *)
 Section ExpandConnectsP.
   
-  (*recursively add sub-elements accroding to the declared aggr_typ*)
+  (*recursively add sub-elements according to the declared aggr_typ*)
   (*as for element declaration statement, add a default connection*)
   (*as for element invalid statement, add an invalid connection*)
   Fixpoint upd_aggr_elements_aux_rdef (v:pvar) (ts:seq ftype) (r:HiFP.rhs_expr) (sv:StructStateP.t) (n:N) :StructStateP.t:=
@@ -17,7 +17,7 @@ Section ExpandConnectsP.
     | cons hd tl => upd_aggr_elements_aux_rdef v tl r (StructStateP.upd (fst v, n) r sv) (N.add n 1%num)
     end.
 
-  (*use the types recorded in ce, since ce inclueds the result of type infering*)
+  (*use the types recorded in ce, since ce includes the result of type inference*)
   Definition upd_aggr_elements_rdef (v:pvar) (ce : CEP.env) (r:HiFP.rhs_expr) (sv:StructStateP.t) : StructStateP.t :=
     let ts := ftype_list_all (type_of_cmpnttyp (fst (CEP.vtyp v ce))) nil in
     StructStateP.upd v HiFP.r_default (upd_aggr_elements_aux_rdef v ts r sv initial_index).
