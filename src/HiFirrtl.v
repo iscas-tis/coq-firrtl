@@ -27,7 +27,7 @@ Section HiFirrtl.
   | Eprim_unop : eunop -> hfexpr -> hfexpr
   | Eprim_binop : ebinop -> hfexpr -> hfexpr -> hfexpr
   | Emux : hfexpr -> hfexpr -> hfexpr -> hfexpr
-  | Evalidif : hfexpr -> hfexpr -> hfexpr
+  (* | Evalidif : hfexpr -> hfexpr -> hfexpr *)
   | Eref : href -> hfexpr
   with href : Type :=
   | Eid : var -> href
@@ -102,7 +102,7 @@ Section HiFirrtl.
   | Sinst : var -> var -> hfstmt
   | Snode : var -> hfexpr -> hfstmt
   | Sfcnct : href -> hfexpr -> hfstmt
-  | Spcnct : href -> hfexpr -> hfstmt
+  (* | Spcnct : href -> hfexpr -> hfstmt *)
   | Sinvalid : href -> hfstmt
   (* | Sattach : seq var -> fstmt *)
   | Swhen : hfexpr -> hfstmt_seq -> hfstmt_seq -> hfstmt
@@ -734,7 +734,7 @@ Module MakeHiFirrtl
   Definition eprim_unop u e := @Eprim_unop V.T u e.
   Definition eprim_binop b e1 e2 := @Eprim_binop V.T b e1 e2.
   Definition emux c e1 e2 := @Emux V.T c e1 e2.
-  Definition evalidif c e := @Evalidif V.T c e.
+  (* Definition evalidif c e := @Evalidif V.T c e. *)
   Definition hfexpr := hfexpr V.T.
   Definition eref r := @Eref V.T r.
   Definition eid v := @Eid V.T v.
@@ -753,7 +753,6 @@ Module MakeHiFirrtl
   Definition smem v m := @Smem V.T v m.
   Definition snode v e := @Snode V.T v e.
   Definition sfcnct v1 v2 := @Sfcnct V.T v1 v2.
-  Definition spcnct v1 v2 := @Spcnct V.T v1 v2.
   Definition sinvalid v1 := @Sinvalid V.T v1.
   Definition swhen c s1 s2 := @Swhen V.T c s1 s2.
   (* Definition sstop e1 e2 n := @Sstop V.T e1 e2 n. *)
@@ -837,7 +836,7 @@ Module MakeHiFirrtl
     | Eprim_unop _ _ => true
     (* DNJ: The arguments of a multiplexer or a validif need to be passive. *)
     | Emux _ e1 e2 => valid_rhs_fexpr e1 ce && (valid_rhs_fexpr e2 ce)
-    | Evalidif _ e => valid_rhs_fexpr e ce
+    (* | Evalidif _ e => valid_rhs_fexpr e ce *)
     end.
 
   Definition valid_rhs (re : rhs_expr) (ce : cenv) : bool :=
@@ -876,7 +875,7 @@ Module MakeHiFirrtl
     | Eprim_binop b e1 e2 => fexpr_has_v v e1 || fexpr_has_v v e2
     | Eprim_unop u e => fexpr_has_v v e
     | Emux c e1 e2 => fexpr_has_v v c || fexpr_has_v v e1 || fexpr_has_v v e2
-    | Evalidif c e => fexpr_has_v v c || fexpr_has_v v e
+    (* | Evalidif c e => fexpr_has_v v c || fexpr_has_v v e *)
     | Eref r => eref_has_v v r
     end.
 
@@ -908,8 +907,8 @@ Module MakeHiFirrtl
       resolveKinds_stmt sskip ce ce
   | Resolve_fcnct r e ce :
       resolveKinds_stmt (sfcnct r e) ce ce
-  | Resolve_pcnct r e ce :
-      resolveKinds_stmt (spcnct r e) ce ce
+  (* | Resolve_pcnct r e ce : *)
+  (*     resolveKinds_stmt (spcnct r e) ce ce *)
   | Resolve_when e s1 s2 ce ce' ce'' :
       resolveKinds_stmts s1 ce ce' ->
       resolveKinds_stmts s2 ce' ce'' ->
@@ -973,7 +972,7 @@ Module MakeHiFirrtl
     | Sinst v m => CE.add v (unknown_typ, Instanceof) ce
     | Snode v e => CE.add v (unknown_typ, Node) ce
     | Sfcnct _ _
-    | Spcnct _ _
+    (* | Spcnct _ _ *)
     | Sinvalid _ => ce
     | Swhen _ sts_true sts_false => resolveKinds_stmts_fun sts_false (resolveKinds_stmts_fun sts_true ce)
     end
@@ -1054,12 +1053,12 @@ Proof.
   intros. apply Resolve_fcnct.
 Qed.
 
-Lemma resolveKinds_spcnct_sem_conform :
-forall r e ce0 ,
-  resolveKinds_stmt (spcnct r e) ce0 (resolveKinds_stmt_fun (spcnct r e) ce0).
-Proof.
-  intros. apply Resolve_pcnct.
-Qed.
+(* Lemma resolveKinds_spcnct_sem_conform : *)
+(* forall r e ce0 , *)
+(*   resolveKinds_stmt (spcnct r e) ce0 (resolveKinds_stmt_fun (spcnct r e) ce0). *)
+(* Proof. *)
+(*   intros. apply Resolve_pcnct. *)
+(* Qed. *)
 
 Lemma resolveKinds_swhen_sem_conform :
 forall (e : hfexpr) (s1 s2 : hfstmt_seq) (ce0 ce1 ce2: cenv),
@@ -1107,7 +1106,7 @@ Lemma resolveKinds_stmt_sem_conform :
 with resolveKinds_stmts_sem_conform :
   forall sts : hfstmt_seq, resolveKinds_stmts_sem_conform_statement sts.
 Proof.
-  elim => [|v t|r t| m t| v1 v2| n t| d e| d e| v | c s1 s2]; rewrite /resolveKinds_stmt_sem_conform_statement.
+  elim => [|v t|r t| m t| v1 v2| n t| d e| v | c s1 s2]; rewrite /resolveKinds_stmt_sem_conform_statement.
   - apply resolveKinds_sskip_sem_conform.
   - apply resolveKinds_swire_sem_conform.
   - apply resolveKinds_sreg_sem_conform.
@@ -1115,7 +1114,7 @@ Proof.
   - apply resolveKinds_sinst_sem_conform.
   - apply resolveKinds_snode_sem_conform.
   - apply resolveKinds_sfcnct_sem_conform.
-  - apply resolveKinds_spcnct_sem_conform.
+  (* - apply resolveKinds_spcnct_sem_conform. *)
   - apply resolveKinds_sinvalid_sem_conform.
   - intro. apply resolveKinds_swhen_sem_conform with (ce1 := resolveKinds_stmts_fun s1 ce0); try done.
     exact: (resolveKinds_stmts_sem_conform s1).
@@ -1471,7 +1470,7 @@ Proof.
     | Emux c e1 e2 => let t1 := type_of_hfexpr e1 ce in
                       let t2 := type_of_hfexpr e2 ce in
                       mux_types t1 t2
-    | Evalidif c e1 => type_of_hfexpr e1 ce
+    (* | Evalidif c e1 => type_of_hfexpr e1 ce *)
     end.
 
 
@@ -1479,7 +1478,7 @@ Proof.
 
   Definition is_init (s : hfstmt) : bool :=
      match s with
-     | Spcnct _ _ | Sfcnct _ _ | Sinvalid _ | Swhen _ _ _
+     (* | Spcnct _ _ *) | Sfcnct _ _ | Sinvalid _ | Swhen _ _ _
      (* | Sstop _ _ _  *)| Sskip => false
      | _ => true
      end.
@@ -1713,7 +1712,7 @@ Module MakeHiFirrtlP
   Definition eprim_unop u e := @Eprim_unop V.T u e.
   Definition eprim_binop b e1 e2 := @Eprim_binop V.T b e1 e2.
   Definition emux c e1 e2 := @Emux V.T c e1 e2.
-  Definition evalidif c e := @Evalidif V.T c e.
+  (* Definition evalidif c e := @Evalidif V.T c e. *)
   Definition hfexpr := hfexpr V.T.
   Definition eref r := @Eref V.T r.
   Definition eid v := @Eid V.T v.
@@ -1732,7 +1731,7 @@ Module MakeHiFirrtlP
   Definition smem v m := @Smem V.T v m.
   Definition snode v e := @Snode V.T v e.
   Definition sfcnct v1 v2 := @Sfcnct V.T v1 v2.
-  Definition spcnct v1 v2 := @Spcnct V.T v1 v2.
+  (* Definition spcnct v1 v2 := @Spcnct V.T v1 v2. *)
   Definition sinvalid v1 := @Sinvalid V.T v1.
   Definition swhen c s1 s2 := @Swhen V.T c s1 s2.
   (* Definition sstop e1 e2 n := @Sstop V.T e1 e2 n. *)
@@ -1977,7 +1976,7 @@ Module MakeHiFirrtlP
     | Emux c e1 e2 => let t1 := type_of_hfexpr e1 ce in
                       let t2 := type_of_hfexpr e2 ce in
                       mux_types t1 t2
-    | Evalidif c e1 => type_of_hfexpr e1 ce
+    (* | Evalidif c e1 => type_of_hfexpr e1 ce *)
     end.
   
   Fixpoint is_deftyp t :=
@@ -2132,7 +2131,7 @@ Section Preprocess.
     | Eprim_unop u e => HiFP.eprim_unop u (expr_pvar em ce e)
     | Eprim_binop b e1 e2 => HiFP.eprim_binop b (expr_pvar em ce e1) (expr_pvar em ce e2)
     | Emux e1 e2 e3 => HiFP.emux (expr_pvar em ce e1) (expr_pvar em ce e2) (expr_pvar em ce e3)
-    | Evalidif e1 e2 => HiFP.evalidif (expr_pvar em ce e1) (expr_pvar em ce e2)
+    (* | Evalidif e1 e2 => HiFP.evalidif (expr_pvar em ce e1) (expr_pvar em ce e2) *)
     | Eref r => HiFP.eref (HiFP.eid (HiF.base_ref r, offset_ref r ce 0))
     end.
 
@@ -2189,7 +2188,7 @@ Section Preprocess.
     | Sinst v1 v2 => ( PVM.add (v1, initial_index) (HiF.eid v1) em, CE.add v1 ((fst (CE.vtyp v2 ce)), Instanceof) ce, HiFP.sinst (v1, initial_index) (v2, initial_index))
     | Snode v e => ( PVM.add (v, initial_index) (HiF.eid v) em, CE.add v (HiF.aggr_typ (HiF.type_of_hfexpr e ce), Node) ce, HiFP.snode (v, initial_index) (expr_pvar em ce e))
     | Sfcnct r e => (PVM.add (HiF.base_ref r, offset_ref r ce 0) (r) em, ce, HiFP.sfcnct ( (HiFP.eid (HiF.base_ref r, (offset_ref r ce 0)))) (expr_pvar em ce e))
-    | Spcnct r e => (PVM.add (HiF.base_ref r, offset_ref r ce 0) (r) em, ce, HiFP.spcnct ( (HiFP.eid (HiF.base_ref r, (offset_ref r ce 0)))) (expr_pvar em ce e))
+    (* | Spcnct r e => (PVM.add (HiF.base_ref r, offset_ref r ce 0) (r) em, ce, HiFP.spcnct ( (HiFP.eid (HiF.base_ref r, (offset_ref r ce 0)))) (expr_pvar em ce e)) *)
     | Sinvalid r => (PVM.add (HiF.base_ref r, offset_ref r ce 0) (r) em, ce, HiFP.sinvalid ( (HiFP.eid (HiF.base_ref r, (offset_ref r ce 0)))))
     | Swhen e s1 s2 => (em, ce, HiFP.swhen (expr_pvar em ce e) (snd (hfstmt_seq_indexes em ce s1)) (snd (hfstmt_seq_indexes em ce s2)))
     | Sskip => (em, ce, HiFP.sskip)
