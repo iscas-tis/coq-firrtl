@@ -91,23 +91,23 @@ Section InferWidthP.
      match s with
      (*node declaration, if with default type (zero width) then add node to wmap*)
      (*possible bundle*)
-     | Snode v e => if HiF.is_deftyp (type_of_hfexprP e ce)
-                    then add_wmap v (type_of_hfexprP e ce) w else w
+     | Snode v e => if HiF.is_deftyp (HiFP.type_of_hfexpr e ce)
+                    then add_wmap v (HiFP.type_of_hfexpr e ce) w else w
      | Swire v t => if HiF.is_deftyp t then add_wmap v t w else w
      | Sreg v r => if HiF.is_deftyp (type r) then add_wmap v (type r) w else w
      | Sfcnct (Eid r1) e =>
          let t1 := type_of_cmpnttyp (fst (CEP.vtyp r1 ce)) in
-         let te := type_of_hfexprP e ce in
+         let te := HiFP.type_of_hfexpr e ce in
          (*t1 is default type, means r1 is declared with zero width, 
           *or r1 is a subfield/subindex that infertype have not registered it in ce*)
          if HiF.is_deftyp t1 then add_wmap r1 te w else w
-     | Spcnct (Eid r1) e =>
-         let t1 := type_of_cmpnttyp (fst (CEP.vtyp r1 ce)) in
-         let te := type_of_hfexprP e ce in
-         if HiF.is_deftyp t1 then add_wmap r1 te w else w
+     (* | Spcnct (Eid r1) e => *)
+     (*     let t1 := type_of_cmpnttyp (fst (CEP.vtyp r1 ce)) in *)
+     (*     let te := type_of_hfexprP e ce in *)
+     (*     if HiF.is_deftyp t1 then add_wmap r1 te w else w *)
      | Swhen c s1 s2 => inferwidth_wmap_sts s2 ce (inferwidth_wmap_sts s1 ce w)
-     | Sinst v1 v2 => if HiF.is_deftyp (type_of_refP (HiFP.eid v2) ce)
-                      then add_wmap v1 (type_of_refP (HiFP.eid v2) ce) w else w
+     | Sinst v1 v2 => if HiF.is_deftyp (HiFP.type_of_ref (HiFP.eid v2) ce)
+                      then add_wmap v1 (HiFP.type_of_ref (HiFP.eid v2) ce) w else w
      | Sskip
      | Sinvalid _
      | Smem _ _
@@ -222,9 +222,9 @@ Section InferWidthP.
        (*type of r is tr in ce0*)
        CEP.find (r) ce0 = Some (tr, c) ->
        (*type of expression e is te in ce0*)
-       type_of_hfexprP e ce0 = te ->
+       HiFP.type_of_hfexpr e ce0 = te ->
        (*te in e0 and e1 are same*)
-       type_of_hfexprP e ce0 = type_of_hfexprP e ce1 ->
+       HiFP.type_of_hfexpr e ce0 = HiFP.type_of_hfexpr e ce1 ->
        (*tr is implicit*)
        HiF.is_deftyp (type_of_cmpnttyp tr) ->
        (*tr and te type equiv*)
@@ -236,9 +236,9 @@ Section InferWidthP.
        (*type of r is tr in ce0*)
        CEP.find (r) ce0 = Some (tr, c) ->
        (*type of expression e is te in ce0*)
-       type_of_hfexprP e ce0 = te ->
+       HiFP.type_of_hfexpr e ce0 = te ->
        (*te in e0 and e1 are same*)
-       type_of_hfexprP e ce0 = type_of_hfexprP e ce1 ->
+       HiFP.type_of_hfexpr e ce0 = HiFP.type_of_hfexpr e ce1 ->
        (*tr is implicit*)
        HiF.is_deftyp (type_of_cmpnttyp tr) ->
        (*tr and te type equiv*)
@@ -253,9 +253,9 @@ Section InferWidthP.
        (*type of r is tr in ce0*)
        CEP.find (r) ce0 = Some (tr, c) ->
        (*type of expression e is te in ce0*)
-       type_of_hfexprP e ce0 = te ->
+       HiFP.type_of_hfexpr e ce0 = te ->
        (*te in e0 and e1 are same*)
-       type_of_hfexprP e ce0 = type_of_hfexprP e ce1 ->
+       HiFP.type_of_hfexpr e ce0 = HiFP.type_of_hfexpr e ce1 ->
        (*tr is implicit*)
        HiF.is_deftyp (type_of_cmpnttyp tr) ->
        (*tr and te type equiv*)
@@ -265,38 +265,38 @@ Section InferWidthP.
        (*keep old width for r*)
        CEP.find (r) ce1 = Some (tr, c) ->
        inferWidth_sstmt_sem' (Sfcnct (HiFP.eid r) e) ce0 ce1
-   | inferWidth_spcnct_ftype_lt_sem r e tr te c ce0 ce1 :
-       (*type of r is tr in ce0*)
-       CEP.find (r) ce0 = Some (tr, c) ->
-       (*type of expression e is te in ce0*)
-       type_of_hfexprP e ce0 = type_of_cmpnttyp te ->
-       (*te in e0 and e1 are same*)
-       type_of_hfexprP e ce0 = type_of_hfexprP e ce1 ->
-       (*tr is implicit*)
-       HiF.is_deftyp (type_of_cmpnttyp tr) ->
-       (*tr and te weak type equiv*)
-       ftype_equiv (type_of_cmpnttyp tr) (type_of_cmpnttyp te) ->
-       (*tr has smaller width than te*)
-       ~~ HiF.typeConstraintsGe (type_of_cmpnttyp tr) (type_of_cmpnttyp te) ->
-       (*new width for r*)
-       CEP.find (r) ce1 = Some (te, c) ->
-       inferWidth_sstmt_sem' (Spcnct (HiFP.eid r) e) ce0 ce1
-   | inferWidth_spcnct_ftype_ge_sem r e tr te c ce0 ce1 :
-       (*type of r is tr in ce0*)
-       CEP.find (r) ce0 = Some (tr, c) ->
-       (*type of expression e is te in ce0*)
-       type_of_hfexprP e ce0 = te ->
-       (*te in e0 and e1 are same*)
-       type_of_hfexprP e ce0 = type_of_hfexprP e ce1 ->
-       (*tr is implicit*)
-       HiF.is_deftyp (type_of_cmpnttyp tr) ->
-       (*tr and te type equiv*)
-       ftype_equiv (type_of_cmpnttyp tr) (te) ->
-       (*tr has larger width than te*)
-       HiF.typeConstraintsGe (type_of_cmpnttyp tr) (te) ->
-       (*keep old width for r*)
-       CEP.find (r) ce1 = Some (tr, c) ->
-       inferWidth_sstmt_sem' (Spcnct (HiFP.eid r) e) ce0 ce1
+   (* | inferWidth_spcnct_ftype_lt_sem r e tr te c ce0 ce1 : *)
+   (*     (*type of r is tr in ce0*) *)
+   (*     CEP.find (r) ce0 = Some (tr, c) -> *)
+   (*     (*type of expression e is te in ce0*) *)
+   (*     HiFP.type_of_hfexpr e ce0 = type_of_cmpnttyp te -> *)
+   (*     (*te in e0 and e1 are same*) *)
+   (*     HiFP.type_of_hfexpr e ce0 = HiFP.type_of_hfexpr e ce1 -> *)
+   (*     (*tr is implicit*) *)
+   (*     HiF.is_deftyp (type_of_cmpnttyp tr) -> *)
+   (*     (*tr and te weak type equiv*) *)
+   (*     ftype_equiv (type_of_cmpnttyp tr) (type_of_cmpnttyp te) -> *)
+   (*     (*tr has smaller width than te*) *)
+   (*     ~~ HiF.typeConstraintsGe (type_of_cmpnttyp tr) (type_of_cmpnttyp te) -> *)
+   (*     (*new width for r*) *)
+   (*     CEP.find (r) ce1 = Some (te, c) -> *)
+   (*     inferWidth_sstmt_sem' (Spcnct (HiFP.eid r) e) ce0 ce1 *)
+   (* | inferWidth_spcnct_ftype_ge_sem r e tr te c ce0 ce1 : *)
+   (*     (*type of r is tr in ce0*) *)
+   (*     CEP.find (r) ce0 = Some (tr, c) -> *)
+   (*     (*type of expression e is te in ce0*) *)
+   (*     HiFP.type_of_hfexpr e ce0 = te -> *)
+   (*     (*te in e0 and e1 are same*) *)
+   (*     HiFP.type_of_hfexpr e ce0 = HiFP.type_of_hfexpr e ce1 -> *)
+   (*     (*tr is implicit*) *)
+   (*     HiF.is_deftyp (type_of_cmpnttyp tr) -> *)
+   (*     (*tr and te type equiv*) *)
+   (*     ftype_equiv (type_of_cmpnttyp tr) (te) -> *)
+   (*     (*tr has larger width than te*) *)
+   (*     HiF.typeConstraintsGe (type_of_cmpnttyp tr) (te) -> *)
+   (*     (*keep old width for r*) *)
+   (*     CEP.find (r) ce1 = Some (tr, c) -> *)
+   (*     inferWidth_sstmt_sem' (Spcnct (HiFP.eid r) e) ce0 ce1 *)
    | inferWidth_sfcnct_nodef_sem r e tr c ce0 ce1 :
        (*type of r is tr in ce0*)
        CEP.find (r) ce0 = Some (tr, c) ->
@@ -305,14 +305,14 @@ Section InferWidthP.
        (*unchange for r*)
        CEP.find (r) ce0 = CEP.find (r) ce1 ->
        inferWidth_sstmt_sem' (Sfcnct (HiFP.eid r) e) ce0 ce1
-   | inferWidth_spcnct_nodef_sem r e tr c ce0 ce1 :
-       (*type of r is tr in ce0*)
-       CEP.find (r) ce0 = Some (tr, c) ->
-       (*tr is explicit*)
-       ~~ HiF.is_deftyp (type_of_cmpnttyp tr) ->
-       (*unchange for r*)
-       CEP.find (r) ce0 = CEP.find (r) ce1 ->
-       inferWidth_sstmt_sem' (Spcnct (HiFP.eid r) e) ce0 ce1
+   (* | inferWidth_spcnct_nodef_sem r e tr c ce0 ce1 : *)
+   (*     (*type of r is tr in ce0*) *)
+   (*     CEP.find (r) ce0 = Some (tr, c) -> *)
+   (*     (*tr is explicit*) *)
+   (*     ~~ HiF.is_deftyp (type_of_cmpnttyp tr) -> *)
+   (*     (*unchange for r*) *)
+   (*     CEP.find (r) ce0 = CEP.find (r) ce1 -> *)
+   (*     inferWidth_sstmt_sem' (Spcnct (HiFP.eid r) e) ce0 ce1 *)
    | inferWidth_swhen_sem ce0 ce1 ce2 c s1 s2:
        inferWidth_stmts_sem' (s1) ce0 ce1 ->
        inferWidth_stmts_sem' (s2) ce1 ce2 ->
@@ -337,10 +337,10 @@ Section InferWidthP.
      | Smem v _
      | Sinst v _ => CEP.find v ce = None
      | Sfcnct (Eid v) _ 
-     | Spcnct (Eid v) _ => ~ (CEP.find v ce = None)
+     (* | Spcnct (Eid v) _ => ~ (CEP.find v ce = None) *)
      | Sinvalid (Eid v) => ~ (CEP.find v ce = None)
      | Sfcnct _ _ => False
-     | Spcnct _ _ => False
+     (* | Spcnct _ _ => False *)
      | Sinvalid _ => False
      | Swhen _ _ _ => False
      | Sskip => True
@@ -348,7 +348,7 @@ Section InferWidthP.
    
    Lemma inferWidth_snode_sem_conform:
      forall v e wm0 wm1 ce1 ce2,
-       CEP.find v ce1 = Some (HiFP.aggr_typ (type_of_hfexprP e ce1), Node) ->
+       CEP.find v ce1 = Some (HiFP.aggr_typ (HiFP.type_of_hfexpr e ce1), Node) ->
        new_ident (Snode v e) wm0 ->
        wm1 = inferwidth_wmap (Snode v e) ce1 wm0 ->
        ce2 = wmap_map2_cenv wm1 ce1 ->
@@ -360,7 +360,7 @@ Section InferWidthP.
      apply inferWidth_snode_sem.
      rewrite H2 Hint.
      rewrite H1/=.
-     case Hdf : (HiF.is_deftyp (type_of_hfexprP e ce1)).
+     case Hdf : (HiF.is_deftyp (HiFP.type_of_hfexpr e ce1)).
      rewrite /add_wmap H0/=. 
      rewrite (HiFP.PCELemmas.add_eq_o _ _ (eq_refl v)).
      rewrite H/= Hdf//.
@@ -525,7 +525,7 @@ Section InferWidthP.
      | Eprim_unop u e1 => contain_no_v v e1
      | Eprim_binop b e1 e2 => contain_no_v v e1 /\ contain_no_v v e2
      | Emux m e1 e2 =>  contain_no_v v e1 /\ contain_no_v v e2 /\ contain_no_v v m
-     | Evalidif c e1 =>  contain_no_v v c /\ contain_no_v v e1
+     (* | Evalidif c e1 =>  contain_no_v v c /\ contain_no_v v e1 *)
      | Eref r => contain_no_v_ref v r
      end.
 
@@ -533,7 +533,7 @@ Section InferWidthP.
      forall v t f e (wm : wmap) (ce1 ce2 : CEP.env),
        contain_no_v v e ->
        ce2 = CEP.map2 f (CEP.add v t wm) ce1  ->
-       type_of_hfexprP e ce1 = type_of_hfexprP e ce2.
+       HiFP.type_of_hfexpr e ce1 = HiFP.type_of_hfexpr e ce2.
    
    Lemma inferWidth_sfcnct_ftype_sem_conform :
      forall (r:pvar) e c1 t0 t1 t2 wm1 wm2 (ce1 ce2 : CEP.env) ,
@@ -542,7 +542,7 @@ Section InferWidthP.
        CEP.find r ce1 =  Some (t0, c1) ->
        contain_no_v r e ->
        HiF.is_deftyp (type_of_cmpnttyp t0) ->
-       type_of_hfexprP e ce1 = t2 ->
+       HiFP.type_of_hfexpr e ce1 = t2 ->
        CEP.find r wm1 = Some t1 ->
        wm2 = inferwidth_wmap (Sfcnct (Eid r) e) ce1 wm1 ->
        ce2 = wmap_map2_cenv wm2 ce1 ->
