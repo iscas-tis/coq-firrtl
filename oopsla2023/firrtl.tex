@@ -5,6 +5,10 @@
 
 %For this reason, 
 
+In this section, we give an informal introduction to FIRRTL intermediate representation and its lowering transformations. 
+
+\subsection{FIRRTL IR}
+
 \zhilin{Can we find a running example ?}
 
 Below is an example of FIRRTL programs.
@@ -27,8 +31,10 @@ A \emph{module} includes ports and  a sequence of statements.
 %A \emph{port}  is either an input port or an output port, and has an identifier as well as a type. 
 Each \emph{statement} defines a wire, register, node, connect (<=) or partial connect (<-), or conditional (when), and so on. 
 %A \emph{statement} is either a declaration of wire, register, instance, node, or a connection (<=) or partial connection (<-), or a conditional (when) statement. 
-A \emph{type} can be either a \emph{ground type}, e.g. \begin{lstinline}!UInt<2>!\end{lstinline} (unsigned integer of bit width 2), or an \emph{aggregate type}, which is either a \emph{vector type}, e.g. \begin{lstinline}!UInt[3]!\end{lstinline} (a three element vector of unsigned integers), or a \emph{bundle type} e.g \begin{lstinline}! {valid: UInt<1>, ready: UInt<1>,  result: UInt<1>} !\end{lstinline} which comprises three signals of the ground type  \begin{lstinline}!UInt<1>!\end{lstinline}. 
-The syntactic rules of FIRRTL are given in Figure~\ref{fig-firrtl-synt-simp}. Note that these rules are in Extended Backus–Naur form, where {· · · } denotes repetition (possibly empty) and [· · · ] denotes option, moreover, the terminals are doubly quoted. Moreover,  the syntactic rules of FIRRTL presented here is a simplification of those in the official specification\footnote{\url{https://github.com/chipsalliance/firrtl-spec/blob/main/spec.md}}. For instance, indent, dedent and newline terminals are omitted for readability, moreover, the type and constructions for analog signals are also omitted, since we focus on digital circuits in this work. In the syntax, memory is also omitted since its semantics is still under active debate \footnote{\url{https://github.com/chipsalliance/chisel/issues/3112}}.
+A \emph{type} can be either a \emph{ground type}, e.g. \begin{lstinline}!UInt<2>!\end{lstinline} (unsigned integer of bit width 2), or an \emph{aggregate type}, which is either a \emph{vector type}, e.g. \begin{lstinline}!UInt[3]!\end{lstinline} (a three element vector of unsigned integers), or a \emph{bundle type} e.g \begin{lstinline}! {valid: UInt<1>, ready: UInt<1>,  result: UInt<1>} !\end{lstinline} which comprises three signals of the ground type  \begin{lstinline}!UInt<1>!\end{lstinline}. A circuit \emph{component} is an element in a FIRRTL circuit that can be referred to by its name or identifier. Therefore, a component can be a port, node, wire, register, or instance, and so on. \zhilin{component: a double check is needed}
+%
+
+The syntactic rules of FIRRTL are given in Figure~\ref{fig-firrtl-synt-simp}. Note that these rules are in Extended Backus–Naur form, where \{· · · \} denotes repetition (possibly empty) and [· · ·] denotes option, moreover, the terminals are doubly quoted. Moreover,  the syntactic rules of FIRRTL presented here is a simplification of those in the official specification\footnote{\url{https://github.com/chipsalliance/firrtl-spec/blob/main/spec.md}}. For instance, indent, dedent and newline terminals are omitted for readability, moreover, the type and constructions for analog signals are also omitted, since we focus on digital circuits in this work. In the syntax, memory is also omitted since its semantics is still under active debate \footnote{\url{https://github.com/chipsalliance/chisel/issues/3112}}.
 
 %\begin{itemize}
 %\item A circuit in FIRRTL consists of modules, each of which include several ports and statements. 
@@ -169,7 +175,7 @@ A FIRRTL circuit is a LoFIRRTL circuit if it obeys the following restrictions.
 \begin{itemize}
 \item All widths must be explicitly defined.
 \item The conditional statement is not used.
-\item All components must be declared with a ground type.
+\item All circuit components must be declared with a ground type.
 \item The partial connect statement is not used.
 \item All components are connected to at most once.
 \end{itemize}
@@ -257,6 +263,25 @@ module MyModule :
 \caption{Examples for illustrating the syntactic restrictions of LoFIRRTL}
 \label{fig-lofirrtl-exmp}
 \end{figure}
+
+\subsection{FIRRTL Lowering Transformations}
+
+In the sequel, we give an informal introduction to the lowering transformations (aka compilation passes) of  FIRRTL.
+
+\paragraph*{InferTypes} The InferTypes pass infers the types of components. For instance, InferTypes infers from the code snippet \begin{lstinline}!  wire x: UInt   x <= UInt<5>(15)   x <= UInt<1>(1)! \end{lstinline} that $x$'s type is \begin{lstinline}!UInt!\end{lstinline}. Note that for a connect statement  \begin{lstinline}! x <= e !\end{lstinline}, InferTypes only checks that the type of $e$, with the bit width ignored, is equivalent to that of $x$, but does not record the bit width of $e$ for $x$.
+
+\paragraph*{InferWidths} 
+The InferWidths pass infers the widths of all signals with unknown widths. It is a \emph{global} width inference algorithm. Instances of the same module with unknown input port widths will be assigned the largest width of all assignments to each of its instance ports. It infers the smallest width that is larger than all assigned widths to a signal. Note that this means that dummy assignments that are overwritten by last-connect-semantics can still influence width inference. For instance, InferWidths infers from the following code snippet that $x$'s width is $5$, but with an assignment of \begin{lstinline}!UInt(1)!\end{lstinline}: \begin{lstinline}!  wire x: UInt   x <= UInt<5>(15)   x <= UInt<1>(1)! \end{lstinline}.
+
+\paragraph*{InferResets} that infers concrete resets, i.e. AsyncReset or UInt<1>,
+
+\paragraph{ExpandConnects} that expands the connect statements.
+
+\paragraph{ExpandWhens} that expands the when statements, 
+
+\paragraph{LowerTypes} that lower down the aggregate types, i.e. bundle and vector types, 
+
+\paragraph{RemoveReset} that removes synchronous resets. 
 
 \zhilin{stopped here}
 
