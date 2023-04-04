@@ -821,7 +821,11 @@ Compute (to_Z [::false;false;true]).
 Compute (to_Z (negB [::false;false;true])).
 Compute (to_Z (negB (sext 1 [::false;false;true]))).
 Compute (to_Z (full_mul (dropmsb [::true;false]) (dropmsb (negB (sext 1 [::false;false;true]))))).
-(*
+Compute (to_Z ([::true;false;true])).
+Compute (to_Z (full_mul (negB [::false;false;true]) (negB [::true;false;true]))).
+Compute (to_Z (negB (sext 1 (full_mul (dropmsb [::true;false;true;false]) (negB [::false;false;true]))))).
+Compute (to_Z (negB (full_mul [::true;false;true;false] (negB [::false;false;true])))).
+
   Definition Sfull_mul (bs1 bs2 : bits) : bits :=
     (*mulB_nil_l: forall n : bits, [::] *# n = [::]*)
     if (((size bs1) == 0) || ((size bs2) == 0))
@@ -838,10 +842,10 @@ Compute (to_Z (full_mul (dropmsb [::true;false]) (dropmsb (negB (sext 1 [::false
     if ((msb1 == b0) && (msb2 == b0))
     then zext 2 (full_mul (dropmsb bs1) (dropmsb bs2))
     else if ((msb1 == b1) && (msb2 == b1))
-    then (full_mul (dropmsb (negB (sext 1 bs1))) (dropmsb (negB (sext 1 bs2)))) 
+    then (full_mul (negB bs1) (negB bs2)) 
     else if ((msb1 == b0) && (msb2 == b1))
-    then negB (sext 1 (full_mul (dropmsb bs1) (dropmsb (negB (sext 1 bs2))))) 
-    else negB (sext 1 (full_mul (dropmsb (negB (sext 1 bs1))) (dropmsb bs2))).
+    then negB (sext 1 (full_mul (dropmsb bs1) (negB bs2)))(*negB (full_mul bs1 (negB bs2))*)
+    else negB (sext 1 (full_mul (negB bs1) (dropmsb bs2))).
     
 Lemma rconsmsb bs : size bs > 0 -> bs = rcons (dropmsb bs) (msb bs).
   Proof.
@@ -920,7 +924,61 @@ Lemma to_Z_Sfull_mul bs1 bs2: to_Z (Sfull_mul bs1 bs2) = (Z.mul (to_Z bs1) (to_Z
     move /andP : Hmsb11 => [H11 H21]. 
     move /eqP : H11 => H11.
     move /eqP : H21 => H21.
+    rewrite full_mul_mulB_zext. 
+
+    case Hdrop2 : (dropmsb bs2 == zeros (size bs2 - 1)).
+    move /eqP : Hdrop2 => Hdrop2.
     admit.
+    case Hdrop1 : (dropmsb bs1 == zeros (size bs1 - 1)).
+    move /eqP : Hdrop1 => Hdrop1.
+    admit.
+    
+    assert (Ht1 : zext (size (-# bs2)) (-# bs1) = sext (size (-# bs2)) (-# bs1)).
+    rewrite /zext /sext.
+    rewrite -msb_negB.
+    rewrite H11 //.
+    apply contraFneq with (b:=(dropmsb bs1 == zeros (size bs1 - 1))).
+    intro.
+    move /eqP : H =>H.
+    apply H.
+    exact Hdrop1.
+    assert (Ht2 : zext (size (-# bs1)) (-# bs2) = sext (size (-# bs1)) (-# bs2)).
+    rewrite /zext /sext.
+    rewrite -msb_negB.
+    rewrite H21 //.
+    apply contraFneq with (b:=(dropmsb bs2 == zeros (size bs2 - 1))).
+    intro.
+    move /eqP : H =>H.
+    apply H.
+    exact Hdrop2.
+
+    rewrite Ht1 Ht2.
+    rewrite bv2z_mul_signed.
+    rewrite 2!to_Z_sext.
+    rewrite NBitsOp.to_Z_negB.
+    rewrite NBitsOp.to_Z_negB.
+    rewrite Z.mul_opp_opp //.
+    rewrite H21 andb_true_l.
+    apply contraFneq with (b:=(dropmsb bs2 == zeros (size bs2 - 1))).
+    intro.
+    move /eqP : H =>H.
+    apply H.
+    exact Hdrop2.
+    rewrite H11 andb_true_l.
+    apply contraFneq with (b:=(dropmsb bs1 == zeros (size bs1 - 1))).
+    intro.
+    move /eqP : H =>H.
+    apply H.
+    exact Hdrop1.
+    rewrite size_sext.
+    move /eqP : Hlen1 =>Hlen1.
+    apply not_eq_sym in Hlen1.
+    apply neq_0_lt in Hlen1.
+    move /ltP : Hlen1 => Hlen1.
+    rewrite 2!size_negB addn_gt0 Hlen1 //.
+    rewrite 2!size_sext addnC //.
+    apply smulo_sext.
+
     (*assert (Hbs1 : bs1 = -# (rcons (dropmsb (-# bs1)) (msb (-# bs1)))).
     rewrite -rconsmsb.
     rewrite negB_involutive //.
@@ -962,8 +1020,14 @@ Lemma to_Z_Sfull_mul bs1 bs2: to_Z (Sfull_mul bs1 bs2) = (Z.mul (to_Z bs1) (to_Z
 *)
     case Hmsb01 : ((msb bs1 == b0) && (msb bs2 == b1)).
     move /andP : Hmsb01 => [H10 H21]. 
-    
+    move /eqP : H10 => H10.
+    move /eqP : H21 => H21.
     rewrite to_Z_negB.
+
+    rewrite full_mul_mulB_zext. 
+    (*rewrite bv2z_mul_signed. 关于smulo的subgoal不正确？*)
+
+(*
     assert (Hbs2 : sext 1 bs2 = -# (rcons (dropmsb (-# (sext 1 bs2))) (msb (-# (sext 1 bs2))))).
     rewrite -rconsmsb.
     rewrite negB_involutive //.
@@ -984,7 +1048,7 @@ Lemma to_Z_Sfull_mul bs1 bs2: to_Z (Sfull_mul bs1 bs2) = (Z.mul (to_Z bs1) (to_Z
     move /eqP : H10 => H10.
     rewrite H10 Z.mul_0_l Z.sub_0_r.
     rewrite -to_Zpos_full_mul.
-        (*Z_mul_to_Z_msb_same:
+        Z_mul_to_Z_msb_same:
   forall [bs1 bs2 : bits], msb bs1 == msb bs2 -> (0 <= to_Z bs1 * to_Z bs2)%Z
   Z_mul_to_Z_msb_diff:
   forall [bs1 bs2 : bits], msb bs1 != msb bs2 -> (to_Z bs1 * to_Z bs2 <= 0)%Z
@@ -993,7 +1057,7 @@ Lemma to_Z_Sfull_mul bs1 bs2: to_Z (Sfull_mul bs1 bs2) = (Z.mul (to_Z bs1) (to_Z
   high1_0_to_Z_negB:
   forall [bs : bits], high 1 bs = [:: b0] -> to_Z (-# bs) = (- to_Zpos bs)%Z*)
     Search full_mul.
-
+    admit.
     assert (Hmsb10 : (msb bs1 == b1) && (msb bs2 == b0)).
     apply /andP.
     split. 
@@ -1016,7 +1080,7 @@ Lemma to_Z_Sfull_mul bs1 bs2: to_Z (Sfull_mul bs1 bs2) = (Z.mul (to_Z bs1) (to_Z
 
     admit.
 Admitted.
-*)
+(*
   Fixpoint Sfull_mul (bs1 bs2 : bits) : bits :=
     match bs1 with
     | [::] => from_nat (size bs1 + size bs2) 0
@@ -1145,7 +1209,7 @@ invB_cons: forall (b : bool) (bs : seq bool), ~~# (b :: bs) = ~~ b :: ~~# bs*)
       rewrite size_addB size_joinlsb size_Sfull_mul size_sext -(addn1 (size tl1)).
       rewrite (addnC (size tl1) 1) -(addnACl (size tl1) (size bs2) 1) /minn ltnn.
 
-      Search to_Z. (*to_Zpos_from_Zpos_bounded:
+      Search dropmsb. (*to_Zpos_from_Zpos_bounded:
       forall [n : nat] [z : Z],
       (0 <= z)%Z -> (z < 2 ^ Z.of_nat n)%Z -> to_Zpos (from_Zpos n z) = z*)
 

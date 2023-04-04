@@ -75,7 +75,8 @@ let t_generate_map v ty inp_map inp_lst ul clks =
       in (StringMap.add v rand_l inp_map, List.cons v inp_lst, List.cons v ul)
        | Ast.Fsint s -> let rand_l = List.map (bits_of_z (Z.to_int s)) (gen_neg clks s []) 
       in (StringMap.add v rand_l inp_map, List.cons v inp_lst, ul)
-       | Ast.Fclock -> (inp_map, inp_lst, ul)
+       | Ast.Fclock -> let rand_l = List.map (bits_of_z 1) (gen clks (Z.of_int 1) []) 
+      in (StringMap.add v rand_l inp_map, List.cons v inp_lst, List.cons v ul)
 
 let o_generate_map v ty inp_map inp_lst ul =
      match ty with
@@ -108,7 +109,7 @@ let p_extract_i ml imap (m,l,ll) p =
     | Ast.Finput (v, ty) -> (match ty with
       | Ast.Fuint _ -> (IntMap.add (StringMap.find v ml) (StringMap.find v imap) m, List.cons (StringMap.find v ml) l,List.cons (StringMap.find v ml) ll)
       | Ast.Fsint _ -> (IntMap.add (StringMap.find v ml) (StringMap.find v imap) m, List.cons (StringMap.find v ml) l,ll)
-      | Ast.Fclock -> (m,l,ll))
+      | Ast.Fclock -> (IntMap.add (StringMap.find v ml) (StringMap.find v imap) m, List.cons (StringMap.find v ml) l,List.cons (StringMap.find v ml) ll))
       
     | Ast.Foutput (v, ty) -> (match ty with
       | Ast.Fuint _ -> (IntMap.add (StringMap.find v ml) [] m, l,List.cons (StringMap.find v ml) ll)

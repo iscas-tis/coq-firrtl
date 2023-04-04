@@ -54,7 +54,8 @@ let mem_str2N (m:Ast.fmem) map flag rl wl datatoetc = (*addrvar,envar), midvar),
     let (a1,b1) = (StringMap.add (m.mid^"."^v^".data") b a,b + 1) in (* reader.data 为b*)
     let (a2,b2) = (StringMap.add (m.mid^"."^v^".addr") b1 a1,b1 + 1) in 
     let (a3,b3) = (StringMap.add (m.mid^"."^v^".en") b2 a2,b2 + 1) in 
-    (StringMap.add (m.mid^"."^v^".clk") b3 a3, b3 + 1, List.cons b rls, wls, IntMap.add b (b1,b2,flag-1,-1) data2etc)
+    let (a4,b4) = (StringMap.add (m.mid^"."^v^".clk") b3 a3,b3 + 1) in 
+    (a4, b4, List.cons b rls, wls, IntMap.add b (b1,b2,flag-1,-1,b3) data2etc)
     ) in
   let writer_str2N (a, b, rls, wls, data2etc) v = 
     (
@@ -62,7 +63,8 @@ let mem_str2N (m:Ast.fmem) map flag rl wl datatoetc = (*addrvar,envar), midvar),
     let (a2,b2) = (StringMap.add (m.mid^"."^v^".addr") b1 a1,b1 + 1) in 
     let (a3,b3) = (StringMap.add (m.mid^"."^v^".en") b2 a2,b2 + 1) in 
     let (a4,b4) = (StringMap.add (m.mid^"."^v^".mask") b3 a3,b3 + 1) in 
-    (StringMap.add (m.mid^"."^v^".clk") b4 a4, b4 + 1, rls, List.cons b wls, IntMap.add b (b1,b2,flag-1,b3) data2etc)
+    let (a5,b5) = (StringMap.add (m.mid^"."^v^".clk") b4 a4,b4 + 1) in
+    (a5, b5, rls, List.cons b wls, IntMap.add b (b1,b2,flag-1,b3,b4) data2etc)
     ) in
   List.fold_left writer_str2N (List.fold_left reader_str2N (map,flag,rl,wl,datatoetc) (m.reader)) (m.writer)
 
@@ -272,7 +274,7 @@ let trans_cir a_cir modsnum modsmap insnum name2ports =
 
 let m_readla modsmap rlmap s =
   match s with
-  | Ast.Smem m -> if (Z.to_int m.write_latency) == 0 then IntMap.add (StringMap.find m.mid modsmap) false rlmap
+  | Ast.Smem m -> if (Z.to_int m.read_latency) == 0 then IntMap.add (StringMap.find m.mid modsmap) false rlmap
   else IntMap.add (StringMap.find m.mid modsmap) true rlmap
   | _ -> rlmap
 
@@ -464,16 +466,7 @@ let parse f =
   let lexbuf = Lexing.from_channel (open_in f) in
   FirrtlParser.file FirrtlLexer.token lexbuf
 
-let lowf_ast = parse "./demo/chiselbook_generated/lofir/ForwardingMemory.lo.fir" 
-let writeinp =  Env.TE.add (Obj.magic 4) [[true];[true]] Env.TE.empty
-let writeinp =  Env.TE.add (Obj.magic 2) [[true;true;true;true]; [true;true;true;false]] writeinp
-let writeinp =  Env.TE.add (Obj.magic 3) [[true;true;false;true]; [true;false;true;true]] writeinp
-let writeinp =  Env.TE.add (Obj.magic 5) [] writeinp
-(*let writeinp =  Env.TE.add (Obj.magic 11) [[true]] writeinp
-let writeinp =  Env.TE.add (Obj.magic 12) [[true]] writeinp
-let writeinp =  Env.TE.add (Obj.magic 7) [[true]] writeinp
-let writeinp =  Env.TE.add (Obj.magic 10) [[true;true];[false]] writeinp
-*)
+let lowf_ast = parse "./demo/Accumulator.lo.fir" 
 
 let p_stmt s = 
   match s with
@@ -486,10 +479,6 @@ let p_stmt s =
   | Firrtl.Sreg r -> printf "%d reg\n" (Obj.magic r.rid)
   | Firrtl.Sskip -> printf "skip\n"
   | _ -> printf "\n"
-
-let rec yibaigeling n ls =
-  if (n=0) then [false;] :: ls
-  else [false;] :: (yibaigeling (n-1) ls)
 
 let () = 
   let clks = 100 in
@@ -520,14 +509,12 @@ let () =
   let my2Z k = 
     (if (List.mem k ulst) then (List.map Helper.nat_of_bits)
     else (List.map Helper.z_of_bits)) in
-  let inp_map = StringMap.map (List.map Z.to_int) (StringMap.mapi my2Z inp_bitsmap) in
-  (*StringMap.iter (fun key value -> if (List.mem key inp_lst) then (printf "%s:" key; List.iter (printf " %d") value; printf "\n")) inp_map;
-  *)
+  
   let mainmap = StringMap.find cv modsmap in
-  let (inp_intmap,inp_intlst,uintlst) = Helper.m_extract_i mainmap inp_bitsmap mainm in
-  StringMap.iter (fun key _ -> printf "%s:\n" key; printf "\n") inp_map;
+  let (_,inp_intlst,uintlst) = Helper.m_extract_i mainmap inp_bitsmap mainm in(*inp_intmap*)
+  (*StringMap.iter (fun key _ -> printf "%s:\n" key; printf "\n") inp_map;
   IntMap.iter (fun key _ -> printf "%d:\n" key; printf "\n") inp_intmap;
-  (*printf_list0 inp_lst;
+  printf_list0 inp_lst;
   printf_list inp_intlst;
   printf_list uintlst;*)
 
@@ -554,7 +541,7 @@ let () =
 
   let readerls = StringMap.fold (fun key value -> Env.TE.add (Obj.magic (StringMap.find key modsnum)) (List.map Obj.magic value)) rlsm Env.TE.empty in
   let writerls = StringMap.fold (fun key value -> Env.TE.add (Obj.magic (StringMap.find key modsnum)) (List.map Obj.magic value)) wlsm Env.TE.empty in
-  let transmap0 imap = IntMap.fold (fun key (a,b,c,d) -> Env.TE.add (Obj.magic key) ((((Obj.magic a),(Obj.magic b)),(Obj.magic c)),(Obj.magic d))) imap Env.TE.empty in
+  let transmap0 imap = IntMap.fold (fun key (a,b,c,d,e) -> Env.TE.add (Obj.magic key) ((((((Obj.magic a),(Obj.magic b)),(Obj.magic c)),(Obj.magic d)),(Obj.magic e)))) imap Env.TE.empty in
   let data2etc = StringMap.fold (fun key value -> Env.TE.add (Obj.magic (StringMap.find key modsnum)) (transmap0 value)) datatoetc Env.TE.empty in
   let transmap2 imap = IntMap.fold (fun key value -> Firrtl.LoFirrtl.memupd (bits_of_z 1 (Z.of_int key)) (bits_of_z 1 (Z.of_int value))) imap Firrtl.LoFirrtl.memempty in (* 应该是个空 *)
   let transmap1 imap = IntMap.fold (fun key value -> Env.TE.add (Obj.magic key) (transmap2 value)) imap Env.TE.empty in
@@ -582,10 +569,12 @@ let () =
   let transmap6 imap = IntMap.fold (fun key value -> Env.TE.add (Obj.magic key) value) imap Env.TE.empty in
   let freadla =  IntMap.fold (fun key value -> Env.TE.add (Obj.magic key) (transmap6 value)) readla Env.TE.empty in
   
-  (*let inp_bitsmap = StringMap.add "io_rdAddr" [[true;];[true;];[true;];[true;];] inp_bitsmap in
-  let inp_bitsmap = StringMap.add "io_wrAddr" [[true;];[false;];[true;];[false;];] inp_bitsmap in
-  let inp_bitsmap = StringMap.add "io_wrEna" [[true;];[true;];[true;];[true;];] inp_bitsmap in
-  *)let finp_bitsmap = StringMap.fold (fun key value -> Env.TE.add (Obj.magic (StringMap.find key mainmap)) value) inp_bitsmap Env.TE.empty in
+  (*let inp_bitsmap = StringMap.add "clockw" [[false;];[true;];[false;];[true;];[false;];] inp_bitsmap in
+  let inp_bitsmap = StringMap.add "clockr" [[false;];[false;];[true;];[true;];[false;];] inp_bitsmap in
+  let inp_bitsmap = StringMap.add "io_writeAddress" [[true;];[true;];[true;];[true;];[true;];] inp_bitsmap in
+  let inp_bitsmap = StringMap.add "io_readAddress" [[true;];[true;];[true;];[true;];[true;];] inp_bitsmap in*)
+  let inp_map = StringMap.map (List.map Z.to_int) (StringMap.mapi my2Z inp_bitsmap) in
+  let finp_bitsmap = StringMap.fold (fun key value -> Env.TE.add (Obj.magic (StringMap.find key mainmap)) value) inp_bitsmap Env.TE.empty in
 
   (*let mainmod = IntMap.find (StringMap.find cv modsnum) fmodsmap in
   match mainmod with
@@ -675,8 +664,7 @@ let () =
   printf "news: %d\n" (List.length tst);*)
 *)
   let ((((rs2,s2),_),_), outputmap) = Firrtl.LoFirrtl.run_module (Obj.magic morder) fflagmap fnewinstportmap finsti2e_outmap (Obj.magic (StringMap.find cv modsnum)) rs0 s0 te0 finp_bitsmap (List.map Obj.magic inp_intlst) (List.map Obj.magic ointls) readerls writerls data2etc mem0 clks clks finstoutl finstoutm ffstmtsmap finitterss freadla finstin finstout finstportmap iternum in
-  (*let ((((rs2,s2),_),fterss2), outputmap) = Firrtl.LoFirrtl.run_module (Obj.magic morder) fflagmap fnewinstportmap (Obj.magic (StringMap.find cv modsnum)) rs0 s0 te0 finp_bitsmap (List.map Obj.magic inp_intlst) (List.map Obj.magic ointls) readerls writerls data2etc mem0 clks clks finstoutl finstoutm ffstmtsmap finitterss finstin finstportmap iternum in
-*)
+
   printf "%f\n" (Float.sub (Unix.times()).tms_utime ut1);
   let out_map = List.fold_left (fun b a -> match (Env.TE.find a outputmap) with
                                           | Some ols -> let newol = (if (List.mem a (List.map Obj.magic uintlst)) then (List.map string_of_big_int (List.map nat_of_bits ols))
@@ -695,7 +683,6 @@ let ((((_,_),_),_), outputmap0) = Firrtl.LoFirrtl.run_module0 (Obj.magic (String
                                              IntMap.add (Obj.magic a) newol b
                                           | None -> (*printf "no output3\n"; *)
                                              IntMap.add (Obj.magic a) [] b) initmap0 (List.map Obj.magic ointls) in
-
 
   let oc = open_out file in
   fprintf oc "input:\n";
@@ -717,17 +704,10 @@ let ((((_,_),_),_), outputmap0) = Firrtl.LoFirrtl.run_module0 (Obj.magic (String
   StringMap.iter (fun key0 value0 -> (fprintf oc "%s: %d" key0 value0); fprintf oc "\n") insnum;
   *)close_out oc;
 
-  printf "io_wraddr:%d\n" (Z.to_int (nat_of_bits (Env.Store.acc (Obj.magic 4) s2)));
-  printf "io_rdaddr:%d\n" (Z.to_int (nat_of_bits (Env.Store.acc (Obj.magic 2) s2)));
-  printf "_doForwardReg_T:%d\n" (Z.to_int (nat_of_bits (Env.Store.acc (Obj.magic 19) s2)));
-  printf "io_wrena:%d\n" (Z.to_int (nat_of_bits (Env.Store.acc (Obj.magic 6) s2)));
-  printf "_doForwardReg_T_1:%d\n" (Z.to_int (nat_of_bits (Env.Store.acc (Obj.magic 20) s2)));
-  printf "doForwardReg:%d\n" (Z.to_int (nat_of_bits (Env.Store.acc (Obj.magic 21) rs2)));
-  printf "wrDataReg:%d\n" (Z.to_int (nat_of_bits (Env.Store.acc (Obj.magic 17) rs2)));
-  printf "mem1.memData.data:%d\n" (Z.to_int (nat_of_bits (Env.Store.acc (Obj.magic 8) rs2)));
-  printf "mem1.memData.data:%d\n" (Z.to_int (nat_of_bits (Env.Store.acc (Obj.magic 8) s2)));
-  printf "_io_rdData_T:%d\n" (Z.to_int (nat_of_bits (Env.Store.acc (Obj.magic 35) s2)));
-  
+  printf "T4clk:%d\n" (Z.to_int (nat_of_bits (Env.Store.acc (Obj.magic 16) s2)));
+  printf "wclk:%d\n" (Z.to_int (nat_of_bits (Env.Store.acc (Obj.magic 1) s2)));
+  printf "T4clk:%d\n" (Z.to_int (nat_of_bits (Env.Store.acc (Obj.magic 16) rs2)));
+
   (*
   printf "wradd:%d\n" (Z.to_int (nat_of_bits (Env.Store.acc (Obj.magic 13) s2)));
   printf "wrclk:%d\n" (Z.to_int (nat_of_bits (Env.Store.acc (Obj.magic 16) s2)));

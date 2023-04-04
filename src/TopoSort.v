@@ -504,7 +504,6 @@ rewrite -has_take.
 + rewrite has_find index_mem (in_subset_trans vertices) //.
   apply foldr_topo_sort_correct, subset_refl.
 Qed.
-
-End TopoSortS.
-
+Check topo_sort_correct.
 End TopoSort.
+Check topo_sort_correct.

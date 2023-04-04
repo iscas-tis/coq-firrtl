@@ -1,6 +1,7 @@
 circuit OuterMemModule : @[:@2.0]
   module OuterMemModule : @[:@13.2]
-    input clock : Clock @[:@14.4]
+    input clockr : Clock @[:@14.4]
+    input clockw : Clock @[:@14.4]
     input reset1 : UInt<1> @[:@15.4]
     input io_writeAddress : UInt<10> @[:@16.4]
     input io_writeData1 : UInt<32> @[:@16.4]
@@ -10,20 +11,19 @@ circuit OuterMemModule : @[:@2.0]
     mem billy : @[MemPokeSpec.scala 22:18:@21.4]
       data-type => UInt<32>
       depth => 1024
-      read-latency => 0
+      read-latency => 1
       write-latency => 1
       reader => _T_6
       writer => _T_4
       read-under-write => new
 
-
-    io_readData <= billy._T_6.data
-    billy._T_6.addr <= io_readAddress @[:@13.2]
-    billy._T_6.en <= UInt<1>("h1") @[:@13.2]
-    billy._T_6.clk <= clock @[:@13.2]
-
-    billy._T_4.data <= io_writeData1
     billy._T_4.addr <= io_writeAddress @[:@13.2]
     billy._T_4.en <= UInt<1>("h1") @[:@13.2]
     billy._T_4.mask <= UInt<1>("h1")
-    billy._T_4.clk <= clock @[:@13.2]
+    billy._T_4.clk <= clockw @[:@13.2]
+    billy._T_4.data <= io_writeData1
+
+    billy._T_6.addr <= io_writeAddress @[:@13.2]
+    billy._T_6.en <= UInt<1>("h1") @[:@13.2]
+    billy._T_6.clk <= clockr @[:@13.2]
+    io_readData <= billy._T_6.data
