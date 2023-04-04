@@ -1025,7 +1025,72 @@ Lemma to_Z_Sfull_mul bs1 bs2: to_Z (Sfull_mul bs1 bs2) = (Z.mul (to_Z bs1) (to_Z
     rewrite to_Z_negB.
 
     rewrite full_mul_mulB_zext. 
-    (*rewrite bv2z_mul_signed. 关于smulo的subgoal不正确？*)
+    case Hdrop2 : (dropmsb bs2 == zeros (size bs2 - 1)).
+    move /eqP : Hdrop2 => Hdrop2.
+    admit.
+
+    have -> : (zext (size (-# bs2)) (dropmsb bs1) = (zext (size (-# bs2) - 1) bs1)).
+    
+    have -> : (bs1 = rcons (dropmsb bs1) (msb bs1)).
+    apply rconsmsb.
+    move /eqP : Hlen1 =>Hlen1.
+    apply not_eq_sym in Hlen1.
+    apply neq_0_lt in Hlen1.
+    move /ltP : Hlen1 => Hlen1.
+    apply Hlen1.
+    rewrite dropmsb_rcons H10 zext_rcons0 {2}/zext rcons_cat zeros_rcons -addn1 subnK /zext //.
+    move /eqP : Hlen2 =>Hlen2.
+    apply not_eq_sym in Hlen2.
+    apply neq_0_lt in Hlen2.
+    move /ltP : Hlen2 => Hlen2.
+    rewrite size_negB.
+    apply Hlen2.
+
+    assert (Ht1 : zext (size (-# bs2) -1) (bs1) = sext (size (-# bs2) -1) (bs1)).
+    rewrite /zext /sext.
+    rewrite H10 //.
+    assert (Ht2 : zext (size (dropmsb bs1)) (-# bs2) = sext (size (dropmsb bs1)) (-# bs2)).
+    rewrite /zext /sext.
+    rewrite -msb_negB.
+    rewrite H21 //.
+    apply contraFneq with (b:=(dropmsb bs2 == zeros (size bs2 - 1))).
+    intro.
+    move /eqP : H =>H.
+    apply H.
+    exact Hdrop2.
+    
+    rewrite Ht1 Ht2.
+    rewrite bv2z_mul_signed.
+    rewrite 2!to_Z_sext.
+    rewrite NBitsOp.to_Z_negB.
+    rewrite Z.mul_opp_r Z.opp_involutive //.
+    rewrite H21 andb_true_l.
+    apply contraFneq with (b:=(dropmsb bs2 == zeros (size bs2 - 1))).
+    intro.
+    move /eqP : H =>H.
+    apply H.
+    exact Hdrop2.
+    rewrite size_sext.
+    move /eqP : Hlen1 =>Hlen1.
+    apply not_eq_sym in Hlen1.
+    apply neq_0_lt in Hlen1.
+    move /ltP : Hlen1 => Hlen1.
+    rewrite addn_gt0 Hlen1 //.
+    rewrite 2!size_sext addnC //.
+    rewrite size_negB size_dropmsb addnABC //.
+    move /eqP : Hlen2 =>Hlen2.
+    apply not_eq_sym in Hlen2.
+    apply neq_0_lt in Hlen2.
+    move /ltP : Hlen2 => Hlen2.
+    apply Hlen2.
+    move /eqP : Hlen1 =>Hlen1.
+    apply not_eq_sym in Hlen1.
+    apply neq_0_lt in Hlen1.
+    move /ltP : Hlen1 => Hlen1.
+    apply Hlen1.
+    ~~ Smulo (sext (size (negB bs2)) (dropmsb bs1)) (sext (size (dropmsb bs1)) (negB bs2))
+    admit.
+    (*apply smulo_sext.*)
 
 (*
     assert (Hbs2 : sext 1 bs2 = -# (rcons (dropmsb (-# (sext 1 bs2))) (msb (-# (sext 1 bs2))))).
@@ -1056,8 +1121,7 @@ Lemma to_Z_Sfull_mul bs1 bs2: to_Z (Sfull_mul bs1 bs2) = (Z.mul (to_Z bs1) (to_Z
   forall [bs : seq bool], 0 < size bs -> msb bs -> (to_Z bs < 0)%Z
   high1_0_to_Z_negB:
   forall [bs : bits], high 1 bs = [:: b0] -> to_Z (-# bs) = (- to_Zpos bs)%Z*)
-    Search full_mul.
-    admit.
+
     assert (Hmsb10 : (msb bs1 == b1) && (msb bs2 == b0)).
     apply /andP.
     split. 
@@ -1067,18 +1131,70 @@ Lemma to_Z_Sfull_mul bs1 bs2: to_Z (Sfull_mul bs1 bs2) = (Z.mul (to_Z bs1) (to_Z
     admit.
 
     move /andP : Hmsb10 => [H11 H20]. 
+    move /eqP : H11 => H11.
+    move /eqP : H20 => H20.
     rewrite to_Z_negB.
-    assert (Hbs1 : sext 1 bs1 = -# (rcons (dropmsb (-# (sext 1 bs1))) (msb (-# (sext 1 bs1))))).
-    rewrite -rconsmsb.
-    rewrite negB_involutive //.
-    rewrite size_negB size_sext addn1 ltn0Sn //.
-    have -> : (to_Z bs1) = (to_Z (sext 1 bs1)) by rewrite to_Z_sext //.
-    Search to_Z.
-    (*msb0_to_Z_negB : forall [bs : bits], msb bs = b0 -> to_Z (-# bs) = (- to_Zpos bs)%Z*)
-    rewrite 2!dropmsb_negB.
-    rewrite to_Zpos_full_mul 2!to_Z_to_Zpos.
 
+    rewrite full_mul_mulB_zext. 
+    case Hdrop1 : (dropmsb bs1 == zeros (size bs1 - 1)).
+    move /eqP : Hdrop1 => Hdrop1.
     admit.
+
+    have -> : (zext (size (-# bs1)) (dropmsb bs2) = (zext (size (-# bs1) - 1) bs2)).
+    have -> : (bs2 = rcons (dropmsb bs2) (msb bs2)).
+    apply rconsmsb.
+    move /eqP : Hlen2 =>Hlen2.
+    apply not_eq_sym in Hlen2.
+    apply neq_0_lt in Hlen2.
+    move /ltP : Hlen2 => Hlen2.
+    apply Hlen2.
+    assert (Ht2 : zext (size (-# bs1) -1) (bs2) = sext (size (-# bs1) -1) (bs2)).
+    rewrite /zext /sext.
+    rewrite H20 //.
+    rewrite dropmsb_rcons H20.
+
+    assert (Ht1 : zext (size (dropmsb bs2)) (-# bs1) = sext (size (dropmsb bs2)) (-# bs1)).
+    rewrite /zext /sext.
+    rewrite -msb_negB.
+    rewrite H11 //.
+    apply contraFneq with (b:=(dropmsb bs1 == zeros (size bs1 - 1))).
+    intro.
+    move /eqP : H =>H.
+    apply H.
+    exact Hdrop1.
+    
+    rewrite Ht1 Ht2.
+    rewrite bv2z_mul_signed.
+    rewrite 2!to_Z_sext.
+    rewrite NBitsOp.to_Z_negB.
+    rewrite Z.mul_opp_l Z.opp_involutive //.
+    rewrite H11 andb_true_l.
+    apply contraFneq with (b:=(dropmsb bs1 == zeros (size bs1 - 1))).
+    intro.
+    move /eqP : H =>H.
+    apply H.
+    exact Hdrop1.
+    rewrite size_sext size_negB.
+    move /eqP : Hlen1 =>Hlen1.
+    apply not_eq_sym in Hlen1.
+    apply neq_0_lt in Hlen1.
+    move /ltP : Hlen1 => Hlen1.
+    rewrite addn_gt0 Hlen1 //.
+    rewrite 2!size_sext addnC //.
+    rewrite size_negB size_dropmsb addnABC //.
+    move /eqP : Hlen2 =>Hlen2.
+    apply not_eq_sym in Hlen2.
+    apply neq_0_lt in Hlen2.
+    move /ltP : Hlen2 => Hlen2.
+    apply Hlen2.
+    move /eqP : Hlen1 =>Hlen1.
+    apply not_eq_sym in Hlen1.
+    apply neq_0_lt in Hlen1.
+    move /ltP : Hlen1 => Hlen1.
+    apply Hlen1.
+    have -> : (sext (size (-# bs1) - 1) bs2 = sext (size (-# bs1)) (dropmsb bs2)).
+    admit.
+    apply smulo_sext.
 Admitted.
 (*
   Fixpoint Sfull_mul (bs1 bs2 : bits) : bits :=
