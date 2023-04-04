@@ -268,14 +268,14 @@ module MyModule :
 
 In the sequel, we give an informal introduction to the lowering transformations (aka compilation passes) of  FIRRTL.
 
-\paragraph*{InferTypes} The InferTypes pass infers the types of components. For instance, InferTypes infers from the code snippet \begin{lstinline}!  wire x: UInt   x <= UInt<5>(15)   x <= UInt<1>(1)! \end{lstinline} that $x$'s type is \begin{lstinline}!UInt!\end{lstinline}. Note that for a connect statement  \begin{lstinline}! x <= e !\end{lstinline}, InferTypes only checks that the type of $e$, with the bit width ignored, is equivalent to that of $x$, but does not record the bit width of $e$ for $x$.
+\paragraph*{InferTypes} The InferTypes pass infers the types of components. For instance, InferTypes infers from the code snippet \begin{lstinline}!  wire x: UInt   x <= UInt<5>(15)   x <= UInt<1>(1)! \end{lstinline} that $x$'s type is \begin{lstinline}!UInt!\end{lstinline}. Note that for a connect statement  \begin{lstinline}! x <= e !\end{lstinline}, InferTypes only checks that the type of $e$ is equivalent to that of $x$ (where the bit widths are ignored), but does not update the bit width of $x$ to that of $e$.
 
 \paragraph*{InferWidths} 
 The InferWidths pass infers the widths of all signals with unknown widths. It is a \emph{global} width inference algorithm. Instances of the same module with unknown input port widths will be assigned the largest width of all assignments to each of its instance ports. It infers the smallest width that is larger than all assigned widths to a signal. Note that this means that dummy assignments that are overwritten by last-connect-semantics can still influence width inference. For instance, InferWidths infers from the following code snippet that $x$'s width is $5$, but with an assignment of \begin{lstinline}!UInt(1)!\end{lstinline}: \begin{lstinline}!  wire x: UInt   x <= UInt<5>(15)   x <= UInt<1>(1)! \end{lstinline}.
 
 \paragraph*{InferResets} that infers concrete resets, i.e. AsyncReset or UInt<1>,
 
-\paragraph{ExpandConnects} that expands the connect statements.
+\paragraph{ExpandConnects} The ExpandConnects pass expands the connect and partial connect statements. For instance, 
 
 \paragraph{ExpandWhens} that expands the when statements, 
 
