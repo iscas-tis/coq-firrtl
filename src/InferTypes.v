@@ -49,12 +49,12 @@ Section InferTypeS.
       HiF.type_of_hfexpr e ce = t' /\
       ftype_equiv (type_of_cmpnttyp t) t' ->
       inferType_stmt (Sfcnct r e) ce ce
-  | Infertype_spcnct r e ce :
-      forall t t' c,
-      CE.find (HiF.base_ref r) ce = Some (t, c) /\
-      HiF.type_of_hfexpr e ce = t' /\
-      ftype_weak_equiv (type_of_cmpnttyp t) t' ->
-      inferType_stmt (Spcnct r e) ce ce
+  (* | Infertype_spcnct r e ce : *)
+  (*     forall t t' c, *)
+  (*     CE.find (HiF.base_ref r) ce = Some (t, c) /\ *)
+  (*     HiF.type_of_hfexpr e ce = t' /\ *)
+  (*     ftype_weak_equiv (type_of_cmpnttyp t) t' -> *)
+  (*     inferType_stmt (Spcnct r e) ce ce *)
   | Infertype_sskip ce :
       inferType_stmt (HiF.sskip) ce ce
   | Infertype_swhen e s1 s2 ce ce' ce'' :
@@ -143,7 +143,7 @@ Section InferTypeS.
     | Swire v t => CE.add v (HiF.aggr_typ t, Wire) ce
     | Swhen _ sts_true sts_false => inferType_stmts_fun sts_false (inferType_stmts_fun sts_true ce)
     | Sfcnct _ _
-    | Spcnct _ _
+    (* | Spcnct _ _ *)
     | Sinvalid _
     (* | Sstop _ _ _ *)
     | Sskip => ce
@@ -303,22 +303,22 @@ Section InferTypeS.
     apply ftype_equiv_ident.
   Qed.
 
-  Lemma inferType_spcnct_sem_conform :
-    forall v1 t c e ce0 ,
-      CE.find (HiF.base_ref v1) ce0 = Some (t, c) ->
-      type_of_cmpnttyp t = HiF.type_of_hfexpr e ce0 ->
-      inferType_stmt (Spcnct v1 e) ce0 (inferType_stmt_fun (Spcnct v1 e) ce0).
-  Proof.
-    intros.
-    rewrite /inferType_stmt_fun.
-    apply Infertype_spcnct with t (type_of_cmpnttyp t) c.
-    split.
-    apply H.
-    split.
-    rewrite H0.
-    reflexivity.
-    apply ftype_weak_equiv_ident.
-  Qed.
+  (* Lemma inferType_spcnct_sem_conform : *)
+  (*   forall v1 t c e ce0 , *)
+  (*     CE.find (HiF.base_ref v1) ce0 = Some (t, c) -> *)
+  (*     type_of_cmpnttyp t = HiF.type_of_hfexpr e ce0 -> *)
+  (*     inferType_stmt (Spcnct v1 e) ce0 (inferType_stmt_fun (Spcnct v1 e) ce0). *)
+  (* Proof. *)
+  (*   intros. *)
+  (*   rewrite /inferType_stmt_fun. *)
+  (*   apply Infertype_spcnct with t (type_of_cmpnttyp t) c. *)
+  (*   split. *)
+  (*   apply H. *)
+  (*   split. *)
+  (*   rewrite H0. *)
+  (*   reflexivity. *)
+  (*   apply ftype_weak_equiv_ident. *)
+  (* Qed. *)
 
   Lemma inferType_swhen_sem_conform :
   forall (ce0 ce1 ce2 : CE.env) (e : HiF.hfexpr) (s1 s2 : HiF.hfstmt_seq),
@@ -369,7 +369,7 @@ Section InferTypeS.
   with inferType_stmts_init_sem_conform :
     forall ss : HiF.hfstmt_seq, inferType_stmts_sem_conform_statement ss.
   Proof.
-    elim => [|v t|r t| m t| v1 v2| n t| d e| d e| v | c s1 s2]; rewrite /inferType_stmt_sem_conform_statement.
+    elim => [|v t|r t| m t| v1 v2| n t| d e| v | c s1 s2]; rewrite /inferType_stmt_sem_conform_statement.
     - apply inferType_sskip_sem_conform.
   Admitted.
     
@@ -746,12 +746,12 @@ Section InferTypeP.
       HiFP.type_of_hfexpr e ce = t' /\
       ftype_equiv (type_of_cmpnttyp t) t' ->
       inferType_stmtP (Sfcnct (Eid r) e) ce ce
-  | Infertype_spcnctP r e ce :
-      forall t t' c,
-      CEP.find r ce = Some (t, c) /\
-      HiFP.type_of_hfexpr e ce = t' /\
-      ftype_weak_equiv (type_of_cmpnttyp t) t' ->
-      inferType_stmtP (Spcnct (Eid r) e) ce ce
+  (* | Infertype_spcnctP r e ce : *)
+  (*     forall t t' c, *)
+  (*     CEP.find r ce = Some (t, c) /\ *)
+  (*     HiFP.type_of_hfexpr e ce = t' /\ *)
+  (*     ftype_weak_equiv (type_of_cmpnttyp t) t' -> *)
+  (*     inferType_stmtP (Spcnct (Eid r) e) ce ce *)
   | Infertype_sskipP ce :
       inferType_stmtP (HiFP.sskip) ce ce
   | Infertype_swhenP e s1 s2 ce ce' ce'' :
@@ -842,7 +842,7 @@ Section InferTypeP.
     | Swire v t => upd_aggr_elements v (HiFP.aggr_typ t, Wire) ce
     | Swhen _ sts_true sts_false => inferType_stmts_funP sts_false (inferType_stmts_funP sts_true ce)
     | Sfcnct _ _
-    | Spcnct _ _
+    (* | Spcnct _ _ *)
     | Sinvalid _
     | Sskip => ce
     end

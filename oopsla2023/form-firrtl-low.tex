@@ -1,0 +1,195 @@
+%!TEX root = main.tex
+
+In the sequel, we introduce an operational semantics of LoFIRRTL programs, on which the formalization of LoFIRRTL in Coq is based. 
+
+%At first, let us make it more precise the syntactical constraints of LoFIRRTL stated in Section~\ref{sec-firrtl}.
+
+Without loss of generality, let us focus on one LoFIRRTL module, say $M$. 
+
+%Let us introduce some notations first. 
+
+Let $\iports(M)$ (resp. $\oports(M)$) denote the set of input (resp. output) ports of $M$,  $\ports(M) = \iports(M) \cup \oports(M)$, $\wires(M)$ denote the set of wires in $M$, $\nodes(M)$ denote the set of nodes in $M$, and $\registers(M)$ denote the set of registers in $M$. Moreover, we use $\varset(M)$ to denote the set of variables in $M$, that is, $\ports(M) \cup \wires(M) \cup \nodes(M) \cup \registers(M)$.
+
+A \emph{connect statement} for $x  \in \varset(M)$ is a statement of the form $x <= e$ or $\mbox{node } x = e$, where $x$ and $e$ are called the \emph{head} and \emph{body} of the connect statement respectively.
+%
+The \emph{dependency graph} of $M$ is $G_M = (\varset(M), E_M)$, where $E_M$ comprises the edges $(x, y)$ such that $y$ depends on $x$, more precisely, $x$ occurs in the right-hand side expression of the connect statement for $y$.
+
+From the fact that $M$ is a LoFIRRTL module, it satisfies the following constraints,
+\begin{itemize}
+\item there is exactly one connect statement for each wire, node, and output port, 
+%
+\item there is at most one connect statement for each register, 
+%
+\item the dependency graph $G_M$ is acyclic.
+\end{itemize}
+Moreover, $M$ is said to be in \emph{pseudo-SSA form} if satisfies the following two additional  constraints,
+\begin{itemize}
+\item all variables are declared before they are used in the bodies and heads of connect statements (except that nodes are declared and used simultaneously),
+%
+\item the sequence of heads of the connect statements in $M$ forms a topological sorting of $G_M$ (where the vertices without incoming edges are ignored), specifically, for every edge $(x, y)$ in $G_M$, $x$ is before $y$ in the sequence (if $x$ indeed occurs in the sequence), namely, the connect statement for $x$ (if there is any) is before the connect statement for $y$ in $M$. 
+\end{itemize}
+
+For instance, the following LoFIRRTL program
+%[caption=My FIRRTL Example]
+\begin{lstlisting}
+module A
+  input io_in: UInt<32>
+  output io_out: UInt<32>
+  node a = add(io_in, UInt<32>("h1"))
+  io_out <= a
+\end{lstlisting}
+%
+is in pseudo-SSA form, while the following program
+\begin{lstlisting}
+module A
+  input io_in: UInt<32>
+  output io_out: UInt<32>
+  io_out <= a
+  node a = add(io_in, UInt<32>("h1"))
+\end{lstlisting}
+is not, since $({\tt a}, {\tt io\_out})$ is an edge in the dependency graph, while the connect statement for {\tt a} is after the connect statement for {\tt io\_out}.
+ 
+In the sequel, we require that $M$ is in the pseudo-SSA form.
+
+Before the description of the operational semantics, we introduce some notations. 
+
+Let $\gtypes$ denote the set of ground types, that is, $(\{UInt, SInt\} \times \Nat) \cup \{Clock, Reset, AsyncReset\}$. Let $\bv$ denote the set of bit vectors, that is, $\{0,1\}^+$.
+For $t = (dt, wd) \in \{UInt, SInt\} \times \Nat$, we define the size of $t$, denoted by $sz(t)$, as $wd$.
+
+A \emph{type environment} of $M$ is a function from $\varset(M)$ to $\gtypes$.
+A \emph{state} of $M$ is a function from $\varset(M)$ to $\bv \cup \{\bot\}$. A \emph{register state} $rs$ of $M$ is a function from $\varset(M)$ to $\bv \cup \{\bot\}$ such that $rs(v) = \bot$ for every $v \in \gtypes \setminus \registers(M)$. Note that $\bot$ is a special symbol denoting the fact that the value of a variable is not determined yet. 
+
+Then a \emph{configuration} of $M$ is defined as a triple $(te, s, rs)$, where $te$ is a type environment, $s$ is a state, and $rs$ is a register state. Intuitively, $te$ denotes the types of the variables, $s$ denotes the values of the variables in the beginning of the current clock cycle, and $rs$ denotes the new values of the registers in the beginning of the next clock cycle. 
+
+Then the operational semantics of each statement $st$ in $M$ is defined as a relation $(te, s, rs) \xrightarrow{st} (te', s', rs')$, which denotes that the execution of $st$ from a configuration $(te, s, rs)$ results into a configuration $(te', s', rs')$. Moreover, the operational semantics of a sequence of statements is defined as the composition of the relations of statements therein. 
+
+The rules for the operational semantics of statements are presented in Table~\ref{tab:lofirrtl-sem}.
+
+\begin{table}
+  \footnotesize
+  \begin{gather*}
+    \infer[skip]
+    {\seqq{(te, s, rs) \xrightarrow{\mbox{skip}} (te, s, rs)}}
+    {\seqq{-}}
+    \quad
+    \inferii[wire]
+%    {\seqq{}}
+    {\seqq{(te, s, rs) \xrightarrow{\mbox{wire } v: t} (te', s', rs)}}
+   {\seqq{te' = te [t/v]}} {\seqq{s' = s [0^{sz(t)}/v]}}
+    \\[1ex]
+    \inferiii[reg: $\bot$]
+    {\seqq{(te, s, rs) \xrightarrow{\mbox{reg } r: t, c} (te', s', rs)}}
+   {\seqq{rs(r) = \bot}} {\seqq{te' = te [t/r]}} {\seqq{s' = s[0^{sz(t)}/r]}}
+    \quad
+    \inferii[reg: $\neq\bot$]
+    {\seqq{(te, s, rs) \xrightarrow{\mbox{reg } r: t, c} (te, s', rs)}}
+   {\seqq{rs(r) \neq \bot}} {\seqq{s' = s[rs(r)/r]}}
+    \\[1ex]
+    \inferiv[reg with reset: $\bot$, false]
+    {\seqq{(te, s, rs) \xrightarrow{\mbox{reg } r: t, c \mbox{ with: reset => }(e_1, e_2)} (te', s', rs)}}
+   {\seqq{rs(r) = \bot}} {\seqq{ s(e_1)= false}}  {\seqq{te' = te [t/r]}} {\seqq{s' = s[0^{sz(t)}/r]}}
+    \\[1ex]
+    \inferv[reg with reset: $\bot$, true]
+    {\seqq{(te, s, rs) \xrightarrow{\mbox{reg } r: t, c \mbox{ with: reset => }(e_1, e_2)} (te', s', rs')}}
+   {\seqq{rs(r) = \bot}} {\seqq{ s(e_1)= true}}  {\seqq{te' = te [t/r]}} {\seqq{s' = s[0^{sz(t)}/r]}} {\seqq{rs' = s[s(e_2)/r]}}
+    \\[1ex]
+    \inferiii[reg with reset: $\neq\bot$, false]
+    {\seqq{(te, s, rs) \xrightarrow{\mbox{reg } r: t, c \mbox{ with: reset => }(e_1, e_2)} (te, s', rs)}}
+   {\seqq{rs(r) \neq \bot}} {\seqq{ s(e_1)= false}} {\seqq{s' = s[rs(r)/r]}}
+    \\[1ex]
+    \inferiv[reg with reset: $\neq\bot$, true]
+    {\seqq{(te, s, rs) \xrightarrow{\mbox{reg } r: t, c \mbox{ with: reset => }(e_1, e_2)} (te, s', rs')}}
+   {\seqq{rs(r) \neq \bot}} {\seqq{ s(e_1)= true}} {\seqq{s' = s[rs(r)/r]}} {\seqq{rs' = rs[s(e_2)/r]}}
+    \\[1ex]
+    \inferii[node]
+    {\seqq{(te, s, rs) \xrightarrow{\mbox{node } v = e} (te', s', rs)}}
+   {\seqq{te' = te[te(e)/v]}} {\seqq{s' = s[s(e)/v]}}
+    \quad
+    \inferii[connect:$\bot$]
+    {\seqq{(te, s, rs) \xrightarrow{v <= e} (te, s', rs)}}
+   {\seqq{rs(v) = \bot}} {\seqq{s' = s[s(e)/v]}}
+    \\[1ex]    
+    \inferii[connect:$\neq \bot$]
+    {\seqq{(te, s, rs) \xrightarrow{v <= e} (te, s, rs')}}
+   {\seqq{rs(v) \neq \bot}} {\seqq{rs' = rs[s(e)/v]}}
+  \quad
+    \infer[invalid]
+    {\seqq{(te, s, rs) \xrightarrow{v \mbox{ is invalid}} (te, s', rs)}}
+%   {\seqq{rs(v) \neq \bot}} {\seqq{rs' = rs[s(e)/v]}}
+   {\seqq{s' = s[0^{sz(te(v))}/v]}}
+  \end{gather*}
+%  \vspace{-4mm}
+  \caption{Operational semantics of LoFIRRTL statements.}
+  \label{tab:lofirrtl-sem}
+\end{table}
+
+
+$te(e)$ is defined as follows. 
+\begin{itemize}
+\item $te(\uint{n}(c)) = \uint{n}$, \item $te(\sint{n}(c)) = \sint{n}$, 
+%
+\item let $te(e_1) = \theta \bwidth{n_1}$ and $te(e_2) = \theta \bwidth{n_2}$, where $\theta \in \{UInt, SInt\}$, then $te(mux(e_1, e_2, e_3)) = \theta\bwidth{\max(n_1, n_2)}$,
+%
+\item $te(validif(e_1, e_2)) = te(e_2)$,
+%
+\item let $te(e_1) = \theta \bwidth{n_1}$ and $te(e_2) = \theta \bwidth{n_2}$, where $\theta \in \{UInt, SInt\}$, then 
+\begin{itemize}
+\item $te(add(e_1, e_2)) =\theta \bwidth{\max(n_1, n_2)+1}$ and $te(sub(e_1, e_2)) = \theta \bwidth{\max(n_1, n_2)+1}$, 
+%
+\item $te(mul(e_1, e_2)) = \theta \bwidth{n_1+n_2}$,
+%
+\item $te(div(e_1, e_2)) = UInt \bwidth{n_1}$ if $\theta = UInt$, and $te(div(e_1, e_2)) = SInt \bwidth{n_1+1}$ otherwise,
+%
+\item $te(mod(e_1, e_2)) = \theta \bwidth{\min(n_1,n_2)}$,
+%
+\item $te(cp(e_1, e_2)) = UInt \bwidth{1}$, where $cp \in \{lt, leq, gt, geq, eq, neq\}$,
+%
+\item $te(dshl(e_1, e_2)) = \theta \bwidth{n_1+2^{n_2}-1}$, 
+%
+\item $te(dshr(e_1, e_2)) = \theta \bwidth{n_1}$, 
+%
+\item $te(and(e_1, e_2)) = te(or(e_1, e_2)) =  te(xor(e_1, e_2)) = \theta \bwidth{\max(n_1, n_2)}$, 
+%
+\item $te(cat(e_1, e_2)) = \theta \bwidth{n_1 + n_2}$, 
+\end{itemize}
+%
+\item let $te(e_1) = \theta \bwidth{n_1}$, where $\theta \in \{UInt, SInt\}$, then 
+\begin{itemize}
+\item $te(andr(e_1)) = te(orr(e_1)) =  te(xorr(e_1)) = \uint{1}$,
+%
+\item $te(neg(e_1)) = \sint{n_1 +1}$, $te(not(e_1)) =  \uint{n_1}$, 
+%
+\item $te(cvt(e_1)) = \sint{n_1 +1}$ if $\theta = UInt$, and $te(cvt(e_1)) =  \sint{n_1}$ otherwise,  
+\end{itemize}
+%
+\item let $te(e_1) = \theta \bwidth{n_1}$, where $\theta \in \{UInt, SInt\}$, then
+\begin{itemize}
+\item $te(pad(e_1, n)) = \uint{n}$,
+%
+\item $te(shl(e_1,n)) = \theta \bwidth{n_1 + n}$,  
+%
+\item $te(shr(e_1, n)) = \theta \bwidth{n_1-n}$ if $n_1 > n$, and $te(shr(e_1, n)) =  \theta \bwidth{1}$ otherwise,  
+%
+\item $te(head(e_1, n)) = \uint{n}$, $te(tail(e_1, n)) = \uint{n_1-n}$, 
+%
+\item $te(bits(e_1, n, n')) = \uint{n'-n+1}$.  
+\end{itemize} 
+%
+\end{itemize}
+
+\zhilin{$s(e)$ to be defined}
+
+
+An \emph{input trace} of $M$ of length $m$ is a function $it$ from $\iports(M)$ to $\bv$ such that $it(x)$ is a bit vector of length $m$ for every $x \in \iports(M)$.
+
+Let $M$ be a module where the sequence of statements is $st$, $it$  be an input trace of $M$ of length $m$. Then the semantics of a module $M$ with respect to $it$ is defined by the relations $(te, s, rs) \xrightarrow{M, it, j, m} (te', s', rs')$, which are defined below,
+\begin{itemize}
+\item if $j = 0$, then $(te, s, rs) \xrightarrow{M, it, j, m} (te, s, rs)$, 
+%
+\item otherwise, let $s_1$ be obtained from $s$ by assigning $it(x)[m-j+1]$ to $x$ for each $x \in \iports(M)$, if $(te, s_1, rs) \xrightarrow{st} (te'', s'', rs'')$ and $(te'', s'', rs'') \xrightarrow{M, it, j-1, m} (te', s', rs')$, then we have $(te, s, rs) \xrightarrow{M, it, j, m} (te', s', rs')$.
+\end{itemize}
+Intuitively, the relation $(te, s, rs) \xrightarrow{M, it, j, m} (te', s', rs')$ denotes that starting from the configuration $(te, s_1, rs)$, where $s_1$ is obtained from $s$ by replacing the values of the input ports with their values in the $(m-j+1)$-th clock cycle of the input trace $it$, after the execution of $M$ on $it$ for $j$ clock cycles, the configuration $(te', s', rs')$ will be generated. For instance, if $j=1$, then $s_1$ assigns to the input ports the values of the $m$-th clock cycle of $it$, and $(te, s_1, rs) \xrightarrow{st} (te'', s'', rs'')$ and $(te'', s'', rs'') = (te', s', rs')$.
+%$s(e)$ is defined as follows.
+%\begin{itemize}
+%\item 
+%\end{itemize} 

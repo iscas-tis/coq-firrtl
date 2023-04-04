@@ -1,0 +1,481 @@
+%% For double-blind review submission, w/o CCS and ACM Reference (max submission space)
+\documentclass[acmsmall,review,anonymous]{acmart}\settopmatter{printfolios=true,printccs=false,printacmref=false}
+%% For double-blind review submission, w/ CCS and ACM Reference
+%\documentclass[acmsmall,review,anonymous]{acmart}\settopmatter{printfolios=true}
+%% For single-blind review submission, w/o CCS and ACM Reference (max submission space)
+%\documentclass[acmsmall,review]{acmart}\settopmatter{printfolios=true,printccs=false,printacmref=false}
+%% For single-blind review submission, w/ CCS and ACM Reference
+%\documentclass[acmsmall,review]{acmart}\settopmatter{printfolios=true}
+%% For final camera-ready submission, w/ required CCS and ACM Reference
+%\documentclass[acmsmall]{acmart}\settopmatter{}
+
+
+%% Journal information
+%% Supplied to authors by publisher for camera-ready submission;
+%% use defaults for review submission.
+\acmJournal{PACMPL}
+\acmVolume{1}
+\acmNumber{CONF} % CONF = POPL or ICFP or OOPSLA
+\acmArticle{1}
+\acmYear{2018}
+\acmMonth{1}
+\acmDOI{} % \acmDOI{10.1145/nnnnnnn.nnnnnnn}
+\startPage{1}
+
+%% Copyright information
+%% Supplied to authors (based on authors' rights management selection;
+%% see authors.acm.org) by publisher for camera-ready submission;
+%% use 'none' for review submission.
+\setcopyright{none}
+%\setcopyright{acmcopyright}
+%\setcopyright{acmlicensed}
+%\setcopyright{rightsretained}
+%\copyrightyear{2018}           %% If different from \acmYear
+
+%% Bibliography style
+\bibliographystyle{ACM-Reference-Format}
+%% Citation style
+%% Note: author/year citations are required for papers published as an
+%% issue of PACMPL.
+\citestyle{acmauthoryear}   %% For author/year citations
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Note: Authors migrating a paper from PACMPL format to traditional
+%% SIGPLAN proceedings format must update the '\documentclass' and
+%% topmatter commands above; see 'acmart-sigplanproc-template.tex'.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+
+\input{macros.tex}
+
+
+%%
+%% \BibTeX command to typeset BibTeX logo in the docs
+\AtBeginDocument{%
+  \providecommand\BibTeX{{%
+    Bib\TeX}}}
+
+%%
+%% Submission ID.
+%% Use this when submitting an article to a sponsored event. You'll
+%% receive a unique submission ID from the organizers
+%% of the event, and this ID should be used as the parameter to this command.
+%%\acmSubmissionID{123-A56-BU3}
+
+%%
+%% For managing citations, it is recommended to use bibliography
+%% files in BibTeX format.
+%%
+%% You can then either use BibTeX with the ACM-Reference-Format style,
+%% or BibLaTeX with the acmnumeric or acmauthoryear sytles, that include
+%% support for advanced citation of software artefact from the
+%% biblatex-software package, also separately available on CTAN.
+%%
+%% Look at the sample-*-biblatex.tex files for templates showcasing
+%% the biblatex styles.
+%%
+
+%%
+%% The majority of ACM publications use numbered citations and
+%% references.  The command \citestyle{authoryear} switches to the
+%% "author year" style.
+%%
+%% If you are preparing content for an event
+%% sponsored by ACM SIGGRAPH, you must use the "author year" style of
+%% citations and references.
+%% Uncommenting
+%% the next command will enable that style.
+%%\citestyle{acmauthoryear}
+
+
+%% Some recommended packages.
+\usepackage{booktabs}   %% For formal tables:
+                        %% http://ctan.org/pkg/booktabs
+\usepackage{subcaption} %% For complex figures with subfigures/subcaptions
+                        %% http://ctan.org/pkg/subcaption
+
+\usepackage{mathrsfs}
+\usepackage{blindtext}
+%\usepackage[cache=false]{minted} % minted gives errors when I compile it -- DNJ
+\usepackage{eqnarray}
+%\usepackage{amssymb}
+\usepackage{mathtools}
+\usepackage{booktabs}
+\usepackage{bussproofs}
+\usepackage{multirow}
+\usepackage{graphics}
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%package listings for highlighting FIRRTL code %%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\usepackage{listings}
+\usepackage{color}
+\definecolor{lightgray}{rgb}{.9,.9,.9}
+\definecolor{darkgray}{rgb}{.4,.4,.4}
+\definecolor{purple}{rgb}{0.65, 0.12, 0.82}
+
+\lstdefinelanguage{Firrtl}{
+  keywords={defname, parameter, with, reset, inst, of, is, invalid, attach, when, else, stop, printf, skip, data-type, depth, read-latency, write-latency, read-under-write, reader, writer, readwriter, old, new, undefined, UInt, SInt, mux, validif, flip, Clock, Reset, AsyncReset, Analog, Fixed, add, sub, mul, div, mod, lt, leq, gt, geq, eq, neq, dshl, dshr, and, or, xor, cat, asUInt, asSInt, asClock, cvt, neg, not, andr, orr, xorr, head, tail, pad, shl, shr, bits},
+  keywordstyle=\color{blue},
+  ndkeywords={circuit, module, extmodule, input, output, wire, reg, node, mem},
+  ndkeywordstyle=\color{purple},
+  identifierstyle=\color{black},
+  sensitive=false,
+%  comment=[l]{;},
+%  morecomment=[s]{/*}{*/},
+%  commentstyle=\color{purple}\ttfamily,
+  stringstyle=\color{red}\ttfamily,
+  morestring=[b]',
+  morestring=[b]"
+}
+
+\lstset{
+   language=Firrtl,
+   backgroundcolor=\color{white},
+   extendedchars=true,
+   basicstyle=\footnotesize\ttfamily,
+   showstringspaces=false,
+   showspaces=false,
+   numbers=left,
+   numberstyle=\footnotesize,
+   numbersep=9pt,
+   tabsize=2,
+   breaklines=true,
+   showtabs=false,
+   captionpos=b
+}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+%\newif\ifdraft\drafttrue
+\newif\ifdraft\drafttrue
+\ifdraft
+\newcommand{\zhilin}[1]{\color{brown} {ZL: #1 :LZ} \color{black}}
+\newcommand{\xiaomu}[1]{\color{blue} {XM: #1 :MX} \color{black}}
+\newcommand{\david}[1]{\color{cyan} {DV: #1 :VD} \color{black}}
+\newcommand{\keyin}[1]{\color{red} {KY: #1 :YK} \color{black}}
+\newcommand{\fu}[1]{\color{purple} {Fu: #1 :Fu} \color{black}}
+\else
+\newcommand{\zhilin}[1]{}
+\newcommand{\xiaomu}[1]{}
+\newcommand{\david}[1]{}
+\newcommand{\keyin}[1]{}
+\newcommand{\fu}[1]{}
+\fi
+
+
+
+
+%%
+%% end of the preamble, start of the body of the document source.
+\begin{document}
+
+%%
+%% The "title" command has an optional parameter,
+%% allowing the author to define a "short title" to be used in page headers.
+\title{Formalizing FIRRTL Intermediate Representation and Its Lowering Transformations}
+
+
+
+%%
+%% The "author" command and its associated commands are used to define
+%% the authors and their affiliations.
+%% Of note is the shared affiliation of the first two authors, and the
+%% "authornote" and "authornotemark" commands
+%% used to denote shared contribution to the research.
+
+\author{Anonymous authors}
+%\affiliation{%
+%  \institution{Shenzhen University}
+%  \streetaddress{3688 Nanhai Avenue, Nanshan District, Shenzhen}
+%  \city{Shenzhen}
+%  \country{China}}
+%\email{xshi0811@gmail.com}
+%\orcid{}
+
+
+%%%%%%%%%%%%%%%%%%%%%%
+\hide{
+\author{Xiaomu Shi}
+\affiliation{%
+  \institution{Shenzhen University}
+  \streetaddress{3688 Nanhai Avenue, Nanshan District, Shenzhen}
+  \city{Shenzhen}
+  \country{China}}
+\email{xshi0811@gmail.com}
+\orcid{}
+
+\author{Keyin Wang}
+\affiliation{%
+  \institution{Institute of Software, Chinese Academy of Sciences  University of Chinese Academy of Sciences}
+  \streetaddress{P.O.Box 8718}
+  \city{Beijing}
+  \country{China}}
+ \affiliation{%
+  \institution{University of Chinese Academy of Sciences}
+  \streetaddress{No.19(A) Yuquan Road, Shijingshan District}
+  \city{Beijing}
+  \country{China}}
+\email{}
+\orcid{}
+
+\author{David Jansen}
+\affiliation{%
+  \institution{Institute of Software, Chinese Academy of Sciences}
+  \streetaddress{P.O.Box 8718}
+  \city{Beijing}
+  \country{China}}
+\email{dnjansen@ios.ac.cn}
+\orcid{}
+
+\author{Zhilin Wu}
+\affiliation{%
+  \institution{Institute of Software, Chinese Academy of Sciences}
+  \streetaddress{P.O.Box 8718}
+  \city{Beijing}
+  \country{China}}
+ \affiliation{%
+  \institution{University of Chinese Academy of Sciences}
+  \streetaddress{No.19(A) Yuquan Road, Shijingshan District}
+  \city{Beijing}
+  \country{China}}
+\email{wuzl@ios.ac.cn}
+\orcid{}
+
+
+\author{Lijun Zhang}
+\affiliation{%
+  \institution{Huazhong University of Science and Technology}
+  \streetaddress{P.O.Box 8718}
+  \city{Wuhan}
+  \country{China}}
+ \affiliation{%
+  \institution{University of Chinese Academy of Sciences}
+  \streetaddress{No.19(A) Yuquan Road, Shijingshan District}
+  \city{Beijing}
+  \country{China}}
+\email{jiuyang@hust.edu.cn}
+\orcid{}
+
+\author{Lijun Zhang}
+\affiliation{%
+  \institution{Institute of Software, Chinese Academy of Sciences}
+  \streetaddress{P.O.Box 8718}
+  \city{Beijing}
+  \country{China}}
+ \affiliation{%
+  \institution{University of Chinese Academy of Sciences}
+  \streetaddress{No.19(A) Yuquan Road, Shijingshan District}
+  \city{Beijing}
+  \country{China}}
+\email{zhanglj@ios.ac.cn}
+\orcid{}
+}
+%%%%%%%%%%%%%%%%%%%%%%
+
+%%
+%% By default, the full list of authors will be used in the page
+%% headers. Often, this list is too long, and will overlap
+%% other information printed in the page headers. This command allows
+%% the author to define a more concise list
+%% of authors' names for this purpose.
+\renewcommand{\shortauthors}{Anonymous authors}
+
+%%
+%% The abstract is a short summary of the work to be presented in the
+%% article.
+\begin{abstract}
+FIRRTL is an intermediate representation for the Chisel hardware description language
+and has been intensively used in designing RISC-V CPUs.
+This paper presents \emph{Vefirrtl,} a framework for reasoning
+about programs expressed in FIRRTL
+and about lowering transformations that remove some high-level constructs.
+Vefirrtl provides a
+mechanized formal semantics of FIRRTL and
+its type system. The framework is built using the Coq interactive theorem prover. It includes
+an axiomatic semantics for High FIRRTL and an operational semantics for Low FIRRTL and proves relations among them.
+To validate Vefirrtl's design, we extract an interpreter from the
+Coq formal semantics that can execute programs from the FIRRTL test
+suite and thus be compared against FIRRTL reference implementations.
+To demonstrate Vefirrtl's practicality, we formalize and verify two key transformations of FIRRTL programs,
+namely ``Infer Width'' and ``Expand Whens'',
+which infer bit widths of signals
+and replace conditional statements with multiplexers, respectively.
+%
+\end{abstract}
+
+%%
+%% The code below is generated by the tool at http://dl.acm.org/ccs.cfm.
+%% Please copy and paste the code instead of the example below.
+%%
+\begin{CCSXML}
+<ccs2012>
+ <concept>
+  <concept_id>10010520.10010553.10010562</concept_id>
+  <concept_desc>Computer systems organization~Embedded systems</concept_desc>
+  <concept_significance>500</concept_significance>
+ </concept>
+ <concept>
+  <concept_id>10010520.10010575.10010755</concept_id>
+  <concept_desc>Computer systems organization~Redundancy</concept_desc>
+  <concept_significance>300</concept_significance>
+ </concept>
+ <concept>
+  <concept_id>10010520.10010553.10010554</concept_id>
+  <concept_desc>Computer systems organization~Robotics</concept_desc>
+  <concept_significance>100</concept_significance>
+ </concept>
+ <concept>
+  <concept_id>10003033.10003083.10003095</concept_id>
+  <concept_desc>Networks~Network reliability</concept_desc>
+  <concept_significance>100</concept_significance>
+ </concept>
+</ccs2012>
+\end{CCSXML}
+
+\ccsdesc[500]{Computer systems organization~Embedded systems}
+\ccsdesc[300]{Computer systems organization~Redundancy}
+\ccsdesc{Computer systems organization~Robotics}
+\ccsdesc[100]{Networks~Network reliability}
+
+%%
+%% Keywords. The author(s) should pick words that accurately describe
+%% the work being presented. Separate the keywords with commas.
+\keywords{datasets, neural networks, gaze detection, text tagging}
+%% A "teaser" image appears between the author and affiliation
+%% information and the body of the document, and typically spans the
+%% page.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\hide{
+\begin{teaserfigure}
+  \includegraphics[width=\textwidth]{sampleteaser}
+  \caption{Seattle Mariners at Spring Training, 2010.}
+  \Description{Enjoying the baseball game from the third-base
+  seats. Ichiro Suzuki preparing to bat.}
+  \label{fig:teaser}
+\end{teaserfigure}
+
+\received{20 February 2007}
+\received[revised]{12 March 2009}
+\received[accepted]{5 June 2009}
+}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%
+%% This command processes the author and affiliation and title
+%% information and builds the first part of the formatted document.
+\maketitle
+
+\zhilin{Submitted papers (including resubmissions) must be at most 23 pages in 10 point font. There is no page limit on references. No appendices are allowed on the main paper, instead authors can upload supplementary material with no page or content restrictions, but reviewers may choose to ignore it. }
+
+
+\section{Introduction}
+
+\input{intro}
+
+\section{FIRRTL IR and Its Transformations}\label{sec-firrtl}
+
+\input{firrtl}
+
+\section{Formalization of Low FIRRTL}
+
+\subsection{Operational Semantics of LoFIRRTL}\label{sec-lofirrtl-sem}
+
+\input{form-firrtl-low}
+
+
+\zhilin{stopped here}
+
+\subsection{Extraction of the OCaml LoFIRRTL Interpreter}
+
+\input{firrtl-interpret-extraction}
+
+\subsection{Validation of the OCaml LoFIRRTL Interpreter}
+
+\input{firrtl-interpret-validation}
+
+%\subsection{Low FIRRTL OCaml Interpreter: Extraction and Validation}
+
+
+
+\section{Formalization of High FIRRTL and its transformations}
+
+\subsection{Formalization of High FIRRTL}
+
+\input{form-firrtl-high}
+
+\input{form-firrtl-transform}
+
+
+\hide{
+\begin{table}
+  \caption{Frequency of Special Characters}
+  \label{tab:freq}
+  \begin{tabular}{ccl}
+    \toprule
+    Non-English or Math&Frequency&Comments\\
+    \midrule
+    \O & 1 in 1,000& For Swedish names\\
+    $\pi$ & 1 in 5& Common in math\\
+    \$ & 4 in 5 & Used in business\\
+    $\Psi^2_1$ & 1 in 40,000& Unexplained usage\\
+  \bottomrule
+\end{tabular}
+\end{table}
+}
+
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\hide{
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\linewidth]{sample-franklin}
+  \caption{1907 Franklin Model D roadster. Photograph by Harris \&
+    Ewing, Inc. [Public domain], via Wikimedia
+    Commons. (\url{https://goo.gl/VLCRBB}).}
+  \Description{A woman and a girl in white dresses sit in an open car.}
+\end{figure}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%
+}
+
+\section{Related work}
+
+\input{related}
+
+\section{Conclusion}
+
+\input{conclusion}
+
+\begin{acks}
+To Robert, for the bagels and explaining CMYK and color spaces.
+\end{acks}
+
+
+
+
+%%
+%% The next two lines define the bibliography style to be used, and
+%% the bibliography file.
+%\bibliographystyle{ACM-Reference-Format}
+\bibliography{main}
+
+
+%%
+%% If your work has an appendix, this is the place to put it.
+\appendix
+
+\input{appendix.tex}
+
+\end{document}
+\endinput
+%%
+%% End of file `sample-acmsmall-conf.tex'.
