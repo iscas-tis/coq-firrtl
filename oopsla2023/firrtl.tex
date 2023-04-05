@@ -266,7 +266,7 @@ module MyModule :
 
 \subsection{Lowering Transformations of FIRRTL}
 
-In the sequel, we give an informal introduction to the lowering transformations (aka compilation passes) of  FIRRTL.
+In the sequel, we give an informal introduction to the lowering transformations (aka compilation passes) of  FIRRTL. The dependencies between these compilation passes are illustrated in Figure~\ref{fig-c-pass}.
 
 \paragraph*{InferTypes} The InferTypes pass infers the types of components. For instance, InferTypes infers from the code snippet \begin{lstinline}!  wire x: UInt   x <= UInt<5>(15)   x <= UInt<1>(1)! \end{lstinline} that $x$'s type is \begin{lstinline}!UInt!\end{lstinline}. Note that for a connect statement  \begin{lstinline}! x <= e !\end{lstinline}, InferTypes only checks that the type of $e$ is equivalent to that of $x$ (where the bit widths are ignored), but does not update the bit width of $x$ to that of $e$.
 
@@ -329,24 +329,4 @@ Note that according to the last connect semantics, the connect statement \begin{
 \caption{Dependencies between FIRRTL compilation passes}
 \label{fig-c-pass}
 \end{figure}
-
-HiFIRRTL programs are compiled into LoFIRRTL programs by the following compilation passes,
-\begin{itemize}
-%\item ResolveKinds that resolves the k
-%
-\item InferTypes that infer the types of components, e.g. wires, nodes, registers,
-%
-\item InferWidths that infer the bit-width of ground types,
-%
-\item InferResets that infers concrete resets, i.e. AsyncReset or UInt<1>,
-%
-\item ExpandConnects that expands the connect statements, 
-%
-\item ExpandWhens that expands the when statements, 
-%
-\item LowerTypes that lower down the aggregate types, i.e. bundle and vector types, 
-%
-\item RemoveReset that removes synchronous resets. 
-\end{itemize}
-The dependencies between these compilation passes are illustrated in Figure~\ref{fig-c-pass}.
 
