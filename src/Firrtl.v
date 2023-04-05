@@ -57,7 +57,6 @@ Section LoFirrtl.
   (* mux, valid, sub-xxx, TBD *)
   Inductive fexpr : Type :=
   | Econst : fgtyp -> bits -> fexpr
-  (* | Edeclare : var -> fgtyp -> fexpr *)
   | Ecast : ucast -> fexpr -> fexpr
   | Eprim_unop : eunop -> fexpr -> fexpr
   | Eprim_binop : ebinop -> fexpr -> fexpr -> fexpr
@@ -193,11 +192,8 @@ Module EStore := MakeExprStore VarOrder TE.
 
 Module MakeFirrtl
        (V : SsrOrder)
-       (* (VS : SsrFSet with Module SE := V)
-       (VM : SsrFMap with Module SE := V) *)
        (TE : TypEnv with Module SE := V)
        (SV : ValStore V TE).
-       (* (EV : ExprStore V TE). *)
   Local Open Scope firrtl.
   Local Open Scope bits.
   
@@ -206,11 +202,6 @@ Module MakeFirrtl
   Local Notation var := V.t.
 
   Local Notation vstate := SV.t.
-
-  (* Definition EStore := Store.M.t (fexpr V.T). *)
-
-  (* Local Notation estate := EV.t. *)
-  
 
 (****** Semantics ******)
 
@@ -361,8 +352,8 @@ Module MakeFirrtl
     | Utail n => fun b => low (size b - n) b
     end.  
 
-  Compute (eunop_op Uneg (Fuint 2) [:: true; false; false; true]).
-  Compute (to_Z [:: false; true; false; true]).
+  (*Compute (eunop_op Uneg (Fuint 2) [:: true; false; false; true]).
+  Compute (to_Z [:: false; true; false; true]).*)
 
   (* Comparison operations *)
   Definition binop_bcmp (o : bcmp) : bits -> bits -> bits :=
@@ -481,12 +472,6 @@ Module MakeFirrtl
 
   (* subtraction with extended bits *)
   Definition sbbB_ext b bs1 bs2 : bool * bits := adcB_ext (~~ b) bs1 (~~# bs2).
-  (*Definition subB_ext bs1 bs2 := let (b, r) := (sbbB_ext false bs1 bs2) in rcons r b.*)
-  Definition wky_subB_ext bs1 bs2 := let newl := (maxn (size bs1) (size bs2))+1 in
-                                     let nbs1 := zext (newl-(size bs1)) bs1 in
-                                     let nbs2 := zext (newl-(size bs2)) bs2 in
-    let (b, r) := (sbbB_ext false nbs1 nbs2) in r.
-
   Definition subB_ext bs1 bs2 := let newl := (maxn (size bs1) (size bs2))+1 in
                                   let nbs1 := zext (newl-(size bs1)) bs1 in
                                   let nbs2 := zext (newl-(size bs2)) bs2 in
@@ -495,25 +480,16 @@ Module MakeFirrtl
   Compute (sbbB_ext false [::false;false] [::false;false]).
   Compute (subB_ext [::false;false] [::false;false]).
 
-  Lemma size_subB_ext bs1 bs2 : size (wky_subB_ext bs1 bs2) = (maxn (size bs1) (size bs2))+1.
-  Proof. 
-    rewrite /wky_subB_ext.
-    rewrite /sbbB_ext /adcB_ext.
-    rewrite size_full_adder_ext.
-    fold (@cat bool bs1 (zeros (maxn (size bs1) (size bs2) + 1 - size bs1))).
-    rewrite size_cat size_invB size_zext size_zeros addn1 subnKC maxnC.
-    rewrite subnKC.
-    unfold maxn at 1.
-    rewrite ltnn //.
-    move : (leq_maxl (size bs2) (size bs1)) => Hbd2.
-    rewrite maxnC in Hbd2.
-    move : (leqnSn (maxn (size bs1) (size bs2))) => Hmax1.
-    rewrite (leq_trans Hbd2 Hmax1) //.
-    move : (leq_maxl (size bs1) (size bs2)) => Hbd1.
-    rewrite maxnC in Hbd1.
-    move : (leqnSn (maxn (size bs2) (size bs1))) => Hmax1.
-    rewrite (leq_trans Hbd1 Hmax1) //.
-  Qed.
+  Lemma size_subB_ext bs1 bs2 : size (subB_ext bs1 bs2) = (maxn (size bs1) (size bs2))+1.
+  rewrite /subB_ext.
+  rewrite size_sbbB 2!size_zext addn1 subnKC.
+  rewrite subnKC.
+  rewrite /minn ltnn //.
+  apply leqW.
+  rewrite leq_maxr //.
+  apply leqW.
+  rewrite leq_maxl //.
+Qed.
 
   Lemma to_Zpos_subB_ext bs1 bs2 : ~~(bs1 <# bs2) -> to_Zpos (subB_ext bs1 bs2) = Z.sub (to_Zpos bs1) (to_Zpos bs2).
   Proof.
@@ -773,11 +749,6 @@ Qed.
           rewrite (Z.add_comm (to_Zpos bs1 - to_Zpos bs2) (2 ^ Z.of_nat (size bs2))) Z.add_sub_assoc //.
           apply H.
   Qed.
-  
-Compute (to_Z ([::false;false;false;true])).
-Compute (to_Z (negB (sext 1 [::false;false;false;true]))).
-Compute ((sext 1 [::false;false;false;true])).
-Compute ((negB (sext 1 [::false;false;false;true]))).
 
 Lemma to_Z_negB bs : to_Z (negB (sext 1 bs)) = Z.opp (to_Z bs).
 Proof.
@@ -817,25 +788,16 @@ Proof.
   apply H.
   exact H0.
 Qed.
-Compute (to_Z [::false;false;true]).
-Compute (to_Z (negB [::false;false;true])).
-Compute (to_Z (negB (sext 1 [::false;false;true]))).
-Compute (to_Z (full_mul (dropmsb [::true;false]) (dropmsb (negB (sext 1 [::false;false;true]))))).
-Compute (to_Z ([::true;false;true])).
-Compute (to_Z (full_mul (negB [::false;false;true]) (negB [::true;false;true]))).
-Compute (to_Z (negB (sext 1 (full_mul (dropmsb [::true;false;true;false]) (negB [::false;false;true]))))).
-Compute (to_Z (negB (full_mul [::true;false;true;false] (negB [::false;false;true])))).
 
   Definition Sfull_mul (bs1 bs2 : bits) : bits :=
-    (*mulB_nil_l: forall n : bits, [::] *# n = [::]*)
     if (((size bs1) == 0) || ((size bs2) == 0))
-    then nil
+    then zeros (size bs1 + size bs2)
     else if ((bs1 == [::b0]) || (bs2 == [::b0]))
-    then [::b0]
-    else if (bs1 == [::b1])
-    then negB (sext 1 bs2)
-    else if (bs2 == [::b1])
-    then negB (sext 1 bs1)
+    then zeros (size bs1 + size bs2)
+    else if (bs1 == rcons (zeros (size bs1 -1)) b1)
+    then negB (sext 1 ((zeros (size bs1 -1)) ++ bs2))
+    else if (bs2 == rcons (zeros (size bs2 -1)) b1)
+    then negB (sext 1 ((zeros (size bs2 -1)) ++ bs1))
     else
     let msb1 := msb bs1 in 
     let msb2 := msb bs2 in 
@@ -844,17 +806,104 @@ Compute (to_Z (negB (full_mul [::true;false;true;false] (negB [::false;false;tru
     else if ((msb1 == b1) && (msb2 == b1))
     then (full_mul (negB bs1) (negB bs2)) 
     else if ((msb1 == b0) && (msb2 == b1))
-    then negB (sext 1 (full_mul (dropmsb bs1) (negB bs2)))(*negB (full_mul bs1 (negB bs2))*)
+    then negB (sext 1 (full_mul (dropmsb bs1) (negB bs2)))
     else negB (sext 1 (full_mul (negB bs1) (dropmsb bs2))).
     
+Lemma size_Sfull_mul bs1 bs2: size (Sfull_mul bs1 bs2) = (size bs1) + (size bs2).
+  Proof.
+    rewrite /Sfull_mul.
+    case Hlen1 : (size bs1 == 0).
+    simpl.
+    rewrite size_zeros //.
+    case Hlen2 : (size bs2 == 0).
+    simpl.
+    rewrite size_zeros //.
+    simpl.
+    case H10 : (bs1 == [:: b0]).
+    simpl.
+    rewrite size_zeros //.
+    case H20 : (bs2 == [:: b0]).
+    simpl.
+    rewrite size_zeros //.
+    simpl.
+    assert (Hlen1' : 0 < size bs1).
+    move /eqP : Hlen1 => Hlen1.
+    apply not_eq_sym in Hlen1.
+    apply neq_0_lt in Hlen1.
+    move /ltP : Hlen1 => Hlen1.
+    exact Hlen1.
+    assert (Hlen2' : 0 < size bs2).
+    move /eqP : Hlen2 => Hlen2.
+    apply not_eq_sym in Hlen2.
+    apply neq_0_lt in Hlen2.
+    move /ltP : Hlen2 => Hlen2.
+    exact Hlen2.
+    case Hbs11 : (bs1 == rcons (zeros (size bs1 - 1)) b1).
+    rewrite size_negB size_sext size_cat addnACl size_zeros addnBA.
+    rewrite add1n subn1 Nat.pred_succ addnC //.
+    exact Hlen1'.
+    case Hbs21 : (bs2 == rcons (zeros (size bs2 - 1)) b1).
+    rewrite size_negB size_sext size_cat addnACl size_zeros addnBA.
+    rewrite add1n subn1 Nat.pred_succ addnC //.
+    exact Hlen2'.
+    case Hmsb00 : ((msb bs1 == b0) && (msb bs2 == b0)).
+    rewrite size_zext size_full_mul 2!size_dropmsb.
+    rewrite {1}subn1 addnCAC addnABC.
+    have -> : 2-1=1 by simpl.
+    rewrite addnACl.
+    rewrite -subn1 subnK.
+    rewrite addnC //.
+    exact Hlen1'.
+    trivial.
+    exact Hlen2'.
+    case Hmsb11 : ((msb bs1 == b1) && (msb bs2 == b1)).
+    rewrite size_full_mul 2!size_negB //.
+    case Hmsb01 : ((msb bs1 == b0) && (msb bs2 == b1)).
+    rewrite size_negB size_sext size_full_mul size_dropmsb size_negB.
+    rewrite subn1 addnACl -subn1 addnBA.
+    rewrite add1n subn1 Nat.pred_succ addnC //.
+    exact Hlen1'.
+    rewrite size_negB size_sext size_full_mul size_dropmsb size_negB.
+    rewrite addnCAC addnBA.
+    rewrite add1n subn1 Nat.pred_succ addnC //.
+    exact Hlen2'.
+Qed.
+
 Lemma rconsmsb bs : size bs > 0 -> bs = rcons (dropmsb bs) (msb bs).
   Proof.
-    elim: bs => [| b bs IH] /=.
+    Search joinmsb.
     intro.
-    discriminate.
-    intro.
+    have ->: (dropmsb bs) = fst (splitmsb bs) by rewrite /dropmsb.
+    have ->: (msb bs) = snd (splitmsb bs) by rewrite /dropmsb.
+    symmetry.
+    apply joinmsb_splitmsb.
+    exact H.
+Qed.
 
-  Admitted.
+Lemma zext_full_mul bs1 bs2 : to_Zpos (full_mul (joinmsb bs1 false) bs2) = to_Zpos (full_mul bs1 bs2).
+Proof.
+  rewrite 2!to_Zpos_full_mul to_Zpos_joinmsb Z.mul_0_l Z.add_0_l //.
+Qed.
+
+Lemma msb0_full_mul bs1 bs2 : msb (full_mul (rcons bs1 false) bs2) = false.
+Proof.
+  assert (H : Z.lt (to_Zpos (full_mul (rcons bs1 false) bs2)) (2 ^ Z.of_nat (size (full_mul (rcons bs1 false) bs2) - 1))).
+  rewrite size_full_mul size_rcons -addnBAC.
+  rewrite subn1 Nat.pred_succ.
+  rewrite to_Zpos_full_mul to_Zpos_rcons Z.mul_0_l Z.add_0_r -to_Zpos_full_mul -size_full_mul.
+  apply to_Zpos_bounded.
+  rewrite ltn0Sn //.
+  apply /negbTE. 
+  rewrite -> msb0_to_Zpos_bounded.
+  exact H.
+  rewrite size_full_mul size_rcons ltn0Sn //.
+Qed.
+
+Lemma msb_0full_mul bs1 bs2 : msb (full_mul bs1 (rcons bs2 false)) = false.
+Proof.
+  rewrite full_mulBC msb0_full_mul //.
+Qed.
+
 Lemma to_Z_Sfull_mul bs1 bs2: to_Z (Sfull_mul bs1 bs2) = (Z.mul (to_Z bs1) (to_Z bs2)).
   Proof.
     rewrite /Sfull_mul.
@@ -862,39 +911,45 @@ Lemma to_Z_Sfull_mul bs1 bs2: to_Z (Sfull_mul bs1 bs2) = (Z.mul (to_Z bs1) (to_Z
     move /eqP : Hlen1 => Hlen1.
     apply size0nil in Hlen1.
     simpl.
-    rewrite Hlen1 to_Z_nil Z.mul_0_l //.
+    rewrite Hlen1 to_Z_nil to_Z_zeros Z.mul_0_l //.
     case Hlen2 : (size bs2 == 0).
     move /eqP : Hlen2 => Hlen2.
     apply size0nil in Hlen2.
     simpl.
-    rewrite Hlen2 to_Z_nil Z.mul_0_r //.
+    rewrite Hlen2 to_Z_nil to_Z_zeros Z.mul_0_r //.
     case Hbs10 : (bs1 == [::b0]).
     simpl.
     move /eqP : Hbs10 => Hbs10.
     rewrite Hbs10.
-    rewrite Z.mul_0_l //.
+    rewrite Z.mul_0_l to_Z_zeros //.
     case Hbs20 : (bs2 == [::b0]).
     simpl.
     move /eqP : Hbs20 => Hbs20.
     rewrite Hbs20.
-    rewrite Z.mul_0_r //.
+    rewrite Z.mul_0_r to_Z_zeros //.
     simpl.
-    case Hbs11 : (bs1 == [::b1]).
-    simpl.
+    case Hbs11 : (bs1 == rcons (zeros (size bs1 - 1)) b1).
     move /eqP : Hbs11 => Hbs11.
-    rewrite Hbs11.
-    have -> : ([:: true] = ones 1) by symmetry.
-    rewrite to_Z_ones.
-    rewrite to_Z_negB Z.mul_comm Z.opp_eq_mul_m1 //.
-    trivial.
-    case Hbs21 : (bs2 == [::b1]).
+    rewrite {2}Hbs11 to_Z_rcons.
     simpl.
+    rewrite to_Zneg_zeros - Z.add_1_r Z.sub_add to_Z_negB to_Z_cat.
+    rewrite to_Zpos_zeros Z.add_0_l size_zeros Z.mul_comm Z.mul_opp_l //.
+    move /eqP : Hlen2 => Hlen2.
+    apply not_eq_sym in Hlen2.
+    apply neq_0_lt in Hlen2.
+    move /ltP : Hlen2 => Hlen2.
+    exact Hlen2.
+    case Hbs21 : (bs2 == rcons (zeros (size bs2 - 1)) b1).
     move /eqP : Hbs21 => Hbs21.
-    rewrite Hbs21.
-    have -> : ([:: true] = ones 1) by symmetry.
-    rewrite to_Z_ones.
-    rewrite to_Z_negB Z.opp_eq_mul_m1 //.
-    trivial.
+    rewrite {2}Hbs21 to_Z_rcons.
+    simpl.
+    rewrite to_Zneg_zeros - Z.add_1_r Z.sub_add to_Z_negB to_Z_cat.
+    rewrite to_Zpos_zeros Z.add_0_l size_zeros Z.mul_opp_r //.
+    move /eqP : Hlen1 => Hlen1.
+    apply not_eq_sym in Hlen1.
+    apply neq_0_lt in Hlen1.
+    move /ltP : Hlen1 => Hlen1.
+    exact Hlen1.
 
     case Hmsb00 : ((msb bs1 == b0) && (msb bs2 == b0)).
     move /andP : Hmsb00 => [H10 H20]. 
@@ -920,6 +975,37 @@ Lemma to_Z_Sfull_mul bs1 bs2: to_Z (Sfull_mul bs1 bs2) = (Z.mul (to_Z bs1) (to_Z
     rewrite 2!to_Zpos_rcons H10 H20 2!Z.mul_0_l 2!Z.add_0_r //.
     trivial.
 
+    assert (Hrcons1 : bs1 = rcons (dropmsb bs1) (msb bs1)).
+    apply rconsmsb.
+    move /eqP : Hlen1 =>Hlen1.
+    apply not_eq_sym in Hlen1.
+    apply neq_0_lt in Hlen1.
+    move /ltP : Hlen1 => Hlen1.
+    apply Hlen1.
+    assert (Hrcons2 : bs2 = rcons (dropmsb bs2) (msb bs2)).
+    apply rconsmsb.
+    move /eqP : Hlen2 =>Hlen2.
+    apply not_eq_sym in Hlen2.
+    apply neq_0_lt in Hlen2.
+    move /ltP : Hlen2 => Hlen2.
+    apply Hlen2.
+    assert (Hrconsn1 : -# bs1 = rcons (dropmsb (-# bs1)) (msb (-# bs1))).
+    apply rconsmsb.
+    rewrite size_negB.
+    move /eqP : Hlen1 => Hlen1.
+    apply not_eq_sym in Hlen1.
+    apply neq_0_lt in Hlen1.
+    move /ltP : Hlen1 => Hlen1.
+    apply Hlen1.
+    assert (Hrconsn2 : -# bs2 = rcons (dropmsb (-# bs2)) (msb (-# bs2))).
+    apply rconsmsb.
+    rewrite size_negB.
+    move /eqP : Hlen2 => Hlen2.
+    apply not_eq_sym in Hlen2.
+    apply neq_0_lt in Hlen2.
+    move /ltP : Hlen2 => Hlen2.
+    apply Hlen2.
+
     case Hmsb11 : ((msb bs1 == b1) && (msb bs2 == b1)).
     move /andP : Hmsb11 => [H11 H21]. 
     move /eqP : H11 => H11.
@@ -928,10 +1014,14 @@ Lemma to_Z_Sfull_mul bs1 bs2: to_Z (Sfull_mul bs1 bs2) = (Z.mul (to_Z bs1) (to_Z
 
     case Hdrop2 : (dropmsb bs2 == zeros (size bs2 - 1)).
     move /eqP : Hdrop2 => Hdrop2.
-    admit.
+    rewrite {1}Hrcons2 Hdrop2 H21 in Hbs21.
+    rewrite eq_refl in Hbs21.
+    discriminate.
     case Hdrop1 : (dropmsb bs1 == zeros (size bs1 - 1)).
     move /eqP : Hdrop1 => Hdrop1.
-    admit.
+    rewrite {1}Hrcons1 Hdrop1 H11 in Hbs11.
+    rewrite eq_refl in Hbs11.
+    discriminate.
     
     assert (Ht1 : zext (size (-# bs2)) (-# bs1) = sext (size (-# bs2)) (-# bs1)).
     rewrite /zext /sext.
@@ -979,77 +1069,35 @@ Lemma to_Z_Sfull_mul bs1 bs2: to_Z (Sfull_mul bs1 bs2) = (Z.mul (to_Z bs1) (to_Z
     rewrite 2!size_sext addnC //.
     apply smulo_sext.
 
-    (*assert (Hbs1 : bs1 = -# (rcons (dropmsb (-# bs1)) (msb (-# bs1)))).
-    rewrite -rconsmsb.
-    rewrite negB_involutive //.
-    rewrite size_negB.
-    move /eqP : Hlen1 => Hlen1.
-    apply not_eq_sym in Hlen1.
-    apply neq_0_lt in Hlen1.
-    move /ltP : Hlen1 => Hlen1.
-    exact Hlen1.
-    assert (Hbs2 : bs2 = -# (rcons (dropmsb (-# bs2)) (msb (-# bs2)))).
-    rewrite -rconsmsb.
-    rewrite negB_involutive //.
-    rewrite size_negB.
-    move /eqP : Hlen2 => Hlen2.
-    apply not_eq_sym in Hlen2.
-    apply neq_0_lt in Hlen2.
-    move /ltP : Hlen2 => Hlen2.
-    exact Hlen2.
-    rewrite {2}Hbs1 {2}Hbs2.
-
-    
-    rewrite msb0_to_Z_negB.
-    rewrite msb0_to_Z_negB.
-    rewrite 2!to_Zpos_rcons.
-    rewrite -msb_negB.
-    rewrite -msb_negB.
-    rewrite H11 H21.
-    simpl.
-    rewrite 2!Z.add_0_r Z.mul_opp_opp to_Zpos_full_mul //.
-    apply Hdrop2.
-    apply Hdrop1.
-    rewrite msb_rcons -msb_negB.
-    rewrite H21 //.
-    apply Hdrop2.
-    rewrite msb_rcons -msb_negB.
-    rewrite H11 //.
-    apply Hdrop1.
-    trivial.
-*)
     case Hmsb01 : ((msb bs1 == b0) && (msb bs2 == b1)).
     move /andP : Hmsb01 => [H10 H21]. 
     move /eqP : H10 => H10.
     move /eqP : H21 => H21.
-    rewrite to_Z_negB.
 
-    rewrite full_mul_mulB_zext. 
     case Hdrop2 : (dropmsb bs2 == zeros (size bs2 - 1)).
     move /eqP : Hdrop2 => Hdrop2.
-    admit.
+    rewrite {1}Hrcons2 Hdrop2 H21 in Hbs21.
+    rewrite eq_refl in Hbs21.
+    discriminate.
 
-    have -> : (zext (size (-# bs2)) (dropmsb bs1) = (zext (size (-# bs2) - 1) bs1)).
+    rewrite to_Z_negB {1}to_Z_to_Zpos.
+    rewrite {2}Hrconsn2.
+    rewrite -msb_negB.
+    rewrite H21.
+    simpl.
+    rewrite msb_0full_mul Z.mul_0_l Z.sub_0_r.
+    have -> : to_Zpos (full_mul (dropmsb bs1) (-# bs2)) = to_Zpos (full_mul bs1 (-# bs2)).
+    rewrite {2}Hrcons1.
+    rewrite H10.
+    rewrite zext_full_mul //.
+    have -> : to_Zpos (full_mul bs1 (-# bs2)) = to_Z (full_mul bs1 (-# bs2)).
+    rewrite to_Z_to_Zpos {3}Hrcons1 H10 msb0_full_mul Z.mul_0_l Z.sub_0_r //.
+    rewrite full_mul_mulB_zext.
     
-    have -> : (bs1 = rcons (dropmsb bs1) (msb bs1)).
-    apply rconsmsb.
-    move /eqP : Hlen1 =>Hlen1.
-    apply not_eq_sym in Hlen1.
-    apply neq_0_lt in Hlen1.
-    move /ltP : Hlen1 => Hlen1.
-    apply Hlen1.
-    rewrite dropmsb_rcons H10 zext_rcons0 {2}/zext rcons_cat zeros_rcons -addn1 subnK /zext //.
-    move /eqP : Hlen2 =>Hlen2.
-    apply not_eq_sym in Hlen2.
-    apply neq_0_lt in Hlen2.
-    move /ltP : Hlen2 => Hlen2.
-    rewrite size_negB.
-    apply Hlen2.
-
-    assert (Ht1 : zext (size (-# bs2) -1) (bs1) = sext (size (-# bs2) -1) (bs1)).
+    have -> : (zext (size (-# bs2)) bs1 = sext (size (-# bs2)) bs1).
     rewrite /zext /sext.
     rewrite H10 //.
-    assert (Ht2 : zext (size (dropmsb bs1)) (-# bs2) = sext (size (dropmsb bs1)) (-# bs2)).
+    have -> : (zext (size bs1) (-# bs2) = sext (size bs1) (-# bs2)).
     rewrite /zext /sext.
     rewrite -msb_negB.
     rewrite H21 //.
@@ -1059,7 +1107,6 @@ Lemma to_Z_Sfull_mul bs1 bs2: to_Z (Sfull_mul bs1 bs2) = (Z.mul (to_Z bs1) (to_Z
     apply H.
     exact Hdrop2.
     
-    rewrite Ht1 Ht2.
     rewrite bv2z_mul_signed.
     rewrite 2!to_Z_sext.
     rewrite NBitsOp.to_Z_negB.
@@ -1077,83 +1124,69 @@ Lemma to_Z_Sfull_mul bs1 bs2: to_Z (Sfull_mul bs1 bs2) = (Z.mul (to_Z bs1) (to_Z
     move /ltP : Hlen1 => Hlen1.
     rewrite addn_gt0 Hlen1 //.
     rewrite 2!size_sext addnC //.
-    rewrite size_negB size_dropmsb addnABC //.
-    move /eqP : Hlen2 =>Hlen2.
-    apply not_eq_sym in Hlen2.
-    apply neq_0_lt in Hlen2.
-    move /ltP : Hlen2 => Hlen2.
-    apply Hlen2.
-    move /eqP : Hlen1 =>Hlen1.
-    apply not_eq_sym in Hlen1.
-    apply neq_0_lt in Hlen1.
-    move /ltP : Hlen1 => Hlen1.
-    apply Hlen1.
-    ~~ Smulo (sext (size (negB bs2)) (dropmsb bs1)) (sext (size (dropmsb bs1)) (negB bs2))
-    admit.
-    (*apply smulo_sext.*)
-
-(*
-    assert (Hbs2 : sext 1 bs2 = -# (rcons (dropmsb (-# (sext 1 bs2))) (msb (-# (sext 1 bs2))))).
-    rewrite -rconsmsb.
-    rewrite negB_involutive //.
-    rewrite size_negB size_sext addn1 ltn0Sn //.
-    have -> : (to_Z bs2) = (to_Z (sext 1 bs2)) by rewrite to_Z_sext //.
-
-    rewrite {2}Hbs2.
-    rewrite msb0_to_Z_negB.
-    rewrite to_Zpos_rcons.
-    rewrite -msb_negB.
-    rewrite msb_sext.
-    move /eqP : H21 => H21.
-    rewrite H21.
-    simpl.
-    rewrite Z.add_0_r Z.mul_opp_r.
-
-    rewrite (to_Z_to_Zpos bs1).
-    move /eqP : H10 => H10.
-    rewrite H10 Z.mul_0_l Z.sub_0_r.
-    rewrite -to_Zpos_full_mul.
-        Z_mul_to_Z_msb_same:
-  forall [bs1 bs2 : bits], msb bs1 == msb bs2 -> (0 <= to_Z bs1 * to_Z bs2)%Z
-  Z_mul_to_Z_msb_diff:
-  forall [bs1 bs2 : bits], msb bs1 != msb bs2 -> (to_Z bs1 * to_Z bs2 <= 0)%Z
-  msb1_to_Z_lt0':
-  forall [bs : seq bool], 0 < size bs -> msb bs -> (to_Z bs < 0)%Z
-  high1_0_to_Z_negB:
-  forall [bs : bits], high 1 bs = [:: b0] -> to_Z (-# bs) = (- to_Zpos bs)%Z*)
+    apply smulo_sext.
+    apply contraFneq with (b:=(dropmsb bs2 == zeros (size bs2 - 1))).
+    intro.
+    move /eqP : H =>H.
+    apply H.
+    exact Hdrop2.
 
     assert (Hmsb10 : (msb bs1 == b1) && (msb bs2 == b0)).
     apply /andP.
     split. 
-    apply andb_false_iff in Hmsb00.
-    apply andb_false_iff in Hmsb01.
-    admit.
-    admit.
-
+    elim H11 : (msb bs1).
+    trivial.
+    rewrite H11 in Hmsb00.
+    rewrite H11 in Hmsb01.
+    simpl in Hmsb00.
+    simpl in Hmsb01.
+    move /eqP : Hmsb00 => Hmsb00.
+    move /eqP : Hmsb01 => Hmsb01.
+    apply not_true_is_false in Hmsb01.
+    apply Bool.not_false_is_true in Hmsb00.
+    rewrite Hmsb00 in Hmsb01.
+    discriminate.
+    elim H20 : (msb bs2).
+    rewrite H20 andbC in Hmsb11.
+    rewrite H20 andbC in Hmsb01.
+    simpl in Hmsb11.
+    simpl in Hmsb01.
+    move /eqP : Hmsb11 => Hmsb11.
+    move /eqP : Hmsb01 => Hmsb01.
+    apply not_true_is_false in Hmsb11.
+    apply Bool.not_false_is_true in Hmsb01.
+    rewrite Hmsb11 in Hmsb01.
+    discriminate.
+    trivial.
     move /andP : Hmsb10 => [H11 H20]. 
     move /eqP : H11 => H11.
     move /eqP : H20 => H20.
-    rewrite to_Z_negB.
 
-    rewrite full_mul_mulB_zext. 
     case Hdrop1 : (dropmsb bs1 == zeros (size bs1 - 1)).
     move /eqP : Hdrop1 => Hdrop1.
-    admit.
+    rewrite {1}Hrcons1 Hdrop1 H11 in Hbs11.
+    rewrite eq_refl in Hbs11.
+    discriminate.
 
-    have -> : (zext (size (-# bs1)) (dropmsb bs2) = (zext (size (-# bs1) - 1) bs2)).
-    have -> : (bs2 = rcons (dropmsb bs2) (msb bs2)).
-    apply rconsmsb.
-    move /eqP : Hlen2 =>Hlen2.
-    apply not_eq_sym in Hlen2.
-    apply neq_0_lt in Hlen2.
-    move /ltP : Hlen2 => Hlen2.
-    apply Hlen2.
-    assert (Ht2 : zext (size (-# bs1) -1) (bs2) = sext (size (-# bs1) -1) (bs2)).
+    rewrite to_Z_negB {1}to_Z_to_Zpos.
+    rewrite {2}Hrconsn1.
+    rewrite -msb_negB.
+    rewrite H11.
+    simpl.
+    rewrite msb0_full_mul Z.mul_0_l Z.sub_0_r.
+    have -> : to_Zpos (full_mul (-# bs1) (dropmsb bs2)) = to_Zpos (full_mul (-# bs1) bs2).
+    rewrite {2}Hrcons2.
+    rewrite H20.
+    symmetry.
+    rewrite full_mulBC zext_full_mul full_mulBC //.
+    have -> : to_Zpos (full_mul (-# bs1) bs2) = to_Z (full_mul (-# bs1) bs2).
+    rewrite to_Z_to_Zpos {3}Hrcons2 H20 msb_0full_mul Z.mul_0_l Z.sub_0_r //.
+    rewrite full_mul_mulB_zext.
+    
+    have -> : (zext (size (-# bs1)) bs2 = sext (size (-# bs1)) bs2).
     rewrite /zext /sext.
     rewrite H20 //.
-    rewrite dropmsb_rcons H20.
-
-    assert (Ht1 : zext (size (dropmsb bs2)) (-# bs1) = sext (size (dropmsb bs2)) (-# bs1)).
+    have -> : (zext (size bs2) (-# bs1) = sext (size bs2) (-# bs1)).
     rewrite /zext /sext.
     rewrite -msb_negB.
     rewrite H11 //.
@@ -1163,7 +1196,6 @@ Lemma to_Z_Sfull_mul bs1 bs2: to_Z (Sfull_mul bs1 bs2) = (Z.mul (to_Z bs1) (to_Z
     apply H.
     exact Hdrop1.
     
-    rewrite Ht1 Ht2.
     rewrite bv2z_mul_signed.
     rewrite 2!to_Z_sext.
     rewrite NBitsOp.to_Z_negB.
@@ -1181,179 +1213,14 @@ Lemma to_Z_Sfull_mul bs1 bs2: to_Z (Sfull_mul bs1 bs2) = (Z.mul (to_Z bs1) (to_Z
     move /ltP : Hlen1 => Hlen1.
     rewrite addn_gt0 Hlen1 //.
     rewrite 2!size_sext addnC //.
-    rewrite size_negB size_dropmsb addnABC //.
-    move /eqP : Hlen2 =>Hlen2.
-    apply not_eq_sym in Hlen2.
-    apply neq_0_lt in Hlen2.
-    move /ltP : Hlen2 => Hlen2.
-    apply Hlen2.
-    move /eqP : Hlen1 =>Hlen1.
-    apply not_eq_sym in Hlen1.
-    apply neq_0_lt in Hlen1.
-    move /ltP : Hlen1 => Hlen1.
-    apply Hlen1.
-    have -> : (sext (size (-# bs1) - 1) bs2 = sext (size (-# bs1)) (dropmsb bs2)).
-    admit.
     apply smulo_sext.
-Admitted.
-(*
-  Fixpoint Sfull_mul (bs1 bs2 : bits) : bits :=
-    match bs1 with
-    | [::] => from_nat (size bs1 + size bs2) 0
-    | hd::tl =>
-    if tl == nil then (
-      if hd then addB (invB (sext (size bs1) bs2)) (zext (size bs2) [::b1])
-        else addB (invB (sext (size bs1) (zeros (size bs2)))) (zext (size bs2) [::b1])
-      )
-      else (
-      if hd then addB (joinlsb false (Sfull_mul tl bs2)) (sext (size bs1) bs2)
-        else joinlsb false (Sfull_mul tl bs2))
-    end.
+    apply contraFneq with (b:=(dropmsb bs1 == zeros (size bs1 - 1))).
+    intro.
+    move /eqP : H =>H.
+    apply H.
+    exact Hdrop1.
+Qed.
 
-  Lemma size_Sfull_mul bs1 bs2: size (Sfull_mul bs1 bs2) = (size bs1) + (size bs2).
-  Proof.
-    elim: bs1 => [| b bs1 IH] /=.
-    - by rewrite /full_mul add0n size_from_nat.
-    - case Hbs1 : (bs1 == [::]).
-      + case b.
-      move /eqP : Hbs1 => Hbs1.
-      rewrite Hbs1 size_addB size_invB size_sext size_zext.
-      simpl.
-      rewrite addn1 add1n /minn ltnn //.
-      move /eqP : Hbs1 => Hbs1.
-      rewrite Hbs1 size_addB size_invB size_sext size_zext size_zeros.
-      simpl.
-      rewrite addn1 add1n /minn ltnn //.
-      + case b.
-      rewrite size_addB size_sext size_joinlsb IH.
-      rewrite addnACl add1n /minn ltnn addnC.
-      reflexivity.
-      by rewrite size_joinlsb IH addSn addn1.
-  Qed.
-
-  Lemma to_Z_from_Z bs n x : n >= (size bs) -> x = to_Z bs -> Z.opp x = to_Z (from_Z n (Z.opp x)).
-  Proof.
-    intros.
-    rewrite /from_Z.
-    case Hz: (Z.opp x)%Z.
-    - rewrite to_Z_zeros //.
-    - rewrite to_Z_to_Zpos to_Zpos_from_Zpos_bounded.
-    Search to_Z.
-    (*to_Zpos_from_Zpos_bounded:
-  forall [n : nat] [z : Z],
-  (0 <= z)%Z -> (z < 2 ^ Z.of_nat n)%Z -> to_Zpos (from_Zpos n z) = z*)
-    Admitted.
-
-  Lemma to_Z_Sfull_mul0 bs1 bs2: to_Z (Sfull_mul bs1 bs2) = to_Z (from_Z (size (Sfull_mul bs1 bs2)) (Z.mul (to_Z bs1) (to_Z bs2))).
-  Proof.
-    Search to_Z.
-    case Hbs2 : (size bs2 == 0).
-    - move /eqP : Hbs2 => Hbs2.
-    apply size0nil in Hbs2.
-    rewrite Hbs2 to_Z_nil Z.mul_0_r -zeros_from_Z to_Z_zeros.
-    admit.
-
-    - move /eqP : Hbs2 => Hbs2.
-    apply not_eq_sym in Hbs2.
-    apply neq_0_lt in Hbs2.
-    move /ltP : Hbs2 => Hbs2.
-
-    elim bs1 => [|hd1 tl1 IH] /=. 
-    rewrite!from_natn0 size_zeros!add0n //. 
-    case Hhd1 : hd1. 
-    - case Htl1 : (tl1 == [::]).
-      - move /eqP : Htl1 => Htl1.
-      rewrite bv2z_add_signed.
-      rewrite to_Z_zext.
-      rewrite bv2z_not_signed.
-      rewrite to_Z_sext.
-      have -> : ([::b1] = ones 1) by symmetry.
-      rewrite to_Zpos_ones.
-      simpl.
-      rewrite Z.sub_add.
-      rewrite Htl1.
-      have -> : ([:: true] = ones 1) by symmetry.
-      rewrite to_Z_ones.
-      rewrite Z.mul_comm -Z.opp_eq_mul_m1 size_addB.
-      assert (Hsizeeq : (size (~~# sext (size ([::] : bits)).+1 bs2)) = (size (zext (size bs2) (ones 1)))).
-      rewrite size_zext size_ones size_invB size_sext addnC.
-      simpl.
-      reflexivity.
-      rewrite Hsizeeq /minn ltnn size_zext size_ones.
-      apply to_Z_from_Z with (bs:=bs2).
-      rewrite addnC addn1 leqnSn //.
-      reflexivity.
-      trivial.
-      rewrite size_sext -(addn1 (size tl1)) -addnACl.
-      trivial.
-      apply Hbs2.
-      have -> : ([::b1] = ones 1) by symmetry.
-      rewrite Htl1 size_zext size_ones size_invB size_sext addnC.
-      simpl.
-      reflexivity.
-      rewrite Htl1.
-      simpl.
-
-      rewrite /Saddo.
-      rewrite -/(msb (~~# sext 1 bs2)) -/(msb ((zext (size bs2) [:: b1]))) -/(msb (~~# sext 1 bs2 +# zext (size bs2) [:: b1])).
-      rewrite -msb_invB.
-      rewrite msb_sext msb_zext.
-      simpl.
-      rewrite andb_false_r andb_false_l orb_false_l andb_true_r negb_andb.
-      case Hmsb2 : ((msb bs2) == false).
-      - move /eqP : Hmsb2 => Hmsb2.
-        rewrite Hmsb2.
-        simpl.
-        done.
-      - move /eqP : Hmsb2 => Hmsb2.
-        apply Bool.not_false_is_true in Hmsb2.
-        rewrite Hmsb2.
-        simpl.
-        rewrite /sext /zext Hmsb2.
-        have -> : (copy 1 true = [::b1]) by symmetry.
-        Search msb.
-(*invB_cat: forall bs1 bs2 : seq bool, ~~# (bs1 ++ bs2) = ~~# bs1 ++ ~~# bs2
-invB_cons: forall (b : bool) (bs : seq bool), ~~# (b :: bs) = ~~ b :: ~~# bs*)
-    admit.
-        apply Hbs2.
-        rewrite size_sext addn1. 
-        move : (Nat.lt_0_succ (size bs2)) => Ht.
-        move /ltP : Ht => Ht.
-        exact Ht.
-
-      - move /eqP : Htl1 => Htl1.
-      rewrite size_addB size_joinlsb size_Sfull_mul size_sext -(addn1 (size tl1)).
-      rewrite (addnC (size tl1) 1) -(addnACl (size tl1) (size bs2) 1) /minn ltnn.
-
-      Search dropmsb. (*to_Zpos_from_Zpos_bounded:
-      forall [n : nat] [z : Z],
-      (0 <= z)%Z -> (z < 2 ^ Z.of_nat n)%Z -> to_Zpos (from_Zpos n z) = z*)
-
-      (*to_Z_zext:
-  forall (bs : bits) [n : nat], 0 < n -> to_Z (zext n bs) = to_Zpos bs
-
-  bv2z_mulj_signed:
-  forall [bs1 bs2 : seq bool],
-  0 < size bs1 ->
-  size bs1 = size bs2 ->
-  to_Z (sext (size bs1) bs1 *# sext (size bs1) bs2) = (to_Z bs1 * to_Z bs2)%Z
-
-  bv2z_mull_signed:
-  forall [bs1 bs2 : seq bool],
-  0 < size bs1 ->
-  size bs1 = size bs2 ->
-  (to_Zpos (low (size bs2) (sext (size bs1) bs1 *# sext (size bs1) bs2)) +
-   to_Z (high (size bs1) (sext (size bs1) bs1 *# sext (size bs1) bs2)) *
-   2 ^ Z.of_nat (size bs2))%Z = (to_Z bs1 * to_Z bs2)%Z*)
-   
-admit.   
-  Admitted.
-*)
-  (*Compute (sext 2 [::b1;b0]).
-  Compute (joinlsb false(addB (zeros ((size [::b1;b0])+1)) (addB (invB (sext (size [::b1]) [::b1;b0])) (zext (size [::b1;b0]) [::b1])))).
-  Compute (Sfull_mul [::b1;b1] [::b0;b1]).
-  Compute (cat [::b1;b1] [::b0;b1]).*)
-  
   Definition ebinop_op (o : ebinop) (t1 t2 : fgtyp) : bits -> bits -> bits :=
     match t1, t2 with
     | Fuint w1, Fuint w2 =>
@@ -1363,7 +1230,7 @@ admit.
         let eb := zext (w-w2) b in
       match o with
       | Badd => addB_ext a b
-      | Bsub => wky_subB_ext a b
+      | Bsub => subB_ext a b
       | Bdiv => udivB' a b
       | Brem => low (minn w1 w2) (uremB a b)
       (* | Bsdiv => sdivB *)
@@ -1503,19 +1370,6 @@ admit.
     | Evalidif c e => (* if (Z.ltb 0 (to_Z (eval_fexpr c s))) then *)
                       (type_of_fexpr e te)
     end.
-
-  (* Expression evaluation, type env *)
-  (*Definition upd_typenv_fexpr (e : fexpr) (te : TE.env) : TE.env :=
-    match e with
-    (* | Edeclare v t => TE.add v t te *)
-    | Ecast AsUInt (Eref v) => TE.add v (Fuint (sizeof_fgtyp (TE.vtyp v te))) te
-    | Ecast AsSInt (Eref v) => TE.add v (Fsint (sizeof_fgtyp (TE.vtyp v te))) te
-    | Ecast AsClock (Eref v) => TE.add v (Fuint 1) te
-    | Ecast AsReset (Eref v) => TE.add v (Fuint 1) te
-    | Ecast AsAsync (Eref v) => TE.add v (Fuint 1) te
-    | _ => te
-    end.
-  Compute (List.In b1 [::b0;b1]).*)
 
   (* Expression evaluation, value *)
   Fixpoint eval_fexpr (e : fexpr) (rs : vstate) (s : vstate) (te : TE.env) (readerls : seq var) (writerls : seq var) (data2etc : mapdata2etc) (memmap : mapmem) (read_la : boolmap) : vstate * bits :=
@@ -1667,49 +1521,7 @@ admit.
                           | _ => (rs0, s0, memmap)
                           end
                     end
-        | Smem m => (* mem.clk 放入rs 
-          let (rs1, s1) := List.fold_left (fun '(trs, ts) tr => if SV.acc (clk tr) trs == [::]
-                                                then (SV.upd (clk tr) [:: b0] trs, SV.upd (flag tr) [:: b0] (SV.upd (clk tr) [:: b1] ts))
-                                                else if (SV.acc (flag tr) ts == [::b1])
-                                                  then (trs,ts)
-                                                  else if ((SV.acc (clk tr) trs == [::b1]) && (SV.acc (clk tr) ts == [::b0]) && (SV.acc (flag tr) ts == [::b0]))
-                                                  then (trs, SV.upd (flag tr) [::b1] ts)
-                                                  else (trs, SV.upd (clk tr) (SV.acc (clk tr) trs) ts)
-          ) (reader m) (rs, s) in
-          let (rs2, s2) := List.fold_left (fun '(trs, ts) tr => if SV.acc (clk0 tr) trs == [::]
-                                                then (SV.upd (clk0 tr) [:: b0] trs, SV.upd (clk0 tr) [:: b1] ts)
-                                                else (trs, SV.upd (clk0 tr) (SV.acc (clk0 tr) trs) ts)
-          ) (writer m) (rs1, s1) in
-          (* write延迟 *)
-          let (rs3, s3) := List.fold_left (fun '(trs, ts) tr => let '(trs0, ts0) := if SV.acc (data0 tr) trs == [::]
-                                                                then (SV.upd (data0 tr) (zeros (sizeof_fgtyp (data_type m))) trs,
-                                                                      SV.upd (data0 tr) (zeros (sizeof_fgtyp (data_type m))) ts)
-                                                                else (trs, SV.upd (data0 tr) (SV.acc (data0 tr) trs) ts) in
-                                                                let '(trs1, ts1) := if SV.acc (addr0 tr) trs == [::]
-                                                                then (SV.upd (addr0 tr) (zeros (Nat.log2 (depth m))) trs0,
-                                                                      SV.upd (addr0 tr) (zeros (Nat.log2 (depth m))) ts0)
-                                                                else (trs0, SV.upd (addr0 tr) (SV.acc (addr0 tr) trs0) ts0) in
-                                                                let '(trs2, ts2) := if SV.acc (en0 tr) trs == [::]
-                                                                then (SV.upd (en0 tr) [::b0] trs1,
-                                                                      SV.upd (en0 tr) [::b0] ts1)
-                                                                else (trs1, SV.upd (en0 tr) (SV.acc (en0 tr) trs1) ts1) in
-                                                                if SV.acc (mask tr) trs == [::]
-                                                                then (SV.upd (mask tr) [::b0] trs2,
-                                                                      SV.upd (mask tr) [::b0] ts2)
-                                                                else (trs2, SV.upd (mask tr) (SV.acc (mask tr) trs2) ts2)
-          ) (writer m) (rs2, s2) in (rs3, s3, memmap)
-        match TE.find (mid m) read_la with (* read延迟 *)
-                  | None => (rs3, s3, memmap)
-                  | Some thisread_la =>
-                    if thisread_la == false 
-                    then (rs3, s3, memmap)
-                    else let (rs0, s0) := List.fold_left (fun '(trs, ts) tr => if SV.acc (data tr) trs == [::]
-                                                                    then (SV.upd (data tr) (zeros (sizeof_fgtyp (data_type m))) trs,
-                                                                          SV.upd (data tr) (zeros (sizeof_fgtyp (data_type m))) ts)
-                                                                    else (trs, SV.upd (data tr) (SV.acc (data tr) trs) ts)
-                    ) (reader m) (rs3, s3)
-                    in (rs0, s0, memmap)
-                  end*) (rs, s, memmap)
+        | Smem m => (rs, s, memmap)
         | Sinst inst => (rs, s, memmap) (* 在拓扑排序时始终放在每个mod的最后，用来对所有的inst更新rs/s/memory *)
         | Snode v e => let (rs0, ve) := eval_fexpr e rs s te readerls writerls data2etc memmap read_la in
                       (rs0, SV.upd v ve s, memmap)
@@ -1802,8 +1614,8 @@ admit.
                                                                                                                                 end
                                                                                                                               end) in
                                                                                                           (match TE.find v1 finstoutmap with
-                                                                                                          | None => [::b1;b1;b1;b1;b1]
-                                                                                                          | Some a3 => (*[::b1;b1;b1;b1;b1;b1]*)SV.acc a3 s2
+                                                                                                          | None => nil
+                                                                                                          | Some a3 => SV.acc a3 s2
                                                                                                           end)))
                                                                                                           end)
                                                                                                         end)
@@ -1819,7 +1631,7 @@ admit.
                                   | None => memmap
                                   | Some a => (let '(addrvar,envar, midvar, maskvar, clkvar) := a in 
                                     match TE.find midvar memmap with
-                                    | None => memmap (* parse ast时已生成所有mem的map TE.add midvar (memupd (from_nat 4 10) (from_nat 4 11) memempty) memmap*)
+                                    | None => memmap 
                                     | Some b => let maskval := SV.acc maskvar s in
                                                 let addrval := SV.acc addrvar s in 
                                                 let clkval := SV.acc clkvar rs in
@@ -1827,11 +1639,10 @@ admit.
                                                 let enval := SV.acc envar s in
                                                 if ((enval == [:: b1]) && (clk0val == [:: b0]) && (clkval == [:: b1]))
                                                   then (if maskval == [:: b1]
-                                                    then TE.add midvar (memupd addrval (SV.acc v s) b) memmap(*TE.add midvar (memupd (from_nat 2 3) (from_nat 4 13) b) memmap*)
-                                                    else TE.add midvar (memupd addrval [:: b0] b) memmap(*TE.add midvar (memupd (from_nat 2 3) (from_nat 4 12) b) memmap*)
+                                                    then TE.add midvar (memupd addrval (SV.acc v s) b) memmap
+                                                    else TE.add midvar (memupd addrval [:: b0] b) memmap
                                                   )
-                                                  else
-                                                  (*TE.add midvar (memupd (from_nat 2 3) (from_nat 4 10) b) *)memmap
+                                                  else memmap
                                                 end
                             )
                             end
@@ -2154,31 +1965,6 @@ match st with
                 end
 | _ => ls
 end.
-(*
-Inductive result_type : Type :=
-   | Some : seq var -> result_type
-   | Cycle : seq var -> result_type
-   | N_too_small : result_type.
-
-Fixpoint topo_tree (vertices : seq var) (fing : g) (n : nat) (gray_nodes : seq var)
-                   (root : var) (maybe_already_found: result_type) : result_type :=
-match maybe_already_found with
-| Cycle _ | N_too_small => maybe_already_found (* propagate earlier error *)
-| Some already_found =>
-if root \in gray_nodes then Cycle (root :: gray_nodes) (* error: there is a cycle *)
-else if root \in already_found then maybe_already_found
-else match n with
-     | 0 => N_too_small (* error: n was too small *)
-     | S n' => match foldr (topo_tree vertices fing n' (root :: gray_nodes)) maybe_already_found (fing root) with
-               | Some result => Some (root :: result)
-               | e => e (* propagate resursive error *)
-               end
-     end
-end.
-
-Definition topo_sort (vertices : seq var) (fing : g) : result_type :=
-   foldr (topo_tree vertices fing (size vertices) [::]) (Some [::]) vertices.
-*)
 
 Fixpoint topo_tree (fing : g) (n : nat) (gray_nodes : seq var) (already_found : option (seq var)) (root : var) : option (seq var) :=
 match already_found, n with
@@ -2195,7 +1981,6 @@ end.
 
 Definition topo_sort (fing : g) (n : nat) (vertices : seq var) : option (seq var) :=
 foldl (topo_tree fing n [::]) (Some [::]) vertices.
-
 
 (* 有module依赖关系的list: [C,B,C] C->B->A, A中有B的inst, B中有C的inst. mapg为mod name->mod graph *)
 
@@ -2241,19 +2026,11 @@ Fixpoint modname2g (modorder : seq var) (flagmap : fmap) (oldstmtsmap : mapfstmt
               match (topo_sort newg len (inps ++ roots ++ kinstps)(*allvar*)) with
               | None => (TE.add h newg fingmap, TE.add h [::] newstmtsmap, TE.add h [::] newvarmap, TE.add h [::] kpsmap)
               | Some tseq => let newvarorder := tseq in
-              
-(*match (topo_sort allvar newg) with
-| Cycle cycleseq => (TE.add h newg fingmap, TE.add h [::] newstmtsmap, TE.add h cycleseq newvarmap, TE.add h kps kpsmap)
-| N_too_small => (TE.add h newg fingmap, TE.add h [::] newstmtsmap, TE.add h [::] newvarmap, TE.add h [::] kpsmap)
-| Some tseq => let newvarorder := tseq in*)
-
               let newstorder := List.map (fun tv => match (TE.find tv var2stmt) with 
                                                     | None => if varIn tv instoutps then Sfcnct (Eref tv) (Eref tv)
                                                     else sskip
                                                     | Some tempst => tempst
                                                     end) newvarorder in
-              (*let newg0 := List.fold_left (fun tempg tempst => add_regedge regls tempg tempst) tempstmts newg in*)
-              
               let '(fingmap0, newstmtsmap0, newvarmap0, kpsmap0) := (TE.add h newg fingmap, TE.add h newstorder newstmtsmap, TE.add h newvarorder newvarmap, TE.add h kps kpsmap) in
               modname2g t flagmap oldstmtsmap instportsmap finsti2e_outmap inpsmap outpsmap instoutl fingmap0 newstmtsmap0 newvarmap0 kpsmap0 
               end
@@ -2288,99 +2065,10 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
   let '(newffmodsmap, varmap) := reorder modorder flagmap ffmodsmap newinstportsmap finsti2e_outmap finstin finstout finstoutl in
   run_module0 mainmod rs s te io_in name ols readerls writerls data2etc memmap clk_num len finstoutl finstoutm newffmodsmap fterss fread_la finstin finstportmap iternum.
     
-(*
-    Import Natlist0.
-    Local Open Scope natlist0.
-  
-    (*
-  Fixpoint clk_steps st rs s te io_in name clk_num : vstate :=
-    match clk_num with
-    | 0 => snd (eval_fstmts st rs s te)
-    | S m => snd (eval_fstmts st rs (upd_argulist (clk_steps st rs s te io_in name m) io_in name m) te)
-    end.
-    *)
-  
-  (* XM : tail recursive version *)
-  Fixpoint clk_steps_tail_rec_aux st rs s te io_in name clk_num len:=
-    match clk_num with
-    | 0 => s(*let s1 := upd_argulist s io_in name len in
-           let te1 := upd_typenv_fstmts st te s1 in
-           let (rs2, s2) := eval_fstmts st rs s1 te in s2*)
-    | S m => let n := len - S m in
-             let s1 := upd_argulist s io_in name n in
-             (*let te1 := upd_typenv_fstmts st te s1 in*)
-             let (rs2, s2) := eval_fstmts st rs s1 te in
-             clk_steps_tail_rec_aux st rs2 s2 te io_in name m len
-    end.
-  
-  Definition clk_steps_tail_rec st rs s te ios nms nclk := clk_steps_tail_rec_aux st rs s te ios nms nclk nclk.
-  
-  Definition run_tail_rec mainmod s rs te io_in name clk_num len readerls writerls data2etc memmap :=
-    match clk_num with
-    | 0 => SV.empty
-    | S m => let n := len - S m in
-             let (rs1, s1) := eval_module mainmod s rs te (*modsmap*) io_in n name readerls writerls data2etc memmap in
-             run_tail_rec mainmod s1 rs1 te io_in name clk_num len readerls writerls data2etc memmap
-    end.
 
   (********************************************************************************)
 
   (* Parallel evaluation *)
-
-  (* Expression evaluation, fexpr -> fexpr *)
-  (* Fixpoint eval_fexpr' (e : fexpr) (s : estate) : fexpr := *)
-  (*   match e with *)
-  (*   | Econst t c => econst t c *)
-  (*   | Eref v => (ES.acc v s) (*TODO*) *)
-  (*   | Eprim_binop b e1 e2 => *)
-  (*     let ve1 := (eval_fexpr' e1 s) in *)
-  (*     let ve2 := (eval_fexpr' e2 s) in *)
-  (*     Eprim_binop b ve1 ve2 *)
-  (*   | Eprim_unop u e => *)
-  (*     Eprim_unop u (eval_fexpr' e s) *)
-  (*   | _ => e (*TODO*) *)
-  (*   end.· *)
-
-
-(*     Definition store_fstmt (st : fstmt) (s : estate) (te : TE.env) : estate := *)
-(*       match st with *)
-(*       | Sskip => s *)
-(*       | Swire v t => s *)
-(*       | Sreg r => EV.upd (rid r) (Eref (rid r)) s *)
-(*       | Smem m => s *)
-(*       | Sinst v1 v2 => EV.upd v1 (Eref v2) s *)
-(*       | Snode v e => EV.upd v e s *)
-(*       | Sfcnct (Eref v) e2 => EV.upd v e2 s *)
-(*       | Sinvalid v => s *)
-(*       | _ => s *)
-(*       end. *)
-
-(*   Fixpoint store_fstmts st e te : estate := *)
-(*     match st with *)
-(*     | [::] => e *)
-(*     | h :: tl => *)
-(*       (*let te1 := upd_typenv_fstmt h te s in 更新type怎么做？*) *)
-(*       let e1 := store_fstmt h e te in *)
-(*       store_fstmts tl e1 te *)
-(*     end. *)
-
-(*   (* vstate * vstate -> estate -> vstate * vstate *) *)
-(*   (* e = store_fstmts st e0 te *) *)
-(*   Fixpoint eval_store rs s e te : vstate * vstate := *)
-(*     (*遍历estate s 来evaluate，存入两个vstate*) *)
-(* . *)
-
-  (* Definition eval_fport (p : fport) (s : vstate) : vstate := *)
-  (*   match p with *)
-  (*   | Finput v t => SV.upd v [::] s *)
-  (*   | Foutput v t => SV.upd v [::] s *)
-  (*   end.   *)
-  (* Fixpoint eval_fports (ps : seq fport) (s : vstate) : vstate := *)
-  (*   match ps with *)
-  (*   | [::] => s *)
-  (*   | h :: tl => eval_fports tl (eval_fport h s) *)
-  (*   end. *)
-
   
   Definition eval_fport_init (p : fport) (s : vstate) : vstate :=
     match p with
@@ -2466,9 +2154,6 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
     | _ => true
     end.
 
-
-
-  
   (************************************************************)
   
   
@@ -2532,210 +2217,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       (* upd env expr e *)
       admit.
   Admitted.
-  *)
+
 End MakeFirrtl.
  
 Module LoFirrtl := MakeFirrtl VarOrder (*VS VM*) TE Store (*EStore*).
-
-(*
-Definition init_vm := VM.empty.
-Definition init_vs := VS.empty.
-Definition init_env : TE.env := TE.empty fgtyp.
-Definition init_store := Store.empty.
-
-Section clksExamples.
-  
-  Import LoFirrtl.
-  Import Natlist0.
-  Local Open Scope natlist0.
-
-  (*Eval compute in (from_nat 1 1).
-Eval compute in (from_nat 1 0).
-Eval compute in (from_nat 2 3).
-
-  (*clk rst in*)
-  Definition l_in := [:: (cons (from_nat 1 0) (cons (from_nat 1 0)(cons (from_nat 1 0) nil))); (cons (from_nat 1 0) (cons (from_nat 1 0)(cons (from_nat 1 0) nil)))].
-  (*Definition l_in  := [:: [:: (from_nat 1 0)(from_nat 1 0)(from_nat 1 1)]; [:: (from_nat 1 0)(from_nat 1 0)(from_nat 1 0)]; [:: (from_nat 1 0)(from_nat 1 0)(from_nat 1 1)]; [:: (from_nat 1 0)(from_nat 1 0)(from_nat 1 1)]].*)
-  Eval compute in l_in.
-  Eval compute in (lastd l_in).
-
-  Eval compute in (cons (from_nat 1 0) (cons (from_nat 1 0)(cons (from_nat 1 0) nil))).
-  Eval compute in lastd (cons (from_nat 1 0) (cons (from_nat 1 0)(cons (from_nat 1 0) nil))).
-
-  Require Export Coq.Strings.String.
-Definition total_map (A : Type) := string -> A.
-Definition eqb_string (x y : string) : bool :=
-  if string_dec x y then true else false.
-Definition t_update {A : Type} (m : total_map A) (x : string) (v : A) :=
-  fun x' => if eqb_string x x' then v else m x'.
-Definition t_empty {A : Type} (v : A) : total_map A :=
-  (fun _ => v).
-
-Notation "'_' '!->' v" := (t_empty v)
-  (at level 100, right associativity).
-Notation "x '!->' v ';' m" := (t_update m x v)
-                              (at level 100, v at next level, right associativity).
-
-Definition examplemap' :=
-  ( "bar" !-> true;
-    "foo" !-> true;
-    _ !-> false
-  ).
-   Eval compute in (examplemap' "bar").
-   *)
-
-  Definition st0 := Store.empty.
-  Definition rs0 := Store.empty.
-  Definition te0 := TE.empty fgtyp. 
-  Definition Accumulator := VarOrder.default. 
-  Definition accumulator := VarOrder.succ Accumulator.
-  Definition io_out := VarOrder.succ accumulator.
-  Definition io_in0 := VarOrder.succ io_out.
-  Definition _T_11 := VarOrder.succ io_in0.
-  Definition _T_12 := VarOrder.succ _T_11.
-  Definition clk := VarOrder.succ _T_12.
-  Definition rst1 := VarOrder.succ clk.
-
-   
-  Definition fpts_64 := [::(Finput clk Fclock);
-                     (Finput rst1 (Fuint 1));
-                     (Finput io_in0 (Fsint 64));
-                     (Foutput io_out (Fuint 64))].
-  Definition te1_64 := upd_typenv_fports fpts_64 te0. 
-  Definition st1_64 := Store.upd clk [::b0] (Store.upd rst1 [::b0] (Store.upd io_in0 (from_Z 64 0) (Store.upd io_out (from_nat 64 0) st0))).
-  Definition rs1_64 := (Store.upd accumulator (from_nat 9 0) rs0).
-  Compute (st1_64).
-  Definition fst1_64 := sreg (mk_freg accumulator (Fuint 8) (eref clk)
-                                   (rrst (econst (Fuint 1) [::b0]) (eref accumulator))).
-  Definition te2_64 := upd_typenv_fstmt fst1_64 te1_64 st1_64.
-  Definition st2_64 := eval_fstmt fst1_64 rs0 st1_64 te0.
-  Compute (Store.acc accumulator (fst st2_64)).
-  
-  Definition fpts := [::(Finput clk Fclock);
-                     (Finput rst1 (Fuint 1));
-                     (Finput io_in0 (Fsint 2));
-                     (Foutput io_out (Fsint 8))].
-  Definition te1 := upd_typenv_fports fpts te0. 
-  Definition st1 := Store.upd clk [::b0] (Store.upd rst1 [::b0] (Store.upd io_in0 (from_Z 2 (-1)) (Store.upd io_out (from_nat 8 0) st0))).
-  Definition rs1 := (Store.upd accumulator (from_nat 9 0) rs0).
-  Definition fst1 := sreg (mk_freg accumulator (Fsint 8) (eref clk)
-                                   (rrst (econst (Fuint 1) [::b0]) (eref accumulator))).
-  Definition te2 := upd_typenv_fstmt fst1 te1 st1.
-  Definition st2 := eval_fstmt fst1 rs0 st1 te0.
-
-  Definition fst2 := (snode _T_11 (eprim_binop Badd (eref accumulator) (eref io_in0))).
-  Definition te3 := let (rs2, sst2) := st2 in upd_typenv_fstmt fst2 te2 sst2.
-  Definition st3 := let (rs2, sst2) := st2 in eval_fstmt fst2 rs2 sst2 te3.
-
-  Definition fst3 := (Snode _T_12 (Ecast AsSInt (Eprim_unop (Utail 1) (Eref _T_11)))).
-  Definition te4 := let (rs3, sst3) := st3 in upd_typenv_fstmt fst3 te3 sst3.
-  Definition st4 := let (rs3, sst3) := st3 in eval_fstmt fst3 rs3 sst3 te4.
-
-  Definition fst4 := (sfcnct (Eref io_out ) (Eref accumulator)).
-  Definition te5 := let (rs4, sst4) := st4 in upd_typenv_fstmt fst4 te4 sst4.
-  Definition st5 := let (rs4, sst4) := st4 in eval_fstmt fst4 rs4 sst4 te5.
-
-  Definition fst5 := (Sfcnct (Eref accumulator) (Emux (Eref rst1) (econst (Fuint 8) (from_nat 8 0)) (Eref _T_12))).
-  Definition te6 := let (rs5, sst5) := st5 in upd_typenv_fstmt fst5 te5 sst5.
-  Definition st6 := let (rs5, sst5) := st5 in eval_fstmt fst5 rs5 sst5 te6.
-
-  Definition fst6 := sskip.
-  Definition te7 := let (rs6, sst6) := st6 in upd_typenv_fstmt fst6 te6 sst6.
-  Definition st7 := let (rs6, sst6) := st6 in eval_fstmt fst6 rs6 sst6 te7.
-  
-Definition exampleinp :=
-  ( rst1 !-> [1;1;1;0;0;1;0];
-    io_in0 !-> [1;1;1;1;1;1;1];
-    _ !-> nil
-  ).
-
-  Eval compute in exampleinp rst1.
-  Eval compute in nth_bad (exampleinp rst1) 2.
-
-Compute (Store.acc accumulator (clk_steps_tail_rec [::fst1;fst2;fst3;fst4;fst5;fst6] rs1 st0 te1 exampleinp [:: rst1; io_in0] 5)).
-Compute (Store.acc accumulator (fst (eval_fstmts [::fst1;fst2;fst3;fst4;fst5;fst6] rs0 st1 te1))).
- 
-End clksExamples.
-
-
-Section Examples.
-  Import LoFirrtl.
-  
-  (* Variable Accumulator : var. *)
-  (* Variable accumulator : var. *)
-  (* Variable io_out : var. *)
-  (* Variable io_in : var. *)
-  (* Variable _T_11 : var. *)
-  (* Variable _T_12 : var. *)
-  (* Variable clk : var. *)
-  (* Variable rst1 : var. *)
-  Definition st0 := Store.empty.
-  Definition te0 := TE.empty fgtyp. 
-  Definition Accumulator := VarOrder.default. 
-  Definition accumulator := VarOrder.succ Accumulator.
-  Definition io_out := VarOrder.succ accumulator.
-  Definition io_in := VarOrder.succ io_out.
-  Definition _T_11 := VarOrder.succ io_in.
-  Definition _T_12 := VarOrder.succ _T_11.
-  Definition clk := VarOrder.succ _T_12.
-  Definition rst1 := VarOrder.succ clk.
-  
-  Definition fpts := [::(Finput clk Fclock);
-                     (Finput rst1 (Fuint 1));
-                     (Finput io_in (Fuint 1));
-                     (Foutput io_out (Fuint 8))].
-  Definition te1 := upd_typenv_fports fpts te0. 
-  Definition st1 := Store.upd clk [::b0] (Store.upd rst1 [::b1] (Store.upd io_in [::b1] (Store.upd io_out (from_nat 8 0) st0))).
-  Definition fst1 := sreg (mk_freg accumulator (Fuint 8) (eref clk)
-                                   (rrst (econst (Fuint 1) [::b0]) (eref accumulator))).
-  Definition te2 := upd_typenv_fstmt fst1 te1 st1.
-  Definition st2 := eval_fstmt fst1 st1 te2.
-  Eval compute in (Store.acc accumulator st2).
-  Eval compute in (TE.vtyp accumulator te2).
-  Definition fst2 := (snode _T_11 (eprim_binop Badd (eref accumulator) (eref io_in))).
-  Definition te3 := upd_typenv_fstmt fst2 te2 st2.
-  Definition st3 := eval_fstmt fst2 st2 te3.
-  Eval compute in (Store.acc _T_11 st3).
-  Eval compute in (TE.vtyp _T_11 te3).
-  Definition fst3 := (Snode _T_12 (Eprim_unop (Utail 1) (Eref _T_11))).
-  Definition te4 := upd_typenv_fstmt fst3 te3 st3.
-  Definition st4 := eval_fstmt fst3 st3 te4.
-  Eval compute in (Store.acc _T_12 st4).
-  Eval compute in (TE.vtyp _T_12 te4).
-  Definition fst4 := (Sfcnct (Eref io_out ) (Eref accumulator)).
-  Definition te5 := upd_typenv_fstmt fst4 te4 st4.
-  Definition st5 := eval_fstmt fst4 st4 te5.
-  Eval compute in (Store.acc io_out st5).
-  Eval compute in (TE.vtyp io_out te5).
-  Definition fst5 := (Sfcnct (Eref accumulator) (Emux (Eref rst1) (Econst _ (Fuint 1) [::b0]) (Eref _T_12))).
-  Definition te6 := upd_typenv_fstmt fst5 te5 st5.
-  Definition st6 := eval_fstmt fst5 st5 te6.
-  Eval compute in (Store.acc accumulator st6).
-  Eval compute in (TE.vtyp accumulator te6).
-  Definition fst6 := sskip.
-  Definition te7 := upd_typenv_fstmt fst6 te6 st6.
-  Definition st7 := eval_fstmt fst6 st6 te7.
-  Eval compute in (Store.acc accumulator st7).
-
-  Definition fm1 :=(FInmod Accumulator
-                      [::(Finput clk Fclock);
-                      (Finput rst1 (Fuint 1));
-                      (Finput io_in (Fuint 1));
-                      (Foutput io_out (Fuint 8))]
-                      [::sreg (mk_freg accumulator (Fuint 8) (eref clk)
-                                                 (rrst (econst (Fuint 1) [::b0]) (eref accumulator)));
-                      (snode _T_11 (eprim_binop Badd (eref accumulator) (eref io_in)));
-                      (snode _T_12 (eprim_unop (Utail 1) (eref _T_11)));
-                      (sfcnct (eref io_out ) (eref accumulator));
-                      (sfcnct (eref accumulator) (emux (eref rst1) (econst (Fuint 1) [::b0]) (eref _T_12)));
-                      sskip
-                      ]
-              
-                   ).
-  Definition eval_fm1 := Store.acc accumulator (run_fmodule fm1 st1 te1 10).
-  Compute (Store.acc accumulator (run_fstmts [::fst1;fst2;fst3;fst4;fst5;fst6] st1 te1 10)).
-  Compute (Store.acc accumulator (run_fmodule fm1 st1 te1 10)).
-
-
-End Examples.
-*)
