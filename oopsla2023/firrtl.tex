@@ -264,22 +264,60 @@ module MyModule :
 \label{fig-lofirrtl-exmp}
 \end{figure}
 
-\subsection{FIRRTL Lowering Transformations}
+\subsection{Lowering Transformations of FIRRTL}
 
-In the sequel, we give an informal introduction to the lowering transformations (aka compilation passes) of  FIRRTL.
+In the sequel, we give an informal introduction to the lowering transformations (aka compilation passes) of  FIRRTL. The dependencies between these compilation passes are illustrated in Figure~\ref{fig-c-pass}.
 
-\paragraph*{InferTypes} The InferTypes pass infers the types of components. For instance, InferTypes infers from the code snippet \begin{lstinline}!  wire x: UInt   x <= UInt<5>(15)   x <= UInt<1>(1)! \end{lstinline} that $x$'s type is \begin{lstinline}!UInt!\end{lstinline}. Note that for a connect statement  \begin{lstinline}! x <= e !\end{lstinline}, InferTypes only checks that the type of $e$, with the bit width ignored, is equivalent to that of $x$, but does not record the bit width of $e$ for $x$.
+\paragraph*{InferTypes} The InferTypes pass infers the types of components. For instance, InferTypes infers from the code snippet \begin{lstinline}!  wire x: UInt   x <= UInt<5>(15)   x <= UInt<1>(1)! \end{lstinline} that $x$'s type is \begin{lstinline}!UInt!\end{lstinline}. Note that for a connect statement  \begin{lstinline}! x <= e !\end{lstinline}, InferTypes only checks that the type of $e$ is equivalent to that of $x$ (where the bit widths are ignored), but does not update the bit width of $x$ to that of $e$.
 
 \paragraph*{InferWidths} 
-The InferWidths pass infers the widths of all signals with unknown widths. It is a \emph{global} width inference algorithm. Instances of the same module with unknown input port widths will be assigned the largest width of all assignments to each of its instance ports. It infers the smallest width that is larger than all assigned widths to a signal. Note that this means that dummy assignments that are overwritten by last-connect-semantics can still influence width inference. For instance, InferWidths infers from the following code snippet that $x$'s width is $5$, but with an assignment of \begin{lstinline}!UInt(1)!\end{lstinline}: \begin{lstinline}!  wire x: UInt   x <= UInt<5>(15)   x <= UInt<1>(1)! \end{lstinline}.
+The InferWidths pass infers the widths of all signals with unknown widths, after InferTypes has been applied. It is a \emph{global} width inference algorithm. Instances of the same module with unknown input port widths will be assigned the largest width of all assignments to each of its instance ports. It infers the smallest width that is larger than all assigned widths to a signal. Note that this means that dummy assignments that are overwritten by last-connect-semantics can still influence width inference. For instance, InferWidths infers from the following code snippet that $x$'s width is $5$, but with an assignment of \begin{lstinline}!UInt(1)!\end{lstinline}: \begin{lstinline}!  wire x: UInt   x <= UInt<5>(15)   x <= UInt<1>(1)! \end{lstinline}.
 
 \paragraph*{InferResets} that infers concrete resets, i.e. AsyncReset or UInt<1>,
 
-\paragraph{ExpandConnects} that expands the connect statements.
+\paragraph{ExpandConnects} The ExpandConnects pass expands the connect and partial connect statements, after the types of components have been inferred by InferTypes. For instance, the ExpandConnects pass transforms the following program
+\begin{lstlisting}
+module Foo: 
+  input x: {a: UInt, b: UInt} 
+  output y:{a: UInt, b: UInt} 
+  y <= x
+\end{lstlisting}
+into
+\begin{lstlisting}
+module Foo: 
+  input x: {a: UInt, b: UInt} 
+  output y:{a: UInt, b: UInt} 
+  y.a <= x.a
+  y.b <= x.b
+\end{lstlisting}
 
-\paragraph{ExpandWhens} that expands the when statements, 
+\paragraph{ExpandWhens} The ExpandWhens pass expands the when statements and removes the last connect semantics, after the connect statements have been expanded by ExpandConnects. For instance, the ExpandWhens pass transforms the following program 
+\begin{lstlisting}
+module MyModule :
+  input in: UInt<1>[2]
+  input n: UInt<1>
+  output out: UInt<1>
+  out <= n
+  when eq(n, UInt(0)) :
+    out <= in[0]
+  else when eq(n, UInt(1)) :
+    out <= in[1]
+\end{lstlisting}
+into
+\begin{lstlisting}
+module MyModule :
+  input in: UInt<1>[2]
+  input n: UInt<1>
+  output out: UInt<1>
+  out <= mux(n, in[1], in[0])
+\end{lstlisting}
+Note that according to the last connect semantics, the connect statement \begin{lstinline} !out <= n! \end{lstinline} is removed by ExpandWhens.
 
-\paragraph{LowerTypes} that lower down the aggregate types, i.e. bundle and vector types, 
+\paragraph{LowerTypes} The LowerTypes pass flattens bundles and vectors, after the connect and partial connect statements have been expanded by ExpandConnects. Nevertheless, LowerTypes does not change the implicit bundles, e.g. module instances. After the application of LowerTypes, a module instance is still a bundle of depth 1 (instance -> port). 
+
+%the type of a memory is still a bundle with depth 2 (mem -> port -> field), see MemPortUtils.memType
+
+
 
 \paragraph{RemoveReset} that removes synchronous resets. 
 
@@ -291,24 +329,4 @@ The InferWidths pass infers the widths of all signals with unknown widths. It is
 \caption{Dependencies between FIRRTL compilation passes}
 \label{fig-c-pass}
 \end{figure}
-
-HiFIRRTL programs are compiled into LoFIRRTL programs by the following compilation passes,
-\begin{itemize}
-%\item ResolveKinds that resolves the k
-%
-\item InferTypes that infer the types of components, e.g. wires, nodes, registers,
-%
-\item InferWidths that infer the bit-width of ground types,
-%
-\item InferResets that infers concrete resets, i.e. AsyncReset or UInt<1>,
-%
-\item ExpandConnects that expands the connect statements, 
-%
-\item ExpandWhens that expands the when statements, 
-%
-\item LowerTypes that lower down the aggregate types, i.e. bundle and vector types, 
-%
-\item RemoveReset that removes synchronous resets. 
-\end{itemize}
-The dependencies between these compilation passes are illustrated in Figure~\ref{fig-c-pass}.
 
