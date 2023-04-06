@@ -273,8 +273,8 @@ In the sequel, we give an informal introduction to the lowering transformations 
 \paragraph*{InferWidths} 
 The InferWidths pass infers the widths of all signals with unknown widths, after InferTypes has been applied. It is a \emph{global} width inference algorithm. Instances of the same module with unknown input port widths will be assigned the largest width of all assignments to each of its instance ports. It infers the smallest width that is larger than all assigned widths to a signal. Note that this means that dummy assignments that are overwritten by last-connect-semantics can still influence width inference. For instance, InferWidths infers from the following code snippet that $x$'s width is $5$, but with an assignment of \begin{lstinline}!UInt(1)!\end{lstinline}: \begin{lstinline}!  wire x: UInt   x <= UInt<5>(15)   x <= UInt<1>(1)! \end{lstinline}.
 
-
-\paragraph*{InferResets} that infers concrete resets, i.e. AsyncReset or UInt<1>,
+\paragraph*{InferResets} %% that infers concrete resets, i.e. AsyncReset or UInt<1>,
+The InferResets pass infers the abstract reset type \begin{lstinline}!Reset!\end{lstinline} to the concrete reset types, i.e. \begin{lstinline}!AsyncReset!\end{lstinline} for asynchronous resets or \begin{lstinline}!UInt<1>!\end{lstinline} for synchronous resets. For example, in the following code with an input signal \begin{lstinline}!in!\end{lstinline} of type \begin{lstinline}!UInt<1>!\end{lstinline} and a wire signal \begin{lstinline}!rst!\end{lstinline} of abstract type \begin{lstinline}!Reset!\end{lstinline}, the \begin{lstinline}!rst!\end{lstinline} signal will be inferred as a synchronous reset based on the type of \begin{lstinline}!in !\end{lstinline}: \begin{lstinline}!  input in: UInt<1>   wire rst: Reset   rst <= in !\end{lstinline}. If an uninferred signal is instantiated with different concrete reset types, such conflict behavior is an error.
 
 \paragraph{ExpandConnects} The ExpandConnects pass expands the connect and partial connect statements, after the types of components have been inferred by InferTypes. For instance, the ExpandConnects pass transforms the following program
 \begin{lstlisting}
@@ -320,8 +320,28 @@ Note that according to the last connect semantics, the connect statement \begin{
 
 
 
-\paragraph{RemoveReset} that removes synchronous resets. 
+\paragraph{RemoveReset} The RemoveReset pass removes the synchronous resets. If the register is driven by an asynchronous reset, it will be left unchanged. If it is a synchronous reset, the reset operation defined in the register and the connections to the register will be merged into multiplexer operations. For example, the register \begin{lstinline}!myreg!\end{lstinline} with synchronous reset signal \begin{lstinline}!rst!\end{lstinline} in the program
+\begin{lstlisting}
+  module MyModule :
+    input clk : Clock
+    input rst : UInt<1>
+    input in : UInt<8>
+    input init : UInt<8>
+    reg myreg : UInt<8>, clk with: (reset => (rst, init))
+    myreg <= in
+\end{lstlisting}
+is tansformed into
+\begin{lstlisting}
+  module MyModule :
+    input clk : Clock
+    input rst : UInt<1>
+    input in : UInt<8>
+    input init : UInt<8>
+    reg myreg : UInt<8>, clk
+    myreg <= mux(rst, init, in)
+\end{lstlisting}
 
+    
 \zhilin{stopped here}
 
 \begin{figure}[htbp]
