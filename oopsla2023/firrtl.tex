@@ -43,7 +43,7 @@ circuit A :
       skip
     io.calc <= counter
 \end{lstlisting}
-A FIRRTL \emph{circuit} comprises modules, each of which include several ports and statements. 
+A FIRRTL \emph{circuit} comprises modules, each of which include several ports and statements. A circuit must specify the name of the (unique) top-level module. For instance, in the aforementioned program, the top-level module of the circuit is module A.
 Each \emph{port} has an identifier and types and is either an input or output. 
 A \emph{module} includes ports and  a sequence of statements. 
 %A \emph{port}  is either an input port or an output port, and has an identifier as well as a type. 

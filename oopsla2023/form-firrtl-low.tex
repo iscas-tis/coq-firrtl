@@ -4,29 +4,47 @@ In the sequel, we introduce an operational semantics of LoFIRRTL programs, on wh
 
 %At first, let us make it more precise the syntactical constraints of LoFIRRTL stated in Section~\ref{sec-firrtl}.
 
-Without loss of generality, let us focus on one LoFIRRTL module, say $M$. 
+Let us fix a LoFIRRTL circuit $A$. Then from the syntax of LoFIRRTL, the top-level module of the circuit is a module $A$.
 
-%Let us introduce some notations first. 
+Before presenting the operational semantics, we introduce some notations. 
 
-Let $\iports(M)$ (resp. $\oports(M)$) denote the set of input (resp. output) ports of $M$,  $\ports(M) = \iports(M) \cup \oports(M)$, $\wires(M)$ denote the set of wires in $M$, $\nodes(M)$ denote the set of nodes in $M$, and $\registers(M)$ denote the set of registers in $M$. Moreover, we use $\varset(M)$ to denote the set of variables in $M$, that is, $\ports(M) \cup \wires(M) \cup \nodes(M) \cup \registers(M)$.
-
-A \emph{connect statement} for $x  \in \varset(M)$ is a statement of the form $x <= e$ or $\mbox{node } x = e$, where $x$ and $e$ are called the \emph{head} and \emph{body} of the connect statement respectively.
-%
-The \emph{dependency graph} of $M$ is $G_M = (\varset(M), E_M)$, where $E_M$ comprises the edges $(x, y)$ such that $y$ depends on $x$, more precisely, $x$ occurs in the right-hand side expression of the connect statement for $y$.
-
-From the fact that $M$ is a LoFIRRTL module, it satisfies the following constraints,
+%The module instances of circuit $A$ are defined by the statements \begin{lstinline}! inst x of B!\end{lstinline}. Moreover, circuit $A$ contains a (unique) instance of the top-level module. 
+We define the set of module instances of circuit $A$, denoted by $\modinst(A)$, inductively as follows. An element of $\modinst(A)$ is a pair $(id, B)$, which denotes an instance of module $B$, with the identifier $id$. 
+% \emph{the identifiers} of these module instances inductively as follows. 
 \begin{itemize}
-\item there is exactly one connect statement for each wire, node, and output port, 
+\item $(A, A) \in \modinst(A)$, that is, an instance of the top-level module $A$ is in $MI(A)$. Note that we use $A$ as the identifier of the instance of the top-level module, since there is a unique instance of the top-level module.  
 %
-\item there is at most one connect statement for each register, 
-%
-\item the dependency graph $G_M$ is acyclic.
+\item Suppose $(x, B) \in \modinst(A)$, and the module $B$ contains a statement \begin{lstinline}! inst y of C!\end{lstinline}. Then $(x.y, C) \in \modinst(A)$.
 \end{itemize}
-Moreover, $M$ is said to be in \emph{pseudo-SSA form} if satisfies the following two additional  constraints,
+
+%We first define a \emph{module instance dependency graph}, denoted by $G_{mid} = (V_{mid}, E_{mid})$, as follows: $V_{mid}$ 
+
+Let $B$ be a module in circuit $A$. We use $\iports(B)$ (resp. $\oports(B)$) to denote the set of input (resp. output) ports of the module $B$,  $\ports(B) = \iports(B) \cup \oports(B)$, $\wires(B)$ to denote the set of wires in the module instance $B$, $\nodes(B)$ to denote the set of nodes in the module $B$, $\registers(B)$ to denote the set of registers in the module $B$.
+Moreover, we use $\siports(B)$ (resp. $\soports(B)$) to denote the set of $y.p$ such that \begin{lstinline}! inst y of C!\end{lstinline} is a  statement in module $B$ and $p \in \iports(C)$ (resp. $p \in \oports(C)$). Let $\sports(B) = \siports(B) \cup \soports(B)$.
+Finally, we use $\cpnts(B)$ to denote the set of components in $B$, that is, $\ports(B) \cup \wires(B) \cup \nodes(B) \cup \registers(B) \cup \sports(B)$, and $\ccpnts(B)$ to denote the set of connected components of $B$, that is, $\oports(B) \cup \wires(B) \cup \nodes(B) \cup \soports(B)$. (Intuitively, connected components of $B$ should occur as the heads of connect statements of $B$)
+
+\zhilin{stopped here}
+
+%For $(id, B) \in \modinst(A)$, let $\cpnts(id, B)$ denote $\{id.z \mid z \in \cpnts(B)\}$.
+
+Let $B$ be a module in circuit $A$. A \emph{generalized connect statement} for $z  \in \cpnts(B)$ is a statement of the form $z <= e$ or $\mbox{node } z = e$, where $z$ and $e$ are called the \emph{head} and \emph{body} of the generalized connect statement respectively. (Note that in the syntax of LoFIRRTL, only statements of the form $z <= e$ are called connect statements.)
+%
+The \emph{dependency graph} of $B$ is $G_B = (\cpnts(B), E_B)$, where $E_B$ comprises the edges $(x, y)$ such that $y$ depends on $x$, more precisely, $x$ occurs in the body of the generalized connect statement for $y$. 
+%
+%(Recall that LoFIRRTL does not contain partial connect statements, moreover, for each $y \in \cpnts(B)$, there is at most one connect statement where $y$ is the head.)
+From the fact that $B$ is a LoFIRRTL module, $G_B$ satisfies the following constraints,
+\begin{itemize}
+\item for each $z \in \ccpnts(B)$, there is exactly one generalized connect statement whose head is $z$, 
+%
+\item for each $z \in \registers(B)$, there is at most one generalized connect statement whose head is $z$, 
+%
+\item the dependency graph $G_B$ is acyclic.
+\end{itemize}
+Moreover, $B$ is said to be in \emph{pseudo-SSA form} if satisfies the following two additional  constraints,
 \begin{itemize}
 \item all variables are declared before they are used in the bodies and heads of connect statements (except that nodes are declared and used simultaneously),
 %
-\item the sequence of heads of the connect statements in $M$ forms a topological sorting of $G_M$ (where the vertices without incoming edges are ignored), specifically, for every edge $(x, y)$ in $G_M$, $x$ is before $y$ in the sequence (if $x$ indeed occurs in the sequence), namely, the connect statement for $x$ (if there is any) is before the connect statement for $y$ in $M$. 
+\item the sequence of heads of the connect statements in $B$ forms a topological sorting of $G_B$ (where the vertices without incoming edges are ignored), specifically, for every edge $(x, y)$ in $G_B$, $x$ is before $y$ in the sequence (if $x$ indeed occurs in the sequence), namely, the connect statement for $x$ (if there is any) is before the connect statement for $y$ in $B$. 
 \end{itemize}
 
 For instance, the following LoFIRRTL program
