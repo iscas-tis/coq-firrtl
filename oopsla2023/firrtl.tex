@@ -13,25 +13,43 @@ In this section, we give an informal introduction to FIRRTL intermediate represe
 
 Below is an example of FIRRTL programs.
 \begin{lstlisting}
-circuit MyCircuit:
-  module MyModule :
-    input in: UInt[3]
-    input n: UInt<2>
-    output out: {valid: UInt<1>, ready: UInt<1>,  result: UInt<1>}
-    when eq(n, UInt(0)) :
-      out.valid <= in[0]
-    else when eq(n, UInt(1)) :
-      out.ready <= in[1]
-    else when eq(n, UInt(2)) :
-      out.result <= in[2]
+circuit A : 
+  module A : 
+    input clk : Clock
+    input rst : UInt<1>
+    output io : {flip enable : UInt<1>, calc : UInt<3>}    
+    clk is invalid
+    rst is invalid
+    io is invalid
+    inst x of B
+    x.io is invalid
+    x.clk <= clk
+    x.rst <= rst
+    x.io.enable <= io.enable
+    io.calc <= x.io.calc
+    
+  module B : 
+    input clk : Clock
+    input rst : UInt<1>
+    output io : {flip enable : UInt<1>, calc : UInt<3>}
+    clk is invalid
+    rst is invalid
+    io is invalid
+    reg counter : UInt<3>, clock with : (reset => (rst, UInt<3>("h00")))
+    when io.enable
+      node _T_7 = add(counter, UInt<1>("h01"))
+      node _T_8 = tail(_T_7, 1)
+      counter <= _T_8
+      skip
+    io.calc <= counter
 \end{lstlisting}
 A FIRRTL \emph{circuit} comprises modules, each of which include several ports and statements. 
 Each \emph{port} has an identifier and types and is either an input or output. 
 A \emph{module} includes ports and  a sequence of statements. 
 %A \emph{port}  is either an input port or an output port, and has an identifier as well as a type. 
-Each \emph{statement} defines a wire, register, node, connect (<=) or partial connect (<-), or conditional (when), and so on. 
+Each \emph{statement} defines a wire, register, node, connect (<=), partial connect (<-), conditional (when), or instance (inst of), and so on. 
 %A \emph{statement} is either a declaration of wire, register, instance, node, or a connection (<=) or partial connection (<-), or a conditional (when) statement. 
-A \emph{type} can be either a \emph{ground type}, e.g. \begin{lstinline}!UInt<2>!\end{lstinline} (unsigned integer of bit width 2), or an \emph{aggregate type}, which is either a \emph{vector type}, e.g. \begin{lstinline}!UInt[3]!\end{lstinline} (a three element vector of unsigned integers), or a \emph{bundle type} e.g \begin{lstinline}! {valid: UInt<1>, ready: UInt<1>,  result: UInt<1>} !\end{lstinline} which comprises three signals of the ground type  \begin{lstinline}!UInt<1>!\end{lstinline}. A circuit \emph{component} is an element in a FIRRTL circuit that can be referred to by its name or identifier. Therefore, a component can be a port, node, wire, register, or instance, and so on. \zhilin{component: a double check is needed}
+A \emph{type} can be either a \emph{ground type}, e.g. \begin{lstinline}!UInt<1>!\end{lstinline} (unsigned integer of bit width 1), or an \emph{aggregate type}, which is either a \emph{vector type}, e.g. \begin{lstinline}!UInt[3]!\end{lstinline} (a three element vector of unsigned integers), or a \emph{bundle type} e.g \begin{lstinline}! {flip enable: UInt<1>, calc: UInt<3>} !\end{lstinline} which comprises two signals of the ground types  \begin{lstinline}!UInt<1>!\end{lstinline} and  \begin{lstinline}!UInt<3>!\end{lstinline} respectively. A circuit \emph{component} is an element in a FIRRTL circuit that can be referred to by its name or identifier. Therefore, a component can be a port, node, wire, register, or instance, and so on. \zhilin{component: a double check is needed}
 %
 
 The syntactic rules of FIRRTL are given in Figure~\ref{fig-firrtl-synt-simp}. Note that these rules are in Extended Backus–Naur form, where \{· · · \} denotes repetition (possibly empty) and [· · ·] denotes option, moreover, the terminals are doubly quoted. Moreover,  the syntactic rules of FIRRTL presented here is a simplification of those in the official specification\footnote{\url{https://github.com/chipsalliance/firrtl-spec/blob/main/spec.md}}. For instance, indent, dedent and newline terminals are omitted for readability, moreover, the type and constructions for analog signals are also omitted, since we focus on digital circuits in this work. In the syntax, memory is also omitted since its semantics is still under active debate \footnote{\url{https://github.com/chipsalliance/chisel/issues/3112}}.
