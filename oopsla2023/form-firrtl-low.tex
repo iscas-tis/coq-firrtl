@@ -38,8 +38,6 @@ To define the operational semantics of $A$, we require that module $A$ is in \em
 \item the sequence of heads of the connect statements in module $A$ forms a topological sorting of $G_A$ (where the vertices without incoming edges are ignored), specifically, for every edge $(x, y)$ in $G_A$, $x$ is before $y$ in the sequence (if $x$ indeed occurs in the sequence), in other words, the connect statement for $x$ (if there is any) is before the connect statement for $y$ in $A$. 
 \end{itemize}
 
-\zhilin{stopped here}
-
 %A necessary condition for the well-definedness of the semantics of LoFIRRTL programs
 
 %From the fact that $A$ is a module in a LoFIRRTL program, we know that $G_A$ is acyclic. 
@@ -60,7 +58,7 @@ module A
   input io_in: UInt<32>
   output io_out: UInt<32>
   node a = add(io_in, UInt<32>("h1"))
-  io_out <= a
+  io_out <= tail(a, 1)
 \end{lstlisting}
 %
 is in pseudo-SSA form, while the following program
@@ -68,28 +66,45 @@ is in pseudo-SSA form, while the following program
 module A
   input io_in: UInt<32>
   output io_out: UInt<32>
-  io_out <= a
+  io_out <= tail(a, 1)
   node a = add(io_in, UInt<32>("h1"))
 \end{lstlisting}
-is not, since $({\tt a}, {\tt io\_out})$ is an edge in the dependency graph, while the connect statement for {\tt a} is after the connect statement for {\tt io\_out}.
+is not, since $({\tt a}, {\tt io\_out})$ is an edge in $G_A$, while the generalized connect statement for {\tt a} is after the generalized connect statement for {\tt io\_out}.
  
-In the sequel, we require that $M$ is in the pseudo-SSA form.
+In the sequel, we require that $A$ is in the pseudo-SSA form.
 
-Before the description of the operational semantics, we introduce some notations. 
+The operational semantics of $A$ relies on a concept of configurations defined below. 
 
 Let $\gtypes$ denote the set of ground types, that is, $(\{UInt, SInt\} \times \Nat) \cup \{Clock, Reset, AsyncReset\}$. Let $\bv$ denote the set of bit vectors, that is, $\{0,1\}^+$.
-For $t = (dt, wd) \in \{UInt, SInt\} \times \Nat$, we define the size of $t$, denoted by $sz(t)$, as $wd$.
+For $t = (\tau, n) \in \{UInt, SInt\} \times \Nat$, we define the \emph{width} of $t$, denoted by $wd(t)$, as $n$.
 
-A \emph{type environment} of $M$ is a function from $\varset(M)$ to $\gtypes$.
-A \emph{state} of $M$ is a function from $\varset(M)$ to $\bv \cup \{\bot\}$. A \emph{register state} $rs$ of $M$ is a function from $\varset(M)$ to $\bv \cup \{\bot\}$ such that $rs(v) = \bot$ for every $v \in \gtypes \setminus \registers(M)$. Note that $\bot$ is a special symbol denoting the fact that the value of a variable is not determined yet. 
+A \emph{configuration} of $A$ is a triple $(te, s, rs)$, where $te$ is a type environment, $s$ is a state, and $rs$ is a register state. Intuitively, $te$ denotes the types of the components, $s$ denotes the values of the components in the beginning of the current clock cycle, and $rs$ denotes the new values of the registers in the beginning of the next clock cycle. Formally, 
+\begin{itemize}
+\item a \emph{type environment} $te$ of $A$ is a function from $\cpnts(A)$ to $\gtypes$,
+%
+\item a state $s$ of $A$ is a function from $\cpnts(A)$ to $\bv \cup \{\bot\}$,
+%
+\item a \emph{register state} $rs$ of $A$ is a function from $\registers(A)$ to $\bv \cup \{\bot\}$.
+\end{itemize}
 
-Then a \emph{configuration} of $M$ is defined as a triple $(te, s, rs)$, where $te$ is a type environment, $s$ is a state, and $rs$ is a register state. Intuitively, $te$ denotes the types of the variables, $s$ denotes the values of the variables in the beginning of the current clock cycle, and $rs$ denotes the new values of the registers in the beginning of the next clock cycle. 
+%A \emph{type environment} of $M$ is a function from $\varset(M)$ to $\gtypes$.
+%A \emph{state} of $M$ is a function from $\varset(M)$ to $\bv \cup \{\bot\}$. A \emph{register state} $rs$ of $M$ is a function from $\varset(M)$ to $\bv \cup \{\bot\}$ such that $rs(v) = \bot$ for every $v \in \gtypes \setminus \registers(M)$. Note that $\bot$ is a special symbol denoting the fact that the value of a variable is not determined yet. 
 
-Then the operational semantics of each statement $st$ in $M$ is defined as a relation $(te, s, rs) \xrightarrow{st} (te', s', rs')$, which denotes that the execution of $st$ from a configuration $(te, s, rs)$ results into a configuration $(te', s', rs')$. Moreover, the operational semantics of a sequence of statements is defined as the composition of the relations of statements therein. 
+The operational semantics of each statement $st$ in $A$ is defined as a relation $(te, s, rs) \xrightarrow{st} (te', s', rs')$, which denotes that the execution of $st$ from a configuration $(te, s, rs)$ results into a configuration $(te', s', rs')$. Moreover, the operational semantics of a sequence of statements is defined as the composition of the relations of statements therein and the operational semantics of module $A$ is defined as the operational semantics of its statement sequence.
 
-The rules for the operational semantics of statements are presented in Table~\ref{tab:lofirrtl-sem}.
 
-\begin{table}
+%Then a \emph{configuration} of $M$ is defined as a triple $(te, s, rs)$, where $te$ is a type environment, $s$ is a state, and $rs$ is a register state. Intuitively, $te$ denotes the types of the variables, $s$ denotes the values of the variables in the beginning of the current clock cycle, and $rs$ denotes the new values of the registers in the beginning of the next clock cycle. 
+
+%Then the operational semantics of each statement $st$ in $M$ is defined as a relation $(te, s, rs) \xrightarrow{st} (te', s', rs')$, which denotes that the execution of $st$ from a configuration $(te, s, rs)$ results into a configuration $(te', s', rs')$. Moreover, the operational semantics of a sequence of statements is defined as the composition of the relations of statements therein. 
+
+\zhilin{stopped here}
+
+\zhilin{the semantics in Table 1 should be double checked. For instance, the initial values of components and the semantics of invalid statements.}
+
+The rules for the operational semantics of statements are presented in Table~\ref{tab:lofirrtl-sem}, where $te[t/v]$ denotes the function that is obtained from $te$ by assigning $t$ to $v$, similarly for $s[0^{wd(t)}/v]$, and so on. Moreover, the ``node'' rule relies on the inductive definition $te(e)$ defined in the sequel. 
+%
+
+\begin{table}[t]
   \footnotesize
   \begin{gather*}
     \infer[skip]
@@ -99,11 +114,11 @@ The rules for the operational semantics of statements are presented in Table~\re
     \inferii[wire]
 %    {\seqq{}}
     {\seqq{(te, s, rs) \xrightarrow{\mbox{wire } v: t} (te', s', rs)}}
-   {\seqq{te' = te [t/v]}} {\seqq{s' = s [0^{sz(t)}/v]}}
+   {\seqq{te' = te [t/v]}} {\seqq{s' = s [0^{wd(t)}/v]}}
     \\[1ex]
     \inferiii[reg: $\bot$]
     {\seqq{(te, s, rs) \xrightarrow{\mbox{reg } r: t, c} (te', s', rs)}}
-   {\seqq{rs(r) = \bot}} {\seqq{te' = te [t/r]}} {\seqq{s' = s[0^{sz(t)}/r]}}
+   {\seqq{rs(r) = \bot}} {\seqq{te' = te [t/r]}} {\seqq{s' = s[0^{wd(t)}/r]}}
     \quad
     \inferii[reg: $\neq\bot$]
     {\seqq{(te, s, rs) \xrightarrow{\mbox{reg } r: t, c} (te, s', rs)}}
@@ -111,11 +126,11 @@ The rules for the operational semantics of statements are presented in Table~\re
     \\[1ex]
     \inferiv[reg with reset: $\bot$, false]
     {\seqq{(te, s, rs) \xrightarrow{\mbox{reg } r: t, c \mbox{ with: reset => }(e_1, e_2)} (te', s', rs)}}
-   {\seqq{rs(r) = \bot}} {\seqq{ s(e_1)= false}}  {\seqq{te' = te [t/r]}} {\seqq{s' = s[0^{sz(t)}/r]}}
+   {\seqq{rs(r) = \bot}} {\seqq{ s(e_1)= false}}  {\seqq{te' = te [t/r]}} {\seqq{s' = s[0^{wd(t)}/r]}}
     \\[1ex]
     \inferv[reg with reset: $\bot$, true]
     {\seqq{(te, s, rs) \xrightarrow{\mbox{reg } r: t, c \mbox{ with: reset => }(e_1, e_2)} (te', s', rs')}}
-   {\seqq{rs(r) = \bot}} {\seqq{ s(e_1)= true}}  {\seqq{te' = te [t/r]}} {\seqq{s' = s[0^{sz(t)}/r]}} {\seqq{rs' = s[s(e_2)/r]}}
+   {\seqq{rs(r) = \bot}} {\seqq{ s(e_1)= true}}  {\seqq{te' = te [t/r]}} {\seqq{s' = s[0^{wd(t)}/r]}} {\seqq{rs' = s[s(e_2)/r]}}
     \\[1ex]
     \inferiii[reg with reset: $\neq\bot$, false]
     {\seqq{(te, s, rs) \xrightarrow{\mbox{reg } r: t, c \mbox{ with: reset => }(e_1, e_2)} (te, s', rs)}}
@@ -129,26 +144,27 @@ The rules for the operational semantics of statements are presented in Table~\re
     {\seqq{(te, s, rs) \xrightarrow{\mbox{node } v = e} (te', s', rs)}}
    {\seqq{te' = te[te(e)/v]}} {\seqq{s' = s[s(e)/v]}}
     \quad
-    \inferii[connect:$\bot$]
+    \inferii[connect: non-register]
     {\seqq{(te, s, rs) \xrightarrow{v <= e} (te, s', rs)}}
-   {\seqq{rs(v) = \bot}} {\seqq{s' = s[s(e)/v]}}
+   {\seqq{v \not \in \registers(A)}} {\seqq{s' = s[s(e)/v]}}
     \\[1ex]    
-    \inferii[connect:$\neq \bot$]
+    \inferii[connect: register]
     {\seqq{(te, s, rs) \xrightarrow{v <= e} (te, s, rs')}}
-   {\seqq{rs(v) \neq \bot}} {\seqq{rs' = rs[s(e)/v]}}
+   {\seqq{v \in \registers(A)}} {\seqq{rs' = rs[s(e)/v]}}
   \quad
     \infer[invalid]
     {\seqq{(te, s, rs) \xrightarrow{v \mbox{ is invalid}} (te, s', rs)}}
 %   {\seqq{rs(v) \neq \bot}} {\seqq{rs' = rs[s(e)/v]}}
-   {\seqq{s' = s[0^{sz(te(v))}/v]}}
+   {\seqq{s' = s[0^{wd(te(v))}/v]}}
   \end{gather*}
 %  \vspace{-4mm}
   \caption{Operational semantics of LoFIRRTL statements.}
   \label{tab:lofirrtl-sem}
+  \vspace{-6mm}
 \end{table}
 
 
-$te(e)$ is defined as follows. 
+%$te(e)$ is defined as follows. 
 \begin{itemize}
 \item $te(\uint{n}(c)) = \uint{n}$, \item $te(\sint{n}(c)) = \sint{n}$, 
 %
