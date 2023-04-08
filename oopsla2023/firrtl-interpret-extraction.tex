@@ -2,6 +2,66 @@
 
 \zhilin{Add more information about the extraction, in particular, the topological sorting, deal with instance of}
 
+\keyin{Topological sorting}
+
+To sequentially evaluate lowfirrtl program in ocaml, statement sequence reorder is finished beforehand in interpreter to make each module in pseudo-SSA form, which is done by topological sorting. \\
+Based on the dependency graph $G_M$ in section 3.1, topological sorting is finished on a combinational dependency graph $G_M' = (\varset(M) \setminus Regs(M), E_M)$, where connects for all registers are ignored. Because the graph should be acyclic, otherwise a sorting result would be incorrect. 
+For instance, the sorting function on the following LoFIRRTL program
+
+\begin{lstlisting}
+module A
+  input io_in: UInt<32>
+  output io_out: UInt<32>
+  reg reg0 : UInt<32>, clock with :
+      reset => (UInt<1>("h0"), reg0)
+  node _T_1 = add(reg0, io_in)
+  reg0 <= tail(_T_1, 1)
+  io_out <= reg0
+\end{lstlisting}
+
+works on its dependency graph exclude edge $({\tt \_T\_1}, {\tt reg})$. For edge $({\tt reg}, {\tt \_T\_1})$ is already exist according to the previous statement and the graph should be acyclic. As registers update its new value at the next rising edge, connect statements for registers join at the end of topologically sorted sequence. 
+
+\begin{algorithm}[H]
+  \SetAlgoLined
+  \KwData{$G_M$ $g$, explored ancestor $gray \_ nodes$, already found $already \_ found$}
+  \KwResult{found nodes sequence $result$}
+\emph{already \_ found = [::]}\;
+\emph{gray \_ nodes = [::]}\;
+\For{$root \leftarrow vertices$}{
+  \While{root is not leaf in g}{
+
+    \eIf{root in gray\_nodes}{
+Error\_cycle\;
+      }{
+      \eIf{root in already \_ found}{result = already\_found\;}{
+result = root :: already \_ found\;}
+     }
+    }}
+  \caption{How to write algorithms}
+\end{algorithm}
+
+\keyin{sorting on instof} 
+
+Because of the existence of instof statement and the resulting nested structure, there is a change on building dependency graph for it cannot be completely built simply based on all connect statements in a module. For instance, the following LoFIRRTL program
+
+\begin{lstlisting}
+circuit A
+    module B
+      input in: UInt<32>
+      output out: UInt<32>
+      out <= in
+    module A
+      input io_in: UInt<32>
+      output io_out: UInt<32>
+      inst y of B
+      y.in <= io_in
+      in_out <= y.out
+\end{lstlisting}
+
+edge $({\tt x.in}, {\tt x.out})$ would not be in the dependency graph simply look at module A. In order to figure out whether ${\tt x.out}$ is depends on ${\tt x.out}$ and fully build the dependency graph for module ${\tt A}$, we have to look into the dependency graph of module ${\tt B}$ which should be totally built in advance. Therefore, statement reorder for each module should be calculated following topological order of modules as well. For instance, a module dependency graph for the previous nested designed circuit structure is built by adding edge $({\tt A,\tt B})$ for statement \begin{lstinline}!inst x of B!\end{lstinline}. Under the circumstances, topologically sorted module sequence provides the order to reorder statement sequence for nested modules. Once graph of module ${\tt B}$ is built, edge $({\tt x.in}, {\tt x.out})$ is added if doing depth first search in $G_B$ gets True.
+
+\keyin{end of ky}
+
 Formalizing the operational semantics of LoFIRRTL in Coq not only provides a formal reference of LoFIRRTL,
 but only yields an executable interpreter in OCaml, called LoFIRRTL OCaml Interpreter, via the Coq's extraction feature.
 The former would greatly facilitate developers' understanding, freeing them from lengthy, ambiguous and elusive documentations.
