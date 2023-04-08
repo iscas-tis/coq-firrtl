@@ -4,48 +4,54 @@ In the sequel, we introduce an operational semantics of LoFIRRTL programs, on wh
 
 %At first, let us make it more precise the syntactical constraints of LoFIRRTL stated in Section~\ref{sec-firrtl}.
 
-Let us fix a LoFIRRTL circuit $A$. Then from the syntax of LoFIRRTL, the top-level module of the circuit is a module $A$.
+Let us fix a LoFIRRTL circuit $A$. Then from the syntax of LoFIRRTL, the top-level module of the circuit is a module $A$. 
+
+We first show how to define the operational semantics for the situation that the module $A$ contains no occurrences of ``inst of'' statements. Later on, we will consider the more general case.
+%
+\paragraph*{No ``inst of'' statements in module $A$} Let us assume that $A$ contains no occurrences of ``inst of'' statements. In this case, we know that $A$ is the only module in circuit $A$.
 
 Before presenting the operational semantics, we introduce some notations. 
 
-%The module instances of circuit $A$ are defined by the statements \begin{lstinline}! inst x of B!\end{lstinline}. Moreover, circuit $A$ contains a (unique) instance of the top-level module. 
-We define the set of module instances of circuit $A$, denoted by $\modinst(A)$, inductively as follows. An element of $\modinst(A)$ is a pair $(id, B)$, which denotes an instance of module $B$, with the identifier $id$. 
-% \emph{the identifiers} of these module instances inductively as follows. 
-\begin{itemize}
-\item $(A, A) \in \modinst(A)$, that is, an instance of the top-level module $A$ is in $MI(A)$. Note that we use $A$ as the identifier of the instance of the top-level module, since there is a unique instance of the top-level module.  
+We use $\iports(A)$ (resp. $\oports(A)$) to denote the set of input (resp. output) ports of the module $A$,  $\ports(A) = \iports(A) \cup \oports(A)$, $\wires(A)$ to denote the set of wires in the module instance $A$, $\nodes(A)$ to denote the set of nodes in the module $A$, and $\registers(A)$ to denote the set of registers in the module $A$.
 %
-\item Suppose $(x, B) \in \modinst(A)$, and the module $B$ contains a statement \begin{lstinline}! inst y of C!\end{lstinline}. Then $(x.y, C) \in \modinst(A)$.
-\end{itemize}
+Moreover, we use $\cpnts(A)$ to denote the set of components in $A$, that is, $\ports(A) \cup \wires(A) \cup \nodes(A) \cup \registers(A)$.
 
-%We first define a \emph{module instance dependency graph}, denoted by $G_{mid} = (V_{mid}, E_{mid})$, as follows: $V_{mid}$ 
+A \emph{generalized connect statement} for $z  \in \cpnts(B)$ is a statement of the form $z <= e$ or $\mbox{node } z = e$, where $z$ and $e$ are called the \emph{head} and \emph{body} of the generalized connect statement respectively. Intuitively, a generalized connect statement is either a connect statement or a node-declaration statement. 
 
-Let $B$ be a module in circuit $A$. We use $\iports(B)$ (resp. $\oports(B)$) to denote the set of input (resp. output) ports of the module $B$,  $\ports(B) = \iports(B) \cup \oports(B)$, $\wires(B)$ to denote the set of wires in the module instance $B$, $\nodes(B)$ to denote the set of nodes in the module $B$, $\registers(B)$ to denote the set of registers in the module $B$.
-Moreover, we use $\siports(B)$ (resp. $\soports(B)$) to denote the set of $y.p$ such that \begin{lstinline}! inst y of C!\end{lstinline} is a  statement in module $B$ and $p \in \iports(C)$ (resp. $p \in \oports(C)$). Let $\sports(B) = \siports(B) \cup \soports(B)$.
-Finally, we use $\cpnts(B)$ to denote the set of components in $B$, that is, $\ports(B) \cup \wires(B) \cup \nodes(B) \cup \registers(B) \cup \sports(B)$, and $\ccpnts(B)$ to denote the set of connected components of $B$, that is, $\oports(B) \cup \wires(B) \cup \nodes(B) \cup \soports(B)$. (Intuitively, connected components of $B$ should occur as the heads of connect statements of $B$)
-
-\zhilin{stopped here}
+We use $\ccpnts(A)$ to denote the set of connected components of $A$, that is, $\ccpnts(A) = \oports(A) \cup \wires(A) \cup \nodes(A)$. (Intuitively, connected components of $A$ must be connected to, that is, occur as the heads of generalized connect statements of $A$.) Note that the input ports of $A$ are not connected to, moreover, the registers may not be connected to. (If a register is not connected to, then it keeps the current value. ) 
 
 %For $(id, B) \in \modinst(A)$, let $\cpnts(id, B)$ denote $\{id.z \mid z \in \cpnts(B)\}$.
 
-Let $B$ be a module in circuit $A$. A \emph{generalized connect statement} for $z  \in \cpnts(B)$ is a statement of the form $z <= e$ or $\mbox{node } z = e$, where $z$ and $e$ are called the \emph{head} and \emph{body} of the generalized connect statement respectively. (Note that in the syntax of LoFIRRTL, only statements of the form $z <= e$ are called connect statements.)
+%Let $B$ be a module in circuit $A$. A \emph{generalized connect statement} for $z  \in \cpnts(B)$ is a statement of the form $z <= e$ or $\mbox{node } z = e$, where $z$ and $e$ are called the \emph{head} and \emph{body} of the generalized connect statement respectively. (Note that in the syntax of LoFIRRTL, only statements of the form $z <= e$ are called connect statements.)
+
 %
-The \emph{dependency graph} of $B$ is $G_B = (\cpnts(B), E_B)$, where $E_B$ comprises the edges $(x, y)$ such that $y$ depends on $x$, more precisely, $x$ occurs in the body of the generalized connect statement for $y$. 
+The \emph{dependency graph} of $A$ is $G_A = (\cpnts(A), E_A)$, where $E_A$ comprises the edges $(x, y)$ such that $y$ depends on $x$, more precisely, $x$ occurs in the body of the generalized connect statement for $y$. 
 %
 %(Recall that LoFIRRTL does not contain partial connect statements, moreover, for each $y \in \cpnts(B)$, there is at most one connect statement where $y$ is the head.)
-From the fact that $B$ is a LoFIRRTL module, $G_B$ satisfies the following constraints,
+
+Since combinational loops\footnote{A combinatorial loop is when the output of some combinatorial logic, that is a section of logic with no registers between gates, is fed back into the input of that combinatorial logic with no intervening register.} are usually taken as ``bad'' in digital circuit design, we require that \emph{$G_A$ is acyclic}. Another necessary condition for the well-definedness of semantics of LoFIRRTL is stated as follows: \emph{Each $z \in \ccpnts(A)$ should be connected to exactly once, that is, there is exactly one generalized connect statement whose head is $z$}.
+
+To define the operational semantics of $A$, we require that module $A$ is in \emph{pseudo-SSA form}, that is,  the statement sequence of module $A$ satisfies the following two additional  constraints,
 \begin{itemize}
-\item for each $z \in \ccpnts(B)$, there is exactly one generalized connect statement whose head is $z$, 
+\item all components are declared before they are used in the bodies and heads of connect statements (except that nodes are declared and used simultaneously),
 %
-\item for each $z \in \registers(B)$, there is at most one generalized connect statement whose head is $z$, 
-%
-\item the dependency graph $G_B$ is acyclic.
+\item the sequence of heads of the connect statements in module $A$ forms a topological sorting of $G_A$ (where the vertices without incoming edges are ignored), specifically, for every edge $(x, y)$ in $G_A$, $x$ is before $y$ in the sequence (if $x$ indeed occurs in the sequence), in other words, the connect statement for $x$ (if there is any) is before the connect statement for $y$ in $A$. 
 \end{itemize}
-Moreover, $B$ is said to be in \emph{pseudo-SSA form} if satisfies the following two additional  constraints,
-\begin{itemize}
-\item all variables are declared before they are used in the bodies and heads of connect statements (except that nodes are declared and used simultaneously),
+
+\zhilin{stopped here}
+
+%A necessary condition for the well-definedness of the semantics of LoFIRRTL programs
+
+%From the fact that $A$ is a module in a LoFIRRTL program, we know that $G_A$ is acyclic. 
+%Equipped with $G_A$, we state a necessary condition for the well-definedness of the semantics of LoFIRRTL programs: $G_A$ satisfies the following constraints,
+%\begin{itemize}
+%\item for each $z \in \ccpnts(A)$, there is exactly one generalized connect statement whose head is $z$, 
 %
-\item the sequence of heads of the connect statements in $B$ forms a topological sorting of $G_B$ (where the vertices without incoming edges are ignored), specifically, for every edge $(x, y)$ in $G_B$, $x$ is before $y$ in the sequence (if $x$ indeed occurs in the sequence), namely, the connect statement for $x$ (if there is any) is before the connect statement for $y$ in $B$. 
-\end{itemize}
+%\item for each $z \in \registers(A)$, there is at most one generalized connect statement whose head is $z$, 
+%
+%\item the dependency graph $G_A$ is acyclic.
+%\end{itemize}
+
 
 For instance, the following LoFIRRTL program
 %[caption=My FIRRTL Example]
@@ -211,3 +217,18 @@ Intuitively, the relation $(te, s, rs) \xrightarrow{M, it, j, m} (te', s', rs')$
 %\begin{itemize}
 %\item 
 %\end{itemize} 
+
+
+\paragraph*{There exist ``inst of'' statements in module $A$}
+
+We define the set of module instances of circuit $A$, denoted by $\modinst(A)$, inductively as follows. An element of $\modinst(A)$ is a pair $(id, B)$, which denotes an instance of module $B$, with the identifier $id$. 
+% \emph{the identifiers} of these module instances inductively as follows. 
+\begin{itemize}
+\item $(A, A) \in \modinst(A)$, that is, an instance of the top-level module $A$ is in $MI(A)$. Note that we use $A$ as the identifier of the instance of the top-level module, since there is a unique instance of the top-level module.  
+%
+\item Suppose $(x, B) \in \modinst(A)$, and the module $B$ contains a statement \begin{lstinline}! inst y of C!\end{lstinline}. Then $(x.y, C) \in \modinst(A)$.
+\end{itemize}
+
+Let $B$ be a module in circuit $A$. We use $\iports(B)$ (resp. $\oports(B)$) to denote the set of input (resp. output) ports of the module $B$,  $\ports(B) = \iports(B) \cup \oports(B)$, $\wires(B)$ to denote the set of wires in the module instance $B$, $\nodes(B)$ to denote the set of nodes in the module $B$, $\registers(B)$ to denote the set of registers in the module $B$.
+Moreover, we use $\siports(B)$ (resp. $\soports(B)$) to denote the set of $y.p$ such that \begin{lstinline}! inst y of C!\end{lstinline} is a  statement in module $B$ and $p \in \iports(C)$ (resp. $p \in \oports(C)$). Let $\sports(B) = \siports(B) \cup \soports(B)$.
+Finally, we use $\cpnts(B)$ to denote the set of components in $B$, that is, $\ports(B) \cup \wires(B) \cup \nodes(B) \cup \registers(B) \cup \sports(B)$, and $\ccpnts(B)$ to denote the set of connected components of $B$, that is, $\oports(B) \cup \wires(B) \cup \nodes(B) \cup \soports(B)$. (Intuitively, connected components of $B$ should occur as the heads of connect statements of $B$)
