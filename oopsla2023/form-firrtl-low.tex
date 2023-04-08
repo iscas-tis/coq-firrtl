@@ -101,7 +101,7 @@ The operational semantics of each statement $st$ in $A$ is defined as a relation
 
 \zhilin{the semantics in Table 1 should be double checked. For instance, the initial values of components and the semantics of invalid statements.}
 
-The rules for the operational semantics of statements are presented in Table~\ref{tab:lofirrtl-sem}, where $te[t/v]$ denotes the function that is obtained from $te$ by assigning $t$ to $v$, similarly for $s[0^{wd(t)}/v]$, and so on. Moreover, the ``node'' rule relies on the inductive definition $te(e)$ defined in the sequel. 
+The rules for the operational semantics of statements are presented in Table~\ref{tab:lofirrtl-sem}, where $te[t/v]$ denotes the function that is obtained from $te$ by assigning $t$ to $v$, similarly for $s[0^{wd(t)}/v]$, and so on. Moreover, the rules rely on $te(e)$ and $s(e)$, which are extensions of the functions $te$ and $s$ to expressions and inductively defined in the sequel. 
 %
 
 \begin{table}[t]
