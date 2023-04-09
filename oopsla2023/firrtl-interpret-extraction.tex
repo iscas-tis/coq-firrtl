@@ -58,7 +58,26 @@ circuit A
       in_out <= y.out
 \end{lstlisting}
 
-edge $({\tt x.in}, {\tt x.out})$ would not be in the dependency graph simply look at module A. In order to figure out whether ${\tt x.out}$ is depends on ${\tt x.out}$ and fully build the dependency graph for module ${\tt A}$, we have to look into the dependency graph of module ${\tt B}$ which should be totally built in advance. Therefore, statement reorder for each module should be calculated following topological order of modules as well. For instance, a module dependency graph for the previous nested designed circuit structure is built by adding edge $({\tt A,\tt B})$ for statement \begin{lstinline}!inst x of B!\end{lstinline}. Under the circumstances, topologically sorted module sequence provides the order to reorder statement sequence for nested modules. Once graph of module ${\tt B}$ is built, edge $({\tt x.in}, {\tt x.out})$ is added if doing depth first search in $G_B$ gets True.
+edge $({\tt x.in}, {\tt x.out})$ would not be in the dependency graph simply look at module A. In order to figure out whether ${\tt x.out}$ is depends on ${\tt x.in}$ and fully build the dependency graph for module ${\tt A}$, we have to look into the dependency graph of module ${\tt B}$ which should be totally built in advance. Therefore, statement reorder for each module should be calculated following topological order of modules as well. Edge $({\tt M_i}, {\tt M_j})$ is added to the module dependency graph when there is statement \begin{lstinline}!inst mj of Mj!\end{lstinline} in Module ${\tt M_i}$, which means ${\tt M_i}$ depends on ${\tt M_j}$. For instance, a module dependency graph of the previous nested designed circuit structure ${\tt A}$ is built by adding edge $({\tt A,\tt B})$ for statement \begin{lstinline}!inst x of B!\end{lstinline}.
+
+Under the circumstances, topologically sorted module sequence provides the order to build dependency graph and reorder statement sequence respectively for nested modules, where ${\tt M_j}$ has smaller index then ${\tt M_i}$ means ${\tt M_j}$ do not depend on ${\tt M_i}$. So that the dependency graph of module ${\tt M_j}$ is built during topological sorting statement sequence of module ${\tt M_i}$. For every $\tt instin \in \tt {InPorts(M_j)}, instout \in \tt {OutPorts(M_j)}$, if $\tt instin$ is ancestor of $\tt instout$ in $G_{M_j}$, edge $({\tt mj.instin, \tt mj.instout})$ is added to $G_{M_i}$. Whether $\tt instin$ is ancestor of $\tt instout$ in $G_{M_j}$ can be simply figured out by depth-first-search or width-first-search from $\tt instin$ in $G_{M_j}$ and check whether $\tt instout$ is contained.
+
+\keyin{topo proof}
+Function $topo\_tree$ is adapted from Depth-first Search, where the algorithm start from a certain root and explores as far as possible along each branch before backtracking. In addition to the original Dfs, we use a set called $gray \_ nodes$ to record the explored ancestor, so that a $Cycle$ error can be thrown when the exploring root is found in $gray \_ nodes$. 
+
+Termination of the algorithm is defined by iterate on an finite number $n$, which equals the amount of vertices in the graph. When $n$ is decreased to 0 during the exploring, the provided value at the beginning of the algorithm has an error, more precisely, it is smaller than size $vertices$ - size $gray \_ nodes$ and the graph cannot be fully sorted.
+
+As $topo\_ tree$ starts from a certain root and there are multi-root in a dependency graph, $topo\_ sort$ apply $topo\_ tree$ on each vertices and keep a global already found sequence.
+
+For the correctness proof of $topo\_ sort$, an inductive property on $topo\_ tree$ that will allow us to prove the correctness of $topo\_ sort$. Basically, we request the following:
+
+\begin{itemize} 
+    \item if $topo\_ tree$ returns $Cycle \_$, then the graph is not acyclic.
+    \item if $topo\_ tree$ returns $N\_ too\_ small$, then n was smaller than size $vertices$ - size $gray\_ nodes$.
+    \item if $topo\_ tree$ return $Sorted \_$, then the result contains the successors of root in addition to what had been already found earlier.
+\end{itemize}
+
+Then we can request on $topo\_ sort$ that it never returns $N\_ too\_ small$, for size of vertices is provided as parameter n in $topo\_ tree$ and it only returns $Cycle \_$ if the graph is not acyclic.
 
 \keyin{end of ky}
 
