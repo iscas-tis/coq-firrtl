@@ -82,7 +82,7 @@ A \emph{configuration} of $A$ is a triple $(te, s, rs)$, where $te$ is a type en
 \begin{itemize}
 \item a \emph{type environment} $te$ of $A$ is a function from $\cpnts(A)$ to $\gtypes$,
 %
-\item a state $s$ of $A$ is a function from $\cpnts(A)$ to $\bv \cup \{\bot\}$,
+\item a \emph{state} $s$ of $A$ is a function from $\cpnts(A)$ to $\bv \cup \{\bot\}$,
 %
 \item a \emph{register state} $rs$ of $A$ is a function from $\registers(A)$ to $\bv \cup \{\bot\}$.
 \end{itemize}
@@ -97,11 +97,10 @@ The operational semantics of each statement $st$ in $A$ is defined as a relation
 
 %Then the operational semantics of each statement $st$ in $M$ is defined as a relation $(te, s, rs) \xrightarrow{st} (te', s', rs')$, which denotes that the execution of $st$ from a configuration $(te, s, rs)$ results into a configuration $(te', s', rs')$. Moreover, the operational semantics of a sequence of statements is defined as the composition of the relations of statements therein. 
 
-\zhilin{stopped here}
 
-\zhilin{the semantics in Table 1 should be double checked. For instance, the initial values of components and the semantics of invalid statements.}
+The rules for the operational semantics of statements are presented in Table~\ref{tab:lofirrtl-sem}, where $te[t/v]$ denotes the function that is obtained from $te$ by assigning $t$ to $v$, similarly for $s[0^{wd(t)}/v]$, and so on. Moreover, the rules rely on $te(e)$ and $s(e)$, which are extensions of the functions $te$ and $s$ to expressions, whose definitions can be found in Appendix~\ref{app-lofirrtl}. 
 
-The rules for the operational semantics of statements are presented in Table~\ref{tab:lofirrtl-sem}, where $te[t/v]$ denotes the function that is obtained from $te$ by assigning $t$ to $v$, similarly for $s[0^{wd(t)}/v]$, and so on. Moreover, the rules rely on $te(e)$ and $s(e)$, which are extensions of the functions $te$ and $s$ to expressions, whose definitions can be found in Appendix~\ref{}
+Let us illustrate the semantics by using the ``reg with reset: $\neq \bot$, true'' rule: At first, $rs(r) \neq \bot$ implies that the value of the register $r$ in the beginning of the current clock cycle is defined. Then the state $s$ is updated by assigning $rs(r)$ to $r$, resulting into the new state $s'$. Moreover, because $s(e_1)=true$, the register state $rs$ is updated by assigning $s(e_2)$ to $r$, resulting into the new register state $rs'$. In other words, the value of $r$ is reset, that is, the value of $r$ will be $s(e_2)$ in the beginning of the next clock cycle.
 %
 
 \begin{table}[t]
@@ -163,24 +162,30 @@ The rules for the operational semantics of statements are presented in Table~\re
   \vspace{-6mm}
 \end{table}
 
-
 %$te(e)$ is defined as follows. 
 
+An \emph{input trace} of $A$ of length $m$ is a function $it$ from $\iports(A)$ to $\bv$ such that $it(x)$ is a sequence of bit vectors and the length of $it(x)$ is $m$, for every $x \in \iports(A)$.
 
-An \emph{input trace} of $M$ of length $m$ is a function $it$ from $\iports(M)$ to $\bv$ such that $it(x)$ is a bit vector of length $m$ for every $x \in \iports(M)$.
-
-Let $M$ be a module where the sequence of statements is $st$, $it$  be an input trace of $M$ of length $m$. Then the semantics of a module $M$ with respect to $it$ is defined by the relations $(te, s, rs) \xrightarrow{M, it, j, m} (te', s', rs')$, which are defined below,
+Let $st$ be the sequence of statements in $A$ and $it$ be an input trace of $A$ of length $m$. Then the semantics of $A$ with respect to $it$ is defined by the relations $(te, s, rs) \xrightarrow{A, it, j, m} (te', s', rs')$ for $0 \le j \le m$. Intuitively, the relation $(te, s, rs) \xrightarrow{A, it, j, m} (te', s', rs')$ denotes that $(te, s, rs)$ is the configuration resulted from processing the first $m-j$ clock cycles of the input trace and $(te', s', rs')$ is obtained after processing the remaining $j$ clock cycles of the input trace. In the sequel, we define the relation $(te, s, rs) \xrightarrow{A, it, j, m} (te', s', rs')$ inductively as follows.
 \begin{itemize}
-\item if $j = 0$, then $(te, s, rs) \xrightarrow{M, it, j, m} (te, s, rs)$, 
+\item At first, we read the values of the input ports in the $(m-j+1)$-th clock cycle of $it$, that is, replace the value of each input port $x$ in $s$ with $it(x)[m-j+1]$, resulting into a state $s_1$.
 %
-\item otherwise, let $s_1$ be obtained from $s$ by assigning $it(x)[m-j+1]$ to $x$ for each $x \in \iports(M)$, if $(te, s_1, rs) \xrightarrow{st} (te'', s'', rs'')$ and $(te'', s'', rs'') \xrightarrow{M, it, j-1, m} (te', s', rs')$, then we have $(te, s, rs) \xrightarrow{M, it, j, m} (te', s', rs')$.
+\item Then, we execute the statement sequence $st$ from the configuration $(te, s_1, rs)$, resulting into a configuration $(te'', s'', rs'')$. 
+%
+\item Finally, we obtain $(te', s', rs')$ by processing the last $j-1$ clock cycles of the input trace $it$.
 \end{itemize}
-Intuitively, the relation $(te, s, rs) \xrightarrow{M, it, j, m} (te', s', rs')$ denotes that starting from the configuration $(te, s_1, rs)$, where $s_1$ is obtained from $s$ by replacing the values of the input ports with their values in the $(m-j+1)$-th clock cycle of the input trace $it$, after the execution of $M$ on $it$ for $j$ clock cycles, the configuration $(te', s', rs')$ will be generated. For instance, if $j=1$, then $s_1$ assigns to the input ports the values of the $m$-th clock cycle of $it$, and $(te, s_1, rs) \xrightarrow{st} (te'', s'', rs'')$ and $(te'', s'', rs'') = (te', s', rs')$.
+More formally, $(te, s, rs) \xrightarrow{A, it, j, m} (te', s', rs')$ is defined as follows. 
+\begin{itemize}
+\item If $j = 0$, then $(te, s, rs) \xrightarrow{A, it, j, m} (te, s, rs)$. 
+%
+\item Otherwise, let $s_1$ be obtained from $s$ by assigning $it(x)[m-j+1]$ to $x$ for each $x \in \iports(A)$. If $(te, s_1, rs) \xrightarrow{st} (te'', s'', rs'')$ and $(te'', s'', rs'') \xrightarrow{A, it, j-1, m} (te', s', rs')$, then we have $(te, s, rs) \xrightarrow{A, it, j, m} (te', s', rs')$.
+\end{itemize}
 %$s(e)$ is defined as follows.
 %\begin{itemize}
 %\item 
 %\end{itemize} 
 
+\zhilin{stopped here}
 
 \paragraph*{There exist ``inst of'' statements in module $A$}
 
