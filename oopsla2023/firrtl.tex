@@ -162,7 +162,7 @@ t & ::= & tg \mid ta \\
 % & & \mid \mbox{``Fixed''}, [width], [binarypoint];\\
  %&
 %
-  ta & ::= &\mbox{\tt ``\{''} f \{f\}\mbox{\tt ``\}''} \mid t \mbox{``[''} int \mbox{``]''} \\
+  ta & ::= &\mbox{\tt ``\{''} f \{f\}\mbox{\tt ``\}''} \mid t \mbox{\tt ``[''} int \mbox{\tt ``]''} \\
 %
     f & ::= & [\mbox{\tt ``\prettyll{flip}''}]\ id\mbox{\tt ``:''}t\\
 %& & & \mbox{``UInt''}, [\mbox{``<''}, int, \mbox{``>''}] \mid \mbox{``SInt''}, [\mbox{``<''}, int, \mbox{``>''} ] \\
@@ -344,7 +344,7 @@ These high-level constructs are then gradually removed by a sequence of lowering
 constructs. Eventually the circuit is simplified to its most restricted form, resembling a structured netlist, which allows for easy translation to an output language (e.g. Verilog). This form is given the name lowered FIRRTL (abbreviated as LoFIRRTL) and is a strict subset of the full FIRRTL language. For clarity, the original form is called high FIRRTL (HiFIRRTL). Besides LoFIRRTL, there is another lowered form of FIRRTL, called MidFIRRTL, which resides between HiFIRRTL and LoFIRRTL. Nevertheless, in this work, we do not introduce MidFIRRTL, since it can be seen as an internal representation of FIRRTL that do not interface with the other parts of the Chisel toolchain.
 
 
-A FIRRTL circuit is a LoFIRRTL circuit if it obeys the following restrictions.
+A FIRRTL circuit is a LoFIRRTL circuit if it obeys the following restrictions:
 \begin{itemize}
 \item All widths must be explicitly defined.
 \item The conditional statement is not used.
@@ -357,14 +357,14 @@ More precisely, a LoFIRRTL circuit is a FIRRTL circuit that is defined by the sy
 {\footnotesize
 \[
 \begin{array}{l l l}
- s & ::= & \mbox{\tt ``wire''}\ id\mbox{\tt ``:''}t  \mid \mbox{\tt ``reg''}\ id\mbox{\tt ``:''}t\ e [\mbox{\tt ``(with:\{reset=>(''} e\mbox{\tt ``,''} e \mbox{\tt ``)\})''}] \\
+ s & ::= & \mbox{\tt ``\prettyll{wire}''}\ id\mbox{\tt ``:''}t  \mid \mbox{\tt ``\prettyll{reg}''}\ id\mbox{\tt ``:''}t\ e [\mbox{\tt ``(\prettyll{with}:\{\prettyll{reset}=>(''} e\mbox{\tt ``,''} e \mbox{\tt ``)\})''}] \\
  %&
   &   &  \mid
 %  \mid memory \mid
-  \mbox{\tt ``inst''}\ id\ \mbox{\tt ``of''}\ id \mid \mbox{\tt ``node''}\ id \mbox{\tt ``=''} id  \mid r \mbox{\tt ``<=''} e  \mid r\ \mbox{\tt ``is invalid''}\mid \mbox{\tt ``skip''}\\
+  \mbox{\tt ``\prettyll{inst}''}\ id\ \mbox{\tt ``\prettyll{of}''}\ id \mid \mbox{\tt ``\prettyll{node}''}\ id \mbox{\tt ``=''} id  \mid r \mbox{\tt ``<=''} e  \mid r\ \mbox{\tt ``\prettyll{is invalid}''}\mid \mbox{\tt ``\prettyll{skip}''}\\
 %
 %\mbox{\bf Expression} &
-e & ::= & (\mbox{\tt ``UInt''} | \mbox{\tt ``SInt''})\ w \mbox{\tt ``(''}int\mbox{\tt ``)''} \mid r \mid \mbox{\tt ``mux(''}e\mbox{\tt ``,''} e\mbox{\tt ``,''} e\mbox{\tt ``)''} \mid \mbox{\tt ``read(''}sr \mbox{\tt ``)''} \mid op\\
+e & ::= & (\mbox{\tt ``\prettyll{UInt}''} | \mbox{\tt ``\prettyll{SInt}''})\ w \mbox{\tt ``(''}int\mbox{\tt ``)''} \mid r \mid \mbox{\tt ``\prettyll{mux}(''}e\mbox{\tt ``,''} e\mbox{\tt ``,''} e\mbox{\tt ``)''} \mid \mbox{\tt ``\textcolor{blue}{read}(''}sr \mbox{\tt ``)''} \mid op\\
 %
 %&
 r & ::= & sr \mid r \mbox{\tt ``[''} e \mbox{\tt ``]''}\\
@@ -381,7 +381,7 @@ w & ::= & \mbox{\tt ``<''} int \mbox{\tt ``>''}\\
 %\mbox{\bf Data Types} &
 t & ::= & tg \\
  %&
- tg & ::= &  \mbox{\tt ``Clock''} \mid \mbox{\tt ``Reset''} \mid \mbox{\tt ``AsyncReset''} \mid (\mbox{\tt ``UInt''} \mid \mbox{\tt ``SInt''}) w
+ tg & ::= &  \mbox{\tt ``\prettyll{Clock}''} \mid \mbox{\tt ``\prettyll{Reset}''} \mid \mbox{\tt ``\prettyll{AsyncReset}''} \mid (\mbox{\tt ``\prettyll{UInt}''} \mid \mbox{\tt ``\prettyll{SInt}''}) w
  %&
 % & & \mid \mbox{``Fixed''}, [width], [binarypoint];\\
  %&
