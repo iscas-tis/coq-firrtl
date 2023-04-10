@@ -140,8 +140,8 @@
    showstringspaces=false,
    showspaces=false,
    numbers=left,
-   numberstyle=\footnotesize,
-   numbersep=9pt,
+   numberstyle=\scriptsize,
+   numbersep=5pt,
    tabsize=2,
    breaklines=true,
    showtabs=false,
@@ -150,6 +150,8 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+
+\newcommand{\prettyll}[1]{\begin{lstinline}! #1 !\end{lstinline}}
 
 %\newif\ifdraft\drafttrue
 \newif\ifdraft\drafttrue
@@ -400,13 +402,19 @@ and replace conditional statements with multiplexers, respectively.
 
 
 
-\section{Formalization of High FIRRTL and its transformations}
+\section{Formalization of HiFIRRTL and its transformations}
 
-\subsection{Formalization of High FIRRTL}
+\subsection{Formalization of HiFIRRTL}
 
 \input{form-firrtl-high}
 
+\subsection{Formalization of HiFIRRTL transformations}
+
 \input{form-firrtl-transform}
+
+\section{Verification of Functional Correctness of ExpandConnects and ExpandWhens}
+
+\input{verif-firrtl-transform}
 
 
 \hide{

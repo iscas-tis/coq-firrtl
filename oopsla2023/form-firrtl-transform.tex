@@ -1,8 +1,10 @@
 %!TEX root = main.tex
 
-formalization of firrtl transformation
+A description of the formalization of InferTypes, InferWidths, InferResets, ExpandConnects, ExpandWhens, LowerTypes, and RemoveResets. 
 
-\subsection{``Infer Widths''}
+
+
+\subsubsection{``Infer Widths''}
 Implicit widths are allowed to be defined in HiFIRRTL programs.
 Such unspecified widths are infered by the Infer Width pass. 
 The general rules are,
@@ -54,7 +56,7 @@ one target. For example,
 Now, wire $c$ has the width as same as $d$, which is 14. The latter connection
 from d gives a larger width to the destination $c$. 
 
-\subsection{``Expand Connects''}
+\subsubsection{``Expand Connects''}
 In HiFirrtl connections can be made through full or partial
 connections.  They can both deal with connections between aggregate
 types. This pass is aim to flatten the connections of aggregate types
@@ -89,7 +91,7 @@ module MyModule :
   is replaced by 3 output ports of ground types.
 \end{description}
 
-\subsection{``Expand Whens''}
+\subsubsection{``Expand Whens''}
 
 HiFIRRTL allows to define conditional components,
 mostly connect statements that depend on a condition.
@@ -188,7 +190,3 @@ If the component has been declared in both paths%
 If the component is defined in both paths
 and the definitions differ, a \lstinline!mux! expression is produced.
 
-The correctness proof compares the Coq implementation with (a formalization of) the output specified above.
-It requires a mutual induction over statements and statement sequences
-because the \lstinline~when~ statement contains two statement sequences,
-but the proof is more long than complicated.
