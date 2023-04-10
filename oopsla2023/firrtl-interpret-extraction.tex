@@ -4,22 +4,11 @@
 
 \keyin{Topological sorting}
 
-To sequentially evaluate lowfirrtl program in ocaml, statement sequence reorder is finished beforehand in interpreter to make each module in pseudo-SSA form, which is done by topological sorting. \\
-Based on the dependency graph $G_M$ in section 3.1, topological sorting is finished on a combinational dependency graph $G_M' = (\varset(M) \setminus Regs(M), E_M)$, where connects for all registers are ignored. Because the graph should be acyclic, otherwise a sorting result would be incorrect. 
-For instance, the sorting function on the following LoFIRRTL program
+To sequentially evaluate lowfirrtl program in ocaml, statement sequence reorder is finished beforehand in interpreter to make each module in pseudo-SSA form, which is done by topological sorting on the dependency graph $G_M$ defined in section 3.1. 
 
-\begin{lstlisting}
-module A
-  input io_in: UInt<32>
-  output io_out: UInt<32>
-  reg reg0 : UInt<32>, clock with :
-      reset => (UInt<1>("h0"), reg0)
-  node _T_1 = add(reg0, io_in)
-  reg0 <= tail(_T_1, 1)
-  io_out <= reg0
-\end{lstlisting}
+Function $topo\_tree$ is adapted from Depth-first Search, where the algorithm start from a certain root and explores as far as possible along each branch before backtracking. In addition to the original Dfs, we use a set called $gray \_ nodes$ to record the explored ancestor, so that a $Cycle$ error can be thrown when the exploring root is found in $gray \_ nodes$. 
 
-works on its dependency graph exclude edge $({\tt \_T\_1}, {\tt reg})$. For edge $({\tt reg}, {\tt \_T\_1})$ is already exist according to the previous statement and the graph should be acyclic. As registers update its new value at the next rising edge, connect statements for registers join at the end of topologically sorted sequence. 
+As $topo\_ tree$ starts from a certain root and there are multi-root in a dependency graph, $topo\_ sort$ apply $topo\_ tree$ on each vertices and keep a global already found sequence.
 
 \begin{algorithm}[H]
   \SetAlgoLined
@@ -37,37 +26,12 @@ Error\_cycle\;
 result = root :: already \_ found\;}
      }
     }}
-  \caption{How to write algorithms}
+  \caption{topo\_sort}
 \end{algorithm}
 
-\keyin{sorting on instof} 
-
-Because of the existence of instof statement and the resulting nested structure, there is a change on building dependency graph for it cannot be completely built simply based on all connect statements in a module. For instance, the following LoFIRRTL program
-
-\begin{lstlisting}
-circuit A
-    module B
-      input in: UInt<32>
-      output out: UInt<32>
-      out <= in
-    module A
-      input io_in: UInt<32>
-      output io_out: UInt<32>
-      inst y of B
-      y.in <= io_in
-      in_out <= y.out
-\end{lstlisting}
-
-edge $({\tt x.in}, {\tt x.out})$ would not be in the dependency graph simply look at module A. In order to figure out whether ${\tt x.out}$ is depends on ${\tt x.in}$ and fully build the dependency graph for module ${\tt A}$, we have to look into the dependency graph of module ${\tt B}$ which should be totally built in advance. Therefore, statement reorder for each module should be calculated following topological order of modules as well. Edge $({\tt M_i}, {\tt M_j})$ is added to the module dependency graph when there is statement \begin{lstinline}!inst mj of Mj!\end{lstinline} in Module ${\tt M_i}$, which means ${\tt M_i}$ depends on ${\tt M_j}$. For instance, a module dependency graph of the previous nested designed circuit structure ${\tt A}$ is built by adding edge $({\tt A,\tt B})$ for statement \begin{lstinline}!inst x of B!\end{lstinline}.
-
-Under the circumstances, topologically sorted module sequence provides the order to build dependency graph and reorder statement sequence respectively for nested modules, where ${\tt M_j}$ has smaller index then ${\tt M_i}$ means ${\tt M_j}$ do not depend on ${\tt M_i}$. So that the dependency graph of module ${\tt M_j}$ is built during topological sorting statement sequence of module ${\tt M_i}$. For every $\tt instin \in \tt {InPorts(M_j)}, instout \in \tt {OutPorts(M_j)}$, if $\tt instin$ is ancestor of $\tt instout$ in $G_{M_j}$, edge $({\tt mj.instin, \tt mj.instout})$ is added to $G_{M_i}$. Whether $\tt instin$ is ancestor of $\tt instout$ in $G_{M_j}$ can be simply figured out by depth-first-search or width-first-search from $\tt instin$ in $G_{M_j}$ and check whether $\tt instout$ is contained.
-
 \keyin{topo proof}
-Function $topo\_tree$ is adapted from Depth-first Search, where the algorithm start from a certain root and explores as far as possible along each branch before backtracking. In addition to the original Dfs, we use a set called $gray \_ nodes$ to record the explored ancestor, so that a $Cycle$ error can be thrown when the exploring root is found in $gray \_ nodes$. 
 
-Termination of the algorithm is defined by iterate on an finite number $n$, which equals the amount of vertices in the graph. When $n$ is decreased to 0 during the exploring, the provided value at the beginning of the algorithm has an error, more precisely, it is smaller than size $vertices$ - size $gray \_ nodes$ and the graph cannot be fully sorted.
-
-As $topo\_ tree$ starts from a certain root and there are multi-root in a dependency graph, $topo\_ sort$ apply $topo\_ tree$ on each vertices and keep a global already found sequence.
+Termination of the algorithm is defined by iterate on an finite number $n$, which equals the amount of vertices in the graph. When $n$ is decreased to 0 during the exploring, the provided value at the beginning of the algorithm has an error, more precisely, it is smaller than size $vertices$ - size $gray \_ nodes$ and the graph cannot be fully sorted. 
 
 For the correctness proof of $topo\_ sort$, an inductive property on $topo\_ tree$ that will allow us to prove the correctness of $topo\_ sort$. Basically, we request the following:
 
@@ -77,7 +41,7 @@ For the correctness proof of $topo\_ sort$, an inductive property on $topo\_ tre
     \item if $topo\_ tree$ return $Sorted \_$, then the result contains the successors of root in addition to what had been already found earlier.
 \end{itemize}
 
-Then we can request on $topo\_ sort$ that it never returns $N\_ too\_ small$, for size of vertices is provided as parameter n in $topo\_ tree$ and it only returns $Cycle \_$ if the graph is not acyclic.
+Then we can request on $topo\_ sort$ that it never returns $N\_ too\_ small$, for size of vertices is provided as parameter n in $topo\_ tree$. Based on the correct depth $n$, with hypothesis of $gray \_ nodes \subseteq vertices, already\_ found \subseteq vertices, gray\_ nodes \cap already\_ found = \emptyset, root \in vertices$, if there is path from $gray\_ nodes$ to root and the $alredy\_ found$ sequence follow the topological order, the result sequence of applying $topo\_ tree $ on $root$ is topological as well. Besides, it only returns $Cycle \_$ if the graph is not acyclic.
 
 \keyin{end of ky}
 
