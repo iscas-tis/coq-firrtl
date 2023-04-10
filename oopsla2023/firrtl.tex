@@ -59,14 +59,14 @@ A \emph{module} consists of a list of ports and an sequence of statements.
 Each port has an identifier,  an direction either \prettyll{input} or \prettyll{output}, and a data type.
 For instance, the module {\tt A} has two input ports \prettyll{clk} and \prettyll{rst} and one output port \prettyll{io}, with
 types \prettyll{Clock}, \prettyll{UInt<1>} and  \prettyll{\{flip enable: UInt<1>, calc: UInt<3>\}}, respectively.
-Each \emph{statement} defines a wire, register, node, connect (<=), partial connect (<-), conditional (when), or instance (inst of), and so on. 
-A \emph{type} for specifying the structure of the data, can be either a \emph{ground type}, e.g.  \prettyll{Clock} (carrying clock signal) and \prettyll{UInt<1>} (unsigned integer of bit width 1); 
-or an \emph{aggregate type}, which is either a \emph{vector type}, e.g.  \prettyll{UInt[3]} (a three element vector of unsigned integers), 
+Each \emph{statement} defines a wire, register, node, connect (<=), partial connect (<-), conditional (when), or instance (inst of), and so on.
+A \emph{type} for specifying the structure of the data, can be either a \emph{ground type}, e.g.  \prettyll{Clock} (carrying clock signal) and \prettyll{UInt<1>} (unsigned integer of bit width 1);
+or an \emph{aggregate type}, which is either a \emph{vector type}, e.g.  \prettyll{UInt[3]} (a three element vector of unsigned integers),
 or a \emph{bundle type}, e.g. \prettyll{\{flip enable: UInt<1>, calc: UInt<3>\}}  comprising two signals of the ground types  \prettyll{UInt<1>} and  \prettyll{UInt<3>} respectively. A circuit \emph{component} is an element in a FIRRTL circuit that can be referred to by its name or identifier. Therefore, a component can be a port, node, wire, register, or instance, and so on. \zhilin{component: a double check is needed}
 
 
-\begin{comment} 
-A FIRRTL \emph{circuit} comprises modules, each of which include several ports and statements. A circuit must specify the name of the (unique) top-level module. 
+\begin{comment}
+A FIRRTL \emph{circuit} comprises modules, each of which include several ports and statements. A circuit must specify the name of the (unique) top-level module.
 For instance, \fu{in the FIRRTL program shown in Figure~\ref{fig:example}, the top-level module of the circuit is module {\tt A}.}
 Each \emph{port} has an identifier, \fu{an direction either \prettyll{input} or \prettyll{output}, and a data type.
 For instance, the module {\tt A} has two input ports  {\tt clk} and {\tt rst} and one output port {\tt io}.}
@@ -75,10 +75,10 @@ A \emph{module} includes \fu{a list of ports} and  a sequence of statements.
 Each \emph{statement} defines a wire, register, node, connect (<=), partial connect (<-), conditional (when), or instance (inst of), and so on.
 %A \emph{statement} is either a declaration of wire, register, instance, node, or a connection (<=) or partial connection (<-), or a conditional (when) statement.
 A \emph{type} can be either a \emph{ground type}, e.g. \begin{lstinline}!UInt<1>!\end{lstinline} (unsigned integer of bit width 1), or an \emph{aggregate type}, which is either a \emph{vector type}, e.g. \begin{lstinline}!UInt[3]!\end{lstinline} (a three element vector of unsigned integers), or a \emph{bundle type} e.g \begin{lstinline}! {flip enable: UInt<1>, calc: UInt<3>} !\end{lstinline} which comprises two signals of the ground types  \begin{lstinline}!UInt<1>!\end{lstinline} and  \begin{lstinline}!UInt<3>!\end{lstinline} respectively. A circuit \emph{component} is an element in a FIRRTL circuit that can be referred to by its name or identifier. Therefore, a component can be a port, node, wire, register, or instance, and so on. \zhilin{component: a double check is needed}
-\end{comment} 
+\end{comment}
 
-The syntactic rules of FIRRTL are given in Figure~\ref{fig-firrtl-synt-simp} in Extended Backus-Naur Form (EBNF), where \{$\cdots$\} denotes repetition \fu{(zero or more times)} 
-and [$\cdots$] denotes option (\fu{either included or discarded}), moreover, the terminals are doubly quoted `` and ''. We stress that the syntactic rules of FIRRTL presented here is a simplification of those in the official specification\footnote{\url{https://github.com/chipsalliance/firrtl-spec/blob/main/spec.md}}. For instance, indent, dedent and newline terminals are omitted for readability, moreover, the types and constructs for analog signals are also omitted, since we focus on digital circuits in this work. In the syntax, memory is also omitted since its semantics is still under active debate \footnote{\url{https://github.com/chipsalliance/chisel/issues/3112}}.
+The syntactic rules of FIRRTL are given in Figure~\ref{fig-firrtl-synt-simp} in Extended Backus-Naur Form (EBNF), where \{$\cdots$\} denotes repetition \fu{(zero or more times)}
+and [$\cdots$] denotes option (\fu{either included or discarded}), moreover, the terminals are doubly quoted \mbox{\tt ``} and \mbox{\tt ''}. We stress that the syntactic rules of FIRRTL presented here is a simplification of those in the official specification\footnote{\url{https://github.com/chipsalliance/firrtl-spec/blob/main/spec.md}}. For instance, indent, dedent and newline terminals are omitted for readability, moreover, the types and constructs for analog signals are also omitted, since we focus on digital circuits in this work. In the syntax, memory is also omitted since its semantics is still under active debate \footnote{\url{https://github.com/chipsalliance/chisel/issues/3112}}.
 
 %\begin{itemize}
 %\item A circuit in FIRRTL consists of modules, each of which include several ports and statements.
@@ -139,7 +139,8 @@ p & ::= & (\mbox{\tt ``\prettyll{input}''} \mid \mbox{\tt ``\prettyll{output}''}
 %ruw & = & \mbox{``old''} \mid \mbox{``new''} \mid \mbox{``undefined''};\\
 %
 %\mbox{\bf Expression} &
-e & ::= & (\mbox{\tt ``\prettyll{UInt}''} | \mbox{\tt ``\prettyll{SInt}''}) [w] \mbox{\tt ``(''}int\mbox{\tt ``)''} \mid r \mid \mbox{\tt ``\prettyll{mux}(''}e\mbox{\tt ``,''} e\mbox{\tt ``,''} e\mbox{\tt ``)''} \mid \mbox{\tt ``\prettyll{read}(''}sr \mbox{\tt ``)''} \mid op\\
+e & ::= & (\mbox{\tt ``\prettyll{UInt}''} | \mbox{\tt ``\prettyll{SInt}''}) [w] \mbox{\tt ``(''}int\mbox{\tt ``)''} \mid r \mid \mbox{\tt ``\prettyll{mux}(''}e\mbox{\tt ``,''} e\mbox{\tt ``,''} e\mbox{\tt ``)''} 
+        \mid \mbox{\tt ``\textcolor{blue}{read}(''}sr \mbox{\tt ``)''} \mid op\\
 %
 %&
 r & ::= & sr \mid r \mbox{\tt ``[''} e \mbox{\tt ``]''}\\
@@ -163,7 +164,7 @@ t & ::= & tg \mid ta \\
 %
   ta & ::= &\mbox{\tt ``\{''} f \{f\}\mbox{\tt ``\}''} \mid t \mbox{``[''} int \mbox{``]''} \\
 %
-    f & ::= & [\mbox{\tt ``flip''}]\ id\mbox{\tt ``:''}t\\
+    f & ::= & [\mbox{\tt ``\prettyll{flip}''}]\ id\mbox{\tt ``:''}t\\
 %& & & \mbox{``UInt''}, [\mbox{``<''}, int, \mbox{``>''}] \mid \mbox{``SInt''}, [\mbox{``<''}, int, \mbox{``>''} ] \\
 %& & & \mid \mbox{``Fixed''}, [\mbox{``<''}, int, \mbox{``>''} ] [\mbox{``<}\mbox{<''}, int, \mbox{``>}\mbox{>''}]\\
 % &  &  & \mid \mbox{``Clock''} \mid \mbox{``Analog''},  [\mbox{``<''}, int, \mbox{``>''}] \mid \mbox{``\{''}, field, \mbox{``\}''} \mid type, \mbox{``[''}, int, \mbox{``]''}; \\
@@ -175,28 +176,34 @@ op & ::= & op\_2e \mid op\_1e \mid op\_1e1i \mid op\_1e2i \\
 op\_2e & ::= & op\_2e\_key \mbox{\tt ``(''}  e \mbox{\tt ``,''}  e \mbox{\tt ``)''} \\
 %
 %&
-op\_2e\_key & ::= &  \mbox{\tt ``add''}  \mid  \mbox{\tt ``sub''}  \mid \mbox{\tt ``mul''} \mid \mbox{\tt ``div''} \mid \mbox{\tt ``mod''} \mid \mbox{\tt ``lt''} \mid \mbox{\tt ``leq''} \mid \mbox{\tt ``gt''} \mid \mbox{\tt ``geq''} \mid \mbox{\tt ``eq''} \mid \mbox{\tt ``neq''} \\
+op\_2e\_key & ::= &  \mbox{\tt ``\prettyll{add}''}  \mid  \mbox{\tt ``\prettyll{sub}''}  \mid \mbox{\tt ``\prettyll{mul}''} \mid \mbox{\tt ``\prettyll{div}''} \mid \mbox{\tt ``\prettyll{mod}''} \mid \mbox{\tt ``\prettyll{lt}''} \mid \mbox{\tt ``\prettyll{leq}''} \mid \mbox{\tt ``\prettyll{gt}''} \mid \mbox{\tt ``\prettyll{geq}''} \mid \mbox{\tt ``\prettyll{eq}''} \mid \mbox{\tt ``\prettyll{neq}''} \\
 %&
-& &   \mid \mbox{\tt ``dshl''}  \mid \mbox{\tt ``dshr''} \mid \mbox{\tt ``and''} \mid \mbox{\tt ``or''} \mid \mbox{\tt ``xor''} \mid \mbox{\tt ``cat''} \\
+& &   \mid \mbox{\tt ``\prettyll{dshl}''}  \mid \mbox{\tt ``\prettyll{dshr}''} \mid \mbox{\tt ``\prettyll{and}''} \mid \mbox{\tt ``\prettyll{or}''} \mid \mbox{\tt ``\prettyll{xor}''} \mid \mbox{\tt ``\prettyll{cat}''} \\
  %
 %&
 op\_1e & ::= & op\_1e\_key \mbox{\tt ``(''}  e \mbox{\tt ``)''} \\
 %&
-op\_1e\_key & ::= & \mbox{\tt ``asUInt''} \mid \mbox{\tt ``asSInt''} \mid \mbox{\tt ``asClock''} \mid \mbox{\tt ``cvt''} \mid \mbox{\tt ``neg''} \mid \mbox{\tt ``not''}  \mid \mbox{\tt ``andr''} \mid \mbox{\tt ``orr''} \mid  \mbox{\tt ``xorr''}\\
+op\_1e\_key & ::= & \mbox{\tt ``\prettyll{asUInt}''} \mid \mbox{\tt ``\prettyll{asSInt}''} \mid \mbox{\tt ``\prettyll{asClock}''} \mid \mbox{\tt ``\prettyll{cvt}''} \mid \mbox{\tt ``\prettyll{neg}''} \mid \mbox{\tt ``\prettyll{not}''}  \mid \mbox{\tt ``\prettyll{andr}''} \mid \mbox{\tt ``\prettyll{orr}''} \mid  \mbox{\tt ``\prettyll{xorr}''}\\
 %
 %&
 op\_1e1i & ::= & op\_1e1i\_key \mbox{\tt ``(''}  e \mbox{\tt ``,''} int \mbox{\tt ``)''} \\
 %&
-op\_1e1i\_key & ::= & \mbox{\tt ``pad''} \mid \mbox{\tt ``shl''} \mid \mbox{\tt ``shr''} \mid \mbox{\tt ``head''} \mid \mbox{\tt ``tail''} \\
+op\_1e1i\_key & ::= & \mbox{\tt ``\prettyll{pad}''} \mid \mbox{\tt ``\prettyll{shl}''} \mid \mbox{\tt ``\prettyll{shr}''} \mid \mbox{\tt ``\prettyll{head}''} \mid \mbox{\tt ``\prettyll{tail}''} \\
 %&
 op\_1e2i & ::= & op\_1e2i\_key \mbox{\tt ``(''}  e \mbox{\tt ``,''}  int  \mbox{\tt ``,''}  int \mbox{\tt ``)''} \\
 %&
-op\_1e2i\_key & ::= & \mbox{\tt ``bits''}\\
+op\_1e2i\_key & ::= & \mbox{\tt ``\prettyll{bits}''}\\
 %
 int & ::= & [\mbox{\tt ``-''}] d \{d\} \mid \mbox{\tt ``"b''} [\mbox{\tt ``-''}] d\_b \{d\_b\} \mbox{\tt ``"''}
  \mid \mbox{\tt ``"o''} [\mbox{\tt ``-''}] d\_o \{d\_o\} \mbox{\tt ``"''} \mid
-\mbox{\tt ``"h''} [\mbox{\tt ``-''}] d\_h \{d\_h\} \mbox{\tt ``"''}
+\mbox{\tt ``"h''} [\mbox{\tt ``-''}] d\_h \{d\_h\} \mbox{\tt ``"''} \\
 %
+%d & ::= &\mbox{\tt ``0''} \mid  \mbox{\tt  ``1''}\mid \mbox{\tt ``2''} \mid\mbox{\tt ``3''} \mid  \mbox{\tt  ``4''}\mid \mbox{\tt ``5''} \mid\mbox{\tt ``6''} \mid  \mbox{\tt  ``7''}\mid \mbox{\tt ``8''} \mid\mbox{\tt ``9''} \\
+%d\_b & ::= &\mbox{\tt ``0''} \mid  \mbox{\tt  ``1''}  \\
+%d\_o & ::= &\mbox{\tt ``0''} \mid  \mbox{\tt  ``1''}\mid \mbox{\tt ``2''} \mid\mbox{\tt ``3''} \mid  \mbox{\tt  ``4''}\mid \mbox{\tt ``5''} \mid\mbox{\tt ``6''} \mid  \mbox{\tt  ``7''} \\
+%d\_h & ::= &\mbox{\tt ``0''} \mid  \mbox{\tt  ``1''}\mid \mbox{\tt ``2''} \mid\mbox{\tt ``3''} \mid  \mbox{\tt  ``4''}\mid \mbox{\tt ``5''} \mid\mbox{\tt ``6''} \mid  \mbox{\tt  ``7''}\mid \mbox{\tt ``8''} \mid\mbox{\tt ``9''}  \mid  \mbox{\tt  ``A''}\mid \mbox{\tt ``B''} \mid\mbox{\tt ``C''} \mid  \mbox{\tt  ``D''}\mid \mbox{\tt ``E''} \mid\mbox{\tt ``F''}\\
+%
+
 %\mbox{\bf File Information Token} &
 %info & = & \mbox{``@''}, \mbox{``[''}, \{string, \mbox{`` ''}, linecol\}, \mbox{``]''};\\
 %&
@@ -205,6 +212,7 @@ int & ::= & [\mbox{\tt ``-''}] d \{d\} \mid \mbox{\tt ``"b''} [\mbox{\tt ``-''}]
 %
 \end{array}
 \]
+$d$ (resp. $d\_b$, $d\_o$ and $d\_h$) denotes a decimal (resp. binary, octal and hexadecimal) digit, and $l$ denotes a letter
 }
 \caption{Syntax of FIRRTL}
 \label{fig-firrtl-synt-simp}
