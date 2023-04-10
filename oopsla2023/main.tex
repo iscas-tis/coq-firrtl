@@ -106,7 +106,7 @@
 \usepackage{bussproofs}
 \usepackage{multirow}
 \usepackage{graphics}
-
+\usepackage[ruled,linesnumbered]{algorithm2e}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%package listings for highlighting FIRRTL code %%%%%%%%%%%%
@@ -123,7 +123,7 @@
   ndkeywords={circuit, module, extmodule, input, output, wire, reg, node, mem},
   ndkeywordstyle=\color{purple},
   identifierstyle=\color{black},
-  sensitive=false,
+  sensitive=true,
 %  comment=[l]{;},
 %  morecomment=[s]{/*}{*/},
 %  commentstyle=\color{purple}\ttfamily,
@@ -387,9 +387,6 @@ and replace conditional statements with multiplexers, respectively.
 \subsection{Operational Semantics of LoFIRRTL}\label{sec-lofirrtl-sem}
 
 \input{form-firrtl-low}
-
-
-\zhilin{stopped here}
 
 \subsection{Extraction of the OCaml LoFIRRTL Interpreter}
 
