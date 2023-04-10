@@ -10,7 +10,6 @@ Section ExpandConnectsP.
   
   (*recursively add sub-elements according to the declared aggr_typ*)
   (*as for element declaration statement, add a default connection*)
-  (*as for element invalid statement, add an invalid connection*)
   Fixpoint upd_aggr_elements_aux_rdef (v:pvar) (ts:seq ftype) (r:HiFP.rhs_expr) (sv:StructStateP.t) (n:N) :StructStateP.t:=
     match ts with
     | nil => sv
@@ -26,24 +25,24 @@ Section ExpandConnectsP.
   Definition is_gtyp t := match t with | Gtyp _ => true | _ => false end.
   
   (*recursively expand reference on rhs*) 
-  Fixpoint expand_eref_aux (r : pvar) (sz : nat) (ce : CEP.env) (rs : seq HiFP.hfexpr) : seq HiFP.hfexpr :=
+  Fixpoint expand_eref_aux (r : pvar) (sz : nat) (cnt : nat) (ce : CEP.env) (rs : seq HiFP.hfexpr) : seq HiFP.hfexpr :=
     match sz with
     | 0 => rs
-    | S n => match (CEP.find (r.1, (r.2 + N.of_nat n)%num) ce) with
+    | S n => match (CEP.find (r.1, (r.2 + N.of_nat cnt)%num) ce) with
              | Some (t, c) => if is_gtyp (type_of_cmpnttyp t)
-                              then expand_eref_aux r n ce (cons (HiFP.eref (HiFP.eid (r.1, r.2 + N.of_nat n)%num)) rs)
-                              else expand_eref_aux r n ce rs
+                              then expand_eref_aux r n (cnt.+1) ce (rcons rs (HiFP.eref (HiFP.eid (r.1, r.2 + N.of_nat cnt)%num)))
+                              else expand_eref_aux r n (cnt.+1) ce rs
              | None => rs
              end                                              
     end.
 
-  Definition expand_eref (r : pvar) (ce : CEP.env) : seq HiFP.hfexpr :=
+  Definition expand_eref (r : pvar) (ce : CEP.env) l : seq HiFP.hfexpr :=
     match (CEP.find r ce) with
     | Some (t, c) =>
         let ts := ftype_list_all (type_of_cmpnttyp t) nil in
         let sz := size ts in
-        expand_eref_aux r sz ce nil
-    | None => nil
+        expand_eref_aux r sz 0 ce l
+    | None => l
     end.
 
   (*recursively expand mux, output a sequence of expressions*) 
@@ -64,20 +63,19 @@ Section ExpandConnectsP.
   (*recursively expand expr on rhs*) 
   Fixpoint expand_expr (e : HiFP.hfexpr) (ce : CEP.env) (es : seq HiFP.hfexpr) : seq HiFP.hfexpr :=
     match e with
-    | Eref (Eid (r, o)) => expand_eref (r, o) ce
+    | Eref (Eid (r, o)) => expand_eref (r, o) ce es
     | Emux c e1 e2 => expand_emux c (zip (* (HiFP.econst (Fuint 0) nil) (HiFP.econst (Fuint 0) nil) *) (expand_expr e1 ce nil) (expand_expr e2 ce nil)) es
     (* | Evalidif c e => expand_evalidif c (expand_expr e ce nil) es *)
-    | Eref _ => (HiFP.econst (Fuint 0) [::]) :: es
-    | e => e :: es
+    | Eref _ => rcons es (HiFP.econst (Fuint 0) [::])
+    | e => rcons es e
     end.
-
-  (*update the structure according to expanded expressions*)
-  (*full connection only, connected sub-elements are all the offsets of the original target*)
-  Fixpoint upd_expand_expr (v:pvar) (es: seq HiFP.hfexpr) (sv:StructStateP.t) (n:N) :StructStateP.t:=
-    match es with
-    | nil => sv
-    | cons hd tl => upd_expand_expr v tl (StructStateP.upd (fst v, n) (HiFP.r_cnct (nth (HiFP.econst (Fuint 0) [::]) es n)) sv) (N.add n 1%num)
-    end.
+  (* (*update the structure according to expanded expressions*) *)
+  (* (*full connection only, connected sub-elements are all the offsets of the original target*) *)
+  (* Fixpoint upd_expand_expr (v:pvar) (es: seq HiFP.hfexpr) (sv:StructStateP.t) (n:N) :StructStateP.t:= *)
+  (*   match es with *)
+  (*   | nil => sv *)
+  (*   | cons hd tl => upd_expand_expr v tl (StructStateP.upd (fst v, n) (HiFP.r_cnct (nth (HiFP.econst (Fuint 0) [::]) es n)) sv) (N.add n 1%num) *)
+  (*   end. *)
 
   Fixpoint upd_expand_expr' (es: seq (HiFP.hfexpr * HiFP.hfexpr)) (sv:StructStateP.t) :StructStateP.t:=
     match es with
@@ -88,17 +86,21 @@ Section ExpandConnectsP.
   
   (*tests*)
   Definition p1 : pvar := (N.of_nat 1, N0).
+  Definition p2 : pvar := (N.of_nat 2, N0).
   Definition cem := CEP.empty (cmpnt_init_typs ProdVarOrder.T * fcomponent).
   Definition ec1 := (HiFP.econst (Fuint 1) [::b1]).
   Definition ec2 := (HiFP.econst (Fuint 1) [::b0]).
   Definition ev1 := HiFP.eref (Eid p1).
+  Definition ev2 := HiFP.eref (Eid p2).
   Definition ce1 := upd_aggr_elements_all p1 (HiFP.aggr_typ (Atyp (Gtyp (Fuint 1)) 3), Wire) cem.
-  Definition es1 := expand_expr (HiFP.emux ec1 (HiFP.emux ec1 ev1 ev1) (HiFP.emux ec1 ev1 ev1)) ce1 nil.
-  Compute (CEP.find (1%num, 0%num) ce1).
-  Compute (expand_eref (1%num, 0%num) ce1).
+  Definition ce2 := upd_aggr_elements_all p2 (HiFP.aggr_typ (Atyp (Gtyp (Fuint 2)) 5), Wire) ce1.
+  Definition lstt := [::ec1].
+  Definition es1 := expand_expr (HiFP.emux ec1 (HiFP.emux ec1 ev1 ev2) (HiFP.emux ec1 ev1 ev2)) ce2 lstt.
+  Compute (CEP.find (1%num, 0%num) ce2).
+  Compute (expand_eref (2%num, 0%num) ce2 lstt). 
   Compute es1.
   Definition sv0 := StructStateP.empty.
-  Definition sv1 := (upd_expand_expr' (zip (expand_eref (1%num, 0%num) ce1) es1) sv0).
+  Definition sv1 := (upd_expand_expr' (zip (expand_eref (1%num, 0%num) ce1 nil) es1) sv0).
   Compute (StructStateP.find (1%num, 2%num) sv1).
   (* Compute (expand_fcnct_stmts p1 es1 HiFP.qnil) (size es1). *)
   
@@ -157,90 +159,91 @@ Section ExpandConnectsP.
   (*   end. *)
 
   
-  Definition element_connection (sv : StructStateP.t) (sts : HiFP.hfstmt_seq) : HiFP.hfstmt_seq :=
-    let cs := StructStateP.elements sv in
-    match cs with
-    | nil => sts
-    | c :: cs => match c with
-                | (v, R_cnct e) => HiFP.qcons (Sfcnct (Eid v) e) sts
-                | (v, R_invalid e) => HiFP.qcons (Sinvalid (Eid v)) sts
-                | (v, R_default') => sts
-                end
+  (* Definition element_connection (sv : StructStateP.t) (sts : HiFP.hfstmt_seq) : HiFP.hfstmt_seq := *)
+  (*   let cs := StructStateP.elements sv in *)
+  (*   match cs with *)
+  (*   | nil => sts *)
+  (*   | c :: cs => match c with *)
+  (*               | (v, R_cnct e) => HiFP.qcons (Sfcnct (Eid v) e) sts *)
+  (*               | (v, R_invalid e) => HiFP.qcons (Sinvalid (Eid v)) sts *)
+  (*               | (v, R_default') => sts *)
+  (*               end *)
+  (*   end. *)
+
+  Fixpoint expand_fcnct es1 es2 (l : seq HiFP.hfstmt) : seq HiFP.hfstmt :=
+    match es1, es2 with
+    | cons (Eref (Eid v)) ess1, cons ee2 ess2 => expand_fcnct ess1 ess2 (rcons l (Sfcnct (Eid v) ee2) )
+    | _, _ => l
     end.
 
-  Fixpoint expandconnects_stmt (s : HiFP.hfstmt) (ce : CEP.env) (sv : StructStateP.t) (sts : HiFP.hfstmt_seq) : HiFP.hfstmt_seq :=
+  Fixpoint expandconnects_stmt (s : HiFP.hfstmt) (ce : CEP.env) (sts : seq HiFP.hfstmt) : seq HiFP.hfstmt :=
     match s with
-    | Sskip => sts
+    | Sskip
     | Swire _ _
     | Sreg _ _
-    | Smem _ _ 
-    | Snode _ _ => sts
-    | Sfcnct (Eid v) e => Qcat (element_connection (upd_expand_expr' (zip (expand_eref v ce) (expand_expr e ce nil)) sv) sts) sts
+    | Smem _ _
+    | Sinvalid _
+    | Sinst _ _
+    | Snode _ _ => rcons sts s
+    | Sfcnct e1 e2 => expand_fcnct (expand_expr (Eref e1) ce nil) (expand_expr e2 ce nil) sts
     (* | Spcnct (Eid v1) (Eref (Eid v2)) => Qcat (element_connection (upd_expand_pcnct_eref v1 v2 (type_of_cmpnttyp (CEP.vtyp v1 ce).1) (type_of_cmpnttyp (CEP.vtyp v2 ce).1) sv) sts) sts *)
-    | Sinvalid (Eid v) => Qcat (element_connection (upd_aggr_elements_rdef v ce (HiFP.r_invalid (HiFP.econst (Fuint 0) [::])) sv) sts) sts
-    | Sinst v1 v2 => sts
-    | Swhen c s1 s2 => expandconnects_stmt_seq s2 ce sv (expandconnects_stmt_seq s1 ce sv sts)
-    | _ => sts
+    | Swhen c s1 s2 => expandconnects_stmt_seq s2 ce (expandconnects_stmt_seq s1 ce sts)
     end
-      with expandconnects_stmt_seq (ss : HiFP.hfstmt_seq) (ce : CEP.env) (sv : StructStateP.t) (sts : HiFP.hfstmt_seq) : HiFP.hfstmt_seq :=
+      with expandconnects_stmt_seq (ss : HiFP.hfstmt_seq) (ce : CEP.env) (sts : seq HiFP.hfstmt) : seq HiFP.hfstmt :=
       match ss with
       | Qnil => sts
-      | Qcons s ss => expandconnects_stmt_seq ss ce sv (expandconnects_stmt s ce sv sts)
+      | Qcons s ss => expandconnects_stmt_seq ss ce (expandconnects_stmt s ce sts)
     end.
   
-  Definition elements_declaration (ce : CEP.env) (sts : HiFP.hfstmt_seq) : HiFP.hfstmt_seq :=
-    let es := CEP.elements ce in
-    match es with
-    | nil => sts
-    | e :: es => match e with
-                           | (v, (t, Wire)) => HiFP.qcons (HiFP.swire v (type_of_cmpnttyp t)) sts
-                           | (v, (Reg_typ t, Register)) => HiFP.qcons (HiFP.sreg v t) sts
-                           | (v, (Mem_typ t, Memory)) => HiFP.qcons (HiFP.smem v t) sts
-                           | _ => sts
-                           end
-    end.
+  (* Definition elements_declaration (ce : CEP.env) (sts : HiFP.hfstmt_seq) : HiFP.hfstmt_seq := *)
+  (*   let es := CEP.elements ce in *)
+  (*   match es with *)
+  (*   | nil => sts *)
+  (*   | e :: es => match e with *)
+  (*                          | (v, (t, Wire)) => HiFP.qcons (HiFP.swire v (type_of_cmpnttyp t)) sts *)
+  (*                          | (v, (Reg_typ t, Register)) => HiFP.qcons (HiFP.sreg v t) sts *)
+  (*                          | (v, (Mem_typ t, Memory)) => HiFP.qcons (HiFP.smem v t) sts *)
+  (*                          | _ => sts *)
+  (*                          end *)
+  (*   end. *)
 
- (* Check all the sub-elements connected are of ground type, and connections are of equivalent types *)
-  Inductive expand_connects_stmt_sem : HiFP.hfstmt -> StructStateP.t -> Prop :=
-  | ExpandConnects_fcnct :
-    forall v1 e sv ce,
-      (forall n exs , StructStateP.find (fst v1, n) sv = Some (HiFP.r_cnct exs) ->
-                      is_gtyp (HiFP.type_of_hfexpr exs ce) ->
-                      ftype_equiv (type_of_cmpnttyp (CEP.vtyp (fst v1, n) ce).1) (HiFP.type_of_hfexpr exs ce)) ->
-      expand_connects_stmt_sem (Sfcnct (Eid v1) e) sv.
-  (* | ExpandConnects_pcnct : *)
-  (*   forall v1 e sv ce , *)
-  (*     (forall n exs, StructStateP.find (fst v1, n) sv = Some (HiFP.r_cnct exs) -> *)
-  (*                    is_gtyp (HiFP.type_of_hfexpr exs ce) -> *)
-  (*                    ftype_equiv (type_of_cmpnttyp (CEP.vtyp (fst v1, n) ce).1) (HiFP.type_of_hfexpr exs ce)) -> *)
-  (*     expand_connects_stmt_sem (Spcnct (Eid v1) e) sv. *)
 
-  Lemma expand_eref_aux_cons :
-    forall n e ce id se,
-      (expand_eref_aux e n ce (id :: se)) = (expand_eref_aux e n ce nil) ++ (id :: se).
+
+  Lemma expand_eref_aux_rcons :
+    forall n c e ce id se,
+      (expand_eref_aux e n c ce (rcons se id)) = se ++ id :: (expand_eref_aux e n c ce nil).
   Proof.
-    elim; intros; first done.
+    elim; intros. rewrite/= cats1//.
     rewrite /=.
-    case Hf : (CEP.find (e.1, (e.2 + N.of_nat n)%num) ce) => [[t c]|]; last rewrite cat0s//.
+    case Hf : (CEP.find (e.1, (e.2 + N.of_nat c)%num) ce) => [[t cm]|]; last rewrite cats1//.
     case Hg : (is_gtyp (type_of_cmpnttyp t)).
-    rewrite (H e ce (HiFP.eref (HiFP.eid (e.1, (e.2 + N.of_nat n)%num))) (id :: se)).
-    rewrite (H e ce (HiFP.eref (HiFP.eid (e.1, (e.2 + N.of_nat n)%num))) nil).
-    rewrite -catA cat1s//. assert (~~ borrow_subB [::b0] [::b0] = false). admit. move /negbFE : H0.
+    rewrite (H c.+1 e ce (HiFP.eref (HiFP.eid (e.1, (e.2 + N.of_nat c)%num))) (rcons se id)).
+    rewrite (H c.+1 e ce (HiFP.eref (HiFP.eid (e.1, (e.2 + N.of_nat c)%num))) nil).
+    rewrite cat0s cat_rcons//.
     done.
   Qed.
 
+  Lemma expand_eref_rcons :
+    forall se id r ce ,
+      expand_eref r ce (rcons se id) = se ++ id :: expand_eref r ce nil.
+  Proof.
+    rewrite /expand_eref. intros.
+    case Hf : (CEP.find r ce) =>[[t c]|]; last rewrite cats1//.
+    rewrite expand_eref_aux_rcons//.
+  Qed.
+  
   Lemma expand_eref_aux_ground_ftype :
-    forall sz a b ce se,
+    forall sz a b c ce se,
       all (fun ex : HiFP.hfexpr => is_gtyp (HiFP.type_of_hfexpr ex ce)) se ->
-      all (fun ex : HiFP.hfexpr => is_gtyp (HiFP.type_of_hfexpr ex ce)) (expand_eref_aux (a, b) sz ce se).
+      all (fun ex : HiFP.hfexpr => is_gtyp (HiFP.type_of_hfexpr ex ce)) (expand_eref_aux (a, b) sz c ce se).
   Proof.
     elim; first done.
     intros; rewrite /=.
-    case Hf : (CEP.find (a, (b + N.of_nat n)%num) ce) => [[t c]|].
+    case Hf : (CEP.find (a, (b + N.of_nat c)%num) ce) => [[t cm]|].
     - case Hg: (is_gtyp (type_of_cmpnttyp t)).
-      + rewrite expand_eref_aux_cons/= all_cat.
+      + rewrite expand_eref_aux_rcons/= all_cat H0/=.
         have Hn : (all (fun ex : HiFP.hfexpr => is_gtyp (HiFP.type_of_hfexpr ex ce)) nil) by done.
-        rewrite (H a b ce nil Hn) andTb/= H0.
+        rewrite (H a b c.+1 ce nil Hn) andbT/=. 
         rewrite (CEP.find_some_vtyp Hf)/= Hg//.
       + by apply H.
     - done.
@@ -252,7 +255,7 @@ Section ExpandConnectsP.
       all (fun ex : HiFP.hfexpr => is_gtyp (HiFP.type_of_hfexpr ex ce)) se0 ->
       all (fun ex : HiFP.hfexpr => is_gtyp (HiFP.type_of_hfexpr ex ce)) (expand_expr (Eref h) ce se0).
   Proof.
-    elim; try done.
+    elim; try (intros; rewrite /= all_rcons//). 
     rewrite /=.
     case; intros.
     rewrite /expand_eref.
@@ -261,13 +264,21 @@ Section ExpandConnectsP.
     by apply expand_eref_aux_ground_ftype.
   Qed.
 
+  (* Lemma expand_emux_cons : *)
+  (*   forall zl h se0 a, *)
+  (*     expand_emux h zl (cons a se0) = (expand_emux h zl nil) ++ (a :: se0). *)
+  (*   elim. intros. rewrite /=//. *)
+  (*   rewrite /=. case; intros. rewrite (H h (rcons se0 (HiFP.emux h a b)) a0). *)
+  (*   rewrite (H h nil (HiFP.emux h a b)). rewrite -catA. rewrite cat_cons cat0s. *)
+  (* Qed. *)
+  
   Lemma expand_emux_rcons :
     forall zl h se0 a,
       expand_emux h zl (rcons se0 a) = se0 ++ a :: (expand_emux h zl nil).
   Proof.
     elim; intros; first rewrite /= cats1//.
     rewrite /=.
-    case a; intros. 
+    case a; intros.
     rewrite (H h (rcons se0 a0) (HiFP.emux h h0 h1))/=.
     move : (H h nil (HiFP.emux h h0 h1)). rewrite /= => <-.
     rewrite cat_rcons//.
@@ -306,8 +317,8 @@ Section ExpandConnectsP.
       elim; intros.
       + rewrite /=//.
       + rewrite /= in H0. move/andP : H0 => [H11 H12].
-        move : (Hl1 Hal2 l H12 (rcons se0 (HiFP.emux h a1 a))).
-        rewrite all_rcons/= (is_gtyp_mux_types _ _ Hal1 H11) andTb => Haux.
+        move : (Hl1 Hal2 l H12 (rcons se0 (HiFP.emux h a1 a) )).
+        rewrite all_rcons /= (is_gtyp_mux_types _ _ Hal1 H11) andTb => Haux.
         rewrite (Haux H1)//.
   Qed.
 
@@ -356,13 +367,13 @@ Section ExpandConnectsP.
       all (fun ex => is_gtyp (HiFP.type_of_hfexpr ex ce)) (expand_expr e ce se0).
   Proof.
     elim.
-    - (*const*) intros; done. 
+    - (*const*) intros; rewrite /=all_rcons//. 
     - (*cast*) intros.
-      case u; rewrite/=; case (HiFP.type_of_hfexpr h ce); rewrite //.
+      case u; rewrite/= all_rcons H0/=; case (HiFP.type_of_hfexpr h ce); rewrite //.
       intro; case f; rewrite //. intro; case f; rewrite //.
     - (*unary ops*)
       intros.
-      case e; rewrite /=; case (HiFP.type_of_hfexpr h ce); intros;
+      case e; intros; rewrite /=all_rcons H0/=; case (HiFP.type_of_hfexpr h ce); intros;
         try (rewrite /=; done || case f; rewrite /=; done). 
       case f; intros; try done; case (n < n0); try done.
       case f; intros; try done; case (n0 <= n < n1); try done.
@@ -370,7 +381,8 @@ Section ExpandConnectsP.
       case f; intros; try done; case (n <= n0); try done.
     - (*binary ops*)
       intros.
-      case e; rewrite /=; case (HiFP.type_of_hfexpr h ce); rewrite //; intros; case (HiFP.type_of_hfexpr h0 ce); intros;
+      case e; intros; rewrite /= all_rcons H1/=;
+      case (HiFP.type_of_hfexpr h ce); rewrite //; intros; case (HiFP.type_of_hfexpr h0 ce); intros;
         case f; rewrite /=; intros; rewrite /=//; case f0; intros; rewrite //.
     - (*mux*)
       intros; rewrite /=.
@@ -391,7 +403,7 @@ Section ExpandConnectsP.
     elim. intros; rewrite /= addn0//.
     intros. rewrite/=.
     case a; intros.
-    rewrite expand_emux_rcons/= seq.size_cat/= addnS (H h nil) /= add0n addnS//.
+    rewrite expand_emux_rcons/= seq.size_cat/= addnS (H h nil) /= add0n addnS addnC//.
   Qed.
 
   Lemma ftype_equiv_mux_l :
@@ -549,12 +561,12 @@ Section ExpandConnectsP.
     intros. exact : (contraNT (ftype_equiv_lr_mux_types_nondef t1 t2)).
   Qed.
 
-  Lemma expand_emux_cons :
+  Lemma expand_emux_cons_nil :
     forall tl hd l c,
-      (~~( expand_emux c tl (cons hd l) == nil)).
+      (~~( expand_emux c tl (rcons l hd) == nil)).
   Proof.
-    elim => [|hd1 tl1 H] hd l c; first done.
-    rewrite/=. case hd1; intros. rewrite (H hd (rcons l (HiFP.emux c h h0)) c)//.
+    intros. rewrite expand_emux_rcons.
+    elim l; try done.
   Qed.
 
   Lemma list_repeat_ftype_list :
@@ -614,7 +626,7 @@ Section ExpandConnectsP.
   Proof.
     elim => [|hd1 tl1 Hn]; elim => [|hd2 tl2 Hm] h ce; try (rewrite zip_nil//||rewrite zip_nil_r//).
     - rewrite /= -(Hn tl2 h ce).
-      have -> : [:: HiFP.emux h hd1 hd2] = rcons nil (HiFP.emux h hd1 hd2) by done.
+      have -> : [:: HiFP.emux h hd1 hd2] = rcons nil (HiFP.emux h hd1 hd2)  by done.
       rewrite expand_emux_rcons cat0s map_cons//.
   Qed.
 
@@ -854,25 +866,27 @@ Section ExpandConnectsP.
   (*   intros. rewrite -H. apply expand_evalidif_aux. *)
   (* Qed. *)
   
-
+Print expand_eref_aux. 
   Lemma expand_eref_aux_addnS : 
-    forall n a b ce l,
+    forall n a b cnt ce l,
       (forall o t, CEP.find (a, o) ce = Some t) ->
-      expand_eref_aux (a, b) n.+1 ce l =
-        expand_eref_aux (a, b) 1 ce (expand_eref_aux (a, (b + 1)%num) n ce l).
+      expand_eref_aux (a, b) n.+1 cnt ce l =
+        expand_eref_aux (a, b) 1 cnt ce (expand_eref_aux (a, (b + 1)%num) n cnt. ce l).
   Proof.
-    elim => [| ns Hn] a b ce l Hf; first done.
-    rewrite (lock ns.+1) /= N.add_0_r.
-    case H : (CEP.find (a, (b + N.of_nat (locked ns.+1))%num) ce) => [[tc cc]|].
+    elim => [| ns Hn] a b cnt ce l Hf; first done.
+    rewrite (lock ns.+1) /=. (* N.add_0_r. *)
+    case H : (CEP.find (a, (b + N.of_nat cnt)%num) ce) => [[tc cc]|].
     - case Hgt : (is_gtyp (type_of_cmpnttyp tc)).
-      rewrite -lock (Hn a b ce (HiFP.eref (HiFP.eid (a, (b + N.of_nat ns.+1)%num)) :: l) Hf) (lock ns.+1)/= N.add_0_r.
-      + case H0 : (CEP.find (a, b) ce) => [[tc0 cc0]|].
+      rewrite -lock.
+      rewrite (Hn a b cnt.+1 ce (rcons l (HiFP.eref (HiFP.eid (a, (b + N.of_nat cnt)%num)))) Hf).
+      rewrite (lock ns.+1)(lock cnt.+1)/=.
+      + case H0 : (CEP.find (a, (b + N.of_nat (locked cnt.+1))%num) ce) => [[tc0 cc0]|].
         * case Hgt0 : (is_gtyp (type_of_cmpnttyp tc0)).
-          {
-            rewrite -{2}lock /=.
-            have -> : (b + 1 + N.of_nat ns)%num = (b + N.of_nat (locked ns.+1))%num
+          { 
+            symmetry. rewrite -{1}lock /=.
+            have -> : (b + 1 + N.of_nat cnt)%num = (b + N.of_nat (locked cnt.+1))%num
               by rewrite -N.add_assoc N.add_1_l -Nnat.Nat2N.inj_succ -lock//.
-            rewrite H Hgt//.
+            rewrite H0. Hgt0//.
           }
           {
             rewrite -{2}lock /=.
@@ -925,10 +939,10 @@ Section ExpandConnectsP.
     rewrite /=. rewrite {1}H catA//.
   Qed.
 
-  Axiom find_atyp_find_subindex :
-    forall an tn c a b (ce : CEP.t (cmpnt_init_typs ProdVarOrder.T * fcomponent)),
-      CEP.find (a, b) ce = Some (HiFP.aggr_typ (Atyp an tn.+1), c) ->
-      (forall bn c', CEP.find (a, bn) ce = Some (HiFP.aggr_typ an, c')).
+  (* Axiom find_atyp_find_subindex : *)
+  (*   forall an tn c a b (ce : CEP.t (cmpnt_init_typs ProdVarOrder.T * fcomponent)), *)
+  (*     CEP.find (a, b) ce = Some (HiFP.aggr_typ (Atyp an tn.+1), c) -> *)
+  (*     (forall bn c', CEP.find (a, bn) ce = Some (HiFP.aggr_typ an, c')). *)
 
   Lemma expand_eref_aux_lst :
     forall el l' l a b ce n,
@@ -1008,7 +1022,7 @@ Section ExpandConnectsP.
     forall (s:pvar) (ce: CEP.env),
       (forall (b : VarOrder.T) (t : cmpnt_init_typs ProdVarOrder.T* fcomponent),
           CEP.find (s.1,b) ce = Some t) -> 
-      [seq HiFP.type_of_hfexpr a ce | a <- let (r, o) := s in expand_eref (r, o) ce] = ftype_list (HiFP.type_of_ref (HiFP.eid s) ce) [::].
+      [seq HiFP.type_of_hfexpr a ce | a <- let (r, o) := s in expand_eref (r, o) ce nil] = ftype_list (HiFP.type_of_ref (HiFP.eid s) ce) [::].
   Proof.
     elim. intros.
     rewrite /=/expand_eref .
@@ -1021,21 +1035,19 @@ Section ExpandConnectsP.
 
   Fixpoint well_defined_expand_expr (e : HiFP.hfexpr) (ce : CEP.env) :=
     match e with
-    | Eref (Eid v) => match CEP.find v ce  with
-                      | Some _ => true
-                      | None => false
-                      end
-    | Econst t c => true
-    | Ecast u e => true
-    | Eprim_unop u e => true
-    | Eprim_binop b e1 e2 => true
-    | Emux ec e1 e2 => (well_defined_expand_expr e1 ce) && (well_defined_expand_expr e2 ce) && (well_defined_expand_expr ec ce) && (ftype_equiv (HiFP.type_of_hfexpr e1 ce) (HiFP.type_of_hfexpr e2 ce))
+    | Eref (Eid v) => (forall v (t : cmpnt_init_typs ProdVarOrder.T* fcomponent), 
+                        (CEP.find v ce) = Some t)
+    | Econst t c => True
+    | Ecast u e => True
+    | Eprim_unop u e => True
+    | Eprim_binop b e1 e2 => True
+    | Emux ec e1 e2 => (well_defined_expand_expr e1 ce) /\ (well_defined_expand_expr e2 ce) /\ (well_defined_expand_expr ec ce) /\ (ftype_equiv (HiFP.type_of_hfexpr e1 ce) (HiFP.type_of_hfexpr e2 ce))
     | _ => false
     end.
   
   Lemma expand_expr_ftype_list_equiv :
     forall e ce,
-      (forall (v:pvar) t, CEP.find v ce = Some t) ->
+      (* (forall (v:pvar) t, CEP.find v ce = Some t) -> *)
       well_defined_expand_expr e ce ->
       (map (fun a => HiFP.type_of_hfexpr a ce) (expand_expr e ce nil)) = (ftype_list (HiFP.type_of_hfexpr e ce) nil).
   Proof.
@@ -1050,19 +1062,20 @@ Section ExpandConnectsP.
       case e; rewrite /=; case (HiFP.type_of_hfexpr h ce) => [g1| a1 t1| bs1]; rewrite /=//; case (HiFP.type_of_hfexpr h0 ce) => [g2| a2 t2| bs2]; rewrite /=//; try (case g1 => [n1|n1| | |]; case g2 => [n2|n2| | |]; rewrite //); try (case g1; rewrite //).
     - rewrite /=.  intros.
       have Haux : (all2 (fun a : ftype => [eta ftype_equiv a]) [::] [::]) by done.
-      move : H3 => /andP [/andP [/andP [Hwh Hwh0] Hwh1] Hfeq].
+      move : H2 => [Hwh [Hwh0 [Hwh1 Hfeq]]].
       move : (ftype_equiv_mux_l_hfexpr h0 h1 h ce Hfeq) => Heqmux.
       move : (ftype_equiv_ftype_list_equiv _ _ nil nil Heqmux Haux). rewrite /= all2E => /andP [Hsz Heq2].
       apply expand_emux_zip_mux_types; [by apply H0| by apply H1| by rewrite Hfeq].
     - rewrite /=.
-      elim ; rewrite //. intros s ce.
-      case Hf: (CEP.find s ce) => [[t c]|]; rewrite //.
-      intros. rewrite expand_eref_ftypes//. 
+      elim ; rewrite //. intros s ce Hv; rewrite/=.  
+      case Hf: (CEP.find s ce) => [[t c]|]; rewrite /=.
+      rewrite expand_eref_ftypes//.
+      move : (Hv s (CEP.vtyp s ce)); rewrite Hf//.
   Qed.
       
   Lemma ftype_list_equiv_expand_expr :
     forall e1 e2 ce,
-      (forall (v:pvar) t, CEP.find v ce = Some t) ->
+      (* (forall (v:pvar) t, CEP.find v ce = Some t) -> *)
       well_defined_expand_expr e1 ce ->
       well_defined_expand_expr e2 ce ->
       all [pred xy |
@@ -1073,13 +1086,13 @@ Section ExpandConnectsP.
         (zip (map (fun a => HiFP.type_of_hfexpr a ce) (expand_expr e1 ce nil))
              (map (fun a => HiFP.type_of_hfexpr a ce) (expand_expr e2 ce nil))).
   Proof.
-    intros e1 e2 ce Hf Hw1 Hw2. rewrite -(expand_expr_ftype_list_equiv e2 ce Hf)//.
-    rewrite -(expand_expr_ftype_list_equiv e1 ce Hf)//.
+    intros e1 e2 ce Hw1 Hw2. rewrite -(expand_expr_ftype_list_equiv e2 ce )//.
+    rewrite -(expand_expr_ftype_list_equiv e1 ce )//.
   Qed.
     
   Lemma ftype_equiv_all2 :
     forall e1 e2 ce,
-      (forall (v:pvar) t, CEP.find v ce = Some t) ->
+      (* (forall (v:pvar) t, CEP.find v ce = Some t) -> *)
       well_defined_expand_expr e1 ce ->
       well_defined_expand_expr e2 ce ->
       ftype_equiv (HiFP.type_of_hfexpr e1 ce) (HiFP.type_of_hfexpr e2 ce) ->
@@ -1087,11 +1100,92 @@ Section ExpandConnectsP.
       ftype_equiv (xy.1) (xy.2)] (zip (map (fun a => HiFP.type_of_hfexpr a ce) (expand_expr e1 ce nil)) (map (fun a => HiFP.type_of_hfexpr a ce) (expand_expr e2 ce nil))).
   Proof.
     intros. 
-    apply ftype_list_equiv_expand_expr; [done |done| done|].
+    apply ftype_list_equiv_expand_expr; [done |done|].
     have Haux : (all2 (fun a : ftype => [eta ftype_equiv a]) [::] [::]) by done.
-    move : (ftype_equiv_ftype_list_equiv _ _ nil nil H2 Haux).
+    move : (ftype_equiv_ftype_list_equiv _ _ nil nil H1 Haux).
     rewrite all2E => /andP [Hsz Heq]//. 
   Qed.
-          
+
+  Lemma expand_expr_cat :
+    forall e ce a se0,
+      well_defined_expand_expr e ce ->
+      expand_expr e ce (rcons se0 a) = se0 ++ a :: expand_expr e ce nil.
+  Proof.
+    elim; try (intros; rewrite/= -2!cat_rcons cats0//).
+    intros. rewrite /= expand_emux_rcons//.
+    elim; try (intros; rewrite/= -2!cat_rcons cats0//).
+    case; rewrite /=. intros.
+    move : expand_eref_cons.
+  Admitted.
+
+  Lemma expand_fcnct_cat :
+    forall e ce l,
+      expand_fcnct e ce (l) = expand_fcnct e ce nil ++ (l).
+  Proof.
+  Admitted.
+
+  Lemma expandconnects_stmt_cat :
+    forall s ce a l,
+      expandconnects_stmt s ce (a :: l) = expandconnects_stmt s ce nil ++ (a:: l)
+  with expandconnects_stmt_seq_cat :
+    forall ss ce sts,
+      expandconnects_stmt_seq ss ce sts = expandconnects_stmt_seq ss ce nil ++ sts.
+  Proof.
+    elim; try (rewrite /=; reflexivity).
+    intros. rewrite /=. case h; rewrite /=; try reflexivity. case; intros.
+    rewrite expand_fcnct_cat//.
+    intros. rewrite /=.
+    rewrite expandconnects_stmt_seq_cat. rewrite (expandconnects_stmt_seq_cat h0).
+    symmetry. rewrite expandconnects_stmt_seq_cat catA//.
+    elim; first rewrite /=//.
+    intros. rewrite /=. 
+    case sts; first rewrite/=cats0//.
+    intros. rewrite (H ce (expandconnects_stmt h ce [::])).
+    rewrite expandconnects_stmt_cat.
+    rewrite (H ce (expandconnects_stmt h ce [::] ++ h1 :: l)) catA//.
+  Qed.
+
+  (* Check all the sub-elements connected are of ground type, and connections are of equivalent types *)
+
+  Definition is_sfcnct (s: HiFP.hfstmt) :=
+    match s with
+    | Sfcnct _ _ => true
+    | _ => false
+    end.
+  Definition get_lhs (s: HiFP.hfstmt) :=
+    match s with
+    | Sfcnct l r => (HiFP.eref l)
+    | _ => HiFP.econst (Fuint 0) [::]
+    end.
+  Definition get_rhs (s: HiFP.hfstmt) :=
+    match s with
+    | Sfcnct l r => r
+    | _ => HiFP.econst (Fuint 0) [::]
+    end.
+  
+  Definition expandconnects_stmt_correct' (ss:seq HiFP.hfstmt) (ce : CEP.env):=
+    let ss' := filter is_sfcnct ss in
+      all (fun ex => is_gtyp (HiFP.type_of_hfexpr ex ce)) (map get_rhs ss')
+      /\ all [pred xy |
+             ftype_equiv (xy.1) (xy.2)] (zip (map (fun a => HiFP.type_of_hfexpr a ce) (map get_lhs ss')) (map (fun a => HiFP.type_of_hfexpr a ce) (map get_rhs ss'))).
+
+  Definition expandconnects_stmt_correct (ss:HiFP.hfstmt_seq) (ce : CEP.env) l :=
+    expandconnects_stmt_correct' (expandconnects_stmt_seq ss ce l) ce.
+  
+  Lemma expandconnects_stmt_fun_correct :
+    forall ss ce l,
+      expandconnects_stmt_correct' l ce ->
+      expandconnects_stmt_correct ss ce l.
+  Proof.
+    elim =>[|s sts Hn] ce l Hl.
+    rewrite /expandconnects_stmt_correct/=//.
+    rewrite /expandconnects_stmt_correct/=.
+    move : s ce l Hl.
+    elim; rewrite /=; intros; try by apply Hn.
+    apply Hn. case h; rewrite /=//.
+    case; intros; rewrite/expandconnects_stmt_correct'/=.
+  Admitted.
       
 End ExpandConnectsP.
+
+
