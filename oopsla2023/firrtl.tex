@@ -312,6 +312,8 @@ module MyModule :
 
 In the sequel, we give an informal introduction to the lowering transformations (aka compilation passes) of  FIRRTL. The dependencies between these compilation passes are illustrated in Figure~\ref{fig-c-pass}.
 
+\paragraph*{ResolveKinds} xxx \zhilin{@Xiaomu, please write an introduction here.}
+
 \paragraph*{InferTypes} The InferTypes pass infers the types of components. For instance, InferTypes infers from the code snippet \begin{lstinline}!  wire x: UInt   x <= UInt<5>(15)   x <= UInt<1>(1)! \end{lstinline} that $x$'s type is \begin{lstinline}!UInt!\end{lstinline}. Note that for a connect statement  \begin{lstinline}! x <= e !\end{lstinline}, InferTypes only checks that the type of $e$ is equivalent to that of $x$ (where the bit widths are ignored), but does not update the bit width of $x$ to that of $e$.
 
 \paragraph*{InferWidths}
