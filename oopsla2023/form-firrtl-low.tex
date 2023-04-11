@@ -36,8 +36,9 @@ $(x, y)\in E_A$, i.e., $y$ depends on $x$, iff $A$ contains a generalized connec
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%% comment out by Fu %%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{comment}  
 We first show how to define the operational semantics for the situation that the module $A$ contains no occurrences of ``inst of'' statements. Later on, we will consider the more general case.
 %
 \paragraph*{No ``inst of'' statements in module $A$} Let us assume that $A$ contains no occurrences of ``inst of'' statements. In this case, we know that $A$ is the only module in circuit $A$.
@@ -60,6 +61,8 @@ We use $\ccpnts(A)$ to denote the set of connected components of $A$, that is, $
 The \emph{dependency graph} of $A$ is $G_A = (\cpnts(A), E_A)$, where $E_A$ comprises the edges $(x, y)$ such that $y$ depends on $x$, more precisely, $x$ occurs in the body of the generalized connect statement for $y$.
 %
 %(Recall that LoFIRRTL does not contain partial connect statements, moreover, for each $y \in \cpnts(B)$, there is at most one connect statement where $y$ is the head.)
+\end{comment}
+
 
 Since combinational loops\footnote{A combinatorial loop is when the output of some combinatorial logic, that is a section of logic with no registers between gates, is fed back into the input of that combinatorial logic with no intervening register.} are usually taken as ``bad'' in digital circuit design, we require that \emph{$G_A$ is acyclic}. Another necessary condition for the well-definedness of semantics of LoFIRRTL is stated as follows: \emph{Each $z \in \ccpnts(A)$ should be connected to exactly once, that is, there is exactly one generalized connect statement whose head is $z$}. Futhermore, in this work, we ignore clocks, that is, all signals are related to the same clock, the global clock.
 
