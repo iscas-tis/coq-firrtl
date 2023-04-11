@@ -6,7 +6,7 @@ A description of the formalization of InferTypes, InferWidths, InferResets, Expa
 
 \subsubsection{``Infer Widths''}
 Implicit widths are allowed to be defined in HiFIRRTL programs.
-Such unspecified widths are infered by the Infer Width pass. 
+Such unspecified widths are infered by the Infer Widths pass. 
 The general rules are,
 \begin{itemize}
 \item The only allowed width for the explicit defined width is itself.
@@ -16,45 +16,82 @@ The general rules are,
   all assigned signals are taking into account.
 \end{itemize}
 
-\begin{description}
-\item[The input] of InferWidth takes the statments and the component
-  environment $ce$ that passed from the InferType.  In $ce$ the
-  unspecified widths are recorded by zero width .  The statements
-  are assumed to contain only legal connections, which means the two
-  sides of the connection have equivalent type (mentioned?) and the
-  flow is from a smaller width to a lager one.
-\item[The output] of InferWidth give a new component environment $ce'$
-  where all unspecified types have been infered.  Still it is possible
-  that after this pass, signals are infered to zero width.  The overall
-  compilation will use other passes to deal with zero width, which is
-  not concerned here.
-\end{description}
+Following the rules, we first introduce an additional map $wm$, which
+maps from variables to types. Then we scan the statements in $ss$ to
+find components with implicit width and create the entries for
+them in $wm$. For one statement which declares a component $v$,
+the \prettyll{infer\_width} function will update the $wm$ by
 
-To state the correctness of InferWidth that implement in Coq, we first
-recall the semantics of width infering.  There are statements that
-declare new component, or the statements that define connections. For
-those components declared with explicit widths, we state that the
-widths will be kept unchange after the pass.  The implicit width
-declarations will be collected and await to be assigned to a proper width.
-The connections give hints to the infering process. For example,
-\begin{lstlisting}
-  wire c: SInt
-  c <= shl(SInt("b-100101100101"), 1)
-\end{lstlisting}
-the width of wire $c$ is implicit defined. The connection from an
-shift-left expression to $c$ will provide the protential width for $c$.
-According to the rules, the width of c now is 13, because the
-shift-left expression is of type \lstinline!SInt<13>!. Before applying last
-connect semantics, the module may contain more than one connections to
-one target. For example,
-\begin{lstlisting}
-  wire c: SInt
-  wire d: SInt<14>
-  c <= shl(SInt("b-100101100101"), 1)
-  c <= d
-\end{lstlisting}
-Now, wire $c$ has the width as same as $d$, which is 14. The latter connection
-from d gives a larger width to the destination $c$. 
+  \begin{gather}
+    \inferii[]
+    {\seqq{ce \vdash infer\_width(declare\;v, wm) \rightsquigarrow wm'}}
+    {\seqq{ce \vdash width(t_v) = 0}} {\seqq{wm':= wm \uplus {v : t_v}}}.
+    \end{gather}
+
+The width is inferred according to connection statements.
+Since the last connection semantics is not considered, each
+connection to the element provides the potential width. A function
+named \prettyll{max\_width} compares the potential widths and outputs
+the maximum one. For one statement which connects an expression $e$
+to a component $v$, the \prettyll{infer\_width} function will update $wm$ by
+
+  \begin{gather}
+    \inferiii[]
+    {\seqq{ce \vdash infer\_width(v<=e, wm) \rightsquigarrow wm'}}
+    {\seqq{wm \vdash v : t_v}}
+    {\seqq{ce \vdash t_e:= type\_of\_expr(e)}}
+    {\seqq{wm':= wm \uplus {v : max\_width(t_v,t_e)}}}.
+    \end{gather}
+
+After applying \prettyll{infer\_width} on all the statement in $ss$,
+the $wm$ contains the inferred width for every implicit defined
+component. By using \prettyll{map2} function t merge the $ce$ and $wm$
+with the same entry, the component environment $ce$ now contains the
+result of the width inferring.
+
+Instead of applying \prettyll{infer\_width} directly on $ce$, the map
+$wm$ contains only type information of the implicit ones that can be
+manipulated more efficiently.
+
+%% \begin{description}
+%% \item[The input] of InferWidth takes the statments and the component
+%%   environment $ce$ that passed from the InferType.  In $ce$ the
+%%   unspecified widths are recorded by zero width .  The statements
+%%   are assumed to contain only legal connections, which means the two
+%%   sides of the connection have equivalent type (mentioned?) and the
+%%   flow is from a smaller width to a lager one.
+%% \item[The output] of InferWidth give a new component environment $ce'$
+%%   where all unspecified types have been infered.  Still it is possible
+%%   that after this pass, signals are infered to zero width.  The overall
+%%   compilation will use other passes to deal with zero width, which is
+%%   not concerned here.
+%% \end{description}
+
+%% To state the correctness of InferWidth that implement in Coq, we first
+%% recall the semantics of width infering.  There are statements that
+%% declare new component, or the statements that define connections. For
+%% those components declared with explicit widths, we state that the
+%% widths will be kept unchange after the pass.  The implicit width
+%% declarations will be collected and await to be assigned to a proper width.
+%% The connections give hints to the infering process. For example,
+%% \begin{lstlisting}
+%%   wire c: SInt
+%%   c <= shl(SInt("b-100101100101"), 1)
+%% \end{lstlisting}
+%% the width of wire $c$ is implicit defined. The connection from an
+%% shift-left expression to $c$ will provide the protential width for $c$.
+%% According to the rules, the width of c now is 13, because the
+%% shift-left expression is of type \lstinline!SInt<13>!. Before applying last
+%% connect semantics, the module may contain more than one connections to
+%% one target. For example,
+%% \begin{lstlisting}
+%%   wire c: SInt
+%%   wire d: SInt<14>
+%%   c <= shl(SInt("b-100101100101"), 1)
+%%   c <= d
+%% \end{lstlisting}
+%% Now, wire $c$ has the width as same as $d$, which is 14. The latter connection
+%% from d gives a larger width to the destination $c$. 
 
 \subsubsection{``Expand Connects''}
 In HiFirrtl connections can be made through full or partial
