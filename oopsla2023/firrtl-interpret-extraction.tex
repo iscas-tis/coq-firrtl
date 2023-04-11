@@ -1,8 +1,17 @@
 %!TEX root = main.tex
 
-\zhilin{Add more information about the extraction, in particular, the topological sorting, deal with instance of}
+\zhilin{@keyin, please write this part as soon as possible and address the following points: 
+
+1. How we adapt the original coq implementation of topological sorting to report a witness cycle when the input graph is not a DAG. 
+
+2. A parser should be written in OCAML if an end-to-end interpreter is obtained in the end to facilitate the comparison with Treadle. 
+
+3. In the implementation of operational semantics, tail recursion is avoided to improve the efficiency of the OCAML interpreter (evaluation algorithm).
+}
 
 \keyin{Topological sorting}
+
+
 
 To sequentially evaluate lowfirrtl program in ocaml, statement sequence reorder is finished beforehand in interpreter to make each module in pseudo-SSA form, which is done by topological sorting on the dependency graph $G_M$ defined in section 3.1. 
 
