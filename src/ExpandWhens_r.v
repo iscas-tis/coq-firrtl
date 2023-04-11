@@ -364,63 +364,20 @@ There may be numbers that are projected to 0. *)
       Therefore, we simplify as follows:
       we assume that there are no array types in a type definition.
       Then, init_ref etc. can be defined directly as resursive functions
-      (that produce an error if there is an array type anyway).
+      (that produce an error if there is an array type anyway). *)
 
-   Fixpoint init_undefined_vector (v : nat -> @error_type href) (array_size : nat) (type : ftype) (orient : forient) (value : def_expr) : @error_type ((nat -> cmap -> @error_type cmap) * nat) :=
-   (* Produces a function that initializes v to value (mostly D_undefined or D_invalidated).
+   Fixpoint init_ref (id : href) (type : ftype) (orient : forient) (cm : cmap) : @error_type cmap :=
+   (* sets all ground-type elements of id to D_undefined.
       It can be used to initialize memory write ports (data and mask fields) and wires.
       Memory ports have to be passive, but wires allow flipped fields,
       so it does not check whether the type is passive.
-      Input:  * v = href of the variable that needs to be initialized (possibly this is already an array)
-              * array_size = size of the array v (if it's not an array, array_size == 1)
-              * type = type of v <number>
-              * orient = orientation of v (Sink, Duplex or Source)
-                If the orientation of v is Source, only flipped fields will be initialized.
-                If the orientation of v is Sink, only non-flipped fields will be initialized.
-      Output: * nat -> cmap -> cmap : a function that initializes one element of the array (by modifying a cmap accordingly)
-              * nat : size of the array *)
-   match type with
-   | Gtyp _ => match orient with
-               | Sink | Duplex => OK ((fun (n : nat) (cm : cmap) =>
-                                       match v n with Err e => Err e | OK vn
-                                       => match ref2var vn with Err e => Err e | OK ref
-                                          => OK (CE.add ref value cm) end end), array_size)
-               | Source => OK ((fun (n : nat) (cm: cmap) => Err Einternal), 0)
-               | _ => Err Einternal
-               end
-   | Atyp el_type n => init_undefined_vector (fun m : nat => match v (m / n) with Err e => Err e | OK vmn
-                                                             => OK (Esubindex vmn (m mod n)) end)
-                                             (array_size * n) el_type orient value
-   | Btyp ff => init_undefined_bundle v array_size ff orient value
-   end
-   with init_undefined_bundle (v : nat -> @error_type href) (array_size : nat) (ff : ffield) (orient : forient) (value : def_expr) : @error_type ((nat -> cmap -> @error_type cmap) * nat) :=
-   match ff with
-   | Fnil => OK ((fun (n : nat) (cm : cmap) => Err Einternal), 0)
-   | Fflips field_name fl field_type ff_tail =>
-        let field_orient := match fl, orient with Flipped, Sink => Source
-                                                | Flipped, Source => Sink
-                                                | _, _ => orient end
-        in match init_undefined_vector (fun n : nat => match v n with Err e => Err e | OK vn
-                                        => OK (Esubfield vn field_name) end)
-                                       array_size field_type field_orient value
-           with Err e => Err e | OK init_field
-           => match init_undefined_bundle v array_size ff_tail orient value with Err e => Err e | OK init_tail
-              => OK ((fun (n : nat) (cm : cmap) => if n <? snd init_field then fst init_field n cm
-                                                                          else fst init_tail (n - snd init_field) cm),
-                     snd init_field + snd init_tail) end end
-   end. *)
-(*
-   Fixpoint init_apply_initializer (fn : nat -> cmap -> @error_type cmap) (array_size : nat) (cm : cmap) : @error_type cmap :=
-   (* Applies initialization function fn, as produced by init_register_vector, to cm
-      so as to initialize the array fn 0 ... fn (array_size - 1). *)
-   match array_size with
-   | 0 => OK cm
-   | S m => match fn m cm with Err e => Err e
-            | OK new_cm => init_apply_initializer fn m new_cm end
-   end.
-*)
-   Fixpoint init_ref (id : href) (type : ftype) (orient : forient) (cm : cmap) : @error_type cmap :=
-   (* sets all ground-type elements of id to D_undefined. *)
+      Input:  * id = href of the variable that needs to be initialized
+              * type = type of id
+              * orient = orientation of id (Sink, Duplex or Source)
+                If the orientation of id is Source, only flipped fields will be initialized.
+                If the orientation of id is Sink, only non-flipped fields will be initialized.
+              * cm = cmap that is being modified
+      Output: * cmap with additional initializations (or an error) *)
    match type with
    | Gtyp _ => match orient with
                | Sink | Duplex => match ref2var id with Err e => Err e | OK ref
@@ -441,47 +398,13 @@ There may be numbers that are projected to 0. *)
                                                 | _, _ => orient end
         in init_ref (Esubfield id field_name) field_type field_orient cm_tail end
    end.
-(*
-   Fixpoint init_register_vector (v : nat -> @error_type href) (array_size : nat) (type : ftype) : @error_type ((nat -> cmap -> @error_type cmap) * nat) :=
-   (* Produces a function that initializes v to itself.
-      Input:  * v = href of the variable that needs to be initialized
-                    (possibly this is already an array, that's why it is a function from nat to href)
-              * array_size = size of the array v (if it's not an array, array_size == 1)
-              * type = type of (a single element of the array) v <number>
-              * ce = component environment
-      Output: * nat -> cmap -> cmap : a function that initializes one element of the array (by modifying a cmap accordingly)
-              * nat : size of the array *)
-   match type with
-   | Gtyp _ => OK ((fun (n : nat) (cm : cmap) =>
-                             match v n with Err e => Err e
-                             | OK vn => match ref2var vn with Err e => Err e
-                                        | OK ref => OK (CE.add ref (D_fexpr (Eref vn)) cm) end end), array_size)
-   | Atyp el_type n => init_register_vector (fun m : nat => match v (m %% array_size) with Err e => Err e
-                                                            | OK vn => OK (Esubindex vn (m / array_size)) end) (array_size * n) el_type
-   | Btyp ff => init_register_bundle v array_size ff
-   end
-   with init_register_bundle (v : nat -> @error_type href) (array_size : nat) (ff : ffield) : @error_type ((nat -> cmap -> @error_type cmap) * nat) :=
-   match ff with
-   | Fnil => OK ((fun (n : nat) (cm : cmap) => Err Einternal), 0)
-   | Fflips field_name Nflip field_type ff_tail =>
-        match init_register_vector (fun n : nat => match v n with Err e => Err e
-                                                   | OK vn => OK (Esubfield vn field_name) end)
-                                   array_size field_type with Err e => Err e
-        | OK init_field =>
-           match init_register_bundle v array_size ff_tail with Err e => Err e
-           | OK init_tail => OK ((fun (n : nat) (cm : cmap) => if n < snd init_field then fst init_field n cm
-                                                                                     else fst init_tail (n - snd init_field) cm),
-                                 snd init_field + snd init_tail) end end
-   | Fflips _ Flipped _ _ => Err Eflow_direction
-   end.
 
-   Definition init_register (id : VarOrder.T) (type : ftype) (cm : cmap) : @error_type cmap :=
-   (* Initializes the register id, which is of type type. *)
-   match init_register_vector (fun n : nat => OK (Eid id)) 1 type with Err e => Err e
-   | OK initializer => init_apply_initializer (fst initializer) (snd initializer) cm end.
-*)
    Fixpoint init_register (id : href) (type : ftype) (cm : cmap) : @error_type cmap :=
-   (* Initializes the register id, which is of type type. *)
+   (* Initializes the register id, which is of type type.
+      Input:  * id = href of the variable that needs to be initialized
+              * type = type of id
+              * cm = cmap that is being modified
+      Output: * cmap with additional initializations (or an error) *)
    match type with
    | Gtyp _ => match ref2var id with Err e => Err e | OK var =>
                OK (CE.add var (D_fexpr (Eref id)) cm) end
@@ -862,6 +785,16 @@ There may be numbers that are projected to 0. *)
       | Some _ => false
       end.
 
+   Definition combine_branches_ce_map2_helper (true_entry false_entry : option (cmpnt_init_typs * fcomponent)) : option (cmpnt_init_typs * fcomponent) :=
+   match true_entry with
+   | Some _ => true_entry
+   | None => false_entry
+   end.
+
+   Definition combine_branches_ce (ce_true ce_false : CE.env) : @error_type CE.env :=
+   (* combines component declarations in the two branches. *)
+      OK (CE.map2 combine_branches_ce_map2_helper ce_true ce_false).
+
    Fixpoint expandBranch_precondition_declarations (ss : hfstmt_seq) (ce_other_modules : CE.env) (ce_previous : CE.env) : @error_type CE.env :=
    (* If all declarations are ground types, there are no partial connects in ss,
       and all full connects concern ground types,
@@ -903,21 +836,26 @@ There may be numbers that are projected to 0. *)
                                     end
                                else Err Etype
           | @Sfcnct _ ref _ => if ref2var ref is OK id
-                               then if CE.find id ce_butlast_result is Some (Aggr_typ (Gtyp _), _)
-                                    then OK ce_butlast_result
+                               then if CE.find id ce_butlast_result is Some (Aggr_typ (Gtyp _), fcomp)
+                                    then if orient_of_comp fcomp == Source
+                                         then Err Eflow_direction
+                                         else OK ce_butlast_result
                                     else Err Etype
                                else Err Eundeclared
           | @Spcnct _ _ _ => Err Einternal
           | @Sinvalid _ ref => if ref2var ref is OK id
-                               then if CE.find id ce_butlast_result is Some (Aggr_typ (Gtyp _), _)
-                                    then OK ce_butlast_result
+                               then if CE.find id ce_butlast_result is Some (Aggr_typ (Gtyp _), fcomp)
+                                    then if orient_of_comp fcomp == Source
+                                         then Err Eflow_direction
+                                         else OK ce_butlast_result
                                     else Err Etype
                                else Err Eundeclared
-          | @Swhen _ _ sst ssf =>
-               match expandBranch_precondition_declarations sst ce_other_modules ce_butlast_result with
-               | Err e => Err e
-               | OK ce_true_result =>
-                    expandBranch_precondition_declarations ssf ce_other_modules ce_true_result
+          | @Swhen _ _ ss_true ss_false =>
+               match expandBranch_precondition_declarations ss_true  ce_other_modules ce_butlast_result,
+                     expandBranch_precondition_declarations ss_false ce_other_modules ce_butlast_result with
+               | Err e, _ | _, Err e => Err e
+               | OK ce_true_result, OK ce_false_result =>
+                    combine_branches_ce ce_true_result ce_false_result
                end
           | _ => OK ce_butlast_result
                  (* for Sinst, one has to check ce_other_modules as well.
@@ -978,159 +916,171 @@ There may be numbers that are projected to 0. *)
    *)
    Admitted.
 
-   Definition expandBranch_precondition_declarations_does_not_redefine_hfstmt_seq
-         (var : VarOrder.T) (p : cmpnt_init_typs * fcomponent) (ce_other_modules : CE.env) (ss : hfstmt_seq) : Prop :=
-      forall ce_previous : CE.env,
-         CE.find var ce_previous = Some p ->
-            forall ce_declarations : CE.env,
-               expandBranch_precondition_declarations ss ce_other_modules ce_previous = OK ce_declarations ->
-                  CE.find var ce_declarations = Some p.
+Definition expandBranch_precondition_declarations_does_not_redefine_hfstmt_seq
+      (var : VarOrder.T) (p : cmpnt_init_typs * fcomponent) (ce_other_modules : CE.env) (ss : hfstmt_seq) : Prop :=
+   forall ce_previous : CE.env,
+      CE.find var ce_previous = Some p ->
+         forall ce_declarations : CE.env,
+            expandBranch_precondition_declarations ss ce_other_modules ce_previous = OK ce_declarations ->
+               CE.find var ce_declarations = Some p.
 
-   Definition expandBranch_precondition_declarations_does_not_redefine_hfstmt
-         (var : VarOrder.T) (p : cmpnt_init_typs * fcomponent) (ce_other_modules : CE.env) (s : hfstmt) : Prop :=
-      if s is Swhen _ ss_true ss_false
-      then    expandBranch_precondition_declarations_does_not_redefine_hfstmt_seq var p ce_other_modules ss_true
-           /\ expandBranch_precondition_declarations_does_not_redefine_hfstmt_seq var p ce_other_modules ss_false
-      else True.
+Lemma expandBranch_precondition_declarations_does_not_redefine :
+   forall (var : VarOrder.T) (p : cmpnt_init_typs * fcomponent) (ce_other_modules : CE.env),
+      forall ss : hfstmt_seq,
+         expandBranch_precondition_declarations_does_not_redefine_hfstmt_seq var p ce_other_modules ss
+with expandBranch_precondition_declaration_does_not_redefine_Swhen :
+   forall (var : VarOrder.T) (p : cmpnt_init_typs * fcomponent) (ce_other_modules : CE.env),
+      forall s : hfstmt,
+         if s is Swhen _ ss_true ss_false
+         then    expandBranch_precondition_declarations_does_not_redefine_hfstmt_seq var p ce_other_modules ss_true
+              /\ expandBranch_precondition_declarations_does_not_redefine_hfstmt_seq var p ce_other_modules ss_false
+         else True.
+Proof.
+* clear expandBranch_precondition_declarations_does_not_redefine.
+  induction ss.
+  + unfold expandBranch_precondition_declarations_does_not_redefine_hfstmt_seq,
+           expandBranch_precondition_declarations.
+    intros.
+    injection H0 ; clear H0 ; intro.
+    rewrite -H0 ; exact H.
+  + intros.
+    rename h into s.
+    unfold expandBranch_precondition_declarations_does_not_redefine_hfstmt_seq ;
+    unfold expandBranch_precondition_declarations_does_not_redefine_hfstmt_seq in IHss.
+    intros.
+    specialize IHss with (ce_previous := ce_previous).
+    specialize expandBranch_precondition_declaration_does_not_redefine_Swhen
+    with (var := var) (p := p) (ce_other_modules := ce_other_modules) (s := s).
+    destruct s.
+    - (* Sskip *)
+      specialize IHss with (ce_declarations := ce_declarations).
+      apply IHss in H ; try done ; clear IHss ; rename H into IHss.
+      simpl expandBranch_precondition_declarations in H0.
+      destruct (expandBranch_precondition_declarations ss ce_other_modules ce_previous) ;
+            done.
+    - (* Swire *)
+      simpl expandBranch_precondition_declarations in H0.
+      destruct (expandBranch_precondition_declarations ss ce_other_modules ce_previous) ;
+            try done.
+      specialize IHss with (ce_declarations := e).
+      apply IHss in H ; try done ; clear IHss ; rename H into IHss.
+      destruct f ; try done.
+      destruct (eqVneq var (nat_to_var (s * 3 + 1))).
+      * rewrite -e0 IHss in H0 ; done.
+      * destruct (CE.find (nat_to_var (s * 3 + 1)) e) ; try done.
+        injection H0 ; clear H0 ; intro.
+        apply negbTE in i.
+        rewrite -H CELemmas.find_add_neq // /CE.SE.eq i //.
+    - (* Sreg *)
+      simpl expandBranch_precondition_declarations in H0.
+      destruct (expandBranch_precondition_declarations ss ce_other_modules ce_previous) ;
+            try done.
+      specialize IHss with (ce_declarations := e).
+      apply IHss in H ; try done ; clear IHss ; rename H into IHss.
+      destruct (type h) ; try done.
+      destruct (eqVneq var (nat_to_var (s * 3 + 1))).
+      * rewrite -e0 IHss in H0 ; done.
+      * destruct (CE.find (nat_to_var (s * 3 + 1)) e) ; try done.
+        injection H0 ; clear H0 ; intro.
+        apply negbTE in i.
+        rewrite -H CELemmas.find_add_neq // /CE.SE.eq i //.
+    - (* Smem *)
+      simpl expandBranch_precondition_declarations in H0.
+      destruct (expandBranch_precondition_declarations ss ce_other_modules ce_previous) ;
+            try done.
+      specialize IHss with (ce_declarations := e).
+      apply IHss in H ; try done ; clear IHss ; rename H into IHss.
+      destruct (data_type h) ; try done.
+      destruct (eqVneq var (nat_to_var (s * 3 + 1))).
+      * rewrite -e0 IHss in H0 ; done.
+      * destruct (CE.find (nat_to_var (s * 3 + 1)) e) ; try done.
+        injection H0 ; clear H0 ; intro.
+        apply negbTE in i.
+        rewrite -H CELemmas.find_add_neq // /CE.SE.eq i //.
+    - (* Sinst *)
+      simpl expandBranch_precondition_declarations in H0.
+      destruct (expandBranch_precondition_declarations ss ce_other_modules ce_previous) ;
+            try done.
+      specialize IHss with (ce_declarations := e).
+      apply IHss in H ; try done ; clear IHss ; rename H into IHss.
+      destruct (eqVneq var (nat_to_var (s * 3 + 1))).
+      * rewrite -e0 IHss in H0.
+        destruct (CE.find s0 ce_other_modules) ; try done.
+        destruct p0, c ; try done.
+        destruct f ; done.
+      * destruct (CE.find s0 ce_other_modules) ; try done.
+        destruct p0, c ; try done.
+        destruct f ; try done.
+        destruct (CE.find (nat_to_var (s * 3 + 1)) e) ; try done.
+        injection H0 ; clear H0 ; intro.
+        apply negbTE in i.
+        rewrite -H CELemmas.find_add_neq // /CE.SE.eq i //.
+    - (* Snode *)
+       specialize IHss with (ce_declarations := ce_declarations).
+      apply IHss in H ; try done ; clear IHss ; rename H into IHss.
+      simpl expandBranch_precondition_declarations in H0.
+      destruct (expandBranch_precondition_declarations ss ce_other_modules ce_previous) ;
+            done.
+    - (* Sfcnct *)
+      simpl expandBranch_precondition_declarations in H0.
+      destruct (expandBranch_precondition_declarations ss ce_other_modules ce_previous) ;
+            try done.
+      specialize IHss with (ce_declarations := e).
+      apply IHss in H ; try done ; clear IHss ; rename H into IHss.
+      destruct (ref2var h) ; try done.
+      destruct (CE.find s e) ; try done.
+      destruct p0, c ; try done.
+      destruct f0 ; try done.
+      destruct (orient_of_comp f == Source) ; try done.
+      injection H0 ; clear H0 ; intros.
+      rewrite -H //.
+    - (* Spcnct *)
+      simpl expandBranch_precondition_declarations in H0.
+      destruct (expandBranch_precondition_declarations ss ce_other_modules ce_previous) ;
+            done.
+    - (* Sinvalid *)
+      simpl expandBranch_precondition_declarations in H0.
+      destruct (expandBranch_precondition_declarations ss ce_other_modules ce_previous) ;
+            try done.
+      specialize IHss with (ce_declarations := e).
+      apply IHss in H ; try done ; clear IHss ; rename H into IHss.
+      destruct (ref2var h) ; try done.
+      destruct (CE.find s e) ; try done.
+      destruct p0, c ; try done.
+      destruct f0 ; try done.
+      destruct (orient_of_comp f == Source) ; try done.
+      injection H0 ; clear H0 ; intros.
+      rewrite -H //.
+    - (* Swhen *)
+      rename h into cond, h0 into ss_true, h1 into ss_false.
+      unfold expandBranch_precondition_declarations_does_not_redefine_hfstmt_seq
+      in expandBranch_precondition_declaration_does_not_redefine_Swhen.
+      destruct expandBranch_precondition_declaration_does_not_redefine_Swhen as [IHss_true IHss_false].
+      simpl expandBranch_precondition_declarations in H0.
+      destruct (expandBranch_precondition_declarations ss ce_other_modules ce_previous) ;
+            try done.
+      apply IHss with (ce_declarations := e) in H ; try done ; clear IHss ; rename H into IHss.
+      specialize IHss_true with (ce_previous := e).
+      specialize IHss_false with (ce_previous := e).
+      destruct (expandBranch_precondition_declarations ss_true ce_other_modules e) as [e_true|] ;
+            try done.
+      destruct (expandBranch_precondition_declarations ss_false ce_other_modules e) as [e_false|] ;
+            try done.
+      specialize IHss_true with (ce_declarations := e_true).
+      unfold combine_branches_ce in H0.
+      injection H0 ; clear H0 ; intro.
+      rewrite -H CE.map2_1.
+      * rewrite IHss_true //.
+      * left.
+        unfold CE.In.
+        exists p.
+        apply CE.find_2, IHss_true ; done.
+* clear expandBranch_precondition_declaration_does_not_redefine_Swhen.
+  destruct s ; done.
+Qed.
 
-   Lemma expandBranch_precondition_declarations_does_not_redefine :
-      forall (var : VarOrder.T) (p : cmpnt_init_typs * fcomponent) (ce_other_modules : CE.env),
-            forall (ss : hfstmt_seq),
-               expandBranch_precondition_declarations_does_not_redefine_hfstmt_seq var p ce_other_modules ss.
-   Proof.
-   intros var p ce_other_modules.
-   (* proof by mutual induction over hfstmt_seq and hfstmt ; below is a partial proof. *)
-   apply hfstmt_seq_hfstmt_ind
-   with (P  := expandBranch_precondition_declarations_does_not_redefine_hfstmt_seq var p ce_other_modules)
-        (P0 := expandBranch_precondition_declarations_does_not_redefine_hfstmt     var p ce_other_modules) ;
-         try done ;
-         try (unfold expandBranch_precondition_declarations_does_not_redefine_hfstmt_seq,
-                     expandBranch_precondition_declarations ;
-              intros ;
-              injection H0 ; clear H0 ; intro ;
-              rewrite -H0 ; exact H).
-   intros.
-   rename h into ss_butlast, h0 into s, H into IHss_butlast, H0 into IHs.
-   unfold expandBranch_precondition_declarations_does_not_redefine_hfstmt_seq ;
-   unfold expandBranch_precondition_declarations_does_not_redefine_hfstmt_seq in IHss_butlast.
-   intros.
-   specialize IHss_butlast with (ce_previous := ce_previous).
-   destruct s.
-   * (* Sskip *)
-     specialize IHss_butlast with (ce_declarations := ce_declarations).
-     apply IHss_butlast in H ; try done ; clear IHss_butlast ; rename H into IHss_butlast.
-     simpl expandBranch_precondition_declarations in H0.
-     destruct (expandBranch_precondition_declarations ss_butlast ce_other_modules ce_previous) ;
-           done.
-   * (* Swire *)
-     simpl expandBranch_precondition_declarations in H0.
-     destruct (expandBranch_precondition_declarations ss_butlast ce_other_modules ce_previous) ;
-           try done.
-     specialize IHss_butlast with (ce_declarations := e).
-     apply IHss_butlast in H ; try done ; clear IHss_butlast ; rename H into IHss_butlast.
-     destruct f ; try done.
-     destruct (eqVneq var (nat_to_var (s * 3 + 1))).
-     - rewrite -e0 IHss_butlast in H0 ; done.
-     - destruct (CE.find (nat_to_var (s * 3 + 1)) e) ; try done.
-       injection H0 ; clear H0 ; intro.
-       apply negbTE in i.
-       rewrite -H CELemmas.find_add_neq // /CE.SE.eq i //.
-   * (* Sreg *)
-     simpl expandBranch_precondition_declarations in H0.
-     destruct (expandBranch_precondition_declarations ss_butlast ce_other_modules ce_previous) ;
-           try done.
-     specialize IHss_butlast with (ce_declarations := e).
-     apply IHss_butlast in H ; try done ; clear IHss_butlast ; rename H into IHss_butlast.
-     destruct (type h) ; try done.
-     destruct (eqVneq var (nat_to_var (s * 3 + 1))).
-     - rewrite -e0 IHss_butlast in H0 ; done.
-     - destruct (CE.find (nat_to_var (s * 3 + 1)) e) ; try done.
-       injection H0 ; clear H0 ; intro.
-       apply negbTE in i.
-       rewrite -H CELemmas.find_add_neq // /CE.SE.eq i //.
-   * (* Smem *)
-     simpl expandBranch_precondition_declarations in H0.
-     destruct (expandBranch_precondition_declarations ss_butlast ce_other_modules ce_previous) ;
-           try done.
-     specialize IHss_butlast with (ce_declarations := e).
-     apply IHss_butlast in H ; try done ; clear IHss_butlast ; rename H into IHss_butlast.
-     destruct (data_type h) ; try done.
-     destruct (eqVneq var (nat_to_var (s * 3 + 1))).
-     - rewrite -e0 IHss_butlast in H0 ; done.
-     - destruct (CE.find (nat_to_var (s * 3 + 1)) e) ; try done.
-       injection H0 ; clear H0 ; intro.
-       apply negbTE in i.
-       rewrite -H CELemmas.find_add_neq // /CE.SE.eq i //.
-   * (* Sinst *)
-     simpl expandBranch_precondition_declarations in H0.
-     destruct (expandBranch_precondition_declarations ss_butlast ce_other_modules ce_previous) ;
-           try done.
-     specialize IHss_butlast with (ce_declarations := e).
-     apply IHss_butlast in H ; try done ; clear IHss_butlast ; rename H into IHss_butlast.
-     destruct (eqVneq var (nat_to_var (s * 3 + 1))).
-     + rewrite -e0 IHss_butlast in H0.
-       destruct (CE.find s0 ce_other_modules) ; try done.
-       destruct p0, c ; try done.
-       destruct f ; done.
-     + destruct (CE.find s0 ce_other_modules) ; try done.
-       destruct p0, c ; try done.
-       destruct f ; try done.
-       destruct (CE.find (nat_to_var (s * 3 + 1)) e) ; try done.
-       injection H0 ; clear H0 ; intro.
-       apply negbTE in i.
-       rewrite -H CELemmas.find_add_neq // /CE.SE.eq i //.
-   * (* Snode *)
-     specialize IHss_butlast with (ce_declarations := ce_declarations).
-     apply IHss_butlast in H ; try done ; clear IHss_butlast ; rename H into IHss_butlast.
-     simpl expandBranch_precondition_declarations in H0.
-     destruct (expandBranch_precondition_declarations ss_butlast ce_other_modules ce_previous) ;
-           done.
-   * (* Sfcnct *)
-     simpl expandBranch_precondition_declarations in H0.
-     destruct (expandBranch_precondition_declarations ss_butlast ce_other_modules ce_previous) ;
-           try done.
-     specialize IHss_butlast with (ce_declarations := e).
-     apply IHss_butlast in H ; try done ; clear IHss_butlast ; rename H into IHss_butlast.
-     destruct (ref2var h) ; try done.
-     destruct (CE.find s e) ; try done.
-     destruct p0, c ; try done.
-     destruct f0 ; try done.
-     injection H0 ; clear H0 ; intro.
-     rewrite -H //.
-   * (* Spcnct *)
-     simpl expandBranch_precondition_declarations in H0.
-     destruct (expandBranch_precondition_declarations ss_butlast ce_other_modules ce_previous) ;
-           done.
-   * (* Sinvalid *)
-     simpl expandBranch_precondition_declarations in H0.
-     destruct (expandBranch_precondition_declarations ss_butlast ce_other_modules ce_previous) ;
-           try done.
-     specialize IHss_butlast with (ce_declarations := e).
-     apply IHss_butlast in H ; try done ; clear IHss_butlast ; rename H into IHss_butlast.
-     destruct (ref2var h) ; try done.
-     destruct (CE.find s e) ; try done.
-     destruct p0, c ; try done.
-     destruct f0 ; try done.
-     injection H0 ; clear H0 ; intro.
-     rewrite -H //.
-   * (* Swhen *)
-     rename h into cond, h0 into ss_true, h1 into ss_false.
-     unfold expandBranch_precondition_declarations_does_not_redefine_hfstmt,
-            expandBranch_precondition_declarations_does_not_redefine_hfstmt_seq in IHs.
-     destruct IHs as [IHss_true IHss_false].
-     simpl expandBranch_precondition_declarations in H0.
-     destruct (expandBranch_precondition_declarations ss_butlast ce_other_modules ce_previous) ;
-           try done.
-     apply IHss_butlast with (ce_declarations := e) in H ; try done ; clear IHss_butlast ; rename H into IHss_butlast.
-     specialize IHss_true with (ce_previous := e).
-     destruct (expandBranch_precondition_declarations ss_true ce_other_modules e) ;
-           try done.
-     apply IHss_true with (ce_declarations := e0) in IHss_butlast ; try done ; clear IHss_true ; rename IHss_butlast into IHss_true.
-     apply IHss_false with (ce_previous := e0) (ce_declarations := ce_declarations) in IHss_true ; done.
-   Qed.
-
-   Definition expandBranch_sem_conform (ss : hfstmt_seq) (ce_other_modules : CE.env) (ce_previous_declarations : CE.env) (cm_previous : cmap) : Prop :=
-   (* Checks for the components declared in the statement sequence whether expandBranch_fun satisfies the specification.
+    Definition expandBranch_sem_conform (ss : hfstmt_seq) (ce_other_modules : CE.env) (ce_previous_declarations : CE.env) (cm_previous : cmap) : Prop :=
+    (* Checks for the components declared in the statement sequence whether expandBranch_fun satisfies the specification.
       * ss = statement sequence to be checked (an initial fragment of a module or of a branch)
       * ce_other_modules = component environment containing port declarations of other modules,
                      used in Sinst statements
@@ -1156,8 +1106,15 @@ There may be numbers that are projected to 0. *)
    end end.
 
 Definition expandBranch_fun_declarations_correspondence (ce_declarations : CE.env) (cm : cmap) : Prop :=
+(*
+   forall (var : VarOrder.T) (cmpnt_typ : cmpnt_init_typs) (fcomp : fcomponent),
+      (CE.find var ce_declarations <> Some (cmpnt_typ, fcomp) \/ fcomp = Source)
+      <-> CE.find var cm = None.
+*)
    forall var : VarOrder.T,
-      CE.find var ce_declarations = None <-> CE.find var cm = None.
+      if CE.find var ce_declarations is Some (_, fcomp)
+      then orient_of_comp fcomp == Source <-> CE.find var cm == None
+      else CE.find var cm == None.
 
 Definition expandBranch_fun_declarations_preserve_correspondence_hfstmt_seq (ss : hfstmt_seq) : Prop :=
    forall (ce_previous : CE.env) (cm_previous : cmap),
@@ -1167,199 +1124,431 @@ Definition expandBranch_fun_declarations_preserve_correspondence_hfstmt_seq (ss 
             expandBranch_fun ss ce_other_modules cm_previous = OK (ss_result, cm_result) ->
                expandBranch_fun_declarations_correspondence ce_result cm_result.
 
-Definition expandBranch_fun_declarations_preserve_correspondence_hfstmt (s : hfstmt) : Prop :=
+Lemma expandBranch_fun_declarations_preserve_correspondence :
+   forall (ss : hfstmt_seq), expandBranch_fun_declarations_preserve_correspondence_hfstmt_seq ss
+with expandBranch_fun_declarations_preserve_correspondence_Swhen :
+   forall (s : hfstmt),
       if s is Swhen _ ss_true ss_false
       then    expandBranch_fun_declarations_preserve_correspondence_hfstmt_seq ss_true
            /\ expandBranch_fun_declarations_preserve_correspondence_hfstmt_seq ss_false
       else True.
-
-Lemma expandBranch_fun_declarations_preserve_correspondence :
-   forall (ss : hfstmt_seq), expandBranch_fun_declarations_preserve_correspondence_hfstmt_seq ss.
 Proof.
-apply hfstmt_seq_hfstmt_ind
-with (P  := expandBranch_fun_declarations_preserve_correspondence_hfstmt_seq)
-     (P0 := expandBranch_fun_declarations_preserve_correspondence_hfstmt) ;
-      try done.
-* unfold expandBranch_fun_declarations_preserve_correspondence_hfstmt_seq,
-         expandBranch_precondition_declarations,
-         expandBranch_fun.
-  intros.
-  injection H0 ; injection H1 ; clear H0 H1 ; intros H0 _ H1.
-  rewrite -H0 -H1 //.
-* intros.
-  rename h into ss_butlast, H into IHss_butlast, h0 into s, H0 into IHs.
-  destruct s.
-  + (* Sskip *)
-    unfold expandBranch_fun_declarations_preserve_correspondence_hfstmt_seq ;
-    unfold expandBranch_fun_declarations_preserve_correspondence_hfstmt_seq in IHss_butlast.
-    simpl expandBranch_precondition_declarations.
-    simpl expandBranch_fun.
+* clear expandBranch_fun_declarations_preserve_correspondence.
+  induction ss.
+  + unfold expandBranch_fun_declarations_preserve_correspondence_hfstmt_seq,
+           expandBranch_precondition_declarations,
+           expandBranch_fun.
     intros.
-    specialize IHss_butlast with (ce_previous := ce_previous) (cm_previous := cm_previous)
-          (ce_result := ce_result) (cm_result := cm_result)
-          (ce_other_modules := ce_other_modules) (ss_result := ss_result).
-    destruct (expandBranch_precondition_declarations ss_butlast ce_other_modules ce_previous) ; try done.
-    destruct (expandBranch_fun ss_butlast ce_other_modules cm_previous) ; try done.
-    destruct p as [ss_result0 cm_result0].
-    apply IHss_butlast ; done.
-  + (* Swire *)
-    unfold expandBranch_fun_declarations_preserve_correspondence_hfstmt_seq ;
-    unfold expandBranch_fun_declarations_preserve_correspondence_hfstmt_seq in IHss_butlast.
-    simpl expandBranch_precondition_declarations.
-    simpl expandBranch_fun.
-    intros.
-    specialize IHss_butlast with (ce_previous := ce_previous) (cm_previous := cm_previous)
-          (ce_other_modules := ce_other_modules).
-    destruct (expandBranch_precondition_declarations ss_butlast ce_other_modules ce_previous) ; try done.
-    destruct (expandBranch_fun ss_butlast ce_other_modules cm_previous) ; try done.
-    destruct p as [ss_result0 cm_result0].
-    specialize IHss_butlast with (ce_result := e) (cm_result := cm_result0) (ss_result := ss_result0).
-    apply IHss_butlast in H ; try done ; clear IHss_butlast ; rename H into IHss_butlast.
-    destruct f ; try done.
-    unfold init_ref, ref2var in H1.
-    destruct (CE.find (nat_to_var (s * 3 + 1)) e) ; try done.
     injection H0 ; injection H1 ; clear H0 H1 ; intros H0 _ H1.
-    rewrite -H0 -H1.
-    unfold expandBranch_fun_declarations_correspondence ;
-    unfold expandBranch_fun_declarations_correspondence in IHss_butlast.
-    intro ; specialize IHss_butlast with (var := var).
-    destruct (eqVneq var (nat_to_var (s * 3 + 1))).
-    - rewrite CELemmas.find_add_eq ; try (rewrite /CE.SE.eq e0 eq_refl //).
-      rewrite CELemmas.find_add_eq // ; try (rewrite /CE.SE.eq e0 eq_refl //).
-    - rewrite CELemmas.find_add_neq ; try (apply negbTE in i ; rewrite /CE.SE.eq i //).
-      rewrite CELemmas.find_add_neq // ; try (apply negbTE in i ; rewrite /CE.SE.eq i //).
-  + (* Sreg *)
-    unfold expandBranch_fun_declarations_preserve_correspondence_hfstmt_seq ;
-    unfold expandBranch_fun_declarations_preserve_correspondence_hfstmt_seq in IHss_butlast.
-    simpl expandBranch_precondition_declarations.
-    simpl expandBranch_fun.
-    intros.
-    specialize IHss_butlast with (ce_previous := ce_previous) (cm_previous := cm_previous)
-          (ce_other_modules := ce_other_modules).
-    destruct (expandBranch_precondition_declarations ss_butlast ce_other_modules ce_previous) ; try done.
-    destruct (expandBranch_fun ss_butlast ce_other_modules cm_previous) ; try done.
-    destruct p as [ss_result0 cm_result0].
-    specialize IHss_butlast with (ce_result := e) (cm_result := cm_result0) (ss_result := ss_result0).
-    apply IHss_butlast in H ; try done ; clear IHss_butlast ; rename H into IHss_butlast.
-    destruct (type h) ; try done.
-    unfold init_register, ref2var in H1.
-    destruct (CE.find (nat_to_var (s * 3 + 1)) e) ; try done.
-    injection H0 ; injection H1 ; clear H0 H1 ; intros H0 _ H1.
-    rewrite -H0 -H1.
-    unfold expandBranch_fun_declarations_correspondence ;
-    unfold expandBranch_fun_declarations_correspondence in IHss_butlast.
-    intro ; specialize IHss_butlast with (var := var).
-    destruct (eqVneq var (nat_to_var (s * 3 + 1))).
-    - rewrite CELemmas.find_add_eq ; try (rewrite /CE.SE.eq e0 eq_refl //).
-      rewrite CELemmas.find_add_eq // ; try (rewrite /CE.SE.eq e0 eq_refl //).
-    - rewrite CELemmas.find_add_neq ; try (apply negbTE in i ; rewrite /CE.SE.eq i //).
-      rewrite CELemmas.find_add_neq // ; try (apply negbTE in i ; rewrite /CE.SE.eq i //).
-  + (* Smem is similar to Sreg (but more complex, because type_of_mem is composite). *)
-    admit.
-  + (* Sinst is similar to Sreg *)
-    admit.
-  + (* Snode is similar to Sskip *)
-    admit.
-  + (* Sfcnct *)
-    unfold expandBranch_fun_declarations_preserve_correspondence_hfstmt_seq ;
-    unfold expandBranch_fun_declarations_preserve_correspondence_hfstmt_seq in IHss_butlast.
-    simpl expandBranch_precondition_declarations.
-    simpl expandBranch_fun.
-    intros.
-    specialize IHss_butlast with (ce_previous := ce_previous) (cm_previous := cm_previous)
-          (ce_other_modules := ce_other_modules).
-    destruct (expandBranch_precondition_declarations ss_butlast ce_other_modules ce_previous) ; try done.
-    destruct (expandBranch_fun ss_butlast ce_other_modules cm_previous) ; try done.
-    destruct p as [ss_result0 cm_result0].
-    specialize IHss_butlast with (ce_result := e) (cm_result := cm_result0) (ss_result := ss_result0).
-    apply IHss_butlast in H ; try done ; clear IHss_butlast ; rename H into IHss_butlast.
-    destruct (ref2var h) ; try done.
-    unfold expandBranch_fun_declarations_correspondence ;
-    unfold expandBranch_fun_declarations_correspondence in IHss_butlast.
-    intro ; specialize IHss_butlast with (var := var).
-    destruct (CE.find s e) eqn: Hfind ; try done.
-    destruct p as [comp_typ fcomp].
-    destruct comp_typ ; try done.
-    destruct f ; try done.
-    injection H0 ; injection H1 ; clear H0 H1 ; intros H0 _ H1.
-    rewrite -H0 -H1.
-    destruct (eqVneq var s).
-    - rewrite e0 CELemmas.find_add_eq ; try (rewrite /CE.SE.eq eq_refl //).
-      rewrite Hfind ; done.
-    - apply negbTE in i.
-      rewrite CELemmas.find_add_neq // /CE.SE.eq i //.
-  + (* Spcnct *)
-    unfold expandBranch_fun_declarations_preserve_correspondence_hfstmt_seq.
-    simpl expandBranch_precondition_declarations.
-    intros.
-    destruct (expandBranch_precondition_declarations ss_butlast ce_other_modules ce_previous) ;
-         done.
-  + (* Sinvalid *)
-    unfold expandBranch_fun_declarations_preserve_correspondence_hfstmt_seq ;
-    unfold expandBranch_fun_declarations_preserve_correspondence_hfstmt_seq in IHss_butlast.
-    simpl expandBranch_precondition_declarations.
-    simpl expandBranch_fun.
-    intros.
-    specialize IHss_butlast with (ce_previous := ce_previous) (cm_previous := cm_previous)
-          (ce_other_modules := ce_other_modules).
-    destruct (expandBranch_precondition_declarations ss_butlast ce_other_modules ce_previous) ; try done.
-    destruct (expandBranch_fun ss_butlast ce_other_modules cm_previous) ; try done.
-    destruct p as [ss_result0 cm_result0].
-    specialize IHss_butlast with (ce_result := e) (cm_result := cm_result0) (ss_result := ss_result0).
-    apply IHss_butlast in H ; try done ; clear IHss_butlast ; rename H into IHss_butlast.
-    unfold invalidate_cmpnt in H1.
-    destruct (ref2var h) ; try done.
-    unfold expandBranch_fun_declarations_correspondence ;
-    unfold expandBranch_fun_declarations_correspondence in IHss_butlast.
-    intro ; specialize IHss_butlast with (var := var).
-    destruct (CE.find s e) eqn: Hfind ; try done.
-    destruct p as [comp_typ fcomp].
-    destruct comp_typ ; try done.
-    destruct f ; try done.
-    injection H0 ; injection H1 ; clear H0 H1 ; intros H0 _ H1.
-    rewrite -H0 -H1.
-    destruct (eqVneq var s).
-    - rewrite e0 CELemmas.find_add_eq ; try (rewrite /CE.SE.eq eq_refl //).
-      rewrite Hfind ; done.
-    - apply negbTE in i.
-      rewrite CELemmas.find_add_neq // /CE.SE.eq i //.
-  + (* Swhen *)
-    rename h into cond, h0 into ss_true, h1 into ss_false.
-    unfold expandBranch_fun_declarations_preserve_correspondence_hfstmt_seq ;
-    unfold expandBranch_fun_declarations_preserve_correspondence_hfstmt_seq in IHss_butlast.
-    simpl expandBranch_precondition_declarations.
-    simpl expandBranch_fun.
-    intros.
-    specialize IHss_butlast with (ce_previous := ce_previous) (cm_previous := cm_previous)
-          (ce_other_modules := ce_other_modules).
-    unfold expandBranch_fun_declarations_preserve_correspondence_hfstmt,
-           expandBranch_fun_declarations_preserve_correspondence_hfstmt_seq in IHs.
-    destruct IHs as [IHs_true IHs_false].
-    destruct (expandBranch_precondition_declarations ss_butlast
-         ce_other_modules ce_previous) ; try done.
-    destruct (expandBranch_fun ss_butlast ce_other_modules cm_previous) ; try done.
-    destruct p as [ss_result0 cm_result0].
-    specialize IHss_butlast with (ce_result := e) (cm_result := cm_result0) (ss_result := ss_result0).
-    apply IHss_butlast in H ; try done ; clear IHss_butlast ; rename H into IHss_butlast.
-    specialize IHs_true with (ce_previous := e) (cm_previous := cm_result0)
-          (ce_other_modules := ce_other_modules).
-    destruct (expandBranch_precondition_declarations ss_true
-             ce_other_modules e) ; try done.
-    destruct (expandBranch_fun ss_true ce_other_modules cm_result0) ; try done.
-    destruct p as [ss_result1 cm_result1].
-    specialize IHs_true with (ce_result := e0) (cm_result := cm_result1) (ss_result := ss_result1).
-    specialize IHs_false with (ce_previous := e0) (cm_previous := cm_result0)
-          (ce_other_modules := ce_other_modules).
-    rewrite H0 in IHs_false.
-    destruct (expandBranch_fun ss_false ce_other_modules cm_result0) ; try done.
-    destruct p as [ss_result2 cm_result2].
-    specialize IHs_false with (ce_result0 := ce_result) (cm_result := cm_result2) (ss_result := ss_result2).
-    unfold combine_branches in H1.
-    injection H1 ; clear H1 ; intros H1 _.
-    rewrite -H1.
-    unfold expandBranch_fun_declarations_correspondence ;
-    unfold expandBranch_fun_declarations_correspondence in IHss_butlast.
-    admit.
+    rewrite -H0 -H1 //.
+  + intros.
+    destruct h.
+    - (* Sskip *)
+      unfold expandBranch_fun_declarations_preserve_correspondence_hfstmt_seq ;
+      unfold expandBranch_fun_declarations_preserve_correspondence_hfstmt_seq in IHss.
+      simpl expandBranch_precondition_declarations.
+      simpl expandBranch_fun.
+      intros.
+      specialize IHss with (ce_previous := ce_previous) (cm_previous := cm_previous)
+            (ce_result := ce_result) (cm_result := cm_result)
+            (ce_other_modules := ce_other_modules) (ss_result := ss_result).
+      destruct (expandBranch_precondition_declarations ss ce_other_modules ce_previous) ; try done.
+      destruct (expandBranch_fun ss ce_other_modules cm_previous) ; try done.
+      destruct p as [ss_result0 cm_result0].
+      apply IHss ; done.
+    - (* Swire *)
+      unfold expandBranch_fun_declarations_preserve_correspondence_hfstmt_seq ;
+      unfold expandBranch_fun_declarations_preserve_correspondence_hfstmt_seq in IHss.
+      simpl expandBranch_precondition_declarations.
+      simpl expandBranch_fun.
+      intros.
+      specialize IHss with (ce_previous := ce_previous) (cm_previous := cm_previous)
+            (ce_other_modules := ce_other_modules).
+      destruct (expandBranch_precondition_declarations ss ce_other_modules ce_previous) ; try done.
+      destruct (expandBranch_fun ss ce_other_modules cm_previous) ; try done.
+      destruct p as [ss_result0 cm_result0].
+      specialize IHss with (ce_result := e) (cm_result := cm_result0) (ss_result := ss_result0).
+      apply IHss in H ; try done ; clear IHss ; rename H into IHss.
+      destruct f ; try done.
+      unfold init_ref, ref2var in H1.
+      destruct (CE.find (nat_to_var (s * 3 + 1)) e) ; try done.
+      injection H0 ; injection H1 ; clear H0 H1 ; intros H0 _ H1.
+      rewrite -H0 -H1.
+      unfold expandBranch_fun_declarations_correspondence ;
+      unfold expandBranch_fun_declarations_correspondence in IHss.
+      intro ; specialize IHss with (var := var).
+      destruct (eqVneq var (nat_to_var (s * 3 + 1))).
+      * rewrite CELemmas.find_add_eq ; try (rewrite /CE.SE.eq e0 eq_refl //).
+        rewrite CELemmas.find_add_eq // ; try (rewrite /CE.SE.eq e0 eq_refl //).
+      * rewrite CELemmas.find_add_neq ; try (apply negbTE in i ; rewrite /CE.SE.eq i //).
+        rewrite CELemmas.find_add_neq // ; try (apply negbTE in i ; rewrite /CE.SE.eq i //).
+    - (* Sreg *)
+      unfold expandBranch_fun_declarations_preserve_correspondence_hfstmt_seq ;
+      unfold expandBranch_fun_declarations_preserve_correspondence_hfstmt_seq in IHss.
+      simpl expandBranch_precondition_declarations.
+      simpl expandBranch_fun.
+      intros.
+      specialize IHss with (ce_previous := ce_previous) (cm_previous := cm_previous)
+            (ce_other_modules := ce_other_modules).
+      destruct (expandBranch_precondition_declarations ss ce_other_modules ce_previous) ; try done.
+      destruct (expandBranch_fun ss ce_other_modules cm_previous) ; try done.
+      destruct p as [ss_result0 cm_result0].
+      specialize IHss with (ce_result := e) (cm_result := cm_result0) (ss_result := ss_result0).
+      apply IHss in H ; try done ; clear IHss ; rename H into IHss.
+      destruct (type h) ; try done.
+      unfold init_register, ref2var in H1.
+      destruct (CE.find (nat_to_var (s * 3 + 1)) e) ; try done.
+      injection H0 ; injection H1 ; clear H0 H1 ; intros H0 _ H1.
+      rewrite -H0 -H1.
+      unfold expandBranch_fun_declarations_correspondence ;
+      unfold expandBranch_fun_declarations_correspondence in IHss.
+      intro ; specialize IHss with (var := var).
+      destruct (eqVneq var (nat_to_var (s * 3 + 1))).
+      * rewrite CELemmas.find_add_eq ; try (rewrite /CE.SE.eq e0 eq_refl //).
+        rewrite CELemmas.find_add_eq // ; try (rewrite /CE.SE.eq e0 eq_refl //).
+      * rewrite CELemmas.find_add_neq ; try (apply negbTE in i ; rewrite /CE.SE.eq i //).
+        rewrite CELemmas.find_add_neq // ; try (apply negbTE in i ; rewrite /CE.SE.eq i //).
+    - (* Smem is similar to Sreg (but more complex, because type_of_mem is composite). *)
+      admit.
+    - (* Sinst is similar to Smem *)
+      admit.
+    - (* Snode is similar to Sskip *)
+      unfold expandBranch_fun_declarations_preserve_correspondence_hfstmt_seq ;
+      unfold expandBranch_fun_declarations_preserve_correspondence_hfstmt_seq in IHss.
+      simpl expandBranch_precondition_declarations.
+      simpl expandBranch_fun.
+      intros.
+      specialize IHss with (ce_previous := ce_previous) (cm_previous := cm_previous)
+            (ce_result := ce_result) (cm_result := cm_result)
+            (ce_other_modules := ce_other_modules).
+      destruct (expandBranch_precondition_declarations ss ce_other_modules ce_previous) ; try done.
+      destruct (expandBranch_fun ss ce_other_modules cm_previous) ; try done.
+      destruct p as [ss_result0 cm_result0].
+      apply IHss with (ss_result := ss_result0) ; try done.
+      injection H1 ; clear H1 ; intros H1 _.
+      rewrite H1 ; reflexivity.
+    - (* Sfcnct *)
+      unfold expandBranch_fun_declarations_preserve_correspondence_hfstmt_seq ;
+      unfold expandBranch_fun_declarations_preserve_correspondence_hfstmt_seq in IHss.
+      simpl expandBranch_precondition_declarations.
+      simpl expandBranch_fun.
+      intros.
+      specialize IHss with (ce_previous := ce_previous) (cm_previous := cm_previous)
+            (ce_other_modules := ce_other_modules).
+      destruct (expandBranch_precondition_declarations ss ce_other_modules ce_previous) ; try done.
+      destruct (expandBranch_fun ss ce_other_modules cm_previous) ; try done.
+      destruct p as [ss_result0 cm_result0].
+      specialize IHss with (ce_result := e) (cm_result := cm_result0) (ss_result := ss_result0).
+      apply IHss in H ; try done ; clear IHss ; rename H into IHss.
+      destruct (ref2var h) ; try done.
+      unfold expandBranch_fun_declarations_correspondence ;
+      unfold expandBranch_fun_declarations_correspondence in IHss.
+      intro ; specialize IHss with (var := var).
+      destruct (CE.find s e) eqn: Hfind ; try done.
+      destruct p as [comp_typ fcomp].
+      destruct comp_typ ; try done.
+      destruct f ; try done.
+      destruct (orient_of_comp fcomp == Source) eqn: Horient ; try done.
+      injection H0 ; injection H1 ; clear H0 H1 ; intros H0 _ H1.
+      rewrite -H0 -H1.
+      destruct (eqVneq var s).
+      * rewrite e0 Hfind Horient CELemmas.find_add_eq ; try (rewrite /CE.SE.eq eq_refl //).
+        done.
+      * apply negbTE in i.
+        rewrite CELemmas.find_add_neq // /CE.SE.eq i //.
+    - (* Spcnct *)
+      unfold expandBranch_fun_declarations_preserve_correspondence_hfstmt_seq.
+      simpl expandBranch_precondition_declarations.
+      intros.
+      destruct (expandBranch_precondition_declarations ss ce_other_modules ce_previous) ;
+           done.
+    - (* Sinvalid *)
+      unfold expandBranch_fun_declarations_preserve_correspondence_hfstmt_seq ;
+      unfold expandBranch_fun_declarations_preserve_correspondence_hfstmt_seq in IHss.
+      simpl expandBranch_precondition_declarations.
+      simpl expandBranch_fun.
+      intros.
+      specialize IHss with (ce_previous := ce_previous) (cm_previous := cm_previous)
+            (ce_other_modules := ce_other_modules).
+      destruct (expandBranch_precondition_declarations ss ce_other_modules ce_previous) ; try done.
+      destruct (expandBranch_fun ss ce_other_modules cm_previous) ; try done.
+      destruct p as [ss_result0 cm_result0].
+      specialize IHss with (ce_result := e) (cm_result := cm_result0) (ss_result := ss_result0).
+      apply IHss in H ; try done ; clear IHss ; rename H into IHss.
+      unfold invalidate_cmpnt in H1.
+      destruct (ref2var h) ; try done.
+      unfold expandBranch_fun_declarations_correspondence ;
+      unfold expandBranch_fun_declarations_correspondence in IHss.
+      intro ; specialize IHss with (var := var).
+      destruct (CE.find s e) eqn: Hfind ; try done.
+      destruct p as [comp_typ fcomp].
+      destruct comp_typ ; try done.
+      destruct f ; try done.
+      destruct (orient_of_comp fcomp == Source) eqn: Horient ; try done.
+      injection H0 ; injection H1 ; clear H0 H1 ; intros H0 _ H1.
+      rewrite -H0 -H1.
+      destruct (eqVneq var s).
+      * rewrite e0 Hfind Horient CELemmas.find_add_eq ; try (rewrite /CE.SE.eq eq_refl //).
+        done.
+      * apply negbTE in i.
+        rewrite CELemmas.find_add_neq // /CE.SE.eq i //.
+    - (* Swhen *)
+      rename h into cond, h0 into ss_true, h1 into ss_false.
+      unfold expandBranch_fun_declarations_preserve_correspondence_hfstmt_seq ;
+      unfold expandBranch_fun_declarations_preserve_correspondence_hfstmt_seq in IHss.
+      simpl expandBranch_precondition_declarations.
+      simpl expandBranch_fun.
+      intros.
+      specialize IHss with (ce_previous := ce_previous) (cm_previous := cm_previous)
+            (ce_other_modules := ce_other_modules).
+      specialize expandBranch_fun_declarations_preserve_correspondence_Swhen
+      with (s := Swhen cond ss_true ss_false).
+      unfold expandBranch_fun_declarations_preserve_correspondence_hfstmt_seq in expandBranch_fun_declarations_preserve_correspondence_Swhen.
+      destruct expandBranch_fun_declarations_preserve_correspondence_Swhen as [IHss_true IHss_false].
+      destruct (expandBranch_precondition_declarations ss ce_other_modules ce_previous) as [ce_before|] ; try done.
+      destruct (expandBranch_fun ss ce_other_modules cm_previous) as [p_before|] ; try done.
+      destruct p_before as [ss_result_before cm_result_before].
+      specialize IHss with (ce_result := ce_before) (cm_result := cm_result_before) (ss_result := ss_result_before).
+      assert (IHss' : expandBranch_fun_declarations_correspondence ce_before cm_result_before)
+            by (apply IHss ; done) ; clear IHss.
+      specialize IHss_true with (ce_previous := ce_before) (cm_previous := cm_result_before)
+            (ce_other_modules := ce_other_modules).
+      specialize IHss_false with (ce_previous := ce_before) (cm_previous := cm_result_before)
+            (ce_other_modules := ce_other_modules).
+      destruct (expandBranch_precondition_declarations ss_true ce_other_modules ce_before) as [ce_true|] eqn: Hce_true ; try done.
+      destruct (expandBranch_precondition_declarations ss_false ce_other_modules ce_before) as [ce_false|] eqn: Hce_false ; try done.
+      destruct (expandBranch_fun ss_true ce_other_modules cm_result_before) as [p_true|] ; try done.
+      destruct (expandBranch_fun ss_false ce_other_modules cm_result_before) as [p_false|] ; try done.
+      destruct p_true as [ss_result_true cm_result_true].
+      destruct p_false as [ss_result_false cm_result_false].
+      specialize IHss_true with (ce_result := ce_true) (cm_result := cm_result_true) (ss_result := ss_result_true).
+      specialize IHss_false with (ce_result := ce_false) (cm_result := cm_result_false) (ss_result := ss_result_false).
+      assert (IHss_true' : expandBranch_fun_declarations_correspondence ce_true cm_result_true)
+            by (apply IHss_true ; done) ; clear IHss_true.
+      assert (IHss_false' : expandBranch_fun_declarations_correspondence ce_false cm_result_false)
+            by (apply IHss_false ; done) ; clear IHss_false.
+      unfold expandBranch_fun_declarations_correspondence ;
+      unfold expandBranch_fun_declarations_correspondence in IHss', IHss_true', IHss_false'.
+      intro.
+      specialize IHss' with (var := var) ;
+      specialize IHss_true' with (var := var) ;
+      specialize IHss_false' with (var := var).
+      destruct (CE.find var ce_before) as [p_before|] eqn: Hfind_before.
+      * (* the component was declared before the Swhen statement. *)
+        (* We can use expandBranch_precondition_declarations_does_not_redefine
+           to prove that CE.find var ce_true and CE.find var ce_false are the same. *)
+        assert (CE.find var ce_true = Some p_before)
+        by (apply expandBranch_precondition_declarations_does_not_redefine
+            with (ce_other_modules := ce_other_modules) (ss := ss_true) (ce_previous := ce_before) ;
+            done).
+        assert (CE.find var ce_false = Some p_before)
+        by (apply expandBranch_precondition_declarations_does_not_redefine
+            with (ce_other_modules := ce_other_modules) (ss := ss_false) (ce_previous := ce_before) ;
+            done).
+        rewrite H2 in IHss_true'.
+        rewrite H3 in IHss_false'.
+        destruct p_before as [comp_typ_before fcomp_before].
+        unfold combine_branches_ce in H0.
+        unfold combine_branches in H1.
+        injection H0 ; injection H1 ; clear H0 H1 ; intros H1 _ H0.
+        rewrite -H0 CE.map2_1 ;
+              try (left ;
+                   unfold CE.In ;
+                   exists (comp_typ_before, fcomp_before) ;
+                   apply CE.find_2, H2).
+        rewrite /combine_branches_ce_map2_helper H2 -H1.
+        destruct (orient_of_comp fcomp_before == Source) eqn: Horient.
+        + (* the component has source orientation, so it should not appear anywhere.
+             This can be proven based on the fact that its orientation will not change. *)
+          split; try done ; intro.
+          assert (IHss_true'' : CE.find var cm_result_true = None)
+                by (apply rwP with (CE.find var cm_result_true == None) ; try apply eqP ;
+                    apply IHss_true' ; done) ;
+                clear IHss_true'.
+          assert (IHss_false'' : CE.find var cm_result_false = None)
+                by (apply rwP with (CE.find var cm_result_false == None) ; try apply eqP ;
+                    apply IHss_false' ; done) ;
+                clear IHss_false'.
+          destruct (CE.find var (CE.map2 (map2_helper_cs_tf cond) cm_result_true cm_result_false)) eqn: Hfind_after ;
+                try done.
+          assert (CE.In var cm_result_true \/ CE.In var cm_result_false)
+                by (apply CE.map2_2 with (f := map2_helper_cs_tf cond) ;
+                    exists d ;
+                    apply CE.find_2, Hfind_after).
+          destruct H5.
+          - destruct H5.
+            apply CE.find_1 in H5.
+            rewrite H5 in IHss_true''.
+            discriminate.
+          - destruct H5.
+            apply CE.find_1 in H5.
+            rewrite H5 in IHss_false''.
+            discriminate.
+        + (* the component was defined before according to IHss',
+             so it is also afterwards. *)
+          split ; try done.
+          assert (CE.find var cm_result_true <> None).
+                (* Probably there exists a more elegant proof than the following... *)
+                move /eqP => H5.
+                apply IHss_true' in H5 ; done.
+          rewrite CE.map2_1.
+          - unfold map2_helper_cs_tf.
+            destruct (CE.find var cm_result_true) ; try done.
+            destruct d ; try done ;
+            destruct (CE.find var cm_result_false) ; try done ;
+            destruct d ; try done.
+            destruct (h == h0) ; done.
+          - left.
+            unfold CE.In.
+            destruct (CE.find var cm_result_true) eqn: Hfind_true ; try done.
+            exists d.
+            apply CE.find_2, Hfind_true.
+      destruct (CE.find var ce_true) eqn: Hfind_true.
+      * (* the component was declared in the true branch. *)
+        unfold combine_branches_ce in H0.
+        unfold combine_branches in H1.
+        injection H0 ; injection H1 ; clear H0 H1 ; intros H1 _ H0.
+        rewrite -H0 CE.map2_1 ;
+              try (left ;
+                   unfold CE.In ;
+                   exists p ;
+                   apply CE.find_2, Hfind_true).
+        rewrite /combine_branches_ce_map2_helper Hfind_true -H1.
+        destruct p as [comp_typ_true fcomp_true].
+        assert (CE.find var ce_false = None) by admit.
+              (* should follow from type correctness of declarations:
+                 a component cannot be declared in both branches of a Swhen statement *)
+        rewrite H2 in IHss_false'.
+        destruct (orient_of_comp fcomp_true == Source).
+        + (* the component has source orientation, so it should not appear anywhere.
+             This can be proven based on the fact that its orientation will not change. *)
+          split; try done ; intro.
+          assert (IHss_true'' : CE.find var cm_result_true = None)
+                by (apply rwP with (CE.find var cm_result_true == None) ; try apply eqP ;
+                    apply IHss_true' ; done) ;
+                clear IHss_true'.
+          move /eqP : IHss_false' => IHss_false''.
+          destruct (CE.find var (CE.map2 (map2_helper_cs_tf cond) cm_result_true cm_result_false)) eqn: Hfind_after ;
+                try done.
+          assert (CE.In var cm_result_true \/ CE.In var cm_result_false)
+                by (apply CE.map2_2 with (f := map2_helper_cs_tf cond) ;
+                    exists d ;
+                    apply CE.find_2, Hfind_after).
+          destruct H4.
+          - destruct H4.
+            apply CE.find_1 in H4.
+            rewrite H4 in IHss_true''.
+            discriminate.
+          - destruct H4.
+            apply CE.find_1 in H4.
+            rewrite H4 in IHss_false''.
+            discriminate.
+        + (* the component was defined in ss_true according to IHss_true',
+             so it is also afterwards. *)
+          split ; try done.
+          assert (CE.find var cm_result_true <> None).
+                (* Probably there exists a more elegant proof than the following... *)
+                move /eqP => H4.
+                apply IHss_true' in H4 ; done.
+          rewrite CE.map2_1.
+          - unfold map2_helper_cs_tf.
+            destruct (CE.find var cm_result_true) ; try done.
+            destruct d ; try done ;
+            destruct (CE.find var cm_result_false) ; done.
+          - left.
+            unfold CE.In.
+            destruct (CE.find var cm_result_true) eqn: Hfind_cm_true ; try done.
+            exists d.
+            apply CE.find_2, Hfind_cm_true.
+      destruct (CE.find var ce_false) eqn: Hfind_false.
+      * (* the component was declared in the false branch. *)
+        unfold combine_branches_ce in H0.
+        unfold combine_branches in H1.
+        injection H0 ; injection H1 ; clear H0 H1 ; intros H1 _ H0.
+        rewrite -H0 CE.map2_1 ;
+              try (right ;
+                   unfold CE.In ;
+                   exists p ;
+                   apply CE.find_2, Hfind_false).
+        rewrite /combine_branches_ce_map2_helper Hfind_true Hfind_false -H1.
+        destruct p as [comp_typ_false fcomp_false].
+        destruct (orient_of_comp fcomp_false == Source).
+        + (* the component has source orientation, so it should not appear anywhere.
+             This can be proven based on the fact that its orientation will not change. *)
+          split; try done ; intro.
+          move /eqP : IHss_true' => IHss_true''.
+          assert (IHss_false'' : CE.find var cm_result_false = None)
+                by (apply rwP with (CE.find var cm_result_false == None) ; try apply eqP ;
+                    apply IHss_false' ; done) ;
+                clear IHss_false'.
+          destruct (CE.find var (CE.map2 (map2_helper_cs_tf cond) cm_result_true cm_result_false)) eqn: Hfind_after ;
+                try done.
+          assert (CE.In var cm_result_true \/ CE.In var cm_result_false)
+                by (apply CE.map2_2 with (f := map2_helper_cs_tf cond) ;
+                    exists d ;
+                    apply CE.find_2, Hfind_after).
+          destruct H3.
+          - destruct H3.
+            apply CE.find_1 in H3.
+            rewrite H3 in IHss_true''.
+            discriminate.
+          - destruct H3.
+            apply CE.find_1 in H3.
+            rewrite H3 in IHss_false''.
+            discriminate.
+        + (* the component was defined in ss_false according to IHss_false',
+             so it is also afterwards. *)
+          split ; try done.
+          assert (CE.find var cm_result_false <> None).
+                (* Probably there exists a more elegant proof than the following... *)
+                move /eqP => H4.
+                apply IHss_false' in H4 ; done.
+          rewrite CE.map2_1.
+          - unfold map2_helper_cs_tf.
+            destruct (CE.find var cm_result_true) ; try done.
+            apply IHss_false'.
+          - right.
+            unfold CE.In.
+            destruct (CE.find var cm_result_false) eqn: Hfind_cm_false ; try done.
+            exists d.
+            apply CE.find_2, Hfind_cm_false.
+      * (* the component was not declared anywhere. *)
+        unfold combine_branches_ce in H0.
+        unfold combine_branches in H1.
+        injection H0 ; injection H1 ; clear H0 H1 ; intros H1 _ H0.
+        rewrite -H0 -H1.
+        destruct (CE.find var (CE.map2 combine_branches_ce_map2_helper ce_true ce_false)) eqn: Hfind_after.
+        + assert (CE.In var ce_true \/ CE.In var ce_false)
+                by (apply CE.map2_2 with (f := combine_branches_ce_map2_helper) ;
+                    exists p ;
+                    apply CE.find_2, Hfind_after).
+          destruct H2.
+          - destruct H2.
+            apply CE.find_1 in H2.
+            rewrite H2 in Hfind_true.
+            discriminate.
+          - destruct H2.
+            apply CE.find_1 in H2.
+            rewrite H2 in Hfind_false.
+            discriminate.
+        + rewrite Hfind_after.
+          destruct (CE.find var (CE.map2 (map2_helper_cs_tf cond) cm_result_true cm_result_false)) eqn: Hfind_cm_after ; try done.
+          assert (CE.In var cm_result_true \/ CE.In var cm_result_false)
+                by (apply CE.map2_2 with (f := map2_helper_cs_tf cond) ;
+                    exists d ;
+                    apply CE.find_2, Hfind_cm_after).
+          destruct H2.
+          - destruct H2.
+            apply CE.find_1 in H2.
+            rewrite H2 in IHss_true'.
+            done.
+          - destruct H2.
+            apply CE.find_1 in H2.
+            rewrite H2 in IHss_false'.
+            done.
+* clear expandBranch_fun_declarations_preserve_correspondence_Swhen.
+  destruct s ; try trivial.
+  split ; apply expandBranch_fun_declarations_preserve_correspondence.
 Admitted.
 
 (* Correctness theorem:
