@@ -20,36 +20,32 @@ Following the rules, we first introduce an additional map $wm$, which
 maps from variables to types. Then we scan the statements in $ss$ to
 find components with implicit width and create the entries for
 them in $wm$. For one statement which declares a component $v$,
-the \prettyll{infer\_width} function will update the $wm$ by
-
+the {\tt infer\_width} function will update the $wm$ by
   \begin{gather}
     \inferii[]
-    {\seqq{ce \vdash infer\_width(declare\;v, wm) \rightsquigarrow wm'}}
-    {\seqq{ce \vdash width(t_v) = 0}} {\seqq{wm':= wm \uplus {v : t_v}}}.
+    {\seqq{ce \vdash {\tt infer\_width} (declare\;v, wm) \rightsquigarrow wm'}}
+    {\seqq{ce \vdash {\tt width}(t_v) = 0}} {\seqq{wm':= wm \uplus {v : t_v}}}.
     \end{gather}
-
 The width is inferred according to connection statements.
 Since the last connection semantics is not considered, each
 connection to the element provides the potential width. A function
-named \prettyll{max\_width} compares the potential widths and outputs
+named {\tt max\_width} compares the potential widths and outputs
 the maximum one. For one statement which connects an expression $e$
-to a component $v$, the \prettyll{infer\_width} function will update $wm$ by
-
+to a component $v$, the {\tt infer\_width} function will update $wm$ by
   \begin{gather}
     \inferiii[]
-    {\seqq{ce \vdash infer\_width(v<=e, wm) \rightsquigarrow wm'}}
+    {\seqq{ce \vdash {\tt infer\_width }(v<=e, wm) \rightsquigarrow wm'}}
     {\seqq{wm \vdash v : t_v}}
-    {\seqq{ce \vdash t_e:= type\_of\_expr(e)}}
-    {\seqq{wm':= wm \uplus {v : max\_width(t_v,t_e)}}}.
+    {\seqq{ce \vdash t_e:= {\tt type\_of\_expr }(e)}}
+    {\seqq{wm':= wm \uplus {v : {\tt max\_width }(t_v,t_e)}}}.
     \end{gather}
-
-After applying \prettyll{infer\_width} on all the statement in $ss$,
+After applying {\tt infer\_width} on all the statements in $ss$,
 the $wm$ contains the inferred width for every implicit defined
-component. By using \prettyll{map2} function t merge the $ce$ and $wm$
+component. By using {\tt map2} function merges the $ce$ and $wm$
 with the same entry, the component environment $ce$ now contains the
-result of the width inferring.
+result of the inferred width.
 
-Instead of applying \prettyll{infer\_width} directly on $ce$, the map
+Instead of applying {\tt infer\_width} directly on $ce$, the map
 $wm$ contains only type information of the implicit ones that can be
 manipulated more efficiently.
 
@@ -94,49 +90,59 @@ manipulated more efficiently.
 %% from d gives a larger width to the destination $c$. 
 
 \subsubsection{``Expand Connects''}
-In HiFirrtl connections can be made through full or partial
-connections.  They can both deal with connections between aggregate
-types. This pass is aim to flatten the connections of aggregate types
-to the connections of ground types. For example,
-\begin{lstlisting}
-module MyModule :
-  input myinput: {a: UInt<1> [1]}
-  output myoutput: {a: UInt<1> [2], b: UInt<1>}
-  myoutput <- myinput
-\end{lstlisting}
-the connection between myinput and myoutput is a partial connection of
-aggregate types. It can then be expand through ExpandConnects pass and get,
-\begin{lstlisting}
-module MyModule :
-  input myinput_a: UInt<1>
-  output myoutput_a_0: UInt<1>
-  output myoutput_a_1: UInt<1>
-  output myoutput_b: UInt<1>
-  myoutput_a_0 <= myinput_a_0
-\end{lstlisting}
+In HiFIRRTL, connections can be made between aggregate types.  These
+connections can be either full or partial.  The purpose of this pass
+is to break down connections between aggregate types and produce
+individual ones of corresponding ground types. The general rules are,
+\begin{itemize}
+\item Connections between ground types can not be expanded.
+\item Connections between aggregate types will be expanded recursively.
+\item The direction of the connection will be flipped,
+      if the expanded field in a bundle type is declared \prettyll{flip}
+\end{itemize}
 
-\begin{description}
-\item[The input] of ExpandConnects consists of the sequence of
-  statments representing the original program, the result component
-  enviroment $ce3$ from InferWidths pass. The $ce3$ collects the
-  component identifies to their types.
-\item[The output] of ExpandConnects contains a program in which all
-  connections between aggregate types are replaced by connections of
-  their sub elements and a corresponding $ce4$. In $ce4$, new
-  identifiers added and their types are consistent to the flattened
-  aggregate type. As the aboved example, ouput port \lstinline!myport!
-  is replaced by 3 output ports of ground types.
-\end{description}
+The pass focuses on connection statements in $ss$. The left-hand side of a
+connection is a reference to a component and the right-hand side is an
+expression. 
+%% For example,
+%% \begin{lstlisting}
+%% module MyModule :
+%%   input myinput: {a: UInt<1> [1]}
+%%   output myoutput: {a: UInt<1> [2], b: UInt<1>}
+%%   myoutput <- myinput
+%% \end{lstlisting}
+%% the connection between myinput and myoutput is a partial connection of
+%% aggregate types. It can then be expand through ExpandConnects pass and get,
+%% \begin{lstlisting}
+%% module MyModule :
+%%   input myinput_a: UInt<1>
+%%   output myoutput_a_0: UInt<1>
+%%   output myoutput_a_1: UInt<1>
+%%   output myoutput_b: UInt<1>
+%%   myoutput_a_0 <= myinput_a_0
+%% \end{lstlisting}
+
+%% \begin{description}
+%% \item[The input] of ExpandConnects consists of the sequence of
+%%   statments representing the original program, the result component
+%%   enviroment $ce3$ from InferWidths pass. The $ce3$ collects the
+%%   component identifies to their types.
+%% \item[The output] of ExpandConnects contains a program in which all
+%%   connections between aggregate types are replaced by connections of
+%%   their sub elements and a corresponding $ce4$. In $ce4$, new
+%%   identifiers added and their types are consistent to the flattened
+%%   aggregate type. As the aboved example, ouput port \lstinline!myport!
+%%   is replaced by 3 output ports of ground types.
+%% \end{description}
 
 \subsubsection{``Expand Whens''}
 
-HiFIRRTL allows to define conditional components,
-mostly connect statements that depend on a condition.
-However, a circuit cannot contain conditional connections;
-they need to be replaced by multiplexers.
-The ``expand whens'' transformation does exactly this:
-it replaces connects within \textit{when} statements by multiplexers where necessary.
-For example, \pagebreak[1]\\
+HiFIRRTL allows to define conditional components, mostly connect
+statements that depend on a condition.  However, a circuit cannot
+contain conditional connections; they need to be replaced by
+multiplexers.  The ``expand whens'' transformation does exactly this:
+it replaces connects within \textit{when} statements by multiplexers
+where necessary.  For example, \pagebreak[1]\\
 \begin{minipage}[t]{12.49em}
 \vspace*{-0.94\baselineskip}
 \begin{lstlisting}
