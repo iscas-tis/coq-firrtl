@@ -54,7 +54,7 @@ circuit A :
 \end{figure}
 
 A FIRRTL \emph{circuit} comprises a list of modules with a designated top-level module, each of which representing a hardware block that can
-be instantiated. For instance, the FIRRTL circuit shown in Figure~\ref{fig:example} has two modules \prettyll{A} and \prettyll{B}, where the top-level module of the circuit is module \prettyll{A}.
+be instantiated. For instance, the FIRRTL circuit shown in Figure~\ref{fig:example} has two modules $A$ and $B$, where the top-level module of the circuit is module $A$.
 A \emph{module} consists of a list of ports and an sequence of statements.
 Each port has an identifier,  an direction either \prettyll{input} or \prettyll{output}, and a data type.
 For instance, the module {\tt A} has two input ports \prettyll{clk} and \prettyll{rst} and one output port \prettyll{io}, with
@@ -139,7 +139,7 @@ p & ::= & (\mbox{\tt ``\prettyll{input}''} \mid \mbox{\tt ``\prettyll{output}''}
 %ruw & = & \mbox{``old''} \mid \mbox{``new''} \mid \mbox{``undefined''};\\
 %
 %\mbox{\bf Expression} &
-e & ::= & (\mbox{\tt ``\prettyll{UInt}''} | \mbox{\tt ``\prettyll{SInt}''}) [w] \mbox{\tt ``(''}int\mbox{\tt ``)''} \mid r \mid \mbox{\tt ``\prettyll{mux}(''}e\mbox{\tt ``,''} e\mbox{\tt ``,''} e\mbox{\tt ``)''} 
+e & ::= & (\mbox{\tt ``\prettyll{UInt}''} | \mbox{\tt ``\prettyll{SInt}''}) [w] \mbox{\tt ``(''}int\mbox{\tt ``)''} \mid r \mid \mbox{\tt ``\prettyll{mux}(''}e\mbox{\tt ``,''} e\mbox{\tt ``,''} e\mbox{\tt ``)''}
         \mid \mbox{\tt ``\textcolor{blue}{read}(''}sr \mbox{\tt ``)''} \mid op\\
 %
 %&
@@ -405,7 +405,7 @@ Intuitively, LoFIRRTL is in a flavor similar to static single-assignment (SSA) f
 \begin{figure}[htbp]
 \centering
 \begin{subfigure}[b]{0.4\textwidth}
-         \centering 
+         \centering
 \begin{lstlisting}[basicstyle=\scriptsize\ttfamily]
 module MyModule :
   input a: UInt<1>
@@ -420,7 +420,7 @@ module MyModule :
 \hspace{4mm}
 %     \hfill
 \begin{subfigure}[b]{0.4\textwidth}
-         \centering 
+         \centering
 \begin{lstlisting}[basicstyle=\scriptsize\ttfamily]
 module MyModule :
   input a: UInt<1>
@@ -446,7 +446,7 @@ In the sequel, we give an informal introduction to the lowering transformations 
 \paragraph*{InferTypes} The InferTypes pass infers the types of components. For instance, InferTypes infers from the code snippet \prettyll{ wire x: UInt   x <= UInt<5>(15)   x <= UInt<1>(1) } that $x$'s type is \prettyll{ UInt}. Note that for a connect statement   \prettyll{ x <= e}, InferTypes only checks that the type of $e$ is equivalent to that of $x$ (where the bit widths are ignored), but does not update the bit width of $x$ to that of $e$.
 
 \paragraph*{InferWidths}
-The InferWidths pass infers the widths of all signals with unknown widths, after InferTypes has been applied. It is a \emph{global} width inference algorithm. Instances of the same module with unknown input port widths will be assigned the largest width of all assignments to each of its instance ports. It infers the smallest width that is larger than all assigned widths to a signal. Note that this means that dummy assignments that are overwritten by last-connect-semantics can still influence width inference. For instance, InferWidths infers from the following code snippet that $x$'s width is $5$, but with an assignment of \prettyll{UInt(1)}: 
+The InferWidths pass infers the widths of all signals with unknown widths, after InferTypes has been applied. It is a \emph{global} width inference algorithm. Instances of the same module with unknown input port widths will be assigned the largest width of all assignments to each of its instance ports. It infers the smallest width that is larger than all assigned widths to a signal. Note that this means that dummy assignments that are overwritten by last-connect-semantics can still influence width inference. For instance, InferWidths infers from the following code snippet that $x$'s width is $5$, but with an assignment of \prettyll{UInt(1)}:
 \prettyll{  wire x: UInt   x <= UInt<5>(15)   x <= UInt<1>(1)}.
 
 \paragraph*{InferResets} %% that infers concrete resets, i.e. AsyncReset or UInt<1>,
@@ -493,7 +493,7 @@ module MyModule :
 into
 &
 &
-\begin{lstlisting}[basicstyle=\scriptsize\ttfamily] 
+\begin{lstlisting}[basicstyle=\scriptsize\ttfamily]
 module MyModule :
   input in: UInt<1>[2]
   input n: UInt<1>
