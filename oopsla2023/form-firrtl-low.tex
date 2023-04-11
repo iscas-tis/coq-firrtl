@@ -1,31 +1,63 @@
 %!TEX root = main.tex
 
-In the sequel, we introduce an operational semantics of LoFIRRTL programs, on which the formalization of LoFIRRTL in Coq is based. 
+In the sequel, we introduce an operational semantics of LoFIRRTL programs, on which the formalization of LoFIRRTL in Coq is based.
+We first present the operational semantics for LoFIRRTL programs that are free of \prettyll{inst of} statements
+and later consider the general LoFIRRTL programs.
+
+%the situation that the module $A$ contains no occurrences of ``inst of'' statements. Later on, we will consider the more general case.
 
 %At first, let us make it more precise the syntactical constraints of LoFIRRTL stated in Section~\ref{sec-firrtl}.
 
-Let us fix a LoFIRRTL circuit $A$. Then from the syntax of LoFIRRTL, the top-level module of the circuit is a module $A$. 
+\subsubsection{\prettyll{inst of}-free LoFIRRTL}
+Let us fix a LoFIRRTL circuit $A$ that is free of \prettyll{inst of} statements. According to the syntax of LoFIRRTL, the top-level module of the circuit must be module $A$.
 
+We first introduce some notations required to present the operational semantics.
+
+We denote by $\iports(A)$, $\oports(A)$, $\wires(A)$, $\nodes(A)$ 
+and $\registers(A)$ the sets of input ports, output ports, wires, nodes and registers of the module $A$, respectively.
+Furthermore, we use $\ports(A)$ to denote the set of ports $\iports(A) \uplus \oports(A)$,
+$\cpnts(A)$ to denote the set of components $\ports(A) \uplus \wires(A) \uplus \nodes(A) \uplus \registers(A)$,
+and $\ccpnts(A)$ to denote the set of components $\oports(A) \uplus \wires(A) \uplus \nodes(A)$ that must be connected to, % in the module $A$,
+where a component $z$ is connected to via either a connect statement $z <= e$ or a node-declaration statement $\mbox{\tt \prettyll{node}}\ z = e$.
+Note that the input ports $\iports(A)$ are not connected to, moreover, the registers may not be connected to, thus they
+are not included in $\ccpnts(A)$. 
+(If a register is not connected to, then it keeps the current value.)  
+
+
+A \emph{generalized connect statement} is a statement of the form $z <= e$ or $\mbox{\tt \prettyll{node}}\ z = e$, where $z\in \cpnts(B)$ and $e$ are called the \emph{head} and \emph{body} of the generalized connect statement, respectively. Intuitively, a generalized connect statement is either a connect statement $z <= e$ or a node-declaration statement $\mbox{\tt \prettyll{node}}\ z = e$.
+
+To characterize the dependency of components in the module $A$, we define a dependency graph of the module $A$.
+Formally, the \emph{dependency graph} $G_A$ of the module $A$ is a tuple $(N_A, E_A)$, where $N_A$ is the set $\cpnts(A)$ of components,
+$E_A\subseteq \cpnts(A)\times \cpnts(A)$ is a finite set of directed edges such that
+$(x, y)\in E_A$, i.e., $y$ depends on $x$, iff $A$ contains a generalized connect statement with head $y$ and body $e$ involving $x$.
+%
+
+\fu{Stopped}
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 We first show how to define the operational semantics for the situation that the module $A$ contains no occurrences of ``inst of'' statements. Later on, we will consider the more general case.
 %
 \paragraph*{No ``inst of'' statements in module $A$} Let us assume that $A$ contains no occurrences of ``inst of'' statements. In this case, we know that $A$ is the only module in circuit $A$.
 
-Before presenting the operational semantics, we introduce some notations. 
+Before presenting the operational semantics, we introduce some notations.
 
 We use $\iports(A)$ (resp. $\oports(A)$) to denote the set of input (resp. output) ports of the module $A$,  $\ports(A) = \iports(A) \cup \oports(A)$, $\wires(A)$ to denote the set of wires in the module instance $A$, $\nodes(A)$ to denote the set of nodes in the module $A$, and $\registers(A)$ to denote the set of registers in the module $A$.
 %
 Moreover, we use $\cpnts(A)$ to denote the set of components in $A$, that is, $\ports(A) \cup \wires(A) \cup \nodes(A) \cup \registers(A)$.
 
-A \emph{generalized connect statement} for $z  \in \cpnts(B)$ is a statement of the form $z <= e$ or $\mbox{node } z = e$, where $z$ and $e$ are called the \emph{head} and \emph{body} of the generalized connect statement respectively. Intuitively, a generalized connect statement is either a connect statement or a node-declaration statement. 
+A \emph{generalized connect statement} for $z  \in \cpnts(B)$ is a statement of the form $z <= e$ or $\mbox{node } z = e$, where $z$ and $e$ are called the \emph{head} and \emph{body} of the generalized connect statement respectively. Intuitively, a generalized connect statement is either a connect statement or a node-declaration statement.
 
-We use $\ccpnts(A)$ to denote the set of connected components of $A$, that is, $\ccpnts(A) = \oports(A) \cup \wires(A) \cup \nodes(A)$. (Intuitively, connected components of $A$ must be connected to, that is, occur as the heads of generalized connect statements of $A$.) Note that the input ports of $A$ are not connected to, moreover, the registers may not be connected to. (If a register is not connected to, then it keeps the current value. ) 
+We use $\ccpnts(A)$ to denote the set of connected components of $A$, that is, $\ccpnts(A) = \oports(A) \cup \wires(A) \cup \nodes(A)$. (Intuitively, connected components of $A$ must be connected to, that is, occur as the heads of generalized connect statements of $A$.) Note that the input ports of $A$ are not connected to, moreover, the registers may not be connected to. (If a register is not connected to, then it keeps the current value. )
 
 %For $(id, B) \in \modinst(A)$, let $\cpnts(id, B)$ denote $\{id.z \mid z \in \cpnts(B)\}$.
 
 %Let $B$ be a module in circuit $A$. A \emph{generalized connect statement} for $z  \in \cpnts(B)$ is a statement of the form $z <= e$ or $\mbox{node } z = e$, where $z$ and $e$ are called the \emph{head} and \emph{body} of the generalized connect statement respectively. (Note that in the syntax of LoFIRRTL, only statements of the form $z <= e$ are called connect statements.)
 
 %
-The \emph{dependency graph} of $A$ is $G_A = (\cpnts(A), E_A)$, where $E_A$ comprises the edges $(x, y)$ such that $y$ depends on $x$, more precisely, $x$ occurs in the body of the generalized connect statement for $y$. 
+The \emph{dependency graph} of $A$ is $G_A = (\cpnts(A), E_A)$, where $E_A$ comprises the edges $(x, y)$ such that $y$ depends on $x$, more precisely, $x$ occurs in the body of the generalized connect statement for $y$.
 %
 %(Recall that LoFIRRTL does not contain partial connect statements, moreover, for each $y \in \cpnts(B)$, there is at most one connect statement where $y$ is the head.)
 
@@ -35,17 +67,17 @@ To define the operational semantics of $A$, we require that module $A$ is in \em
 \begin{itemize}
 \item all components are declared before they are used in the bodies and heads of connect statements (except that nodes are declared and used simultaneously),
 %
-\item the sequence of heads of the generalized connect statements in module $A$ forms a topological sorting of $G_A$ (where the vertices without incoming edges are ignored), specifically, for every edge $(x, y)$ in $G_A$, $x$ is before $y$ in the sequence (if $x$ indeed occurs in the sequence), in other words, the generalized connect statement for $x$ (if there is any) is before the connect statement for $y$ in $A$. 
+\item the sequence of heads of the generalized connect statements in module $A$ forms a topological sorting of $G_A$ (where the vertices without incoming edges are ignored), specifically, for every edge $(x, y)$ in $G_A$, $x$ is before $y$ in the sequence (if $x$ indeed occurs in the sequence), in other words, the generalized connect statement for $x$ (if there is any) is before the connect statement for $y$ in $A$.
 \end{itemize}
 
 %A necessary condition for the well-definedness of the semantics of LoFIRRTL programs
 
-%From the fact that $A$ is a module in a LoFIRRTL program, we know that $G_A$ is acyclic. 
+%From the fact that $A$ is a module in a LoFIRRTL program, we know that $G_A$ is acyclic.
 %Equipped with $G_A$, we state a necessary condition for the well-definedness of the semantics of LoFIRRTL programs: $G_A$ satisfies the following constraints,
 %\begin{itemize}
-%\item for each $z \in \ccpnts(A)$, there is exactly one generalized connect statement whose head is $z$, 
+%\item for each $z \in \ccpnts(A)$, there is exactly one generalized connect statement whose head is $z$,
 %
-%\item for each $z \in \registers(A)$, there is at most one generalized connect statement whose head is $z$, 
+%\item for each $z \in \registers(A)$, there is at most one generalized connect statement whose head is $z$,
 %
 %\item the dependency graph $G_A$ is acyclic.
 %\end{itemize}
@@ -70,15 +102,15 @@ module A
   node a = add(io_in, UInt<32>("h1"))
 \end{lstlisting}
 is not, since $({\tt a}, {\tt io\_out})$ is an edge in $G_A$, while the generalized connect statement for {\tt a} is after the generalized connect statement for {\tt io\_out}.
- 
+
 In the sequel, we require that $A$ is in the pseudo-SSA form.
 
-The operational semantics of $A$ relies on a concept of configurations defined below. 
+The operational semantics of $A$ relies on a concept of configurations defined below.
 
 Let $\gtypes$ denote the set of ground types, that is, $(\{UInt, SInt\} \times \Nat) \cup \{Clock, Reset, AsyncReset\}$. Let $\bv$ denote the set of bit vectors, that is, $\{0,1\}^+$.
 For $t = (\tau, n) \in \{UInt, SInt\} \times \Nat$, we define the \emph{width} of $t$, denoted by $wd(t)$, as $n$.
 
-A \emph{configuration} of $A$ is a triple $(te, s, rs)$, where $te$ is a type environment, $s$ is a state, and $rs$ is a register state. Intuitively, $te$ denotes the types of the components, $s$ denotes the values of the components in the beginning of the current clock cycle, and $rs$ denotes the new values of the registers in the beginning of the next clock cycle. Formally, 
+A \emph{configuration} of $A$ is a triple $(te, s, rs)$, where $te$ is a type environment, $s$ is a state, and $rs$ is a register state. Intuitively, $te$ denotes the types of the components, $s$ denotes the values of the components in the beginning of the current clock cycle, and $rs$ denotes the new values of the registers in the beginning of the next clock cycle. Formally,
 \begin{itemize}
 \item a \emph{type environment} $te$ of $A$ is a function from $\cpnts(A)$ to $\gtypes$,
 %
@@ -88,17 +120,17 @@ A \emph{configuration} of $A$ is a triple $(te, s, rs)$, where $te$ is a type en
 \end{itemize}
 
 %A \emph{type environment} of $M$ is a function from $\varset(M)$ to $\gtypes$.
-%A \emph{state} of $M$ is a function from $\varset(M)$ to $\bv \cup \{\bot\}$. A \emph{register state} $rs$ of $M$ is a function from $\varset(M)$ to $\bv \cup \{\bot\}$ such that $rs(v) = \bot$ for every $v \in \gtypes \setminus \registers(M)$. Note that $\bot$ is a special symbol denoting the fact that the value of a variable is not determined yet. 
+%A \emph{state} of $M$ is a function from $\varset(M)$ to $\bv \cup \{\bot\}$. A \emph{register state} $rs$ of $M$ is a function from $\varset(M)$ to $\bv \cup \{\bot\}$ such that $rs(v) = \bot$ for every $v \in \gtypes \setminus \registers(M)$. Note that $\bot$ is a special symbol denoting the fact that the value of a variable is not determined yet.
 
 The operational semantics of each statement $st$ in $A$ is defined as a relation $(te, s, rs) \xrightarrow{st} (te', s', rs')$, which denotes that the execution of $st$ from a configuration $(te, s, rs)$ results into a configuration $(te', s', rs')$. Moreover, the operational semantics of a sequence of statements is defined as the composition of the relations of statements therein and the operational semantics of module $A$ is defined as the operational semantics of its statement sequence.
 
 
-%Then a \emph{configuration} of $M$ is defined as a triple $(te, s, rs)$, where $te$ is a type environment, $s$ is a state, and $rs$ is a register state. Intuitively, $te$ denotes the types of the variables, $s$ denotes the values of the variables in the beginning of the current clock cycle, and $rs$ denotes the new values of the registers in the beginning of the next clock cycle. 
+%Then a \emph{configuration} of $M$ is defined as a triple $(te, s, rs)$, where $te$ is a type environment, $s$ is a state, and $rs$ is a register state. Intuitively, $te$ denotes the types of the variables, $s$ denotes the values of the variables in the beginning of the current clock cycle, and $rs$ denotes the new values of the registers in the beginning of the next clock cycle.
 
-%Then the operational semantics of each statement $st$ in $M$ is defined as a relation $(te, s, rs) \xrightarrow{st} (te', s', rs')$, which denotes that the execution of $st$ from a configuration $(te, s, rs)$ results into a configuration $(te', s', rs')$. Moreover, the operational semantics of a sequence of statements is defined as the composition of the relations of statements therein. 
+%Then the operational semantics of each statement $st$ in $M$ is defined as a relation $(te, s, rs) \xrightarrow{st} (te', s', rs')$, which denotes that the execution of $st$ from a configuration $(te, s, rs)$ results into a configuration $(te', s', rs')$. Moreover, the operational semantics of a sequence of statements is defined as the composition of the relations of statements therein.
 
 
-The rules for the operational semantics of statements are presented in Table~\ref{tab:lofirrtl-sem}, where $te[t/v]$ denotes the function that is obtained from $te$ by assigning $t$ to $v$, similarly for $s[0^{wd(t)}/v]$, and so on. Moreover, the rules rely on $te(e)$ and $s(e)$, which are extensions of the functions $te$ and $s$ to expressions, whose definitions can be found in Appendix~\ref{app-lofirrtl}. 
+The rules for the operational semantics of statements are presented in Table~\ref{tab:lofirrtl-sem}, where $te[t/v]$ denotes the function that is obtained from $te$ by assigning $t$ to $v$, similarly for $s[0^{wd(t)}/v]$, and so on. Moreover, the rules rely on $te(e)$ and $s(e)$, which are extensions of the functions $te$ and $s$ to expressions, whose definitions can be found in Appendix~\ref{app-lofirrtl}.
 
 Let us illustrate the semantics by using the ``reg with reset: $\neq \bot$, true'' rule: At first, $rs(r) \neq \bot$ implies that the value of the register $r$ in the beginning of the current clock cycle is defined. Then the state $s$ is updated by assigning $rs(r)$ to $r$, resulting into the new state $s'$. Moreover, because $s(e_1)=true$, the register state $rs$ is updated by assigning $s(e_2)$ to $r$, resulting into the new register state $rs'$. In other words, the value of $r$ is reset, that is, the value of $r$ will be $s(e_2)$ in the beginning of the next clock cycle.
 %
@@ -146,7 +178,7 @@ Let us illustrate the semantics by using the ``reg with reset: $\neq \bot$, true
     \inferii[connect: non-register]
     {\seqq{(te, s, rs) \xrightarrow{v <= e} (te, s', rs)}}
    {\seqq{v \not \in \registers(A)}} {\seqq{s' = s[s(e)/v]}}
-    \\[1ex]    
+    \\[1ex]
     \inferii[connect: register]
     {\seqq{(te, s, rs) \xrightarrow{v <= e} (te, s, rs')}}
    {\seqq{v \in \registers(A)}} {\seqq{rs' = rs[s(e)/v]}}
@@ -162,7 +194,7 @@ Let us illustrate the semantics by using the ``reg with reset: $\neq \bot$, true
   \vspace{-6mm}
 \end{table}
 
-%$te(e)$ is defined as follows. 
+%$te(e)$ is defined as follows.
 
 An \emph{input trace} of $A$ of length $m$ is a function $it$ from $\iports(A)$ to $\bv$ such that $it(x)$ is a sequence of bit vectors and the length of $it(x)$ is $m$, for every $x \in \iports(A)$.
 
@@ -170,36 +202,36 @@ Let $st$ be the sequence of statements in $A$ and $it$ be an input trace of $A$ 
 \begin{itemize}
 \item At first, we read the values of the input ports in the $(m-j+1)$-th clock cycle of $it$, that is, replace the value of each input port $x$ in $s$ with $it(x)[m-j+1]$, resulting into a state $s_1$.
 %
-\item Then, we execute the statement sequence $st$ from the configuration $(te, s_1, rs)$, resulting into a configuration $(te'', s'', rs'')$. 
+\item Then, we execute the statement sequence $st$ from the configuration $(te, s_1, rs)$, resulting into a configuration $(te'', s'', rs'')$.
 %
 \item Finally, we obtain $(te', s', rs')$ by processing the last $j-1$ clock cycles of the input trace $it$.
 \end{itemize}
-More formally, $(te, s, rs) \xrightarrow{A, it, j, m} (te', s', rs')$ is defined as follows. 
+More formally, $(te, s, rs) \xrightarrow{A, it, j, m} (te', s', rs')$ is defined as follows.
 \begin{itemize}
-\item If $j = 0$, then $(te, s, rs) \xrightarrow{A, it, j, m} (te, s, rs)$. 
+\item If $j = 0$, then $(te, s, rs) \xrightarrow{A, it, j, m} (te, s, rs)$.
 %
 \item Otherwise, let $s_1$ be obtained from $s$ by assigning $it(x)[m-j+1]$ to $x$ for each $x \in \iports(A)$. If $(te, s_1, rs) \xrightarrow{st} (te'', s'', rs'')$ and $(te'', s'', rs'') \xrightarrow{A, it, j-1, m} (te', s', rs')$, then we have $(te, s, rs) \xrightarrow{A, it, j, m} (te', s', rs')$.
 \end{itemize}
 %$s(e)$ is defined as follows.
 %\begin{itemize}
-%\item 
-%\end{itemize} 
+%\item
+%\end{itemize}
 
 \paragraph*{There exist ``inst of'' statements in module $A$}
-In this case, circuit $A$ contains at least two instances of modules. Moreover, there are no mutual dependencies between modules, that is, the module dependency graph, which comprises the edges $(B, C)$ such that a statement \begin{lstinline}! inst y of C!\end{lstinline} occurs in module $B$ for some $y$, is acyclic. 
+In this case, circuit $A$ contains at least two instances of modules. Moreover, there are no mutual dependencies between modules, that is, the module dependency graph, which comprises the edges $(B, C)$ such that a statement \begin{lstinline}! inst y of C!\end{lstinline} occurs in module $B$ for some $y$, is acyclic.
 Our main idea is to flatten the hierarchies of modules in circuit $A$ into a circuit containing a single module $M_A$, then transform $M_A$ into pseudo-SSA form $M'_A$, and finally define the operational semantics of $A$ as that of $M'_A$. (Recall that the semantics of a module that is in pseudo-SSA form and contains no occurrences of ``inst of'' statements is defined by the rules in Table~\ref{tab:lofirrtl-sem}.)
 
 In the sequel, we show how to flatten the hierarchies of modules in circuit $A$ into a module $M_A$.
 
-We define the set of module instances of circuit $A$, denoted by $\modinst(A)$, inductively as follows. An element of $\modinst(A)$ is a pair $(id, B)$, which denotes an instance of module $B$, with the identifier $id$. 
-% \emph{the identifiers} of these module instances inductively as follows. 
+We define the set of module instances of circuit $A$, denoted by $\modinst(A)$, inductively as follows. An element of $\modinst(A)$ is a pair $(id, B)$, which denotes an instance of module $B$, with the identifier $id$.
+% \emph{the identifiers} of these module instances inductively as follows.
 \begin{itemize}
-\item $(A, A) \in \modinst(A)$, that is, an instance of the top-level module $A$ is in $MI(A)$. Note that we use $A$ as the identifier of the instance of module $A$, since there is a unique instance of the top-level module.  
+\item $(A, A) \in \modinst(A)$, that is, an instance of the top-level module $A$ is in $MI(A)$. Note that we use $A$ as the identifier of the instance of module $A$, since there is a unique instance of the top-level module.
 %
 \item Suppose $(x, B) \in \modinst(A)$, and the module $B$ contains a statement \begin{lstinline}! inst y of C!\end{lstinline}. Then $(x.y, C) \in \modinst(A)$.
 \end{itemize}
 
-For each $(id, B) \in MI(A)$, we inductively construct a module $M_{(id, B)}$ as follows. 
+For each $(id, B) \in MI(A)$, we inductively construct a module $M_{(id, B)}$ as follows.
 \begin{itemize}
 \item If $B$ contains no occurrences of ``inst of'' statements, then $M_{(id, B)}$ is obtained from module $B$ by replacing all identifiers $z$ with $id.z$.
 %
@@ -215,11 +247,11 @@ Furthermore, $M_A$ can be turned into $M'_A$ in pseudo-SSA form by constructing 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \hide{
-Equipped with $MI(A)$ and extended dependency graphs, we inductively construct for each $(id, B) \in MI(A)$ a flattened statement sequence, denoted by $fss_{(id, B)}$, as follows. 
+Equipped with $MI(A)$ and extended dependency graphs, we inductively construct for each $(id, B) \in MI(A)$ a flattened statement sequence, denoted by $fss_{(id, B)}$, as follows.
 \begin{itemize}
 \item If $B$ contains no occurrences of ``inst of'' statements, then $fss_{(id, B)}$ is constructed by the following procedure.
 \begin{itemize}
-\item At first, reorder the sequence of statements in $B$ into $ss'$, such that the sequence of heads of the generalized connect statements in $ss'$ forms a topological sorting of $EG_B$. 
+\item At first, reorder the sequence of statements in $B$ into $ss'$, such that the sequence of heads of the generalized connect statements in $ss'$ forms a topological sorting of $EG_B$.
 %
 \item Then, replace each identifier $z$ in $ss'$ by $id.z$.
 %
@@ -227,20 +259,20 @@ Equipped with $MI(A)$ and extended dependency graphs, we inductively construct f
 \end{itemize}
 
 
-Let $B$ be a module. If $B$ contains a statement \begin{lstinline}! inst y of C!\end{lstinline}, then the input and output ports of $y$ are visible to $B$. 
+Let $B$ be a module. If $B$ contains a statement \begin{lstinline}! inst y of C!\end{lstinline}, then the input and output ports of $y$ are visible to $B$.
 %
 We use $\siports(B)$ (resp. $\soports(B)$) to denote the set of $y.p$ such that \begin{lstinline}! inst y of C!\end{lstinline} is a  statement in module $B$ and $p \in \iports(C)$ (resp. $p \in \oports(C)$). Let $\sports(B) = \siports(B) \cup \soports(B)$. Moreover, we define $\cpnts(B) = \ports(B) \cup \wires(B) \cup \nodes(B) \cup \registers(B) \cup \sports(B)$ and $\ccpnts(B) = \oports(B) \cup \wires(B) \cup \nodes(B) \cup \siports(B)$.
 
-Let $B$ be a module. We define the \emph{extended dependency graph} of $B$, denoted by $EG_B = (V_B, E_B)$, as follows. $V_B = \cpnts(B)$ and $E_B$ is defined in the sequel. 
+Let $B$ be a module. We define the \emph{extended dependency graph} of $B$, denoted by $EG_B = (V_B, E_B)$, as follows. $V_B = \cpnts(B)$ and $E_B$ is defined in the sequel.
 \begin{itemize}
-\item If $B$ contains no occurrences of ``inst of'' statements, then $E_B$ comprises the edges $(x, y)$ such that $y$ depends on $x$, that is, there is a connect statement in $B$ where $y$ is the head and $x$ occurs in the body. 
+\item If $B$ contains no occurrences of ``inst of'' statements, then $E_B$ comprises the edges $(x, y)$ such that $y$ depends on $x$, that is, there is a connect statement in $B$ where $y$ is the head and $x$ occurs in the body.
 %
-\item Otherwise, suppose that $M_{(id.y, C)}$ has been constructed for each statement \begin{lstinline}! inst y of C!\end{lstinline} in module $B$. Then 
-%suppose that the graph $EG_C$ has been constructed for each statement \begin{lstinline}! inst y of C!\end{lstinline} in module $B$, 
-%then 
-$E_B$ comprises the following two types of edges, 
+\item Otherwise, suppose that $M_{(id.y, C)}$ has been constructed for each statement \begin{lstinline}! inst y of C!\end{lstinline} in module $B$. Then
+%suppose that the graph $EG_C$ has been constructed for each statement \begin{lstinline}! inst y of C!\end{lstinline} in module $B$,
+%then
+$E_B$ comprises the following two types of edges,
 \begin{itemize}
-\item the edges $(x, y)$ such that there is a connect statement in $B$ where $y$ is the head and $x$ occurs in the body,  
+\item the edges $(x, y)$ such that there is a connect statement in $B$ where $y$ is the head and $x$ occurs in the body,
 %
 \item the edges $(y.p_1, y.p_2)$ such that \begin{lstinline}! inst y of C!\end{lstinline} is a  statement in module $B$, $p_1 \in \iports(C)$ and $p_2 \in \oports(C)$.
 %, moreover, $p_2$ is reachable from $p_1$ in $EG_C$.
@@ -248,26 +280,26 @@ $E_B$ comprises the following two types of edges,
 Note here we add to $E_B$ the edges from every input port of $C$ to every output port of $C$.
 \end{itemize}
 
-Equipped with $MI(A)$ and extended dependency graphs, we inductively construct for each $(id, B) \in MI(A)$ a flattened statement sequence, denoted by $fss_{(id, B)}$, as follows. 
+Equipped with $MI(A)$ and extended dependency graphs, we inductively construct for each $(id, B) \in MI(A)$ a flattened statement sequence, denoted by $fss_{(id, B)}$, as follows.
 \begin{itemize}
 \item If $B$ contains no occurrences of ``inst of'' statements, then $fss_{(id, B)}$ is constructed by the following procedure.
 \begin{itemize}
-\item At first, reorder the sequence of statements in $B$ into $ss'$, such that the sequence of heads of the generalized connect statements in $ss'$ forms a topological sorting of $EG_B$. 
+\item At first, reorder the sequence of statements in $B$ into $ss'$, such that the sequence of heads of the generalized connect statements in $ss'$ forms a topological sorting of $EG_B$.
 %
 \item Then, replace each identifier $z$ in $ss'$ by $id.z$.
 %
 \item Let $fss_{(id, B)}:=ss'$.
 \end{itemize}
 %
-\item Otherwise, suppose that $fss_{(id.y, C)}$ has been constructed for each statement \begin{lstinline}! inst y of C!\end{lstinline} in module $B$. Then $fss_{(id, B)}$ is constructed by the following procedure. 
+\item Otherwise, suppose that $fss_{(id.y, C)}$ has been constructed for each statement \begin{lstinline}! inst y of C!\end{lstinline} in module $B$. Then $fss_{(id, B)}$ is constructed by the following procedure.
 \begin{itemize}
-\item We first construct a topological sorting of $EG_B$, say $z_1, \cdots, z_m$. For technical convenience, we assume that the input ports of $B$ are ignored in $z_1,\cdots, z_m$. 
+\item We first construct a topological sorting of $EG_B$, say $z_1, \cdots, z_m$. For technical convenience, we assume that the input ports of $B$ are ignored in $z_1,\cdots, z_m$.
 %
-\item Let $ss'$ be an enumeration of the declaration statements for ports, wires, and registers in $B$.  
-For each $y$ such that $B$ contains a statement of the form \begin{lstinline}! inst y of C!\end{lstinline}, define $idx_y$ as the minimum index $j \in [m]$ such that $z_j = y.p$ for some output port $p$ of $C$. 
+\item Let $ss'$ be an enumeration of the declaration statements for ports, wires, and registers in $B$.
+For each $y$ such that $B$ contains a statement of the form \begin{lstinline}! inst y of C!\end{lstinline}, define $idx_y$ as the minimum index $j \in [m]$ such that $z_j = y.p$ for some output port $p$ of $C$.
 Then let $i:=1$ and iterate the following procedure until $i=m$.
 \begin{itemize}
-\item If $z_i \not \in \soports(B)$, let $st_i$ be the connect statement of $B$ where $z_i$ is the head and $st'_i$ be obtained from $st_i$ by replacing each identifier $z'$ with $id.z'$, then $ss' := ss' \concat st'_i$. 
+\item If $z_i \not \in \soports(B)$, let $st_i$ be the connect statement of $B$ where $z_i$ is the head and $st'_i$ be obtained from $st_i$ by replacing each identifier $z'$ with $id.z'$, then $ss' := ss' \concat st'_i$.
 \item Otherwise, $z_i \in \soports(B)$. Suppose $z_i = y.p$ such that \begin{lstinline}! inst y of C!\end{lstinline} is a statement in $B$. If $i = idx_y$, then let $ss':=ss' \concat fss_{(id.y, C)}$.
 \end{itemize}
 %
