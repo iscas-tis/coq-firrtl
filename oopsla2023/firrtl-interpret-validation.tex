@@ -32,7 +32,7 @@ we compare the equivalence of output ports produced by  our LoFIRRTL OCaml Inter
 \begin{table}[t]
 \caption{Results of conformance testing}\footnotesize
 \label{tab:conformancetesting}
-\begin{tabular}{|c|c|c|c|c|c|c|}
+\scalebox{0.9}{\begin{tabular}{|c|c|c|c|c|c|c|}
   \hline
 \multicolumn{2}{|c|}{\multirow{2}{*}{\bf Benchmark name}} & \multirow{2}{*}{\bf \#LOC} & \multicolumn{3}{c|}{\bf Execution time (ms)} & \multirow{2}{*}{\bf Result} \\ \cline{4-6}
  \multicolumn{2}{|c|}{}                                   &                        & {\bf Treadle}  &  {\bf Ours}  & {\bf Speedup}    &  \\ \hline
@@ -75,7 +75,7 @@ we compare the equivalence of output ports produced by  our LoFIRRTL OCaml Inter
                                    & \textbf{FibCircuit}                        & 14  & 0.190 & 0.006 & 29.195 & \checkmark \\
                                    & \textbf{ShiftRegister}                     & 21  & 0.190 & 0.010 & 18.433 & \checkmark  \\ \hline
      & \textbf{mytest}             & 29  & 0.243 & 0.029 & 7.379 & \checkmark \\  \hline
-\end{tabular}
+\end{tabular}}
 \end{table}
 %
 
@@ -93,7 +93,7 @@ We can observe that our LoFIRRTL OCaml Interpreter produces the same results as 
 Furthermore, our LoFIRRTL OCaml Interpreter is significantly more efficient than Treadle on almost all the benchmarks except for HardwareHashMaker.
 After an in-depth analysis, we found that HardwareHashMaker has 20 64-bit multiplication operations significantly more than the other benchmarks,
 our LoFIRRTL OCaml Interpreter is extracted from the bit-wise multiplication in Coq while Treadle uses (bit) integer multiplication.
-Though we could adopt (bit) integer multiplication as well, 
+Though we could adopt (bit) integer multiplication as well,
 we chose bit-wise multiplication based on the bit-vector library in Coq whose correctness has been formally proved. %and the ocaml bit-vector operations are extracted from coq code
 
 
