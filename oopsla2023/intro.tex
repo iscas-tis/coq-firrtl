@@ -33,7 +33,6 @@ Chisel has been successfully used to build RISC-V processes such as Rocket Chip~
 XiangShan~\cite{xiangshan,Xiangshan-github}, and so on. 
 %SiFive Core IP portfolio~\cite{SiFive},
 %and Google Edge TPU~\cite{EdgeTPU}.
-<<<<<<< HEAD
 
 The FIRRTL intermediate representation (IR) was proposed for the compilation of Chisel programs~\cite{IzraelevitzKLLW17}, analogous to the role of LLVM IR~\cite{LLVM} for compiling C programs.
 FIRRTL features first-class support for high-level constructs such as vector types, bundle types, conditional statements, connects, partial connects,
@@ -41,13 +40,16 @@ and modules so that Chisel programs can easily be translated into FIRRTL.
 %
 High-level synthesis is performed on FIRRTL by a sequence of compilation passes  (aka lowering transformations) and optimizations, resulting into a most restricted form that is close to RTL Verilog, called low FIRRTL (abbreviated as LoFIRRTL). For clarity, let us call FIRRTL with high-level constructs as high FIRRTL (abbreviated as HiFIRRTL).
 While FIRRTL was designed to compile Chisel programs, it is not tied to Chisel. Other hardware description languages can also be compiled into FIRRTL and reuse the majority of the FIRRTL compilation passes. For instance, FIRRTL has been integrated into the CIRCT project~\cite{CIRCT} as one of its core dialects.
-=======
+
+
+%%%%%% resolved conflicts 
+\hide{
 The FIRRTL intermediate representation was proposed for the compilation of Chisel programs~\cite{IzraelevitzKLLW17},
 analogous to the role of the LLVM IR~\cite{LLVM} for compiling C programs.
 FIRRTL features first-class support for high-level constructs
 such as vector types, bundle types, conditional statements, connects, partial connects,
 and modules so that Chisel programs can easily be translated into FIRRTL.
->>>>>>> 934abe497d6ca01c6dd3c1295716e2cae42a80bd
+}
 %
 
 The FIRRTL compiler suffers from lots of bugs due to its inherent complexity. For instance, there are 655 issues in its github repository, among which
