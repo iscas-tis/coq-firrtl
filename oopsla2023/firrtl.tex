@@ -17,7 +17,8 @@ Figure~\ref{fig:example} contains an example FIRRTL program.
 \begin{figure}[t]
 \centering
 \begin{tabular}{c}
-\begin{lstlisting}%[basicstyle=\footnotesize\ttfamily]
+%[basicstyle=\footnotesize\ttfamily]
+\begin{lstlisting}
 circuit A :
   module A :
     input clk : Clock
@@ -432,7 +433,8 @@ since \begin{lstinline}!myport1!\end{lstinline} is connected twice.
 \centering
 \begin{subfigure}[b]{0.4\textwidth}
          \centering
-\begin{lstlisting}%[basicstyle=\footnotesize\ttfamily]
+%[basicstyle=\footnotesize\ttfamily]
+\begin{lstlisting}
 module MyModule :
   input a: UInt<1>
   input b: UInt<1>
@@ -441,13 +443,15 @@ module MyModule :
   myport1 <= b
   myport2 <= a
 \end{lstlisting}
+\vspace*{0.92\baselineskip}
 \caption{}
 \end{subfigure}
 \hspace{4mm}
 %     \hfill
 \begin{subfigure}[b]{0.4\textwidth}
          \centering
-\begin{lstlisting}%[basicstyle=\footnotesize\ttfamily]
+%[basicstyle=\footnotesize\ttfamily]
+\begin{lstlisting}
 module MyModule :
   input a: UInt<1>
   input b: UInt<1>
@@ -464,6 +468,7 @@ module MyModule :
 \end{figure}
 
 \subsection{Lowering Transformations of FIRRTL}
+\label{subsec-lowering-transformations}
 
 In the sequel, we give an informal introduction to the lowering transformations (aka compilation passes) of  FIRRTL. The dependencies between these compilation passes are illustrated in Figure~\ref{fig-c-pass}.
 
@@ -489,7 +494,7 @@ module MyModule:
   output y:{a: UInt, b: UInt}
   y <= x
 \end{lstlisting} &
-\raisebox{-5ex}{\qquad into\qquad}
+\raisebox{-6ex}{\qquad into\qquad}
 &
 &
 %[basicstyle=\footnotesize\ttfamily]
@@ -532,7 +537,7 @@ module TestCondition:
     a <= neg in
     negv <= a
 \end{lstlisting}&
-\raisebox{-11ex}{\qquad into\qquad}
+\raisebox{-14ex}{\qquad into\qquad}
 &
 &
 %[basicstyle=\footnotesize\ttfamily]
