@@ -203,16 +203,18 @@ The general rules are,
 \item Except for memories and module instances, components defined with aggregate types need to be replaced by
       a group of coordinate components that have ground types.
 \end{itemize}
-The identifier in the form of a pair will be introduced $(id,id)$. The
-first field represents the base reference which adapted the original
-identifier of the components, while the second field indecates the
-sub-element with the offset computed from the aggregate type.  The new
-set of components replace the original one are defined with the paired
-identifier.  After applying the Expand Connections pass, connect
-statements are already in ground types.  The references in these
-statements also need to be replace by the corresponding paired
-identifiers.  The statements $ss$ in the circuit diagram is
-changed. In the meanwhile the $ce$ is changed coordinately.
+The paired identifier is introduced $(id,id)$, in which the
+first field represents the base reference adapted from the original
+component identifier and the second field indicates the
+sub-element offset computed from the aggregate type.
+The original components defined with aggregate types are replaced by a new
+set of components defined with the paired
+identifiers and of ground types.
+After applying the Expand Connections pass, connect
+statements are already in ground types. The references in these
+statements need to be replaced by the corresponding paired
+identifiers. As a result, both the statements $ss$ in the circuit diagram and
+the components environment $ce$ are changed coordinately.
 
 \subsubsection{``Remove Resets''}
 %% For example,
