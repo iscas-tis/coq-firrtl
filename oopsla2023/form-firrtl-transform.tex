@@ -3,6 +3,29 @@
 A description of the formalization of InferTypes, InferWidths, InferResets, ExpandConnects, ExpandWhens, LowerTypes, and RemoveResets. 
 
 \subsubsection{``Infer Types''}
+Initially, the component environment $ce$ of a circuit diagram $D_M$
+is empty.  The Infer Types pass is then applied to fill the $ce$ with
+all the components that are defined in the statement sequence $ss$,
+along with their component kinds and data types.
+For each component
+defined in $ss$, the {\tt infer\_type} function will update the $ce$
+accordingly. For example, if there is a \prettyll{wire} statement,
+is added to component environment by
+  \begin{gather}
+    \infer[]
+    {\seqq{ce \vdash {\tt infer\_type} (\mbox{wire}\;v\;t_v) \rightsquigarrow ce'}}
+    {\seqq{ce':= ce \uplus \{v : (t_v, Wire)\}}}.
+    \end{gather}
+If it is a node-declaration statements, an entry for the node is added
+to the $ce$ with its type calculated by the expression $e$
+assigned to the wire.
+\begin{gather}
+    \inferii[]
+    {\seqq{ce \vdash {\tt infer\_type} (\mbox{node}\;v\;e) \rightsquigarrow ce'}}
+    {\seqq{ce \vdash t_e:={\tt type\_of\_expr}(e)}} {\seqq{ce':= ce \uplus \{v : (t_e, Node)\}}}.
+    \end{gather}
+The connect statements are ignored in this pass, since they will not
+introduce new components to be added to the environment.
 
 \subsubsection{``Infer Widths''}
 Implicit widths are allowed to be defined in HiFIRRTL programs.
@@ -24,7 +47,7 @@ the {\tt infer\_width} function will update the $wm$ by
   \begin{gather}
     \inferii[]
     {\seqq{ce \vdash {\tt infer\_width} (declare\;v, wm) \rightsquigarrow wm'}}
-    {\seqq{ce \vdash {\tt width}(t_v) = 0}} {\seqq{wm':= wm \uplus {v : t_v}}}.
+    {\seqq{ce \vdash {\tt width}(t_v) = 0}} {\seqq{wm':= wm \uplus \{v : t_v\}}}.
     \end{gather}
 The width is inferred according to connection statements.
 Since the last connection semantics is not considered, each
@@ -88,6 +111,7 @@ manipulated more efficiently.
 %% \end{lstlisting}
 %% Now, wire $c$ has the width as same as $d$, which is 14. The latter connection
 %% from d gives a larger width to the destination $c$. 
+
 \subsubsection{``Infer Resets''}
 
 \subsubsection{``Expand Connects''}
