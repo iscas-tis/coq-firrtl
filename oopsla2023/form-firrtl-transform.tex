@@ -138,7 +138,7 @@ It then continues on the connect
 statements to find the inference clues,
 checking that the type of the driving signal and the type found in the $rm$ do not conflict.
 If they are the same concrete type or at least one of them is abstract,
-the inferring continues without error.
+the inferring continues without error. 
   \begin{gather}
     \inferiv[]
     {\seqq{ce \vdash {\tt infer\_reset} (v<=e, rm) \rightsquigarrow rm'}}
@@ -154,6 +154,7 @@ Otherwise, the {\tt infer\_reset} reports an error in the map $rm$ and stops.
     {\seqq{{\tt conflict} (t_v,t_e)}}
     {\seqq{rm':= \bot}}.
     \end{gather}
+Here, we consider the case of \prettyll{is invalid} statements as same as a connect statement from a synchronous signal.
 If there is no error reported, the inferred reset types stored in the temporal map $rm$ can be
 merged to the components environment $ce$ using the {\tt map2} function.
 The resulting $ce$ will contain the inferred concrete reset types.
@@ -212,7 +213,7 @@ set of components defined with paired identifiers and of ground types.
 The process can be formalized as follow:
   \begin{gather}\small
     \inferiv[]
-    {\seqq{ce\vdash{\tt lower\_types} (\mbox{wire}\,v:t)) \rightsquigarrow (ss',ce')}}
+    {\seqq{ce\vdash{\tt lower\_types}(declare\;v) \rightsquigarrow (ss',ce')}}
     {\seqq{ce\vdash v: tc_v}}
     {\seqq{{\tt is\_aggr}(tc_v)}}
     {\seqq{ ss' :={\tt flatten}(v,tc_v)}}
@@ -231,7 +232,11 @@ and the components environment $ce$ are updated to reflect the new ground types
 and paired identifiers.
 
 \subsubsection{``Remove Resets''}
-The Remove Resets pass is responsible for removing synchronous resets.
+The Remove Resets pass runs after the other passes, and removes
+redundant reset that are synchronous. This is a optimization step that
+can potentially improve the performance by removing unnecessary ones.
+A synchronous reset is considered redundant if it is only used to
+initialize a register.
 
 %% For example,
 %% \begin{lstlisting}
