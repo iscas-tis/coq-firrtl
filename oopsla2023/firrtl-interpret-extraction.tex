@@ -9,9 +9,19 @@
 3. In the implementation of operational semantics, tail recursion is avoided to improve the efficiency of the OCAML interpreter (evaluation algorithm).
 }
 
+
+Formalizing the operational semantics of LoFIRRTL in Coq not only provides a formal reference of LoFIRRTL,
+but only yields an executable interpreter in OCaml, called LoFIRRTL OCaml Interpreter, via the Coq's extraction feature.
+The former would greatly facilitate developers' understanding, freeing them from lengthy, ambiguous and elusive documentations.
+The latter enables developers' to conveniently test correctness of FIRRTL circuit designs and test conformance of any other
+LoFIRRTL interpreter or simulator via difference testing.
+In this subsection, to understand the performance and ensure confidence of the formalized operational semantics,
+we conduct conformance testing between our LoFIRRTL OCaml Interpreter and
+the official FIRRTL circuit simulator, called Treadle, which executes LoFIRRTL circuts
+based on the earlier scala-based LoFIRRTL Interpreter.
+
+
 \keyin{Topological sorting}
-
-
 
 To sequentially evaluate lowfirrtl program in ocaml, statement sequence reorder is finished beforehand in interpreter to make each module in pseudo-SSA form, which is done by topological sorting on the dependency graph $G_M$ defined in section 3.1. 
 
@@ -38,6 +48,10 @@ result = root :: already \_ found\;}
   \caption{topo\_sort}
 \end{algorithm}
 
+\keyin{detail on report a cycle in the graph}
+
+After adapting the original coq implementation of topological sorting, when the input graph is not a DAG, a witness cycle is reported. This is achieved by maintaining a vertex list called "$gray\_nodes$" in the $topo\_tree$ function. As mentioned earlier, $topo\_tree$ function calculates Depth-first Search starting from a given root. When the root has children, its children are explored first. During the process, every time before exploring a new root, the algorithm adds the original root to $gray\_nodes$ and checks whether the new root exists in $gray\_nodes$. Because $gray\_nodes$ records all the roots the algorithm has passed through since the beginning, while each new root is a child of the current root, the current root should be a descendant of every vertex in $gray\_nodes$. When a new root is found in $gray\_nodes$, it means that the root is its own ancestor and descendant, indicating the presence of a cycle in the graph. 
+
 \keyin{topo proof}
 
 Termination of the algorithm is defined by iterate on an finite number $n$, which equals the amount of vertices in the graph. When $n$ is decreased to 0 during the exploring, the provided value at the beginning of the algorithm has an error, more precisely, it is smaller than size $vertices$ - size $gray \_ nodes$ and the graph cannot be fully sorted. 
@@ -52,15 +66,11 @@ For the correctness proof of $topo\_ sort$, an inductive property on $topo\_ tre
 
 Then we can request on $topo\_ sort$ that it never returns $N\_ too\_ small$, for size of vertices is provided as parameter n in $topo\_ tree$. Based on the correct depth $n$, with hypothesis of $gray \_ nodes \subseteq vertices, already\_ found \subseteq vertices, gray\_ nodes \cap already\_ found = \emptyset, root \in vertices$, if there is path from $gray\_ nodes$ to root and the $alredy\_ found$ sequence follow the topological order, the result sequence of applying $topo\_ tree $ on $root$ is topological as well. Besides, it only returns $Cycle \_$ if the graph is not acyclic.
 
-\keyin{end of ky}
+\keyin{ocaml parser}
 
-Formalizing the operational semantics of LoFIRRTL in Coq not only provides a formal reference of LoFIRRTL,
-but only yields an executable interpreter in OCaml, called LoFIRRTL OCaml Interpreter, via the Coq's extraction feature.
-The former would greatly facilitate developers' understanding, freeing them from lengthy, ambiguous and elusive documentations.
-The latter enables developers' to conveniently test correctness of FIRRTL circuit designs and test conformance of any other
-LoFIRRTL interpreter or simulator via difference testing.
-In this subsection, to understand the performance and ensure confidence of the formalized operational semantics,
-we conduct conformance testing between our LoFIRRTL OCaml Interpreter and
-the official FIRRTL circuit simulator, called Treadle, which executes LoFIRRTL circuts
-based on the earlier scala-based LoFIRRTL Interpreter.
+A parser is written to complete an end-to-end interpreter in OCAML, which facilitate the comparison with Treadle  in the end. Combining the extracted semantics code and written parser, and running this on LoFIRRTL program, we further validate the Ocaml LoFIRRTL interpreter. A literal unsigned integer can alternatively be created given a string starts with $\tt b$, $\tt o$, $\tt h$ for representing binary, octal($\tt o$ can be omitted), hexadecimal numbers respectively to define const expression of type $\tt Fuint$. Simply add $\tt -$ between the letter and the number to represent negative of type $\tt Sint$. Additionally, it should be noted that string used as token, such as $\tt reg, wire, reset$, cannot be use as components’ identifier in the program, otherwise it will cause parse error.
+
+\keyin{non-tail-recursive in ocaml}
+
+In the implementation of operational semantics, tail recursion is avoided to improve the efficiency of the OCAML interpreter (evaluation algorithm). Before statements evaluation, the entire circuit will first be initialized in its type environment. This includes setting the type and width of all ports and defining the type and width of all variables based on their connection relationships. During the execution period, the interpreter perform the statements in sequence according to their topological order. Both updating type environment and evaluation on port and statement lists are operated under mode of head-recursive, which means that the result obtained from operating the head of the list will be used as the environment for subsequent sequence executions.
 
