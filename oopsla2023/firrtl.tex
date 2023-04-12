@@ -17,7 +17,7 @@ Below is an example of FIRRTL programs.
 \begin{figure}[t]
 \centering
 \begin{tabular}{c}
-\begin{lstlisting}[basicstyle=\scriptsize\ttfamily]
+\begin{lstlisting}%[basicstyle=\footnotesize\ttfamily]
 circuit A :
   module A :
     input clk : Clock
@@ -406,7 +406,7 @@ Intuitively, LoFIRRTL is in a flavor similar to static single-assignment (SSA) f
 \centering
 \begin{subfigure}[b]{0.4\textwidth}
          \centering
-\begin{lstlisting}[basicstyle=\scriptsize\ttfamily]
+\begin{lstlisting}%[basicstyle=\footnotesize\ttfamily]
 module MyModule :
   input a: UInt<1>
   input b: UInt<1>
@@ -421,7 +421,7 @@ module MyModule :
 %     \hfill
 \begin{subfigure}[b]{0.4\textwidth}
          \centering
-\begin{lstlisting}[basicstyle=\scriptsize\ttfamily]
+\begin{lstlisting}%[basicstyle=\footnotesize\ttfamily]
 module MyModule :
   input a: UInt<1>
   input b: UInt<1>
@@ -456,7 +456,7 @@ The InferResets pass infers the abstract reset type \prettyll{Reset} to the conc
 \begin{figure}[h]
 \centering
 \begin{tabular}{cccc}
-\begin{lstlisting}[basicstyle=\scriptsize\ttfamily]
+\begin{lstlisting}%[basicstyle=\footnotesize\ttfamily]
 module MyModule:
   input x: {a: UInt, b: UInt}
   output y:{a: UInt, b: UInt}
@@ -465,7 +465,7 @@ module MyModule:
 into
 &
 &
-\begin{lstlisting}[basicstyle=\scriptsize\ttfamily]
+\begin{lstlisting}%[basicstyle=\footnotesize\ttfamily]
 module MyModule:
   input x: {a: UInt, b: UInt}
   output y:{a: UInt, b: UInt}
@@ -479,7 +479,7 @@ module MyModule:
 \begin{figure}[h]
 \centering
 \begin{tabular}{cccc}
-\begin{lstlisting}[basicstyle=\scriptsize\ttfamily]
+\begin{lstlisting}%[basicstyle=\footnotesize\ttfamily]
 module MyModule :
   input in: UInt<1>[2]
   input n: UInt<1>
@@ -493,7 +493,7 @@ module MyModule :
 into
 &
 &
-\begin{lstlisting}[basicstyle=\scriptsize\ttfamily]
+\begin{lstlisting}%[basicstyle=\footnotesize\ttfamily]
 module MyModule :
   input in: UInt<1>[2]
   input n: UInt<1>
