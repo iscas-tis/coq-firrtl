@@ -13,7 +13,7 @@ accordingly. For example, if there is a \prettyll{wire} statement,
 is added to component environment by
   \begin{gather}
     \infer[]
-    {\seqq{ce \vdash {\tt infer\_type} (\mbox{wire}\;v\;t_v) \rightsquigarrow ce'}}
+    {\seqq{ce \vdash {\tt infer\_type} (\mbox{wire}\;v\,:\;t_v) \rightsquigarrow ce'}}
     {\seqq{ce':= ce \uplus \{v : (t_v, Wire)\}}}.
     \end{gather}
 If it is a node-declaration statements, an entry for the node is added
@@ -21,7 +21,7 @@ to the $ce$ with its type calculated by the expression $e$
 assigned to the wire.
 \begin{gather}
     \inferii[]
-    {\seqq{ce \vdash {\tt infer\_type} (\mbox{node}\;v\;e) \rightsquigarrow ce'}}
+    {\seqq{ce \vdash {\tt infer\_type} (\mbox{node}\;v\,=\;e) \rightsquigarrow ce'}}
     {\seqq{ce \vdash t_e:={\tt type\_of\_expr}(e)}} {\seqq{ce':= ce \uplus \{v : (t_e, Node)\}}}.
     \end{gather}
 The connect statements are ignored in this pass, since they will not
@@ -143,7 +143,7 @@ the inferring continues without error.
     \inferiv[]
     {\seqq{ce \vdash {\tt infer\_reset} (v<=e, rm) \rightsquigarrow rm'}}
     {\seqq{rm \vdash v:t_v}} {\seqq{ce\vdash t_e:={\tt type\_of\_expr}(e)}}
-    {\seqq{{\tt \neg conflict (t_v,t_e)}}}
+    {\seqq{{\tt \neg conflict} (t_v,t_e)}}
     {\seqq{rm':= rm \uplus \{v : t_e\}}}.
     \end{gather}
 Otherwise, the {\tt infer\_reset} reports an error in the map $rm$ and stops.
@@ -151,7 +151,7 @@ Otherwise, the {\tt infer\_reset} reports an error in the map $rm$ and stops.
     \inferiv[]
     {\seqq{ce \vdash {\tt infer\_reset} (v<=e, rm) \rightsquigarrow rm'}}
     {\seqq{rm \vdash v:t_v}} {\seqq{ce\vdash t_e:={\tt type\_of\_expr}(e)}}
-    {\seqq{{\tt conflict (t_v,t_e)}}}
+    {\seqq{{\tt conflict} (t_v,t_e)}}
     {\seqq{rm':= \bot}}.
     \end{gather}
 If there is no error reported, the inferred reset types stored in the temporal map $rm$ can be
@@ -208,15 +208,31 @@ first field represents the base reference adapted from the original
 component identifier and the second field indicates the
 sub-element offset computed from the aggregate type.
 The original components defined with aggregate types are replaced by a new
-set of components defined with the paired
-identifiers and of ground types.
-After applying the Expand Connections pass, connect
-statements are already in ground types. The references in these
-statements need to be replaced by the corresponding paired
-identifiers. As a result, both the statements $ss$ in the circuit diagram and
-the components environment $ce$ are changed coordinately.
+set of components defined with paired identifiers and of ground types.
+The process can be formalized as follow:
+  \begin{gather}\small
+    \inferiv[]
+    {\seqq{ce\vdash{\tt lower\_types} (\mbox{wire}\,v:t)) \rightsquigarrow (ss',ce')}}
+    {\seqq{ce\vdash v: tc_v}}
+    {\seqq{{\tt is\_aggr}(tc_v)}}
+    {\seqq{ ss' :={\tt flatten}(v,tc_v)}}
+    {\seqq{ce':=ce\uplus \{(v,o_1): tc_{v1},\dots,(v,o_n):tc_{vn}\}}}.
+    \end{gather}    
+The {\tt flatten} function generates new statements that define
+components in ground types with new identifiers, such as
+$(v,o_1)$. The type and component information contained in $tc_v$
+are used to determine the number of the certain new components.
+After applying the Expand Connections pass,
+connect statements are already in ground types. The references in
+these statements need to be replaced by the corresponding paired
+identifiers. As a result, the statements $ss$ in the circuit
+diagram are replaced by the new $ss'$,
+and the components environment $ce$ are updated to reflect the new ground types
+and paired identifiers.
 
 \subsubsection{``Remove Resets''}
+The Remove Resets pass is responsible for removing synchronous resets.
+
 %% For example,
 %% \begin{lstlisting}
 %% module MyModule :
