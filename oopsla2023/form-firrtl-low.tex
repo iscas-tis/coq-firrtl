@@ -8,135 +8,120 @@ and later consider the general LoFIRRTL programs.
 
 %At first, let us make it more precise the syntactical constraints of LoFIRRTL stated in Section~\ref{sec-firrtl}.
 
-\subsubsection{\prettyll{inst of}-free LoFIRRTL}
+\subsubsection{\protect\prettyll{inst of}-free LoFIRRTL}
 Let us fix a LoFIRRTL circuit $A$ that is free of \prettyll{inst of} statements. According to the syntax of LoFIRRTL, the top-level module of the circuit must be module $A$.
 
 We first introduce some notations required to present the operational semantics.
 
-We denote by $\iports(A)$, $\oports(A)$, $\wires(A)$, $\nodes(A)$ 
+
+A \emph{generalized connect statement} is a statement of the form $z <= e$ or $\mbox{\tt \prettyll{node}}\ z = e$, where $z$ and $e$ are called the \emph{head} and \emph{body} of the generalized connect statement, respectively. Intuitively, a generalized connect statement is either a connect statement $z <= e$ or a node-declaration statement $\mbox{\tt \prettyll{node}}\ z = e$.
+
+
+We denote by $\iports(A)$, $\oports(A)$, $\wires(A)$, $\nodes(A)$
 and $\registers(A)$ the sets of input ports, output ports, wires, nodes and registers of the module $A$, respectively.
 Furthermore, we use $\ports(A)$ to denote the set of ports $\iports(A) \uplus \oports(A)$,
 $\cpnts(A)$ to denote the set of components $\ports(A) \uplus \wires(A) \uplus \nodes(A) \uplus \registers(A)$,
 and $\ccpnts(A)$ to denote the set of components $\oports(A) \uplus \wires(A) \uplus \nodes(A)$ that must be connected to, % in the module $A$,
-where a component $z$ is connected to via either a connect statement $z <= e$ or a node-declaration statement $\mbox{\tt \prettyll{node}}\ z = e$.
+where a component $z$ is connected to via a generalized connect statement whose head is $z$.
 Note that the input ports $\iports(A)$ are not connected to, moreover, the registers may not be connected to, thus they
-are not included in $\ccpnts(A)$. 
-(If a register is not connected to, then it keeps the current value.)  
+are not included in $\ccpnts(A)$. (If a register is not connected to, then it keeps the current value.)
+We denote by $\gtypes$ denote the set of ground types $(\{\mbox{\prettyll{UInt}}, \mbox{\prettyll{SInt}}\} \times \Nat) \cup \{\mbox{\prettyll{Clock}},
+\mbox{\prettyll{Reset}}, \mbox{\prettyll{AsyncReset}}\}$ and by $\bv$ the set of bit vectors $\{0,1\}^+$.
+For each $t = (\tau, n) \in \{\mbox{\prettyll{UInt}}, \mbox{\prettyll{SInt}}\} \times \Nat$, we define the \emph{width} of $t$, denoted by $wd(t)$, as $n$.
 
 
-A \emph{generalized connect statement} is a statement of the form $z <= e$ or $\mbox{\tt \prettyll{node}}\ z = e$, where $z\in \cpnts(B)$ and $e$ are called the \emph{head} and \emph{body} of the generalized connect statement, respectively. Intuitively, a generalized connect statement is either a connect statement $z <= e$ or a node-declaration statement $\mbox{\tt \prettyll{node}}\ z = e$.
-
-To characterize the dependency of components in the module $A$, we define a dependency graph of the module $A$.
+To characterize the dependency of components in the module $A$ (hence define the semantics of the module $A$ sequentially), we define a dependency graph of the module $A$.
 Formally, the \emph{dependency graph} $G_A$ of the module $A$ is a tuple $(N_A, E_A)$, where $N_A$ is the set $\cpnts(A)$ of components,
 $E_A\subseteq \cpnts(A)\times \cpnts(A)$ is a finite set of directed edges such that
 $(x, y)\in E_A$, i.e., $y$ depends on $x$, iff $A$ contains a generalized connect statement with head $y$ and body $e$ involving $x$.
 %
 
-\fu{Stopped}
+To forbid illegal behaviors, we assume that the dependency graph $G_A$ is \emph{acyclic},
+otherwise the module $A$ has some combinational loops\footnote{A combinatorial loop is when the output of some combinatorial logic, that is a section of logic with no registers between gates, is fed back into the input of that combinatorial logic with no intervening register.}, which are usually taken as ``bad'' in digital circuit design.
+We develop a verified topological sorting algorithm for checking if a dependency graph $G_A$ is loop-free or not.
+To have a well-defined semantics, we also assume that each component $z \in \ccpnts(A)$ should be connected to exactly \emph{once}, that is,
+there is exactly one generalized connect statement whose head is $z$. This assumption
+is checked by the ``ExpandWhens'' compilation pass and an error will be reported if the assumption
+is violated. Furthermore, the functional correctness of the ``ExpandWhens'' compilation pass is also proved in Coq.
+Finally, in this work, we focus on synchronization circuits, that is, there is one unique global clock.
 
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%% comment out by Fu %%%%%%%%%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\begin{comment}  
-We first show how to define the operational semantics for the situation that the module $A$ contains no occurrences of ``inst of'' statements. Later on, we will consider the more general case.
-%
-\paragraph*{No ``inst of'' statements in module $A$} Let us assume that $A$ contains no occurrences of ``inst of'' statements. In this case, we know that $A$ is the only module in circuit $A$.
-
-Before presenting the operational semantics, we introduce some notations.
-
-We use $\iports(A)$ (resp. $\oports(A)$) to denote the set of input (resp. output) ports of the module $A$,  $\ports(A) = \iports(A) \cup \oports(A)$, $\wires(A)$ to denote the set of wires in the module instance $A$, $\nodes(A)$ to denote the set of nodes in the module $A$, and $\registers(A)$ to denote the set of registers in the module $A$.
-%
-Moreover, we use $\cpnts(A)$ to denote the set of components in $A$, that is, $\ports(A) \cup \wires(A) \cup \nodes(A) \cup \registers(A)$.
-
-A \emph{generalized connect statement} for $z  \in \cpnts(B)$ is a statement of the form $z <= e$ or $\mbox{node } z = e$, where $z$ and $e$ are called the \emph{head} and \emph{body} of the generalized connect statement respectively. Intuitively, a generalized connect statement is either a connect statement or a node-declaration statement.
-
-We use $\ccpnts(A)$ to denote the set of connected components of $A$, that is, $\ccpnts(A) = \oports(A) \cup \wires(A) \cup \nodes(A)$. (Intuitively, connected components of $A$ must be connected to, that is, occur as the heads of generalized connect statements of $A$.) Note that the input ports of $A$ are not connected to, moreover, the registers may not be connected to. (If a register is not connected to, then it keeps the current value. )
-
-%For $(id, B) \in \modinst(A)$, let $\cpnts(id, B)$ denote $\{id.z \mid z \in \cpnts(B)\}$.
-
-%Let $B$ be a module in circuit $A$. A \emph{generalized connect statement} for $z  \in \cpnts(B)$ is a statement of the form $z <= e$ or $\mbox{node } z = e$, where $z$ and $e$ are called the \emph{head} and \emph{body} of the generalized connect statement respectively. (Note that in the syntax of LoFIRRTL, only statements of the form $z <= e$ are called connect statements.)
-
-%
-The \emph{dependency graph} of $A$ is $G_A = (\cpnts(A), E_A)$, where $E_A$ comprises the edges $(x, y)$ such that $y$ depends on $x$, more precisely, $x$ occurs in the body of the generalized connect statement for $y$.
-%
-%(Recall that LoFIRRTL does not contain partial connect statements, moreover, for each $y \in \cpnts(B)$, there is at most one connect statement where $y$ is the head.)
-\end{comment}
-
-
-Since combinational loops\footnote{A combinatorial loop is when the output of some combinatorial logic, that is a section of logic with no registers between gates, is fed back into the input of that combinatorial logic with no intervening register.} are usually taken as ``bad'' in digital circuit design, we require that \emph{$G_A$ is acyclic}. Another necessary condition for the well-definedness of semantics of LoFIRRTL is stated as follows: \emph{Each $z \in \ccpnts(A)$ should be connected to exactly once, that is, there is exactly one generalized connect statement whose head is $z$}. Futhermore, in this work, we ignore clocks, that is, all signals are related to the same clock, the global clock.
-
-To define the operational semantics of $A$, we require that module $A$ is in \emph{pseudo-SSA form}, that is,  the statement sequence of module $A$ satisfies the following two additional  constraints,
-\begin{itemize}
-\item all components are declared before they are used in the bodies and heads of connect statements (except that nodes are declared and used simultaneously),
-%
-\item the sequence of heads of the generalized connect statements in module $A$ forms a topological sorting of $G_A$ (where the vertices without incoming edges are ignored), specifically, for every edge $(x, y)$ in $G_A$, $x$ is before $y$ in the sequence (if $x$ indeed occurs in the sequence), in other words, the generalized connect statement for $x$ (if there is any) is before the connect statement for $y$ in $A$.
-\end{itemize}
-
-%A necessary condition for the well-definedness of the semantics of LoFIRRTL programs
-
-%From the fact that $A$ is a module in a LoFIRRTL program, we know that $G_A$ is acyclic.
-%Equipped with $G_A$, we state a necessary condition for the well-definedness of the semantics of LoFIRRTL programs: $G_A$ satisfies the following constraints,
-%\begin{itemize}
-%\item for each $z \in \ccpnts(A)$, there is exactly one generalized connect statement whose head is $z$,
-%
-%\item for each $z \in \registers(A)$, there is at most one generalized connect statement whose head is $z$,
-%
-%\item the dependency graph $G_A$ is acyclic.
-%\end{itemize}
-
-
-For instance, the following LoFIRRTL program
-%[caption=My FIRRTL Example]
-\begin{lstlisting}
-module A
-  input io_in: UInt<32>
-  output io_out: UInt<32>
-  node a = add(io_in, UInt<32>("h1"))
-  io_out <= tail(a, 1)
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{figure}[!t]
+\centering
+\begin{subfigure}[b]{0.4\textwidth}
+         \centering
+\begin{lstlisting}%[basicstyle=\scriptsize\ttfamily]
+module MyModule :
+  input a: UInt<1>
+  input b: UInt<1>
+  output myport1: UInt<1>
+  output myport2: UInt<1>
+  myport1 <= b
+  myport2 <= a
 \end{lstlisting}
-%
-is in pseudo-SSA form, while the following program
-\begin{lstlisting}
+\caption{Example in pseudo-SSA form}
+\label{fig:exampleinSSA}
+\end{subfigure}
+\hspace{4mm}
+%     \hfill
+\begin{subfigure}[b]{0.45\textwidth}
+         \centering
+\begin{lstlisting}%[basicstyle=\scriptsize\ttfamily]
 module A
   input io_in: UInt<32>
   output io_out: UInt<32>
   io_out <= tail(a, 1)
   node a = add(io_in, UInt<32>("h1"))
 \end{lstlisting}
-is not, since $({\tt a}, {\tt io\_out})$ is an edge in $G_A$, while the generalized connect statement for {\tt a} is after the generalized connect statement for {\tt io\_out}.
+\caption{Example not in pseudo-SSA form}
+\label{fig:examplenotinSSA}
+\end{subfigure}
+\end{figure}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-In the sequel, we require that $A$ is in the pseudo-SSA form.
 
-The operational semantics of $A$ relies on a concept of configurations defined below.
 
-Let $\gtypes$ denote the set of ground types, that is, $(\{UInt, SInt\} \times \Nat) \cup \{Clock, Reset, AsyncReset\}$. Let $\bv$ denote the set of bit vectors, that is, $\{0,1\}^+$.
-For $t = (\tau, n) \in \{UInt, SInt\} \times \Nat$, we define the \emph{width} of $t$, denoted by $wd(t)$, as $n$.
-
-A \emph{configuration} of $A$ is a triple $(te, s, rs)$, where $te$ is a type environment, $s$ is a state, and $rs$ is a register state. Intuitively, $te$ denotes the types of the components, $s$ denotes the values of the components in the beginning of the current clock cycle, and $rs$ denotes the new values of the registers in the beginning of the next clock cycle. Formally,
+To define the operational semantics of the module $A$, we require that it is in \emph{pseudo-SSA form}, that is,  the statement sequence of the module $A$ satisfies the following two additional constraints,
 \begin{itemize}
-\item a \emph{type environment} $te$ of $A$ is a function from $\cpnts(A)$ to $\gtypes$,
+\item each component $z\in \cpnts(A)$ is declared before it is used in the bodies and heads of generalized connect statements (except that node $z\in \nodes(A)$ is declared and used simultaneously),
 %
-\item a \emph{state} $s$ of $A$ is a function from $\cpnts(A)$ to $\bv \cup \{\bot\}$,
-%
-\item a \emph{register state} $rs$ of $A$ is a function from $\registers(A)$ to $\bv \cup \{\bot\}$.
+\item the concatenation $\pi_1\|\pi_2$ of sequence  $\pi_1$ of input ports and the sequence $\pi_2$ of heads of the generalized connect statements in the module $A$ forms
+ a topological sorting of  the dependency graph $G_A$ (note that input ports $\iports(A)$ do not have incoming edges in $G_A$, thus
+do not occur in the sequence $\pi_2$),
+specifically, for every edge $(x, y)$ in the dependency graph $G_A$,
+the component $x$ precedes the component $y$ in the sequence $\pi_1\|\pi_2$. % (if $x$ indeed occurs in the sequence, i.e., $x$ is a non-input port).
 \end{itemize}
 
-%A \emph{type environment} of $M$ is a function from $\varset(M)$ to $\gtypes$.
-%A \emph{state} of $M$ is a function from $\varset(M)$ to $\bv \cup \{\bot\}$. A \emph{register state} $rs$ of $M$ is a function from $\varset(M)$ to $\bv \cup \{\bot\}$ such that $rs(v) = \bot$ for every $v \in \gtypes \setminus \registers(M)$. Note that $\bot$ is a special symbol denoting the fact that the value of a variable is not determined yet.
+Intuitively,
+the first condition ensures that each component $z\in \cpnts(A)$ has a declared data type
+before it is used in the bodies and heads of connect statements.
+The second condition ensures that a generalized connect statement with head $x$
+must precede any generalized connect statement with head $y$ in the module $A$ if $(x, y)$ is an edge in the dependency graph $G_A$,
+namely, the signal of $x$ is evaluated before it is used for evaluating $y$.
+For instance, the LoFIRRTL program shown in Figure~\ref{fig:exampleinSSA} is in
+pseudo-SSA form while the one shown in Figure~\ref{fig:examplenotinSSA} is not, since
+$({\tt a}, {\tt io\_out})$ is an edge in $G_A$, while 
+the generalized connect statement  \prettyll{node a = add(io_in, UInt<32>("h1"))} for \prettyll{a} follows 
+the generalized connect statement \prettyll{io_out <= tail(a, 1)} for \prettyll{io\_out}.
+In the sequel, we assume that the module $A$ is in the pseudo-SSA form.
 
-The operational semantics of each statement $st$ in $A$ is defined as a relation $(te, s, rs) \xrightarrow{st} (te', s', rs')$, which denotes that the execution of $st$ from a configuration $(te, s, rs)$ results into a configuration $(te', s', rs')$. Moreover, the operational semantics of a sequence of statements is defined as the composition of the relations of statements therein and the operational semantics of module $A$ is defined as the operational semantics of its statement sequence.
 
 
-%Then a \emph{configuration} of $M$ is defined as a triple $(te, s, rs)$, where $te$ is a type environment, $s$ is a state, and $rs$ is a register state. Intuitively, $te$ denotes the types of the variables, $s$ denotes the values of the variables in the beginning of the current clock cycle, and $rs$ denotes the new values of the registers in the beginning of the next clock cycle.
 
-%Then the operational semantics of each statement $st$ in $M$ is defined as a relation $(te, s, rs) \xrightarrow{st} (te', s', rs')$, which denotes that the execution of $st$ from a configuration $(te, s, rs)$ results into a configuration $(te', s', rs')$. Moreover, the operational semantics of a sequence of statements is defined as the composition of the relations of statements therein.
+The operational semantics of LoFIRRTL relies on a concept of configurations.
+A \emph{configuration} of the module $A$ is a triple $(\tEnv, \sEnv, \rEnv)$, where $\tEnv:\cpnts(A)\rightarrow \gtypes$ is a type environment, 
+$\sEnv: \cpnts(A)\rightarrow \bv \cup \{\bot\}$ is a state, and $\rEnv: \registers(A)\rightarrow \bv \cup \{\bot\}$ is a register state,
+$\bot$ denotes undefined. 
+Intuitively, $\tEnv$ denotes the types of the components, $\sEnv$ denotes the (signal) values of the components in the beginning of the current clock cycle, and $\rEnv$ denotes the new values of the registers in the beginning of the next clock cycle which will be committed to the next state at the arriving of the next clock signal.
+The type environment $te$ and state $s$ are lift to expressions $e$ as usual, whose definitions can be found in Appendix~\ref{app-lofirrtl}.
 
-
-The rules for the operational semantics of statements are presented in Table~\ref{tab:lofirrtl-sem}, where $te[t/v]$ denotes the function that is obtained from $te$ by assigning $t$ to $v$, similarly for $s[0^{wd(t)}/v]$, and so on. Moreover, the rules rely on $te(e)$ and $s(e)$, which are extensions of the functions $te$ and $s$ to expressions, whose definitions can be found in Appendix~\ref{app-lofirrtl}.
-
-Let us illustrate the semantics by using the ``reg with reset: $\neq \bot$, true'' rule: At first, $rs(r) \neq \bot$ implies that the value of the register $r$ in the beginning of the current clock cycle is defined. Then the state $s$ is updated by assigning $rs(r)$ to $r$, resulting into the new state $s'$. Moreover, because $s(e_1)=true$, the register state $rs$ is updated by assigning $s(e_2)$ to $r$, resulting into the new register state $rs'$. In other words, the value of $r$ is reset, that is, the value of $r$ will be $s(e_2)$ in the beginning of the next clock cycle.
-%
+The operational semantics of each statement $st$ in the module $A$ is defined as a transition relation between configurations
+$$(te, s, rs) \xrightarrow{st} (te', s', rs'),$$ 
+which denotes that the execution of the statement $st$ from a configuration $(te, s, rs)$ leads to a configuration $(te', s', rs')$. 
+Moreover, the operational semantics of a sequence of statements is defined as the composition of the relations of statements therein and the operational semantics of module $A$ is defined as the operational semantics of its statement sequence.
+For instance, we have $(te, s, rs) \xrightarrow{st_1\ st_2} (te'', s'', rs'')$, if $(te, s, rs) \xrightarrow{st_1} (te', s', rs')$
+and  $(te', s', rs') \xrightarrow{st_2} (te'', s'', rs'')$.
 
 \begin{table}[t]
   \footnotesize
@@ -197,9 +182,155 @@ Let us illustrate the semantics by using the ``reg with reset: $\neq \bot$, true
   \vspace{-6mm}
 \end{table}
 
+The rules for the operational semantics of statements are presented in Table~\ref{tab:lofirrtl-sem}, where $te[t/v]$ denotes the type environment that is obtained from $te$ by assigning $t$ to $v$, 
+the state $s[c/v]$ and register state $rs[c/r]$ are defined accordingly.
+
+
+Let us illustrate the semantics by using the ``reg with reset: $\neq \bot$, true'' rule: At first, $rs(r) \neq \bot$ implies that the value of the register $r$ in the beginning of the current clock cycle is defined. Then the state $s$ is updated by assigning $rs(r)$ to $r$, resulting into the new state $s'$. Moreover, because $s(e_1)=true$, the register state $rs$ is updated by assigning $s(e_2)$ to $r$, resulting into the new register state $rs'$. In other words, the value of $r$ is reset, that is, the value of $r$ will be $s(e_2)$ in the beginning of the next clock cycle.
+%
+
+An \emph{input trace} of the module $A$ of length $m$ is a function $it:\iports(A)\rightarrow\bv^m$ such that $it(x)$ is a sequence of bit vectors and the length of $it(x)$ is $m$, for every $x \in \iports(A)$.
+Intuitively, for every $1\leq i\leq m$, $it(x)[i]$ is the input value of the input port $x$ at the $i$-th clock cycle.
+
+
+Let $ss$ be the sequence of statements in $A$ and $it$ be an input trace of $A$ of length $m$. Then the semantics of $A$ with respect to $it$ is defined by the relations 
+$$(te, s, rs) \xrightarrow{A, it, j, m} (te', s', rs'),\ \mbox{for}\ 0 \le j \le m.$$ 
+Intuitively, the relation $(te, s, rs) \xrightarrow{A, it, j, m} (te', s', rs')$ denotes that $(te, s, rs)$ is the configuration resulted 
+from processing the first $m-j$ clock cycles of the input trace $\it$
+and $(te', s', rs')$ is obtained after processing the remaining $j$ clock cycles of the input trace $\it$. 
+The relation $(te, s, rs) \xrightarrow{A, it, j, m} (te', s', rs')$ can inductively interpreted as follows:
+\begin{itemize}
+\item First, the input ports in the $(m-j+1)$-th clock cycle get signals from the input trace $it$, namely, replace the value of each input port $x$ in 
+the state $s$ with $it(x)[m-j+1]$, resulting into a new state $s_1$.
+%
+\item Then, the statement sequence $ss$ of the module $A$ is executed one time in one clock cycle from the configuration $(te, s_1, rs)$, resulting into a new configuration $(te'', s'', rs'')$.
+%
+\item Finally, the configuration $(te', s', rs')$ is obtained by executing the statement sequence $ss$ in the last $j-1$ clock cycles  from the configuration $(te'', s'', rs'')$.
+\end{itemize}
+Formally, the relation $(te, s, rs) \xrightarrow{A, it, j, m} (te', s', rs')$ is inductively defined as follows:
+\begin{itemize}
+\item If $j = 0$, then $(te, s, rs) \xrightarrow{A, it, j, m} (te, s, rs)$.
+%
+\item Otherwise, if $(te, s_1, rs) \xrightarrow{ss} (te'', s'', rs'')$ and $(te'', s'', rs'') \xrightarrow{A, it, j-1, m} (te', s', rs')$, then $(te, s, rs) \xrightarrow{A, it, j, m} (te', s', rs')$,
+where $s_1$ is the state obtained from the state $s$ by assigning the value $it(x)[m-j+1]$ to the input port $x$ for each $x \in \iports(A)$.
+\end{itemize}
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%% comment out by Fu %%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{comment}
+We first show how to define the operational semantics for the situation that the module $A$ contains no occurrences of ``inst of'' statements. Later on, we will consider the more general case.
+%
+\paragraph*{No ``inst of'' statements in module $A$} Let us assume that $A$ contains no occurrences of ``inst of'' statements. In this case, we know that $A$ is the only module in circuit $A$.
+
+Before presenting the operational semantics, we introduce some notations.
+
+We use $\iports(A)$ (resp. $\oports(A)$) to denote the set of input (resp. output) ports of the module $A$,  $\ports(A) = \iports(A) \cup \oports(A)$, $\wires(A)$ to denote the set of wires in the module instance $A$, $\nodes(A)$ to denote the set of nodes in the module $A$, and $\registers(A)$ to denote the set of registers in the module $A$.
+%
+Moreover, we use $\cpnts(A)$ to denote the set of components in $A$, that is, $\ports(A) \cup \wires(A) \cup \nodes(A) \cup \registers(A)$.
+
+A \emph{generalized connect statement} for $z  \in \cpnts(B)$ is a statement of the form $z <= e$ or $\mbox{node } z = e$, where $z$ and $e$ are called the \emph{head} and \emph{body} of the generalized connect statement respectively. Intuitively, a generalized connect statement is either a connect statement or a node-declaration statement.
+
+We use $\ccpnts(A)$ to denote the set of connected components of $A$, that is, $\ccpnts(A) = \oports(A) \cup \wires(A) \cup \nodes(A)$. (Intuitively, connected components of $A$ must be connected to, that is, occur as the heads of generalized connect statements of $A$.) Note that the input ports of $A$ are not connected to, moreover, the registers may not be connected to. (If a register is not connected to, then it keeps the current value. )
+
+%For $(id, B) \in \modinst(A)$, let $\cpnts(id, B)$ denote $\{id.z \mid z \in \cpnts(B)\}$.
+
+%Let $B$ be a module in circuit $A$. A \emph{generalized connect statement} for $z  \in \cpnts(B)$ is a statement of the form $z <= e$ or $\mbox{node } z = e$, where $z$ and $e$ are called the \emph{head} and \emph{body} of the generalized connect statement respectively. (Note that in the syntax of LoFIRRTL, only statements of the form $z <= e$ are called connect statements.)
+
+%
+The \emph{dependency graph} of $A$ is $G_A = (\cpnts(A), E_A)$, where $E_A$ comprises the edges $(x, y)$ such that $y$ depends on $x$, more precisely, $x$ occurs in the body of the generalized connect statement for $y$.
+%
+%(Recall that LoFIRRTL does not contain partial connect statements, moreover, for each $y \in \cpnts(B)$, there is at most one connect statement where $y$ is the head.)
+
+
+
+Since combinational loops\footnote{A combinatorial loop is when the output of some combinatorial logic, that is a section of logic with no registers between gates, is fed back into the input of that combinatorial logic with no intervening register.} are usually taken as ``bad'' in digital circuit design, we require that \emph{$G_A$ is acyclic}. Another necessary condition for the well-definedness of semantics of LoFIRRTL is stated as follows: \emph{Each $z \in \ccpnts(A)$ should be connected to exactly once, that is, there is exactly one generalized connect statement whose head is $z$}. Futhermore, in this work, we ignore clocks, that is, all signals are related to the same clock, the global clock.
+
+
+
+To define the operational semantics of $A$, we require that module $A$ is in \emph{pseudo-SSA form}, that is,  the statement sequence of module $A$ satisfies the following two additional  constraints,
+\begin{itemize}
+\item all components are declared before they are used in the bodies and heads of connect statements (except that nodes are declared and used simultaneously),
+%
+\item the sequence of heads of the generalized connect statements in module $A$ forms a topological sorting of $G_A$ (where the vertices without incoming edges are ignored), specifically, for every edge $(x, y)$ in $G_A$, $x$ is before $y$ in the sequence (if $x$ indeed occurs in the sequence), in other words, the generalized connect statement for $x$ (if there is any) is before the connect statement for $y$ in $A$.
+\end{itemize}
+
+
+%A necessary condition for the well-definedness of the semantics of LoFIRRTL programs
+
+%From the fact that $A$ is a module in a LoFIRRTL program, we know that $G_A$ is acyclic.
+%Equipped with $G_A$, we state a necessary condition for the well-definedness of the semantics of LoFIRRTL programs: $G_A$ satisfies the following constraints,
+%\begin{itemize}
+%\item for each $z \in \ccpnts(A)$, there is exactly one generalized connect statement whose head is $z$,
+%
+%\item for each $z \in \registers(A)$, there is at most one generalized connect statement whose head is $z$,
+%
+%\item the dependency graph $G_A$ is acyclic.
+%\end{itemize}
+
+
+For instance, the following LoFIRRTL program
+%[caption=My FIRRTL Example]
+\begin{lstlisting}
+module A
+  input io_in: UInt<32>
+  output io_out: UInt<32>
+  node a = add(io_in, UInt<32>("h1"))
+  io_out <= tail(a, 1)
+\end{lstlisting}
+%
+is in pseudo-SSA form, while the following program
+\begin{lstlisting}
+module A
+  input io_in: UInt<32>
+  output io_out: UInt<32>
+  io_out <= tail(a, 1)
+  node a = add(io_in, UInt<32>("h1"))
+\end{lstlisting}
+is not, since $({\tt a}, {\tt io\_out})$ is an edge in $G_A$, while the generalized connect statement for {\tt a} is after the generalized connect statement for {\tt io\_out}.
+
+
+
+In the sequel, we require that $A$ is in the pseudo-SSA form.
+
+The operational semantics of $A$ relies on a concept of configurations defined below.
+
+Let $\gtypes$ denote the set of ground types, that is, $(\{UInt, SInt\} \times \Nat) \cup \{Clock, Reset, AsyncReset\}$. Let $\bv$ denote the set of bit vectors, that is, $\{0,1\}^+$.
+For $t = (\tau, n) \in \{UInt, SInt\} \times \Nat$, we define the \emph{width} of $t$, denoted by $wd(t)$, as $n$.
+
+A \emph{configuration} of $A$ is a triple $(te, s, rs)$, where $te$ is a type environment, $s$ is a state, and $rs$ is a register state. Intuitively, $te$ denotes the types of the components, $s$ denotes the values of the components in the beginning of the current clock cycle, and $rs$ denotes the new values of the registers in the beginning of the next clock cycle. Formally,
+\begin{itemize}
+\item a \emph{type environment} $te$ of $A$ is a function from $\cpnts(A)$ to $\gtypes$,
+%
+\item a \emph{state} $s$ of $A$ is a function from $\cpnts(A)$ to $\bv \cup \{\bot\}$,
+%
+\item a \emph{register state} $rs$ of $A$ is a function from $\registers(A)$ to $\bv \cup \{\bot\}$.
+\end{itemize}
+
+%A \emph{type environment} of $M$ is a function from $\varset(M)$ to $\gtypes$.
+%A \emph{state} of $M$ is a function from $\varset(M)$ to $\bv \cup \{\bot\}$. A \emph{register state} $rs$ of $M$ is a function from $\varset(M)$ to $\bv \cup \{\bot\}$ such that $rs(v) = \bot$ for every $v \in \gtypes \setminus \registers(M)$. Note that $\bot$ is a special symbol denoting the fact that the value of a variable is not determined yet.
+
+
+The operational semantics of each statement $st$ in $A$ is defined as a relation $(te, s, rs) \xrightarrow{st} (te', s', rs')$, which denotes that the execution of $st$ from a configuration $(te, s, rs)$ results into a configuration $(te', s', rs')$. Moreover, the operational semantics of a sequence of statements is defined as the composition of the relations of statements therein and the operational semantics of module $A$ is defined as the operational semantics of its statement sequence.
+
+
+%Then a \emph{configuration} of $M$ is defined as a triple $(te, s, rs)$, where $te$ is a type environment, $s$ is a state, and $rs$ is a register state. Intuitively, $te$ denotes the types of the variables, $s$ denotes the values of the variables in the beginning of the current clock cycle, and $rs$ denotes the new values of the registers in the beginning of the next clock cycle.
+
+%Then the operational semantics of each statement $st$ in $M$ is defined as a relation $(te, s, rs) \xrightarrow{st} (te', s', rs')$, which denotes that the execution of $st$ from a configuration $(te, s, rs)$ results into a configuration $(te', s', rs')$. Moreover, the operational semantics of a sequence of statements is defined as the composition of the relations of statements therein.
+
+
+The rules for the operational semantics of statements are presented in Table~\ref{tab:lofirrtl-sem}, where $te[t/v]$ denotes the function that is obtained from $te$ by assigning $t$ to $v$, similarly for $s[0^{wd(t)}/v]$, and so on. Moreover, the rules rely on $te(e)$ and $s(e)$, which are extensions of the functions $te$ and $s$ to expressions, whose definitions can be found in Appendix~\ref{app-lofirrtl}.
+
+Let us illustrate the semantics by using the ``reg with reset: $\neq \bot$, true'' rule: At first, $rs(r) \neq \bot$ implies that the value of the register $r$ in the beginning of the current clock cycle is defined. Then the state $s$ is updated by assigning $rs(r)$ to $r$, resulting into the new state $s'$. Moreover, because $s(e_1)=true$, the register state $rs$ is updated by assigning $s(e_2)$ to $r$, resulting into the new register state $rs'$. In other words, the value of $r$ is reset, that is, the value of $r$ will be $s(e_2)$ in the beginning of the next clock cycle.
+%
+
+
+
 %$te(e)$ is defined as follows.
 
-An \emph{input trace} of $A$ of length $m$ is a function $it$ from $\iports(A)$ to $\bv$ such that $it(x)$ is a sequence of bit vectors and the length of $it(x)$ is $m$, for every $x \in \iports(A)$.
+An \emph{input trace} of  $A$ of length $m$ is a function $it$ from $\iports(A)$ to $\bv$ such that $it(x)$ is a sequence of bit vectors and the length of $it(x)$ is $m$, for every $x \in \iports(A)$.
 
 Let $st$ be the sequence of statements in $A$ and $it$ be an input trace of $A$ of length $m$. Then the semantics of $A$ with respect to $it$ is defined by the relations $(te, s, rs) \xrightarrow{A, it, j, m} (te', s', rs')$ for $0 \le j \le m$. Intuitively, the relation $(te, s, rs) \xrightarrow{A, it, j, m} (te', s', rs')$ denotes that $(te, s, rs)$ is the configuration resulted from processing the first $m-j$ clock cycles of the input trace and $(te', s', rs')$ is obtained after processing the remaining $j$ clock cycles of the input trace. In the sequel, we define the relation $(te, s, rs) \xrightarrow{A, it, j, m} (te', s', rs')$ inductively as follows.
 \begin{itemize}
@@ -219,10 +350,57 @@ More formally, $(te, s, rs) \xrightarrow{A, it, j, m} (te', s', rs')$ is defined
 %\begin{itemize}
 %\item
 %\end{itemize}
+\end{comment}
 
+\subsubsection{General LoFIRRTL}
+W.l.o.g., we assume that the circuit $A$ contains at least two instances of modules, namely,
+the top-level module $A$ contains at least one \prettyll{inst of} statement.
+(Note that the top-level module $A$ contributes one instance to the circuit $A$ without using any \prettyll{inst of} statements.)
+Moreover, we assume that the module dependency graph, which comprises the edges $(B, C)$ if a statement \prettyll{inst y of C} occurs in 
+the module $B$ for some $y$ (similar to class inheritance graph in object-oriented programming languages), is acyclic.
+This ensures that there are no mutual dependencies between modules in the circuit $A$.
+
+For the sake of simplicity, instead of directly defining an operational semantics for the circuit $A$,
+we choose to flatten the hierarchies of the modules in the circuit $A$ into a circuit containing a single module $M_A$, i.e., 
+an \prettyll{inst of}-free LoFIRRTL module, similar to procedure inlining in software programs.
+The resulting module $M_A$ is in turn transformed into a pseudo-SSA form module $M'_A$
+whose operational semantics has been defined above.
+Finally, we define the  operational semantics of the circuit $A$
+as that of the module $M'_A$.
+
+In the sequel, we show how to flatten the hierarchies of the modules in circuit $A$ into a module $M_A$.
+We define the set of module instances of the circuit $A$, denoted by $\modinst(A)$, inductively as follows. An element of $\modinst(A)$ is a pair $(id, B)$, 
+which denotes an instance of module the $B$ with the identifier $id$, i.e., \prettyll{inst id of B} is a statement in the circuit $A$.
+% \emph{the identifiers} of these module instances inductively as follows.
+\begin{itemize}
+\item $(A, A) \in \modinst(A)$, that is, an instance of the top-level module $A$ is in $MI(A)$. Note that we use $A$ as the identifier of the instance of module $A$, since there is a unique instance of the top-level module.
+%
+\item If $(x, B) \in \modinst(A)$, and the module $B$ has a statement \prettyll{inst y of C}, then $(x.y, C) \in \modinst(A)$,
+where $x.$ is added to avoid name conflict.
+\end{itemize}
+
+
+For each module instance $(id, B) \in MI(A)$, we inductively construct a module $M_{(id, B)}$ as follows:
+\begin{itemize}
+\item If $B$ is an \prettyll{inst of}-free module, then $M_{(id, B)}$ is obtained from the module $B$ by replacing all identifiers $z$ with $id.z$.
+%
+\item Otherwise, suppose that the module $M_{(id.y, C)}$ has been constructed for each statement \prettyll{inst y of C} in the module $B$. 
+Then $M_{(id, B)}$ is obtained from the module $B$ by first replacing all identifiers $z$ with $id.z$,  then replacing each statement \prettyll{inst id.y of C}  with the statement sequence in $M_{(id.y, C)}$.
+\end{itemize}
+Finally, the \prettyll{inst of}-free LoFIRRTL module $M_A$ is $M_{A, A}$.
+
+Furthermore, $M_A$ can be turned into $M'_A$ in pseudo-SSA form by constructing the dependency graph $G_{M_A}$, building a topological sorting of $G_{M_A}$, and reordering the generalized connect statements of $M_A$ according to the topological sorting.
+
+
+\fu{Stopped}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%% comment out by Fu %%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{comment}
 \paragraph*{There exist ``inst of'' statements in module $A$}
 In this case, circuit $A$ contains at least two instances of modules. Moreover, there are no mutual dependencies between modules, that is, the module dependency graph, which comprises the edges $(B, C)$ such that a statement \begin{lstinline}! inst y of C!\end{lstinline} occurs in module $B$ for some $y$, is acyclic.
 Our main idea is to flatten the hierarchies of modules in circuit $A$ into a circuit containing a single module $M_A$, then transform $M_A$ into pseudo-SSA form $M'_A$, and finally define the operational semantics of $A$ as that of $M'_A$. (Recall that the semantics of a module that is in pseudo-SSA form and contains no occurrences of ``inst of'' statements is defined by the rules in Table~\ref{tab:lofirrtl-sem}.)
+
 
 In the sequel, we show how to flatten the hierarchies of modules in circuit $A$ into a module $M_A$.
 
@@ -234,6 +412,7 @@ We define the set of module instances of circuit $A$, denoted by $\modinst(A)$, 
 \item Suppose $(x, B) \in \modinst(A)$, and the module $B$ contains a statement \begin{lstinline}! inst y of C!\end{lstinline}. Then $(x.y, C) \in \modinst(A)$.
 \end{itemize}
 
+
 For each $(id, B) \in MI(A)$, we inductively construct a module $M_{(id, B)}$ as follows.
 \begin{itemize}
 \item If $B$ contains no occurrences of ``inst of'' statements, then $M_{(id, B)}$ is obtained from module $B$ by replacing all identifiers $z$ with $id.z$.
@@ -243,7 +422,7 @@ For each $(id, B) \in MI(A)$, we inductively construct a module $M_{(id, B)}$ as
 Finally, let $M_A:=M_{A, A}$.
 
 Furthermore, $M_A$ can be turned into $M'_A$ in pseudo-SSA form by constructing the dependency graph $G_{M_A}$, building a topological sorting of $G_{M_A}$, and reordering the generalized connect statements of $M_A$ according to the topological sorting.
-
+\end{comment}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%% the original non-flattened version removed

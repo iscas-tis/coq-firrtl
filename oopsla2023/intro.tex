@@ -2,65 +2,67 @@
 
 Compilers are among the most fundamental and widely-used
 software, based on which programs in high-level programming languages
-are translated into low-level code. Well known open source compilers include GCC~\cite{GCC} for C and C++ programs and LLVM~\cite{LLVM}.
-Compilers for main-stream programming language like C usually include many compilation passes and optimizations. As a result of their inherent complexity,
-there remain massive bugs in compilers, despite intensive efforts of testing~\cite{LeAS14,ZhangSS17}.
+are translated into low-level code. Well-known open source compilers include GCC~\cite{GCC} for C and C++ programs and LLVM~\cite{LLVM}.
+Compilers for main-stream programming languages like C usually include many compilation passes and optimizations. As a result of their inherent complexity,
+there remain massive bugs in compilers, despite intensive testing efforts~\cite{LeAS14,ZhangSS17}.
 Even worse, compiler bugs could silently entail incorrect executions in low-level programs and lead to catastrophic consequences
 for safety-critical applications, and it is extremely difficult to determine whether
-an execution failure is caused by defects in programs or
-bugs in compilers. 
+an execution failure is caused by defects in the programs or
+bugs in compilers. This motivates researchers to apply formal verification techniques to guarantee the correctness of compilers.
 
-To address this deficiency,
-formally verified compilers have been built for several realistic programming languages, such as CompCert for C~\cite{Leroy09,kastner2018compcert,Leroy2006,Leroy-BKSPF-2016,BlazyDL06,Kastner-LBSSF-2017},
-V\'{e}lus for Lustre~\cite{BourkeBDLPR17}, Vellvm~\cite{ZhaoNMZ12,ZhaoNMZ13} and Crellvm~\cite{KangKSLPSKCCHY18} for LLVM Intermediate Representation,
+Formally verified compilers have been built for several realistic programming languages, such as CompCert for C~\cite{Leroy09,kastner2018compcert,Leroy2006,Leroy-BKSPF-2016,BlazyDL06,Kastner-LBSSF-2017},
+V\'{e}lus for Lustre~\cite{BourkeBDLPR17}, Vellvm~\cite{ZhaoNMZ12,ZhaoNMZ13} and Crellvm~\cite{KangKSLPSKCCHY18} for the LLVM Intermediate Representation,
 and CakeML for ML~\cite{KumarMNO14,LoowKTMNAF19,TanMKFON19,OwensNKMT17}.
-Such compilers come with a mathematical, machine-checked proof of correctness
-that compilation passes preserve the behavior of programs,
-hence strengthen the guarantees that can be obtained by applying formal verification to high-level programs.
+Such compilers come with a mathematical, machine-checked proof
+that compilation passes preserve program semantics,
+hence strengthening the correctness guarantees that can be obtained by formal verification of high-level programs.
 
-The success of verified compilers on software programming languages has been ported to hardware description languages (HDLs)
+The success of formally verified compilers on software programming languages has been ported to hardware description languages (HDLs)
 very recently, e.g., the extension of CakeML (called Lutsig) for compiling %register-transfer language Verilog to gate-level netlist~\cite{Loow21,loowphd21}
-\fu{a subset of register-transfer level (RTL) Verilog to fully technology mapped netlist level for field-programmable gate array (FPGA)},
+a subset of register-transfer level (RTL) Verilog programs to netlist level programs for field-programmable gate array (FPGA),
 and the extension of CompCert (called Vericert) for compiling %compiling C programs to Verilog programs~\cite{HerklotzPRW21}.
-\fu{a subset of C programs to RTL Verilog programs~\cite{HerklotzPRW21}.}
-Following this promising research direction, in this work, we
+a subset of C programs to RTL Verilog programs~\cite{HerklotzPRW21}.
+Following this promising research direction, in this work, we establish for the first time a framework that formally reasons about programs in FIRRTL~\cite{firrtl-spec} (Flexible Intermediate Representation for RTL) and its lowering transformations (aka compilation passes).  
+
+FIRRTL originated from the high-level hardware construction language Chisel~\cite{BachrachVRLWAWA12}.
+Chisel is a domain specific language embedded in Scala that comprises a library of special class definitions, predefined objects, and usage conventions for writing highly-parameterized circuit design generators.
+High-level hardware generators in Chisel are developed by manipulating circuit components using Scala functions,
+and their interfaces are encoded in Scala types.
+Circuits can also be constructed by leveraging Scala's functional and object-oriented programming features, enabling parameterized, modular, and reusable hardware generators that improve hardware design productivity and robustness.
+Chisel has been successfully used to build RISC-V processes such as Rocket Chip~\cite{RocketChip}, RISC-V BOOM \cite{Boom}, NutShell~\cite{NutShell}, 
+XiangShan~\cite{xiangshan,Xiangshan-github}, and so on. 
+%SiFive Core IP portfolio~\cite{SiFive},
+%and Google Edge TPU~\cite{EdgeTPU}.
+The FIRRTL intermediate representation was proposed for the compilation of Chisel programs~\cite{IzraelevitzKLLW17},
+analogous to the role of the LLVM IR~\cite{LLVM} for compiling C programs.
+FIRRTL features first-class support for high-level constructs
+such as vector types, bundle types, conditional statements, connects, partial connects,
+and modules so that Chisel programs can easily be translated into FIRRTL.
+%
+High-level synthesis is performed on FIRRTL by a sequence of compilation passes and optimizations, resulting into a most restricted form that is close to RTL Verilog, called low FIRRTL (abbreviated as LoFIRRTL).
+While FIRRTL was designed to compile Chisel programs, it is not fundamentally tied to Chisel. Other HDLs can also be compiled into FIRRTL and reuse the majority of
+the FIRRTL compilation passes. For instance, FIRRTL has been integrated into the CIRCT project~\cite{CIRCT} as one of its core IRs.
+
+Partially due to the fact that Chisel and FIRRTL are relatively new and the ecosystem around them is still evolving, formalization and verification of FIRRTL IR and its lowering transformations are largely missing, with an exception \cite{HarrisonHA21}. In \cite{HarrisonHA21}, a coinductive denotational semantics for LoFIRRTL based on a formalism called device calculus was proposed. \zhilin{a comparison with this work should be carefully done. }
+
+Surprisingly, a formal operational semantics of FIRRTL is still missing and
+the FIRRTL compiler suffers from lots of bugs due to the complexity of FIRRTL transformations.
+In fact,  there are 649 issues in its github repository, among which
+99 have been labeled as bugs~\cite{FIRRTLissures}.
+For instance, the width of \lstinline!dshl(e1,e2)! inferred by the ``Infer Width'' compilation pass
+is less than the width of \lstinline!e1!,\footnote{\url{https://github.com/chipsalliance/firrtl/issues/2296}} where \lstinline!dshl! is a dynamic shift left operation
+which shifts the bits in \lstinline!e1! towards the
+most significant bit \lstinline!e2! places and \lstinline!e2! zeroes are shifted in to the least significant bits.
+The ``ExpandWhens'' compilation pass may introduce unexpected \lstinline!VOID!, leading to a match error in
+the ``InferTypes'' compilation pass\footnote{\url{https://github.com/chipsalliance/firrtl/issues/852}}.
+
+We define for the first time the executable operational semantics of low FIRRTL.
 present the first formal operational semantics of the hardware description language FIRRTL (Flexible Intermediate Representation for RTL)~\cite{firrtl-spec} and verify two key compilation passes of FIRRTL programs~\cite{firrtlcompiler,IzraelevitzKLLW17}, namely ``Infer Width'' and ``Expand Whens'',
 which infers bit widths of signals
 and replaces conditional statements with multiplexers, respectively.
 
-FIRRTL is originated from the high-level HDL Chisel~\cite{BachrachVRLWAWA12}.
-Chisel is a library of special class definitions, predefined objects, and usage conventions within Scala for writing highly-parameterized circuit design generators.
-High-level hardware generators in Chisel are developed by manipulating circuit components using Scala functions,
-and their interfaces are encoded in Scala types.
-Circuit libraries can also be developed by leveraging
-Scala's object-orientation features, enabling
-expressive, reliable and type-safe hardware generators that improve hardware design productivity and robustness.
-Chisel has been successfully used to build RISC-V processes such as NutShell~\cite{NutShell}
-\fu{XiangShan~\cite{xiangshan},
-SiFive Core IP portfolio~\cite{SiFive},
-and Google Edge TPU~\cite{EdgeTPU}.}
-FIRRTL is an intermediate representation language of the Chisel compiler, analogous to LLVM IR.
-It has first-class support for high-level constructs
-such as vector types, bundle types, conditional statements, partial connects,
-and modules so that Chisel HDL can easily be translated into High FIRRTL (HiFIRRTL).
-High-level synthesis is performed on High FIRRTL by accompanied optimization and lowering transformations, resulting in low FIRRTL, LoFIRRTL (close to \fu{register-transfer level} Verilog).
-While FIRRTL was designed to resemble the Chisel HDL
-after all meta-programming has executed, it is not fundamentally tied to Chisel
-and other HDLs can target FIRRTL and reuse the majority of
-the FIRRTL transformations. For instance, FIRRTL has been integrated into the CIRCT project~\cite{CIRCT}.
 
 
-
-Unsurprisingly, the formal operational semantics of FIRRTL is still missing and
-the FIRRTL compiler suffers from lots of bugs due to complexity of FIRRTL transformations.
-In fact,  there are 649 issues in its github repository, among which
-99 have been labeled as bugs~\cite{FIRRTLissures}.
-For instance, the width of \lstinline!dshl(e1,e2)! inferred by the ``Infer Width'' compilation pass
-is less than the width of \lstinline!e1!~\footnote{\url{https://github.com/chipsalliance/firrtl/issues/2296}}, where \lstinline!dshl! is a dynamic shift left operation
-which shifts the bits in \lstinline!e1! towards the
-most significant bit \lstinline!e2! places and \lstinline!e2! zeroes are shifted in to the least significant bits.
-The ``ExpandWhens'' compilation pass may introduce unexpected \lstinline!VOID!, leading to a match error in
-the ``InferTypes'' compilation pass~\footnote{\url{https://github.com/chipsalliance/firrtl/issues/852}}.
 
 
 \fu{In this work, we make the first attempt to fill the above gap. We tbd. Describe what we have done, e.g., challenges of formalizing

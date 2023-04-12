@@ -151,14 +151,14 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
-\newcommand{\prettyll}[1]{\begin{lstinline}! #1 !\end{lstinline}}
+\newcommand{\prettyll}[1]{\begin{lstinline}[basicstyle=\small\ttfamily]! #1 !\end{lstinline}}
 
 %\newif\ifdraft\drafttrue
 \newif\ifdraft\drafttrue
 \ifdraft
 \newcommand{\zhilin}[1]{\color{brown} {ZL: #1 :LZ} \color{black}}
 \newcommand{\xiaomu}[1]{\color{blue} {XM: #1 :MX} \color{black}}
-\newcommand{\david}[1]{\color{cyan} {DV: #1 :VD} \color{black}}
+\newcommand{\david}[1]{\color{cyan} {DNJ: #1 :DNJ} \color{black}}
 \newcommand{\keyin}[1]{\color{red} {KY: #1 :YK} \color{black}}
 \newcommand{\fu}[1]{\color{purple} {Fu: #1 :Fu} \color{black}}
 \else
@@ -214,21 +214,21 @@
 \author{Keyin Wang}
 \affiliation{%
   \institution{Institute of Software, Chinese Academy of Sciences  University of Chinese Academy of Sciences}
-  \streetaddress{P.O.Box 8718}
+  \streetaddress{P.O. Box 8718}
   \city{Beijing}
   \country{China}}
  \affiliation{%
   \institution{University of Chinese Academy of Sciences}
-  \streetaddress{No.19(A) Yuquan Road, Shijingshan District}
+  \streetaddress{No. 19(A) Yuquan Road, Shijingshan District}
   \city{Beijing}
   \country{China}}
 \email{}
 \orcid{}
 
-\author{David Jansen}
+\author{David N. Jansen}
 \affiliation{%
   \institution{Institute of Software, Chinese Academy of Sciences}
-  \streetaddress{P.O.Box 8718}
+  \streetaddress{P.O. Box 8718}
   \city{Beijing}
   \country{China}}
 \email{dnjansen@ios.ac.cn}
@@ -242,7 +242,7 @@
   \country{China}}
  \affiliation{%
   \institution{University of Chinese Academy of Sciences}
-  \streetaddress{No.19(A) Yuquan Road, Shijingshan District}
+  \streetaddress{No. 19(A) Yuquan Road, Shijingshan District}
   \city{Beijing}
   \country{China}}
 \email{wuzl@ios.ac.cn}
@@ -252,12 +252,12 @@
 \author{Lijun Zhang}
 \affiliation{%
   \institution{Huazhong University of Science and Technology}
-  \streetaddress{P.O.Box 8718}
+  \streetaddress{P.O. Box 8718}
   \city{Wuhan}
   \country{China}}
  \affiliation{%
   \institution{University of Chinese Academy of Sciences}
-  \streetaddress{No.19(A) Yuquan Road, Shijingshan District}
+  \streetaddress{No. 19(A) Yuquan Road, Shijingshan District}
   \city{Beijing}
   \country{China}}
 \email{jiuyang@hust.edu.cn}
@@ -266,12 +266,12 @@
 \author{Lijun Zhang}
 \affiliation{%
   \institution{Institute of Software, Chinese Academy of Sciences}
-  \streetaddress{P.O.Box 8718}
+  \streetaddress{P.O. Box 8718}
   \city{Beijing}
   \country{China}}
  \affiliation{%
   \institution{University of Chinese Academy of Sciences}
-  \streetaddress{No.19(A) Yuquan Road, Shijingshan District}
+  \streetaddress{No. 19(A) Yuquan Road, Shijingshan District}
   \city{Beijing}
   \country{China}}
 \email{zhanglj@ios.ac.cn}
@@ -291,7 +291,25 @@
 %% The abstract is a short summary of the work to be presented in the
 %% article.
 \begin{abstract}
-FIRRTL is an intermediate representation for the Chisel hardware construction language and has been intensively used in designing RISC-V CPUs. FIRRTL features the high-level constructs like vector and bundle types, which are then removed by a sequence of lowering transformations, resulting into a most restricted form, called low FIRRTL. This paper presents Vefirrtl, a framework that reasons about programs in FIRRTL and its lowering transformations. Vefirrtl is built using the Coq interactive theorem prover. It provides a mechanized formal semantics for low FIRRTL. Moreover, it formalizes the syntax of FIRRTL and its lowering transformations. To validate the formal semantics for low FIRRTL, we extract from it an OCaml interpreter that can execute low FIRRTL programs, and empirically check its consistency against Treadle, the low FIRRTL reference interpreter, on a benchmark suite comprising 120 low FIRRTL programs. Furthermore, we specify and verify the functional correctness of two key lowering transformations, namely “ExpandConnects” and “ExpandWhens”, which expands the connect statements for vector and bundle types, and replaces conditional statements with multiplexers, respectively.
+FIRRTL is an intermediate representation for the Chisel hardware construction language
+and has been intensively used in designing RISC-V CPUs.
+FIRRTL features high-level constructs like vector and bundle types,
+which are then removed by a sequence of lowering transformations,
+resulting in a most restricted form, called low FIRRTL.
+This paper presents Vefirrtl,
+a framework to formally reason about programs in FIRRTL and its lowering transformations.
+Vefirrtl is built using the Coq interactive theorem prover.
+It provides a mechanized formal semantics for low FIRRTL.
+Moreover, it formalizes the syntax of FIRRTL and its lowering transformations.
+To validate the formal semantics for low FIRRTL,
+we extract from it an OCaml interpreter that can execute low FIRRTL programs,
+and empirically check its consistency against Treadle,
+the low FIRRTL reference interpreter,
+on a benchmark suite comprising 120 low FIRRTL programs.
+Furthermore, we specify and verify the functional correctness of two key lowering transformations,
+namely ``ExpandConnects'' and ``ExpandWhens'',
+which expands the connect statements for vector and bundle types,
+and replaces conditional statements with multiplexers, respectively.
 %
 \end{abstract}
 
