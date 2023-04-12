@@ -26,6 +26,7 @@ assigned to the wire.
     \end{gather}
 The connect statements are ignored in this pass, since they will not
 introduce new components to be added to the environment.
+After applying Infer Types pass, implicit defined type width is assigned to 0 in $ce$.
 
 \subsubsection{``Infer Widths''}
 Implicit widths are allowed to be defined in HiFIRRTL programs.
@@ -49,7 +50,7 @@ the {\tt infer\_width} function will update the $wm$ by
     {\seqq{ce \vdash {\tt infer\_width} (declare\;v, wm) \rightsquigarrow wm'}}
     {\seqq{ce \vdash {\tt width}(t_v) = 0}} {\seqq{wm':= wm \uplus \{v : t_v\}}}.
     \end{gather}
-The width is inferred according to connection statements.
+The width is inferred according to connect statements.
 Since the last connection semantics is not considered, each
 connection to the element provides the potential width. A function
 named {\tt max\_width} compares the potential widths and outputs
@@ -113,6 +114,49 @@ manipulated more efficiently.
 %% from d gives a larger width to the destination $c$. 
 
 \subsubsection{``Infer Resets''}
+In HiFIRRTL, the type \prettyll{Reset} can be used to indicate an
+abstract reset signal. The Infer Reset pass is responsible for
+inferring the concrete type (asynchronous or synchronous) of the abstract one based on the
+connection context. The general rules are,
+\begin{itemize}
+\item Abstract resets driven by only asynchronous resets will be inferred as asynchronous.
+\item Abstract resets that have been invalidated or driven by synchronous signals will be inferred as synchronous.
+\item Abstract resets driven by both synchronous and asynchronous resets will be an error.
+\end{itemize}
+
+Similar to the Infer Widths pass, a temporal map $rm$ is introduced to
+handle abstract resets exclusively. It maps from variables to reset
+types.  The pass begins by scanning the statements in $ss$ and
+searching the components environment $ce$ for the
+abstract resets to be added in $rm$.
+  \begin{gather}
+    \inferii[]
+    {\seqq{ce \vdash {\tt infer\_reset} (declare\; v, rm) \rightsquigarrow rm'}}
+    {\seqq{ce \vdash t_v : \mbox{Reset}}} {\seqq{rm':= rm \uplus \{v : t_v\}}}.
+    \end{gather}
+It then continues on the connect
+statements to find the inference clues,
+checking that the type of the driving signal and the type found in the $rm$ do not conflict.
+If they are the same concrete type or at least one of them is abstract,
+the inferring continues without error.
+  \begin{gather}
+    \inferiv[]
+    {\seqq{ce \vdash {\tt infer\_reset} (v<=e, rm) \rightsquigarrow rm'}}
+    {\seqq{rm \vdash v:t_v}} {\seqq{ce\vdash t_e:={\tt type\_of\_expr}(e)}}
+    {\seqq{{\tt \neg conflict (t_v,t_e)}}}
+    {\seqq{rm':= rm \uplus \{v : t_e\}}}.
+    \end{gather}
+Otherwise, the {\tt infer\_reset} reports an error in the map $rm$ and stops.
+  \begin{gather}
+    \inferiv[]
+    {\seqq{ce \vdash {\tt infer\_reset} (v<=e, rm) \rightsquigarrow rm'}}
+    {\seqq{rm \vdash v:t_v}} {\seqq{ce\vdash t_e:={\tt type\_of\_expr}(e)}}
+    {\seqq{{\tt conflict (t_v,t_e)}}}
+    {\seqq{rm':= \bot}}.
+    \end{gather}
+If there is no error reported, the inferred reset types stored in the temporal map $rm$ can be
+merged to the components environment $ce$ using the {\tt map2} function.
+The resulting $ce$ will contain the inferred concrete reset types.
 
 \subsubsection{``Expand Connects''}
 In HiFIRRTL, connections can be made between aggregate types.  These
@@ -124,7 +168,7 @@ individual ones of corresponding ground types. The general rules are,
 \item Connections between aggregate types will be expanded recursively.
 \end{itemize}
 
-The pass focuses on connection statements in $ss$. The left-hand side
+The pass focuses on connect statements in $ss$. The left-hand side
 of a connection is a reference to a component, while the right-hand side
 is an expression. In order to obtain expanded
 connections, the expression needs to be recursively expanded.
@@ -132,20 +176,43 @@ Only expressions of multiplexers \prettyll{mux} and
 references \prettyll{r} can be of aggregate types. The other
 expressions, such as binary operations, only operate and result in
 ground types. Therefore they do not require expanding.
-Expanding a \prettyll{mux} expression is done by {\tt expand\_mux} function,
+Expanding a \prettyll{mux} expression is done by,
   \begin{gather}
     \infer[]
     {\seqq{ce\vdash{\tt expand\_expr} (\mbox{mux}(ec,e1,e2)) \rightsquigarrow exs}}
     {\seqq{exs:=[\mbox{mux}(ec,x,y)\,|\,x \leftarrow {\tt expand\_expr}(e1),\,y \leftarrow {\tt expand\_expr}(e2)]}}.
     \end{gather}
 It takes the conditional expression $ec$ and the true/false branch
-expressions $e1$ and $e2$ as inputs, and then produces a list
+expressions $e1$ and $e2$ from the original \prettyll{mux} expression, and then produces a list $exs$
 of \prettyll{mux} that combines the lists of expanded $e1$ and $e2$
-with the same condition.  Expanding a references is relatively straightforward.
+with the same condition $ec$. Expanding a references is relatively straightforward.
 It create a list of references to the sub-elements according to the
 type of the component.
 
+After producing the list of references on the left-hand side and the
+list of expressions on the right-hand side, new connect statements can
+be generated pairwise from the two lists to replace the original ones.
+
 \subsubsection{``Lower Types''}
+The Lower Types pass is primarily aimed at transform aggregate types
+into ground types.  The pass replaces certain defined components with
+aggregate types by a new set of components defined with ground types.
+The general rules are,
+\begin{itemize}
+\item Components defined with ground types do not need to be modified.
+\item Except for memories and module instances, components defined with aggregate types need to be replaced by
+      a group of coordinate components that have ground types.
+\end{itemize}
+The identifier in the form of a pair will be introduced $(id,id)$. The
+first field represents the base reference which adapted the original
+identifier of the components, while the second field indecates the
+sub-element with the offset computed from the aggregate type.  The new
+set of components replace the original one are defined with the paired
+identifier.  After applying the Expand Connections pass, connect
+statements are already in ground types.  The references in these
+statements also need to be replace by the corresponding paired
+identifiers.  The statements $ss$ in the circuit diagram is
+changed. In the meanwhile the $ce$ is changed coordinately.
 
 \subsubsection{``Remove Resets''}
 %% For example,
