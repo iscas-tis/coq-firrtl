@@ -62,7 +62,7 @@ The FIRRTL compiler suffers from lots of bugs due to its inherent complexity. Fo
 %The ``ExpandWhens'' compilation pass may introduce unexpected \lstinline!VOID!, leading to a match error in
 %the ``InferTypes'' compilation pass~\footnote{\url{https://github.com/chipsalliance/firrtl/issues/852}}.
 %
-Nevertheless, partially due to the fact that Chisel and FIRRTL are relatively new and the ecosystem around them is still evolving, formalization and verification of FIRRTL IR and its lowering transformations are largely missing, with an exception \cite{HarrisonHA21}. In~\cite{HarrisonHA21}, a coinductive denotational semantics was proposed for LoFIRRTL, based on a formalism called device calculus. Nevertheless, while Harrison et al. made progress in the formalization of LoFIRRTL in~\cite{HarrisonHA21}, a framework where  programs in HiFIRRTL and its lowering transformations can be formally reasoned about is still elusive. Specifically, the establishment of such a framework would require 
+Nevertheless, partially due to the fact that Chisel and FIRRTL are relatively new and the ecosystem around them is still evolving, formalization and verification of FIRRTL IR and its lowering transformations are largely missing, with an exception \cite{HarrisonHA21}. In~\cite{HarrisonHA21}, a coinductive denotational semantics was proposed for LoFIRRTL, based on a formalism called device calculus. Nevertheless, while Harrison et al. made progress in the formalization of LoFIRRTL in~\cite{HarrisonHA21}, a framework where  programs in HiFIRRTL and its lowering transformations can be formally reasoned about is still elusive. The establishment of such a framework would require 
 %\begin{itemize}
 %\item 
 a mechanized operational semantics of LoFIRRTL, 
@@ -76,6 +76,7 @@ formalization of HiFIRRTL and its lowering transformations,
 %\item 
 as well as specification and verification of the correctness of its lowering transformations. 
 %\end{itemize}
+
 In this work, we fill in this gap and provide such a framework. Specifically, we make the following contributions.
 \begin{itemize}
 \item Define the executable operational semantics for LoFIRRTL. The operational semantics is based on a concept of pseudo-single-static-assignment form of LoFIRRTL programs. 
