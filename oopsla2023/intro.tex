@@ -2,16 +2,16 @@
 
 Compilers are among the most fundamental and widely-used
 software, based on which programs in high-level programming languages
-are translated into low-level code. Well known open source compilers include GCC~\cite{GCC} for C and C++ programs and LLVM~\cite{LLVM}.
-Compilers for main-stream programming language like C usually include many compilation passes and optimizations. As a result of their inherent complexity,
-there remain massive bugs in compilers, despite intensive efforts of testing~\cite{LeAS14,ZhangSS17}.
+are translated into low-level code. Well-known open source compilers include GCC~\cite{GCC} for C and C++ programs and LLVM~\cite{LLVM}.
+Compilers for main-stream programming languages like C usually include many compilation passes and optimizations. As a result of their inherent complexity,
+there remain massive bugs in compilers, despite intensive testing efforts~\cite{LeAS14,ZhangSS17}.
 Even worse, compiler bugs could silently entail incorrect executions in low-level programs and lead to catastrophic consequences
 for safety-critical applications, and it is extremely difficult to determine whether
-an execution failure is caused by defects in programs or
-bugs in compilers. This motivates researchers to apply formal verification techniques to guarantee the correctness of compilers. 
+an execution failure is caused by defects in the programs or
+bugs in compilers. This motivates researchers to apply formal verification techniques to guarantee the correctness of compilers.
 
 Formally verified compilers have been built for several realistic programming languages, such as CompCert for C~\cite{Leroy09,kastner2018compcert,Leroy2006,Leroy-BKSPF-2016,BlazyDL06,Kastner-LBSSF-2017},
-V\'{e}lus for Lustre~\cite{BourkeBDLPR17}, Vellvm~\cite{ZhaoNMZ12,ZhaoNMZ13} and Crellvm~\cite{KangKSLPSKCCHY18} for LLVM Intermediate Representation,
+V\'{e}lus for Lustre~\cite{BourkeBDLPR17}, Vellvm~\cite{ZhaoNMZ12,ZhaoNMZ13} and Crellvm~\cite{KangKSLPSKCCHY18} for the LLVM Intermediate Representation,
 and CakeML for ML~\cite{KumarMNO14,LoowKTMNAF19,TanMKFON19,OwensNKMT17}.
 Such compilers come with a mathematical, machine-checked proof
 that compilation passes preserve program semantics,
@@ -33,7 +33,8 @@ Chisel has been successfully used to build RISC-V processes such as Rocket Chip~
 XiangShan~\cite{xiangshan,Xiangshan-github}, and so on. 
 %SiFive Core IP portfolio~\cite{SiFive},
 %and Google Edge TPU~\cite{EdgeTPU}.
-The FIRRTL intermediate representation was proposed for the compilation of Chisel programs~\cite{IzraelevitzKLLW17}, analogous to the role of LLVM IR~\cite{LLVM} for compiling C programs.
+The FIRRTL intermediate representation was proposed for the compilation of Chisel programs~\cite{IzraelevitzKLLW17},
+analogous to the role of the LLVM IR~\cite{LLVM} for compiling C programs.
 FIRRTL features first-class support for high-level constructs
 such as vector types, bundle types, conditional statements, connects, partial connects,
 and modules so that Chisel programs can easily be translated into FIRRTL.
@@ -44,16 +45,16 @@ the FIRRTL compilation passes. For instance, FIRRTL has been integrated into the
 
 Partially due to the fact that Chisel and FIRRTL are relatively new and the ecosystem around them is still evolving, formalization and verification of FIRRTL IR and its lowering transformations are largely missing, with an exception \cite{HarrisonHA21}. In \cite{HarrisonHA21}, a coinductive denotational semantics for LoFIRRTL based on a formalism called device calculus was proposed. \zhilin{a comparison with this work should be carefully done. }
 
- operational semantics of FIRRTL is still missing and
-the FIRRTL compiler suffers from lots of bugs due to complexity of FIRRTL transformations.
+Surprisingly, a formal operational semantics of FIRRTL is still missing and
+the FIRRTL compiler suffers from lots of bugs due to the complexity of FIRRTL transformations.
 In fact,  there are 649 issues in its github repository, among which
 99 have been labeled as bugs~\cite{FIRRTLissures}.
 For instance, the width of \lstinline!dshl(e1,e2)! inferred by the ``Infer Width'' compilation pass
-is less than the width of \lstinline!e1!~\footnote{\url{https://github.com/chipsalliance/firrtl/issues/2296}}, where \lstinline!dshl! is a dynamic shift left operation
+is less than the width of \lstinline!e1!,\footnote{\url{https://github.com/chipsalliance/firrtl/issues/2296}} where \lstinline!dshl! is a dynamic shift left operation
 which shifts the bits in \lstinline!e1! towards the
 most significant bit \lstinline!e2! places and \lstinline!e2! zeroes are shifted in to the least significant bits.
 The ``ExpandWhens'' compilation pass may introduce unexpected \lstinline!VOID!, leading to a match error in
-the ``InferTypes'' compilation pass~\footnote{\url{https://github.com/chipsalliance/firrtl/issues/852}}.
+the ``InferTypes'' compilation pass\footnote{\url{https://github.com/chipsalliance/firrtl/issues/852}}.
 
 We define for the first time the executable operational semantics of low FIRRTL.
 present the first formal operational semantics of the hardware description language FIRRTL (Flexible Intermediate Representation for RTL)~\cite{firrtl-spec} and verify two key compilation passes of FIRRTL programs~\cite{firrtlcompiler,IzraelevitzKLLW17}, namely ``Infer Width'' and ``Expand Whens'',

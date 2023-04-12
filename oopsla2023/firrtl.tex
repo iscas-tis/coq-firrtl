@@ -12,7 +12,7 @@ and its lowering transformations.
 
 \zhilin{Can we find a running example ?}
 
-Below is an example of FIRRTL programs.
+Figure~\ref{fig:example} contains an example FIRRTL program.
 
 \begin{figure}[t]
 \centering
@@ -49,21 +49,28 @@ circuit A :
     io.calc <= counter
 \end{lstlisting}
 \end{tabular}
-\caption{An example of FIRRTL}
+\caption{An example FIRRTL program}
 \label{fig:example}
 \end{figure}
 
-A FIRRTL \emph{circuit} comprises a list of modules with a designated top-level module, each of which representing a hardware block that can
-be instantiated. For instance, the FIRRTL circuit shown in Figure~\ref{fig:example} has two modules $A$ and $B$, where the top-level module of the circuit is module $A$.
-A \emph{module} consists of a list of ports and an sequence of statements.
-Each port has an identifier,  an direction either \prettyll{input} or \prettyll{output}, and a data type.
-For instance, the module {\tt A} has two input ports \prettyll{clk} and \prettyll{rst} and one output port \prettyll{io}, with
+A FIRRTL \emph{circuit} comprises a list of modules with a designated top-level module, each of which represents a hardware block that can
+be instantiated. For instance, the FIRRTL circuit shown in Figure~\ref{fig:example} has two modules \prettyll{A} and \prettyll{B},
+where the top-level module of the circuit is module \prettyll{A}.
+A \emph{module} consists of a set of ports and a sequence of statements.
+Each port has an identifier, a direction (either \prettyll{input} or \prettyll{output}), and a data type.
+For instance, the module \prettyll{A} has two input ports \prettyll{clk} and \prettyll{rst} and one output port \prettyll{io}, with
 types \prettyll{Clock}, \prettyll{UInt<1>} and  \prettyll{\{flip enable: UInt<1>, calc: UInt<3>\}}, respectively.
-Each \emph{statement} defines a wire, register, node, connect (<=), partial connect (<-), conditional (when), or instance (inst of), and so on.
-A \emph{type} for specifying the structure of the data, can be either a \emph{ground type}, e.g.  \prettyll{Clock} (carrying clock signal) and \prettyll{UInt<1>} (unsigned integer of bit width 1);
-or an \emph{aggregate type}, which is either a \emph{vector type}, e.g.  \prettyll{UInt[3]} (a three element vector of unsigned integers),
-or a \emph{bundle type}, e.g. \prettyll{\{flip enable: UInt<1>, calc: UInt<3>\}}  comprising two signals of the ground types  \prettyll{UInt<1>} and  \prettyll{UInt<3>} respectively. A circuit \emph{component} is an element in a FIRRTL circuit that can be referred to by its name or identifier. Therefore, a component can be a port, node, wire, register, or instance, and so on. \zhilin{component: a double check is needed}
-
+Each \emph{statement} defines a wire, register, node, connect (\prettyll{<=}), partial connect (\prettyll{<-}), conditional (\prettyll{when}), or instance (\prettyll{inst of}), and so on.
+A \emph{type} for specifying the structure of the data can be either a \emph{ground type,} e.g. \prettyll{Clock} (carrying a clock signal) and \prettyll{UInt<1>} (unsigned integer of bit width 1);
+or an \emph{aggregate type}, which is either a \emph{vector type,} e.g. \prettyll{UInt[3]} (a three-element vector of unsigned integers),
+or a \emph{bundle type,} e.g. \prettyll{\{flip enable: UInt<1>, calc: UInt<3>\}} comprising two signals of the ground types \prettyll{UInt<1>} and \prettyll{UInt<3>} respectively.
+A circuit \emph{component} is a declared element in a FIRRTL circuit that can be referred to by its name or identifier.
+Therefore, a component can be a port, node, wire, register, or instance.
+\zhilin{component: a double check is needed}
+\david{Double checked: ``component'' is not directly declared in the FIRRTL specification,
+but it mostly speaks of ``declared component'', so it needs to be declared;
+components can be connected to (or from, in the case of module input ports and memory read ports).
+The only kind of component that is missing from the above list is the memory.}
 
 \begin{comment}
 A FIRRTL \emph{circuit} comprises modules, each of which include several ports and statements. A circuit must specify the name of the (unique) top-level module.
@@ -78,7 +85,10 @@ A \emph{type} can be either a \emph{ground type}, e.g. \begin{lstinline}!UInt<1>
 \end{comment}
 
 The syntactic rules of FIRRTL are given in Figure~\ref{fig-firrtl-synt-simp} in Extended Backus-Naur Form (EBNF), where \{$\cdots$\} denotes repetition \fu{(zero or more times)}
-and [$\cdots$] denotes option (\fu{either included or discarded}), moreover, the terminals are doubly quoted \mbox{\tt ``} and \mbox{\tt ''}. We stress that the syntactic rules of FIRRTL presented here is a simplification of those in the official specification\footnote{\url{https://github.com/chipsalliance/firrtl-spec/blob/main/spec.md}}. For instance, indent, dedent and newline terminals are omitted for readability, moreover, the types and constructs for analog signals are also omitted, since we focus on digital circuits in this work. In the syntax, memory is also omitted since its semantics is still under active debate \footnote{\url{https://github.com/chipsalliance/chisel/issues/3112}}.
+and [$\cdots$] denotes option (\fu{either included or discarded}), moreover, the terminals are doubly quoted \mbox{\tt “} and \mbox{\tt ”}. We stress that the syntactic rules of FIRRTL presented here is a simplification of those in the official specification\footnote{\url{https://github.com/chipsalliance/firrtl-spec/blob/main/spec.md}}.
+For instance, indent, dedent and newline terminals are omitted for readability;
+moreover, the types and constructs for analog signals are also omitted, since we focus on digital circuits in this work.
+In the syntax, memory is also omitted since its semantics is still under active debate.\footnote{\url{https://github.com/chipsalliance/chisel/issues/3112}}
 
 %\begin{itemize}
 %\item A circuit in FIRRTL consists of modules, each of which include several ports and statements.
@@ -96,118 +106,118 @@ and [$\cdots$] denotes option (\fu{either included or discarded}), moreover, the
 \[
 \begin{array}{l l l}
 %\mbox{\bf Circuit} &
-c & ::= & \mbox{\tt ``\prettyll{circuit}''}\ id\mbox{\tt ``:''} \{m\}\\
+c & ::= & \mbox{\tt “\prettyll{circuit}”}\ id\mbox{\tt “:”} \{m\}\\
 %
 %\mbox{\bf Module} &
-m & ::= & \mbox{\tt ``\prettyll{module}''} \ id \{p\} \{s\}\\
+m & ::= & \mbox{\tt “\prettyll{module}”} \ id \{p\} \{s\}\\
 %
 %\mbox{\bf External Module} &
-%em & ::= & \mbox{\tt ``extmodule''}\ id \{p\} [\mbox{\tt ``defname =''}\ id] \{\mbox{\tt ``parameter''}\ id \mbox{\tt ``= ''}(string \mid int)\}\\
+%em & ::= & \mbox{\tt “extmodule”}\ id \{p\} [\mbox{\tt “defname =”}\ id] \{\mbox{\tt “parameter”}\ id \mbox{\tt “= ”}(string \mid int)\}\\
 %
 %\mbox{\bf Port} &
-p & ::= & (\mbox{\tt ``\prettyll{input}''} \mid \mbox{\tt ``\prettyll{output}''})\ id\mbox{\tt ``:''}t \\
+p & ::= & (\mbox{\tt “\prettyll{input}”} \mid \mbox{\tt “\prettyll{output}”})\ id\mbox{\tt “:”}t \\
 %
  %\mbox{\bf Statment} &
- s & ::= & \mbox{\tt ``\prettyll{wire}''}\ id\mbox{\tt ``:''}t  \mid \mbox{\tt ``\prettyll{reg}''}\ id\mbox{\tt ``:''}t\ e [\mbox{\tt ``(\prettyll{with}:\{\prettyll{reset}=>(''} e\mbox{\tt ``,''} e \mbox{\tt ``)\})''}] \\
+ s & ::= & \mbox{\tt “\prettyll{wire}”}\ id\mbox{\tt “:”}t  \mid \mbox{\tt “\prettyll{reg}”}\ id\mbox{\tt “:”}t\ e [\mbox{\tt “(\prettyll{with}:\{\prettyll{reset}=>(”} e\mbox{\tt “,”} e \mbox{\tt “)\})”}] \\
  %&
   &   &  \mid
 %  \mid memory \mid
-  \mbox{\tt ``\prettyll{inst}''}\ id\ \mbox{\tt ``\prettyll{of}''}\ id \mid \mbox{\tt ``\prettyll{node}''}\ id \mbox{\tt ``=''} id  \mid r \mbox{\tt ``<=''} e  \mid r \mbox{\tt ``<-''} e \mid r\ \mbox{\tt ``\prettyll{is invalid}''} \\
+  \mbox{\tt “\prettyll{inst}”}\ id\ \mbox{\tt “\prettyll{of}”}\ id \mid \mbox{\tt “\prettyll{node}”}\ id \mbox{\tt “=”} id  \mid r \mbox{\tt “<=”} e  \mid r \mbox{\tt “<-”} e \mid r\ \mbox{\tt “\prettyll{is invalid}”} \\
 %&
-&   &\mid \mbox{\tt ``\prettyll{when}''}\ e\mbox{\tt ``:''}\{s\} [\mbox{\tt ``\prettyll{else}:''} \{s\}] \mid \mbox{\tt ``\prettyll{skip}''}\\
+&   &\mid \mbox{\tt “\prettyll{when}”}\ e\mbox{\tt “:”}\{s\} [\mbox{\tt “\prettyll{else}:”} \{s\}] \mid \mbox{\tt “\prettyll{skip}”}\\
 %
 %\mbox{\bf Memory} &
-%memory & = &  \mbox{``mem''}, id, newline, indent, \\
+%memory & = &  \mbox{“mem”}, id, newline, indent, \\
  %&
-% & & \mbox{``data-type''}, \mbox{``=>''}, type, newline, \\
+% & & \mbox{“data-type”}, \mbox{“=>”}, type, newline, \\
  %&
-% & & \mbox{``depth''}, \mbox{``=>''}, int, newline, \\
+% & & \mbox{“depth”}, \mbox{“=>”}, int, newline, \\
  %&
-% & & \mbox{``read-latency''}, \mbox{``=>''}, int, newline, \\
+% & & \mbox{“read-latency”}, \mbox{“=>”}, int, newline, \\
  %&
-% & & \mbox{``write-latency}, \mbox{``=>''}, int, newline,  \\
+% & & \mbox{“write-latency}, \mbox{“=>”}, int, newline,  \\
  %&
-% & & \mbox{``read-under-write''}, \mbox{``=>''}, ruw, newline, \\
+% & & \mbox{“read-under-write”}, \mbox{“=>”}, ruw, newline, \\
   %&
-%  & & \{\mbox{``reader''}, \mbox{``=>''}, id, newline\}, \\
+%  & & \{\mbox{“reader”}, \mbox{“=>”}, id, newline\}, \\
   %&
-%  & & \{\mbox{``writer''}, \mbox{``=>''}, id, newline\}, \\
+%  & & \{\mbox{“writer”}, \mbox{“=>”}, id, newline\}, \\
   %&
-%  & & \{\mbox{``readwriter''}, \mbox{``=>''}, id, newline\}, dedent;\\
+%  & & \{\mbox{“readwriter”}, \mbox{“=>”}, id, newline\}, dedent;\\
 %
 %\mbox{\bf Read Under Write Flag} &
-%ruw & = & \mbox{``old''} \mid \mbox{``new''} \mid \mbox{``undefined''};\\
+%ruw & = & \mbox{“old”} \mid \mbox{“new”} \mid \mbox{“undefined”};\\
 %
 %\mbox{\bf Expression} &
-e & ::= & (\mbox{\tt ``\prettyll{UInt}''} | \mbox{\tt ``\prettyll{SInt}''}) [w] \mbox{\tt ``(''}int\mbox{\tt ``)''} \mid r \mid \mbox{\tt ``\prettyll{mux}(''}e\mbox{\tt ``,''} e\mbox{\tt ``,''} e\mbox{\tt ``)''}
-        \mid \mbox{\tt ``\textcolor{blue}{read}(''}sr \mbox{\tt ``)''} \mid op\\
+e & ::= & (\mbox{\tt “\prettyll{UInt}”} | \mbox{\tt “\prettyll{SInt}”}) [w] \mbox{\tt “(”}int\mbox{\tt “)”} \mid r \mid \mbox{\tt “\prettyll{mux}(”}e\mbox{\tt “,”} e\mbox{\tt “,”} e\mbox{\tt “)”}
+        \mid \mbox{\tt “\textcolor{blue}{read}(”}sr \mbox{\tt “)”} \mid op\\
 %
 %&
-r & ::= & sr \mid r \mbox{\tt ``[''} e \mbox{\tt ``]''}\\
+r & ::= & sr \mid r \mbox{\tt “[”} e \mbox{\tt “]”}\\
 %
-sr & ::= & id \mid sr\mbox{\tt ``.''}id \mid sr\mbox{\tt ``[''}int\mbox{\tt ``]''}\\
+sr & ::= & id \mid sr\mbox{\tt “.”}id \mid sr\mbox{\tt “[”}int\mbox{\tt “]”}\\
 %&
-w & ::= & \mbox{\tt ``<''} int \mbox{\tt ``>''}\\
+w & ::= & \mbox{\tt “<”} int \mbox{\tt “>”}\\
 %
 %&
-%binarypoint & = & \mbox{``<''}, \mbox{``<''}, int, \mbox{``>''}, \mbox{``>''};\\
+%binarypoint & = & \mbox{“<”}, \mbox{“<”}, int, \mbox{“>”}, \mbox{“>”};\\
 %
  %\mbox{\bf Bundle Field} &
 %
 %\mbox{\bf Data Types} &
 t & ::= & tg \mid ta \\
  %&
- tg & ::= &  \mbox{\tt ``\prettyll{Clock}''} \mid \mbox{\tt ``\prettyll{Reset}''} \mid \mbox{\tt ``\prettyll{AsyncReset}''} \mid (\mbox{\tt ``\prettyll{UInt}''} \mid \mbox{\tt ``\prettyll{SInt}''}) [w] \\
+ tg & ::= &  \mbox{\tt “\prettyll{Clock}”} \mid \mbox{\tt “\prettyll{Reset}”} \mid \mbox{\tt “\prettyll{AsyncReset}”} \mid (\mbox{\tt “\prettyll{UInt}”} \mid \mbox{\tt “\prettyll{SInt}”}) [w] \\
  %&
-% & & \mid \mbox{``Fixed''}, [width], [binarypoint];\\
+% & & \mid \mbox{“Fixed”}, [width], [binarypoint];\\
  %&
 %
-  ta & ::= &\mbox{\tt ``\{''} f \{f\}\mbox{\tt ``\}''} \mid t \mbox{\tt ``[''} int \mbox{\tt ``]''} \\
+  ta & ::= &\mbox{\tt “\{”} f \{f\}\mbox{\tt “\}”} \mid t \mbox{\tt “[”} int \mbox{\tt “]”} \\
 %
-    f & ::= & [\mbox{\tt ``\prettyll{flip}''}]\ id\mbox{\tt ``:''}t\\
-%& & & \mbox{``UInt''}, [\mbox{``<''}, int, \mbox{``>''}] \mid \mbox{``SInt''}, [\mbox{``<''}, int, \mbox{``>''} ] \\
-%& & & \mid \mbox{``Fixed''}, [\mbox{``<''}, int, \mbox{``>''} ] [\mbox{``<}\mbox{<''}, int, \mbox{``>}\mbox{>''}]\\
-% &  &  & \mid \mbox{``Clock''} \mid \mbox{``Analog''},  [\mbox{``<''}, int, \mbox{``>''}] \mid \mbox{``\{''}, field, \mbox{``\}''} \mid type, \mbox{``[''}, int, \mbox{``]''}; \\
+    f & ::= & [\mbox{\tt “\prettyll{flip}”}]\ id\mbox{\tt “:”}t\\
+%& & & \mbox{“UInt”}, [\mbox{“<”}, int, \mbox{“>”}] \mid \mbox{“SInt”}, [\mbox{“<”}, int, \mbox{“>”} ] \\
+%& & & \mid \mbox{“Fixed”}, [\mbox{“<”}, int, \mbox{“>”} ] [\mbox{“<}\mbox{<”}, int, \mbox{“>}\mbox{>”}]\\
+% &  &  & \mid \mbox{“Clock”} \mid \mbox{“Analog”},  [\mbox{“<”}, int, \mbox{“>”}] \mid \mbox{“\{”}, field, \mbox{“\}”} \mid type, \mbox{“[”}, int, \mbox{“]”}; \\
 %
-id & ::= & ( \mbox{\tt ``\_''} \mid l) \{ \mbox{\tt ``\_''} \mid l \mid d\} \\
+id & ::= & ( \mbox{\tt “\_”} \mid l) \{ \mbox{\tt “\_”} \mid l \mid d\} \\
 %\mbox{\bf Primitive Operation} &
 op & ::= & op\_2e \mid op\_1e \mid op\_1e1i \mid op\_1e2i \\
 %&
-op\_2e & ::= & op\_2e\_key \mbox{\tt ``(''}  e \mbox{\tt ``,''}  e \mbox{\tt ``)''} \\
+op\_2e & ::= & op\_2e\_key \mbox{\tt “(”}  e \mbox{\tt “,”}  e \mbox{\tt “)”} \\
 %
 %&
-op\_2e\_key & ::= &  \mbox{\tt ``\prettyll{add}''}  \mid  \mbox{\tt ``\prettyll{sub}''}  \mid \mbox{\tt ``\prettyll{mul}''} \mid \mbox{\tt ``\prettyll{div}''} \mid \mbox{\tt ``\prettyll{mod}''} \mid \mbox{\tt ``\prettyll{lt}''} \mid \mbox{\tt ``\prettyll{leq}''} \mid \mbox{\tt ``\prettyll{gt}''} \mid \mbox{\tt ``\prettyll{geq}''} \mid \mbox{\tt ``\prettyll{eq}''} \mid \mbox{\tt ``\prettyll{neq}''} \\
+op\_2e\_key & ::= &  \mbox{\tt “\prettyll{add}”}  \mid  \mbox{\tt “\prettyll{sub}”}  \mid \mbox{\tt “\prettyll{mul}”} \mid \mbox{\tt “\prettyll{div}”} \mid \mbox{\tt “\prettyll{mod}”} \mid \mbox{\tt “\prettyll{lt}”} \mid \mbox{\tt “\prettyll{leq}”} \mid \mbox{\tt “\prettyll{gt}”} \mid \mbox{\tt “\prettyll{geq}”} \mid \mbox{\tt “\prettyll{eq}”} \mid \mbox{\tt “\prettyll{neq}”} \\
 %&
-& &   \mid \mbox{\tt ``\prettyll{dshl}''}  \mid \mbox{\tt ``\prettyll{dshr}''} \mid \mbox{\tt ``\prettyll{and}''} \mid \mbox{\tt ``\prettyll{or}''} \mid \mbox{\tt ``\prettyll{xor}''} \mid \mbox{\tt ``\prettyll{cat}''} \\
+& &   \mid \mbox{\tt “\prettyll{dshl}”}  \mid \mbox{\tt “\prettyll{dshr}”} \mid \mbox{\tt “\prettyll{and}”} \mid \mbox{\tt “\prettyll{or}”} \mid \mbox{\tt “\prettyll{xor}”} \mid \mbox{\tt “\prettyll{cat}”} \\
  %
 %&
-op\_1e & ::= & op\_1e\_key \mbox{\tt ``(''}  e \mbox{\tt ``)''} \\
+op\_1e & ::= & op\_1e\_key \mbox{\tt “(”}  e \mbox{\tt “)”} \\
 %&
-op\_1e\_key & ::= & \mbox{\tt ``\prettyll{asUInt}''} \mid \mbox{\tt ``\prettyll{asSInt}''} \mid \mbox{\tt ``\prettyll{asClock}''} \mid \mbox{\tt ``\prettyll{cvt}''} \mid \mbox{\tt ``\prettyll{neg}''} \mid \mbox{\tt ``\prettyll{not}''}  \mid \mbox{\tt ``\prettyll{andr}''} \mid \mbox{\tt ``\prettyll{orr}''} \mid  \mbox{\tt ``\prettyll{xorr}''}\\
+op\_1e\_key & ::= & \mbox{\tt “\prettyll{asUInt}”} \mid \mbox{\tt “\prettyll{asSInt}”} \mid \mbox{\tt “\prettyll{asClock}”} \mid \mbox{\tt “\prettyll{cvt}”} \mid \mbox{\tt “\prettyll{neg}”} \mid \mbox{\tt “\prettyll{not}”}  \mid \mbox{\tt “\prettyll{andr}”} \mid \mbox{\tt “\prettyll{orr}”} \mid  \mbox{\tt “\prettyll{xorr}”}\\
 %
 %&
-op\_1e1i & ::= & op\_1e1i\_key \mbox{\tt ``(''}  e \mbox{\tt ``,''} int \mbox{\tt ``)''} \\
+op\_1e1i & ::= & op\_1e1i\_key \mbox{\tt “(”}  e \mbox{\tt “,”} int \mbox{\tt “)”} \\
 %&
-op\_1e1i\_key & ::= & \mbox{\tt ``\prettyll{pad}''} \mid \mbox{\tt ``\prettyll{shl}''} \mid \mbox{\tt ``\prettyll{shr}''} \mid \mbox{\tt ``\prettyll{head}''} \mid \mbox{\tt ``\prettyll{tail}''} \\
+op\_1e1i\_key & ::= & \mbox{\tt “\prettyll{pad}”} \mid \mbox{\tt “\prettyll{shl}”} \mid \mbox{\tt “\prettyll{shr}”} \mid \mbox{\tt “\prettyll{head}”} \mid \mbox{\tt “\prettyll{tail}”} \\
 %&
-op\_1e2i & ::= & op\_1e2i\_key \mbox{\tt ``(''}  e \mbox{\tt ``,''}  int  \mbox{\tt ``,''}  int \mbox{\tt ``)''} \\
+op\_1e2i & ::= & op\_1e2i\_key \mbox{\tt “(”}  e \mbox{\tt “,”}  int  \mbox{\tt “,”}  int \mbox{\tt “)”} \\
 %&
-op\_1e2i\_key & ::= & \mbox{\tt ``\prettyll{bits}''}\\
+op\_1e2i\_key & ::= & \mbox{\tt “\prettyll{bits}”}\\
 %
-int & ::= & [\mbox{\tt ``-''}] d \{d\} \mid \mbox{\tt ``"b''} [\mbox{\tt ``-''}] d\_b \{d\_b\} \mbox{\tt ``"''}
- \mid \mbox{\tt ``"o''} [\mbox{\tt ``-''}] d\_o \{d\_o\} \mbox{\tt ``"''} \mid
-\mbox{\tt ``"h''} [\mbox{\tt ``-''}] d\_h \{d\_h\} \mbox{\tt ``"''} \\
+int & ::= & [\mbox{\tt “-”}] d \{d\} \mid \mbox{\tt “"b”} [\mbox{\tt “-”}] d\_b \{d\_b\} \mbox{\tt “"”}
+ \mid \mbox{\tt “"o”} [\mbox{\tt “-”}] d\_o \{d\_o\} \mbox{\tt “"”} \mid
+\mbox{\tt “"h”} [\mbox{\tt “-”}] d\_h \{d\_h\} \mbox{\tt “"”} \\
 %
-%d & ::= &\mbox{\tt ``0''} \mid  \mbox{\tt  ``1''}\mid \mbox{\tt ``2''} \mid\mbox{\tt ``3''} \mid  \mbox{\tt  ``4''}\mid \mbox{\tt ``5''} \mid\mbox{\tt ``6''} \mid  \mbox{\tt  ``7''}\mid \mbox{\tt ``8''} \mid\mbox{\tt ``9''} \\
-%d\_b & ::= &\mbox{\tt ``0''} \mid  \mbox{\tt  ``1''}  \\
-%d\_o & ::= &\mbox{\tt ``0''} \mid  \mbox{\tt  ``1''}\mid \mbox{\tt ``2''} \mid\mbox{\tt ``3''} \mid  \mbox{\tt  ``4''}\mid \mbox{\tt ``5''} \mid\mbox{\tt ``6''} \mid  \mbox{\tt  ``7''} \\
-%d\_h & ::= &\mbox{\tt ``0''} \mid  \mbox{\tt  ``1''}\mid \mbox{\tt ``2''} \mid\mbox{\tt ``3''} \mid  \mbox{\tt  ``4''}\mid \mbox{\tt ``5''} \mid\mbox{\tt ``6''} \mid  \mbox{\tt  ``7''}\mid \mbox{\tt ``8''} \mid\mbox{\tt ``9''}  \mid  \mbox{\tt  ``A''}\mid \mbox{\tt ``B''} \mid\mbox{\tt ``C''} \mid  \mbox{\tt  ``D''}\mid \mbox{\tt ``E''} \mid\mbox{\tt ``F''}\\
+%d & ::= &\mbox{\tt “0”} \mid  \mbox{\tt  “1”}\mid \mbox{\tt “2”} \mid\mbox{\tt “3”} \mid  \mbox{\tt  “4”}\mid \mbox{\tt “5”} \mid\mbox{\tt “6”} \mid  \mbox{\tt  “7”}\mid \mbox{\tt “8”} \mid\mbox{\tt “9”} \\
+%d\_b & ::= &\mbox{\tt “0”} \mid  \mbox{\tt  “1”}  \\
+%d\_o & ::= &\mbox{\tt “0”} \mid  \mbox{\tt  “1”}\mid \mbox{\tt “2”} \mid\mbox{\tt “3”} \mid  \mbox{\tt  “4”}\mid \mbox{\tt “5”} \mid\mbox{\tt “6”} \mid  \mbox{\tt  “7”} \\
+%d\_h & ::= &\mbox{\tt “0”} \mid  \mbox{\tt  “1”}\mid \mbox{\tt “2”} \mid\mbox{\tt “3”} \mid  \mbox{\tt  “4”}\mid \mbox{\tt “5”} \mid\mbox{\tt “6”} \mid  \mbox{\tt  “7”}\mid \mbox{\tt “8”} \mid\mbox{\tt “9”}  \mid  \mbox{\tt  “A”}\mid \mbox{\tt “B”} \mid\mbox{\tt “C”} \mid  \mbox{\tt  “D”}\mid \mbox{\tt “E”} \mid\mbox{\tt “F”}\\
 %
 
 %\mbox{\bf File Information Token} &
-%info & = & \mbox{``@''}, \mbox{``[''}, \{string, \mbox{`` ''}, linecol\}, \mbox{``]''};\\
+%info & = & \mbox{“@”}, \mbox{“[”}, \{string, \mbox{“ ”}, linecol\}, \mbox{“]”};\\
 %&
-%linecol & = &  digit\_dec, \{digit\_dec\}, \mbox{``:''}, digit\_dec, \{digit\_dec\};\\
+%linecol & = &  digit\_dec, \{digit\_dec\}, \mbox{“:”}, digit\_dec, \{digit\_dec\};\\
 %&
 %
 \end{array}
@@ -224,111 +234,111 @@ $d$ (resp. $d\_b$, $d\_o$ and $d\_h$) denotes a decimal (resp. binary, octal and
 \[
 \begin{array}{l l l}
 %\mbox{\bf Circuit} &
-c & ::= & \mbox{\tt ``circuit''}\ id\mbox{\tt ``:''} \{m\}\\
+c & ::= & \mbox{\tt “circuit”}\ id\mbox{\tt “:”} \{m\}\\
 %
 %\mbox{\bf Module} &
-m & ::= & \mbox{\tt ``module''} \ id \{p\} \{s\}\\
+m & ::= & \mbox{\tt “module”} \ id \{p\} \{s\}\\
 %
 %\mbox{\bf External Module} &
-%em & ::= & \mbox{\tt ``extmodule''}\ id \{p\} [\mbox{\tt ``defname =''}\ id] \{\mbox{\tt ``parameter''}\ id \mbox{\tt ``= ''}(string \mid int)\}\\
+%em & ::= & \mbox{\tt “extmodule”}\ id \{p\} [\mbox{\tt “defname =”}\ id] \{\mbox{\tt “parameter”}\ id \mbox{\tt “= ”}(string \mid int)\}\\
 %
 %\mbox{\bf Port} &
-p & ::= & (\mbox{\tt ``input''} \mid \mbox{\tt ``output''})\ id\mbox{\tt ``:''}t \\
+p & ::= & (\mbox{\tt “input”} \mid \mbox{\tt “output”})\ id\mbox{\tt “:”}t \\
 %
  %\mbox{\bf Statment} &
- s & ::= & \mbox{\tt ``wire''}\ id\mbox{\tt ``:''}t  \mid \mbox{\tt ``reg''}\ id\mbox{\tt ``:''}t\ e [\mbox{\tt ``(with:\{reset=>(''} e\mbox{\tt ``,''} e \mbox{\tt ``)\})''}] \\
+ s & ::= & \mbox{\tt “wire”}\ id\mbox{\tt “:”}t  \mid \mbox{\tt “reg”}\ id\mbox{\tt “:”}t\ e [\mbox{\tt “(with:\{reset=>(”} e\mbox{\tt “,”} e \mbox{\tt “)\})”}] \\
  %&
   &   &  \mid
 %  \mid memory \mid
-  \mbox{\tt ``inst''}\ id\ \mbox{\tt ``of''}\ id \mid \mbox{\tt ``node''}\ id \mbox{\tt ``=''} id  \mid r \mbox{\tt ``<=''} e  \mid r \mbox{\tt ``<-''} e \mid r\ \mbox{\tt ``is invalid''} \\
+  \mbox{\tt “inst”}\ id\ \mbox{\tt “of”}\ id \mid \mbox{\tt “node”}\ id \mbox{\tt “=”} id  \mid r \mbox{\tt “<=”} e  \mid r \mbox{\tt “<-”} e \mid r\ \mbox{\tt “is invalid”} \\
 %&
-&   &\mid \mbox{\tt ``when''}\ e\mbox{\tt ``:''}\{s\} [\mbox{\tt ``else:''} \{s\}] \mid \mbox{\tt ``skip''}\\
+&   &\mid \mbox{\tt “when”}\ e\mbox{\tt “:”}\{s\} [\mbox{\tt “else:”} \{s\}] \mid \mbox{\tt “skip”}\\
 %
 %\mbox{\bf Memory} &
-%memory & = &  \mbox{``mem''}, id, newline, indent, \\
+%memory & = &  \mbox{“mem”}, id, newline, indent, \\
  %&
-% & & \mbox{``data-type''}, \mbox{``=>''}, type, newline, \\
+% & & \mbox{“data-type”}, \mbox{“=>”}, type, newline, \\
  %&
-% & & \mbox{``depth''}, \mbox{``=>''}, int, newline, \\
+% & & \mbox{“depth”}, \mbox{“=>”}, int, newline, \\
  %&
-% & & \mbox{``read-latency''}, \mbox{``=>''}, int, newline, \\
+% & & \mbox{“read-latency”}, \mbox{“=>”}, int, newline, \\
  %&
-% & & \mbox{``write-latency}, \mbox{``=>''}, int, newline,  \\
+% & & \mbox{“write-latency}, \mbox{“=>”}, int, newline,  \\
  %&
-% & & \mbox{``read-under-write''}, \mbox{``=>''}, ruw, newline, \\
+% & & \mbox{“read-under-write”}, \mbox{“=>”}, ruw, newline, \\
   %&
-%  & & \{\mbox{``reader''}, \mbox{``=>''}, id, newline\}, \\
+%  & & \{\mbox{“reader”}, \mbox{“=>”}, id, newline\}, \\
   %&
-%  & & \{\mbox{``writer''}, \mbox{``=>''}, id, newline\}, \\
+%  & & \{\mbox{“writer”}, \mbox{“=>”}, id, newline\}, \\
   %&
-%  & & \{\mbox{``readwriter''}, \mbox{``=>''}, id, newline\}, dedent;\\
+%  & & \{\mbox{“readwriter”}, \mbox{“=>”}, id, newline\}, dedent;\\
 %
 %\mbox{\bf Read Under Write Flag} &
-%ruw & = & \mbox{``old''} \mid \mbox{``new''} \mid \mbox{``undefined''};\\
+%ruw & = & \mbox{“old”} \mid \mbox{“new”} \mid \mbox{“undefined”};\\
 %
 %\mbox{\bf Expression} &
-e & ::= & (\mbox{\tt ``UInt''} | \mbox{\tt ``SInt''}) [w] \mbox{\tt ``(''}int\mbox{\tt ``)''} \mid r \mid \mbox{\tt ``mux(''}e\mbox{\tt ``,''} e\mbox{\tt ``,''} e\mbox{\tt ``)''} \mid \mbox{\tt ``read(''}sr \mbox{\tt ``)''} \mid op\\
+e & ::= & (\mbox{\tt “UInt”} | \mbox{\tt “SInt”}) [w] \mbox{\tt “(”}int\mbox{\tt “)”} \mid r \mid \mbox{\tt “mux(”}e\mbox{\tt “,”} e\mbox{\tt “,”} e\mbox{\tt “)”} \mid \mbox{\tt “read(”}sr \mbox{\tt “)”} \mid op\\
 %
 %&
-r & ::= & sr \mid r \mbox{\tt ``[''} e \mbox{\tt ``]''}\\
+r & ::= & sr \mid r \mbox{\tt “[”} e \mbox{\tt “]”}\\
 %
-sr & ::= & id \mid sr\mbox{\tt ``.''}id \mid sr\mbox{\tt ``[''}int\mbox{\tt ``]''}\\
+sr & ::= & id \mid sr\mbox{\tt “.”}id \mid sr\mbox{\tt “[”}int\mbox{\tt “]”}\\
 %&
-w & ::= & \mbox{\tt ``<''} int \mbox{\tt ``>''}\\
+w & ::= & \mbox{\tt “<”} int \mbox{\tt “>”}\\
 %
 %&
-%binarypoint & = & \mbox{``<''}, \mbox{``<''}, int, \mbox{``>''}, \mbox{``>''};\\
+%binarypoint & = & \mbox{“<”}, \mbox{“<”}, int, \mbox{“>”}, \mbox{“>”};\\
 %
  %\mbox{\bf Bundle Field} &
 %
 %\mbox{\bf Data Types} &
 t & ::= & tg \mid ta \\
  %&
- tg & ::= &  \mbox{\tt ``Clock''} \mid \mbox{\tt ``Reset''} \mid \mbox{\tt ``AsyncReset''} \mid (\mbox{\tt ``UInt''} \mid \mbox{\tt ``SInt''}) [w] \\
+ tg & ::= &  \mbox{\tt “Clock”} \mid \mbox{\tt “Reset”} \mid \mbox{\tt “AsyncReset”} \mid (\mbox{\tt “UInt”} \mid \mbox{\tt “SInt”}) [w] \\
  %&
-% & & \mid \mbox{``Fixed''}, [width], [binarypoint];\\
+% & & \mid \mbox{“Fixed”}, [width], [binarypoint];\\
  %&
 %
-  ta & ::= &\mbox{\tt ``\{''} f \{f\}\mbox{\tt ``\}''} \mid t \mbox{``[''} int \mbox{``]''} \\
+  ta & ::= &\mbox{\tt “\{”} f \{f\}\mbox{\tt “\}”} \mid t \mbox{“[”} int \mbox{“]”} \\
 %
-    f & ::= & [\mbox{\tt ``flip''}]\ id\mbox{\tt ``:''}t\\
-%& & & \mbox{``UInt''}, [\mbox{``<''}, int, \mbox{``>''}] \mid \mbox{``SInt''}, [\mbox{``<''}, int, \mbox{``>''} ] \\
-%& & & \mid \mbox{``Fixed''}, [\mbox{``<''}, int, \mbox{``>''} ] [\mbox{``<}\mbox{<''}, int, \mbox{``>}\mbox{>''}]\\
-% &  &  & \mid \mbox{``Clock''} \mid \mbox{``Analog''},  [\mbox{``<''}, int, \mbox{``>''}] \mid \mbox{``\{''}, field, \mbox{``\}''} \mid type, \mbox{``[''}, int, \mbox{``]''}; \\
+    f & ::= & [\mbox{\tt “flip”}]\ id\mbox{\tt “:”}t\\
+%& & & \mbox{“UInt”}, [\mbox{“<”}, int, \mbox{“>”}] \mid \mbox{“SInt”}, [\mbox{“<”}, int, \mbox{“>”} ] \\
+%& & & \mid \mbox{“Fixed”}, [\mbox{“<”}, int, \mbox{“>”} ] [\mbox{“<}\mbox{<”}, int, \mbox{“>}\mbox{>”}]\\
+% &  &  & \mid \mbox{“Clock”} \mid \mbox{“Analog”},  [\mbox{“<”}, int, \mbox{“>”}] \mid \mbox{“\{”}, field, \mbox{“\}”} \mid type, \mbox{“[”}, int, \mbox{“]”}; \\
 %
-id & ::= & ( \mbox{\tt ``\_''} \mid l) \{ \mbox{\tt ``\_''} \mid l \mid d\} \\
+id & ::= & ( \mbox{\tt “\_”} \mid l) \{ \mbox{\tt “\_”} \mid l \mid d\} \\
 %\mbox{\bf Primitive Operation} &
 op & ::= & op\_2e \mid op\_1e \mid op\_1e1i \mid op\_1e2i \\
 %&
-op\_2e & ::= & op\_2e\_key \mbox{\tt ``(''}  e \mbox{\tt ``,''}  e \mbox{\tt ``)''} \\
+op\_2e & ::= & op\_2e\_key \mbox{\tt “(”}  e \mbox{\tt “,”}  e \mbox{\tt “)”} \\
 %
 %&
-op\_2e\_key & ::= &  \mbox{\tt ``add''}  \mid  \mbox{\tt ``sub''}  \mid \mbox{\tt ``mul''} \mid \mbox{\tt ``div''} \mid \mbox{\tt ``mod''} \mid \mbox{\tt ``lt''} \mid \mbox{\tt ``leq''} \mid \mbox{\tt ``gt''} \mid \mbox{\tt ``geq''} \mid \mbox{\tt ``eq''} \mid \mbox{\tt ``neq''} \\
+op\_2e\_key & ::= &  \mbox{\tt “add”}  \mid  \mbox{\tt “sub”}  \mid \mbox{\tt “mul”} \mid \mbox{\tt “div”} \mid \mbox{\tt “mod”} \mid \mbox{\tt “lt”} \mid \mbox{\tt “leq”} \mid \mbox{\tt “gt”} \mid \mbox{\tt “geq”} \mid \mbox{\tt “eq”} \mid \mbox{\tt “neq”} \\
 %&
-& &   \mid \mbox{\tt ``dshl''}  \mid \mbox{\tt ``dshr''} \mid \mbox{\tt ``and''} \mid \mbox{\tt ``or''} \mid \mbox{\tt ``xor''} \mid \mbox{\tt ``cat''} \\
+& &   \mid \mbox{\tt “dshl”}  \mid \mbox{\tt “dshr”} \mid \mbox{\tt “and”} \mid \mbox{\tt “or”} \mid \mbox{\tt “xor”} \mid \mbox{\tt “cat”} \\
  %
 %&
-op\_1e & ::= & op\_1e\_key \mbox{\tt ``(''}  e \mbox{\tt ``)''} \\
+op\_1e & ::= & op\_1e\_key \mbox{\tt “(”}  e \mbox{\tt “)”} \\
 %&
-op\_1e\_key & ::= & \mbox{\tt ``asUInt''} \mid \mbox{\tt ``asSInt''} \mid \mbox{\tt ``asClock''} \mid \mbox{\tt ``cvt''} \mid \mbox{\tt ``neg''} \mid \mbox{\tt ``not''}  \mid \mbox{\tt ``andr''} \mid \mbox{\tt ``orr''} \mid  \mbox{\tt ``xorr''}\\
+op\_1e\_key & ::= & \mbox{\tt “asUInt”} \mid \mbox{\tt “asSInt”} \mid \mbox{\tt “asClock”} \mid \mbox{\tt “cvt”} \mid \mbox{\tt “neg”} \mid \mbox{\tt “not”}  \mid \mbox{\tt “andr”} \mid \mbox{\tt “orr”} \mid  \mbox{\tt “xorr”}\\
 %
 %&
-op\_1e1i & ::= & op\_1e1i\_key \mbox{\tt ``(''}  e \mbox{\tt ``,''} int \mbox{\tt ``)''} \\
+op\_1e1i & ::= & op\_1e1i\_key \mbox{\tt “(”}  e \mbox{\tt “,”} int \mbox{\tt “)”} \\
 %&
-op\_1e1i\_key & ::= & \mbox{\tt ``pad''} \mid \mbox{\tt ``shl''} \mid \mbox{\tt ``shr''} \mid \mbox{\tt ``head''} \mid \mbox{\tt ``tail''} \\
+op\_1e1i\_key & ::= & \mbox{\tt “pad”} \mid \mbox{\tt “shl”} \mid \mbox{\tt “shr”} \mid \mbox{\tt “head”} \mid \mbox{\tt “tail”} \\
 %&
-op\_1e2i & ::= & op\_1e2i\_key \mbox{\tt ``(''}  e \mbox{\tt ``,''}  int  \mbox{\tt ``,''}  int \mbox{\tt ``)''} \\
+op\_1e2i & ::= & op\_1e2i\_key \mbox{\tt “(”}  e \mbox{\tt “,”}  int  \mbox{\tt “,”}  int \mbox{\tt “)”} \\
 %&
-op\_1e2i\_key & ::= & \mbox{\tt ``bits''}\\
+op\_1e2i\_key & ::= & \mbox{\tt “bits”}\\
 %
-int & ::= & [\mbox{\tt ``-''}] d \{d\} \mid \mbox{\tt ``"b''} [\mbox{\tt ``-''}] d\_b \{d\_b\} \mbox{\tt ``"''}
- \mid \mbox{\tt ``"o''} [\mbox{\tt ``-''}] d\_o \{d\_o\} \mbox{\tt ``"''} \mid
-\mbox{\tt ``"h''} [\mbox{\tt ``-''}] d\_h \{d\_h\} \mbox{\tt ``"''}
+int & ::= & [\mbox{\tt “-”}] d \{d\} \mid \mbox{\tt “"b”} [\mbox{\tt “-”}] d\_b \{d\_b\} \mbox{\tt “"”}
+ \mid \mbox{\tt “"o”} [\mbox{\tt “-”}] d\_o \{d\_o\} \mbox{\tt “"”} \mid
+\mbox{\tt “"h”} [\mbox{\tt “-”}] d\_h \{d\_h\} \mbox{\tt “"”}
 %
 %\mbox{\bf File Information Token} &
-%info & = & \mbox{``@''}, \mbox{``[''}, \{string, \mbox{`` ''}, linecol\}, \mbox{``]''};\\
+%info & = & \mbox{“@”}, \mbox{“[”}, \{string, \mbox{“ ”}, linecol\}, \mbox{“]”};\\
 %&
-%linecol & = &  digit\_dec, \{digit\_dec\}, \mbox{``:''}, digit\_dec, \{digit\_dec\};\\
+%linecol & = &  digit\_dec, \{digit\_dec\}, \mbox{“:”}, digit\_dec, \{digit\_dec\};\\
 %&
 %
 \end{array}
@@ -339,69 +349,85 @@ int & ::= & [\mbox{\tt ``-''}] d \{d\} \mid \mbox{\tt ``"b''} [\mbox{\tt ``-''}]
 \end{figure}
 \end{comment}
 
-From the syntax, FIRRTL features the high-level constructs like vector types, bundle types, conditional statements, connects, partial connects, and modules.
+According to the syntax, FIRRTL features high-level constructs like vector types, bundle types, conditional statements, connects, partial connects, and modules.
 These high-level constructs are then gradually removed by a sequence of lowering transformations. During each lowering transformation, the circuit is rewritten into an equivalent circuit using simpler, lower-level
-constructs. Eventually the circuit is simplified to its most restricted form, resembling a structured netlist, which allows for easy translation to an output language (e.g. Verilog). This form is given the name lowered FIRRTL (abbreviated as LoFIRRTL) and is a strict subset of the full FIRRTL language. For clarity, the original form is called high FIRRTL (HiFIRRTL). Besides LoFIRRTL, there is another lowered form of FIRRTL, called MidFIRRTL, which resides between HiFIRRTL and LoFIRRTL. Nevertheless, in this work, we do not introduce MidFIRRTL, since it can be seen as an internal representation of FIRRTL that do not interface with the other parts of the Chisel toolchain.
+constructs. Eventually the circuit is simplified to its most restricted form, resembling a structured netlist,
+which allows for easy translation to an output language (e.g. Verilog).
+This form is given the name lowered FIRRTL (abbreviated as LoFIRRTL) and is a strict subset of the full FIRRTL language.
+For clarity, the original form is called high FIRRTL (HiFIRRTL).
+Besides LoFIRRTL, there is another lowered form of FIRRTL, called MidFIRRTL, which resides between HiFIRRTL and LoFIRRTL.
+Nevertheless, in this work, we do not introduce MidFIRRTL,
+since it can be seen as an internal representation of FIRRTL that does not interface with the other parts of the Chisel toolchain.
 
 
 A FIRRTL circuit is a LoFIRRTL circuit if it obeys the following restrictions:
 \begin{itemize}
-\item All widths must be explicitly defined.
+\item All widths are explicitly defined.
 \item The conditional statement is not used.
-\item All circuit components must be declared with a ground type.
+\item All circuit components are declared with a ground type.
 \item The partial connect statement is not used.
 \item All components are connected to at most once.
 \end{itemize}
-More precisely, a LoFIRRTL circuit is a FIRRTL circuit that is defined by the syntactic rules in Figure~\ref{fig-lofirrtl-synt} and satisfies that in each module, each component is connected to at most once.
+More precisely, a LoFIRRTL circuit is a FIRRTL circuit that is defined by the syntactic rules in Figure~\ref{fig-lofirrtl-synt}
+and satisfies that in each module, each component is connected to at most once.
 \begin{figure}[htbp]
 {\footnotesize
 \[
 \begin{array}{l l l}
- s & ::= & \mbox{\tt ``\prettyll{wire}''}\ id\mbox{\tt ``:''}t  \mid \mbox{\tt ``\prettyll{reg}''}\ id\mbox{\tt ``:''}t\ e [\mbox{\tt ``(\prettyll{with}:\{\prettyll{reset}=>(''} e\mbox{\tt ``,''} e \mbox{\tt ``)\})''}] \\
+ s & ::= & \mbox{\tt “\prettyll{wire}”}\ id\mbox{\tt “:”}t  \mid \mbox{\tt “\prettyll{reg}”}\ id\mbox{\tt “:”}t\ e [\mbox{\tt “(\prettyll{with}:\{\prettyll{reset}=>(”} e\mbox{\tt “,”} e \mbox{\tt “)\})”}] \\
  %&
   &   &  \mid
 %  \mid memory \mid
-  \mbox{\tt ``\prettyll{inst}''}\ id\ \mbox{\tt ``\prettyll{of}''}\ id \mid \mbox{\tt ``\prettyll{node}''}\ id \mbox{\tt ``=''} id  \mid r \mbox{\tt ``<=''} e  \mid r\ \mbox{\tt ``\prettyll{is invalid}''}\mid \mbox{\tt ``\prettyll{skip}''}\\
+  \mbox{\tt “\prettyll{inst}”}\ id\ \mbox{\tt “\prettyll{of}”}\ id \mid \mbox{\tt “\prettyll{node}”}\ id \mbox{\tt “=”} id  \mid r \mbox{\tt “<=”} e  \mid r\ \mbox{\tt “\prettyll{is invalid}”}\mid \mbox{\tt “\prettyll{skip}”}\\
 %
 %\mbox{\bf Expression} &
-e & ::= & (\mbox{\tt ``\prettyll{UInt}''} | \mbox{\tt ``\prettyll{SInt}''})\ w \mbox{\tt ``(''}int\mbox{\tt ``)''} \mid r \mid \mbox{\tt ``\prettyll{mux}(''}e\mbox{\tt ``,''} e\mbox{\tt ``,''} e\mbox{\tt ``)''} \mid \mbox{\tt ``\textcolor{blue}{read}(''}sr \mbox{\tt ``)''} \mid op\\
+e & ::= & (\mbox{\tt “\prettyll{UInt}”} | \mbox{\tt “\prettyll{SInt}”})\ w \mbox{\tt “(”}int\mbox{\tt “)”} \mid r \mid \mbox{\tt “\prettyll{mux}(”}e\mbox{\tt “,”} e\mbox{\tt “,”} e\mbox{\tt “)”} \mid \mbox{\tt “\textcolor{blue}{read}(”}sr \mbox{\tt “)”} \mid op\\
 %
 %&
-r & ::= & sr \mid r \mbox{\tt ``[''} e \mbox{\tt ``]''}\\
+r & ::= & sr \mid r \mbox{\tt “[”} e \mbox{\tt “]”}\\
 %
-sr & ::= & id \mid sr\mbox{\tt ``.''}id \mid sr\mbox{\tt ``[''}int\mbox{\tt ``]''}\\
+sr & ::= & id \mid sr\mbox{\tt “.”}id \mid sr\mbox{\tt “[”}int\mbox{\tt “]”}\\
 %&
-w & ::= & \mbox{\tt ``<''} int \mbox{\tt ``>''}\\
+w & ::= & \mbox{\tt “<”} int \mbox{\tt “>”}\\
 %
 %&
-%binarypoint & = & \mbox{``<''}, \mbox{``<''}, int, \mbox{``>''}, \mbox{``>''};\\
+%binarypoint & = & \mbox{“<”}, \mbox{“<”}, int, \mbox{“>”}, \mbox{“>”};\\
 %
  %\mbox{\bf Bundle Field} &
 %
 %\mbox{\bf Data Types} &
 t & ::= & tg \\
  %&
- tg & ::= &  \mbox{\tt ``\prettyll{Clock}''} \mid \mbox{\tt ``\prettyll{Reset}''} \mid \mbox{\tt ``\prettyll{AsyncReset}''} \mid (\mbox{\tt ``\prettyll{UInt}''} \mid \mbox{\tt ``\prettyll{SInt}''}) w
+ tg & ::= &  \mbox{\tt “\prettyll{Clock}”} \mid \mbox{\tt “\prettyll{AsyncReset}”} \mid (\mbox{\tt “\prettyll{UInt}”} \mid \mbox{\tt “\prettyll{SInt}”}) w
  %&
-% & & \mid \mbox{``Fixed''}, [width], [binarypoint];\\
+% & & \mid \mbox{“Fixed”}, [width], [binarypoint];\\
  %&
 %
 %\mbox{\bf File Information Token} &
-%info & = & \mbox{``@''}, \mbox{``[''}, \{string, \mbox{`` ''}, linecol\}, \mbox{``]''};\\
+%info & = & \mbox{“@”}, \mbox{“[”}, \{string, \mbox{“ ”}, linecol\}, \mbox{“]”};\\
 %&
-%linecol & = &  digit\_dec, \{digit\_dec\}, \mbox{``:''}, digit\_dec, \{digit\_dec\};\\
+%linecol & = &  digit\_dec, \{digit\_dec\}, \mbox{“:”}, digit\_dec, \{digit\_dec\};\\
 %&
 %
 \end{array}
 \]
 }
-\caption{Syntax of LoFIRRTL}
-\label{fig-lofirrtl-synt}
+\caption{Syntax of LoFIRRTL (Rules that are identical to those in Figure~\ref{fig-firrtl-synt-simp} are not repeated)}
+\label{fig-lofirrtl-synt
+}
 \end{figure}
 %
-Note that in Figure~\ref{fig-lofirrtl-synt}, the rules for $f, id, op$ are the same as those in Figure~\ref{fig-firrtl-synt-simp}, thus omitted to avoid tediousness. In a nutshell, the syntactic rules in Figure~\ref{fig-lofirrtl-synt} are obtained from those in Figure~\ref{fig-firrtl-synt-simp} by replacing $[w]$ with $w$ (so that the width becomes mandatory), removing the when statement and the partial connect statement from the rules for $s$, and removing the rules for aggregate types $ta$.
+Note that in Figure~\ref{fig-lofirrtl-synt}, the rules for $f$, $id$, $op$ are the same as those in Figure~\ref{fig-firrtl-synt-simp}, thus omitted to avoid tediousness.
+In a nutshell, the syntactic rules in Figure~\ref{fig-lofirrtl-synt} are obtained from those in Figure~\ref{fig-firrtl-synt-simp} by replacing $[w]$ with $w$ (so that the width becomes mandatory),
+removing the when statement and the partial connect statement from the rule for $s$,
+and removing the rule for aggregate types $ta$.
 %
-Intuitively, LoFIRRTL is in a flavor similar to static single-assignment (SSA) form of software programs. Programs in SSA form are those where each variable is assigned at most once, and each variable is defined before it is used.  For instance, the program in Figure~\ref{fig-lofirrtl-exmp}(a) is a LoFIRRTL program, while the program in Figure~\ref{fig-lofirrtl-exmp}(b) is not, since \begin{lstinline}!myport1!\end{lstinline} is connected twice.
+The requirement that each component is connected to at most once
+gives LoFIRRTL a flavor similar to static single-assignment (SSA) form of software programs.
+Programs in SSA form are those where each variable is assigned at most once and each variable is defined before it is used.
+For instance, the program in Figure~\ref{fig-lofirrtl-exmp}(a) is a LoFIRRTL program,
+while the program in Figure~\ref{fig-lofirrtl-exmp}(b) is not,
+since \begin{lstinline}!myport1!\end{lstinline} is connected twice.
 \begin{figure}[htbp]
 \centering
 \begin{subfigure}[b]{0.4\textwidth}
@@ -456,16 +482,18 @@ The InferResets pass infers the abstract reset type \prettyll{Reset} to the conc
 \begin{figure}[h]
 \centering
 \begin{tabular}{cccc}
-\begin{lstlisting}%[basicstyle=\footnotesize\ttfamily]
+%[basicstyle=\footnotesize\ttfamily]
+\begin{lstlisting}[boxpos=t,aboveskip=0pt]
 module MyModule:
   input x: {a: UInt, b: UInt}
   output y:{a: UInt, b: UInt}
   y <= x
 \end{lstlisting} &
-into
+\raisebox{-5ex}{\qquad into\qquad}
 &
 &
-\begin{lstlisting}%[basicstyle=\footnotesize\ttfamily]
+%[basicstyle=\footnotesize\ttfamily]
+\begin{lstlisting}[boxpos=t,aboveskip=0pt]
 module MyModule:
   input x: {a: UInt, b: UInt}
   output y:{a: UInt, b: UInt}
@@ -475,35 +503,75 @@ module MyModule:
 \end{tabular}
 \end{figure}
 
-\paragraph{ExpandWhens} The ExpandWhens pass expands the when statements and removes the last connect semantics, after the connect statements have been expanded by ExpandConnects. For instance, the ExpandWhens pass transforms the following program
+\paragraph{ExpandWhens} The ExpandWhens pass mainly replaces \prettyll{when} statements;
+this is necessary because a physical circuit cannot contain conditional elements.
+It also applies the so-called last connect semantics.
+
+For every ground-type writable (sub)component, ExpandWhens retains the last connect or \prettyll{is} \prettyll{invalid} statement
+that appears on any execution path through the module.
+If there are multiple execution paths where this (sub)component is declared,
+ExpandWhens selects between them using a multiplexer.
+
+For instance, the ExpandWhens pass transforms the following program
 \begin{figure}[h]
 \centering
 \begin{tabular}{cccc}
-\begin{lstlisting}%[basicstyle=\footnotesize\ttfamily]
-module MyModule :
-  input in: UInt<1>[2]
-  input n: UInt<1>
-  output out: UInt<1>
-  out <= n
-  when eq(n, UInt(0)) :
-    out <= in[0]
-  else when eq(n, UInt(1)) :
-    out <= in[1]
+%[basicstyle=\footnotesize\ttfamily]
+\begin{lstlisting}[boxpos=t,aboveskip=0pt,escapeinside={(*}{*)}]
+module TestCondition:
+  input in: UInt<32>
+  input condition: UInt<1>
+  output posv: UInt<32>
+  output negv: SInt<33>
+  posv <= 0 (* \label{lstinline-connect-before-when} *)
+  when condition:
+    posv <= in (* \label{lstinline-connect-in-when} *)
+    negv is invalid (* \label{lstline-is-invalid} *)
+  else:
+    wire a: SInt<33> (* \label{lstline-wire-under-when} *)
+    a <= neg in
+    negv <= a
 \end{lstlisting}&
-into
+\raisebox{-11ex}{\qquad into\qquad}
 &
 &
-\begin{lstlisting}%[basicstyle=\footnotesize\ttfamily]
-module MyModule :
-  input in: UInt<1>[2]
-  input n: UInt<1>
-  output out: UInt<1>
-  out <= mux(n, in[1], in[0])
+%[basicstyle=\footnotesize\ttfamily]
+\begin{lstlisting}[boxpos=t,aboveskip=0pt]
+module TestCondition:
+  input in: UInt<32>
+  input condition: UInt<1>
+  output posv: UInt<32>
+  output negv: SInt<33>
+  wire a: SInt<33>
+  posv <= mux(condition, in, 0)
+  a <= neg in
+  negv <= validif(not condition, a)
 \end{lstlisting}
 \end{tabular}
 \end{figure}
 
-Note that according to the last connect semantics, the connect statement \begin{lstinline} !out <= n! \end{lstinline} is removed by ExpandWhens.
+\noindent
+Note that according to the last connect semantics,
+the connect statement in Line~\ref{lstinline-connect-before-when} of the left listing
+is overriden by the one in Line~\ref{lstinline-connect-in-when}
+if \prettyll{condition} is true.
+Because of this overriding,
+ExpandWhens can only run after the connect statements have been expanded by ExpandConnects.
+
+If there is some execution path where the (sub)component is declared but is not connected,
+the compiler assumes that the programmer has forgotten a connect statement
+and produces an error.
+This error can be suppressed by an \prettyll{is invalid} statement
+(Line~\ref{lstline-is-invalid} of the left listing),
+which explicitly indicates that the connect is missing on purpose,
+e.g. because the result is not used or is irrelevant in this execution path.
+The multiplexer is replaced by a \prettyll{validif} expression.
+%, which may allow later optimization passes to remove superfluous calculations.
+
+If a component is not declared on every execution path
+(e.g. \prettyll{wire a} in Line~\ref{lstline-wire-under-when} of the left listing),
+it is nevertheless included in the LoFIRRTL result,
+and the condition is ignored; no multiplexer is inserted upon connections.
 
 \paragraph{LowerTypes} The LowerTypes pass flattens bundles and vectors, after the connect and partial connect statements have been expanded by ExpandConnects. Nevertheless, LowerTypes does not change the implicit bundles, e.g. module instances. After the application of LowerTypes, a module instance is still a bundle of depth 1 (instance -> port).
 
@@ -521,7 +589,7 @@ Note that according to the last connect semantics, the connect statement \begin{
     reg myreg : UInt<8>, clk with: (reset => (rst, init))
     myreg <= in
 \end{lstlisting}
-is tansformed into
+is transformed into
 \begin{lstlisting}
   module MyModule :
     input clk : Clock
