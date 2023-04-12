@@ -13,24 +13,91 @@ Let us fix a LoFIRRTL circuit $A$ that is free of \prettyll{inst of} statements.
 
 We first introduce some notations required to present the operational semantics.
 
+
+A \emph{generalized connect statement} is a statement of the form $z <= e$ or $\mbox{\tt \prettyll{node}}\ z = e$, where $z$ and $e$ are called the \emph{head} and \emph{body} of the generalized connect statement, respectively. Intuitively, a generalized connect statement is either a connect statement $z <= e$ or a node-declaration statement $\mbox{\tt \prettyll{node}}\ z = e$.
+
+
 We denote by $\iports(A)$, $\oports(A)$, $\wires(A)$, $\nodes(A)$ 
 and $\registers(A)$ the sets of input ports, output ports, wires, nodes and registers of the module $A$, respectively.
 Furthermore, we use $\ports(A)$ to denote the set of ports $\iports(A) \uplus \oports(A)$,
 $\cpnts(A)$ to denote the set of components $\ports(A) \uplus \wires(A) \uplus \nodes(A) \uplus \registers(A)$,
 and $\ccpnts(A)$ to denote the set of components $\oports(A) \uplus \wires(A) \uplus \nodes(A)$ that must be connected to, % in the module $A$,
-where a component $z$ is connected to via either a connect statement $z <= e$ or a node-declaration statement $\mbox{\tt \prettyll{node}}\ z = e$.
+where a component $z$ is connected to via a generalized connect statement whose head is $z$.
 Note that the input ports $\iports(A)$ are not connected to, moreover, the registers may not be connected to, thus they
 are not included in $\ccpnts(A)$. 
 (If a register is not connected to, then it keeps the current value.)  
 
 
-A \emph{generalized connect statement} is a statement of the form $z <= e$ or $\mbox{\tt \prettyll{node}}\ z = e$, where $z\in \cpnts(B)$ and $e$ are called the \emph{head} and \emph{body} of the generalized connect statement, respectively. Intuitively, a generalized connect statement is either a connect statement $z <= e$ or a node-declaration statement $\mbox{\tt \prettyll{node}}\ z = e$.
-
-To characterize the dependency of components in the module $A$, we define a dependency graph of the module $A$.
+To characterize the dependency of components in the module $A$ (hence define the semantics of the module $A$ sequentially), we define a dependency graph of the module $A$.
 Formally, the \emph{dependency graph} $G_A$ of the module $A$ is a tuple $(N_A, E_A)$, where $N_A$ is the set $\cpnts(A)$ of components,
 $E_A\subseteq \cpnts(A)\times \cpnts(A)$ is a finite set of directed edges such that
 $(x, y)\in E_A$, i.e., $y$ depends on $x$, iff $A$ contains a generalized connect statement with head $y$ and body $e$ involving $x$.
 %
+
+To forbid illegal behaviors, we assume that the dependency graph $G_A$ is \emph{acyclic},
+otherwise the module $A$ has some combinational loops\footnote{A combinatorial loop is when the output of some combinatorial logic, that is a section of logic with no registers between gates, is fed back into the input of that combinatorial logic with no intervening register.}, which are usually taken as ``bad'' in digital circuit design.
+We develop a verified topological sorting algorithm for checking if a dependency graph $G_A$ is loop-free or not.
+To have a well-defined semantics, we also assume that each component $z \in \ccpnts(A)$ should be connected to exactly once, that is, 
+there is exactly one generalized connect statement whose head is $z$. This assumption
+is checked by the ``ExpandWhens'' compilation pass and an error will be reported if the assumption
+is violated. Furthermore, the functional correctness of the ``ExpandWhens'' compilation pass is also proved in Coq.
+Finally, in this work, we focus on synchronization circuits, that is, there is one unique global clock.
+
+To define the operational semantics of the module $A$, we require that it is in \emph{pseudo-SSA form}, that is,  the statement sequence of the module $A$ satisfies the following two additional constraints,
+\begin{itemize}
+\item each component $z\in \cpnts(A)$ is declared before it is used in the bodies and heads of generalized connect statements (except that node $z\in \nodes(A)$ is declared and used simultaneously),
+%
+\item the concatenation $\pi_1\|\pi_2$ of sequence  $\pi_1$ of input ports and the sequence $\pi_2$ of heads of the generalized connect statements in the module $A$ forms
+ a topological sorting of  the dependency graph $G_A$ (note that input ports $\iports(A)$ do not have incoming edges in $G_A$, thus
+do not occur in the sequence $\pi_2$),
+specifically, for every edge $(x, y)$ in the dependency graph $G_A$, 
+the component $x$ precedes the component $y$ in the sequence $\pi_1\|\pi_2$. % (if $x$ indeed occurs in the sequence, i.e., $x$ is a non-input port).
+\end{itemize}
+
+Intuitively, 
+the first condition ensures that each component $z\in \cpnts(A)$ has a declared data type  
+before it is used in the bodies and heads of connect statements.
+The second condition ensures that a generalized connect statement with head $x$
+must precede any generalized connect statement with head $y$ in the module $A$ if $(x, y)$ is an edge in the dependency graph $G_A$,
+namely, the signal of $x$ is evaluated before it is used for evaluating $y$.
+For instance, the LoFIRRTL program shown in Figure~\ref{fig:exampleinSSA} is in 
+pseudo-SSA form while the one shown in Figure~\ref{fig:examplenotinSSA} is not, since
+$({\tt a}, {\tt io\_out})$ is an edge in $G_A$, while the generalized connect statement for {\tt a} follows the generalized connect statement for {\tt io\_out}.
+
+
+
+\begin{figure}[htbp]
+\centering
+\begin{subfigure}[b]{0.4\textwidth}
+         \centering
+\begin{lstlisting}[basicstyle=\scriptsize\ttfamily]
+module MyModule :
+  input a: UInt<1>
+  input b: UInt<1>
+  output myport1: UInt<1>
+  output myport2: UInt<1>
+  myport1 <= b
+  myport2 <= a
+\end{lstlisting}
+\caption{Example in pseudo-SSA form}
+\label{fig:exampleinSSA}
+\end{subfigure}
+\hspace{4mm}
+%     \hfill
+\begin{subfigure}[b]{0.4\textwidth}
+         \centering
+\begin{lstlisting}[basicstyle=\scriptsize\ttfamily]
+module A
+  input io_in: UInt<32>
+  output io_out: UInt<32>
+  io_out <= tail(a, 1)
+  node a = add(io_in, UInt<32>("h1"))
+\caption{Example not in pseudo-SSA form}
+\label{fig:examplenotinSSA}
+\end{subfigure} 
+\end{figure}
+
+
 
 \fu{Stopped}
 
@@ -61,10 +128,12 @@ We use $\ccpnts(A)$ to denote the set of connected components of $A$, that is, $
 The \emph{dependency graph} of $A$ is $G_A = (\cpnts(A), E_A)$, where $E_A$ comprises the edges $(x, y)$ such that $y$ depends on $x$, more precisely, $x$ occurs in the body of the generalized connect statement for $y$.
 %
 %(Recall that LoFIRRTL does not contain partial connect statements, moreover, for each $y \in \cpnts(B)$, there is at most one connect statement where $y$ is the head.)
-\end{comment}
+
 
 
 Since combinational loops\footnote{A combinatorial loop is when the output of some combinatorial logic, that is a section of logic with no registers between gates, is fed back into the input of that combinatorial logic with no intervening register.} are usually taken as ``bad'' in digital circuit design, we require that \emph{$G_A$ is acyclic}. Another necessary condition for the well-definedness of semantics of LoFIRRTL is stated as follows: \emph{Each $z \in \ccpnts(A)$ should be connected to exactly once, that is, there is exactly one generalized connect statement whose head is $z$}. Futhermore, in this work, we ignore clocks, that is, all signals are related to the same clock, the global clock.
+
+
 
 To define the operational semantics of $A$, we require that module $A$ is in \emph{pseudo-SSA form}, that is,  the statement sequence of module $A$ satisfies the following two additional  constraints,
 \begin{itemize}
@@ -72,7 +141,7 @@ To define the operational semantics of $A$, we require that module $A$ is in \em
 %
 \item the sequence of heads of the generalized connect statements in module $A$ forms a topological sorting of $G_A$ (where the vertices without incoming edges are ignored), specifically, for every edge $(x, y)$ in $G_A$, $x$ is before $y$ in the sequence (if $x$ indeed occurs in the sequence), in other words, the generalized connect statement for $x$ (if there is any) is before the connect statement for $y$ in $A$.
 \end{itemize}
-
+\end{comment}
 %A necessary condition for the well-definedness of the semantics of LoFIRRTL programs
 
 %From the fact that $A$ is a module in a LoFIRRTL program, we know that $G_A$ is acyclic.
