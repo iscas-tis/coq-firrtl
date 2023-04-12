@@ -291,22 +291,7 @@
 %% The abstract is a short summary of the work to be presented in the
 %% article.
 \begin{abstract}
-FIRRTL is an intermediate representation for the Chisel hardware description language
-and has been intensively used in designing RISC-V CPUs.
-This paper presents \emph{Vefirrtl,} a framework for reasoning
-about programs expressed in FIRRTL
-and about lowering transformations that remove some high-level constructs.
-Vefirrtl provides a
-mechanized formal semantics of FIRRTL and
-its type system. The framework is built using the Coq interactive theorem prover. It includes
-an axiomatic semantics for High FIRRTL and an operational semantics for Low FIRRTL and proves relations among them.
-To validate Vefirrtl's design, we extract an interpreter from the
-Coq formal semantics that can execute programs from the FIRRTL test
-suite and thus be compared against FIRRTL reference implementations.
-To demonstrate Vefirrtl's practicality, we formalize and verify two key transformations of FIRRTL programs,
-namely ``Infer Width'' and ``Expand Whens'',
-which infer bit widths of signals
-and replace conditional statements with multiplexers, respectively.
+FIRRTL is an intermediate representation for the Chisel hardware description language and has been intensively used in designing RISC-V CPUs. FIRRTL features the high-level constructs like vector and bundle types, which are then removed by a sequence of lowering transformations, resulting into a most restricted form, called low FIRRTL. This paper presents Vefirrtl, a framework that reasons about programs in FIRRTL and its lowering transformations. Vefirrtl is built using the Coq interactive theorem prover. It provides a mechanized formal semantics for low FIRRTL. Moreover, it formalizes the syntax of FIRRTL and its lowering transformations. To validate the formal semantics for low FIRRTL, we extract from it an OCaml interpreter that can execute low FIRRTL programs, and empirically check its consistency against Treadle, the low FIRRTL reference interpreter, on a benchmark suite comprising 120 low FIRRTL programs. Furthermore, we specify and verify the functional correctness of two key lowering transformations, namely ``ExpandConnects'' and ``ExpandWhens'', which expands the connect statements for vector and bundle types, and replaces conditional statements with multiplexers, respectively.
 %
 \end{abstract}
 
@@ -347,7 +332,7 @@ and replace conditional statements with multiplexers, respectively.
 %%
 %% Keywords. The author(s) should pick words that accurately describe
 %% the work being presented. Separate the keywords with commas.
-\keywords{datasets, neural networks, gaze detection, text tagging}
+\keywords{RISC-V CPU design, FIRRTL, lowering transformations, formal semantics, verification}
 %% A "teaser" image appears between the author and affiliation
 %% information and the body of the document, and typically spans the
 %% page.
