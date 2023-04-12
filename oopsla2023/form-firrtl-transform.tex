@@ -2,7 +2,7 @@
 
 A description of the formalization of InferTypes, InferWidths, InferResets, ExpandConnects, ExpandWhens, LowerTypes, and RemoveResets. 
 
-
+\subsubsection{``Infer Types''}
 
 \subsubsection{``Infer Widths''}
 Implicit widths are allowed to be defined in HiFIRRTL programs.
@@ -88,6 +88,7 @@ manipulated more efficiently.
 %% \end{lstlisting}
 %% Now, wire $c$ has the width as same as $d$, which is 14. The latter connection
 %% from d gives a larger width to the destination $c$. 
+\subsubsection{``Infer Resets''}
 
 \subsubsection{``Expand Connects''}
 In HiFIRRTL, connections can be made between aggregate types.  These
@@ -97,13 +98,32 @@ individual ones of corresponding ground types. The general rules are,
 \begin{itemize}
 \item Connections between ground types can not be expanded.
 \item Connections between aggregate types will be expanded recursively.
-\item The direction of the connection will be flipped,
-      if the expanded field in a bundle type is declared \prettyll{flip}
 \end{itemize}
 
-The pass focuses on connection statements in $ss$. The left-hand side of a
-connection is a reference to a component and the right-hand side is an
-expression. 
+The pass focuses on connection statements in $ss$. The left-hand side
+of a connection is a reference to a component, while the right-hand side
+is an expression. In order to obtain expanded
+connections, the expression needs to be recursively expanded.
+Only expressions of multiplexers \prettyll{mux} and
+references \prettyll{r} can be of aggregate types. The other
+expressions, such as binary operations, only operate and result in
+ground types. Therefore they do not require expanding.
+Expanding a \prettyll{mux} expression is done by {\tt expand\_mux} function,
+  \begin{gather}
+    \infer[]
+    {\seqq{ce\vdash{\tt expand\_expr} (\mbox{mux}(ec,e1,e2)) \rightsquigarrow exs}}
+    {\seqq{exs:=[\mbox{mux}(ec,x,y)\,|\,x \leftarrow {\tt expand\_expr}(e1),\,y \leftarrow {\tt expand\_expr}(e2)]}}.
+    \end{gather}
+It takes the conditional expression $ec$ and the true/false branch
+expressions $e1$ and $e2$ as inputs, and then produces a list
+of \prettyll{mux} that combines the lists of expanded $e1$ and $e2$
+with the same condition.  Expanding a references is relatively straightforward.
+It create a list of references to the sub-elements according to the
+type of the component.
+
+\subsubsection{``Lower Types''}
+
+\subsubsection{``Remove Resets''}
 %% For example,
 %% \begin{lstlisting}
 %% module MyModule :
