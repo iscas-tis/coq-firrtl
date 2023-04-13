@@ -22,21 +22,21 @@ very recently, e.g., the extension of CakeML (called Lutsig) for compiling %regi
 a subset of register-transfer level (RTL) Verilog programs to netlist level programs for field-programmable gate array (FPGA),
 and the extension of CompCert (called Vericert) for compiling %compiling C programs to Verilog programs~\cite{HerklotzPRW21}.
 a subset of C programs to RTL Verilog programs~\cite{HerklotzPRW21}.
-Following this promising research direction, in this work, we establish for the first time a framework that formally reasons about programs in FIRRTL~\cite{firrtl-spec} (Flexible Intermediate Representation for RTL) and its lowering transformations (aka compilation passes).  
+Following this promising research direction, in this work, we establish for the first time a framework that formally reasons about programs in FIRRTL~\cite{firrtl-spec} (Flexible Intermediate Representation for RTL) and its lowering transformations (aka compilation passes).
 
 FIRRTL originated from the high-level hardware construction language Chisel~\cite{BachrachVRLWAWA12}.
 Chisel is a domain specific language embedded in Scala that comprises a library of special class definitions, predefined objects, and usage conventions for writing highly-parameterized circuit design generators.
 High-level hardware generators in Chisel are developed by manipulating circuit components using Scala functions,
 and their interfaces are encoded in Scala types.
 Circuits can also be constructed by leveraging Scala's functional and object-oriented programming features, enabling parameterized, modular, and reusable hardware generators that improve hardware design productivity and robustness.
-Chisel has been successfully used to build RISC-V processes such as Rocket Chip~\cite{RocketChip}, RISC-V BOOM \cite{Boom}, NutShell~\cite{NutShell}, 
-XiangShan~\cite{xiangshan,Xiangshan-github}, and so on. 
+Chisel has been successfully used to build RISC-V processes such as Rocket Chip~\cite{RocketChip}, RISC-V BOOM \cite{Boom}, NutShell~\cite{NutShell},
+XiangShan~\cite{xiangshan,Xiangshan-github}, and so on.
 %SiFive Core IP portfolio~\cite{SiFive},
 %and Google Edge TPU~\cite{EdgeTPU}.
 
 The FIRRTL intermediate representation (IR) was proposed for the compilation of Chisel programs~\cite{IzraelevitzKLLW17}, analogous to the role of LLVM IR~\cite{LLVM} for compiling C programs.
 FIRRTL features first-class support for high-level constructs such as vector types, bundle types, conditional statements, connects, partial connects,
-and modules so that Chisel programs can easily be translated into FIRRTL. 
+and modules so that Chisel programs can easily be translated into FIRRTL.
 %
 High-level synthesis is performed on FIRRTL by a sequence of compilation passes  (aka lowering transformations) and optimizations,
 resulting in a most restricted form that is close to RTL Verilog, called low FIRRTL (abbreviated as LoFIRRTL).
@@ -44,7 +44,7 @@ For clarity, let us call FIRRTL with high-level constructs \emph{high FIRRTL} (a
 While FIRRTL was designed to compile Chisel programs, it is not tied to Chisel. Other hardware description languages can also be compiled into FIRRTL and reuse the majority of the FIRRTL compilation passes. For instance, FIRRTL has been integrated into the CIRCT project~\cite{CIRCT} as one of its core dialects.
 
 
-%%%%%% resolved conflicts 
+%%%%%% resolved conflicts
 \hide{
 The FIRRTL intermediate representation was proposed for the compilation of Chisel programs~\cite{IzraelevitzKLLW17},
 analogous to the role of the LLVM IR~\cite{LLVM} for compiling C programs.
@@ -64,33 +64,34 @@ The FIRRTL compiler suffers from lots of bugs due to its inherent complexity. Fo
 %The ``ExpandWhens'' compilation pass may introduce unexpected \lstinline!VOID!, leading to a match error in
 %the ``InferTypes'' compilation pass~\footnote{\url{https://github.com/chipsalliance/firrtl/issues/852}}.
 %
-Nevertheless, partially due to the fact that Chisel and FIRRTL are relatively new and the ecosystem around them is still evolving, formalization and verification of FIRRTL IR and its lowering transformations are largely missing, with an exception \cite{HarrisonHA21}. In~\cite{HarrisonHA21}, a coinductive denotational semantics was proposed for LoFIRRTL, based on a formalism called device calculus. Nevertheless, while Harrison et al. made progress in the formalization of LoFIRRTL in~\cite{HarrisonHA21}, a framework where  programs in HiFIRRTL and its lowering transformations can be formally reasoned about is still elusive. The establishment of such a framework would require 
+Nevertheless, partially due to the fact that Chisel and FIRRTL are relatively new and the ecosystem around them is still evolving, formalization and verification of FIRRTL IR and its lowering transformations are largely missing, with an exception \cite{HarrisonHA21}. In~\cite{HarrisonHA21}, a coinductive denotational semantics was proposed for \fu{a subset of} LoFIRRTL, based on a formalism called device calculus. Nevertheless, while Harrison et al. made progress in the formalization of LoFIRRTL in~\cite{HarrisonHA21}, a framework where  programs in HiFIRRTL and its lowering transformations can be formally reasoned about is still elusive. The establishment of such a framework would require
 %\begin{itemize}
-%\item 
-a mechanized operational semantics of LoFIRRTL, 
+%\item
+a mechanized operational semantics of LoFIRRTL,
 %
-%\item 
-validation of the conformance of the semantics to the FIRRTL reference interpreter, 
+%\item
+validation of the conformance of the semantics to the FIRRTL reference interpreter,
 %
-%\item 
-formalization of HiFIRRTL and its lowering transformations, 
+%\item
+formalization of HiFIRRTL and its lowering transformations,
 %
-%\item 
-as well as specification and verification of the correctness of its lowering transformations. 
+%\item
+as well as specification and verification of the correctness of its lowering transformations.
 %\end{itemize}
 
 In this work, we fill in this gap and provide such a framework. Specifically, we make the following contributions.
 \begin{itemize}
-\item Define an executable operational semantics for LoFIRRTL. The operational semantics is based on a concept of pseudo-single-static-assignment form of LoFIRRTL programs.
+\item Define an executable operational semantics for LoFIRRTL \fu{in Coq}. The operational semantics is based on a concept of pseudo-single-static-assignment form of LoFIRRTL programs.
 %
-\item Validate the operational semantics against Treadle, the main-stream FIRRTL reference interpreter, on a benchmark suite comprising 120 LoFIRRTL programs. 
+\item Validate the operational semantics against Treadle, the main-stream FIRRTL reference interpreter, on a benchmark suite comprising 120 LoFIRRTL programs.
 %
-\item Introduce a concept of circuit diagrams  and formalize the syntax of HiFIRRTL and its seven lowering transformations, namely, ``InferTypes'', ``InferWidths'', ``InferResets'', ``ExpandConnects'', ``ExpandWhens'', ``LowerTypes'', and ``RemoveResets''.
+\item Introduce a concept of circuit diagrams  and formalize the syntax of HiFIRRTL and its seven lowering transformations \fu{in Coq}, namely, ``InferTypes'', ``InferWidths'', ``InferResets'', ``ExpandConnects'', ``ExpandWhens'', ``LowerTypes'', and ``RemoveResets''.
 %
-\item Specify and verify the functional correctness of the two most involved lowering transformations, namely ``ExpandConnects'' and ``ExpandWhens''.
+\item Specify and verify the functional correctness of the two most involved lowering transformations \fu{in Coq}, namely ``ExpandConnects'' and ``ExpandWhens''.
 \end{itemize}
 
-The rest of this paper is organized as follows. Section~\ref{sec-firrtl} gives an informal introduction to FIRRTL and its lowering transformations. Section~\ref{sec-form-low-firrtl} is devoted to the  operational semantics of LoFIRRTL as well as its validation against Treadle. Section~\ref{sec-hi-firrtl-transform} formalizes HiFIRRTL and its lowering transformations. Section~\ref{sec-spec-verif-expand} specifies and verifies ``ExpandConnects'' and ``ExpandWhens''. Section~\ref{sec-conc} concludes this paper. 
+The rest of this paper is organized as follows. Section~\ref{sec-firrtl} gives an informal introduction to FIRRTL and its lowering transformations. Section~\ref{sec-form-low-firrtl} is devoted to the  operational semantics of LoFIRRTL as well as its validation against Treadle. Section~\ref{sec-hi-firrtl-transform} formalizes HiFIRRTL and its lowering transformations. Section~\ref{sec-spec-verif-expand} specifies and verifies ``ExpandConnects'' and ``ExpandWhens''. We discuss related work in Section~\ref{sec-related-work} 
+and conclude this paper in Section~\ref{sec-conc}.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

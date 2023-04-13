@@ -86,7 +86,7 @@ A \emph{type} can be either a \emph{ground type}, e.g. \begin{lstinline}!UInt<1>
 \end{comment}
 
 The syntactic rules of FIRRTL are given in Figure~\ref{fig-firrtl-synt-simp} in Extended Backus-Naur Form (EBNF), where \{$\cdots$\} denotes repetition \fu{(zero or more times)}
-and [$\cdots$] denotes option (\fu{either included or discarded}), moreover, the terminals are doubly quoted \mbox{\tt “} and \mbox{\tt ”}. We stress that the syntactic rules of FIRRTL presented here is a simplification of those in the official specification\footnote{\url{https://github.com/chipsalliance/firrtl-spec/blob/main/spec.md}}.
+and [$\cdots$] denotes option (\fu{either included or discarded}), moreover, the terminals are doubly quoted \mbox{\tt ``} and \mbox{\tt ''}. We stress that the syntactic rules of FIRRTL presented here is a simplification of those in the official specification\footnote{\url{https://github.com/chipsalliance/firrtl-spec/blob/main/spec.md}}.
 For instance, indent, dedent and newline terminals are omitted for readability;
 moreover, the types and constructs for analog signals are also omitted, since we focus on digital circuits in this work.
 In the syntax, memory is also omitted since its semantics is still under active debate.\footnote{\url{https://github.com/chipsalliance/chisel/issues/3112}}
@@ -107,119 +107,119 @@ In the syntax, memory is also omitted since its semantics is still under active 
 \[
 \begin{array}{l l l}
 %\mbox{\bf Circuit} &
-c & ::= & \mbox{\tt “\prettyll{circuit}”}\ id\mbox{\tt “:”} \{m\}\\
+c & ::= & \mbox{\tt ``\fnprettyll{circuit}''}\ id\mbox{\tt ``:''} \{m\}\\
 %
 %\mbox{\bf Module} &
-m & ::= & \mbox{\tt “\prettyll{module}”} \ id \{p\} \{s\}\\
+m & ::= & \mbox{\tt ``\fnprettyll{module}''} \ id \{p\} \{s\}\\
 %
 %\mbox{\bf External Module} &
-%em & ::= & \mbox{\tt “extmodule”}\ id \{p\} [\mbox{\tt “defname =”}\ id] \{\mbox{\tt “parameter”}\ id \mbox{\tt “= ”}(string \mid int)\}\\
+%em & ::= & \mbox{\tt ``extmodule''}\ id \{p\} [\mbox{\tt ``defname =''}\ id] \{\mbox{\tt ``parameter''}\ id \mbox{\tt ``= ''}(string \mid int)\}\\
 %
 %\mbox{\bf Port} &
-p & ::= & (\mbox{\tt “\prettyll{input}”} \mid \mbox{\tt “\prettyll{output}”})\ id\mbox{\tt “:”}t \\
+p & ::= & (\mbox{\tt ``\fnprettyll{input}''} \mid \mbox{\tt ``\fnprettyll{output}''})\ id\mbox{\tt ``:''}t \\
 %
  %\mbox{\bf Statment} &
- s & ::= & \mbox{\tt “\prettyll{wire}”}\ id\mbox{\tt “:”}t  \mid \mbox{\tt “\prettyll{reg}”}\ id\mbox{\tt “:”}t\ e [\mbox{\tt “(\prettyll{with}:\{\prettyll{reset}=>(”} e\mbox{\tt “,”} e \mbox{\tt “)\})”}] \\
+ s & ::= & \mbox{\tt ``\fnprettyll{wire}''}\ id\mbox{\tt ``:''}t  \mid \mbox{\tt ``\fnprettyll{reg}''}\ id\mbox{\tt ``:''}t\ e [\mbox{\tt ``(\fnprettyll{with}:\{\fnprettyll{reset}=>(''} e\mbox{\tt ``,''} e \mbox{\tt ``)\})''}] \\
  %&
   &   &  \mid
 %  \mid memory \mid
-  \mbox{\tt “\prettyll{inst}”}\ id\ \mbox{\tt “\prettyll{of}”}\ id \mid \mbox{\tt “\prettyll{node}”}\ id \mbox{\tt “=”} id  \mid r \mbox{\tt “<=”} e  \mid r \mbox{\tt “<-”} e \mid r\ \mbox{\tt “\prettyll{is invalid}”} \\
+  \mbox{\tt ``\fnprettyll{inst}''}\ id\ \mbox{\tt ``\fnprettyll{of}''}\ id \mid \mbox{\tt ``\fnprettyll{node}''}\ id \mbox{\tt ``=''} id  \mid r \mbox{\tt ``<=''} e  \mid r \mbox{\tt ``<-''} e \mid r\ \mbox{\tt ``\fnprettyll{is invalid}''} \\
 %&
-&   &\mid \mbox{\tt “\prettyll{when}”}\ e\mbox{\tt “:”}\{s\} [\mbox{\tt “\prettyll{else}:”} \{s\}] \mid \mbox{\tt “\prettyll{skip}”}\\
+&   &\mid \mbox{\tt ``\fnprettyll{when}''}\ e\mbox{\tt ``:''}\{s\} [\mbox{\tt ``\fnprettyll{else}:''} \{s\}] \mid \mbox{\tt ``\fnprettyll{skip}''}\\
 %
 %\mbox{\bf Memory} &
-%memory & = &  \mbox{“mem”}, id, newline, indent, \\
+%memory & = &  \mbox{``mem''}, id, newline, indent, \\
  %&
-% & & \mbox{“data-type”}, \mbox{“=>”}, type, newline, \\
+% & & \mbox{``data-type''}, \mbox{``=>''}, type, newline, \\
  %&
-% & & \mbox{“depth”}, \mbox{“=>”}, int, newline, \\
+% & & \mbox{``depth''}, \mbox{``=>''}, int, newline, \\
  %&
-% & & \mbox{“read-latency”}, \mbox{“=>”}, int, newline, \\
+% & & \mbox{``read-latency''}, \mbox{``=>''}, int, newline, \\
  %&
-% & & \mbox{“write-latency}, \mbox{“=>”}, int, newline,  \\
+% & & \mbox{``write-latency}, \mbox{``=>''}, int, newline,  \\
  %&
-% & & \mbox{“read-under-write”}, \mbox{“=>”}, ruw, newline, \\
+% & & \mbox{``read-under-write''}, \mbox{``=>''}, ruw, newline, \\
   %&
-%  & & \{\mbox{“reader”}, \mbox{“=>”}, id, newline\}, \\
+%  & & \{\mbox{``reader''}, \mbox{``=>''}, id, newline\}, \\
   %&
-%  & & \{\mbox{“writer”}, \mbox{“=>”}, id, newline\}, \\
+%  & & \{\mbox{``writer''}, \mbox{``=>''}, id, newline\}, \\
   %&
-%  & & \{\mbox{“readwriter”}, \mbox{“=>”}, id, newline\}, dedent;\\
+%  & & \{\mbox{``readwriter''}, \mbox{``=>''}, id, newline\}, dedent;\\
 %
 %\mbox{\bf Read Under Write Flag} &
-%ruw & = & \mbox{“old”} \mid \mbox{“new”} \mid \mbox{“undefined”};\\
+%ruw & = & \mbox{``old''} \mid \mbox{``new''} \mid \mbox{``undefined''};\\
 %
 %\mbox{\bf Expression} &
-  e & ::= & (\mbox{\tt “\prettyll{UInt}”} | \mbox{\tt “\prettyll{SInt}”}) [w] \mbox{\tt “(”}int\mbox{\tt “)”} \mid r \mid \mbox{\tt “\prettyll{mux}(”}e\mbox{\tt “,”} e\mbox{\tt “,”} e\mbox{\tt “)”}
-  \mid \mbox{\tt “\prettyll{validif}(”}e\mbox{\tt “,”} e\mbox{\tt “)”}
-        \mid \mbox{\tt “\textcolor{blue}{read}(”}sr \mbox{\tt “)”} \mid op\\
+  e & ::= & (\mbox{\tt ``\fnprettyll{UInt}''} | \mbox{\tt ``\fnprettyll{SInt}''}) [w] \mbox{\tt ``(''}int\mbox{\tt ``)''} \mid r \mid \mbox{\tt ``\fnprettyll{mux}(''}e\mbox{\tt ``,''} e\mbox{\tt ``,''} e\mbox{\tt ``)''}
+  \mid \mbox{\tt ``\fnprettyll{validif}(''}e\mbox{\tt ``,''} e\mbox{\tt ``)''}
+        \mid \mbox{\tt ``\textcolor{blue}{read}(''}sr \mbox{\tt ``)''} \mid op\\
 %
 %&
-r & ::= & sr \mid r \mbox{\tt “[”} e \mbox{\tt “]”}\\
+r & ::= & sr \mid r \mbox{\tt ``[''} e \mbox{\tt ``]''}\\
 %
-sr & ::= & id \mid sr\mbox{\tt “.”}id \mid sr\mbox{\tt “[”}int\mbox{\tt “]”}\\
+sr & ::= & id \mid sr\mbox{\tt ``.''}id \mid sr\mbox{\tt ``[''}int\mbox{\tt ``]''}\\
 %&
-w & ::= & \mbox{\tt “<”} int \mbox{\tt “>”}\\
+w & ::= & \mbox{\tt ``<''} int \mbox{\tt ``>''}\\
 %
 %&
-%binarypoint & = & \mbox{“<”}, \mbox{“<”}, int, \mbox{“>”}, \mbox{“>”};\\
+%binarypoint & = & \mbox{``<''}, \mbox{``<''}, int, \mbox{``>''}, \mbox{``>''};\\
 %
  %\mbox{\bf Bundle Field} &
 %
 %\mbox{\bf Data Types} &
 t & ::= & tg \mid ta \\
  %&
- tg & ::= &  \mbox{\tt “\prettyll{Clock}”} \mid \mbox{\tt “\prettyll{Reset}”} \mid \mbox{\tt “\prettyll{AsyncReset}”} \mid (\mbox{\tt “\prettyll{UInt}”} \mid \mbox{\tt “\prettyll{SInt}”}) [w] \\
+ tg & ::= &  \mbox{\tt ``\fnprettyll{Clock}''} \mid \mbox{\tt ``\fnprettyll{Reset}''} \mid \mbox{\tt ``\fnprettyll{AsyncReset}''} \mid (\mbox{\tt ``\fnprettyll{UInt}''} \mid \mbox{\tt ``\fnprettyll{SInt}''}) [w] \\
  %&
-% & & \mid \mbox{“Fixed”}, [width], [binarypoint];\\
+% & & \mid \mbox{``Fixed''}, [width], [binarypoint];\\
  %&
 %
-  ta & ::= &\mbox{\tt “\{”} f \{f\}\mbox{\tt “\}”} \mid t \mbox{\tt “[”} int \mbox{\tt “]”} \\
+  ta & ::= &\mbox{\tt ``\{''} f \{f\}\mbox{\tt ``\}''} \mid t \mbox{\tt ``[''} int \mbox{\tt ``]''} \\
 %
-    f & ::= & [\mbox{\tt “\prettyll{flip}”}]\ id\mbox{\tt “:”}t\\
-%& & & \mbox{“UInt”}, [\mbox{“<”}, int, \mbox{“>”}] \mid \mbox{“SInt”}, [\mbox{“<”}, int, \mbox{“>”} ] \\
-%& & & \mid \mbox{“Fixed”}, [\mbox{“<”}, int, \mbox{“>”} ] [\mbox{“<}\mbox{<”}, int, \mbox{“>}\mbox{>”}]\\
-% &  &  & \mid \mbox{“Clock”} \mid \mbox{“Analog”},  [\mbox{“<”}, int, \mbox{“>”}] \mid \mbox{“\{”}, field, \mbox{“\}”} \mid type, \mbox{“[”}, int, \mbox{“]”}; \\
+    f & ::= & [\mbox{\tt ``\fnprettyll{flip}''}]\ id\mbox{\tt ``:''}t\\
+%& & & \mbox{``UInt''}, [\mbox{``<''}, int, \mbox{``>''}] \mid \mbox{``SInt''}, [\mbox{``<''}, int, \mbox{``>''} ] \\
+%& & & \mid \mbox{``Fixed''}, [\mbox{``<''}, int, \mbox{``>''} ] [\mbox{``<}\mbox{<''}, int, \mbox{``>}\mbox{>''}]\\
+% &  &  & \mid \mbox{``Clock''} \mid \mbox{``Analog''},  [\mbox{``<''}, int, \mbox{``>''}] \mid \mbox{``\{''}, field, \mbox{``\}''} \mid type, \mbox{``[''}, int, \mbox{``]''}; \\
 %
-id & ::= & ( \mbox{\tt “\_”} \mid l) \{ \mbox{\tt “\_”} \mid l \mid d\} \\
+id & ::= & ( \mbox{\tt ``\_''} \mid l) \{ \mbox{\tt ``\_''} \mid l \mid d\} \\
 %\mbox{\bf Primitive Operation} &
 op & ::= & op\_2e \mid op\_1e \mid op\_1e1i \mid op\_1e2i \\
 %&
-op\_2e & ::= & op\_2e\_key \mbox{\tt “(”}  e \mbox{\tt “,”}  e \mbox{\tt “)”} \\
+op\_2e & ::= & op\_2e\_key \mbox{\tt ``(''}  e \mbox{\tt ``,''}  e \mbox{\tt ``)''} \\
 %
 %&
-op\_2e\_key & ::= &  \mbox{\tt “\prettyll{add}”}  \mid  \mbox{\tt “\prettyll{sub}”}  \mid \mbox{\tt “\prettyll{mul}”} \mid \mbox{\tt “\prettyll{div}”} \mid \mbox{\tt “\prettyll{mod}”} \mid \mbox{\tt “\prettyll{lt}”} \mid \mbox{\tt “\prettyll{leq}”} \mid \mbox{\tt “\prettyll{gt}”} \mid \mbox{\tt “\prettyll{geq}”} \mid \mbox{\tt “\prettyll{eq}”} \mid \mbox{\tt “\prettyll{neq}”} \\
+op\_2e\_key & ::= &  \mbox{\tt ``\fnprettyll{add}''}  \mid  \mbox{\tt ``\fnprettyll{sub}''}  \mid \mbox{\tt ``\fnprettyll{mul}''} \mid \mbox{\tt ``\fnprettyll{div}''} \mid \mbox{\tt ``\fnprettyll{mod}''} \mid \mbox{\tt ``\fnprettyll{lt}''} \mid \mbox{\tt ``\fnprettyll{leq}''} \mid \mbox{\tt ``\fnprettyll{gt}''} \mid \mbox{\tt ``\fnprettyll{geq}''} \mid \mbox{\tt ``\fnprettyll{eq}''} \mid \mbox{\tt ``\fnprettyll{neq}''} \\
 %&
-& &   \mid \mbox{\tt “\prettyll{dshl}”}  \mid \mbox{\tt “\prettyll{dshr}”} \mid \mbox{\tt “\prettyll{and}”} \mid \mbox{\tt “\prettyll{or}”} \mid \mbox{\tt “\prettyll{xor}”} \mid \mbox{\tt “\prettyll{cat}”} \\
+& &   \mid \mbox{\tt ``\fnprettyll{dshl}''}  \mid \mbox{\tt ``\fnprettyll{dshr}''} \mid \mbox{\tt ``\fnprettyll{and}''} \mid \mbox{\tt ``\fnprettyll{or}''} \mid \mbox{\tt ``\fnprettyll{xor}''} \mid \mbox{\tt ``\fnprettyll{cat}''} \\
  %
 %&
-op\_1e & ::= & op\_1e\_key \mbox{\tt “(”}  e \mbox{\tt “)”} \\
+op\_1e & ::= & op\_1e\_key \mbox{\tt ``(''}  e \mbox{\tt ``)''} \\
 %&
-op\_1e\_key & ::= & \mbox{\tt “\prettyll{asUInt}”} \mid \mbox{\tt “\prettyll{asSInt}”} \mid \mbox{\tt “\prettyll{asClock}”} \mid \mbox{\tt “\prettyll{cvt}”} \mid \mbox{\tt “\prettyll{neg}”} \mid \mbox{\tt “\prettyll{not}”}  \mid \mbox{\tt “\prettyll{andr}”} \mid \mbox{\tt “\prettyll{orr}”} \mid  \mbox{\tt “\prettyll{xorr}”}\\
+op\_1e\_key & ::= & \mbox{\tt ``\fnprettyll{asUInt}''} \mid \mbox{\tt ``\fnprettyll{asSInt}''} \mid \mbox{\tt ``\fnprettyll{asClock}''} \mid \mbox{\tt ``\fnprettyll{cvt}''} \mid \mbox{\tt ``\fnprettyll{neg}''} \mid \mbox{\tt ``\fnprettyll{not}''}  \mid \mbox{\tt ``\fnprettyll{andr}''} \mid \mbox{\tt ``\fnprettyll{orr}''} \mid  \mbox{\tt ``\fnprettyll{xorr}''}\\
 %
 %&
-op\_1e1i & ::= & op\_1e1i\_key \mbox{\tt “(”}  e \mbox{\tt “,”} int \mbox{\tt “)”} \\
+op\_1e1i & ::= & op\_1e1i\_key \mbox{\tt ``(''}  e \mbox{\tt ``,''} int \mbox{\tt ``)''} \\
 %&
-op\_1e1i\_key & ::= & \mbox{\tt “\prettyll{pad}”} \mid \mbox{\tt “\prettyll{shl}”} \mid \mbox{\tt “\prettyll{shr}”} \mid \mbox{\tt “\prettyll{head}”} \mid \mbox{\tt “\prettyll{tail}”} \\
+op\_1e1i\_key & ::= & \mbox{\tt ``\fnprettyll{pad}''} \mid \mbox{\tt ``\fnprettyll{shl}''} \mid \mbox{\tt ``\fnprettyll{shr}''} \mid \mbox{\tt ``\fnprettyll{head}''} \mid \mbox{\tt ``\fnprettyll{tail}''} \\
 %&
-op\_1e2i & ::= & op\_1e2i\_key \mbox{\tt “(”}  e \mbox{\tt “,”}  int  \mbox{\tt “,”}  int \mbox{\tt “)”} \\
+op\_1e2i & ::= & op\_1e2i\_key \mbox{\tt ``(''}  e \mbox{\tt ``,''}  int  \mbox{\tt ``,''}  int \mbox{\tt ``)''} \\
 %&
-op\_1e2i\_key & ::= & \mbox{\tt “\prettyll{bits}”}\\
+op\_1e2i\_key & ::= & \mbox{\tt ``\fnprettyll{bits}''}\\
 %
-int & ::= & [\mbox{\tt “-”}] d \{d\} \mid \mbox{\tt “"b”} [\mbox{\tt “-”}] d\_b \{d\_b\} \mbox{\tt “"”}
- \mid \mbox{\tt “"o”} [\mbox{\tt “-”}] d\_o \{d\_o\} \mbox{\tt “"”} \mid
-\mbox{\tt “"h”} [\mbox{\tt “-”}] d\_h \{d\_h\} \mbox{\tt “"”} \\
+int & ::= & [\mbox{\tt ``-''}] d \{d\} \mid \mbox{\tt ``"b''} [\mbox{\tt ``-''}] d\_b \{d\_b\} \mbox{\tt ``"''}
+ \mid \mbox{\tt ``"o''} [\mbox{\tt ``-''}] d\_o \{d\_o\} \mbox{\tt ``"''} \mid
+\mbox{\tt ``"h''} [\mbox{\tt ``-''}] d\_h \{d\_h\} \mbox{\tt ``"''} \\
 %
-%d & ::= &\mbox{\tt “0”} \mid  \mbox{\tt  “1”}\mid \mbox{\tt “2”} \mid\mbox{\tt “3”} \mid  \mbox{\tt  “4”}\mid \mbox{\tt “5”} \mid\mbox{\tt “6”} \mid  \mbox{\tt  “7”}\mid \mbox{\tt “8”} \mid\mbox{\tt “9”} \\
-%d\_b & ::= &\mbox{\tt “0”} \mid  \mbox{\tt  “1”}  \\
-%d\_o & ::= &\mbox{\tt “0”} \mid  \mbox{\tt  “1”}\mid \mbox{\tt “2”} \mid\mbox{\tt “3”} \mid  \mbox{\tt  “4”}\mid \mbox{\tt “5”} \mid\mbox{\tt “6”} \mid  \mbox{\tt  “7”} \\
-%d\_h & ::= &\mbox{\tt “0”} \mid  \mbox{\tt  “1”}\mid \mbox{\tt “2”} \mid\mbox{\tt “3”} \mid  \mbox{\tt  “4”}\mid \mbox{\tt “5”} \mid\mbox{\tt “6”} \mid  \mbox{\tt  “7”}\mid \mbox{\tt “8”} \mid\mbox{\tt “9”}  \mid  \mbox{\tt  “A”}\mid \mbox{\tt “B”} \mid\mbox{\tt “C”} \mid  \mbox{\tt  “D”}\mid \mbox{\tt “E”} \mid\mbox{\tt “F”}\\
+%d & ::= &\mbox{\tt ``0''} \mid  \mbox{\tt  ``1''}\mid \mbox{\tt ``2''} \mid\mbox{\tt ``3''} \mid  \mbox{\tt  ``4''}\mid \mbox{\tt ``5''} \mid\mbox{\tt ``6''} \mid  \mbox{\tt  ``7''}\mid \mbox{\tt ``8''} \mid\mbox{\tt ``9''} \\
+%d\_b & ::= &\mbox{\tt ``0''} \mid  \mbox{\tt  ``1''}  \\
+%d\_o & ::= &\mbox{\tt ``0''} \mid  \mbox{\tt  ``1''}\mid \mbox{\tt ``2''} \mid\mbox{\tt ``3''} \mid  \mbox{\tt  ``4''}\mid \mbox{\tt ``5''} \mid\mbox{\tt ``6''} \mid  \mbox{\tt  ``7''} \\
+%d\_h & ::= &\mbox{\tt ``0''} \mid  \mbox{\tt  ``1''}\mid \mbox{\tt ``2''} \mid\mbox{\tt ``3''} \mid  \mbox{\tt  ``4''}\mid \mbox{\tt ``5''} \mid\mbox{\tt ``6''} \mid  \mbox{\tt  ``7''}\mid \mbox{\tt ``8''} \mid\mbox{\tt ``9''}  \mid  \mbox{\tt  ``A''}\mid \mbox{\tt ``B''} \mid\mbox{\tt ``C''} \mid  \mbox{\tt  ``D''}\mid \mbox{\tt ``E''} \mid\mbox{\tt ``F''}\\
 %
 
 %\mbox{\bf File Information Token} &
-%info & = & \mbox{“@”}, \mbox{“[”}, \{string, \mbox{“ ”}, linecol\}, \mbox{“]”};\\
+%info & = & \mbox{``@''}, \mbox{``[''}, \{string, \mbox{`` ''}, linecol\}, \mbox{``]''};\\
 %&
-%linecol & = &  digit\_dec, \{digit\_dec\}, \mbox{“:”}, digit\_dec, \{digit\_dec\};\\
+%linecol & = &  digit\_dec, \{digit\_dec\}, \mbox{``:''}, digit\_dec, \{digit\_dec\};\\
 %&
 %
 \end{array}
@@ -228,7 +228,7 @@ $d$ (resp. $d\_b$, $d\_o$ and $d\_h$) denotes a decimal (resp. binary, octal and
 }
 \caption{Syntax of FIRRTL}
 \label{fig-firrtl-synt-simp}
-\end{figure}
+\end{figure} 
 
 \begin{comment}
 \begin{figure}[htbp]
@@ -236,112 +236,112 @@ $d$ (resp. $d\_b$, $d\_o$ and $d\_h$) denotes a decimal (resp. binary, octal and
 \[
 \begin{array}{l l l}
 %\mbox{\bf Circuit} &
-c & ::= & \mbox{\tt “circuit”}\ id\mbox{\tt “:”} \{m\}\\
+c & ::= & \mbox{\tt ``circuit''}\ id\mbox{\tt ``:''} \{m\}\\
 %
 %\mbox{\bf Module} &
-m & ::= & \mbox{\tt “module”} \ id \{p\} \{s\}\\
+m & ::= & \mbox{\tt ``module''} \ id \{p\} \{s\}\\
 %
 %\mbox{\bf External Module} &
-%em & ::= & \mbox{\tt “extmodule”}\ id \{p\} [\mbox{\tt “defname =”}\ id] \{\mbox{\tt “parameter”}\ id \mbox{\tt “= ”}(string \mid int)\}\\
+%em & ::= & \mbox{\tt ``extmodule''}\ id \{p\} [\mbox{\tt ``defname =''}\ id] \{\mbox{\tt ``parameter''}\ id \mbox{\tt ``= ''}(string \mid int)\}\\
 %
 %\mbox{\bf Port} &
-p & ::= & (\mbox{\tt “input”} \mid \mbox{\tt “output”})\ id\mbox{\tt “:”}t \\
+p & ::= & (\mbox{\tt ``input''} \mid \mbox{\tt ``output''})\ id\mbox{\tt ``:''}t \\
 %
  %\mbox{\bf Statment} &
- s & ::= & \mbox{\tt “wire”}\ id\mbox{\tt “:”}t  \mid \mbox{\tt “reg”}\ id\mbox{\tt “:”}t\ e [\mbox{\tt “(with:\{reset=>(”} e\mbox{\tt “,”} e \mbox{\tt “)\})”}] \\
+ s & ::= & \mbox{\tt ``wire''}\ id\mbox{\tt ``:''}t  \mid \mbox{\tt ``reg''}\ id\mbox{\tt ``:''}t\ e [\mbox{\tt ``(with:\{reset=>(''} e\mbox{\tt ``,''} e \mbox{\tt ``)\})''}] \\
  %&
   &   &  \mid
 %  \mid memory \mid
-  \mbox{\tt “inst”}\ id\ \mbox{\tt “of”}\ id \mid \mbox{\tt “node”}\ id \mbox{\tt “=”} id  \mid r \mbox{\tt “<=”} e  \mid r \mbox{\tt “<-”} e \mid r\ \mbox{\tt “is invalid”} \\
+  \mbox{\tt ``inst''}\ id\ \mbox{\tt ``of''}\ id \mid \mbox{\tt ``node''}\ id \mbox{\tt ``=''} id  \mid r \mbox{\tt ``<=''} e  \mid r \mbox{\tt ``<-''} e \mid r\ \mbox{\tt ``is invalid''} \\
 %&
-&   &\mid \mbox{\tt “when”}\ e\mbox{\tt “:”}\{s\} [\mbox{\tt “else:”} \{s\}] \mid \mbox{\tt “skip”}\\
+&   &\mid \mbox{\tt ``when''}\ e\mbox{\tt ``:''}\{s\} [\mbox{\tt ``else:''} \{s\}] \mid \mbox{\tt ``skip''}\\
 %
 %\mbox{\bf Memory} &
-%memory & = &  \mbox{“mem”}, id, newline, indent, \\
+%memory & = &  \mbox{``mem''}, id, newline, indent, \\
  %&
-% & & \mbox{“data-type”}, \mbox{“=>”}, type, newline, \\
+% & & \mbox{``data-type''}, \mbox{``=>''}, type, newline, \\
  %&
-% & & \mbox{“depth”}, \mbox{“=>”}, int, newline, \\
+% & & \mbox{``depth''}, \mbox{``=>''}, int, newline, \\
  %&
-% & & \mbox{“read-latency”}, \mbox{“=>”}, int, newline, \\
+% & & \mbox{``read-latency''}, \mbox{``=>''}, int, newline, \\
  %&
-% & & \mbox{“write-latency}, \mbox{“=>”}, int, newline,  \\
+% & & \mbox{``write-latency}, \mbox{``=>''}, int, newline,  \\
  %&
-% & & \mbox{“read-under-write”}, \mbox{“=>”}, ruw, newline, \\
+% & & \mbox{``read-under-write''}, \mbox{``=>''}, ruw, newline, \\
   %&
-%  & & \{\mbox{“reader”}, \mbox{“=>”}, id, newline\}, \\
+%  & & \{\mbox{``reader''}, \mbox{``=>''}, id, newline\}, \\
   %&
-%  & & \{\mbox{“writer”}, \mbox{“=>”}, id, newline\}, \\
+%  & & \{\mbox{``writer''}, \mbox{``=>''}, id, newline\}, \\
   %&
-%  & & \{\mbox{“readwriter”}, \mbox{“=>”}, id, newline\}, dedent;\\
+%  & & \{\mbox{``readwriter''}, \mbox{``=>''}, id, newline\}, dedent;\\
 %
 %\mbox{\bf Read Under Write Flag} &
-%ruw & = & \mbox{“old”} \mid \mbox{“new”} \mid \mbox{“undefined”};\\
+%ruw & = & \mbox{``old''} \mid \mbox{``new''} \mid \mbox{``undefined''};\\
 %
 %\mbox{\bf Expression} &
-e & ::= & (\mbox{\tt “UInt”} | \mbox{\tt “SInt”}) [w] \mbox{\tt “(”}int\mbox{\tt “)”} \mid r \mid \mbox{\tt “mux(”}e\mbox{\tt “,”} e\mbox{\tt “,”} e\mbox{\tt “)”} 
-  \mid \mbox{\tt “\prettyll{validif}(”}e\mbox{\tt “,”} e\mbox{\tt “)”} \mid \mbox{\tt “read(”}sr \mbox{\tt “)”} \mid op\\
+e & ::= & (\mbox{\tt ``UInt''} | \mbox{\tt ``SInt''}) [w] \mbox{\tt ``(''}int\mbox{\tt ``)''} \mid r \mid \mbox{\tt ``mux(''}e\mbox{\tt ``,''} e\mbox{\tt ``,''} e\mbox{\tt ``)''}
+  \mid \mbox{\tt ``\prettyll{validif}(''}e\mbox{\tt ``,''} e\mbox{\tt ``)''} \mid \mbox{\tt ``read(''}sr \mbox{\tt ``)''} \mid op\\
 %
 %&
-r & ::= & sr \mid r \mbox{\tt “[”} e \mbox{\tt “]”}\\
+r & ::= & sr \mid r \mbox{\tt ``[''} e \mbox{\tt ``]''}\\
 %
-sr & ::= & id \mid sr\mbox{\tt “.”}id \mid sr\mbox{\tt “[”}int\mbox{\tt “]”}\\
+sr & ::= & id \mid sr\mbox{\tt ``.''}id \mid sr\mbox{\tt ``[''}int\mbox{\tt ``]''}\\
 %&
-w & ::= & \mbox{\tt “<”} int \mbox{\tt “>”}\\
+w & ::= & \mbox{\tt ``<''} int \mbox{\tt ``>''}\\
 %
 %&
-%binarypoint & = & \mbox{“<”}, \mbox{“<”}, int, \mbox{“>”}, \mbox{“>”};\\
+%binarypoint & = & \mbox{``<''}, \mbox{``<''}, int, \mbox{``>''}, \mbox{``>''};\\
 %
  %\mbox{\bf Bundle Field} &
 %
 %\mbox{\bf Data Types} &
 t & ::= & tg \mid ta \\
  %&
- tg & ::= &  \mbox{\tt “Clock”} \mid \mbox{\tt “Reset”} \mid \mbox{\tt “AsyncReset”} \mid (\mbox{\tt “UInt”} \mid \mbox{\tt “SInt”}) [w] \\
+ tg & ::= &  \mbox{\tt ``Clock''} \mid \mbox{\tt ``Reset''} \mid \mbox{\tt ``AsyncReset''} \mid (\mbox{\tt ``UInt''} \mid \mbox{\tt ``SInt''}) [w] \\
  %&
-% & & \mid \mbox{“Fixed”}, [width], [binarypoint];\\
+% & & \mid \mbox{``Fixed''}, [width], [binarypoint];\\
  %&
 %
-  ta & ::= &\mbox{\tt “\{”} f \{f\}\mbox{\tt “\}”} \mid t \mbox{“[”} int \mbox{“]”} \\
+  ta & ::= &\mbox{\tt ``\{''} f \{f\}\mbox{\tt ``\}''} \mid t \mbox{``[''} int \mbox{``]''} \\
 %
-    f & ::= & [\mbox{\tt “flip”}]\ id\mbox{\tt “:”}t\\
-%& & & \mbox{“UInt”}, [\mbox{“<”}, int, \mbox{“>”}] \mid \mbox{“SInt”}, [\mbox{“<”}, int, \mbox{“>”} ] \\
-%& & & \mid \mbox{“Fixed”}, [\mbox{“<”}, int, \mbox{“>”} ] [\mbox{“<}\mbox{<”}, int, \mbox{“>}\mbox{>”}]\\
-% &  &  & \mid \mbox{“Clock”} \mid \mbox{“Analog”},  [\mbox{“<”}, int, \mbox{“>”}] \mid \mbox{“\{”}, field, \mbox{“\}”} \mid type, \mbox{“[”}, int, \mbox{“]”}; \\
+    f & ::= & [\mbox{\tt ``flip''}]\ id\mbox{\tt ``:''}t\\
+%& & & \mbox{``UInt''}, [\mbox{``<''}, int, \mbox{``>''}] \mid \mbox{``SInt''}, [\mbox{``<''}, int, \mbox{``>''} ] \\
+%& & & \mid \mbox{``Fixed''}, [\mbox{``<''}, int, \mbox{``>''} ] [\mbox{``<}\mbox{<''}, int, \mbox{``>}\mbox{>''}]\\
+% &  &  & \mid \mbox{``Clock''} \mid \mbox{``Analog''},  [\mbox{``<''}, int, \mbox{``>''}] \mid \mbox{``\{''}, field, \mbox{``\}''} \mid type, \mbox{``[''}, int, \mbox{``]''}; \\
 %
-id & ::= & ( \mbox{\tt “\_”} \mid l) \{ \mbox{\tt “\_”} \mid l \mid d\} \\
+id & ::= & ( \mbox{\tt ``\_''} \mid l) \{ \mbox{\tt ``\_''} \mid l \mid d\} \\
 %\mbox{\bf Primitive Operation} &
 op & ::= & op\_2e \mid op\_1e \mid op\_1e1i \mid op\_1e2i \\
 %&
-op\_2e & ::= & op\_2e\_key \mbox{\tt “(”}  e \mbox{\tt “,”}  e \mbox{\tt “)”} \\
+op\_2e & ::= & op\_2e\_key \mbox{\tt ``(''}  e \mbox{\tt ``,''}  e \mbox{\tt ``)''} \\
 %
 %&
-op\_2e\_key & ::= &  \mbox{\tt “add”}  \mid  \mbox{\tt “sub”}  \mid \mbox{\tt “mul”} \mid \mbox{\tt “div”} \mid \mbox{\tt “mod”} \mid \mbox{\tt “lt”} \mid \mbox{\tt “leq”} \mid \mbox{\tt “gt”} \mid \mbox{\tt “geq”} \mid \mbox{\tt “eq”} \mid \mbox{\tt “neq”} \\
+op\_2e\_key & ::= &  \mbox{\tt ``add''}  \mid  \mbox{\tt ``sub''}  \mid \mbox{\tt ``mul''} \mid \mbox{\tt ``div''} \mid \mbox{\tt ``mod''} \mid \mbox{\tt ``lt''} \mid \mbox{\tt ``leq''} \mid \mbox{\tt ``gt''} \mid \mbox{\tt ``geq''} \mid \mbox{\tt ``eq''} \mid \mbox{\tt ``neq''} \\
 %&
-& &   \mid \mbox{\tt “dshl”}  \mid \mbox{\tt “dshr”} \mid \mbox{\tt “and”} \mid \mbox{\tt “or”} \mid \mbox{\tt “xor”} \mid \mbox{\tt “cat”} \\
+& &   \mid \mbox{\tt ``dshl''}  \mid \mbox{\tt ``dshr''} \mid \mbox{\tt ``and''} \mid \mbox{\tt ``or''} \mid \mbox{\tt ``xor''} \mid \mbox{\tt ``cat''} \\
  %
 %&
-op\_1e & ::= & op\_1e\_key \mbox{\tt “(”}  e \mbox{\tt “)”} \\
+op\_1e & ::= & op\_1e\_key \mbox{\tt ``(''}  e \mbox{\tt ``)''} \\
 %&
-op\_1e\_key & ::= & \mbox{\tt “asUInt”} \mid \mbox{\tt “asSInt”} \mid \mbox{\tt “asClock”} \mid \mbox{\tt “cvt”} \mid \mbox{\tt “neg”} \mid \mbox{\tt “not”}  \mid \mbox{\tt “andr”} \mid \mbox{\tt “orr”} \mid  \mbox{\tt “xorr”}\\
+op\_1e\_key & ::= & \mbox{\tt ``asUInt''} \mid \mbox{\tt ``asSInt''} \mid \mbox{\tt ``asClock''} \mid \mbox{\tt ``cvt''} \mid \mbox{\tt ``neg''} \mid \mbox{\tt ``not''}  \mid \mbox{\tt ``andr''} \mid \mbox{\tt ``orr''} \mid  \mbox{\tt ``xorr''}\\
 %
 %&
-op\_1e1i & ::= & op\_1e1i\_key \mbox{\tt “(”}  e \mbox{\tt “,”} int \mbox{\tt “)”} \\
+op\_1e1i & ::= & op\_1e1i\_key \mbox{\tt ``(''}  e \mbox{\tt ``,''} int \mbox{\tt ``)''} \\
 %&
-op\_1e1i\_key & ::= & \mbox{\tt “pad”} \mid \mbox{\tt “shl”} \mid \mbox{\tt “shr”} \mid \mbox{\tt “head”} \mid \mbox{\tt “tail”} \\
+op\_1e1i\_key & ::= & \mbox{\tt ``pad''} \mid \mbox{\tt ``shl''} \mid \mbox{\tt ``shr''} \mid \mbox{\tt ``head''} \mid \mbox{\tt ``tail''} \\
 %&
-op\_1e2i & ::= & op\_1e2i\_key \mbox{\tt “(”}  e \mbox{\tt “,”}  int  \mbox{\tt “,”}  int \mbox{\tt “)”} \\
+op\_1e2i & ::= & op\_1e2i\_key \mbox{\tt ``(''}  e \mbox{\tt ``,''}  int  \mbox{\tt ``,''}  int \mbox{\tt ``)''} \\
 %&
-op\_1e2i\_key & ::= & \mbox{\tt “bits”}\\
+op\_1e2i\_key & ::= & \mbox{\tt ``bits''}\\
 %
-int & ::= & [\mbox{\tt “-”}] d \{d\} \mid \mbox{\tt “"b”} [\mbox{\tt “-”}] d\_b \{d\_b\} \mbox{\tt “"”}
- \mid \mbox{\tt “"o”} [\mbox{\tt “-”}] d\_o \{d\_o\} \mbox{\tt “"”} \mid
-\mbox{\tt “"h”} [\mbox{\tt “-”}] d\_h \{d\_h\} \mbox{\tt “"”}
+int & ::= & [\mbox{\tt ``-''}] d \{d\} \mid \mbox{\tt ``"b''} [\mbox{\tt ``-''}] d\_b \{d\_b\} \mbox{\tt ``"''}
+ \mid \mbox{\tt ``"o''} [\mbox{\tt ``-''}] d\_o \{d\_o\} \mbox{\tt ``"''} \mid
+\mbox{\tt ``"h''} [\mbox{\tt ``-''}] d\_h \{d\_h\} \mbox{\tt ``"''}
 %
 %\mbox{\bf File Information Token} &
-%info & = & \mbox{“@”}, \mbox{“[”}, \{string, \mbox{“ ”}, linecol\}, \mbox{“]”};\\
+%info & = & \mbox{``@''}, \mbox{``[''}, \{string, \mbox{`` ''}, linecol\}, \mbox{``]''};\\
 %&
-%linecol & = &  digit\_dec, \{digit\_dec\}, \mbox{“:”}, digit\_dec, \{digit\_dec\};\\
+%linecol & = &  digit\_dec, \{digit\_dec\}, \mbox{``:''}, digit\_dec, \{digit\_dec\};\\
 %&
 %
 \end{array}
@@ -377,40 +377,40 @@ and satisfies that in each module, each component is connected to at most once.
 {\footnotesize
 \[
 \begin{array}{l l l}
- s & ::= & \mbox{\tt “\prettyll{wire}”}\ id\mbox{\tt “:”}t  \mid \mbox{\tt “\prettyll{reg}”}\ id\mbox{\tt “:”}t\ e [\mbox{\tt “(\prettyll{with}:\{\prettyll{reset}=>(”} e\mbox{\tt “,”} e \mbox{\tt “)\})”}] \\
+ s & ::= & \mbox{\tt ``\fnprettyll{wire}''}\ id\mbox{\tt ``:''}t  \mid \mbox{\tt ``\fnprettyll{reg}''}\ id\mbox{\tt ``:''}t\ e [\mbox{\tt ``(\fnprettyll{with}:\{\fnprettyll{reset}=>(''} e\mbox{\tt ``,''} e \mbox{\tt ``)\})''}] \\
  %&
   &   &  \mid
 %  \mid memory \mid
-  \mbox{\tt “\prettyll{inst}”}\ id\ \mbox{\tt “\prettyll{of}”}\ id \mid \mbox{\tt “\prettyll{node}”}\ id \mbox{\tt “=”} id  \mid r \mbox{\tt “<=”} e  \mid r\ \mbox{\tt “\prettyll{is invalid}”}\mid \mbox{\tt “\prettyll{skip}”}\\
+  \mbox{\tt ``\fnprettyll{inst}''}\ id\ \mbox{\tt ``\fnprettyll{of}''}\ id \mid \mbox{\tt ``\fnprettyll{node}''}\ id \mbox{\tt ``=''} id  \mid r \mbox{\tt ``<=''} e  \mid r\ \mbox{\tt ``\fnprettyll{is invalid}''}\mid \mbox{\tt ``\fnprettyll{skip}''}\\
 %
 %\mbox{\bf Expression} &
-e & ::= & (\mbox{\tt “\prettyll{UInt}”} | \mbox{\tt “\prettyll{SInt}”})\ w \mbox{\tt “(”}int\mbox{\tt “)”} \mid r \mid \mbox{\tt “\prettyll{mux}(”}e\mbox{\tt “,”} e\mbox{\tt “,”} e\mbox{\tt “)”} 
-  \mid \mbox{\tt “\prettyll{validif}(”}e\mbox{\tt “,”} e\mbox{\tt “)”} \mid \mbox{\tt “\textcolor{blue}{read}(”}sr \mbox{\tt “)”} \mid op\\
+e & ::= & (\mbox{\tt ``\fnprettyll{UInt}''} | \mbox{\tt ``\fnprettyll{SInt}''})\ w \mbox{\tt ``(''}int\mbox{\tt ``)''} \mid r \mid \mbox{\tt ``\fnprettyll{mux}(''}e\mbox{\tt ``,''} e\mbox{\tt ``,''} e\mbox{\tt ``)''}
+  \mid \mbox{\tt ``\fnprettyll{validif}(''}e\mbox{\tt ``,''} e\mbox{\tt ``)''} \mid \mbox{\tt ``\textcolor{blue}{read}(''}sr \mbox{\tt ``)''} \mid op\\
 %
 %&
-r & ::= & sr \mid r \mbox{\tt “[”} e \mbox{\tt “]”}\\
+r & ::= & sr \mid r \mbox{\tt ``[''} e \mbox{\tt ``]''}\\
 %
-sr & ::= & id \mid sr\mbox{\tt “.”}id \mid sr\mbox{\tt “[”}int\mbox{\tt “]”}\\
+sr & ::= & id \mid sr\mbox{\tt ``.''}id \mid sr\mbox{\tt ``[''}int\mbox{\tt ``]''}\\
 %&
-w & ::= & \mbox{\tt “<”} int \mbox{\tt “>”}\\
+w & ::= & \mbox{\tt ``<''} int \mbox{\tt ``>''}\\
 %
 %&
-%binarypoint & = & \mbox{“<”}, \mbox{“<”}, int, \mbox{“>”}, \mbox{“>”};\\
+%binarypoint & = & \mbox{``<''}, \mbox{``<''}, int, \mbox{``>''}, \mbox{``>''};\\
 %
  %\mbox{\bf Bundle Field} &
 %
 %\mbox{\bf Data Types} &
 t & ::= & tg \\
  %&
- tg & ::= &  \mbox{\tt “\prettyll{Clock}”} \mid \mbox{\tt “\prettyll{AsyncReset}”} \mid (\mbox{\tt “\prettyll{UInt}”} \mid \mbox{\tt “\prettyll{SInt}”}) w
+ tg & ::= &  \mbox{\tt ``\fnprettyll{Clock}''} \mid \mbox{\tt ``\fnprettyll{AsyncReset}''} \mid (\mbox{\tt ``\fnprettyll{UInt}''} \mid \mbox{\tt ``\fnprettyll{SInt}''}) w
  %&
-% & & \mid \mbox{“Fixed”}, [width], [binarypoint];\\
+% & & \mid \mbox{``Fixed''}, [width], [binarypoint];\\
  %&
 %
 %\mbox{\bf File Information Token} &
-%info & = & \mbox{“@”}, \mbox{“[”}, \{string, \mbox{“ ”}, linecol\}, \mbox{“]”};\\
+%info & = & \mbox{``@''}, \mbox{``[''}, \{string, \mbox{`` ''}, linecol\}, \mbox{``]''};\\
 %&
-%linecol & = &  digit\_dec, \{digit\_dec\}, \mbox{“:”}, digit\_dec, \{digit\_dec\};\\
+%linecol & = &  digit\_dec, \{digit\_dec\}, \mbox{``:''}, digit\_dec, \{digit\_dec\};\\
 %&
 %
 \end{array}
@@ -419,7 +419,7 @@ t & ::= & tg \\
 \caption{Syntax of LoFIRRTL (Rules that are identical to those in Figure~\ref{fig-firrtl-synt-simp} are not repeated)}
 \label{fig-lofirrtl-synt
 }
-\end{figure}
+\end{figure} 
 %
 Note that in Figure~\ref{fig-lofirrtl-synt}, the rules for $f$, $id$, $op$ are the same as those in Figure~\ref{fig-firrtl-synt-simp}, thus omitted to avoid tediousness.
 In a nutshell, the syntactic rules in Figure~\ref{fig-lofirrtl-synt} are obtained from those in Figure~\ref{fig-firrtl-synt-simp} by replacing $[w]$ with $w$ (so that the width becomes mandatory),
