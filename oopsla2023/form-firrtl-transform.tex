@@ -126,15 +126,16 @@ connection context. The general rules are,
 
 Similar to the Infer Widths pass, a temporary map $rm$ is introduced to
 handle abstract resets exclusively. It maps from components to reset
-types.  The pass begins by scanning through the statements in $ss$ and
-searching the component environment $ce$ for
-abstract reset types to be added to $rm$.
-\david{I am not sure I understand the previous sentence:
-is $rm$ filled based on $ss$ or based on $ce$?
-Should it perhaps be:
-$rm$ is first initialized with all (sub)components of type \prettyll{Reset} by rule \eqref{rule-infer-reset-init},
-and then the pass scans through the statements in $ss$
-to decide whether each one of them should become asynchronous or synchronous by rule \eqref{rule-infer-reset-pass}.}
+types. The map $rm$ is first initialized with all components of type \prettyll{Reset}
+by \eqref{rule-infer-reset-init}.
+%% scanning through the statements in $ss$
+%% for abstract reset types to be added to $rm$.
+%% \david{I am not sure I understand the previous sentence:
+%% is $rm$ filled based on $ss$ or based on $ce$?
+%% Should it perhaps be:
+%% $rm$ is first initialized with all (sub)components of type \prettyll{Reset} by rule \eqref{rule-infer-reset-init},
+%% and then the pass scans through the statements in $ss$
+%% to decide whether each one of them should become asynchronous or synchronous by rule \eqref{rule-infer-reset-pass}.}
   \begin{gather}
   \label{rule-infer-reset-init}
     \inferii[]
