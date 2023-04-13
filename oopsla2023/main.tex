@@ -103,6 +103,8 @@
 %\usepackage{amssymb}
 \usepackage{mathtools}
 \usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{pifont}
 \usepackage{bussproofs}
 \usepackage{multirow}
 \usepackage{graphics}
@@ -397,7 +399,7 @@ and replaces conditional statements with multiplexers, respectively.
 
 \input{firrtl-interpret-extraction}
 
-\subsection{Validation of the OCaml LoFIRRTL Interpreter}
+\subsection{Validation of the OCaml LoFIRRTL Interpreter}\label{sec-validate-interpreter}
 
 \input{firrtl-interpret-validation}
 
@@ -482,6 +484,9 @@ To Robert, for the bagels and explaining CMYK and color spaces.
 \appendix
 
 \input{appendix.tex}
+
+
+\input{appendix-detailed-results.tex}
 
 \end{document}
 \endinput
