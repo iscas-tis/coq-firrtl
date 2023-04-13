@@ -27,9 +27,9 @@ Among 77 LoFIRRTL circuits, there are 67 \prettyll{inst of}-free LoFIRRTL circui
 %Beside, we generated 76 LoFIRRTL circuits from book project of Digital Design with Chisel, which containing 51 Chisel examples inside the ``schoeberl/chisel-book/src/main/scala'' directory. The transformation is executed by Chisel stage for each class extends from class $\tt Module$, as it is legal to define multi-class in one Scala program, it is possible to execute 76 LoFIRRTL circuits from 51 Chisel programs. The generated LoFIRRTL circuits including 66 single module circuits and 10 with instance structure.
 Besides the above LoFIRRTL circuits, we also collect all the four LoFIRRTL circuits from
 \cite{HarrisonHA21} which have been tested using a formal Agda-based Interpreter designed for a subset of LoFIRRTL,
-and design three additional LoFIRRTL circuits in consideration of the branch coverage of the LoFIRRTL OCaml Interpreter and different hierarchical structures of the modules.
+and design two additional LoFIRRTL circuits in consideration of the branch coverage of the LoFIRRTL OCaml Interpreter and different hierarchical structures of the modules.
 
-In summary, we use 121 (37+77+4+3) LoFIRRTL circuits all of which can be handled by Treadle.
+In summary, we use 120 (37+77+4+2) LoFIRRTL circuits all of which can be handled by Treadle.
 
 \smallskip\noindent
 {\bf Testing method}.
@@ -54,11 +54,11 @@ We do not compare with the Agda-based Interpreter because it cannot directly exe
       Treadle (37 circuits) & 38.08  & 12.18  & 3.13  & 7.16  & \ding{51} \\ \hline
          Chisel Book (77 circuits) & 68.86  & 139.63  & 31.31  & 5.81  & \ding{55}(1) \\ \hline
         \cite{HarrisonHA21} (4 circuits) & 15.00  & 18.05  & 0.60  & 29.81  & \ding{51} \\ \hline
-        Our own (3 circuits) & 37.67  & 8.21  & 1.86  & 3.74  & \ding{51} \\ \hline \hline
-        \textbf{Average} &  \textbf{56.89} & 	\textbf{93.38} & 	\textbf{20.95} & 	\textbf{6.96} &  \\ \hline
+        Our own (2 circuits) & 50.50 & 188.80  & 62.52  & 3.20 & \ding{51} \\ \hline \hline
+        \textbf{Average} &  \textbf{57.21} & 	\textbf{97.86} & 	\textbf{22.45} & 	\textbf{6.95} &  \\ \hline
  \end{tabular}}
-\end{table}
-
+\end{table} 
+ 	 	 	
 
 \smallskip\noindent
 {\bf Testing results}.
@@ -70,10 +70,10 @@ Column (Speedup) is calculated via $\frac{t_1-t_2}{t_2}$ for each benchmark suit
 Column (Result) shows the comparison result of output ports between Treadle and our LoFIRRTL OCaml Interpreter under the 100 input tests,
 where \ding{51} indicates that the values of the output ports produced by two tools are the same and \ding{55}(n) indicates 
 that the values of the output ports of $n$ benchmarks produced by two tools are different.
-The last row (Average) shows the average results over all 201 benchmarks.
+The last row (Average) shows the average results over all 120 benchmarks.
 Detailed results are given in the supplementary material due to space limits.
 
-Overall, our LoFIRRTL OCaml Interpreter successfully executes all the 201 benchmarks
+Overall, our LoFIRRTL OCaml Interpreter successfully executes all the 120 benchmarks
 and produces the same values of the output ports as Treadle except for one benchmark \texttt{BundleVec} taken from the Chisel Book.
 This inconsistency is caused by the undefined semantics of the \prettyll{validif} expressions.
 More specifically, the LoFIRRTL specification states that \prettyll{validif (e1,e2)} evaluates to the expression \prettyll{e2}
@@ -84,7 +84,7 @@ In Treadle,  \prettyll{validif (e1,e2)} evaluates to \prettyll{e2}
 if \prettyll{e1} evaluates true, otherwise $0$. 
 
 
-In terms of efficiency, our LoFIRRTL OCaml Interpreter is significantly faster (6.96 times on average) than Treadle on almost all the benchmarks
+In terms of efficiency, our LoFIRRTL OCaml Interpreter is significantly faster (6.95 times on average) than Treadle on almost all the benchmarks
 except for one benchmark \texttt{HardwareHashMaker} from Treadle.
 After an in-depth analysis, we found that \texttt{HardwareHashMaker} has 20 64-bit multiplication operations significantly more than the other benchmarks,
 our LoFIRRTL OCaml Interpreter is extracted from the bit-wise multiplication in Coq while Treadle uses integer multiplication.
@@ -101,6 +101,7 @@ we chose bit-wise multiplication based on the bit-vector library in Coq whose co
 
 
 In order to have some measure of the effectiveness of our testing, we analyzed the branch coverage of our LoFIRRTL OCaml Interpreter.
-All the 201 benchmarks together cover 36 branches out of 45. To cover the remaining branches, we implement an additional benchmark, called mytest,
-on which Treadle and our LoFIRRTL OCaml Interpreter also produce the same results.
+All the 120 benchmarks together cover all the 51 branches. (Note that only 36 out of 51 branches are covered without our own two benchmarks.)
+%To cover the remaining branches, we implement an additional benchmark, called mytest,
+%on which Treadle and our LoFIRRTL OCaml Interpreter also produce the same results.
 
