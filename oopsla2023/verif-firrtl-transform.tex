@@ -11,17 +11,22 @@ because the \lstinline~when~ statement contains two statement sequences,
 but the proof is more long than complicated.
 
 \subsection{Correctness of ExpandConnects}
-Recall the Expand Connects pass is aimed to decompose the aggregate
-type connect statement to ground type connections.  Let $ce$ be the components
-environment, and $ss$ as the list of connect statements in the input
-circuit diagram. Let $ce'$ and $ss'$ be the output component
-environment and the list of connect statements, respectively, after
+Recall the Expand Connects pass is aimed to decompose the connect statement of aggregate
+types to ground type connections.  Let $ce^{in}$ be the components
+environment, and $ss^{in}$ be the list of connect statements in the input
+circuit diagram $D_M^{in}$.
+Let $ss^{out}$ be the output list of connect statements after
 applying the Expand Connections pass.
-The function {\tt expand\_cnct} is
+The input $D_M^{in}$ is required to be the result of Infer Types pass, in order to make sure the
+connections are made between equivalent types and the components are already
+recorded in the environment.
 
-We state the following correctness:
-\begin{lemma} Consider the function {\tt expand\_cnct} in 
-\end{lemma}
+We state the correctness upon the types of the left-hand side and the right-hand side
+expressions in the new generated connect statements.
+First, there are only ground types in $ss'$,
+%% \begin{lemma}
+%% \forall ce, 
+%% \end{lemma}
 
 
 \xiaomu{Stopped}

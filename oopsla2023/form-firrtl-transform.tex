@@ -189,6 +189,7 @@ expressions, such as binary operations, only operate and result in
 ground types. Therefore they do not require expanding.
 Expanding a \prettyll{mux} expression is done by,
   \begin{gather}
+  \label{expand-cnct}
     \infer[]
     {\seqq{ce\vdash{\tt expand\_expr} (\mbox{mux}(e_c,e_t,e_f)) \rightsquigarrow es_{mux}}}
     {\seqq{es_{mux}:=[\mbox{mux}(e_c,t,f)\,|\,t \leftarrow {\tt expand\_expr}(e_t),\,f \leftarrow {\tt expand\_expr}(e_f)]}}.

@@ -150,7 +150,8 @@ p & ::= & (\mbox{\tt “\prettyll{input}”} \mid \mbox{\tt “\prettyll{output}
 %ruw & = & \mbox{“old”} \mid \mbox{“new”} \mid \mbox{“undefined”};\\
 %
 %\mbox{\bf Expression} &
-e & ::= & (\mbox{\tt “\prettyll{UInt}”} | \mbox{\tt “\prettyll{SInt}”}) [w] \mbox{\tt “(”}int\mbox{\tt “)”} \mid r \mid \mbox{\tt “\prettyll{mux}(”}e\mbox{\tt “,”} e\mbox{\tt “,”} e\mbox{\tt “)”}
+  e & ::= & (\mbox{\tt “\prettyll{UInt}”} | \mbox{\tt “\prettyll{SInt}”}) [w] \mbox{\tt “(”}int\mbox{\tt “)”} \mid r \mid \mbox{\tt “\prettyll{mux}(”}e\mbox{\tt “,”} e\mbox{\tt “,”} e\mbox{\tt “)”}
+  \mid \mbox{\tt “\prettyll{validif}(”}e\mbox{\tt “,”} e\mbox{\tt “)”}
         \mid \mbox{\tt “\textcolor{blue}{read}(”}sr \mbox{\tt “)”} \mid op\\
 %
 %&
@@ -278,7 +279,8 @@ p & ::= & (\mbox{\tt “input”} \mid \mbox{\tt “output”})\ id\mbox{\tt “
 %ruw & = & \mbox{“old”} \mid \mbox{“new”} \mid \mbox{“undefined”};\\
 %
 %\mbox{\bf Expression} &
-e & ::= & (\mbox{\tt “UInt”} | \mbox{\tt “SInt”}) [w] \mbox{\tt “(”}int\mbox{\tt “)”} \mid r \mid \mbox{\tt “mux(”}e\mbox{\tt “,”} e\mbox{\tt “,”} e\mbox{\tt “)”} \mid \mbox{\tt “read(”}sr \mbox{\tt “)”} \mid op\\
+e & ::= & (\mbox{\tt “UInt”} | \mbox{\tt “SInt”}) [w] \mbox{\tt “(”}int\mbox{\tt “)”} \mid r \mid \mbox{\tt “mux(”}e\mbox{\tt “,”} e\mbox{\tt “,”} e\mbox{\tt “)”} 
+  \mid \mbox{\tt “\prettyll{validif}(”}e\mbox{\tt “,”} e\mbox{\tt “)”} \mid \mbox{\tt “read(”}sr \mbox{\tt “)”} \mid op\\
 %
 %&
 r & ::= & sr \mid r \mbox{\tt “[”} e \mbox{\tt “]”}\\
@@ -382,7 +384,8 @@ and satisfies that in each module, each component is connected to at most once.
   \mbox{\tt “\prettyll{inst}”}\ id\ \mbox{\tt “\prettyll{of}”}\ id \mid \mbox{\tt “\prettyll{node}”}\ id \mbox{\tt “=”} id  \mid r \mbox{\tt “<=”} e  \mid r\ \mbox{\tt “\prettyll{is invalid}”}\mid \mbox{\tt “\prettyll{skip}”}\\
 %
 %\mbox{\bf Expression} &
-e & ::= & (\mbox{\tt “\prettyll{UInt}”} | \mbox{\tt “\prettyll{SInt}”})\ w \mbox{\tt “(”}int\mbox{\tt “)”} \mid r \mid \mbox{\tt “\prettyll{mux}(”}e\mbox{\tt “,”} e\mbox{\tt “,”} e\mbox{\tt “)”} \mid \mbox{\tt “\textcolor{blue}{read}(”}sr \mbox{\tt “)”} \mid op\\
+e & ::= & (\mbox{\tt “\prettyll{UInt}”} | \mbox{\tt “\prettyll{SInt}”})\ w \mbox{\tt “(”}int\mbox{\tt “)”} \mid r \mid \mbox{\tt “\prettyll{mux}(”}e\mbox{\tt “,”} e\mbox{\tt “,”} e\mbox{\tt “)”} 
+  \mid \mbox{\tt “\prettyll{validif}(”}e\mbox{\tt “,”} e\mbox{\tt “)”} \mid \mbox{\tt “\textcolor{blue}{read}(”}sr \mbox{\tt “)”} \mid op\\
 %
 %&
 r & ::= & sr \mid r \mbox{\tt “[”} e \mbox{\tt “]”}\\
@@ -472,7 +475,7 @@ module MyModule :
 
 In the sequel, we give an informal introduction to the lowering transformations (aka compilation passes) of  FIRRTL. The dependencies between these compilation passes are illustrated in Figure~\ref{fig-c-pass}.
 
-\paragraph*{ResolveKinds} xxx \zhilin{@Xiaomu, please write an introduction here.}
+%% \paragraph*{ResolveKinds} xxx \zhilin{@Xiaomu, please write an introduction here.}
 
 \paragraph*{InferTypes} The InferTypes pass infers the types of components. For instance, InferTypes infers from the code snippet \prettyll{ wire x: UInt   x <= UInt<5>(15)   x <= UInt<1>(1) } that $x$'s type is \prettyll{ UInt}. Note that for a connect statement   \prettyll{ x <= e}, InferTypes only checks that the type of $e$ is equivalent to that of $x$ (where the bit widths are ignored), but does not update the bit width of $x$ to that of $e$.
 
@@ -583,7 +586,7 @@ and the condition is ignored; no multiplexer is inserted upon connections.
 %the type of a memory is still a bundle with depth 2 (mem -> port -> field), see MemPortUtils.memType
 
 
-
+\hide{
 \paragraph{RemoveReset} The RemoveReset pass removes the synchronous resets. If the register is driven by an asynchronous reset, it will be left unchanged. If it is a synchronous reset, the reset operation defined in the register and the connections to the register will be merged into multiplexer operations. For example, the register \begin{lstinline}!myreg!\end{lstinline} with synchronous reset signal \begin{lstinline}!rst!\end{lstinline} in the program
 \begin{lstlisting}
   module MyModule :
@@ -603,7 +606,7 @@ is transformed into
     reg myreg : UInt<8>, clk
     myreg <= mux(``h0'', init, in)
 \end{lstlisting}
-
+}
 
 \zhilin{stopped here}
 
