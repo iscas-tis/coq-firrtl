@@ -11,6 +11,18 @@ because the \lstinline~when~ statement contains two statement sequences,
 but the proof is more long than complicated.
 
 \subsection{Correctness of ExpandConnects}
+Recall the Expand Connects pass is aimed to decompose the aggregate
+type connect statement to ground type connections.  Let $ce$ be the components
+environment, and $ss$ as the list of connect statements in the input
+circuit diagram. Let $ce'$ and $ss'$ be the output component
+environment and the list of connect statements, respectively, after
+applying the Expand Connections pass.
+The function {\tt expand\_cnct} is
+
+We state the following correctness:
+\begin{lemma} Consider the function {\tt expand\_cnct} in 
+\end{lemma}
+
 
 \xiaomu{Stopped}
 

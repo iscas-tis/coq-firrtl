@@ -182,6 +182,7 @@ The pass focuses on connect statements in $ss$. The left-hand side
 of a connection is a reference to a component, while the right-hand side
 is an expression. In order to obtain expanded
 connections, the expression needs to be recursively expanded.
+\xiaomu{whether validif is in the syntax}
 Only expressions of multiplexers \prettyll{mux} and
 references \prettyll{r} can be of aggregate types. The other
 expressions, such as binary operations, only operate and result in
@@ -189,19 +190,24 @@ ground types. Therefore they do not require expanding.
 Expanding a \prettyll{mux} expression is done by,
   \begin{gather}
     \infer[]
-    {\seqq{ce\vdash{\tt expand\_expr} (\mbox{mux}(ec,e1,e2)) \rightsquigarrow exs}}
-    {\seqq{exs:=[\mbox{mux}(ec,x,y)\,|\,x \leftarrow {\tt expand\_expr}(e1),\,y \leftarrow {\tt expand\_expr}(e2)]}}.
+    {\seqq{ce\vdash{\tt expand\_expr} (\mbox{mux}(e_c,e_t,e_f)) \rightsquigarrow es_{mux}}}
+    {\seqq{es_{mux}:=[\mbox{mux}(e_c,t,f)\,|\,t \leftarrow {\tt expand\_expr}(e_t),\,f \leftarrow {\tt expand\_expr}(e_f)]}}.
     \end{gather}
-It takes the conditional expression $ec$ and the true/false branch
-expressions $e1$ and $e2$ from the original \prettyll{mux} expression, and then produces a list $exs$
-of \prettyll{mux} that combines the lists of expanded $e1$ and $e2$
-with the same condition $ec$. Expanding a references is relatively straightforward.
+It takes the conditional expression $e_c$ and the true/false branch
+expressions $e_1$ and $e_2$ from the original \prettyll{mux} expression, and then produces a list $es_{mux}$
+of \prettyll{mux} that combines the lists of expanded $e_1$ and $e_2$
+with the same condition $e_c$. Expanding a references is relatively straightforward.
 It create a list of references to the sub-elements according to the
 type of the component.
 
 After producing the list of references on the left-hand side and the
 list of expressions on the right-hand side, new connect statements can
-be generated pairwise from the two lists to replace the original ones.
+be generated pairwise from the two by
+  \begin{gather}
+    \infer[]
+    {\seqq{ce\vdash{\tt expand\_cnct} (v <= e) \rightsquigarrow ss_{cnct}}}
+    {\seqq{ ss_{cnct}:=[lhs<=rhs\,|\,lhs \leftarrow {\tt expand\_ref}(v),\,rhs \leftarrow {\tt expand\_expr}(e)]}}.
+    \end{gather}
 
 \subsubsection{``Lower Types''}
 The Lower Types pass is primarily aimed at transform aggregate types
