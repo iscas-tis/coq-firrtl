@@ -247,13 +247,14 @@ diagram are replaced by the new $ss'$,
 and the components environment $ce$ are updated to reflect the new ground types
 and paired identifiers.
 
+\hide{
 \subsubsection{``Remove Resets''}
 The Remove Resets pass runs after the other passes, and removes
 redundant reset that are synchronous. This is a optimization step that
 can potentially improve the performance by removing unnecessary ones.
 A synchronous reset is considered redundant if it is only used to
 initialize a register.
-
+}
 %% For example,
 %% \begin{lstlisting}
 %% module MyModule :
