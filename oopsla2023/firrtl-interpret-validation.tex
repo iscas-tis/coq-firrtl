@@ -2,7 +2,7 @@
 
 \smallskip\noindent
 {\bf Benchmarks}. To extensively evaluate the OCaml LoFIRRTL Interpreter,
-we mainly collect LoFIRRTL circuits from the Chisel/Firrtl execution engine--Treadle\footnote{\url{https://github.com/chipsalliance/treadle}.} and the Chisel Book--Digital Design with Chisel~\cite{chisel:book},
+we mainly collect LoFIRRTL circuits from the Chisel/FIRRTL execution engine--Treadle\footnote{\url{https://github.com/chipsalliance/treadle}.} and the Chisel Book--Digital Design with Chisel~\cite{chisel:book},
 because Treadle is more likely to execute correctly on them so that
 the correctness testing of the formalized operational semantics has high confidence.
 
@@ -73,10 +73,10 @@ that the values of the output ports of $n$ benchmarks produced by two tools are 
 The last row (Average) shows the average results over all 201 benchmarks.
 Detailed results are given in the supplementary material due to space limits.
 
-Overall, our LoFIRRTL OCaml Interpreter is able to execute all the 201 benchmarks
+Overall, our LoFIRRTL OCaml Interpreter successfully executes all the 201 benchmarks
 and produces the same values of the output ports as Treadle except for one benchmark \texttt{BundleVec} taken from the Chisel Book.
 This inconsistency is caused by the undefined semantics of the \prettyll{validif} expressions.
-More specifically, the LoFIRRTL specification states that the expression \prettyll{validif (e1,e2)} evaluates to \prettyll{e2}
+More specifically, the LoFIRRTL specification states that \prettyll{validif (e1,e2)} evaluates to the expression \prettyll{e2}
 if the conditional expression \prettyll{e1} evaluates to true, otherwise undefined. 
 In Treadle,  \prettyll{validif (e1,e2)} evaluates to \prettyll{e2}
  regardless of the conditional expression \prettyll{e1}, while
