@@ -1,32 +1,33 @@
 %!TEX root = main.tex
 
 \smallskip\noindent
-{\bf Benchmarks}. We mainly collect LoFIRRTL circuits from Treadle,
-i.e., those 55 LoFIRRTL circuits inside the ``chipsalliance/treadle/samples'' directory.
+{\bf Benchmarks}. We mainly collect LoFIRRTL circuits from Treadle and Chisel Book project.
+For those from Treadle are 55 LoFIRRTL circuits inside the ``chipsalliance/treadle/samples'' directory.
 We consider those LoFIRRTL circuits because Treadle is more likely to execute correctly on them so that
 the correctness testing of the formalized operational semantics has high confidence.
-Among 55 LoFIRRTL circuits, we exclude 21 LoFIRRTL circuits because they violate the syntax of
-LoFIRRTL (i.e., dependency of external modules or the usage of subfield), have no output ports or
+Among 55 LoFIRRTL circuits, we exclude 18 LoFIRRTL circuits because they violate the syntax of
+LoFIRRTL (i.e., dependency of external modules), undefined semantics for memories, have no output ports or
 cannot be handled by Treadle due to cyclical connection of ports.
-Thus, we collected 34 LoFIRRTL circuits from Treadle.
+Thus, we collected 37 LoFIRRTL circuits from Treadle, among them 3 circuits have instof statement,  which means a nested module structure.
+Beside, we generated 76 LoFIRRTL circuits from book project of Digital Design with Chisel, which containing 51 Chisel examples inside the ‘’schoeberl/chisel-book/src/main/scala’’ directory. The transformation is executed by Chisel stage for each class extends from class $\tt Module$, as it is legal to define multi-class in one Scala program, it is possible to execute 76 LoFIRRTL circuits from 51 Chisel programs. The generated LoFIRRTL circuits including 66 single module circuits and 10 with instance structure.
 In addition, we also collect all the four LoFIRRTL circuits from
 \cite{HarrisonHA21} which have been tested using the scala-based LoFIRRTL Interpreter
 and a formal Agda-based Interpreter designed for a subset of LoFIRRTL.
-In summary, we use 38 LoFIRRTL circuits all of which can be handled by Treadle.
+Further more, we designed 3 LoFIRRTL circuits in consideration of the coverage of all semantic branches and different instance structure.
+In summary, we use 120 LoFIRRTL circuits all of which can be handled by Treadle.
 
 \smallskip\noindent
 {\bf Testing method}.
 Since the input LoFIRRTL programs to our LoFIRRTL OCaml Interpreter should be in the pseudo-SSA form
 while all the collected LoFIRRTL circuits are not necessary in the pseudo-SSA form,
 to solve this issue, we implement a preprocessor
-in OCaml which transforms each LoFIRRTL program into an equivalent one in the pseudo-SSA form on which
+in Coq which transforms every module in the LoFIRRTL program into an equivalent one in the pseudo-SSA form on which
 our LoFIRRTL OCaml Interpreter can be handled.
 Furthermore, LoFIRRTL programs themselves require inputs to execute.
 For this purpose, we also implement a deriver in OCaml which first automatically identifies
 all the input ports and their types for each LoFIRRTL program and then randomly generates 100 test inputs for
 the LoFIRRTL program. Finally, for each given LoFIRRTL program and each its test input,
 we compare the equivalence of output ports produced by  our LoFIRRTL OCaml Interpreter and Treadle.
-
 
 
 \begin{table}[t]
