@@ -1,25 +1,34 @@
 %!TEX root = main.tex
 
-\zhilin{@keyin, please write this part as soon as possible and address the following points: 
+The operational semantics for LoFIRRTL formalized in Coq not only facilitates a precise understanding of the meanings of LoFIRRTL programs, it can also be turned into an interpreter where the LoFIRRTL programs can be executed, by utilizing the extraction mechanism of Coq~\cite{LET08}. Our goal is to have an \emph{end-to-end} interpreter for LoFIRRTL programs, that is, given an LoFIRRTL program as well as an input trace, the interpreter first parses the input program, then executes the program on the input trace and produces a sequence of outputs. In the sequel, we have a closer look at the extraction of the LoFIRRTL interpreter from the Coq programs.
 
-1. How we adapt the original coq implementation of topological sorting to report a witness cycle when the input graph is not a DAG. 
+Since the extraction of the OCaml code out of the operational semantics formalized in Coq is straightforward, it is relatively easy to obtain an engine in OCaml that is able to execute a LoFIRRTL program on an input trace. Note that the input programs of the execution engine are required to be in pseudo-SSA form, since the operational semantics in Section~\ref{sec-lofirrtl-sem} is based on the assumption that the LoFIRRTL programs are in pseudo-SSA form. Nevertheless, this requirement may not be satisfied by the LoFIRRTL programs produced by the lowering transformations in general. Therefore, LoFIRRTL programs should be transformed into pseudo-SSA form before being processed by the execution engine. 
 
-2. A parser should be written in OCAML if an end-to-end interpreter is obtained in the end to facilitate the comparison with Treadle. 
+To tackle this transformation, we adapt a depth-first search (DFS) algorithm from the the graph library in the mathematical components repository~\cite{DP20,CoqGraph} into a topological sorting algorithm so that given a directed graph, the algorithm either reports that the input graph is acyclic and outputs a topological sorting of the acyclic graph, or reports that the input graph is cyclic and outputs a cycle. Moreover, accordingly, we prove the correctness of the topological sorting algorithm by adapting the correctness proof of the DFS algorithm. Equipped with the topological sorting algorithm, we transform a LoFIRRTL circuit $A$ into pseudo-SSA form as follows: At first, we build the dependency graph $G_A$ as defined in Section~\ref{sec-lofirrtl-sem}. Then, we compute a topological sorting of $G_A$. Finally, we reorder the generalized connect statements in $A$ according to the topological sorting. 
 
-3. In the implementation of operational semantics, tail recursion is avoided to improve the efficiency of the OCAML interpreter (evaluation algorithm).
-}
+Another building block of the end-to-end interpreter is a parser for LoFIRRTL programs written in OCaml. The parser relies on the OCaml types for LoFIRRTL constructs that are extracted from the Coq code that formalizes the  syntax of LoFIRRTL. We implement the parser by defining the grammar of LoFIRRTL programs as terms in OCaml, then specifying the rules for checking the conformance of the terms against the OCaml types. The type checking process parses the LoFIRRTL programs into the OCaml types, which are then taken by the execution engine. 
+\zhilin{@Xiaomu, please have a double check.}
+
+Finally, the operational semantics defined in Section~\ref{sec-lofirrtl-sem} iterates over the sequence of statements in each module. The iteration can be implemented in Coq in two different ways: non-tail recursion or tail recursion, that is, either process the first statement before recursively processing the remaining statements, or vice versa, namely, before processing the last statement, recursively process all the preceding statements. It turns out the OCaml code extracted from the non-tail recursion is much more efficient than the tail recursion. Therefore, in view of the efficiency of the extracted LoFIRRTL interpreter, we choose to implement the operational semantics in Coq in a non-tail recursive way. 
+
+%there are two ways to implement the operational semantics 
+
+%In the implementation of operational semantics, tail recursion is avoided to improve the efficiency of the OCAML interpreter (evaluation algorithm). Before statements evaluation, the entire circuit will first be initialized in its type environment. This includes setting the type and width of all ports and defining the type and width of all variables based on their connection relationships. During the execution period, the interpreter perform the statements in sequence according to their topological order. Both updating type environment and evaluation on port and statement lists are operated under mode of head-recursive, which means that the result obtained from operating the head of the list will be used as the environment for subsequent sequence executions.
 
 
-Formalizing the operational semantics of LoFIRRTL in Coq not only provides a formal reference of LoFIRRTL,
-but only yields an executable interpreter in OCaml, called LoFIRRTL OCaml Interpreter, via the Coq's extraction feature.
-The former would greatly facilitate developers' understanding, freeing them from lengthy, ambiguous and elusive documentations.
-The latter enables developers' to conveniently test correctness of FIRRTL circuit designs and test conformance of any other
-LoFIRRTL interpreter or simulator via difference testing.
-In this subsection, to understand the performance and ensure confidence of the formalized operational semantics,
-we conduct conformance testing between our LoFIRRTL OCaml Interpreter and
-the official FIRRTL circuit simulator, called Treadle, which executes LoFIRRTL circuts
-based on the earlier scala-based LoFIRRTL Interpreter.
 
+%%%%%%%%%% the original texts written by Keyin is removed
+%%%%%%%%%% the original texts written by Keyin is removed
+\hide{
+%Formalizing the operational semantics of LoFIRRTL in Coq not only provides a formal reference of LoFIRRTL,
+%but only yields an executable interpreter in OCaml, called LoFIRRTL OCaml Interpreter, via the Coq's extraction feature.
+%The former would greatly facilitate developers' understanding, freeing them from lengthy, ambiguous and elusive documentations.
+%The latter enables developers' to conveniently test correctness of FIRRTL circuit designs and test conformance of any other
+%LoFIRRTL interpreter or simulator via difference testing.
+%In this subsection, to understand the performance and ensure confidence of the formalized operational semantics,
+%we conduct conformance testing between our LoFIRRTL OCaml Interpreter and
+%the official FIRRTL circuit simulator, called Treadle, which executes LoFIRRTL circuts
+%based on the earlier scala-based LoFIRRTL Interpreter.
 
 \keyin{Topological sorting}
 
@@ -29,22 +38,54 @@ Function $topo\_tree$ is adapted from Depth-first Search, where the algorithm st
 
 As $topo\_ tree$ starts from a certain root and there are multi-root in a dependency graph, $topo\_ sort$ apply $topo\_ tree$ on each vertices and keep a global already found sequence.
 
+$G$, explored ancestor $gray \_ nodes$, already found $already \_ found$.
+
+$gray \_ nodes$: a sequence of vertices that have been visited during the current dfs search from root. 
+
+$already \_ found$: sequence of vertices from which the dfs process has been finished. 
+
+\begin{algorithm}[H]
+  \SetAlgoLined
+%  \KwData{root}
+%  \KwResult{found nodes sequence $result$}
+%\emph{already \_ found = [::]}\;
+	\If{$isAcyclic$}
+	{
+		$gray\_nodes = [root]$\;
+		\eIf{$succ(root) \neq \emptyset$}{
+			\For{each $v \in succ(root)$}{	    	
+    			\eIf{$v$ is in $gray\_nodes$}{
+				$isAcyclic:= false$; $gray\_nodes:=gray\_nodes \concat v$; $aready\_found := gray\_nodes$\;}
+			{
+      				\If{$v$ is not in $already \_found$}
+					{$gray\_nodes = gray\_nodes \concat v$; $dfs(v, n-1)$\;}
+%      				{$gray\_nodes = gray\_nodes \cup \{v\}$\;}
+      				
+     			}
+		}
+		$aready\_found =   root \concat already\_found$\;
+		}
+		{
+		$aready\_found =   root \concat already\_found$\;
+		}
+	}
+  \caption{$dfs(root, n)$}
+\end{algorithm}
+
+
 \begin{algorithm}[H]
   \SetAlgoLined
   \KwData{$G_M$ $g$, explored ancestor $gray \_ nodes$, already found $already \_ found$}
   \KwResult{found nodes sequence $result$}
-\emph{already \_ found = [::]}\;
-\emph{gray \_ nodes = [::]}\;
-\For{$root \leftarrow vertices$}{
-  \While{root is not leaf in g}{
-
-    \eIf{root in gray\_nodes}{
-Error\_cycle\;
-      }{
-      \eIf{root in already \_ found}{result = already\_found\;}{
-result = root :: already \_ found\;}
-     }
-    }}
+   {$already \_ found = [::]$; $isAcyclic:=true$}\;
+%\emph{gray \_ nodes = [::]}\;
+%   $n:=|V|$\;
+\For{each $v \in V$}{
+%   $gray \_ nodes = [::]$\;
+  \If{$v \not \in already\_found$}
+   {$dfs(v, |V|)$\;} 
+ }
+   \Return ($isAcyclic, already\_found$)\;
   \caption{topo\_sort}
 \end{algorithm}
 
@@ -68,9 +109,13 @@ Then we can request on $topo\_ sort$ that it never returns $N\_ too\_ small$, fo
 
 \keyin{ocaml parser}
 
+define tokens, define grammar,  
+
 A parser is written to complete an end-to-end interpreter in OCAML, which facilitate the comparison with Treadle  in the end. Combining the extracted semantics code and written parser, and running this on LoFIRRTL program, we further validate the Ocaml LoFIRRTL interpreter. A literal unsigned integer can alternatively be created given a string starts with $\tt b$, $\tt o$, $\tt h$ for representing binary, octal($\tt o$ can be omitted), hexadecimal numbers respectively to define const expression of type $\tt Fuint$. Simply add $\tt -$ between the letter and the number to represent negative of type $\tt Sint$. Additionally, it should be noted that string used as token, such as $\tt reg, wire, reset$, cannot be use as components’ identifier in the program, otherwise it will cause parse error.
 
 \keyin{non-tail-recursive in ocaml}
 
 In the implementation of operational semantics, tail recursion is avoided to improve the efficiency of the OCAML interpreter (evaluation algorithm). Before statements evaluation, the entire circuit will first be initialized in its type environment. This includes setting the type and width of all ports and defining the type and width of all variables based on their connection relationships. During the execution period, the interpreter perform the statements in sequence according to their topological order. Both updating type environment and evaluation on port and statement lists are operated under mode of head-recursive, which means that the result obtained from operating the head of the list will be used as the environment for subsequent sequence executions.
-
+}
+%%%%%%%%%% the original texts written by Keyin is removed
+%%%%%%%%%% the original texts written by Keyin is removed
