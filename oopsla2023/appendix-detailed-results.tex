@@ -65,7 +65,7 @@
         Combinational & 12 & 16.70  & 0.66  & 24.15  & \ding{51} \\ \hline
         FibCircuit & 14 & 19.02  & 0.46  & 40.80  & \ding{51} \\ \hline
         ShiftRegister & 21 & 19.01  & 0.63  & 29.16  & \ding{51} \\ \hline \hline
-        \textbf{Average} & \textbf{15.00} & \textbf{18.05} & \textbf{0.60} & \textbf{29.81} & \\ \hline 
+        \textbf{Average} & \textbf{15.00} & \textbf{18.05} & \textbf{0.60} & \textbf{29.81} & \\ \hline
 \end{tabular}}
 \end{table}
 
@@ -79,23 +79,36 @@
 \multirow{2}{*}{\bf Benchmark name} & \multirow{2}{*}{\bf \#LOC} & \multicolumn{2}{c|}{\bf Execution time ($\mu$s)}&\multirow{2}{*}{\bf Speedup}  & \multirow{2}{*}{\bf Result} \\ \cline{3-4}
                               &                        & {\bf Treadle}  &  {\bf Ours}  &     &  \\ \hline
  \hline
-       Mytest & 32 & 11.17  & 3.16  & 2.53  & \ding{51}\\ \hline
-        Mytestinst1 & 50 & 9.51  & 1.51  & 5.29  & \ding{51}\\ \hline
-        Mytestinst2 & 31 & 3.95  & 0.90  & 3.39  & \ding{51}\\ \hline \hline
-        \textbf{Average} & \textbf{37.67} & \textbf{8.21}  & \textbf{1.86}  & \textbf{3.74} & \\ \hline
+       Mytest & 52	&249.90 & 103.69 & 1.41 & \ding{51}\\ \hline
+        Mytestinst & 49& 127.70 &21.34&	4.98   & \ding{51}\\ \hline \hline
+        \textbf{Average} & \textbf{50.50} & \textbf{188.80}  & \textbf{62.52}  & \textbf{3.20} & \\ \hline
 \end{tabular}}
 \end{table}
 
 
 \begingroup\scriptsize
 \begin{longtable}{|c|c|c|c|c|c|}
-\caption{Results of conformance testing on the benchmarks from the Chisel Book} 
+\caption{Results of conformance testing on the benchmarks from the Chisel Book}
 \label{tab:conformancetesting-Chisel-book}\\
 %\begin{tabular}
   \hline
 \multirow{2}{*}{\bf Benchmark name} & \multirow{2}{*}{\bf \#LOC} & \multicolumn{2}{c|}{\bf Execution time ($\mu$s)}&\multirow{2}{*}{\bf Speedup}  & \multirow{2}{*}{\bf Result} \\ \cline{3-4}
-                              &                        & {\bf Treadle}  &  {\bf Ours}  &     &  \\ \hline
- \hline
+                              &                        & {\bf Treadle}  &  {\bf Ours}  &     &  \\ \hline          \hline
+  \endfirsthead
+
+  \multicolumn{6}{c}%
+{{\bfseries \tablename\ \thetable{} -- continued from previous page}} \\ \hline
+\multirow{2}{*}{\bf Benchmark name} & \multirow{2}{*}{\bf \#LOC} & \multicolumn{2}{c|}{\bf Execution time ($\mu$s)}&\multirow{2}{*}{\bf Speedup}  & \multirow{2}{*}{\bf Result} \\ \cline{3-4}
+                              &                        & {\bf Treadle}  &  {\bf Ours}  &     &  \\ \hline          \hline
+\endhead
+
+ \multicolumn{6}{|r|}{{Continued on next page}} \\ \hline
+\endfoot
+
+
+
+\endlastfoot
+
    Adder & 11 & 65.28  & 6.31  & 9.35  & \ding{51} \\ \hline
         Alu & 24 & 70.28  & 10.96  & 5.41  & \ding{51} \\ \hline
         Arbiter3 & 26 & 62.02  & 11.91  & 4.21  & \ding{51} \\ \hline
@@ -172,7 +185,7 @@
         UseAdder & 42 & 73.75  & 13.60  & 4.42  & \ding{51} \\ \hline
         UseMemMappedRV & 175 & 251.77  & 137.40  & 0.83  & \ding{51} \\ \hline
         UseParamRouter & 46 & 86.47  & 32.72  & 1.64  & \ding{51} \\ \hline
-        UseParamRouter2 & 50 & 77.73  & 38.20  & 1.03  & \ding{51} \\ \hline
-        \textbf{Average} & \textbf{68.86} & \textbf{136.90}  & \textbf{29.73}  & \textbf{5.81} & \\ \hline     
+        UseParamRouter2 & 50 & 77.73  & 38.20  & 1.03  & \ding{51} \\ \hline \hline
+        \textbf{Average} & \textbf{68.86} & \textbf{136.90}  & \textbf{29.73}  & \textbf{5.81} & \\ \hline 
 \end{longtable}
 \endgroup
