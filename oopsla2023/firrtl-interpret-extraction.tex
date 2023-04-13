@@ -2,16 +2,16 @@
 
 The operational semantics for LoFIRRTL formalized in Coq not only facilitates a precise understanding of the meanings of LoFIRRTL programs, it can also be turned into an interpreter where the LoFIRRTL programs can be executed, by utilizing the extraction mechanism of Coq~\cite{LET08}. Our goal is to have an \emph{end-to-end} interpreter for LoFIRRTL programs, that is, given an LoFIRRTL program as well as an input trace, the interpreter first parses the input program, then executes the program on the input trace and produces a sequence of outputs. In the sequel, we have a closer look at the extraction of the LoFIRRTL interpreter from the Coq programs.
 
-Since the extraction of the OCaml code out of the operational semantics formalized in Coq is straightforward, it is relatively easy to obtain an engine in OCaml that is able to execute a LoFIRRTL program on an input trace. Note that the input programs of the execution engine are required to be in pseudo-SSA form, since the operational semantics in Section~\ref{sec-lofirrtl-sem} is based on the assumption that the LoFIRRTL programs are in pseudo-SSA form. Nevertheless, this requirement may not be satisfied by the LoFIRRTL programs produced by the lowering transformations in general. Therefore, LoFIRRTL programs should be transformed into pseudo-SSA form before being processed by the execution engine. 
+Since the extraction of the OCaml code out of the operational semantics formalized in Coq is straightforward, it is relatively easy to obtain an engine in OCaml that is able to execute an LoFIRRTL program on an input trace. Note that the input programs of the execution engine are required to be in pseudo-SSA form, since the operational semantics in Section~\ref{sec-lofirrtl-sem} is based on the assumption that the LoFIRRTL programs are in pseudo-SSA form. Nevertheless, this requirement may not be satisfied by the LoFIRRTL programs produced by the lowering transformations in general. Therefore, LoFIRRTL programs should be transformed into pseudo-SSA form before being processed by the execution engine.
 
-To tackle this transformation, we adapt a depth-first search (DFS) algorithm from the the graph library in the mathematical components repository~\cite{DP20,CoqGraph} into a topological sorting algorithm so that given a directed graph, the algorithm either reports that the input graph is acyclic and outputs a topological sorting of the acyclic graph, or reports that the input graph is cyclic and outputs a cycle. Moreover, accordingly, we prove the correctness of the topological sorting algorithm by adapting the correctness proof of the DFS algorithm. Equipped with the topological sorting algorithm, we transform a LoFIRRTL circuit $A$ into pseudo-SSA form as follows: At first, we build the dependency graph $G_A$ as defined in Section~\ref{sec-lofirrtl-sem}. Then, we compute a topological sorting of $G_A$. Finally, we reorder the generalized connect statements in $A$ according to the topological sorting. 
+To tackle this transformation, we adapt a depth-first search (DFS) algorithm from the graph library in the mathematical components repository~\cite{DP20,CoqGraph} into a topological sorting algorithm so that given a directed graph, the algorithm either reports that the input graph is acyclic and outputs a topological sorting of the acyclic graph, or reports that the input graph is cyclic and outputs a cycle. Moreover, accordingly, we prove the correctness of the topological sorting algorithm by adapting the correctness proof of the DFS algorithm. Equipped with the topological sorting algorithm, we transform an LoFIRRTL circuit $A$ into pseudo-SSA form as follows: At first, we build the dependency graph $G_A$ as defined in Section~\ref{sec-lofirrtl-sem}. Then, we compute a topological sorting of $G_A$. Finally, we reorder the generalized connect statements in $A$ according to the topological sorting.
 
-Another building block of the end-to-end interpreter is a parser for LoFIRRTL programs written in OCaml. The parser relies on the OCaml types for LoFIRRTL constructs that are extracted from the Coq code that formalizes the  syntax of LoFIRRTL. We implement the parser by defining the grammar of LoFIRRTL programs as terms in OCaml, then specifying the rules for checking the conformance of the terms against the OCaml types. The type checking process parses the LoFIRRTL programs into the OCaml types, which are then taken by the execution engine. 
+Another building block of the end-to-end interpreter is a parser for LoFIRRTL programs written in OCaml. The parser relies on the OCaml types for LoFIRRTL constructs that are extracted from the Coq code that formalizes the  syntax of LoFIRRTL. We implement the parser by defining the grammar of LoFIRRTL programs as terms in OCaml, then specifying the rules for checking the conformance of the terms against the OCaml types. The type checking process parses the LoFIRRTL programs into the OCaml types, which are then taken by the execution engine.
 \zhilin{@Xiaomu, please have a double check.}
 
-Finally, the operational semantics defined in Section~\ref{sec-lofirrtl-sem} iterates over the sequence of statements in each module. The iteration can be implemented in Coq in two different ways: non-tail recursion or tail recursion, that is, either process the first statement before recursively processing the remaining statements, or vice versa, namely, before processing the last statement, recursively process all the preceding statements. It turns out the OCaml code extracted from the non-tail recursion is much more efficient than the tail recursion. Therefore, in view of the efficiency of the extracted LoFIRRTL interpreter, we choose to implement the operational semantics in Coq in a non-tail recursive way. 
+Finally, the operational semantics defined in Section~\ref{sec-lofirrtl-sem} iterates over the sequence of statements in each module starting from the top-level module of the given circuit. The iteration can be implemented in Coq in two different ways: non-tail recursion or tail recursion, that is, either process the first statement before recursively processing the remaining statements, or vice versa, namely, before processing the last statement, recursively process all the preceding statements. It turns out that the OCaml code extracted from the non-tail recursion is much more efficient than that from the tail recursion. Therefore, in view of the efficiency of the extracted LoFIRRTL interpreter, we choose to implement the operational semantics in Coq in a non-tail recursive way.
 
-%there are two ways to implement the operational semantics 
+%there are two ways to implement the operational semantics
 
 %In the implementation of operational semantics, tail recursion is avoided to improve the efficiency of the OCAML interpreter (evaluation algorithm). Before statements evaluation, the entire circuit will first be initialized in its type environment. This includes setting the type and width of all ports and defining the type and width of all variables based on their connection relationships. During the execution period, the interpreter perform the statements in sequence according to their topological order. Both updating type environment and evaluation on port and statement lists are operated under mode of head-recursive, which means that the result obtained from operating the head of the list will be used as the environment for subsequent sequence executions.
 
@@ -32,17 +32,17 @@ Finally, the operational semantics defined in Section~\ref{sec-lofirrtl-sem} ite
 
 \keyin{Topological sorting}
 
-To sequentially evaluate lowfirrtl program in ocaml, statement sequence reorder is finished beforehand in interpreter to make each module in pseudo-SSA form, which is done by topological sorting on the dependency graph $G_M$ defined in section 3.1. 
+To sequentially evaluate lowfirrtl program in ocaml, statement sequence reorder is finished beforehand in interpreter to make each module in pseudo-SSA form, which is done by topological sorting on the dependency graph $G_M$ defined in section 3.1.
 
-Function $topo\_tree$ is adapted from Depth-first Search, where the algorithm start from a certain root and explores as far as possible along each branch before backtracking. In addition to the original Dfs, we use a set called $gray \_ nodes$ to record the explored ancestor, so that a $Cycle$ error can be thrown when the exploring root is found in $gray \_ nodes$. 
+Function $topo\_tree$ is adapted from Depth-first Search, where the algorithm start from a certain root and explores as far as possible along each branch before backtracking. In addition to the original Dfs, we use a set called $gray \_ nodes$ to record the explored ancestor, so that a $Cycle$ error can be thrown when the exploring root is found in $gray \_ nodes$.
 
 As $topo\_ tree$ starts from a certain root and there are multi-root in a dependency graph, $topo\_ sort$ apply $topo\_ tree$ on each vertices and keep a global already found sequence.
 
 $G$, explored ancestor $gray \_ nodes$, already found $already \_ found$.
 
-$gray \_ nodes$: a sequence of vertices that have been visited during the current dfs search from root. 
+$gray \_ nodes$: a sequence of vertices that have been visited during the current dfs search from root.
 
-$already \_ found$: sequence of vertices from which the dfs process has been finished. 
+$already \_ found$: sequence of vertices from which the dfs process has been finished.
 
 \begin{algorithm}[H]
   \SetAlgoLined
@@ -83,7 +83,7 @@ $already \_ found$: sequence of vertices from which the dfs process has been fin
 \For{each $v \in V$}{
 %   $gray \_ nodes = [::]$\;
   \If{$v \not \in already\_found$}
-   {$dfs(v, |V|)$\;} 
+   {$dfs(v, |V|)$\;}
  }
    \Return ($isAcyclic, already\_found$)\;
   \caption{topo\_sort}
@@ -91,15 +91,15 @@ $already \_ found$: sequence of vertices from which the dfs process has been fin
 
 \keyin{detail on report a cycle in the graph}
 
-After adapting the original coq implementation of topological sorting, when the input graph is not a DAG, a witness cycle is reported. This is achieved by maintaining a vertex list called "$gray\_nodes$" in the $topo\_tree$ function. As mentioned earlier, $topo\_tree$ function calculates Depth-first Search starting from a given root. When the root has children, its children are explored first. During the process, every time before exploring a new root, the algorithm adds the original root to $gray\_nodes$ and checks whether the new root exists in $gray\_nodes$. Because $gray\_nodes$ records all the roots the algorithm has passed through since the beginning, while each new root is a child of the current root, the current root should be a descendant of every vertex in $gray\_nodes$. When a new root is found in $gray\_nodes$, it means that the root is its own ancestor and descendant, indicating the presence of a cycle in the graph. 
+After adapting the original coq implementation of topological sorting, when the input graph is not a DAG, a witness cycle is reported. This is achieved by maintaining a vertex list called "$gray\_nodes$" in the $topo\_tree$ function. As mentioned earlier, $topo\_tree$ function calculates Depth-first Search starting from a given root. When the root has children, its children are explored first. During the process, every time before exploring a new root, the algorithm adds the original root to $gray\_nodes$ and checks whether the new root exists in $gray\_nodes$. Because $gray\_nodes$ records all the roots the algorithm has passed through since the beginning, while each new root is a child of the current root, the current root should be a descendant of every vertex in $gray\_nodes$. When a new root is found in $gray\_nodes$, it means that the root is its own ancestor and descendant, indicating the presence of a cycle in the graph.
 
 \keyin{topo proof}
 
-Termination of the algorithm is defined by iterate on an finite number $n$, which equals the amount of vertices in the graph. When $n$ is decreased to 0 during the exploring, the provided value at the beginning of the algorithm has an error, more precisely, it is smaller than size $vertices$ - size $gray \_ nodes$ and the graph cannot be fully sorted. 
+Termination of the algorithm is defined by iterate on an finite number $n$, which equals the amount of vertices in the graph. When $n$ is decreased to 0 during the exploring, the provided value at the beginning of the algorithm has an error, more precisely, it is smaller than size $vertices$ - size $gray \_ nodes$ and the graph cannot be fully sorted.
 
 For the correctness proof of $topo\_ sort$, an inductive property on $topo\_ tree$ that will allow us to prove the correctness of $topo\_ sort$. Basically, we request the following:
 
-\begin{itemize} 
+\begin{itemize}
     \item if $topo\_ tree$ returns $Cycle \_$, then the graph is not acyclic.
     \item if $topo\_ tree$ returns $N\_ too\_ small$, then n was smaller than size $vertices$ - size $gray\_ nodes$.
     \item if $topo\_ tree$ return $Sorted \_$, then the result contains the successors of root in addition to what had been already found earlier.
@@ -109,9 +109,9 @@ Then we can request on $topo\_ sort$ that it never returns $N\_ too\_ small$, fo
 
 \keyin{ocaml parser}
 
-define tokens, define grammar,  
+define tokens, define grammar,
 
-A parser is written to complete an end-to-end interpreter in OCAML, which facilitate the comparison with Treadle  in the end. Combining the extracted semantics code and written parser, and running this on LoFIRRTL program, we further validate the Ocaml LoFIRRTL interpreter. A literal unsigned integer can alternatively be created given a string starts with $\tt b$, $\tt o$, $\tt h$ for representing binary, octal($\tt o$ can be omitted), hexadecimal numbers respectively to define const expression of type $\tt Fuint$. Simply add $\tt -$ between the letter and the number to represent negative of type $\tt Sint$. Additionally, it should be noted that string used as token, such as $\tt reg, wire, reset$, cannot be use as componentsâ€™ identifier in the program, otherwise it will cause parse error.
+A parser is written to complete an end-to-end interpreter in OCAML, which facilitate the comparison with Treadle  in the end. Combining the extracted semantics code and written parser, and running this on LoFIRRTL program, we further validate the Ocaml LoFIRRTL interpreter. A literal unsigned integer can alternatively be created given a string starts with $\tt b$, $\tt o$, $\tt h$ for representing binary, octal($\tt o$ can be omitted), hexadecimal numbers respectively to define const expression of type $\tt Fuint$. Simply add $\tt -$ between the letter and the number to represent negative of type $\tt Sint$. Additionally, it should be noted that string used as token, such as $\tt reg, wire, reset$, cannot be use as components¡¯ identifier in the program, otherwise it will cause parse error.
 
 \keyin{non-tail-recursive in ocaml}
 
