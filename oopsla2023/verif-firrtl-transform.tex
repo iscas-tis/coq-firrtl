@@ -11,23 +11,51 @@ because the \lstinline~when~ statement contains two statement sequences,
 but the proof is more long than complicated.
 
 \subsection{Correctness of ExpandConnects}
-Recall the Expand Connects pass is aimed to decompose the connect statement of aggregate
-types to ground type connections.  Let $ce^{in}$ be the components
-environment, and $ss^{in}$ be the list of connect statements in the input
-circuit diagram $D_M^{in}$.
-Let $ss^{out}$ be the output list of connect statements after
-applying the Expand Connections pass.
-The input $D_M^{in}$ is required to be the result of Infer Types pass, in order to make sure the
-connections are made between equivalent types and the components are already
-recorded in the environment.
+Recall the ExpandConnects pass is aimed to decompose the connect statements of aggregate
+types to ground type connections.
+To prove the functional correctness of the ExpandConnects pass, we need to ensure
+that the sub elements of the components are connected to their equivalent ground types.
+Let $ce^{in}$ be the input components environment,
+%% such that $ce^{in}$ is the result of the InferTypes pass,
+and $ss^{in}$ be the list of connect statements in the input circuit
+diagram $D_M^{in}$.  Let $ss^{out}$ be the output list of connect
+statements after applying the Expand Connections pass.  The input
+$D_M^{in}$ is required to be the result of InferTypes pass, in order
+to make sure the connections are made between equivalent types.
 
-We state the correctness upon the types of the left-hand side and the right-hand side
-expressions in the new generated connect statements.
-First, there are only ground types in $ss'$,
-%% \begin{lemma}
-%% \forall ce, 
-%% \end{lemma}
-
+We specify the correctness upon the types of the left-hand side and the right-hand side
+expressions in the resulting connect statements.
+First, we state that the type equivalence holds for the output list of statements $ss^{out}$.
+To be more precise, the type equivalence predicate $TypeEquivs$ holds for a list of statements if,
+we individually compare the types of the two side of a connection, the type equivalence $TypeEquiv$ holds.
+If there are $n$ statement $s_1,s_2,\dots ,s_n$ in $ss$,
+$TypeEquivs\;ss\,=\,\bigwedge_{i=0}^{n} TypeEquiv\;s_i$.
+\begin{lemma}\label{expand-conct-type1-ss}
+$\forall ce^{in}\; ss^{in},\, ce^{in} \models TypeEquivs\, ss^{in} \Rightarrow TypeEquivs\, [{\tt expand\_cnct}\,s\,|\,s\leftarrow ss^{in}]).$
+\end{lemma}
+Lemma \ref{expand-conct-type1-ss} says that if the type equivalence predicate holds for all the
+connect statements in $ss^{in}$,
+it holds for the statements produced by applying {\tt expand\_cnct} \eqref{expand-cnct} function on all the inputs.
+The proof can be achieved by induction on the list of statements
+if we have the proof for expanding one statement.
+Since {\tt expand\_cnct} has effects only for the connect statement,
+we can state that
+\begin{lemma}\label{expand-conct-type1-s}
+$\forall ce^{in}\;v\;e,\, ce^{in} \models TypeEquiv\,(v<=e) \Rightarrow TypeEquivs\, ({\tt expand\_cnct}\,(v<=e)).$
+\end{lemma}
+If under a certain component environment the $TypeEquiv$ predicate holds for a connect statment $v<=e$,
+in such environment the type of $v$ and the type of $e$ are type equivalent.
+Lemma \ref{expand-conct-type1-s} can be simplified into,
+\begin{lemma}\label{expand-conct-type1-s}
+$\forall ce^{in}\;v\;e,\, ce^{in} \models Equiv\,({\tt typeof}\,v,\;{\tt typeof}\,e) \Rightarrow$
+$Equivs\,[({\tt typeof}\,l,\,{\tt typeof}\,r)\,|\,l \leftarrow{\tt expand\_ref}\,v,\;r\leftarrow {\tt expand\_expr}\,e]$.
+\end{lemma}
+If there are $n$ pairs of types $(t_1^l,t_1^r),(t_2^l,t_2^r),\dots ,(t_n^l,t_n^r)$ in the list $ts$,
+$Equivs$ holds for $ts$ stands for 
+$Equivs\;ts\,=\,\bigwedge_{i=0}^{n} Equiv\;(t_i^l\,t_i^r)$.
+In Lemma \ref{expand-conct-type1-s}, the list of pairs are the pair of types obtained by
+expanding the reference on the left-hand side
+and the expression on the right-hand side, respectively.
 
 \xiaomu{Stopped}
 

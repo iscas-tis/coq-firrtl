@@ -209,7 +209,7 @@ expressions, such as binary operations, only operate and result in
 ground types. Therefore they do not require expanding.
 Expanding a \prettyll{mux} expression is done by,
   \begin{gather}
-  \label{expand-cnct}
+  \label{expand-mux}
     \infer[]
     {\seqq{ce\vdash{\tt expand\_expr} (\mbox{mux}(e_c,e_t,e_f)) \rightsquigarrow es_{mux}}}
     {\seqq{es_{mux}:=[\mbox{mux}(e_c,t,f)\,|\,t \leftarrow {\tt expand\_expr}(e_t),\,f \leftarrow {\tt expand\_expr}(e_f)]}}.
@@ -232,6 +232,7 @@ After producing the list of references on the left-hand side and the
 list of expressions on the right-hand side, new connect statements can
 be generated pairwise from the two by
   \begin{gather}
+  \label{expand-cnct}
     \infer[]
     {\seqq{ce\vdash{\tt expand\_cnct} (v <= e) \rightsquigarrow ss_{cnct}}}
     {\seqq{ ss_{cnct}:=[lhs<=rhs\,|\,lhs \leftarrow {\tt expand\_ref}(v),\,rhs \leftarrow {\tt expand\_expr}(e)]}}.
@@ -239,8 +240,8 @@ be generated pairwise from the two by
 
 The \prettyll{is invalid} statement is treat as the same as the connect statement,
 which connects a component with an ``unknown'' signal at this point.
-After expanding a \prettyll{is invalid} statement for a component,
-we obtain a list of \prettyll{is invalid}s for its sub-elements.
+After processing an \prettyll{is invalid} statement for a component,
+we obtain a list of \prettyll{is invalid} statements for its sub-elements.
 
 \subsubsection{``Lower Types''}
 The Lower Types pass is primarily aimed at transform aggregate types
