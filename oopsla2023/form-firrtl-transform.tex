@@ -16,6 +16,7 @@ it is added to component environment by
     {\seqq{ce \vdash {\tt infer\_type} (\mbox{wire}\;v\,:\;t_v) \rightsquigarrow ce'}}
     {\seqq{ce':= ce \uplus \{v : (t_v, Wire)\}}}.
     \end{gather}
+It is the same for the \prettyll{reg} statement and ports declarations, where types are defined directly.
 If it is a node-declaration statement, an entry for the node is added
 to $ce$ with its type calculated by the expression $e$
 assigned to the node.
@@ -24,9 +25,27 @@ assigned to the node.
     {\seqq{ce \vdash {\tt infer\_type} (\mbox{node}\;v\,=\;e) \rightsquigarrow ce'}}
     {\seqq{ce \vdash t_e:={\tt type\_of\_expr}(e)}} {\seqq{ce':= ce \uplus \{v : (t_e, Node)\}}}.
     \end{gather}
-The connect statements are ignored in this pass, since they will not
-introduce new components to be added to the environment.
-After applying the Infer Types pass, types with an implicitly defined width are assigned width 0 in $ce$.
+The connect statements will not introduce new components. However,
+they can be used to check whether the connection is made between expressions of
+equivalent types. By type equivalence, we mean that the structures of the types are the same,
+but the widths are not necessarily the same.
+If the types in the conect statements are equivalent,
+the components environment is kept.
+\begin{gather}
+    \inferiii[]
+    {\seqq{ce \vdash {\tt infer\_type} (v<=e) \rightsquigarrow ce}}
+    {\seqq{ce \vdash v:t_v}}
+    {\seqq{ce \vdash t_e:={\tt type\_of\_expr}(e)}} {\seqq{{\tt equiv}(t_v,t_e)}}
+    \end{gather}
+If the type equivalence is violated, an error will be raised.
+\begin{gather}
+    \inferiii[]
+    {\seqq{ce \vdash {\tt infer\_type} (v<=e) \rightsquigarrow \bot}}
+    {\seqq{ce \vdash v:t_v}}
+    {\seqq{ce \vdash t_e:={\tt type\_of\_expr}(e)}} {\seqq{\neg{\tt equiv}(t_v,t_e)}}
+    \end{gather}
+After applying the Infer Types pass, types with an
+implicitly defined width are assigned with 0 in $ce$.
 
 \subsubsection{``Infer Widths''}
 It is allowed to leave the width of a component implicit in HiFIRRTL programs.
@@ -178,12 +197,13 @@ individual ones of corresponding ground types. The general rules are,
 \item Connections between aggregate types will be expanded recursively.
 \end{itemize}
 
-The pass focuses on connect statements in $ss$. The left-hand side
+The pass focuses on connect statements in $ss$.
+The left-hand side
 of a connection is a reference to a component, while the right-hand side
 is an expression. In order to obtain expanded
 connections, the expression needs to be recursively expanded.
-\xiaomu{whether validif is in the syntax}
-Only expressions of multiplexers \prettyll{mux} and
+Only expressions of multiplexers \prettyll{mux},
+\prettyll{validif} and
 references \prettyll{r} can be of aggregate types. The other
 expressions, such as binary operations, only operate and result in
 ground types. Therefore they do not require expanding.
@@ -195,12 +215,19 @@ Expanding a \prettyll{mux} expression is done by,
     {\seqq{es_{mux}:=[\mbox{mux}(e_c,t,f)\,|\,t \leftarrow {\tt expand\_expr}(e_t),\,f \leftarrow {\tt expand\_expr}(e_f)]}}.
     \end{gather}
 It takes the conditional expression $e_c$ and the true/false branch
-expressions $e_1$ and $e_2$ from the original \prettyll{mux} expression, and then produces a list $es_{mux}$
-of \prettyll{mux} that combines the lists of expanded $e_1$ and $e_2$
-with the same condition $e_c$. Expanding a references is relatively straightforward.
+expressions $e_t$ and $e_f$ from the original \prettyll{mux} expression, and then produces a list $es_{mux}$
+of \prettyll{mux} that combines the lists of expanded $e_t$ and $e_f$
+with the same condition $e_c$.
+Similarly, expanding a \prettyll{validif} expression produces a list of \prettyll{validif} expressions in $es_{validif}$,
+  \begin{gather}
+  \label{expand-validif}
+    \infer[]
+    {\seqq{ce\vdash{\tt expand\_expr} (\mbox{validif}(e_c,e)) \rightsquigarrow es_{validif}}}
+    {\seqq{es_{validif}:=[\mbox{validif}(e_c,t)\,|\,t \leftarrow {\tt expand\_expr}(e)]}}.
+    \end{gather}
+Expanding a references is relatively straightforward.
 It create a list of references to the sub-elements according to the
 type of the component.
-
 After producing the list of references on the left-hand side and the
 list of expressions on the right-hand side, new connect statements can
 be generated pairwise from the two by
@@ -209,6 +236,11 @@ be generated pairwise from the two by
     {\seqq{ce\vdash{\tt expand\_cnct} (v <= e) \rightsquigarrow ss_{cnct}}}
     {\seqq{ ss_{cnct}:=[lhs<=rhs\,|\,lhs \leftarrow {\tt expand\_ref}(v),\,rhs \leftarrow {\tt expand\_expr}(e)]}}.
     \end{gather}
+
+The \prettyll{is invalid} statement is treat as the same as the connect statement,
+which connects a component with an ``unknown'' signal at this point.
+After expanding a \prettyll{is invalid} statement for a component,
+we obtain a list of \prettyll{is invalid}s for its sub-elements.
 
 \subsubsection{``Lower Types''}
 The Lower Types pass is primarily aimed at transform aggregate types
