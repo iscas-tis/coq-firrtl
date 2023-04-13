@@ -48,13 +48,14 @@ We do not compare with the Agda-based Interpreter because it cannot directly exe
 \caption{Results of conformance testing}\footnotesize\vspace*{-3mm}
 \label{tab:conformancetesting}
 \scalebox{0.95}{\begin{tabular}{|c|c|c|c|c|c|}
-  \hline
+  \hline 
 \multirow{2}{*}{\bf Benchmark name} & \multirow{2}{*}{\bf \#LOC} & \multicolumn{2}{c|}{\bf Execution time ($\mu$s)}&\multirow{2}{*}{\bf Speedup}  & \multirow{2}{*}{\bf Result} \\ \cline{3-4}
-                              &                        & {\bf Treadle}  &  {\bf Ours}  &     &  \\ \hline
+                              &                        & {\bf Treadle}  &  {\bf Ours}  &     &  \\ \hline \hline
       Treadle (37 circuits) & 38.08  & 12.18  & 3.13  & 7.16  & \ding{51} \\ \hline
          Chisel Book (77 circuits) & 68.86  & 139.63  & 31.31  & 5.81  & \ding{55}(1) \\ \hline
         \cite{HarrisonHA21} (4 circuits) & 15.00  & 18.05  & 0.60  & 29.81  & \ding{51} \\ \hline
-        Our own (3 circuits) & 37.67  & 8.21  & 1.86  & 3.74  & \ding{51} \\ \hline
+        Our own (3 circuits) & 37.67  & 8.21  & 1.86  & 3.74  & \ding{51} \\ \hline \hline
+        \textbf{Average} &  \textbf{56.89} & 	\textbf{93.38} & 	\textbf{20.95} & 	\textbf{6.96} &  \\ \hline
  \end{tabular}}
 \end{table}
         
