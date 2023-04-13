@@ -29,7 +29,7 @@ First, we state that the type equivalence holds for the output list of statement
 To be more precise, the type equivalence predicate $TypeEquivs$ holds for a list of statements if,
 we individually compare the types of the two side of a connection, the type equivalence $TypeEquiv$ holds.
 If there are $n$ statement $s_1,s_2,\dots ,s_n$ in $ss$,
-$TypeEquivs\;ss\,=\,\bigwedge_{i=0}^{n} TypeEquiv\;s_i$.
+$TypeEquivs\;ss\,\!=\,\!\bigwedge_{i=0}^{n} TypeEquiv\;s_i$.
 \begin{lemma}\label{expand-conct-type1-ss}
 $\forall ce^{in}\; ss^{in},\, ce^{in} \models TypeEquivs\, ss^{in} \Rightarrow TypeEquivs\, [{\tt expand\_cnct}\,s\,|\,s\leftarrow ss^{in}]).$
 \end{lemma}
@@ -38,7 +38,7 @@ connect statements in $ss^{in}$,
 it holds for the statements produced by applying {\tt expand\_cnct} \eqref{expand-cnct} function on all the inputs.
 The proof can be achieved by induction on the list of statements
 if we have the proof for expanding one statement.
-Since {\tt expand\_cnct} has effects only for the connect statement,
+Since {\tt expand\_cnct} only has effects for the connect statement,
 we can state that
 \begin{lemma}\label{expand-conct-type1-s}
 $\forall ce^{in}\;v\;e,\, ce^{in} \models TypeEquiv\,(v<=e) \Rightarrow TypeEquivs\, ({\tt expand\_cnct}\,(v<=e)).$
@@ -48,14 +48,45 @@ in such environment the type of $v$ and the type of $e$ are type equivalent.
 Lemma \ref{expand-conct-type1-s} can be simplified into,
 \begin{lemma}\label{expand-conct-type1-s}
 $\forall ce^{in}\;v\;e,\, ce^{in} \models Equiv\,({\tt typeof}\,v,\;{\tt typeof}\,e) \Rightarrow$
-$Equivs\,[({\tt typeof}\,l,\,{\tt typeof}\,r)\,|\,l \leftarrow{\tt expand\_ref}\,v,\;r\leftarrow {\tt expand\_expr}\,e]$.
+$Equivs\,[({\tt typeof}\,l,\,{\tt typeof}\,r)\,|\,l \leftarrow{\tt expand\_expr}\,v,\;r\leftarrow {\tt expand\_expr}\,e]$.
 \end{lemma}
 If there are $n$ pairs of types $(t_1^l,t_1^r),(t_2^l,t_2^r),\dots ,(t_n^l,t_n^r)$ in the list $ts$,
 $Equivs$ holds for $ts$ stands for 
-$Equivs\;ts\,=\,\bigwedge_{i=0}^{n} Equiv\;(t_i^l\,t_i^r)$.
-In Lemma \ref{expand-conct-type1-s}, the list of pairs are the pair of types obtained by
+$Equivs\,ts\,\!=\,\!\bigwedge_{i=0}^{n} Equiv\;(t_i^l\,t_i^r)$.
+In Lemma \ref{expand-conct-type1-s}, the list of pairs are the types obtained by
 expanding the reference on the left-hand side
-and the expression on the right-hand side, respectively.
+and expanding the expression on the right-hand side, respectively.
+If we can build the relation between the aggregate type of an expression and the types of
+the corresponding expanded expressions, the above lemma can be proved.
+Here we introduce an additional function {\tt dec\_type} that can decompose the aggregate types
+by its structure to get a list of ground types.
+A related lemma is,
+\begin{lemma}\label{dec-type}
+$\forall ce^{in}\, t_1\, t_2,\,ce^{in}\models Equiv\,(t_1,\;t_2) \Rightarrow$ 
+$Equivs\,[(x,\,y)\,|\,x \leftarrow{\tt dec\_type}\,t_1,\;y\leftarrow {\tt dec\_type}\,$ $t_2]$
+\end{lemma}
+It states that, decomposing a pair of equivalent aggregate types produces two pairwise equivalent type lists.
+If we use the {\tt dec\_type} function on the aggregate type of the expression aimed to be expanded, it
+returns the ground types that are identical to the ones produced by {\tt expand\_expr}.
+\begin{lemma}\label{expand-expr-dec-type}
+$\forall ce^{in}\, e,\,ce^{in}\models[{\tt typeof}\,x\,|\,x\leftarrow{\tt expand\_expr}\,e] = {\tt dec\_type}\,({\tt typeof}\,e)$
+\end{lemma}
+By rewriting Lemma \ref{expand-expr-dec-type} in the goal of Lemma \ref{expand-conct-type1-s}, the proof goal is change to
+$Equivs\,[(x,\,y)\,|\,x\leftarrow{\tt dec\_type}\;({\tt typeof}\,v),\;y\leftarrow {\tt dec\_type}\,({\tt typeof}\,e)]$.
+Now it is able to apply Lemma \ref{dec-type} with assigning $t_1$ and $t_2$ with ${\tt typeof}\,v$ and ${\tt typeof}\,e$
+to complete the proof.
+
+Secondly, we state that types of the experssion obtained by ExpandConnects pass
+are all ground types.
+\begin{lemma}
+$\forall ce ^{in}\,ss^{in},\,ce^{in}\models AllGround ({\tt expand\_cnct}\,ss^{in})$
+\end{lemma}
+
+The lemma states the predicate $AllGround$ holds for the generated
+statment of {\tt expand\_cnct}.  It is rather easy to be proved by
+reducing the problem to prove the {\tt expand\_expr} produce the same
+type as {\tt dec\_type}, and then to prove that the decomposing types by
+the {\tt dec\_type} function will always return ground types.
 
 \xiaomu{Stopped}
 
