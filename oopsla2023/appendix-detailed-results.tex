@@ -94,8 +94,22 @@
 %\begin{tabular}
   \hline
 \multirow{2}{*}{\bf Benchmark name} & \multirow{2}{*}{\bf \#LOC} & \multicolumn{2}{c|}{\bf Execution time ($\mu$s)}&\multirow{2}{*}{\bf Speedup}  & \multirow{2}{*}{\bf Result} \\ \cline{3-4}
-                              &                        & {\bf Treadle}  &  {\bf Ours}  &     &  \\ \hline
- \hline
+                              &                        & {\bf Treadle}  &  {\bf Ours}  &     &  \\ \hline          \hline
+  \endfirsthead
+  
+  \multicolumn{6}{c}%
+{{\bfseries \tablename\ \thetable{} -- continued from previous page}} \\ \hline
+\multirow{2}{*}{\bf Benchmark name} & \multirow{2}{*}{\bf \#LOC} & \multicolumn{2}{c|}{\bf Execution time ($\mu$s)}&\multirow{2}{*}{\bf Speedup}  & \multirow{2}{*}{\bf Result} \\ \cline{3-4}
+                              &                        & {\bf Treadle}  &  {\bf Ours}  &     &  \\ \hline          \hline
+\endhead
+
+\hline \multicolumn{6}{|r|}{{Continued on next page}} \\ \hline
+\endfoot
+
+
+ 
+\endlastfoot
+
    Adder & 11 & 65.28  & 6.31  & 9.35  & \ding{51} \\ \hline
         Alu & 24 & 70.28  & 10.96  & 5.41  & \ding{51} \\ \hline
         Arbiter3 & 26 & 62.02  & 11.91  & 4.21  & \ding{51} \\ \hline
