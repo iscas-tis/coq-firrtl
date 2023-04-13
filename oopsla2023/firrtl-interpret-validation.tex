@@ -49,7 +49,7 @@ We do not compare with the Agda-based Interpreter because it cannot directly exe
 \label{tab:conformancetesting}
 \scalebox{0.95}{\begin{tabular}{|c|c|c|c|c|c|}
   \hline 
-\multirow{2}{*}{\bf Benchmark name} & \multirow{2}{*}{\bf \#LOC} & \multicolumn{2}{c|}{\bf Execution time ($\mu$s)}&\multirow{2}{*}{\bf Speedup}  & \multirow{2}{*}{\bf Result} \\ \cline{3-4}
+\multirow{2}{*}{\bf Benchmark suit} & \multirow{2}{*}{\bf \#LOC} & \multicolumn{2}{c|}{\bf Execution time ($\mu$s)}&\multirow{2}{*}{\bf Speedup}  & \multirow{2}{*}{\bf Result} \\ \cline{3-4}
                               &                        & {\bf Treadle}  &  {\bf Ours}  &     &  \\ \hline \hline
       Treadle (37 circuits) & 38.08  & 12.18  & 3.13  & 7.16  & \ding{51} \\ \hline
          Chisel Book (77 circuits) & 68.86  & 139.63  & 31.31  & 5.81  & \ding{55}(1) \\ \hline
@@ -62,13 +62,16 @@ We do not compare with the Agda-based Interpreter because it cannot directly exe
 
 \smallskip\noindent
 {\bf Testing results}.
-The results of conformance testing are reported in Table~\ref{tab:conformancetesting}, where
-column (\#LOC) shows the number of locations,
-column (Treadle) shows the average execution time $t_1$ of Treadle in microsecond ($\mu$s),
-column (Ours) shows the average execution time $t_2$ of our LoFIRRTL OCaml Interpreter in millisecond,
-column (Speedup) is calculated via $\frac{t_1-t_2}{t_2}$,
-column (Result) shows the comparison result of output ports between Treadle and our LoFIRRTL OCaml Interpreter with
-\checkmark indicating the same values of the output ports under all the 100 input tests.
+The summary of conformance testing is reported in Table~\ref{tab:conformancetesting}.
+Column (\#LOC) shows the average number of locations for each benchmark suit.
+Column (Treadle) shows the average execution time $t_1$ of Treadle in microsecond ($\mu$s) for each benchmark suit.
+Column (Ours) shows the average execution time $t_2$ of our LoFIRRTL OCaml Interpreter in $\mu$s for each benchmark suit.
+Column (Speedup) is calculated via $\frac{t_1-t_2}{t_2}$ for each benchmark suit.
+Column (Result) shows the comparison result of output ports between Treadle and our LoFIRRTL OCaml Interpreter under the 100 input tests,
+where \ding{51} indicates that the same values of the output ports and \ding{55}(n) indicating some values of the output ports of $n$ benchmarks are different.
+The last row (Average) shows the average results over all 201 benchmarks.
+Detailed results are given in the supplementary material.
+
 
 We can observe that our LoFIRRTL OCaml Interpreter produces the same results as Treadle on all the 37 benchmarks under all the input tests.
 Furthermore, our LoFIRRTL OCaml Interpreter is significantly more efficient than Treadle on almost all the benchmarks except for HardwareHashMaker.
