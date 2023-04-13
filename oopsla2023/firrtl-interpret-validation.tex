@@ -101,7 +101,8 @@ we chose bit-wise multiplication based on the bit-vector library in Coq whose co
 
 
 In order to have some measure of the effectiveness of our testing, we analyzed the branch coverage of our LoFIRRTL OCaml Interpreter.
-All the 120 benchmarks together cover all the 51 branches. (Note that only 36 out of 51 branches are covered without our own two benchmarks.)
+All the 120 benchmarks together cover all the 51 branches, as well as modules with instances of \prettyll{inst of}-free modules
+and none-\prettyll{inst of}-free modules. (Note that only 36 out of 51 branches and modules with instances of \prettyll{inst of}-free modules are covered without our own two benchmarks.)
 %To cover the remaining branches, we implement an additional benchmark, called mytest,
 %on which Treadle and our LoFIRRTL OCaml Interpreter also produce the same results.
 
