@@ -81,9 +81,9 @@ Note that the last-connected semantics is ignored here. The behavior of {\tt inf
   \begin{gather}
     \inferiii[]
     {\seqq{ce \vdash {\tt infer\_width }(x<=e) \rightsquigarrow ce'}}
-    {\seqq{ce(x) =  (t_x, -)}}
+    {\seqq{ce(x) =  (t_x, \kappa)}}
     {\seqq{ce \vdash t_e = {\tt type\_of\_expr }(e)}}
-    {\seqq{ce' = ce \uplus \{x : {\tt max\_width }(t_x, t_e)\}}}.
+    {\seqq{ce' = ce \uplus \{x : ({\tt max\_width }(t_x, t_e), \kappa)\}}}.
     \end{gather}
 %Intuitively, {\tt infer\_width} infers for each component the maximum width of the expressions that are connected to it. Note that the last-connected semantics is ignored here. 
 Moreover, {\tt infer\_width} uses a Coq function {\tt max\_width}, which, given two aggregate types, compares for each field their widths in the aggregate types, and chooses the larger width.
@@ -175,15 +175,46 @@ manipulated more efficiently.
 %% from d gives a larger width to the destination $c$. 
 
 \subsubsection{Formalization of InferResets}
+We formalize the ``InferResets'' pass by defining a Coq function {\tt infer\_reset}, which iterates over the statements in $ss$ and updates $ce$, so that the concrete reset types of all abstract reset signals can be inferred. 
+%Note that after applying {\tt infer\_type} to all the statements in $ss$, if the bit width of a component is nonzero, that is, a bit width is available in its declaration statement, then its bit width will \emph{not} be changed by  {\tt infer\_width}.
+The rationale behind {\tt infer\_reset} is stated as follows: After applying {\tt infer\_type} to all the statements in $ss$, for each component $x$ of  type \prettyll{Reset},
+\begin{itemize}
+\item if only components of  type \prettyll{AsyncReset} are connected to $x$, then {\tt infer\_reset} updates the type of $x$ to \prettyll{AsyncReset}, 
+%
+\item if $x$ \prettyll{is invalid} is a statement in $ss$ or only components of type \prettyll{UInt<1>} are connected to $x$, then {\tt infer\_reset} updates the type of $x$ to \prettyll{UInt<1>}, 
+%
+\item if two components of type  \prettyll{AsyncReset} and \prettyll{UInt<1>} respectively are both connected to $x$, then  {\tt infer\_reset} reports an error.
+\end{itemize}
+The behavior of {\tt infer\_reset} on a connect statement is defined by the following two rules, 
+  \begin{gather}
+    \label{rule-infer-reset-pass}
+    \inferiv[]
+    {\seqq{ce \vdash {\tt infer\_reset} (x<=e, ce) \rightsquigarrow ce'}}
+    {\seqq{ce(x)= (t_x, \kappa)}} {\seqq{ce\vdash t_e={\tt type\_of\_expr}(e)}}
+    {\seqq{{\tt \neg conflict} (t_x, t_e)}}
+    {\seqq{ce'= ce \uplus \{x : (t_e, \kappa)\}}},
+    \end{gather}
+and 
+  \begin{gather}
+    \inferiii[]
+    {\seqq{ce \vdash {\tt infer\_reset} (x<=e, ce) \rightsquigarrow \bot}}
+    {\seqq{ce(x) = (t_x, \kappa)}} {\seqq{ce\vdash t_e={\tt type\_of\_expr}(e)}}
+    {\seqq{{\tt conflict} (t_x, t_e)}}
+%    {\seqq{ce'= \bot}}.
+    \end{gather}
+Note that {\tt infer\_reset} uses the predicate {\tt conflict} to decide that two reset types are conflicting, that is, one is  \prettyll{AsyncReset} and the other is \prettyll{UInt<1>}.
+Moreover, here we take \prettyll{is invalid} statements as connect statements connected to a synchronous reset component (i.e. of type \prettyll{UInt<1>}).
+%If there is no error reported, the inferred reset types stored in the temporary map $rm$ can be
+%merged into the component environment $ce$ using the {\tt map2} function.
+%The resulting $ce$ contains the inferred concrete reset types.
+
+%%% the original texts written by xiaomu
+%%% the original texts written by xiaomu
+\hide{
 In HiFIRRTL, the type \prettyll{Reset} can be used to indicate an
 abstract reset signal. The Infer Reset pass is responsible for
 inferring the concrete type (asynchronous or synchronous) of the abstract one based on the
 connection context. The general rules are,
-\begin{itemize}
-\item Abstract resets driven by only asynchronous resets will be inferred as asynchronous.
-\item Abstract resets that have been invalidated or driven by synchronous signals will be inferred as synchronous.
-\item Abstract resets driven by both synchronous and asynchronous resets will be an error.
-\end{itemize}
 
 Similar to the Infer Widths pass, a temporary map $rm$ is introduced to
 handle abstract resets exclusively. It maps from components to reset
@@ -197,6 +228,7 @@ by \eqref{rule-infer-reset-init}.
 %% $rm$ is first initialized with all (sub)components of type \prettyll{Reset} by rule \eqref{rule-infer-reset-init},
 %% and then the pass scans through the statements in $ss$
 %% to decide whether each one of them should become asynchronous or synchronous by rule \eqref{rule-infer-reset-pass}.}
+
   \begin{gather}
   \label{rule-infer-reset-init}
     \inferii[]
@@ -228,6 +260,9 @@ Here, we consider the case of \prettyll{is invalid} statements as same as a conn
 If there is no error reported, the inferred reset types stored in the temporary map $rm$ can be
 merged into the component environment $ce$ using the {\tt map2} function.
 The resulting $ce$ contains the inferred concrete reset types.
+}
+%%% the original texts written by xiaomu
+%%% the original texts written by xiaomu
 
 \subsubsection{Formalization of ExpandConnects}
 In HiFIRRTL, connections can be made between aggregate types.  These

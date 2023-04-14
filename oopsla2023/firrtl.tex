@@ -485,7 +485,7 @@ The InferWidths pass infers the widths of all signals with unknown widths, after
 
 
 \paragraph*{InferResets} %% that infers concrete resets, i.e. AsyncReset or UInt<1>,
-The InferResets pass infers the abstract reset type \prettyll{Reset} to the concrete reset types, i.e. \prettyll{AsyncReset} for asynchronous resets or \prettyll{UInt<1>} for synchronous resets. For example, in the following code with an input signal \prettyll{in} of type \prettyll{UInt<1>} and a wire signal \prettyll{rst} of abstract type \prettyll{Reset}, the \prettyll{rst} signal will be inferred as a synchronous reset based on the type of the input port \prettyll{in}: \prettyll{ input in: UInt<1>   wire rst: Reset   rst <= in }. If an uninferred signal is instantiated with different concrete reset types, such conflict behavior is an error.
+The InferResets pass infers the concrete reset types for the abstract reset type \prettyll{Reset}, namely, asynchronous resets represented by  \prettyll{AsyncReset} or synchronous resets represented by \prettyll{UInt<1>}. For example, in the following code with an input signal \prettyll{in} of type \prettyll{UInt<1>} and a wire signal \prettyll{rst} of abstract type \prettyll{Reset}, the \prettyll{rst} signal will be inferred as a synchronous reset based on the type of the input port \prettyll{in}, \prettyll{ input in: UInt<1>   wire rst: Reset   rst <= in }. If a \prettyll{Reset} signal is instantiated with different concrete reset types, then a conflict occurs and an error is reported.
 
 \paragraph{ExpandConnects} The ExpandConnects pass expands the connect and partial connect statements, after the types of components have been inferred by InferTypes. For instance, the ExpandConnects pass transforms the following program
 \begin{figure}[h]
@@ -609,7 +609,6 @@ is transformed into
 \end{lstlisting}
 }
 
-\zhilin{stopped here}
 
 \begin{figure}[htbp]
 \centering
