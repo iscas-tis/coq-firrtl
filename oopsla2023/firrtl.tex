@@ -516,8 +516,8 @@ this is necessary because a physical circuit cannot contain conditional elements
 It also applies the so-called last connect semantics.
 
 For every ground-type writable (sub)component, ExpandWhens retains the last connect or \prettyll{is} \prettyll{invalid} statement
-that appears on any execution path through the module.
-If there are multiple execution paths where this (sub)component is declared,
+that appears under any combination of \prettyll{when} conditions in the module.
+If the (sub)component is declared under multiple conditions,
 ExpandWhens selects between them using a multiplexer.
 
 For instance, the ExpandWhens pass transforms the following program
@@ -566,17 +566,17 @@ if \prettyll{condition} is true.
 Because of this overriding,
 ExpandWhens can only run after the connect statements have been expanded by ExpandConnects.
 
-If there is some execution path where the (sub)component is declared but is not connected,
+If, under some combination of conditions, the (sub)component is declared but is not connected,
 the compiler assumes that the programmer has forgotten a connect statement
 and produces an error.
 This error can be suppressed by an \prettyll{is invalid} statement
 (Line~\ref{lstline-is-invalid} of the left listing),
 which explicitly indicates that the connect is missing on purpose,
-e.g. because the result is not used or is irrelevant in this execution path.
+e.g. because the result is not used or is irrelevant under some conditions.
 The multiplexer is replaced by a \prettyll{validif} expression.
 %, which may allow later optimization passes to remove superfluous calculations.
 
-If a component is not declared on every execution path
+If a component is only declared under some condition
 (e.g. \prettyll{wire a} in Line~\ref{lstline-wire-under-when} of the left listing),
 it is nevertheless included in the LoFIRRTL result,
 and the condition is ignored; no multiplexer is inserted upon connections.
