@@ -110,7 +110,15 @@ $s(and(e_1, e_2))$ is the bitwise and of $bv_{\theta\bwidth{\max(n_1, n_2)}(s(e_
 %
 \end{itemize}
 
+\section{Missing details in Section~\ref{sec-hi-firrtl-transform}}\label{app-hifirrtl}
 
+The definition of ${\tt type\_of\_expr}(e)$ \zhilin{@Xiaomu, please add the definition here}
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\hide{
 \section{Axiomatic semantics of compilation passes}\label{sec-appen-sem-cpass}
 
 The semantics of compilation pass InferType on a module $M$ is specified by the following formula,
@@ -127,7 +135,6 @@ $type_{ce}(e)$ in Table~\ref{tab:infertype-sem} is defined in the same flavor as
 %\item if $type_{ce}(e_1) = (\mbox{``Gtype''}, \sint{n_1})$ and  $type_{ce}(e_2) = (\mbox{``Gtype''}, \sint{n_2})$, then $type_{ce}(add(e_1, e_2)) = (\mbox{``Gtype''}, \sint{\max(n_1,n_2)})$,
 \item otherwise, $type_{ce}(add(e_1, e_2)) = \bot$.
 \end{itemize}
-
 
 \begin{table}[htbp]
   \footnotesize
@@ -165,6 +172,9 @@ $type_{ce}(e)$ in Table~\ref{tab:infertype-sem} is defined in the same flavor as
   \caption{Semantics of InferType compilation pass}
   \label{tab:infertype-sem}
 \end{table}
+}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%definition of type_ce(e) omitted %%%%%%
