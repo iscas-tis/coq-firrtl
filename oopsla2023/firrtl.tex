@@ -477,14 +477,15 @@ In the sequel, we give an informal introduction to the lowering transformations 
 
 %% \paragraph*{ResolveKinds} xxx \zhilin{@Xiaomu, please write an introduction here.}
 
-\paragraph*{InferTypes} The InferTypes pass infers the types of components. For instance, InferTypes infers from the code snippet \prettyll{ wire x: UInt   x <= UInt<5>(15)   x <= UInt<1>(1) } that $x$'s type is \prettyll{ UInt}. Note that for a connect statement   \prettyll{ x <= e}, InferTypes only checks that the type of $e$ is equivalent to that of $x$ (where the bit widths are ignored), but does not update the bit width of $x$ to that of $e$.
+\paragraph*{InferTypes} The InferTypes pass infers the types of components. For instance, InferTypes infers from the code snippet 
+\prettyll{ wire x: UInt   x <= UInt<5>(15) x <= UInt<1>(1) } that $x$'s type is \prettyll{ UInt}. Note that for a connect statement   \prettyll{ x <= e}, InferTypes only checks that the type of $e$ is equivalent to that of $x$ (where the bit widths are ignored), but does not update the bit width of $x$ to that of $e$.
 
 \paragraph*{InferWidths}
-The InferWidths pass infers the widths of all signals with unknown widths, after InferTypes has been applied. It is a \emph{global} width inference algorithm. Instances of the same module with unknown input port widths will be assigned the largest width of all assignments to each of its instance ports. It infers the smallest width that is larger than all assigned widths to a signal. Note that this means that dummy assignments that are overwritten by last-connect-semantics can still influence width inference. For instance, InferWidths infers from the following code snippet that $x$'s width is $5$, but with an assignment of \prettyll{UInt(1)}:
-\prettyll{  wire x: UInt   x <= UInt<5>(15)   x <= UInt<1>(1)}.
+The InferWidths pass infers the widths of all signals with unknown widths, after InferTypes has been applied. It is a \emph{global} width inference algorithm. Instances of the same module with unknown input port widths will be assigned the largest width of all assignments to each of its instance ports. It infers the smallest width that is larger than all assigned widths to a signal. Note that this means that dummy assignments that are overwritten by last-connect semantics can still influence width inference. The last-connect semantics means that the last connect statement for a component will take effects and all the preceding connect statements for it will be ignored  in the end. For instance, InferWidths infers from the following code snippet that $x$'s width is $5$, but with a value \prettyll{UInt<1>(1)}: \prettyll{wire x: UInt   x <= UInt<5>(15)    x <= UInt<1>(1)}.
+
 
 \paragraph*{InferResets} %% that infers concrete resets, i.e. AsyncReset or UInt<1>,
-The InferResets pass infers the abstract reset type \prettyll{Reset} to the concrete reset types, i.e. \prettyll{AsyncReset} for asynchronous resets or \prettyll{UInt<1>} for synchronous resets. For example, in the following code with an input signal \prettyll{in} of type \prettyll{UInt<1>} and a wire signal \prettyll{rst} of abstract type \prettyll{Reset}, the \prettyll{rst} signal will be inferred as a synchronous reset based on the type of \prettyll{in}: \prettyll{ input in: UInt<1>   wire rst: Reset   rst <= in }. If an uninferred signal is instantiated with different concrete reset types, such conflict behavior is an error.
+The InferResets pass infers the abstract reset type \prettyll{Reset} to the concrete reset types, i.e. \prettyll{AsyncReset} for asynchronous resets or \prettyll{UInt<1>} for synchronous resets. For example, in the following code with an input signal \prettyll{in} of type \prettyll{UInt<1>} and a wire signal \prettyll{rst} of abstract type \prettyll{Reset}, the \prettyll{rst} signal will be inferred as a synchronous reset based on the type of the input port \prettyll{in}: \prettyll{ input in: UInt<1>   wire rst: Reset   rst <= in }. If an uninferred signal is instantiated with different concrete reset types, such conflict behavior is an error.
 
 \paragraph{ExpandConnects} The ExpandConnects pass expands the connect and partial connect statements, after the types of components have been inferred by InferTypes. For instance, the ExpandConnects pass transforms the following program
 \begin{figure}[h]
@@ -513,7 +514,7 @@ module MyModule:
 
 \paragraph{ExpandWhens} The ExpandWhens pass mainly replaces \prettyll{when} statements;
 this is necessary because a physical circuit cannot contain conditional elements.
-It also applies the so-called last connect semantics.
+It also applies the so-called last-connect semantics.
 
 For every ground-type writable (sub)component, ExpandWhens retains the last connect or \prettyll{is} \prettyll{invalid} statement
 that appears under any combination of \prettyll{when} conditions in the module.

@@ -1,6 +1,6 @@
 %!TEX root = main.tex
 
-In this section, we show how the lowering transformations of HiFIRRTL can be formalized in Coq. 
+In this section, we show how the lowering transformations of HiFIRRTL, which were described informally in Section~\ref{subsec-lowering-transformations}, are formalized in Coq. Specifically, we consider the formalization of the six lowering transformations, namely, ``InferTypes'', ``InferWidths'', ``InferResets'', ``ExpandConnects'', ``ExpandWhens'', and ``LowerTypes''.
 
 For simplicity, let us focus on a HiFIRRTL circuit $A$ that contains no ``inst of'' statements, that is, circuit $A$ contains exactly one module $A$.
 
@@ -9,60 +9,89 @@ The formalization utilizes a structure called \emph{circuit diagrams} defined be
 \begin{definition}[Circuit diagrams]\label{def-cd}
 A \emph{circuit diagram} $D$ is a triple $(ss, ce, cm)$, where $ss$ is a sequence of statements, $ce$ is a component environment that maps each component to its type, and $cm$ is a connect mapping that maps each component to an expression that is connected to it. 
 \end{definition}
-Note that the types in the range of $ce$ in Definition~\ref{def-cd} are not necessarily ground types, that is, they may be aggregate types, since HiFIRRTL may contain high-level constructs, e.g. vectors and bundles.  
+Note that the types in the range of $ce$ in Definition~\ref{def-cd} are not necessarily ground types, that is, they are aggregate types in general, since HiFIRRTL may contain high-level constructs, e.g. vectors and bundles. Intuitively, $ss$ is the sequence of statements in a HiFIRRTL program, while $ce$ and $cm$ extract some necessary information from $ss$ to facilitate the formalization of the lowering transformations. Specifically, $ce$ extracts the type information from $ss$ and $cm$ extracts for each component the expression that is connected to the component according to the last-connect semantics. As we will see later on, $ss$ will be updated by ``ExpandConnects'', ``ExpandWhens'', and ``LowerTypes'', and $ce$ will be modified by ``InferTypes'', ``InferWidths'', ``InferResets'',  and ``LowerTypes'',  while $cm$ will only be changed by ``ExpandWhens'', since it is the only pass that deals with the last-connect semantics. 
 
-\zhilin{stopped here}
+Before applying the lowering transformations, the module $A$ will be first transformed into a circuit diagram $D_A = (ss_0, ce_0, cm_0)$, where $ss_0$ is the sequence of statements in $A$, $ce_0$ is the component environment obtained from the component declarations in $A$, possibly with the types of some components missing or partial, and $cm_0$ is the trivial mapping that maps each component to $\bot$. (Intuitively, this means that none of the components have been connected to so far.) The missing or partial types in $ce_0$ will be completed by the lowering transformations ``InferTypes'' and ``InferWidths''.
 
-A HiFIRRTL module $M$ will be first transformed into a circuit diagram $D_M = (ss, ce, cm)$, where $ss$ is the sequence of statements in $M$, $ce$ is the component environment obtained from the variable declarations in $M$, possibly with the types of some variables missing or partial, and $cm$ is the trivial mapping that maps each component to $\bot$ (Intuitively, this means that the connects of the components have not be determined yet). The missing or partial  types in $ce$ will be completed by the compilation passes during the transformation of $M$ into a LoFIRRTL module. Moreover, the connect mapping $cm$ will be updated by the ExpandWhens compilation pass. Furthermore, the statement sequence $ss$ will be updated by ExpandConnects, ExpandWhens, LowerTypes, and RemoveReset, while they keep unchanged during the other compilation passes.  
+In the sequel, we utilize the concept of circuit diagrams to illustrate how the six lowering transformations are formalized in Coq. 
 
-A description of the formalization of InferTypes, InferWidths, InferResets, ExpandConnects, ExpandWhens, LowerTypes, and RemoveResets. 
+%A HiFIRRTL module $M$ will be first transformed into a circuit diagram $D_M = (ss, ce, cm)$, where $ss$ is the sequence of statements in $M$, $ce$ is the component environment obtained from the variable declarations in $M$, possibly with the types of some variables missing or partial, and $cm$ is the trivial mapping that maps each component to $\bot$ (Intuitively, this means that the connects of the components have not be determined yet). The missing or partial  types in $ce$ will be completed by the compilation passes during the transformation of $M$ into a LoFIRRTL module. Moreover, the connect mapping $cm$ will be updated by the ExpandWhens compilation pass. Furthermore, the statement sequence $ss$ will be updated by ExpandConnects, ExpandWhens, LowerTypes, and RemoveReset, while they keep unchanged during the other compilation passes.  
 
-\subsubsection{``Infer Types''}
-Initially, the component environment $ce$ of a circuit diagram $D_M$
-is empty.  The Infer Types pass is then applied to fill $ce$ with
-all the components that are defined in the statement sequence $ss$,
-along with their component kinds and data types.
-For each component
-defined in $ss$, the {\tt infer\_type} function will update $ce$
-accordingly. For example, if there is a \prettyll{wire} statement,
-it is added to component environment by
+%A description of the formalization of InferTypes, InferWidths, InferResets, ExpandConnects, ExpandWhens, LowerTypes, and RemoveResets. 
+
+\subsubsection{Formalization of InferTypes}
+%Initially, the component environment $ce$ of a circuit diagram $D_M$
+%is empty.  The Infer Types pass is then applied to fill $ce$ with
+%all the components that are defined in the statement sequence $ss$,
+%along with their component kinds and data types.
+We formalize the ``InferTypes'' pass by defining a Coq function {\tt infer\_type}, which iterates over the statements in $ss$ and updates $ce$. 
+%For each component defined in $ss$, the {\tt infer\_type} function will update $ce$
+%accordingly. 
+For instance, the following rule specifies that when {\tt infer\_type} is applied to a wire statement \prettyll{wire} $x: t$, it updates $ce$ by assigning $(t, Wire)$ to $x$ (where $Wire$ denotes the kind of $x$), resulting into the component environment $ce'$,
+%if there is a \prettyll{wire} statement,
+%it is added to component environment by
   \begin{gather}
     \infer[]
-    {\seqq{ce \vdash {\tt infer\_type} (\mbox{wire}\;v\,:\;t_v) \rightsquigarrow ce'}}
-    {\seqq{ce':= ce \uplus \{v : (t_v, Wire)\}}}.
+    {\seqq{ce \vdash {\tt infer\_type} (\mbox{\prettyll{wire} } x: t) \rightsquigarrow ce'}}
+    {\seqq{ce'= ce \uplus \{x : (t, Wire)\}}}.
     \end{gather}
-It is the same for the \prettyll{reg} statement and ports declarations, where types are defined directly.
-If it is a node-declaration statement, an entry for the node is added
-to $ce$ with its type calculated by the expression $e$
-assigned to the node.
+Moreover, {\tt infer\_type} behaves similarly on \prettyll{reg}, \prettyll{input} and \prettyll{output} port statements. Finally, on a node statement \prettyll{node } $x = e$, {\tt infer\_type} first calculates the type of $e$, denoted by $t_e$, then assigns $(t_e, Node)$ to $x$, resulting into $ce'$,
+% 
+%If it is a node-declaration statement, an entry for the node is added
+%to $ce$ with its type calculated by the expression $e$
+%assigned to the node.
 \begin{gather}
     \inferii[]
-    {\seqq{ce \vdash {\tt infer\_type} (\mbox{node}\;v\,=\;e) \rightsquigarrow ce'}}
-    {\seqq{ce \vdash t_e:={\tt type\_of\_expr}(e)}} {\seqq{ce':= ce \uplus \{v : (t_e, Node)\}}}.
+    {\seqq{ce \vdash {\tt infer\_type} (\mbox{\prettyll{node} } v = e) \rightsquigarrow ce'}}
+    {\seqq{ce \vdash t_e={\tt type\_of\_expr}(e)}} {\seqq{ce' = ce \uplus \{v : (t_e, Node)\}}}.
     \end{gather}
-The connect statements will not introduce new components. However,
-they can be used to check whether the connection is made between expressions of
-equivalent types. By type equivalence, we mean that the structures of the types are the same,
-but the widths are not necessarily the same.
-If the types in the conect statements are equivalent,
-the components environment is kept.
+Note that {\tt infer\_type} will not update $ce$ when it is applied to connect statements. Nevertheless, in this case, it checks whether the two types of both sides of the connect statement are equivalent. By type equivalence, we mean that the structures of the types are the same, but their bit widths may be missing or different. For instance, the types \prettyll{UInt}, \prettyll{UInt<1>}, and \prettyll{UInt<2>} are seen as equivalent. 
+If the two types are equivalent, then $ce$ is kept, otherwise, an error (indicated by $\bot$) will be issued. 
 \begin{gather}
     \inferiii[]
     {\seqq{ce \vdash {\tt infer\_type} (v<=e) \rightsquigarrow ce}}
-    {\seqq{ce \vdash v:t_v}}
-    {\seqq{ce \vdash t_e:={\tt type\_of\_expr}(e)}} {\seqq{{\tt equiv}(t_v,t_e)}}
+    {\seqq{ce(v) = (t_v,-)}}
+    {\seqq{ce \vdash t_e={\tt type\_of\_expr}(e)}} {\seqq{{\tt equiv}(t_v,t_e)}}
     \end{gather}
-If the type equivalence is violated, an error will be raised.
+%If the type equivalence is violated, an error will be raised.
 \begin{gather}
     \inferiii[]
     {\seqq{ce \vdash {\tt infer\_type} (v<=e) \rightsquigarrow \bot}}
-    {\seqq{ce \vdash v:t_v}}
-    {\seqq{ce \vdash t_e:={\tt type\_of\_expr}(e)}} {\seqq{\neg{\tt equiv}(t_v,t_e)}}
+    {\seqq{ce(v) = (t_v, -)}}
+    {\seqq{ce \vdash t_e={\tt type\_of\_expr}(e)}} {\seqq{\neg{\tt equiv}(t_v,t_e)}}
     \end{gather}
-After applying the Infer Types pass, types with an
-implicitly defined width are assigned with 0 in $ce$.
+After {\tt infer\_type} has been applied to all the statements in $ss$, if the bit width of a component is still missing, then the zero width will be added for the component in $ce$. 
+%After applying the Infer Types pass, types with an
+%implicitly defined width are assigned with 0 in $ce$.
 
-\subsubsection{``Infer Widths''}
+\subsubsection{Formalization of InferWidths}
+%The bit widths of some components may still be missing after applying {\tt infer\_type} to all the statements in $ss$.
+We formalize the ``InferWidths'' pass by defining a Coq function {\tt infer\_width}, which iterates over the statements in $ss$ and updates $ce$, so that the bit widths of all the components with undefined bit widths can be determined. 
+%Note that after applying {\tt infer\_type} to all the statements in $ss$, if the bit width of a component is nonzero, that is, a bit width is available in its declaration statement, then its bit width will \emph{not} be changed by  {\tt infer\_width}.
+The rationale behind {\tt infer\_width} is stated as follows: After applying {\tt infer\_type} to all the statements in $ss$, for each component $x$,
+\begin{itemize}
+\item if the bit width of $x$ is nonzero, that is, a bit width is available in its declaration statement, then {\tt infer\_width} will \emph{not} change the bit width of $x$,
+%
+\item otherwise, {\tt infer\_width} chooses the maximum width of the expressions that are connected to $x$. 
+%\item The last connection semantics is not considered at this stage,
+%  all connect statements are taken into account.
+\end{itemize}
+Note that the last-connected semantics is ignored here. The behavior of {\tt infer\_width} on a connect statement is defined by the following rule, 
+%
+  \begin{gather}
+    \inferiii[]
+    {\seqq{ce \vdash {\tt infer\_width }(x<=e) \rightsquigarrow ce'}}
+    {\seqq{ce(x) =  (t_x, -)}}
+    {\seqq{ce \vdash t_e = {\tt type\_of\_expr }(e)}}
+    {\seqq{ce' = ce \uplus \{x : {\tt max\_width }(t_x, t_e)\}}}.
+    \end{gather}
+%Intuitively, {\tt infer\_width} infers for each component the maximum width of the expressions that are connected to it. Note that the last-connected semantics is ignored here. 
+Moreover, {\tt infer\_width} uses a Coq function {\tt max\_width}, which, given two aggregate types, compares for each field their widths in the aggregate types, and chooses the larger width.
+Finally, {\tt infer\_width} processes the partial connect statements similarly. 
+%Note that {\tt infer\_width} does not check the equivalence of the bit widths of the two sides of connect statements.  
+
+%%%%%%%%%%%%%%%
+\hide{
 It is allowed to leave the width of a component implicit in HiFIRRTL programs.
 Such unspecified widths are inferred by the Infer Widths pass.
 The general rules are,
@@ -79,24 +108,20 @@ maps from variables to types. Then we scan through the statements in $ss$ to
 find components with implicit width and create entries for
 them in $wm$. For a statement that declares a component $v$,
 the {\tt infer\_width} function will update $wm$ by
+%
   \begin{gather}
     \inferii[]
     {\seqq{ce \vdash {\tt infer\_width} (declare\;v, wm) \rightsquigarrow wm'}}
     {\seqq{ce \vdash {\tt width}(t_v) = 0}} {\seqq{wm':= wm \uplus \{v : t_v\}}}.
     \end{gather}
+
 The width is inferred according to connect statements.
 Since the last connect semantics is not considered, each
 connection to the element provides a potential width. A function
 named {\tt max\_width} compares the potential widths and outputs
 the maximum one. For a statement which connects an expression $e$
 to a component $v$, the {\tt infer\_width} function will update $wm$ by
-  \begin{gather}
-    \inferiii[]
-    {\seqq{ce \vdash {\tt infer\_width }(v<=e, wm) \rightsquigarrow wm'}}
-    {\seqq{wm \vdash v : t_v}}
-    {\seqq{ce \vdash t_e:= {\tt type\_of\_expr }(e)}}
-    {\seqq{wm':= wm \uplus {v : {\tt max\_width }(t_v,t_e)}}}.
-    \end{gather}
+
 After applying {\tt infer\_width} to all the statements in $ss$,
 $wm$ contains the inferred width for every implicitly defined
 component. By merging the information from $wm$ for every entry into $ce$,
@@ -106,6 +131,8 @@ result of the inferred width.
 Instead of applying {\tt infer\_width} directly on $ce$, the map
 $wm$ contains only type information of the implicit ones that can be
 manipulated more efficiently.
+}
+%%%%%%%%%%%%%%%
 
 %% \begin{description}
 %% \item[The input] of InferWidth takes the statments and the component
@@ -147,7 +174,7 @@ manipulated more efficiently.
 %% Now, wire $c$ has the width as same as $d$, which is 14. The latter connection
 %% from d gives a larger width to the destination $c$. 
 
-\subsubsection{``Infer Resets''}
+\subsubsection{Formalization of InferResets}
 In HiFIRRTL, the type \prettyll{Reset} can be used to indicate an
 abstract reset signal. The Infer Reset pass is responsible for
 inferring the concrete type (asynchronous or synchronous) of the abstract one based on the
@@ -202,7 +229,7 @@ If there is no error reported, the inferred reset types stored in the temporary 
 merged into the component environment $ce$ using the {\tt map2} function.
 The resulting $ce$ contains the inferred concrete reset types.
 
-\subsubsection{``Expand Connects''}
+\subsubsection{Formalization of ExpandConnects}
 In HiFIRRTL, connections can be made between aggregate types.  These
 connections can be either full or partial.  The purpose of this pass
 is to break down connections between aggregate types and produce
@@ -258,43 +285,10 @@ which connects a component with an ``unknown'' signal at this point.
 After processing an \prettyll{is invalid} statement for a component,
 we obtain a list of \prettyll{is invalid} statements for its sub-elements.
 
-\subsubsection{``Lower Types''}
-The Lower Types pass is primarily aimed at transform aggregate types
-into ground types.  The pass replaces certain defined components with
-aggregate types by a new set of components defined with ground types.
-The general rules are,
-\begin{itemize}
-\item Components defined with ground types do not need to be modified.
-\item Except for memories and module instances, components defined with aggregate types need to be replaced by
-      a group of coordinate components that have ground types.
-\end{itemize}
-The paired identifier is introduced $(id,id)$, in which the
-first field represents the base reference adapted from the original
-component identifier and the second field indicates the
-sub-element offset computed from the aggregate type.
-The original components defined with aggregate types are replaced by a new
-set of components defined with paired identifiers and of ground types.
-The process can be formalized as follow:
-  {\small\begin{gather}
-    \inferiv[]
-    {\seqq{ce\vdash{\tt lower\_types}(declare\;v) \rightsquigarrow (ss',ce')}}
-    {\seqq{ce\vdash v: tc_v}}
-    {\seqq{{\tt is\_aggr}(tc_v)}}
-    {\seqq{ ss' :={\tt flatten}(v,tc_v)}}
-    {\seqq{ce':=ce\uplus \{(v,o_1): tc_{v1},\dots,(v,o_n):tc_{vn}\}}}.
-    \end{gather}}
-The {\tt flatten} function generates new statements that define
-components in ground types with new identifiers, such as
-$(v,o_1)$. The type and component information contained in $tc_v$
-are used to determine the number of the certain new components.
-After applying the Expand Connections pass,
-connect statements are already in ground types. The references in
-these statements need to be replaced by the corresponding paired
-identifiers. As a result, the statements $ss$ in the circuit
-diagram are replaced by the new $ss'$,
-and the components environment $ce$ are updated to reflect the new ground types
-and paired identifiers.
 
+
+%%%%%%%% remove resets removed
+%%%%%%%% remove resets removed
 \hide{
 \subsubsection{``Remove Resets''}
 The Remove Resets pass runs after the other passes, and removes
@@ -303,6 +297,8 @@ can potentially improve the performance by removing unnecessary ones.
 A synchronous reset is considered redundant if it is only used to
 initialize a register.
 }
+%%%%%%%% remove resets removed
+%%%%%%%% remove resets removed
 %% For example,
 %% \begin{lstlisting}
 %% module MyModule :
@@ -334,7 +330,7 @@ initialize a register.
 %%   is replaced by 3 output ports of ground types.
 %% \end{description}
 
-\subsubsection{``Expand Whens''}
+\subsubsection{Formalization of ExpandWhens}
 This is the main pass that ensures that every component in a module is connected to at most once:
 it replaces connect statements within a branch of a \prettyll{when} statement by a single connect statement
 and it removes non-last (redundant) connect statements.
@@ -426,3 +422,41 @@ The connect map generated by {\tt expand\_branch} can easily changed back into a
 similar to the example in Subsection~\ref{subsec-lowering-transformations}.
 During this change back, if some component is assigned value {\tt not connected},
 an appropriate error message can be generated.
+
+\subsubsection{Formalization of LowerTypes}
+The Lower Types pass is primarily aimed at transform aggregate types
+into ground types.  The pass replaces certain defined components with
+aggregate types by a new set of components defined with ground types.
+The general rules are,
+\begin{itemize}
+\item Components defined with ground types do not need to be modified.
+\item Except for memories and module instances, components defined with aggregate types need to be replaced by
+      a group of coordinate components that have ground types.
+\end{itemize}
+The paired identifier is introduced $(id,id)$, in which the
+first field represents the base reference adapted from the original
+component identifier and the second field indicates the
+sub-element offset computed from the aggregate type.
+The original components defined with aggregate types are replaced by a new
+set of components defined with paired identifiers and of ground types.
+The process can be formalized as follow:
+  {\small\begin{gather}
+    \inferiv[]
+    {\seqq{ce\vdash{\tt lower\_types}(declare\;v) \rightsquigarrow (ss',ce')}}
+    {\seqq{ce\vdash v: tc_v}}
+    {\seqq{{\tt is\_aggr}(tc_v)}}
+    {\seqq{ ss' :={\tt flatten}(v,tc_v)}}
+    {\seqq{ce':=ce\uplus \{(v,o_1): tc_{v1},\dots,(v,o_n):tc_{vn}\}}}.
+    \end{gather}}
+The {\tt flatten} function generates new statements that define
+components in ground types with new identifiers, such as
+$(v,o_1)$. The type and component information contained in $tc_v$
+are used to determine the number of the certain new components.
+After applying the Expand Connections pass,
+connect statements are already in ground types. The references in
+these statements need to be replaced by the corresponding paired
+identifiers. As a result, the statements $ss$ in the circuit
+diagram are replaced by the new $ss'$,
+and the components environment $ce$ are updated to reflect the new ground types
+and paired identifiers.
+
