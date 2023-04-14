@@ -1,6 +1,6 @@
 %!TEX root = main.tex
 
-In this section, we show how the lowering transformations of HiFIRRTL can be formalized in Coq. 
+In this section, we show how the lowering transformations of HiFIRRTL, which were described informally in Section~\ref{subsec-lowering-transformations}, are formalized in Coq. Specifically, we consider the formalization of the six lowering transformations, namely, ``InferTypes'', ``InferWidths'', ``InferResets'', ``ExpandConnects'', ``ExpandWhens'', and ``LowerTypes''.
 
 For simplicity, let us focus on a HiFIRRTL circuit $A$ that contains no ``inst of'' statements, that is, circuit $A$ contains exactly one module $A$.
 
@@ -9,15 +9,17 @@ The formalization utilizes a structure called \emph{circuit diagrams} defined be
 \begin{definition}[Circuit diagrams]\label{def-cd}
 A \emph{circuit diagram} $D$ is a triple $(ss, ce, cm)$, where $ss$ is a sequence of statements, $ce$ is a component environment that maps each component to its type, and $cm$ is a connect mapping that maps each component to an expression that is connected to it. 
 \end{definition}
-Note that the types in the range of $ce$ in Definition~\ref{def-cd} are not necessarily ground types, that is, they may be aggregate types, since HiFIRRTL may contain high-level constructs, e.g. vectors and bundles.  
+Note that the types in the range of $ce$ in Definition~\ref{def-cd} are not necessarily ground types, that is, they are aggregate types in general, since HiFIRRTL may contain high-level constructs, e.g. vectors and bundles. Intuitively, $ss$ is the sequence of statements in a HiFIRRTL program, while $ce$ and $cm$ extract some necessary information from $ss$ to facilitate the formalization of the lowering transformations. Specifically, $ce$ extracts the type information from $ss$ and $cm$ extracts for each component the expression that is connected to the component according to the last-connect semantics. As we will see later on, $ss$ will be updated by ``ExpandConnects'', ``ExpandWhens'', and ``LowerTypes'', and $ce$ will be modified by ``InferTypes'', ``InferWidths'', ``InferResets'',  and ``LowerTypes'',  while $cm$ will only be changed by ``ExpandWhens'', since it is the only pass that deals with the last-connect semantics. 
 
-\zhilin{stopped here}
+Before applying the lowering transformations, the module $A$ will be first transformed into a circuit diagram $D_A = (ss_0, ce_0, cm_0)$, where $ss_0$ is the sequence of statements in $A$, $ce_0$ is the component environment obtained from the component declarations in $A$, possibly with the types of some components missing or partial, and $cm_0$ is the trivial mapping that maps each component to $\bot$. (Intuitively, this means that none of the components have been connected to so far.) The missing or partial types in $ce_0$ will be completed by the lowering transformations ``InferTypes'' and ``InferWidths''.
 
-A HiFIRRTL module $M$ will be first transformed into a circuit diagram $D_M = (ss, ce, cm)$, where $ss$ is the sequence of statements in $M$, $ce$ is the component environment obtained from the variable declarations in $M$, possibly with the types of some variables missing or partial, and $cm$ is the trivial mapping that maps each component to $\bot$ (Intuitively, this means that the connects of the components have not be determined yet). The missing or partial  types in $ce$ will be completed by the compilation passes during the transformation of $M$ into a LoFIRRTL module. Moreover, the connect mapping $cm$ will be updated by the ExpandWhens compilation pass. Furthermore, the statement sequence $ss$ will be updated by ExpandConnects, ExpandWhens, LowerTypes, and RemoveReset, while they keep unchanged during the other compilation passes.  
+In the sequel, we utilize the concept of circuit diagrams to illustrate how the six lowering transformations are formalized in Coq. 
 
-A description of the formalization of InferTypes, InferWidths, InferResets, ExpandConnects, ExpandWhens, LowerTypes, and RemoveResets. 
+%A HiFIRRTL module $M$ will be first transformed into a circuit diagram $D_M = (ss, ce, cm)$, where $ss$ is the sequence of statements in $M$, $ce$ is the component environment obtained from the variable declarations in $M$, possibly with the types of some variables missing or partial, and $cm$ is the trivial mapping that maps each component to $\bot$ (Intuitively, this means that the connects of the components have not be determined yet). The missing or partial  types in $ce$ will be completed by the compilation passes during the transformation of $M$ into a LoFIRRTL module. Moreover, the connect mapping $cm$ will be updated by the ExpandWhens compilation pass. Furthermore, the statement sequence $ss$ will be updated by ExpandConnects, ExpandWhens, LowerTypes, and RemoveReset, while they keep unchanged during the other compilation passes.  
 
-\subsubsection{``Infer Types''}
+%A description of the formalization of InferTypes, InferWidths, InferResets, ExpandConnects, ExpandWhens, LowerTypes, and RemoveResets. 
+
+\subsubsection{Formalization of InferTypes}
 Initially, the component environment $ce$ of a circuit diagram $D_M$
 is empty.  The Infer Types pass is then applied to fill $ce$ with
 all the components that are defined in the statement sequence $ss$,
@@ -62,7 +64,7 @@ If the type equivalence is violated, an error will be raised.
 After applying the Infer Types pass, types with an
 implicitly defined width are assigned with 0 in $ce$.
 
-\subsubsection{``Infer Widths''}
+\subsubsection{Formalization of InferWidths}
 It is allowed to leave the width of a component implicit in HiFIRRTL programs.
 Such unspecified widths are inferred by the Infer Widths pass.
 The general rules are,
@@ -147,7 +149,7 @@ manipulated more efficiently.
 %% Now, wire $c$ has the width as same as $d$, which is 14. The latter connection
 %% from d gives a larger width to the destination $c$. 
 
-\subsubsection{``Infer Resets''}
+\subsubsection{Formalization of InferResets}
 In HiFIRRTL, the type \prettyll{Reset} can be used to indicate an
 abstract reset signal. The Infer Reset pass is responsible for
 inferring the concrete type (asynchronous or synchronous) of the abstract one based on the
@@ -202,7 +204,7 @@ If there is no error reported, the inferred reset types stored in the temporary 
 merged into the component environment $ce$ using the {\tt map2} function.
 The resulting $ce$ contains the inferred concrete reset types.
 
-\subsubsection{``Expand Connects''}
+\subsubsection{Formalization of ExpandConnects}
 In HiFIRRTL, connections can be made between aggregate types.  These
 connections can be either full or partial.  The purpose of this pass
 is to break down connections between aggregate types and produce
@@ -258,43 +260,10 @@ which connects a component with an ``unknown'' signal at this point.
 After processing an \prettyll{is invalid} statement for a component,
 we obtain a list of \prettyll{is invalid} statements for its sub-elements.
 
-\subsubsection{``Lower Types''}
-The Lower Types pass is primarily aimed at transform aggregate types
-into ground types.  The pass replaces certain defined components with
-aggregate types by a new set of components defined with ground types.
-The general rules are,
-\begin{itemize}
-\item Components defined with ground types do not need to be modified.
-\item Except for memories and module instances, components defined with aggregate types need to be replaced by
-      a group of coordinate components that have ground types.
-\end{itemize}
-The paired identifier is introduced $(id,id)$, in which the
-first field represents the base reference adapted from the original
-component identifier and the second field indicates the
-sub-element offset computed from the aggregate type.
-The original components defined with aggregate types are replaced by a new
-set of components defined with paired identifiers and of ground types.
-The process can be formalized as follow:
-  {\small\begin{gather}
-    \inferiv[]
-    {\seqq{ce\vdash{\tt lower\_types}(declare\;v) \rightsquigarrow (ss',ce')}}
-    {\seqq{ce\vdash v: tc_v}}
-    {\seqq{{\tt is\_aggr}(tc_v)}}
-    {\seqq{ ss' :={\tt flatten}(v,tc_v)}}
-    {\seqq{ce':=ce\uplus \{(v,o_1): tc_{v1},\dots,(v,o_n):tc_{vn}\}}}.
-    \end{gather}}
-The {\tt flatten} function generates new statements that define
-components in ground types with new identifiers, such as
-$(v,o_1)$. The type and component information contained in $tc_v$
-are used to determine the number of the certain new components.
-After applying the Expand Connections pass,
-connect statements are already in ground types. The references in
-these statements need to be replaced by the corresponding paired
-identifiers. As a result, the statements $ss$ in the circuit
-diagram are replaced by the new $ss'$,
-and the components environment $ce$ are updated to reflect the new ground types
-and paired identifiers.
 
+
+%%%%%%%% remove resets removed
+%%%%%%%% remove resets removed
 \hide{
 \subsubsection{``Remove Resets''}
 The Remove Resets pass runs after the other passes, and removes
@@ -303,6 +272,8 @@ can potentially improve the performance by removing unnecessary ones.
 A synchronous reset is considered redundant if it is only used to
 initialize a register.
 }
+%%%%%%%% remove resets removed
+%%%%%%%% remove resets removed
 %% For example,
 %% \begin{lstlisting}
 %% module MyModule :
@@ -334,7 +305,7 @@ initialize a register.
 %%   is replaced by 3 output ports of ground types.
 %% \end{description}
 
-\subsubsection{``Expand Whens''}
+\subsubsection{Formalization of ExpandWhens}
 This is the main pass that ensures that every component in a module is connected to at most once:
 it replaces connect statements within a branch of a \prettyll{when} statement by a single connect statement
 and it removes non-last (redundant) connect statements.
@@ -426,3 +397,41 @@ The connect map generated by {\tt expand\_branch} can easily changed back into a
 similar to the example in Subsection~\ref{subsec-lowering-transformations}.
 During this change back, if some component is assigned value {\tt not connected},
 an appropriate error message can be generated.
+
+\subsubsection{Formalization of LowerTypes}
+The Lower Types pass is primarily aimed at transform aggregate types
+into ground types.  The pass replaces certain defined components with
+aggregate types by a new set of components defined with ground types.
+The general rules are,
+\begin{itemize}
+\item Components defined with ground types do not need to be modified.
+\item Except for memories and module instances, components defined with aggregate types need to be replaced by
+      a group of coordinate components that have ground types.
+\end{itemize}
+The paired identifier is introduced $(id,id)$, in which the
+first field represents the base reference adapted from the original
+component identifier and the second field indicates the
+sub-element offset computed from the aggregate type.
+The original components defined with aggregate types are replaced by a new
+set of components defined with paired identifiers and of ground types.
+The process can be formalized as follow:
+  {\small\begin{gather}
+    \inferiv[]
+    {\seqq{ce\vdash{\tt lower\_types}(declare\;v) \rightsquigarrow (ss',ce')}}
+    {\seqq{ce\vdash v: tc_v}}
+    {\seqq{{\tt is\_aggr}(tc_v)}}
+    {\seqq{ ss' :={\tt flatten}(v,tc_v)}}
+    {\seqq{ce':=ce\uplus \{(v,o_1): tc_{v1},\dots,(v,o_n):tc_{vn}\}}}.
+    \end{gather}}
+The {\tt flatten} function generates new statements that define
+components in ground types with new identifiers, such as
+$(v,o_1)$. The type and component information contained in $tc_v$
+are used to determine the number of the certain new components.
+After applying the Expand Connections pass,
+connect statements are already in ground types. The references in
+these statements need to be replaced by the corresponding paired
+identifiers. As a result, the statements $ss$ in the circuit
+diagram are replaced by the new $ss'$,
+and the components environment $ce$ are updated to reflect the new ground types
+and paired identifiers.
+
