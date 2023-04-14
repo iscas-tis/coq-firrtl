@@ -1,5 +1,26 @@
 %!TEX root = main.tex
 
+The earliest work in compiler verification dates to 1967,
+when \cite{MP67} proved the correctness of a compiler that translates
+arithmetic expressions into stack
+machine code. Since then, many other proofs have been conducted, ranging from
+single compilation pass to sophisticated code optimizations of compilers for both software and hardware programming languages~\cite{Dave03,HerklotzPRW21}.
+
+ 
+Verified Compilation of Software Languages.
+
+
+Verified Compilation of Hardware Languages.
+
+Translation validation proves equivalence between
+the input program and the output design~\cite{PnueliSS98}.
+
+Formal Verification of Hardware designs.
+
+
+
+
+
 There is a considerable literature on formal verification of programming language compilers~\cite{LeAS14,ZhangSS17}.
 \fu{\cite{LeAS14,ZhangSS17} are about testing rather than formal verificaiton} Coq is widely used in other researches for compiler verification tasks. Leroy gave an overview on formal verification of a compiler back-end from a simple intermediate language to assembly code in Coq. Benton and N. Tabareau worked on compiling functional types to soundness result~\cite{benton2009}, while Chlipala described a verified compiler for an untyped functional language~\cite{Chlipala10,Chlipala07}. All of the works above are built in Coq. (add other works?) CompCert is the full-verified compiler for a subset of the C language using Coq~\cite{Leroy09}. It defines and formalizes the operational semantics of several intermediate languages. CompCert also extracts an executable interpreter for the semantics. A formal verification in Coq of the whole Iterated Register Coalescing (IRC), used heuristic for performing register allocation, has been integrated into the CompCert verified compiler~\cite{Blazy10}. Verifiable C is proved sound with respect to the operational semantics of CompCert C, with which the software toolchain do assertions check for programs~\cite{Appel11}. To implement on entitative hardware design, simulation of the hardware design on field-programmable gate arrays was done~\cite{Nikhil2011}.
 Vefirrtl is close to Vellvm project in spirit, which is a fully-verified LLVM compiler with well-formed properties and verified transformation passes~\cite{ZhaoNMZ12}. It also use Coq to build infrastructure implementation and test validation of the semantics by extracting an interpreter.
