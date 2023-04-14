@@ -20,49 +20,49 @@ In the sequel, we utilize the concept of circuit diagrams to illustrate how the 
 %A description of the formalization of InferTypes, InferWidths, InferResets, ExpandConnects, ExpandWhens, LowerTypes, and RemoveResets. 
 
 \subsubsection{Formalization of InferTypes}
-Initially, the component environment $ce$ of a circuit diagram $D_M$
-is empty.  The Infer Types pass is then applied to fill $ce$ with
-all the components that are defined in the statement sequence $ss$,
-along with their component kinds and data types.
-For each component
-defined in $ss$, the {\tt infer\_type} function will update $ce$
-accordingly. For example, if there is a \prettyll{wire} statement,
-it is added to component environment by
+%Initially, the component environment $ce$ of a circuit diagram $D_M$
+%is empty.  The Infer Types pass is then applied to fill $ce$ with
+%all the components that are defined in the statement sequence $ss$,
+%along with their component kinds and data types.
+We formalize the ``InferTypes'' pass in Coq by defining a Coq function {\tt infer\_type} to update $ce$.
+%For each component defined in $ss$, the {\tt infer\_type} function will update $ce$
+%accordingly. 
+For instance, the following rule specifies that when {\tt infer\_type} is applied to a wire declaration \prettyll{wire} $x: t$, it updates $ce$ by assigning $(t, Wire)$ to $x$ (where $Wire$ denotes the kind of $x$), resulting into the component environment $ce'$,
+%if there is a \prettyll{wire} statement,
+%it is added to component environment by
   \begin{gather}
     \infer[]
-    {\seqq{ce \vdash {\tt infer\_type} (\mbox{wire}\;v\,:\;t_v) \rightsquigarrow ce'}}
-    {\seqq{ce':= ce \uplus \{v : (t_v, Wire)\}}}.
+    {\seqq{ce \vdash {\tt infer\_type} (\mbox{\prettyll{wire} } x: t) \rightsquigarrow ce'}}
+    {\seqq{ce'= ce \uplus \{x : (t, Wire)\}}}.
     \end{gather}
-It is the same for the \prettyll{reg} statement and ports declarations, where types are defined directly.
-If it is a node-declaration statement, an entry for the node is added
-to $ce$ with its type calculated by the expression $e$
-assigned to the node.
+Moreover, {\tt infer\_type} behaves similarly on \prettyll{reg}, \prettyll{input} and \prettyll{output} port declarations. Finally, on a node declaration \prettyll{node } $x = e$, {\tt infer\_type} first calculates the type of $e$, denoted by $t_e$, then assigns $(t_e, Node)$ to $x$, resulting into $ce'$,
+% 
+%If it is a node-declaration statement, an entry for the node is added
+%to $ce$ with its type calculated by the expression $e$
+%assigned to the node.
 \begin{gather}
     \inferii[]
-    {\seqq{ce \vdash {\tt infer\_type} (\mbox{node}\;v\,=\;e) \rightsquigarrow ce'}}
-    {\seqq{ce \vdash t_e:={\tt type\_of\_expr}(e)}} {\seqq{ce':= ce \uplus \{v : (t_e, Node)\}}}.
+    {\seqq{ce \vdash {\tt infer\_type} (\mbox{\prettyll{node} } v = e) \rightsquigarrow ce'}}
+    {\seqq{ce \vdash t_e={\tt type\_of\_expr}(e)}} {\seqq{ce' = ce \uplus \{v : (t_e, Node)\}}}.
     \end{gather}
-The connect statements will not introduce new components. However,
-they can be used to check whether the connection is made between expressions of
-equivalent types. By type equivalence, we mean that the structures of the types are the same,
-but the widths are not necessarily the same.
-If the types in the conect statements are equivalent,
-the components environment is kept.
+Note that {\tt infer\_type} will not update $ce$ when it is applied to connect statements. Nevertheless, in this case, it checks whether the two types of both sides of the connect statement are equivalent. By type equivalence, we mean that the structures of the types are the same, but their bit widths may be missing or different. For instance, the types of \prettyll{UInt<1>} and \prettyll{UInt<2>} are seen as equivalent. 
+If the two types are equivalent, then $ce$ is kept, otherwise, an error (indicated by $\bot$) will be issued. 
 \begin{gather}
     \inferiii[]
     {\seqq{ce \vdash {\tt infer\_type} (v<=e) \rightsquigarrow ce}}
-    {\seqq{ce \vdash v:t_v}}
-    {\seqq{ce \vdash t_e:={\tt type\_of\_expr}(e)}} {\seqq{{\tt equiv}(t_v,t_e)}}
+    {\seqq{ce(v) = (t_v,-)}}
+    {\seqq{ce \vdash t_e={\tt type\_of\_expr}(e)}} {\seqq{{\tt equiv}(t_v,t_e)}}
     \end{gather}
-If the type equivalence is violated, an error will be raised.
+%If the type equivalence is violated, an error will be raised.
 \begin{gather}
     \inferiii[]
     {\seqq{ce \vdash {\tt infer\_type} (v<=e) \rightsquigarrow \bot}}
-    {\seqq{ce \vdash v:t_v}}
-    {\seqq{ce \vdash t_e:={\tt type\_of\_expr}(e)}} {\seqq{\neg{\tt equiv}(t_v,t_e)}}
+    {\seqq{ce(v) = (t_v, -)}}
+    {\seqq{ce \vdash t_e={\tt type\_of\_expr}(e)}} {\seqq{\neg{\tt equiv}(t_v,t_e)}}
     \end{gather}
-After applying the Infer Types pass, types with an
-implicitly defined width are assigned with 0 in $ce$.
+After {\tt infer\_type} has been applied to all the statements in $ss$, if the bit width of a component is still missing, then the zero width will be added for the component in $ce$. 
+%After applying the Infer Types pass, types with an
+%implicitly defined width are assigned with 0 in $ce$.
 
 \subsubsection{Formalization of InferWidths}
 It is allowed to leave the width of a component implicit in HiFIRRTL programs.
