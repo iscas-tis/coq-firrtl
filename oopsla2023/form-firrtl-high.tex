@@ -1,14 +1,13 @@
 %!TEX root = main.tex
 
-In this section, we describe the main ideas used in the formalization of HiFIRRTL.
+For simplicity, let us focus on a HiFIRRTL circuit $A$ that contains no ``inst of'' statements, that is, circuit $A$ contains exactly one module $A$.
 
-Let us focus on a HiFIRRTL module, say $M$.
+We introduce a structure called \emph{circuit diagrams} to formalize the syntax of HiFIRRTL, in particular, to represent the high-level constructs of HiFIRRTL.   
 
-A structure called circuit diagram is used in the formalization to represent HiFIRRTL programs.
-
-\begin{definition}
+\begin{definition}\label{def-cd}
 A \emph{circuit diagram} $D$ is a triple $(ss, ce, cm)$, where $ss$ is a sequence of statements, $ce$ is a component environment that maps each component to its type, and $cm$ is a connect mapping that maps each component to an expression that is connected to it. 
 \end{definition}
+Note that the types in the range of $ce$ in Definition~\ref{def-cd} are not necessarily ground types, that is, they may be aggregate types, since HiFIRRTL may contain high-level constructs, e.g. vectors and bundles.  
 
 A HiFIRRTL module $M$ will be first transformed into a circuit diagram $D_M = (ss, ce, cm)$, where $ss$ is the sequence of statements in $M$, $ce$ is the component environment obtained from the variable declarations in $M$, possibly with the types of some variables missing or partial, and $cm$ is the trivial mapping that maps each component to $\bot$ (Intuitively, this means that the connects of the components have not be determined yet). The missing or partial  types in $ce$ will be completed by the compilation passes during the transformation of $M$ into a LoFIRRTL module. Moreover, the connect mapping $cm$ will be updated by the ExpandWhens compilation pass. Furthermore, the statement sequence $ss$ will be updated by ExpandConnects, ExpandWhens, LowerTypes, and RemoveReset, while they keep unchanged during the other compilation passes.  
 
