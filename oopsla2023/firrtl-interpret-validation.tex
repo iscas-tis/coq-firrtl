@@ -9,7 +9,7 @@ the correctness testing of the formalized operational semantics has high confide
 There are 55 LoFIRRTL circuits inside the ``chipsalliance/treadle/samples'' directory
 of Treadle, among which 18 LoFIRRTL circuits are excluded because they are not self-contained (i.e., dependent upon external modules),
 or contain undefined semantics for memories, or have no output ports or cannot be handled by Treadle due to cyclical connection of ports.
-Thus, we consider the remaining 37 LoFIRRTL circuits from Treadle, among which 3 LoFIRRTL circuits have some \prettyll{inst of} statements,
+Thus, we consider the remaining 37 LoFIRRTL circuits from Treadle, among which three circuits have some \prettyll{inst of} statements,
 i.e., hierarchies of the modules.
 
 There are 51 Chisel examples in Scala inside the ``schoeberl/chisel-book/src/main/scala'' directory of the Chisel Book.
@@ -34,15 +34,15 @@ In summary, we use 120 (37+77+4+2) LoFIRRTL circuits all of which can be handled
 \smallskip\noindent
 {\bf Testing method}.
 Since the input LoFIRRTL circuits to our LoFIRRTL OCaml Interpreter should be in the pseudo-SSA form
-while all the collected LoFIRRTL circuits are not necessary in the pseudo-SSA form,
-to resolve this issue, we implement a preprocessor to transform LoFIRRTL circuits into their pseudo-SSA based on our verified
-topological sorting algorithm.
+while all the collected LoFIRRTL circuits are not necessary in a pseudo-SSA form,
+to resolve this issue, we preprocess them based on our verified
+topological sorting algorithm, as described above.
 Furthermore, LoFIRRTL circuits themselves require input signals to execute.
-For this purpose, we also implement a deriver in OCaml which first automatically identifies
-all the input ports and their data types for each LoFIRRTL circuit and then randomly generates 100 test input signals for
-the LoFIRRTL circuit. Finally, for each given LoFIRRTL circuit and each its test input,
+For this purpose, we implement a deriver in OCaml which first automatically identifies
+all the input ports and their data types for each LoFIRRTL circuit and then randomly generates 100 input traces for
+the LoFIRRTL circuit. Finally, for each given LoFIRRTL circuit and each its input trace,
 we compare the equivalence of output ports produced by our LoFIRRTL OCaml Interpreter and Treadle.
-We do not compare with the Agda-based Interpreter because it cannot directly execute circuits in LoFIRRTL.
+We do not compare with the Agda-based Interpreter because it cannot directly execute LoFIRRTL circuits.
 
 \begin{table}[!t]
 \caption{Results of conformance testing}\footnotesize\vspace*{-3mm}
@@ -57,7 +57,7 @@ We do not compare with the Agda-based Interpreter because it cannot directly exe
         Our own (2 circuits) & 50.50 & 188.80  & 62.52  & 3.20 & \ding{51} \\ \hline \hline
         \textbf{Average} &  \textbf{57.21} & 	\textbf{97.86} & 	\textbf{22.45} & 	\textbf{6.95} &  \\ \hline
  \end{tabular}}
-\end{table} 
+\end{table}
  	 	 	
 
 \smallskip\noindent
@@ -67,8 +67,8 @@ Column (\#LOC) shows the average number of locations for each benchmark suit.
 Column (Treadle) shows the average execution time $t_1$ of Treadle in microsecond ($\mu$s) for each benchmark suit.
 Column (Ours) shows the average execution time $t_2$ of our LoFIRRTL OCaml Interpreter in $\mu$s for each benchmark suit.
 Column (Speedup) is calculated via $\frac{t_1-t_2}{t_2}$ for each benchmark suit.
-Column (Result) shows the comparison result of output ports between Treadle and our LoFIRRTL OCaml Interpreter under the 100 input tests,
-where \ding{51} indicates that the values of the output ports produced by two tools are the same and \ding{55}(n) indicates 
+Column (Result) shows the comparison result of output ports between Treadle and our LoFIRRTL OCaml Interpreter under the 100 input traces,
+where \ding{51} indicates that the values of the output ports produced by two tools are the same and \ding{55}(n) indicates
 that the values of the output ports of $n$ benchmarks produced by two tools are different.
 The last row (Average) shows the average results over all 120 benchmarks.
 Detailed results are given in the supplementary material due to space limits.
@@ -77,11 +77,11 @@ Overall, our LoFIRRTL OCaml Interpreter successfully executes all the 120 benchm
 and produces the same values of the output ports as Treadle except for one benchmark \texttt{BundleVec} taken from the Chisel Book.
 This inconsistency is caused by the undefined semantics of the \prettyll{validif} expressions.
 More specifically, the LoFIRRTL specification states that \prettyll{validif (e1,e2)} evaluates to the expression \prettyll{e2}
-if the conditional expression \prettyll{e1} evaluates to true, otherwise undefined. 
+if the conditional expression \prettyll{e1} evaluates to true, otherwise undefined.
 In Treadle,  \prettyll{validif (e1,e2)} evaluates to \prettyll{e2}
  regardless of the conditional expression \prettyll{e1}, while
  in our operational semantics, \prettyll{validif (e1,e2)} evaluates to \prettyll{e2}
-if \prettyll{e1} evaluates true, otherwise $0$. 
+if \prettyll{e1} evaluates true, otherwise $0$.
 
 
 In terms of efficiency, our LoFIRRTL OCaml Interpreter is significantly faster (6.95 times on average) than Treadle on almost all the benchmarks
