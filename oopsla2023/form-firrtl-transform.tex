@@ -556,7 +556,7 @@ A paired identifier is of the form $(id_1, id_2)$, where $id_1$ is the identifie
 The function {\tt lower\_types} processes the statements in $ss$ and updates $ss$ and $ce$. 
 The behavior of the function {\tt lower\_types} on the declaration statements is defined by the rule below, where $declare\ x$ denotes the declaration statement for a component $x$, and $ce=(t, \kappa)$ ($t$ is the aggregate type and $\kappa$ is the kind, e.g. \prettyll{wire}), moreover, a function  {\tt flatten} is used to flatten $declare\ x$ into a sequence of declaration statements.  Specifically, let the fields in $t$ be $f_1, \cdots, f_n$, of ground types $t_1, \cdots, t_n$ respectively, then the {\tt flatten} function generates from $(x, (t, \kappa))$ a sequence of declaration statements $\kappa\ (x, f_1): t_1, \cdots, \kappa\ (x, f_n): t_n$.
 %The process can be formalized as follow:
-  {\small\begin{gather}
+  {\begin{gather}
     \inferiii[]
     {\seqq{ce\vdash{\tt lower\_types}(declare\;x) \rightsquigarrow (ss',ce')}}
     {\seqq{ce(x) = (t, \kappa)}}
