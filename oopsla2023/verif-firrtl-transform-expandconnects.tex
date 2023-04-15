@@ -23,9 +23,8 @@ ce & \vdash & \mbox{\tt type\_equiv}(\mbox{\tt type\_of\_expr}(x), \mbox{\tt typ
 & & \ \ {\tt all2}(\mbox{\tt type\_equiv},{\tt expand\_type}({\tt type\_of\_expr}(x)),{\tt expand\_type}({\tt type\_of\_expr}(e))).
 \end{array}
 $$
-
 \end{lemma}
-In Lemma \ref{expand-expr-expand-type}, the ${\tt all2}$ function is used to check whether the predicate {\tt type\_equiv} is satisfied by every pairwise types in ${\tt expand\_type}({\tt type\_of\_expr}(x)))$ and ${\tt expand\_type}({\tt type\_of\_expr}(e)))$.
+In Lemma \ref{expand-expr-expand-type}, the ${\tt all2}$ function is used to check whether the predicate {\tt type\_equiv} is satisfied by every pairwise types in ${\tt expand\_type}({\tt type\_of\_expr}(x))$ and ${\tt expand\_type}({\tt type\_of\_expr}(e))$.
 
 \begin{lemma}\label{expand-expr-expand-expr-type}
 For every expression $e$, 
