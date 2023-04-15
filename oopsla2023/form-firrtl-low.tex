@@ -117,7 +117,7 @@ A \emph{configuration} of the module $A$ is a triple $(\tEnv, \sEnv, \rEnv)$, wh
 $\sEnv: \cpnts(A)\rightarrow \bv \cup \{\bot\}$ is a state, and $\rEnv: \registers(A)\rightarrow \bv \cup \{\bot\}$ is a register state,
 $\bot$ denotes undefined.
 Intuitively, $\tEnv$ denotes the types of the components, $\sEnv$ denotes the (signal) values of the components in the beginning of the current clock cycle, and $\rEnv$ denotes the new values of the registers in the beginning of the next clock cycle which will be committed to the next state at the arriving of the next clock signal.
-The type environment $te$ and state $s$ are lift to expressions $e$ as usual, whose definitions can be found in Appendix~\ref{app-lofirrtl}.
+The type environment $te$ and state $s$ are lift to expressions $e$ as usual, whose definitions can be found in the supplementary material. % Appendix~\ref{app-lofirrtl}.
 
 The operational semantics of each statement $st$ in the module $A$ is defined as a transition relation between configurations
 $$(te, s, rs) \xrightarrow{st} (te', s', rs'),$$
