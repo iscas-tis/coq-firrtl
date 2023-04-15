@@ -81,11 +81,11 @@ as well as specification and verification of the correctness of its lowering tra
 
 In this work, we fill in this gap and provide such a framework. Specifically, we make the following contributions.
 \begin{itemize}
-\item Define an executable operational semantics for LoFIRRTL \fu{in Coq}. The operational semantics is based on a concept of pseudo-single-static-assignment form of LoFIRRTL programs.
+\item Define an executable operational semantics for LoFIRRTL in Coq. The operational semantics is based on a concept of pseudo-single-static-assignment form of LoFIRRTL programs. Our formalization covers the generic LoFIRRTL for digit circuit, with the exception of the memory semantics, which is ambiguous under active debate. To avoid any potential inconsistencies, we choose to omit it from our representation and focus on the others that have well-defined semantics. We introduce the concept of configurations to trace the execution of the operational semantics and to provide evidences for type safe executions.
 %
-\item Validate the operational semantics against Treadle, the main-stream FIRRTL reference interpreter, on a benchmark suite comprising 120 LoFIRRTL programs.
+\item Validate the operational semantics against Treadle, the main-stream FIRRTL reference interpreter, on a benchmark suite comprising 120 LoFIRRTL programs. 
 %
-\item Introduce a concept of circuit diagrams  and formalize the syntax of HiFIRRTL and its six lowering transformations \fu{in Coq}, namely, ``InferTypes'', ``InferWidths'', ``InferResets'', ``ExpandConnects'', ``ExpandWhens'', ``LowerTypes''.
+\item Introduce a concept of circuit diagrams  and formalize the syntax of HiFIRRTL and its six lowering transformations in Coq, namely, ``InferTypes'', ``InferWidths'', ``InferResets'', ``ExpandConnects'', ``ExpandWhens'', ``LowerTypes''.
 Those selected transformations are believed to be the most involved ones. The formalization in Coq follows carefully the restrictions provided by the official specification. The use of circuit diagrams in the formalization helps to keep track of the facts before and after transformations, which is useful for the verifying the functional correctness.
 %
 %% \item Specify and verify the functional correctness of the two most involved lowering transformations \fu{in Coq}, namely ``ExpandConnects'' and ``ExpandWhens''.
