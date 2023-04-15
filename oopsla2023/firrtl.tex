@@ -49,9 +49,9 @@ circuit A :
       skip
     io.calc <= counter
 \end{lstlisting}
-\end{tabular}
+\end{tabular}\vspace{-2mm}
 \caption{An example FIRRTL program}
-\label{fig:example}
+\label{fig:example}\vspace{-2mm}
 \end{figure}
 
 A FIRRTL \emph{circuit} comprises a list of modules with a designated top-level module that has the same identifier as the circuit.
@@ -229,7 +229,7 @@ int & ::= & [\mbox{\tt ``-''}] d \{d\} \mid \mbox{\tt ``"b''} [\mbox{\tt ``-''}]
 $d$ (resp. $d\_b$, $d\_o$ and $d\_h$) denotes a decimal (resp. binary, octal and hexadecimal) digit, and $l$ denotes a letter
 }
 \caption{Syntax of FIRRTL}
-\label{fig-firrtl-synt-simp}
+\label{fig-firrtl-synt-simp}\vspace{-2mm}
 \end{figure}
 
 \begin{comment}
@@ -386,7 +386,7 @@ and satisfies that in each module, each component is connected to at most once.
   \mbox{\tt ``\fnprettyll{inst}''}\ id\ \mbox{\tt ``\fnprettyll{of}''}\ id \mid \mbox{\tt ``\fnprettyll{node}''}\ id \mbox{\tt ``=''} id  \mid r \mbox{\tt ``<=''} e  \mid r\ \mbox{\tt ``\fnprettyll{is invalid}''}\mid \mbox{\tt ``\fnprettyll{skip}''}\\
 %
 %\mbox{\bf Expression} &
-e & ::= & (\mbox{\tt ``\fnprettyll{UInt}''} | \mbox{\tt ``\fnprettyll{SInt}''})\ w \mbox{\tt ``(''}int\mbox{\tt ``)''} \mid r \mid \mbox{\tt ``\fnprettyll{mux}(''}e\mbox{\tt ``,''} e\mbox{\tt ``,''} e\mbox{\tt ``)''}\\ 
+e & ::= & (\mbox{\tt ``\fnprettyll{UInt}''} | \mbox{\tt ``\fnprettyll{SInt}''})\ w \mbox{\tt ``(''}int\mbox{\tt ``)''} \mid r \mid \mbox{\tt ``\fnprettyll{mux}(''}e\mbox{\tt ``,''} e\mbox{\tt ``,''} e\mbox{\tt ``)''}\\
  &  & \mid \mbox{\tt ``\fnprettyll{validif}(''}e\mbox{\tt ``,''} e\mbox{\tt ``)''} \mid \mbox{\tt ``\textcolor{blue}{read}(''}sr \mbox{\tt ``)''} \mid op\\
 %
 %&
@@ -493,14 +493,14 @@ In the sequel, we give an informal introduction to the lowering transformations 
  the expression $e$ is equivalent to that of the component $x$ (where the bit widths are ignored), and does not update the bit width of $x$ to that of the expression $e$.
 
 \paragraph*{InferWidths}
-The InferWidths pass infers the widths of all components whose widths are unknown, after 
+The InferWidths pass infers the widths of all components whose widths are unknown, after
 the InferTypes pass has been applied. It is a \emph{global} width inference algorithm. Instances of the same module with unknown input port widths will be assigned the largest width of all assignments to each of its instance ports. It infers the smallest width that is larger than all assigned widths to a component. Note that this means that dummy assignments that are overwritten by last-connect semantics can still influence width inference. The last-connect semantics means that the last connect statement for a component will take effects and all the preceding connect statements for it will be ignored  in the end. For instance, InferWidths infers from the code snippet \prettyll{wire x: UInt   x <= UInt<5>(15)    x <= UInt<1>(1)} that the width of the wire $x$ is $5$, but with a value \prettyll{UInt<1>(1)}.
 
 
 \paragraph*{InferResets} %% that infers concrete resets, i.e. AsyncReset or UInt<1>,
 The InferResets pass infers the concrete reset types for the abstract reset type \prettyll{Reset}, namely, asynchronous resets represented by  \prettyll{AsyncReset} or synchronous resets represented by \prettyll{UInt<1>}. For example, in the code snippet \prettyll{ input in: UInt<1>   wire rst: Reset   rst <= in } with an input port \prettyll{in} of type \prettyll{UInt<1>} and a wire \prettyll{rst} of abstract type \prettyll{Reset}, the \prettyll{rst} wire will be inferred as a synchronous reset based on the type of the input port \prettyll{in}. If a component of \prettyll{Reset} type is instantiated with different concrete reset types, then a conflict occurs and an error is reported.
 
-\paragraph{ExpandConnects} The ExpandConnects pass expands the connect and partial connect statements, after the types of components have been inferred by the InferTypes pass. 
+\paragraph{ExpandConnects} The ExpandConnects pass expands the connect and partial connect statements, after the types of components have been inferred by the InferTypes pass.
 For instance, the ExpandConnects pass transforms the program shown in Figure~\ref{fig-lofirrtl-exmp2}(a) into the one shown in Figure~\ref{fig-lofirrtl-exmp2}(b).
 
 
@@ -678,7 +678,7 @@ If a component is only declared under some condition
 it is nevertheless included in the LoFIRRTL result,
 and the condition is ignored; no multiplexer is inserted upon connections.
 
-\paragraph{LowerTypes} The LowerTypes pass flattens bundles and vectors, after the connect and partial connect statements have been expanded by 
+\paragraph{LowerTypes} The LowerTypes pass flattens bundles and vectors, after the connect and partial connect statements have been expanded by
 the ExpandConnects pass. Nevertheless, LowerTypes does not change the implicit bundles, e.g. module instances. After the application of the LowerTypes pass, a module instance is still a bundle of depth 1 (instance -> port).
 
 %the type of a memory is still a bundle with depth 2 (mem -> port -> field), see MemPortUtils.memType

@@ -10,9 +10,9 @@
 %
 For $\theta \bwidth{n}(n')$ such that $\theta \in \{\mbox{\prettyll{UInt}, \prettyll{SInt}}\}$, $n > 0$, and $n'$ is an integer, we define $bv_{\theta \bwidth{n}(n')}$ as follows.
 \begin{itemize}
-\item For $n > 0$ and $n' \ge 0$ such that $n' < 2^n$, let $bv_{UInt<n>(n')}$ denote the bit vector of length $n$ representing the unsigned integer $n'$.
+\item For $n > 0$ and $n' \ge 0$ such that $n' < 2^n$, let $bv_{\mbox{\prettyll{UInt}}<n>(n')}$ denote the bit vector of length $n$ representing the unsigned integer $n'$.
 %
-\item For $n > 0$ and an integer $n'$ such that $-2^{n-1} \le n' < 2^{n-1}$, let $bv_{SInt<n>(n')}$ denote the bit vector of length $n$ representing the signed integer $n'$.
+\item For $n > 0$ and an integer $n'$ such that $-2^{n-1} \le n' < 2^{n-1}$, let $bv_{\mbox{\prettyll{SInt}}<n>(n')}$ denote the bit vector of length $n$ representing the signed integer $n'$.
 \end{itemize}
 The function $te$ and $s$ from $\cpnts(A)$ to $\gtypes$ are extended to expressions as follows.
 \begin{itemize}
@@ -29,7 +29,7 @@ The function $te$ and $s$ from $\cpnts(A)$ to $\gtypes$ are extended to expressi
 %
 \item $te(mul(e_1, e_2)) = \theta \bwidth{n_1+n_2}$ and $s(mul(e_1, e_2)) = bv_{\theta \bwidth{n_1+n_2} (s(e_1) \times s(e_2))}$,
 %
-\item  if $\theta = UInt$, then $te(div(e_1, e_2)) = UInt \bwidth{n_1}$ and $s(div(e_1, e_2)) = bv_{UInt \bwidth{n_1} (s(e_1) \div s(e_2))}$, otherwise, $te(div(e_1, e_2)) = SInt \bwidth{n_1+1}$ and $s(div(e_1, e_2)) = bv_{SInt \bwidth{n_1+1} (s(e_1) \div s(e_2))}$,
+\item  if $\theta = UInt$, then $te(div(e_1, e_2)) =UInt \bwidth{n_1}$ and $s(div(e_1, e_2)) = bv_{UInt \bwidth{n_1} (s(e_1) \div s(e_2))}$, otherwise, $te(div(e_1, e_2)) = SInt \bwidth{n_1+1}$ and $s(div(e_1, e_2)) = bv_{SInt \bwidth{n_1+1} (s(e_1) \div s(e_2))}$,
 %
 \item $te(mod(e_1, e_2)) = \theta \bwidth{\min(n_1,n_2)}$ and $s(mod(e_1, e_2)) = bv_{\theta \bwidth{\min(n_1,n_2)} (s(e_1) \bmod s(e_2))}$,
 %
@@ -103,7 +103,7 @@ $s(and(e_1, e_2))$ is the bitwise and of $bv_{\theta\bwidth{\max(n_1, n_2)}(s(e_
 \item otherwise, if $\theta = UInt$, then $s(shr(e_1, n))=bv_{UInt<1>(0)}$, otherwise, $s(shr(e_1, n))=bv_{SInt<1>(0)}$ if $s(e_1) \ge 0$, and $s(shr(e_1, n))=bv_{SInt<1>(1)}$ if $s(e_1) < 0$,
 \end{itemize}
 %
-\item $te(head(e_1, n)) = \uint{n}$, $te(tail(e_1, n)) = \uint{n_1-n}$, moreover, $s(head(e_1, n))$ is the most significant $n$ bits of $s(e_1)$, $s(tail(e_1, n))$ is obtained from $s(e_1)$ by truncating the $n$ most significant bits of $s(e_1)$,
+\item $te(head(e_1, n)) = {UInt}{n}$, $te(tail(e_1, n)) = {UInt}{n_1-n}$, moreover, $s(head(e_1, n))$ is the most significant $n$ bits of $s(e_1)$, $s(tail(e_1, n))$ is obtained from $s(e_1)$ by truncating the $n$ most significant bits of $s(e_1)$,
 %
 \item $te(bits(e_1, n, n')) = \uint{n'-n+1}$, and $s(bits(e_1, n, n'))$ is the bit vector comprising the $n, n+1, \cdots, n'$-th bit of $s(e_1)$.
 \end{itemize}
@@ -125,7 +125,7 @@ For each kind of expression of HiFIRRRL, we derived its type $t$ in $ftype$ as f
 \item ${\tt type\_of\_expr}(\mbox{\prettyll{validif}}(e_1,e_2))={\tt type\_of\_expr}(e_2)$, regardless the type of $e1$.
 \item ${\tt type\_of\_expr}(op)$, $op$ includes all the binary and unary operations, in which only $gtyp$ operation will involve. The {\tt type\_of\_expr} computes the type as same as $te$.
 \end{itemize}
-  
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
