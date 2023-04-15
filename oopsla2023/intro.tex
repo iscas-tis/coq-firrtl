@@ -19,7 +19,7 @@ hence strengthening the correctness guarantees that can be obtained by formal ve
 
 The success of formally verified compilers on software programming languages has been ported to hardware description languages (HDLs)
 very recently, e.g., the extension of CakeML (called Lutsig) for compiling %register-transfer language Verilog to gate-level netlist~\cite{Loow21,loowphd21}
-a subset of register-transfer level (RTL) Verilog programs to netlist level programs for field-programmable gate array (FPGA)\cite{Loow21,loowphd21},
+a subset of register-transfer level (RTL) Verilog programs to netlist level programs for field-programmable gate array (FPGA),
 and the extension of CompCert (called Vericert) for compiling %compiling C programs to Verilog programs~\cite{HerklotzPRW21}.
 a subset of C programs to RTL Verilog programs~\cite{HerklotzPRW21}.
 Following this promising research direction, in this work, we establish for the first time a framework that formally reasons about programs in FIRRTL~\cite{firrtl-spec} (Flexible Intermediate Representation for RTL) and its lowering transformations (aka compilation passes).
@@ -83,7 +83,7 @@ In this work, we fill in this gap and provide such a framework. Specifically, we
 \begin{itemize}
 \item Define an executable operational semantics for LoFIRRTL in Coq. The operational semantics is based on a concept of pseudo-single-static-assignment form of LoFIRRTL programs. Our formalization covers the generic LoFIRRTL for digit circuit, with the exception of the memory semantics, which is ambiguous under active debate. To avoid any potential inconsistencies, we choose to omit it from our representation and focus on the others that have well-defined semantics. We introduce the concept of configurations to trace the execution of the operational semantics and to provide evidences for type safe executions.
 %
-\item Validate the operational semantics against Treadle, the main-stream FIRRTL reference interpreter, on a benchmark suite comprising 120 LoFIRRTL programs.
+\item Validate the operational semantics against Treadle, the main-stream FIRRTL reference interpreter, on a benchmark suite comprising 120 LoFIRRTL programs. Benchmarks are mainly collected from Treadle and Chisel examples. We analyzed the branch coverage for these benchmarks and provide supplementary circuits designed by ourselves to address the missing branch. We also discover one inconsistency between the official specification and Treadle implementation on the semantics of \prettyll{validif} expression.
 %
 \item Introduce a concept of circuit diagrams  and formalize the syntax of HiFIRRTL and its six lowering transformations in Coq, namely, ``InferTypes'', ``InferWidths'', ``InferResets'', ``ExpandConnects'', ``ExpandWhens'', ``LowerTypes''.
 Those selected transformations are believed to be the most involved ones. The formalization in Coq follows carefully the restrictions provided by the official specification. The use of circuit diagrams in the formalization helps to keep track of the facts before and after transformations, which is useful for the verifying the functional correctness.
@@ -92,7 +92,7 @@ Those selected transformations are believed to be the most involved ones. The fo
 \item Specify and verify the functional correctness of the two most intricate and impactful lowering transformations in Coq, namely ``ExpandConnects'' and ``ExpandWhens''. They involve significant changes to the original HiFIRRTL program, such as creating new connections and thus potentially impact on the functionality of the circuit. The verification ensures the functional correctness that these transformations preserve the behaviors of the original programs by taking the type equivalence and the (conditional) last connect semantics into account.
 \end{itemize}
 
-The rest of this paper is organized as follows. Section~\ref{sec-firrtl} gives an informal introduction to FIRRTL and its lowering transformations. Section~\ref{sec-form-low-firrtl} is devoted to the  operational semantics of LoFIRRTL as well as its validation against Treadle. Section~\ref{sec-hi-firrtl-transform} formalizes HiFIRRTL and its lowering transformations. Section~\ref{sec-spec-verif-expand} specifies and verifies ``ExpandConnects'' and ``ExpandWhens''. We discuss related work in Section~\ref{sec-related-work}
+The rest of this paper is organized as follows. Section~\ref{sec-firrtl} gives an informal introduction to FIRRTL and its lowering transformations. Section~\ref{sec-form-low-firrtl} is devoted to the  operational semantics of LoFIRRTL as well as its validation against Treadle. Section~\ref{sec-hi-firrtl-transform} formalizes HiFIRRTL and its lowering transformations. Section~\ref{sec-spec-verif-expand} specifies and verifies ``ExpandConnects'' and ``ExpandWhens''. We discuss related work in Section~\ref{sec-related-work} 
 and conclude this paper in Section~\ref{sec-conc}.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
