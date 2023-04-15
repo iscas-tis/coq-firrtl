@@ -6,8 +6,21 @@ arithmetic expressions into stack
 machine code. Since then, many other proofs have been conducted, ranging from
 single compilation pass to sophisticated code optimizations of compilers for both software and hardware programming languages~\cite{Dave03,HerklotzPRW21}.
 
- 
-Verified Compilation of Software Languages.
+
+
+Verified compilation for software programming languages
+include CompCert for C~\cite{Leroy09,kastner2018compcert,Leroy2006,Leroy-BKSPF-2016,BlazyDL06,Kastner-LBSSF-2017},
+V\'{e}lus for Lustre~\cite{BourkeBDLPR17}, Vellvm~\cite{ZhaoNMZ12,ZhaoNMZ13}, Crellvm~\cite{KangKSLPSKCCHY18} for the LLVM Intermediate Representation,
+CakeML for ML~\cite{KumarMNO14,LoowKTMNAF19,TanMKFON19,OwensNKMT17}, to cite a few.
+The interactive theorem prover Coq has been widely adopted to formalize formal semantics,
+compilation passes and optimizations, based on which compilation correctness can be proved and 
+executable compilers can be automatically
+generated (cf. \cite{Awesomecoq} for a curated list).
+
+
+Such compilers come with a mathematical, machine-checked proof
+that compilation passes preserve program semantics,
+hence strengthening the correctness guarantees that can be obtained by formal verification of high-level programs.
 
 
 Verified Compilation of Hardware Languages.
