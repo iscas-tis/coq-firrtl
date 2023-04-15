@@ -85,9 +85,11 @@ In this work, we fill in this gap and provide such a framework. Specifically, we
 %
 \item Validate the operational semantics against Treadle, the main-stream FIRRTL reference interpreter, on a benchmark suite comprising 120 LoFIRRTL programs.
 %
-\item Introduce a concept of circuit diagrams  and formalize the syntax of HiFIRRTL and its seven lowering transformations \fu{in Coq}, namely, ``InferTypes'', ``InferWidths'', ``InferResets'', ``ExpandConnects'', ``ExpandWhens'', ``LowerTypes'', and ``RemoveResets''.
+\item Introduce a concept of circuit diagrams  and formalize the syntax of HiFIRRTL and its six lowering transformations \fu{in Coq}, namely, ``InferTypes'', ``InferWidths'', ``InferResets'', ``ExpandConnects'', ``ExpandWhens'', ``LowerTypes'', and ``RemoveResets''.
+Those 
 %
-\item Specify and verify the functional correctness of the two most involved lowering transformations \fu{in Coq}, namely ``ExpandConnects'' and ``ExpandWhens''.
+%% \item Specify and verify the functional correctness of the two most involved lowering transformations \fu{in Coq}, namely ``ExpandConnects'' and ``ExpandWhens''.
+\item Specify and verify the functional correctness of the two most intricate and impactful lowering transformations in Coq, namely ``ExpandConnects'' and ``ExpandWhens''. They involve significant changes to the original HiFIRRTL program by creating new connections and thus may impact on the functionality of the circuit. The verification ensures the functional correctness that these transformations prsereve the behaviors of the original programs by taking the type equivalence and the (conditional) last conncet semantics into account.
 \end{itemize}
 
 The rest of this paper is organized as follows. Section~\ref{sec-firrtl} gives an informal introduction to FIRRTL and its lowering transformations. Section~\ref{sec-form-low-firrtl} is devoted to the  operational semantics of LoFIRRTL as well as its validation against Treadle. Section~\ref{sec-hi-firrtl-transform} formalizes HiFIRRTL and its lowering transformations. Section~\ref{sec-spec-verif-expand} specifies and verifies ``ExpandConnects'' and ``ExpandWhens''. We discuss related work in Section~\ref{sec-related-work} 
