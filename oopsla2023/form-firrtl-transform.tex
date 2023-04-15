@@ -2,93 +2,106 @@
 
 In this section, we show how the lowering transformations of HiFIRRTL, which were described informally in Section~\ref{subsec-lowering-transformations}, are formalized in Coq. Specifically, we consider the formalization of the six lowering transformations, namely, ``InferTypes'', ``InferWidths'', ``InferResets'', ``ExpandConnects'', ``ExpandWhens'', and ``LowerTypes''.
 
-For simplicity, let us focus on a HiFIRRTL circuit $A$ that contains no ``inst of'' statements, that is, circuit $A$ contains exactly one module $A$.
+For simplicity, let us focus on a HiFIRRTL circuit $A$ that contains no \prettyll{inst of} statements, that is, circuit $A$ contains exactly one top-level module $A$.
 
-The formalization utilizes a structure called \emph{circuit diagrams} defined below.   
+The formalization utilizes a structure called \emph{circuit diagrams} defined below.
 
 \begin{definition}[Circuit diagrams]\label{def-cd}
-A \emph{circuit diagram} $D$ is a triple $(ss, ce, cm)$, where $ss$ is a sequence of statements, $ce$ is a component environment that maps each component to its type, and $cm$ is a connect mapping that maps each component to an expression that is connected to it. 
+A \emph{circuit diagram} $D$ is a triple $(ss, ce, cm)$, where $ss$ is a sequence of statements, $ce$ is a component environment that maps each component to its type, and $cm$ is a connect mapping that maps each component to an expression that is connected to it.
 \end{definition}
-Note that the types in the range of $ce$ in Definition~\ref{def-cd} are not necessarily ground types, that is, they are aggregate types in general, since HiFIRRTL may contain high-level constructs, e.g. vectors and bundles. Intuitively, $ss$ is the sequence of statements in a HiFIRRTL program, while $ce$ and $cm$ extract some necessary information from $ss$ to facilitate the formalization of the lowering transformations. Specifically, $ce$ extracts the type information from $ss$ and $cm$ extracts for each component the expression that is connected to the component according to the last-connect semantics. As we will see later on, $ss$ will be updated by ``ExpandConnects'', ``ExpandWhens'', and ``LowerTypes'', and $ce$ will be modified by ``InferTypes'', ``InferWidths'', ``InferResets'',  and ``LowerTypes'',  while $cm$ will only be changed by ``ExpandWhens'', since it is the only pass that deals with the last-connect semantics. 
+Note that the types in the range of the component environment $ce$ in Definition~\ref{def-cd} are not necessarily ground types, that is, they are aggregate types in general, since HiFIRRTL may contain high-level constructs, e.g. vectors and bundles. Intuitively, $ss$ is the sequence of statements in a HiFIRRTL program, while $ce$ and $cm$ extract some necessary information from 
+the sequence $ss$ of statements to facilitate the formalization of the lowering transformations. Specifically, 
+the component environment $ce$ extracts the type information from the sequence $ss$ of statements and 
+the connect mapping $cm$ extracts for each component the expression that is connected to the component according to the last-connect semantics. 
+As we will see later on, the sequence $ss$ of statements will be updated by the ``ExpandConnects'', ``ExpandWhens'', and ``LowerTypes'' passes, 
+and the component environment $ce$ will be modified by the ``InferTypes'', ``InferWidths'', ``InferResets'',  and ``LowerTypes'' passes, 
+ while the component environment $cm$ will only be changed by the ``ExpandWhens'' pass, since it is the only pass that deals with the last-connect semantics.
 
-Before applying the lowering transformations, the module $A$ will be first transformed into a circuit diagram $D_A = (ss_0, ce_0, cm_0)$, where $ss_0$ is the sequence of statements in $A$, $ce_0$ is the component environment obtained from the component declarations in $A$, possibly with the types of some components missing or partial, and $cm_0$ is the trivial mapping that maps each component to $\bot$. (Intuitively, this means that none of the components have been connected to so far.) The missing or partial types in $ce_0$ will be completed by the lowering transformations ``InferTypes'' and ``InferWidths''.
+Before applying the lowering transformations, the module $A$ will be first transformed into a circuit diagram $D_A = (ss_0, ce_0, cm_0)$, where $ss_0$ is the sequence of statements in the module  $A$, $ce_0$ is the component environment obtained from the component declarations in the module $A$, possibly with the types of some components missing or partial, and $cm_0$ is the trivial mapping that maps each component to $\bot$. (Intuitively, this means that none of the components have been connected to so far.) The missing or partial types in the component environment $ce_0$ will be completed by the lowering transformations ``InferTypes'' and ``InferWidths''.
 
-In the sequel, we utilize the concept of circuit diagrams to illustrate how the six lowering transformations are formalized in Coq. 
+In the sequel, we utilize the concept of circuit diagrams to illustrate how the six lowering transformations are formalized in Coq.
 
-%A HiFIRRTL module $M$ will be first transformed into a circuit diagram $D_M = (ss, ce, cm)$, where $ss$ is the sequence of statements in $M$, $ce$ is the component environment obtained from the variable declarations in $M$, possibly with the types of some variables missing or partial, and $cm$ is the trivial mapping that maps each component to $\bot$ (Intuitively, this means that the connects of the components have not be determined yet). The missing or partial  types in $ce$ will be completed by the compilation passes during the transformation of $M$ into a LoFIRRTL module. Moreover, the connect mapping $cm$ will be updated by the ExpandWhens compilation pass. Furthermore, the statement sequence $ss$ will be updated by ExpandConnects, ExpandWhens, LowerTypes, and RemoveReset, while they keep unchanged during the other compilation passes.  
+%A HiFIRRTL module $M$ will be first transformed into a circuit diagram $D_M = (ss, ce, cm)$, where $ss$ is the sequence of statements in $M$, $ce$ is the component environment obtained from the variable declarations in $M$, possibly with the types of some variables missing or partial, and $cm$ is the trivial mapping that maps each component to $\bot$ (Intuitively, this means that the connects of the components have not be determined yet). The missing or partial  types in $ce$ will be completed by the compilation passes during the transformation of $M$ into a LoFIRRTL module. Moreover, the connect mapping $cm$ will be updated by the ExpandWhens compilation pass. Furthermore, the statement sequence $ss$ will be updated by ExpandConnects, ExpandWhens, LowerTypes, and RemoveReset, while they keep unchanged during the other compilation passes.
 
-%A description of the formalization of InferTypes, InferWidths, InferResets, ExpandConnects, ExpandWhens, LowerTypes, and RemoveResets. 
+%A description of the formalization of InferTypes, InferWidths, InferResets, ExpandConnects, ExpandWhens, LowerTypes, and RemoveResets.
 
 \subsection{Formalization of InferTypes}
 %Initially, the component environment $ce$ of a circuit diagram $D_M$
 %is empty.  The Infer Types pass is then applied to fill $ce$ with
 %all the components that are defined in the statement sequence $ss$,
 %along with their component kinds and data types.
-We formalize the ``InferTypes'' pass by defining a Coq function {\tt infer\_type}, which iterates over the statements in $ss$ and updates $ce$. 
+We formalize the ``InferTypes'' pass by defining a Coq function {\tt infer\_type}, which iterates over the statements in the sequence $ss$ and updates the component environmen $ce$.
 %For each component defined in $ss$, the {\tt infer\_type} function will update $ce$
-%accordingly. 
-For instance, the following rule specifies that when {\tt infer\_type} is applied to a wire statement \prettyll{wire} $x: t$, it updates $ce$ by assigning $(t, Wire)$ to $x$ (where $Wire$ denotes the kind of $x$), resulting into the component environment $ce'$,
+%accordingly.
+For instance, the following rule specifies that when the function {\tt infer\_type} is applied to a wire statement \prettyll{wire} $x: t$, it updates the component environmen $ce$ by assigning $(t, Wire)$ to 
+the wire $x$ (where $Wire$ denotes the kind of the component $x$), resulting into the component environment $ce'$,
 %if there is a \prettyll{wire} statement,
 %it is added to component environment by
-  \begin{gather}
+  \begin{gather*}
     \infer[]
     {\seqq{ce \vdash {\tt infer\_type} (\mbox{\prettyll{wire} } x: t) \rightsquigarrow ce'}}
     {\seqq{ce'= ce \uplus \{x : (t, Wire)\}}}.
-    \end{gather}
-Moreover, {\tt infer\_type} behaves similarly on \prettyll{reg}, \prettyll{input} and \prettyll{output} port statements. Finally, on a node statement \prettyll{node } $x = e$, {\tt infer\_type} first calculates the type of $e$, denoted by $t_e$, then assigns $(t_e, Node)$ to $x$, resulting into $ce'$,
-% 
+    \end{gather*}
+Moreover, the function {\tt infer\_type} behaves similarly on \prettyll{reg}, \prettyll{input} and \prettyll{output} port statements. 
+Finally, on a node statement \prettyll{node } $x = e$, {\tt infer\_type} first calculates the type of the expression $e$, denoted by $t_e$, then assigns $(t_e, Node)$ to 
+the node $x$, resulting into the component environment $ce'$,
+%
 %If it is a node-declaration statement, an entry for the node is added
 %to $ce$ with its type calculated by the expression $e$
 %assigned to the node.
-\begin{gather}
+\begin{gather*}
     \inferii[]
     {\seqq{ce \vdash {\tt infer\_type} (\mbox{\prettyll{node} } v = e) \rightsquigarrow ce'}}
     {\seqq{ce \vdash t_e={\tt type\_of\_expr}(e)}} {\seqq{ce' = ce \uplus \{v : (t_e, Node)\}}}.
-    \end{gather}
-Note that {\tt infer\_type} will not update $ce$ when it is applied to connect statements. Nevertheless, in this case, it checks whether the two types of both sides of the connect statement are equivalent. By type equivalence, we mean that the structures of the types are the same, but their bit widths may be missing or different. For instance, the types \prettyll{UInt}, \prettyll{UInt<1>}, and \prettyll{UInt<2>} are seen as equivalent. 
-If the two types are equivalent, then $ce$ is kept, otherwise, an error (indicated by $\bot$) will be issued. 
-\begin{gather}
+    \end{gather*}
+Note that the function {\tt infer\_type} will not update the component environment $ce$ when it is applied to connect statements. 
+Nevertheless, in this case, as specified in the following two rules, it checks whether the two types of both sides of the connect statement are equivalent. By type equivalence, we mean that the structures of the types are the same, but their bit widths may be missing or different. For instance, the types \prettyll{UInt}, \prettyll{UInt<1>}, and \prettyll{UInt<2>} are seen as equivalent.
+If the two types are equivalent, then the component environment $ce$ is kept, otherwise, an error (indicated by $\bot$) will be issued.
+\begin{gather*}
     \inferiii[]
     {\seqq{ce \vdash {\tt infer\_type} (v<=e) \rightsquigarrow ce}}
     {\seqq{ce(v) = (t_v,-)}}
     {\seqq{ce \vdash t_e={\tt type\_of\_expr}(e)}} {\seqq{{\tt equiv}(t_v,t_e)}}
-    \end{gather}
+    \end{gather*}
 %If the type equivalence is violated, an error will be raised.
-\begin{gather}
+\begin{gather*}
     \inferiii[]
     {\seqq{ce \vdash {\tt infer\_type} (v<=e) \rightsquigarrow \bot}}
     {\seqq{ce(v) = (t_v, -)}}
     {\seqq{ce \vdash t_e={\tt type\_of\_expr}(e)}} {\seqq{\neg{\tt equiv}(t_v,t_e)}}
-    \end{gather}
-After {\tt infer\_type} has been applied to all the statements in $ss$, if the bit width of a component is still missing, then the zero width will be added for the component in $ce$. 
+    \end{gather*}
+After the function {\tt infer\_type} has been applied to all the statements in the sequence $ss$, if the bit width of a component is still missing, then the zero width will be added for the component in 
+the component environment $ce$.
 %After applying the Infer Types pass, types with an
 %implicitly defined width are assigned with 0 in $ce$.
 
 \subsection{Formalization of InferWidths}
 %The bit widths of some components may still be missing after applying {\tt infer\_type} to all the statements in $ss$.
-We formalize the ``InferWidths'' pass by defining a Coq function {\tt infer\_width}, which iterates over the statements in $ss$ and updates $ce$, so that the bit widths of all the components with undefined bit widths can be determined. 
+We formalize the ``InferWidths'' pass by defining a Coq function {\tt infer\_width}, which iterates over the statements in the sequence $ss$ and updates 
+the component environment $ce$, so that the bit widths of all the components with undefined bit widths can be determined.
 %Note that after applying {\tt infer\_type} to all the statements in $ss$, if the bit width of a component is nonzero, that is, a bit width is available in its declaration statement, then its bit width will \emph{not} be changed by  {\tt infer\_width}.
-The rationale behind {\tt infer\_width} is stated as follows: After applying {\tt infer\_type} to all the statements in $ss$, for each component $x$,
+The rationale behind the {\tt infer\_width} function is stated as follows: After applying the {\tt infer\_type} function to all the statements in the sequence $ss$, for each component $x$,
 \begin{itemize}
-\item if the bit width of $x$ is nonzero, that is, a bit width is available in its declaration statement, then {\tt infer\_width} will \emph{not} change the bit width of $x$,
+\item if the bit width of the component $x$ is nonzero, that is, a bit width is available in its declaration statement, then
+the function {\tt infer\_width} will \emph{not} change the bit width of the component $x$,
 %
-\item otherwise, {\tt infer\_width} chooses the maximum width of the expressions that are connected to $x$. 
+\item otherwise, the function  {\tt infer\_width} chooses the maximum width of the expressions that are connected to the component $x$.
 %\item The last connection semantics is not considered at this stage,
 %  all connect statements are taken into account.
 \end{itemize}
-Note that the last-connected semantics is ignored here. The behavior of {\tt infer\_width} on a connect statement is defined by the following rule, 
+Note that the last-connected semantics is ignored here. The behavior of the function {\tt infer\_width} on a connect statement is defined by the following rule,
 %
-  \begin{gather}
+  \begin{gather*}
     \inferiii[]
     {\seqq{ce \vdash {\tt infer\_width }(x<=e) \rightsquigarrow ce'}}
     {\seqq{ce(x) =  (t_x, \kappa)}}
     {\seqq{ce \vdash t_e = {\tt type\_of\_expr }(e)}}
     {\seqq{ce' = ce \uplus \{x : ({\tt max\_width }(t_x, t_e), \kappa)\}}}.
-    \end{gather}
-%Intuitively, {\tt infer\_width} infers for each component the maximum width of the expressions that are connected to it. Note that the last-connected semantics is ignored here. 
-Moreover, {\tt infer\_width} uses a Coq function {\tt max\_width}, which, given two aggregate types, compares for each field their widths in the aggregate types, and chooses the larger width.
-Finally, {\tt infer\_width} processes the partial connect statements similarly. 
-%Note that {\tt infer\_width} does not check the equivalence of the bit widths of the two sides of connect statements.  
+    \end{gather*}
+%Intuitively, {\tt infer\_width} infers for each component the maximum width of the expressions that are connected to it. Note that the last-connected semantics is ignored here.
+Moreover, the function {\tt infer\_width} uses another Coq function {\tt max\_width}, which, given two aggregate types, compares for each field their widths in the aggregate types, and chooses the larger width.
+Finally,  the function {\tt infer\_width} processes the partial connect statements similarly.
+%Note that {\tt infer\_width} does not check the equivalence of the bit widths of the two sides of connect statements.
 
 %%%%%%%%%%%%%%%
 \hide{
@@ -172,37 +185,39 @@ manipulated more efficiently.
 %%   c <= d
 %% \end{lstlisting}
 %% Now, wire $c$ has the width as same as $d$, which is 14. The latter connection
-%% from d gives a larger width to the destination $c$. 
+%% from d gives a larger width to the destination $c$.
 
 \subsection{Formalization of InferResets}
-We formalize the ``InferResets'' pass by defining a Coq function {\tt infer\_reset}, which iterates over the statements in $ss$ and updates $ce$, so that the concrete reset types of all abstract reset signals can be inferred. 
+We formalize the ``InferResets'' pass by defining a Coq function {\tt infer\_reset}, which iterates over the statements in 
+the sequence $ss$ and updates the component environment $ce$, so that the concrete reset types of all abstract reset signals can be inferred.
 %Note that after applying {\tt infer\_type} to all the statements in $ss$, if the bit width of a component is nonzero, that is, a bit width is available in its declaration statement, then its bit width will \emph{not} be changed by  {\tt infer\_width}.
-The rationale behind {\tt infer\_reset} is stated as follows: After applying {\tt infer\_type} to all the statements in $ss$, for each component $x$ of  type \prettyll{Reset},
+The rationale behind the function {\tt infer\_reset} is stated as follows: After applying the function {\tt infer\_type} to all the statements in the sequence $ss$, for each component $x$ of type \prettyll{Reset},
 \begin{itemize}
-\item if only components of  type \prettyll{AsyncReset} are connected to $x$, then {\tt infer\_reset} updates the type of $x$ to \prettyll{AsyncReset}, 
+\item if only components of  type \prettyll{AsyncReset} are connected to  the component $x$, then the function {\tt infer\_reset} updates the type of the component $x$ to \prettyll{AsyncReset},
 %
-\item if $x$ \prettyll{is invalid} is a statement in $ss$ or only components of type \prettyll{UInt<1>} are connected to $x$, then {\tt infer\_reset} updates the type of $x$ to \prettyll{UInt<1>}, 
+\item if $x$ \prettyll{is invalid} is a statement in the sequence $ss$ or only components of type \prettyll{UInt<1>} are connected to the component $x$, then the function 
+{\tt infer\_reset} updates the type of the component $x$ to the type \prettyll{UInt<1>},
 %
-\item if two components of type  \prettyll{AsyncReset} and \prettyll{UInt<1>} respectively are both connected to $x$, then  {\tt infer\_reset} reports an error.
+\item if two components of type \prettyll{AsyncReset} and \prettyll{UInt<1>} respectively are both connected to the component $x$, then the function  {\tt infer\_reset} reports an error.
 \end{itemize}
-The behavior of {\tt infer\_reset} on a connect statement is defined by the following two rules, 
-  \begin{gather}
+The behavior of the  {\tt infer\_reset} function on a connect statement is defined by the following two rules,
+  \begin{gather*}
     \label{rule-infer-reset-pass}
     \inferiv[]
     {\seqq{ce \vdash {\tt infer\_reset} (x<=e, ce) \rightsquigarrow ce'}}
     {\seqq{ce(x)= (t_x, \kappa)}} {\seqq{ce\vdash t_e={\tt type\_of\_expr}(e)}}
     {\seqq{{\tt \neg conflict} (t_x, t_e)}}
-    {\seqq{ce'= ce \uplus \{x : (t_e, \kappa)\}}},
-    \end{gather}
-and 
-  \begin{gather}
+    {\seqq{ce'= ce \uplus \{x : (t_e, \kappa)\}}}
+    \end{gather*}
+and
+  \begin{gather*}
     \inferiii[]
     {\seqq{ce \vdash {\tt infer\_reset} (x<=e, ce) \rightsquigarrow \bot}}
     {\seqq{ce(x) = (t_x, \kappa)}} {\seqq{ce\vdash t_e={\tt type\_of\_expr}(e)}}
-    {\seqq{{\tt conflict} (t_x, t_e)}}
+    {\seqq{{\tt conflict} (t_x, t_e)}}.
 %    {\seqq{ce'= \bot}}.
-    \end{gather}
-Note that {\tt infer\_reset} uses the predicate {\tt conflict} to decide that two reset types are conflicting, that is, one is  \prettyll{AsyncReset} and the other is \prettyll{UInt<1>}.
+    \end{gather*}
+Note that the function {\tt infer\_reset} uses the predicate {\tt conflict} to decide whether two reset types are conflicting, that is, one is  \prettyll{AsyncReset} and the other is \prettyll{UInt<1>}.
 Moreover, here we take \prettyll{is invalid} statements as connect statements connected to a synchronous reset component (i.e. of type \prettyll{UInt<1>}).
 %If there is no error reported, the inferred reset types stored in the temporary map $rm$ can be
 %merged into the component environment $ce$ using the {\tt map2} function.
@@ -239,7 +254,7 @@ It then continues on the connect
 statements to find the inference clues,
 checking that the type of the driving signal and the type found in the $rm$ do not conflict.
 If they are the same concrete type or at least one of them is abstract,
-the inferring continues without error. 
+the inferring continues without error.
   \begin{gather}
     \label{rule-infer-reset-pass}
     \inferiv[]
@@ -265,9 +280,11 @@ The resulting $ce$ contains the inferred concrete reset types.
 %%% the original texts written by xiaomu
 
 \subsection{Formalization of ExpandConnects}
-The ``ExpandConnects'' pass expands the connections between aggregate types into those between ground types. 
-We define two Coq functions {\tt expand\_expr} and {\tt expand\_cnct} that expand the expressions and the connect statements respectively. 
-The rationale behind {\tt expand\_expr} and {\tt expand\_cnct} is to break aggregate types in expressions and connect statements recursively into their fields. Note that {\tt expand\_cnct} expands both connect and partial connect statements. The function {\tt expand\_expr} and {\tt expand\_cnct} modify $ss$, instead of $ce$.
+The ``ExpandConnects'' pass expands the connections between aggregate types into those between ground types.
+We define two Coq functions {\tt expand\_expr} and {\tt expand\_cnct} that expand the expressions and the connect statements, respectively.
+The rationale behind the functions {\tt expand\_expr} and {\tt expand\_cnct} is to break aggregate types in expressions and connect statements recursively into their fields. 
+Note that the function {\tt expand\_cnct} expands both connect and partial connect statements. The functions {\tt expand\_expr} and {\tt expand\_cnct} modify the sequence $ss$ of statements, 
+instead of component environment $ce$.
 %\begin{itemize}
 %\item connections between ground types can not be expanded,
 %
@@ -283,28 +300,34 @@ The rationale behind {\tt expand\_expr} and {\tt expand\_cnct} is to break aggre
 %\item Connections between aggregate types will be expanded recursively.
 %\end{itemize}
 
-The function {\tt expand\_expr} expands an expression $e$ into a list of expressions of ground types recursively by utilizing {\tt type\_of\_expr}$(e)$. 
-Note that only expressions using the operators of multiplex \prettyll{mux} and 
- \prettyll{validif}, or references can have aggregate types, while the expressions formed by using binary operators e.g. $add$ do not. 
-The function {\tt expand\_expr} expands the \prettyll{mux} and 
- \prettyll{validif} expressions by the following two rules, 
-  \begin{gather}
+The function {\tt expand\_expr} expands an expression $e$ into a list of expressions of ground types recursively by utilizing {\tt type\_of\_expr}$(e)$.
+Note that only expressions using the operators of multiplex \prettyll{mux} and
+ \prettyll{validif}, or references can have aggregate types, while the expressions formed by using binary operators e.g. $add$ do not.
+The function {\tt expand\_expr} expands the \prettyll{mux} and
+ \prettyll{validif} expressions by the following two rules,
+  \begin{gather*}
   \label{expand-mux}
     \inferiii[]
     {\seqq{ce\vdash{\tt expand\_expr} (\mbox{\prettyll{mux}}(e_c, e_t, e_f)) \rightsquigarrow els}}
-    {\seqq{els = \mbox{\tt ls\_mux}(e_c, els_t, els_f)}} 
-    {\seqq{els_t = {\tt expand\_expr}(e_t)}} 
-    {\seqq{els_f = {\tt expand\_expr}(e_f)}},
-    \end{gather}
-  \begin{gather}
+    {\seqq{els = \mbox{\tt ls\_mux}(e_c, els_t, els_f)}}
+    {\seqq{els_t = {\tt expand\_expr}(e_t)}}
+    {\seqq{els_f = {\tt expand\_expr}(e_f)}}
+    \end{gather*}
+    and
+  \begin{gather*}
   \label{expand-validif}
     \inferii[]
     {\seqq{ce\vdash{\tt expand\_expr} (\mbox{\prettyll{validif}}(e_c, e)) \rightsquigarrow els}}
-    {\seqq{els  = \mbox{\tt ls\_validif}(e_c, els_t)}} 
+    {\seqq{els  = \mbox{\tt ls\_validif}(e_c, els_t)}}
     {\seqq{els_t = {\tt expand\_expr}(e)}}.
-    \end{gather}
-The rule~(\ref{expand-mux}) uses a function {\tt ls\_mux} that combines $els_t$ and $els_f$ with the same condition $e_c$, resulting into a list of ground-type expressions $\mbox{\prettyll{mux}}(e_c,els_{t, 1}, els_{f, 1}), \cdots, \mbox{\prettyll{mux}}(e_c, els_{t, m}, els_{f, m})$, where  $els_{t,i}$ and $els_{f, i}$ are the $i$-th element of $els_t$ and $els_f$ respectively. The function {\tt ls\_validif} in rule~(\ref{expand-validif}) is defined similarly. 
-% to the $i$-th element of $els_t$ and $els_f$ . 
+    \end{gather*}
+The first rule %~(\ref{expand-mux}) 
+uses a Coq function {\tt ls\_mux} that combines two sequences of expressions $els_t$ and $els_f$ with the same condition $e_c$, resulting into a list of ground-type expressions 
+$$\mbox{\prettyll{mux}}(e_c,els_{t, 1}, els_{f, 1}), \cdots, \mbox{\prettyll{mux}}(e_c, els_{t, m}, els_{f, m}),$$ 
+where  $els_{t,i}$ (resp. $els_{f, i}$) denotes the $i$-th expression in the sequence of expressions $els_t$ (resp. $els_f$). 
+The function {\tt ls\_validif} in the second rule %~(\ref{expand-validif}) 
+is defined similarly.
+% to the $i$-th element of $els_t$ and $els_f$ .
 %
 %It takes the conditional expression $e_c$ and the true/false branch
 %expressions $e_t$ and $e_f$ from the original \prettyll{mux} expression, and then produces a list $es_{mux}$
@@ -312,28 +335,33 @@ The rule~(\ref{expand-mux}) uses a function {\tt ls\_mux} that combines $els_t$ 
 %with the same condition $e_c$.
 %Similarly, expanding a \prettyll{validif} expression produces a list of \prettyll{validif} expressions in $es_{validif}$,
 %
-Finally, {\tt expand\_expr}($r$) expands a reference $r$ straightforwardly and creates a list of expressions of ground types according to {\tt type\_of\_expr$(r)$}. 
+Finally, {\tt expand\_expr}($r$) expands a reference $r$ straightforwardly and creates a list of expressions of ground types according to {\tt type\_of\_expr$(r)$}.
 %Expanding a references is relatively straightforward.
 %It create a list of references to the sub-elements according to the
 %type of the component.
 
-Equipped with the {\tt expand\_expr} function, {\tt expand\_cnct} works as follows: Given a connect statement $(x <= e)$, it applies {\tt expand\_expr} to $x$ and $e$ respectively, producing two lists of expressions of ground types, then constructs a list of connect statements by combining the elements in the two lists. The behavior of {\tt expand\_cnct} on a connect statement is defined by the following rule, 
+Equipped with the {\tt expand\_expr} function, the function {\tt expand\_cnct} works as follows: Given a connect statement $(x <= e)$, it applies 
+the function {\tt expand\_expr} to the component $x$ and the expression $e$ respectively, producing two sequences of expressions of ground types, then constructs a sequence of connect statements by combining the expressions in the two sequences. The behavior of the {\tt expand\_cnct} function on a connect statement is defined by the following rule,
 %After expanding the list of references on the left-hand side and the
 %list of expressions on the right-hand side, new connect statements can
 %be generated pairwise from the two by
-  \begin{gather}
+  \begin{gather*}
   \label{expand-cnct}
     \inferiii[]
     {\seqq{ce\vdash{\tt expand\_cnct} (x <= e) \rightsquigarrow ss'}}
     {\seqq{ ss' = {\tt ls\_cnct}(els_l, els_r)}}
-    {\seqq{els_l = {\tt expand\_expr}(x)}} 
+    {\seqq{els_l = {\tt expand\_expr}(x)}}
     {\seqq{els_r = {\tt expand\_expr}(e)}}.
-    \end{gather}
-The function {\tt expand\_cnct} uses a function {\tt ls\_cnct} that combines the two lists $els_l$ and $els_r$ into a list $ss'$ of connect statements between ground types, that is, the statements $els_{l, 1} <= els_{r, 1}, \cdots, els_{l, m} <= els_{r, m}$, where $m$ is the length of the two lists, and $els_{l, i}, els_{r, i}$ are the $i$-th element of $els_l$ and $els_r$ respectively.
+    \end{gather*}
+The function {\tt expand\_cnct} uses a Coq function {\tt ls\_cnct} that combines the two sequences $els_l$ and $els_r$ of expressions into a sequence $ss'$ of connect statements between ground types, that is, 
+\begin{center}
+the statements $els_{l, 1} <= els_{r, 1}, \cdots, els_{l, m} <= els_{r, m}$,
+\end{center}
+ where $m$ is the length of the two sequences, and $els_{l, i}$ (resp. $els_{r, i}$) denotes the $i$-th expression of the sequence $els_l$ (resp. $els_r$).
 
 The function {\tt expand\_cnct} handles the \prettyll{is invalid} statements in the same way as connect statements. It produces from a \prettyll{is invalid} statement
- a list of \prettyll{is invalid} statements for its fields.
- 
+ a sequence of \prettyll{is invalid} statements for its fields.
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \hide{
@@ -430,15 +458,16 @@ initialize a register.
 
 \subsection{Formalization of ExpandWhens}
 The ``ExpandWhens'' pass ensures that every component in a module is connected to at most once.
-It reformulates the conditions in the \prettyll{when} statements by multiplex expressions and removes the \prettyll{when} statements. Moreover, for each component, it removes the non-last (redundant) connect statements for the component. 
-We define two functions {\tt expand\_branch} and {\tt combine\_branches} to formalize the ``ExpandWhens'' pass. 
-The function {\tt expand\_branch} scans through the statement sequence $ss$, copies the declaration statements, and updates $cm$ when processing connect, \prettyll{is invalid}, and \prettyll{when} statements.  The function {\tt combine\_branches} is used to combine the connect mappings for branches of \prettyll{when} statements. 
+It reformulates the conditions in the \prettyll{when} statements by multiplex expressions and removes the \prettyll{when} statements. Moreover, for each component, it removes the non-last (redundant) connect statements for the component.
+We define two functions {\tt expand\_branch} and {\tt combine\_branches} to formalize the ``ExpandWhens'' pass.
+The function {\tt expand\_branch} scans through the statement sequence $ss$, copies the declaration statements, and updates the component environment $cm$ when processing connect, \prettyll{is invalid}, and \prettyll{when} statements.  The function {\tt combine\_branches} is used to combine the connect mappings for branches of \prettyll{when} statements.
 %This is done by scanning through the statement sequence of the module:
 %declaration statements are copied without change,
 %and connect and \prettyll{is invalid} statements update a connect map
 %(so redundant connects are overwritten in the map).
-The  {\tt expand\_branch} function are defined by the rules (\ref{rule-expandwhen-declare})-(\ref{rule-expandwhen-when}), where $\mathit{declare}\ x$ represents a declaration statement for $x$, e.g. \prettyll{wire x: t}. 
-\begin{gather}
+The  {\tt expand\_branch} function is defined by the following four rules, % (\ref{rule-expandwhen-declare})-(\ref{rule-expandwhen-when}), 
+where $\mathit{declare}\ x$ represents a declaration statement for $x$, e.g. \prettyll{wire x: t}.
+\begin{gather*}
     \label{rule-expandwhen-declare}
     \infer[]
     {\seqq{{\tt expand\_branch}(ss ; \mathit{declare}\ x, cm_0) = (ss_\mathrm{dcl} ; \mathit{declare}\ x, cm[\bot/x])}}
@@ -453,9 +482,9 @@ The  {\tt expand\_branch} function are defined by the rules (\ref{rule-expandwhe
     \infer[]
     {\seqq{{\tt expand\_branch}(ss ; v \text{ \prettyll{is invalid}}, cm_0) = (ss_\mathrm{dcl}, cm [{\tt invalid}/v])}}
     {\seqq{{\tt expand\_branch}(ss, cm_0) = (ss_\mathrm{dcl}, cm)}}
-\end{gather}
+\end{gather*}
 %
-\begin{gather}
+\begin{gather*}
     \label{rule-expandwhen-when}
     \inferii[]
     {\seqq{{\tt expand\_branch}(ss ; \text{\prettyll{when c then} } ss^\mathsf{T} \text{ \prettyll{else} } ss^\mathsf{F}, cm_0) =
@@ -463,9 +492,10 @@ The  {\tt expand\_branch} function are defined by the rules (\ref{rule-expandwhe
     {\seqq{{\tt expand\_branch}(ss, cm_0) = (ss_\mathrm{dcl}, cm)}}
     {\begin{gathered}[b] \seqq{{\tt expand\_branch}(ss^\mathsf{T}, cm) = (ss_\mathrm{dcl}^\mathsf{T}, cm^\mathsf{T})} \\
                       \seqq{{\tt expand\_branch}(ss^\mathsf{F}, cm) = (ss_\mathrm{dcl}^\mathsf{F}, cm^\mathsf{F})} \end{gathered}}
-\end{gather}
-Note that for a statement \prettyll{when c then} $ss^\mathsf{T}$ \prettyll{else} $ss^\mathsf{F}$, {\tt expand\_branch} first processes the statements preceding this statement and obtains a connect mapping $cm$, then uses $cm$ to process $ss^\mathsf{T}$ and $ss^\mathsf{F}$ respectively, resulting into the connect mappings $cm^\mathsf{T}$ and $cm^\mathsf{F}$ respectively. Finally, $cm^\mathsf{T}$ and $cm^\mathsf{F}$ are combined into one mapping by {\tt combine\_branches}. 
- 
+\end{gather*}
+Note that for a statement \prettyll{when c then} $ss^\mathsf{T}$ \prettyll{else} $ss^\mathsf{F}$,
+ the function {\tt expand\_branch}  first processes the statements preceding this statement and obtains a connect mapping $cm$, then uses $cm$ to process $ss^\mathsf{T}$ and $ss^\mathsf{F}$ respectively, resulting into the connect mappings $cm^\mathsf{T}$ and $cm^\mathsf{F}$ respectively. Finally, $cm^\mathsf{T}$ and $cm^\mathsf{F}$ are combined into one mapping by {\tt combine\_branches}.
+
 %For \prettyll{when} statements,
 %the true and false branches are similarly split
 %and the two resulting connect maps are then combined into one,
@@ -478,9 +508,10 @@ Note that for a statement \prettyll{when c then} $ss^\mathsf{T}$ \prettyll{else}
 %This also implies that we cannot use the (register) state of a configuration in these rules.
 
 
-The function {\tt combine\_branches} combines two connect mappings into one by the rules (\ref{rule-expandwhen-combine-1})-(\ref{rule-expandwhen-combine-6}), where an expression is constructed for each component, denoting the fact that the expression is connected to it according to the last-connect semantics. 
+The function {\tt combine\_branches} combines two connect mappings into one by the following fix rules %(\ref{rule-expandwhen-combine-1})-(\ref{rule-expandwhen-combine-6}), 
+where an expression is constructed for each component, denoting the fact that the expression is connected to it according to the last-connect semantics.
 If both connect mappings assign the same value to a component, then no multiplexer or \prettyll{validif} is needed in the combined expression.
-\begin{gather}
+\begin{gather*}
  \label{rule-expandwhen-combine-1}
     \infer[]
     {{\tt combine\_branches}(cm^\mathsf{T},cm^\mathsf{F})(x) = e}
@@ -490,9 +521,9 @@ If both connect mappings assign the same value to a component, then no multiplex
     \infer[]
     {{\tt combine\_branches}(cm^\mathsf{T},cm^\mathsf{F})(x) = {\tt invalid}}
     {cm^\mathsf{T}(x) = cm^\mathsf{F}(x) = {\tt invalid}}
-\end{gather}
-If the two connect mappings assign different values to a component, then a multiplexer or \prettyll{validif} expression is obtained.  
-\begin{gather}
+\end{gather*}
+If the two connect mappings assign different values to a component, then a multiplexer or \prettyll{validif} expression is obtained.
+\begin{gather*}
  \label{rule-expandwhen-combine-3}
     \inferiii[]
     {{\tt combine\_branches}(cm^\mathsf{T},cm^\mathsf{F})(x) = \text{\prettyll{mux}}(\text{\prettyll{c}},e^\mathsf{T},e^\mathsf{F})}
@@ -505,11 +536,11 @@ If the two connect mappings assign different values to a component, then a multi
     {{\tt combine\_branches}(cm^\mathsf{T},cm^\mathsf{F})(x) = \text{\prettyll{validif}}(c,e^\mathsf{T})}
     {cm^\mathsf{T}(x) = e^\mathsf{T}}
     {cm^\mathsf{F}(x) = {\tt invalid}}
-\end{gather}
+\end{gather*}
 If only one branch declared the component, ignore the condition;
 if at least one branch did declare the component but erroneously did not connect it,
 register that it is still not (always) connected:
-\begin{gather}
+\begin{gather*}
  \label{rule-expandwhen-combine-5}
     \inferii[]
     {{\tt combine\_branches}(cm^\mathsf{T},cm^\mathsf{F})(x) = e^\mathsf{T}}
@@ -520,26 +551,27 @@ register that it is still not (always) connected:
     \infer[]
     {{\tt combine\_branches}(cm^\mathsf{T},cm^\mathsf{F})(x) =\bot}
     {cm^\mathsf{F}(x) = \bot}
-\end{gather}
+\end{gather*}
 For the last three rules, a symmetric variant exists where the role of the true and false branches are swapped.
 
-Moreover, to initialize, the empty statement sequence does not change a connect map:
-{\begin{gather}
+Moreover, to initialize, the empty statement sequence does not change a connect map, specified by the following rule:
+{\begin{gather*}
     \infer{\seqq{{\tt expand\_branch}(\emptyset, cm_0) = (\emptyset, cm_0)}}
     {} % no premise
-\end{gather}}
-Finally, the statement sequence is updated by concatenating the statement sequence output by {\tt expand\_branch} and the sequence of connect and \prettyll{is invalid} statements corresponding to the connect mapping generated by {\tt expand\_branch}. 
+\end{gather*}}
+
+Finally, the statement sequence is updated by concatenating the statement sequence generated by the function  {\tt expand\_branch} and the sequence of connect and \prettyll{is invalid} statements corresponding to the connect mapping generated by the function {\tt expand\_branch}.
 %(possibly after topologically sorting them),
 %similar to the example in Subsection~\ref{subsec-lowering-transformations}.
 If in the end some component is still assigned the value $\bot$ by the connect mapping, an appropriate error message can be generated.
 
 \subsection{Formalization of LowerTypes}
-The ``LowerTypes'' pass flattens each component of an aggregate type into a collection of components of ground types.  
+The ``LowerTypes'' pass flattens each component of an aggregate type into a collection of components of ground types.
 %The pass replaces certain defined components with
 %aggregate types by a new set of components defined with ground types.
-We formalize this pass by a function {\tt lower\_types}. 
-The rationale behind {\tt lower\_types} is that except for the memories and module instances, each component of an aggregate type is replaced by
-      a collection of new components that have ground types, one for each field, where \emph{paired identifiers} are introduced for  naming the new components. 
+We formalize this pass by a function {\tt lower\_types}.
+The rationale behind the function {\tt lower\_types} is that except for the memories and module instances, each component of an aggregate type is replaced by
+      a collection of new components that have ground types, one for each field, where \emph{paired identifiers} are introduced for  naming the new components.
 %\begin{itemize}
 %\item components defined with ground types do not need to be modified,
 %
@@ -547,29 +579,30 @@ The rationale behind {\tt lower\_types} is that except for the memories and modu
 %      a group of coordinate components that have ground types.
 %\end{itemize}
 
-A paired identifier is of the form $(id_1, id_2)$, where $id_1$ is the identifier of a component of aggregate type, and $id_2$ is the name of a field in the aggregate type. 
+A paired identifier is of the form $(id_1, id_2)$, where $id_1$ is the identifier of a component of aggregate type, and $id_2$ is the name of a field in the aggregate type.
 %the first field represents the base reference adapted from the original
 %component identifier and the second field indicates the
 %sub-element offset computed from the aggregate type.
 %The original components defined with aggregate types are replaced by a new
 %set of components defined with paired identifiers and of ground types.
-The function {\tt lower\_types} processes the statements in $ss$ and updates $ss$ and $ce$. 
+The function {\tt lower\_types} processes the statements in the sequence $ss$ and updates the sequence  $ss$ and the component environment $ce$.
 The behavior of the function {\tt lower\_types} on the declaration statements is defined by the rule below, where $declare\ x$ denotes the declaration statement for a component $x$, and $ce=(t, \kappa)$ ($t$ is the aggregate type and $\kappa$ is the kind, e.g. \prettyll{wire}), moreover, a function  {\tt flatten} is used to flatten $declare\ x$ into a sequence of declaration statements.  Specifically, let the fields in $t$ be $f_1, \cdots, f_n$, of ground types $t_1, \cdots, t_n$ respectively, then the {\tt flatten} function generates from $(x, (t, \kappa))$ a sequence of declaration statements $\kappa\ (x, f_1): t_1, \cdots, \kappa\ (x, f_n): t_n$.
 %The process can be formalized as follow:
-  {\begin{gather}
+  {\begin{gather*}
     \inferiii[]
     {\seqq{ce\vdash{\tt lower\_types}(declare\;x) \rightsquigarrow (ss',ce')}}
     {\seqq{ce(x) = (t, \kappa)}}
 %    {\seqq{{\tt is\_aggr}(t_v)}}
     {\seqq{ ss' ={\tt flatten}(x, (t, \kappa))}}
     {\seqq{ce'=ce\uplus \{(x, f_1): (t_{1},\kappa), \dots,(x, f_n):(t_{n}, \kappa)\}}}.
-    \end{gather}}
+    \end{gather*}}
 %The {\tt flatten} function generates new statements that define
 %components in ground types with new identifiers, such as
 %$(v,o_1)$. The type and component information contained in $tc_v$
 %are used to determine the number of the certain new components.
-Note that the ``LowerTypes'' pass should be applied after the ``ExpandConnects'' pass. 
-Therefore, before applying the function {\tt lower\_types} to the statements in $ss$, both sides of the connect statements are already in ground types. 
-Then when {\tt lower\_types}  processes a connect statement, the references to the component fields in this statement should be replaced by the corresponding paired identifiers. Thus in this case, all the three components of the circuit diagram, namely, the statement sequence, the component environment, the connect mapping, are all updated to reflect the replacements of component fields by paired identifiers. 
+
+Note that the ``LowerTypes'' pass should be applied after the ``ExpandConnects'' pass.
+Therefore, before applying the function {\tt lower\_types} to the statements in the sequence $ss$, both sides of the connect statements are already in ground types.
+Then when the {\tt lower\_types} function  processes a connect statement, the references to the component fields in this statement should be replaced by the corresponding paired identifiers. Thus in this case, all the three components of the circuit diagram, namely, the statement sequence, the component environment, the connect mapping, are all updated to reflect the replacements of component fields by paired identifiers.
 %As a result, the statements $ss$ in the circuit diagram are replaced by the new $ss'$, and the components environment $ce$ are updated to reflect the new ground types and paired identifiers.
 
