@@ -4,7 +4,8 @@ The earliest work in compiler verification dates back to 1967,
 when \cite{MP67} proved the correctness of a compiler that translates
 arithmetic expressions into stack
 machine code. Since then, many other proofs have been conducted, ranging from
-single compilation pass to sophisticated code optimizations of compilers for both software and hardware programming languages~\cite{Dave03,HerklotzPRW21}.
+single compilation pass to sophisticated code optimizations of compilers 
+that translates high-level software or hardware programs to low-level and/or optimized forms~\cite{Dave03}.
 
 
 
@@ -14,10 +15,10 @@ V\'{e}lus for Lustre~\cite{BourkeBDLPR17}, Vellvm~\cite{ZhaoNMZ12,ZhaoNMZ13}, Cr
 CakeML for ML~\cite{KumarMNO14,LoowKTMNAF19,TanMKFON19,OwensNKMT17}, to cite a few.
 The interactive theorem prover Coq has been widely adopted to formalize formal semantics,
 compilation passes and optimizations, based on which compilation correctness can be proved and 
-executable compilers can be automatically generated (cf. \cite{Awesomecoq} for a curated list).
-For instance, \cite{benton2009} formalized and proved a compiler from a simple functional language into an idealized assembly language.
-\cite{Chlipala07,Chlipala10} formalized and proved compilers from simply-typed and untyped lambda calculus to an idealized assembly language.
-CompCert is a verified compiler from Clight (a large subset of the C programming
+executable interpreters and compilers can be automatically generated (cf. \cite{Awesomecoq} for a curated list).
+For instance, \cite{benton2009} formalized and proved a compiler that translates a simple functional language into an idealized assembly language.
+\cite{Chlipala07,Chlipala10} formalized and proved compilers that translate simply-typed or untyped lambda calculus to an idealized assembly language.
+CompCert is a verified compiler that translates Clight (a large subset of the C programming
 language) to PowerPC assembly language.
 
 
@@ -25,7 +26,8 @@ language) to PowerPC assembly language.
 The motivation to make hardware design more like software has promoted dozens of researches.
 The semantic challenges and formal semantics of hardware design languages, Verilog and VHDL, were discussed and studied by~\cite{Gordon95,Kloos1995FormalSF}.
 \cite{Braibant11} introduced a new library to model and verify hardware circuits in Coq. 
-\cite{Braibant13} implemented a certified compiler for HDL called Fe-Si embedding. 
+\cite{Braibant13} implemented a verified compiler that translates a high-level hardware description language, called Fe-Si, to RTL verilog,
+following the ideas behind CompCert.
 A toolbox was implemented in Coq dedicated to the specification and verification of synchronous sequential devices, based on which researchers finished circuits certification in type theory~\cite{Coupet04}. 
 \cite{ChoiACM17} implemented another Coq library, called Kami, enabling expressive and modular reasoning for hardware designs.
 To apply mechanization to high-assurance hardware, calculus of secure hardware description with its formal semantics and security type system is constructed in~\cite{Reynolds19}. 
@@ -35,12 +37,16 @@ To apply mechanization to high-assurance hardware, calculus of secure hardware d
 \cite{Khan17} designed Veriformal, an executable formal model for most constructs of Verilog used in hardware designs, 
 with which one can analyse and execute Verilog designs.
 Recently, an extension of verified ML compiler CakeML, called Lutsig, was developed for compiling  a subset of RTL Verilog programs to netlist level programs for field-programmable gate array (FPGA)~\cite{Loow21,loowphd21}, an extension of verified C compiler CompCert, called Lutsig, was developed for compiling  a subset of C programs to RTL Verilog programs~\cite{HerklotzPRW21}.
+
+
 In this work, we consider FIRRTL, an intermediate representation for the Chisel hardware description language. 
 It is argued by the Chisel team that FIRRTL is the key for bringing software levels of productivity to hardware
 development~\cite{firrtl-spec}.
-  
 \fu{Discuss new things in the formalization of formal semantics and compilation passes, 
-prove techniques, compared with existing ones.} 
+prove techniques, compared with existing ones.}
+The closest work to ours is~\cite{HarrisonHA21} who formalized an idealized semantics of FIRRTL in Agda.
+They capture hardware design and working pattern based on Mealy Machine and Device Calculus~\cite{Harrison20},
+but leave the formal semantics for all of FIRRTL as future work.
   
 Translation validation proves equivalence between
 the high-level input program and the low-level output design~\cite{PnueliSS98,Necula00}, 
@@ -51,9 +57,6 @@ thus, it is an expensive task for large designs and must be repeated every time 
 In contrast, verified compilers always guarantee that the  low-level hardware designs they produce are equivalent to the high-level hardware programs they were given. 
 
 
-The closest work to ours is~\cite{HarrisonHA21} who formalized an idealized semantics of FIRRTL in Agda.
-They capture hardware design and working pattern based on Mealy Machine and Device Calculus~\cite{Harrison20}, 
-but leave the formal semantics for all of FIRRTL as future work.
 
 
 %Firrtl is an intermediate representation for the Chisel hardware description language and it is argued by the Chisel team to be the key of bringing software levels of productivity to hardware development~\cite{firrtl-spec}. Previous work i~\cite{HarrisonHA21}. It captures hardware design and working pattern based on Mealy Machine and Device Calculus~\cite{Harrison20}.But they leave the formal semantics for all of Firrtl as future work.
