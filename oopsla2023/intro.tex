@@ -34,7 +34,7 @@ XiangShan~\cite{xiangshan,Xiangshan-github}, and so on.
 %SiFive Core IP portfolio~\cite{SiFive},
 %and Google Edge TPU~\cite{EdgeTPU}.
 
-The FIRRTL intermediate representation (IR) was proposed for the compilation of Chisel programs~\cite{IzraelevitzKLLW17}, analogous to the role of LLVM IR~\cite{LLVM} for compiling C programs.
+FIRRTL as an intermediate representation (IR)  was proposed for the compilation of Chisel programs~\cite{IzraelevitzKLLW17}, analogous to the role of LLVM IR~\cite{LLVM} for compiling C programs.
 FIRRTL features first-class support for high-level constructs such as vector types, bundle types, conditional statements, connects, partial connects,
 and modules so that Chisel programs can easily be translated into FIRRTL.
 %
@@ -53,8 +53,8 @@ such as vector types, bundle types, conditional statements, connects, partial co
 and modules so that Chisel programs can easily be translated into FIRRTL.
 }
 %
-
-The FIRRTL compiler suffers from lots of bugs due to its inherent complexity. For instance, there are 655 issues in its github repository, among which
+Similar to C/C++ compilers (e.g., GCC and LLVM),
+the FIRRTL compiler also suffers from lots of bugs due to its inherent complexity. For instance, there are 655 issues in its github repository, among which
 99 have been labeled as bugs~\cite{FIRRTLissues}. This motivates us to investigate the formalization and verification of FIRRTL and its lowering transformations.
 %
 %For instance, the width of \lstinline!dshl(e1,e2)! inferred by the ``Infer Width'' compilation pass
@@ -64,7 +64,8 @@ The FIRRTL compiler suffers from lots of bugs due to its inherent complexity. Fo
 %The ``ExpandWhens'' compilation pass may introduce unexpected \lstinline!VOID!, leading to a match error in
 %the ``InferTypes'' compilation pass~\footnote{\url{https://github.com/chipsalliance/firrtl/issues/852}}.
 %
-Nevertheless, partially due to the fact that Chisel and FIRRTL are relatively new and the ecosystem around them is still evolving, formalization and verification of FIRRTL IR and its lowering transformations are largely missing, with an exception \cite{HarrisonHA21}. In~\cite{HarrisonHA21}, a coinductive denotational semantics was proposed for \fu{a subset of} LoFIRRTL, based on a formalism called device calculus. Nevertheless, while Harrison et al. made progress in the formalization of LoFIRRTL in~\cite{HarrisonHA21}, a framework where  programs in HiFIRRTL and its lowering transformations can be formally reasoned about is still elusive. The establishment of such a framework would require
+Nevertheless, partially due to the fact that Chisel and FIRRTL are relatively new and the ecosystem around them is still evolving, formalization and verification of FIRRTL and its lowering transformations are largely missing, with an exception \cite{HarrisonHA21}. 
+\cite{HarrisonHA21} proposed a coinductive denotational semantics for an idealized subset of LoFIRRTL, based on a formalism called device calculus in Agda. Nevertheless, while \cite{HarrisonHA21} made progress in the formalization of LoFIRRTL, a framework where  programs in HiFIRRTL and its lowering transformations can be formally reasoned about is still elusive. The establishment of such a framework would require
 %\begin{itemize}
 %\item
 a mechanized operational semantics of LoFIRRTL,
