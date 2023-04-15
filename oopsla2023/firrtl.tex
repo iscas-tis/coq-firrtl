@@ -424,7 +424,7 @@ t & ::= & tg \\
 %
 Note that in Figure~\ref{fig-lofirrtl-synt}, the rules for $f$, $id$, $op$ are the same as those in Figure~\ref{fig-firrtl-synt-simp}, thus omitted to avoid tediousness.
 In a nutshell, the syntactic rules in Figure~\ref{fig-lofirrtl-synt} are obtained from those in Figure~\ref{fig-firrtl-synt-simp} by replacing $[w]$ with $w$ (so that the width becomes mandatory),
-removing the when statement and the partial connect statement from the rule for $s$,
+removing the \prettyll{when} statement and the partial connect statement (\prettyll{<-}) from the rule for $s$,
 and removing the rule for aggregate types $ta$.
 %
 The requirement that each component is connected to at most once
@@ -432,7 +432,7 @@ gives LoFIRRTL a flavor similar to static single-assignment (SSA) form of softwa
 Programs in SSA form are those where each variable is assigned at most once and each variable is defined before it is used.
 For instance, the program in Figure~\ref{fig-lofirrtl-exmp}(a) is a LoFIRRTL program,
 while the program in Figure~\ref{fig-lofirrtl-exmp}(b) is not,
-since \begin{lstinline}!myport1!\end{lstinline} is connected twice.
+since the output port \prettyll{myport1} is connected to twice from the input ports \prettyll{a} and \prettyll{b}, respectively.
 \begin{figure}[htbp]
 \centering
 \begin{subfigure}[b]{0.4\textwidth}
