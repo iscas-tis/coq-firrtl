@@ -264,18 +264,83 @@ The resulting $ce$ contains the inferred concrete reset types.
 %%% the original texts written by xiaomu
 %%% the original texts written by xiaomu
 
-\zhilin{stopped here}
-
 \subsubsection{Formalization of ExpandConnects}
-In HiFIRRTL, connections can be made between aggregate types.  These
-connections can be either full or partial.  The purpose of this pass
-is to break down connections between aggregate types and produce
-individual ones of corresponding ground types. The general rules are,
-\begin{itemize}
-\item Connections between ground types can not be expanded.
-\item Connections between aggregate types will be expanded recursively.
-\end{itemize}
+The ``ExpandConnects'' pass expands the connections between aggregate types into those between ground types. 
+We define two Coq functions {\tt expand\_expr} and {\tt expand\_cnct} that expand the expressions and the connect statements respectively. 
+The rationale behind {\tt expand\_expr} and {\tt expand\_cnct} is to break aggregate types in expressions and connect statements recursively into their fields. Note that {\tt expand\_cnct} expands both connect and partial connect statements. The function {\tt expand\_expr} and {\tt expand\_cnct} modify $ss$, instead of $ce$.
+%\begin{itemize}
+%\item connections between ground types can not be expanded,
+%
+%\item connections between aggregate types will be expanded recursively.
+%\end{itemize}
 
+%In HiFIRRTL, connections can be made between aggregate types.  These
+%connections can be either full or partial.  The purpose of this pass
+%is to break down connections between aggregate types and produce
+%individual ones of corresponding ground types. The general rules are,
+%\begin{itemize}
+%\item Connections between ground types can not be expanded.
+%\item Connections between aggregate types will be expanded recursively.
+%\end{itemize}
+
+The function {\tt expand\_expr} expands an expression $e$ into a list of expressions of ground types recursively by utilizing {\tt type\_of\_expr}$(e)$. 
+Note that only expressions using the operators of multiplex \prettyll{mux} and 
+ \prettyll{validif}, or references can have aggregate types, while the expressions formed by using binary operators e.g. $add$ do not. 
+The function {\tt expand\_expr} expands the \prettyll{mux} and 
+ \prettyll{validif} expressions by the following two rules, 
+  \begin{gather}
+  \label{expand-mux}
+    \inferiii[]
+    {\seqq{ce\vdash{\tt expand\_expr} (\mbox{\prettyll{mux}}(e_c, e_t, e_f)) \rightsquigarrow els}}
+    {\seqq{els = \mbox{\tt ls\_mux}(e_c, els_t, els_f)}} 
+    {\seqq{els_t = {\tt expand\_expr}(e_t)}} 
+    {\seqq{els_f = {\tt expand\_expr}(e_f)}},
+    \end{gather}
+  \begin{gather}
+  \label{expand-validif}
+    \inferii[]
+    {\seqq{ce\vdash{\tt expand\_expr} (\mbox{\prettyll{validif}}(e_c, e)) \rightsquigarrow els}}
+    {\seqq{els  = \mbox{\tt ls\_validif}(e_c, els_t)}} 
+    {\seqq{els_t = {\tt expand\_expr}(e)}}.
+    \end{gather}
+The rule~(\ref{expand-mux}) uses a function {\tt ls\_mux} that combines $els_t$ and $els_f$ with the same condition $e_c$, resulting into a list of ground-type expressions $\mbox{\prettyll{mux}}(e_c,els_{t, 1}, els_{f, 1}), \cdots, \mbox{\prettyll{mux}}(e_c, els_{t, m}, els_{f, m})$, where  $els_{t,i}$ and $els_{f, i}$ are the $i$-th element of $els_t$ and $els_f$ respectively. The function {\tt ls\_validif} in rule~(\ref{expand-validif}) is defined similarly. 
+% to the $i$-th element of $els_t$ and $els_f$ . 
+%
+%It takes the conditional expression $e_c$ and the true/false branch
+%expressions $e_t$ and $e_f$ from the original \prettyll{mux} expression, and then produces a list $es_{mux}$
+%of \prettyll{mux} that combines the lists of expanded $e_t$ and $e_f$
+%with the same condition $e_c$.
+%Similarly, expanding a \prettyll{validif} expression produces a list of \prettyll{validif} expressions in $es_{validif}$,
+%
+Finally, {\tt expand\_expr}($r$) expands a reference $r$ straightforwardly and creates a list of expressions of ground types according to {\tt type\_of\_expr$(r)$}. 
+%Expanding a references is relatively straightforward.
+%It create a list of references to the sub-elements according to the
+%type of the component.
+
+Equipped with the {\tt expand\_expr} function, {\tt expand\_cnct} works as follows: Given a connect statement $(x <= e)$, it applies {\tt expand\_expr} to $x$ and $e$ respectively, producing two lists of expressions of ground types, then constructs a list of connect statements by combining the elements in the two lists. The behavior of {\tt expand\_cnct} on a connect statement is defined by the following rule, 
+%After expanding the list of references on the left-hand side and the
+%list of expressions on the right-hand side, new connect statements can
+%be generated pairwise from the two by
+  \begin{gather}
+  \label{expand-cnct}
+    \inferiii[]
+    {\seqq{ce\vdash{\tt expand\_cnct} (x <= e) \rightsquigarrow ss'}}
+    {\seqq{ ss' = {\tt ls\_cnct}(els_l, els_r)}}
+    {\seqq{els_l = {\tt expand\_expr}(x)}} 
+    {\seqq{els_r = {\tt expand\_expr}(e)}}.
+    \end{gather}
+The function {\tt expand\_cnct} uses a function {\tt ls\_cnct} that combines the two lists $els_l$ and $els_r$ into a list $ss'$ of connect statements between ground types, that is, the statements $els_{l, 1} <= els_{r, 1}, \cdots, els_{l, m} <= els_{r, m}$, where $m$ is the length of the two lists, and $els_{l, i}, els_{r, i}$ are the $i$-th element of $els_l$ and $els_r$ respectively.
+
+The function {\tt expand\_cnct} handles the \prettyll{is invalid} statements in the same way as connect statements. It produces from a \prettyll{is invalid} statement
+ a list of \prettyll{is invalid} statements for its fields.
+ 
+ \zhilin{stopped here}
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\hide{
 The pass focuses on connect statements in $ss$.
 The left-hand side
 of a connection is a reference to a component, while the right-hand side
@@ -321,7 +386,7 @@ The \prettyll{is invalid} statement is treat as the same as the connect statemen
 which connects a component with an ``unknown'' signal at this point.
 After processing an \prettyll{is invalid} statement for a component,
 we obtain a list of \prettyll{is invalid} statements for its sub-elements.
-
+}
 
 
 %%%%%%%% remove resets removed
