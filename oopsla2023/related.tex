@@ -1,6 +1,6 @@
 %!TEX root = main.tex
 
-The earliest work in compiler verification dates to 1967,
+The earliest work in compiler verification dates back to 1967,
 when \cite{MP67} proved the correctness of a compiler that translates
 arithmetic expressions into stack
 machine code. Since then, many other proofs have been conducted, ranging from
@@ -8,38 +8,63 @@ single compilation pass to sophisticated code optimizations of compilers for bot
 
 
 
-Verified compilation for software programming languages
+Verified compilations for software programming languages
 include CompCert for C~\cite{Leroy09,kastner2018compcert,Leroy2006,Leroy-BKSPF-2016,BlazyDL06,Kastner-LBSSF-2017},
 V\'{e}lus for Lustre~\cite{BourkeBDLPR17}, Vellvm~\cite{ZhaoNMZ12,ZhaoNMZ13}, Crellvm~\cite{KangKSLPSKCCHY18} for the LLVM Intermediate Representation,
 CakeML for ML~\cite{KumarMNO14,LoowKTMNAF19,TanMKFON19,OwensNKMT17}, to cite a few.
 The interactive theorem prover Coq has been widely adopted to formalize formal semantics,
 compilation passes and optimizations, based on which compilation correctness can be proved and 
-executable compilers can be automatically
-generated (cf. \cite{Awesomecoq} for a curated list).
+executable compilers can be automatically generated (cf. \cite{Awesomecoq} for a curated list).
+For instance, \cite{benton2009} formalized and proved a compiler from a simple functional language into an idealized assembly language.
+\cite{Chlipala07,Chlipala10} formalized and proved compilers from simply-typed and untyped lambda calculus to an idealized assembly language.
+CompCert is a verified compiler from Clight (a large subset of the C programming
+language) to PowerPC assembly language.
 
 
-Such compilers come with a mathematical, machine-checked proof
-that compilation passes preserve program semantics,
-hence strengthening the correctness guarantees that can be obtained by formal verification of high-level programs.
 
-
-Verified Compilation of Hardware Languages.
-
+The motivation to make hardware design more like software has promoted dozens of researches.
+The semantic challenges and formal semantics of hardware design languages, Verilog and VHDL, were discussed and studied by~\cite{Gordon95,Kloos1995FormalSF}.
+\cite{Braibant11} introduced a new library to model and verify hardware circuits in Coq. 
+\cite{Braibant13} implemented a certified compiler for HDL called Fe-Si embedding. 
+A toolbox was implemented in Coq dedicated to the specification and verification of synchronous sequential devices, based on which researchers finished circuits certification in type theory~\cite{Coupet04}. 
+\cite{ChoiACM17} implemented another Coq library, called Kami, enabling expressive and modular reasoning for hardware designs.
+To apply mechanization to high-assurance hardware, calculus of secure hardware description with its formal semantics and security type system is constructed in~\cite{Reynolds19}. 
+\cite{FlorSS15} proposed to describe  hardware programs in Agda so that they can be simulated, tested, verified and synthesized.
+\cite{Gordon02} carried out formal verification based on the analysis of sets of traces of transition systems for hardware description language. 
+\cite{Loow19} proposed a proof-producing translator for the subset of Verilog. 
+\cite{Khan17} designed Veriformal, an executable formal model for most constructs of Verilog used in hardware designs, 
+with which one can analyse and execute Verilog designs.
+Recently, an extension of verified ML compiler CakeML, called Lutsig, was developed for compiling  a subset of RTL Verilog programs to netlist level programs for field-programmable gate array (FPGA)~\cite{Loow21,loowphd21}, an extension of verified C compiler CompCert, called Lutsig, was developed for compiling  a subset of C programs to RTL Verilog programs~\cite{HerklotzPRW21}.
+In this work, we consider FIRRTL, an intermediate representation for the Chisel hardware description language. 
+It is argued by the Chisel team that FIRRTL is the key for bringing software levels of productivity to hardware
+development~\cite{firrtl-spec}.
+  
+  
 Translation validation proves equivalence between
-the input program and the output design~\cite{PnueliSS98}.
+the high-level input program and the low-level output design~\cite{PnueliSS98,Necula00}, 
+and has been successfully applied
+to several hardware program optimisations~\cite{KimKM04,KarfaMSPR06,BanerjeeKSM14,ChoukseyKB19,ChoukseyK20}.
+A translation validation should be conducted for each pair of an input program and its output design,
+thus, it is an expensive task for large designs and must be repeated every time when the compiler is invoked.
+In contrast, verified compilers always guarantee that the  low-level hardware designs they produce are equivalent to the high-level hardware programs they were given. 
 
-Formal Verification of Hardware designs.
+
+The closest work to ours is~\cite{HarrisonHA21} who formalized an idealized semantics of FIRRTL in Agda.
+They capture hardware design and working pattern based on Mealy Machine and Device Calculus~\cite{Harrison20}, 
+but leave the formal semantics for all of FIRRTL as future work.
+
+
+%Firrtl is an intermediate representation for the Chisel hardware description language and it is argued by the Chisel team to be the key of bringing software levels of productivity to hardware development~\cite{firrtl-spec}. Previous work i~\cite{HarrisonHA21}. It captures hardware design and working pattern based on Mealy Machine and Device Calculus~\cite{Harrison20}.But they leave the formal semantics for all of Firrtl as future work.
+
+
+%Formal Verification of Hardware designs.
 
 
 
-
-
+\hide{
 There is a considerable literature on formal verification of programming language compilers~\cite{LeAS14,ZhangSS17}.
 \fu{\cite{LeAS14,ZhangSS17} are about testing rather than formal verificaiton} Coq is widely used in other researches for compiler verification tasks. Leroy gave an overview on formal verification of a compiler back-end from a simple intermediate language to assembly code in Coq. Benton and N. Tabareau worked on compiling functional types to soundness result~\cite{benton2009}, while Chlipala described a verified compiler for an untyped functional language~\cite{Chlipala10,Chlipala07}. All of the works above are built in Coq. (add other works?) CompCert is the full-verified compiler for a subset of the C language using Coq~\cite{Leroy09}. It defines and formalizes the operational semantics of several intermediate languages. CompCert also extracts an executable interpreter for the semantics. A formal verification in Coq of the whole Iterated Register Coalescing (IRC), used heuristic for performing register allocation, has been integrated into the CompCert verified compiler~\cite{Blazy10}. Verifiable C is proved sound with respect to the operational semantics of CompCert C, with which the software toolchain do assertions check for programs~\cite{Appel11}. To implement on entitative hardware design, simulation of the hardware design on field-programmable gate arrays was done~\cite{Nikhil2011}.
 Vefirrtl is close to Vellvm project in spirit, which is a fully-verified LLVM compiler with well-formed properties and verified transformation passes~\cite{ZhaoNMZ12}. It also use Coq to build infrastructure implementation and test validation of the semantics by extracting an interpreter.
 
-The motivation to make hardware design more like software has promoted dozens of researches.(add Hardware language researches?) The challenge of semantics specification of hardware design languages, like Verilog and VHDL, was outlined by Gordon and Kloos,respectively~\cite{Gordon95,Kloos1995FormalSF}. Braibant introduced a new library to model and verify hardware circuits in the Coq proof assistant~\cite{Braibant11}. He implemented a certified compiler for HDL called Fe-Si embedding~\cite{Braibant13}. A toolbox was implemented in Coq dedicated to the specification and verification of synchronous sequential devices, based on which researchers finished circuits certification in type theory~\cite{Coupet04}. Kami is another work on Coq library that enables expressive and modular reasoning for hardware designs~\cite{ChoiACM17}.To apply mechanization to High-assurance Hardware, calculus of secure hardware description with its formal semantics and security type system is constructed~\cite{Reynolds19}. Similar work is also implemented in Agda to define circuit descriptions that may be simulated, tested, verified and synthesized~\cite{FlorSS15}.
-
-Previous works mainly handle a formalizable subset of the hardware language Verilog. Gordon carried out formal verification based on the analysis of sets of traces of transition systems or automata for hardware description language~\cite{Gordon02}. Based om a formal semantics for the subset of Verilog, a proof-producing translator was implemented in HOL to prove theorems between input and output~\cite{Loow19}. Veriformal is an executable formal model of Verilog in Isabelle/HOL for most constructs used in hardware designs, with which one can analyse Verilog designs and execute them for simulation~\cite{Khan17}.
-
-Firrtl is an intermediate representation for the Chisel hardware description language and it is argued by the Chisel team to be the key of bringing software levels of productivity to hardware development~\cite{firrtl-spec}. Previous work introduced a formalized semantics for an idealized semantics of Firrtl in Agda~\cite{HarrisonHA21}. It captures hardware design and working pattern based on Mealy Machine and Device Calculus~\cite{Harrison20}.But they leave the formal semantics for all of Firrtl as future work.
+The motivation to make hardware design more like software has promoted dozens of researches.(add Hardware language researches?) The challenge of semantics specification of hardware design languages, like Verilog and VHDL, was outlined by Gordon and Kloos,respectively~\cite{Gordon95,Kloos1995FormalSF}. Braibant introduced a new library to model and verify hardware circuits in the Coq proof assistant~\cite{Braibant11}. He implemented a certified compiler for HDL called Fe-Si embedding~\cite{Braibant13}. A toolbox was implemented in Coq dedicated to the specification and verification of synchronous sequential devices, based on which researchers finished circuits certification in type theory~\cite{Coupet04}. Kami is another work on Coq library that enables expressive and modular reasoning for hardware designs~\cite{ChoiACM17}.To apply mechanization to High-assurance Hardware, calculus of secure hardware description with its formal semantics and security type system is constructed~\cite{Reynolds19}. Similar work is also implemented in Agda to define circuit descriptions that may be simulated, tested, verified and synthesized~\cite{FlorSS15}.}
+ 
