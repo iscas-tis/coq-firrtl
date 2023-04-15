@@ -54,9 +54,10 @@ circuit A :
 \label{fig:example}
 \end{figure}
 
-A FIRRTL \emph{circuit} comprises a list of modules with a designated top-level module, each of which represents a hardware block that can
-be instantiated. For instance, the FIRRTL circuit shown in Figure~\ref{fig:example} has two modules \prettyll{A} and \prettyll{B},
-where the top-level module of the circuit is module \prettyll{A}.
+A FIRRTL \emph{circuit} comprises a list of modules with a designated top-level module that has the same identifier as the circuit.
+Each module represents a hardware block that can
+be instantiated one or more times. For instance, the FIRRTL circuit \prettyll{A} shown in Figure~\ref{fig:example} has two modules \prettyll{A} and \prettyll{B},
+where the top-level module of the circuit is the module \prettyll{A}.
 A \emph{module} consists of a set of ports and a sequence of statements.
 Each port has an identifier, a direction (either \prettyll{input} or \prettyll{output}), and a data type.
 For instance, the module \prettyll{A} has two input ports \prettyll{clk} and \prettyll{rst} and one output port \prettyll{io}, with
@@ -66,12 +67,13 @@ A \emph{type} for specifying the structure of the data can be either a \emph{gro
 or an \emph{aggregate type}, which is either a \emph{vector type,} e.g. \prettyll{UInt[3]} (a three-element vector of unsigned integers),
 or a \emph{bundle type,} e.g. \prettyll{\{flip enable: UInt<1>, calc: UInt<3>\}} comprising two signals of the ground types \prettyll{UInt<1>} and \prettyll{UInt<3>} respectively.
 A circuit \emph{component} is a declared element in a FIRRTL circuit that can be referred to by its name or identifier.
-Therefore, a component can be a port, node, wire, register, or instance.
-\zhilin{component: a double check is needed}
-\david{Double checked: ``component'' is not directly declared in the FIRRTL specification,
-but it mostly speaks of ``declared component'', so it needs to be declared;
-components can be connected to (or from, in the case of module input ports and memory read ports).
-The only kind of component that is missing from the above list is the memory.}
+Therefore, a component can be a port, node, wire, register, memory, or instance.
+A declared component can be connected to or from except for input ports that can only be connected from.
+%\zhilin{component: a double check is needed}
+%\david{Double checked: ``component'' is not directly declared in the FIRRTL specification,
+%but it mostly speaks of ``declared component'', so it needs to be declared;
+%components can be connected to (or from, in the case of module input ports and memory read ports).
+%The only kind of component that is missing from the above list is the memory.}
 
 \begin{comment}
 A FIRRTL \emph{circuit} comprises modules, each of which include several ports and statements. A circuit must specify the name of the (unique) top-level module.
@@ -85,8 +87,8 @@ Each \emph{statement} defines a wire, register, node, connect (<=), partial conn
 A \emph{type} can be either a \emph{ground type}, e.g. \begin{lstinline}!UInt<1>!\end{lstinline} (unsigned integer of bit width 1), or an \emph{aggregate type}, which is either a \emph{vector type}, e.g. \begin{lstinline}!UInt[3]!\end{lstinline} (a three element vector of unsigned integers), or a \emph{bundle type} e.g \begin{lstinline}! {flip enable: UInt<1>, calc: UInt<3>} !\end{lstinline} which comprises two signals of the ground types  \begin{lstinline}!UInt<1>!\end{lstinline} and  \begin{lstinline}!UInt<3>!\end{lstinline} respectively. A circuit \emph{component} is an element in a FIRRTL circuit that can be referred to by its name or identifier. Therefore, a component can be a port, node, wire, register, or instance, and so on. \zhilin{component: a double check is needed}
 \end{comment}
 
-The syntactic rules of FIRRTL are given in Figure~\ref{fig-firrtl-synt-simp} in Extended Backus-Naur Form (EBNF), where \{$\cdots$\} denotes repetition \fu{(zero or more times)}
-and [$\cdots$] denotes option (\fu{either included or discarded}), moreover, the terminals are doubly quoted \mbox{\tt ``} and \mbox{\tt ''}. We stress that the syntactic rules of FIRRTL presented here is a simplification of those in the official specification\footnote{\url{https://github.com/chipsalliance/firrtl-spec/blob/main/spec.md}}.
+The syntactic rules of FIRRTL are given in Figure~\ref{fig-firrtl-synt-simp} in Extended Backus-Naur Form (EBNF), where \{$\cdots$\} denotes repetition (repeating one or more times)
+and [$\cdots$] denotes option (either included or discarded), moreover, the terminals are doubly quoted by \mbox{\tt ``} and \mbox{\tt ''}. We stress that the syntactic rules of FIRRTL presented here is a simplification of those in the official specification\footnote{\url{https://github.com/chipsalliance/firrtl-spec/blob/main/spec.md}}.
 For instance, indent, dedent and newline terminals are omitted for readability;
 moreover, the types and constructs for analog signals are also omitted, since we focus on digital circuits in this work.
 In the syntax, memory is also omitted since its semantics is still under active debate.\footnote{\url{https://github.com/chipsalliance/chisel/issues/3112}}
@@ -103,7 +105,7 @@ In the syntax, memory is also omitted since its semantics is still under active 
 
 
 \begin{figure}[htbp]
-{\footnotesize
+{\small %\footnotesize
 \[
 \begin{array}{l l l}
 %\mbox{\bf Circuit} &
@@ -150,8 +152,8 @@ p & ::= & (\mbox{\tt ``\fnprettyll{input}''} \mid \mbox{\tt ``\fnprettyll{output
 %ruw & = & \mbox{``old''} \mid \mbox{``new''} \mid \mbox{``undefined''};\\
 %
 %\mbox{\bf Expression} &
-  e & ::= & (\mbox{\tt ``\fnprettyll{UInt}''} | \mbox{\tt ``\fnprettyll{SInt}''}) [w] \mbox{\tt ``(''}int\mbox{\tt ``)''} \mid r \mid \mbox{\tt ``\fnprettyll{mux}(''}e\mbox{\tt ``,''} e\mbox{\tt ``,''} e\mbox{\tt ``)''}
-  \mid \mbox{\tt ``\fnprettyll{validif}(''}e\mbox{\tt ``,''} e\mbox{\tt ``)''}
+  e & ::= & (\mbox{\tt ``\fnprettyll{UInt}''} | \mbox{\tt ``\fnprettyll{SInt}''}) [w] \mbox{\tt ``(''}int\mbox{\tt ``)''} \mid r \mid \mbox{\tt ``\fnprettyll{mux}(''}e\mbox{\tt ``,''} e\mbox{\tt ``,''} e\mbox{\tt ``)''}\\
+    &     &  \mid \mbox{\tt ``\fnprettyll{validif}(''}e\mbox{\tt ``,''} e\mbox{\tt ``)''}
         \mid \mbox{\tt ``\textcolor{blue}{read}(''}sr \mbox{\tt ``)''} \mid op\\
 %
 %&
@@ -188,9 +190,9 @@ op & ::= & op\_2e \mid op\_1e \mid op\_1e1i \mid op\_1e2i \\
 op\_2e & ::= & op\_2e\_key \mbox{\tt ``(''}  e \mbox{\tt ``,''}  e \mbox{\tt ``)''} \\
 %
 %&
-op\_2e\_key & ::= &  \mbox{\tt ``\fnprettyll{add}''}  \mid  \mbox{\tt ``\fnprettyll{sub}''}  \mid \mbox{\tt ``\fnprettyll{mul}''} \mid \mbox{\tt ``\fnprettyll{div}''} \mid \mbox{\tt ``\fnprettyll{mod}''} \mid \mbox{\tt ``\fnprettyll{lt}''} \mid \mbox{\tt ``\fnprettyll{leq}''} \mid \mbox{\tt ``\fnprettyll{gt}''} \mid \mbox{\tt ``\fnprettyll{geq}''} \mid \mbox{\tt ``\fnprettyll{eq}''} \mid \mbox{\tt ``\fnprettyll{neq}''} \\
+op\_2e\_key & ::= &  \mbox{\tt ``\fnprettyll{add}''}  \mid  \mbox{\tt ``\fnprettyll{sub}''}  \mid \mbox{\tt ``\fnprettyll{mul}''} \mid \mbox{\tt ``\fnprettyll{div}''} \mid \mbox{\tt ``\fnprettyll{mod}''} \mid \mbox{\tt ``\fnprettyll{lt}''} \mid \mbox{\tt ``\fnprettyll{leq}''} \mid \mbox{\tt ``\fnprettyll{gt}''} \mid \mbox{\tt ``\fnprettyll{geq}''}\\
 %&
-& &   \mid \mbox{\tt ``\fnprettyll{dshl}''}  \mid \mbox{\tt ``\fnprettyll{dshr}''} \mid \mbox{\tt ``\fnprettyll{and}''} \mid \mbox{\tt ``\fnprettyll{or}''} \mid \mbox{\tt ``\fnprettyll{xor}''} \mid \mbox{\tt ``\fnprettyll{cat}''} \\
+& &   \mid \mbox{\tt ``\fnprettyll{eq}''} \mid \mbox{\tt ``\fnprettyll{neq}''}  \mid \mbox{\tt ``\fnprettyll{dshl}''}  \mid \mbox{\tt ``\fnprettyll{dshr}''} \mid \mbox{\tt ``\fnprettyll{and}''} \mid \mbox{\tt ``\fnprettyll{or}''} \mid \mbox{\tt ``\fnprettyll{xor}''} \mid \mbox{\tt ``\fnprettyll{cat}''} \\
  %
 %&
 op\_1e & ::= & op\_1e\_key \mbox{\tt ``(''}  e \mbox{\tt ``)''} \\
@@ -206,8 +208,8 @@ op\_1e2i & ::= & op\_1e2i\_key \mbox{\tt ``(''}  e \mbox{\tt ``,''}  int  \mbox{
 %&
 op\_1e2i\_key & ::= & \mbox{\tt ``\fnprettyll{bits}''}\\
 %
-int & ::= & [\mbox{\tt ``-''}] d \{d\} \mid \mbox{\tt ``"b''} [\mbox{\tt ``-''}] d\_b \{d\_b\} \mbox{\tt ``"''}
- \mid \mbox{\tt ``"o''} [\mbox{\tt ``-''}] d\_o \{d\_o\} \mbox{\tt ``"''} \mid
+int & ::= & [\mbox{\tt ``-''}] d \{d\} \mid \mbox{\tt ``"b''} [\mbox{\tt ``-''}] d\_b \{d\_b\} \mbox{\tt ``"''} \\
+& & \mid \mbox{\tt ``"o''} [\mbox{\tt ``-''}] d\_o \{d\_o\} \mbox{\tt ``"''} \mid
 \mbox{\tt ``"h''} [\mbox{\tt ``-''}] d\_h \{d\_h\} \mbox{\tt ``"''} \\
 %
 %d & ::= &\mbox{\tt ``0''} \mid  \mbox{\tt  ``1''}\mid \mbox{\tt ``2''} \mid\mbox{\tt ``3''} \mid  \mbox{\tt  ``4''}\mid \mbox{\tt ``5''} \mid\mbox{\tt ``6''} \mid  \mbox{\tt  ``7''}\mid \mbox{\tt ``8''} \mid\mbox{\tt ``9''} \\
@@ -360,21 +362,21 @@ This form is given the name lowered FIRRTL (abbreviated as LoFIRRTL) and is a st
 For clarity, the original form is called high FIRRTL (HiFIRRTL).
 Besides LoFIRRTL, there is another lowered form of FIRRTL, called MidFIRRTL, which resides between HiFIRRTL and LoFIRRTL.
 Nevertheless, in this work, we do not introduce MidFIRRTL,
-since it can be seen as an internal representation of FIRRTL that does not interface with the other parts of the Chisel toolchain.
+since it can be seen as an internal representation of a FIRRTL compiler that does not interface with the other parts of the Chisel toolchain.
 
 
 A FIRRTL circuit is a LoFIRRTL circuit if it obeys the following restrictions:
 \begin{itemize}
 \item All widths are explicitly defined.
-\item The conditional statement is not used.
+\item No conditional statements (\prettyll{when}) are used.
 \item All circuit components are declared with a ground type.
-\item The partial connect statement is not used.
-\item All components are connected to at most once.
+\item No partial connect statements (\prettyll{<-}) are used.
+\item Each component is connected to at most once.
 \end{itemize}
 More precisely, a LoFIRRTL circuit is a FIRRTL circuit that is defined by the syntactic rules in Figure~\ref{fig-lofirrtl-synt}
 and satisfies that in each module, each component is connected to at most once.
 \begin{figure}[htbp]
-{\footnotesize
+{\small
 \[
 \begin{array}{l l l}
  s & ::= & \mbox{\tt ``\fnprettyll{wire}''}\ id\mbox{\tt ``:''}t  \mid \mbox{\tt ``\fnprettyll{reg}''}\ id\mbox{\tt ``:''}t\ e [\mbox{\tt ``(\fnprettyll{with}:\{\fnprettyll{reset}=>(''} e\mbox{\tt ``,''} e \mbox{\tt ``)\})''}] \\
@@ -384,8 +386,8 @@ and satisfies that in each module, each component is connected to at most once.
   \mbox{\tt ``\fnprettyll{inst}''}\ id\ \mbox{\tt ``\fnprettyll{of}''}\ id \mid \mbox{\tt ``\fnprettyll{node}''}\ id \mbox{\tt ``=''} id  \mid r \mbox{\tt ``<=''} e  \mid r\ \mbox{\tt ``\fnprettyll{is invalid}''}\mid \mbox{\tt ``\fnprettyll{skip}''}\\
 %
 %\mbox{\bf Expression} &
-e & ::= & (\mbox{\tt ``\fnprettyll{UInt}''} | \mbox{\tt ``\fnprettyll{SInt}''})\ w \mbox{\tt ``(''}int\mbox{\tt ``)''} \mid r \mid \mbox{\tt ``\fnprettyll{mux}(''}e\mbox{\tt ``,''} e\mbox{\tt ``,''} e\mbox{\tt ``)''}
-  \mid \mbox{\tt ``\fnprettyll{validif}(''}e\mbox{\tt ``,''} e\mbox{\tt ``)''} \mid \mbox{\tt ``\textcolor{blue}{read}(''}sr \mbox{\tt ``)''} \mid op\\
+e & ::= & (\mbox{\tt ``\fnprettyll{UInt}''} | \mbox{\tt ``\fnprettyll{SInt}''})\ w \mbox{\tt ``(''}int\mbox{\tt ``)''} \mid r \mid \mbox{\tt ``\fnprettyll{mux}(''}e\mbox{\tt ``,''} e\mbox{\tt ``,''} e\mbox{\tt ``)''}\\ 
+ &  & \mid \mbox{\tt ``\fnprettyll{validif}(''}e\mbox{\tt ``,''} e\mbox{\tt ``)''} \mid \mbox{\tt ``\textcolor{blue}{read}(''}sr \mbox{\tt ``)''} \mid op\\
 %
 %&
 r & ::= & sr \mid r \mbox{\tt ``[''} e \mbox{\tt ``]''}\\
@@ -422,7 +424,7 @@ t & ::= & tg \\
 %
 Note that in Figure~\ref{fig-lofirrtl-synt}, the rules for $f$, $id$, $op$ are the same as those in Figure~\ref{fig-firrtl-synt-simp}, thus omitted to avoid tediousness.
 In a nutshell, the syntactic rules in Figure~\ref{fig-lofirrtl-synt} are obtained from those in Figure~\ref{fig-firrtl-synt-simp} by replacing $[w]$ with $w$ (so that the width becomes mandatory),
-removing the when statement and the partial connect statement from the rule for $s$,
+removing the \prettyll{when} statement and the partial connect statement (\prettyll{<-}) from the rule for $s$,
 and removing the rule for aggregate types $ta$.
 %
 The requirement that each component is connected to at most once
@@ -430,7 +432,7 @@ gives LoFIRRTL a flavor similar to static single-assignment (SSA) form of softwa
 Programs in SSA form are those where each variable is assigned at most once and each variable is defined before it is used.
 For instance, the program in Figure~\ref{fig-lofirrtl-exmp}(a) is a LoFIRRTL program,
 while the program in Figure~\ref{fig-lofirrtl-exmp}(b) is not,
-since \begin{lstinline}!myport1!\end{lstinline} is connected twice.
+since the output port \prettyll{myport1} is connected to twice from the input ports \prettyll{a} and \prettyll{b}, respectively.
 \begin{figure}[htbp]
 \centering
 \begin{subfigure}[b]{0.4\textwidth}
@@ -478,7 +480,7 @@ In the sequel, we give an informal introduction to the lowering transformations 
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width = 0.5\textwidth]{firrtl-compilation-passes.jpg}
+\includegraphics[width = 0.65\textwidth]{firrtl-compilation-passes}
 \caption{Dependencies between FIRRTL compilation passes}
 \label{fig-c-pass}
 \end{figure}
