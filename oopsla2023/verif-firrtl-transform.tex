@@ -7,11 +7,6 @@ we first present the specifications of the ExpandConnects and ExpandWhens passes
 then prove their correctness, namely, the Coq implementations conform to their specifications.
 
 
-The correctness proof for the ExpandWhens pass compares the Coq implementation with (a formalization of) the output specified above.
-It requires a mutual induction over statements and statement sequences
-because the \lstinline~when~ statement contains two statement sequences,
-but the proof is more long than complicated. \fu{May move into the next subsection}
-
 \subsection{Correctness of ExpandConnects}
 
 \input{verif-firrtl-transform-expandconnects}
