@@ -19,7 +19,7 @@ In the sequel, we utilize the concept of circuit diagrams to illustrate how the 
 
 %A description of the formalization of InferTypes, InferWidths, InferResets, ExpandConnects, ExpandWhens, LowerTypes, and RemoveResets. 
 
-\subsubsection{Formalization of InferTypes}
+\subsection{Formalization of InferTypes}
 %Initially, the component environment $ce$ of a circuit diagram $D_M$
 %is empty.  The Infer Types pass is then applied to fill $ce$ with
 %all the components that are defined in the statement sequence $ss$,
@@ -64,7 +64,7 @@ After {\tt infer\_type} has been applied to all the statements in $ss$, if the b
 %After applying the Infer Types pass, types with an
 %implicitly defined width are assigned with 0 in $ce$.
 
-\subsubsection{Formalization of InferWidths}
+\subsection{Formalization of InferWidths}
 %The bit widths of some components may still be missing after applying {\tt infer\_type} to all the statements in $ss$.
 We formalize the ``InferWidths'' pass by defining a Coq function {\tt infer\_width}, which iterates over the statements in $ss$ and updates $ce$, so that the bit widths of all the components with undefined bit widths can be determined. 
 %Note that after applying {\tt infer\_type} to all the statements in $ss$, if the bit width of a component is nonzero, that is, a bit width is available in its declaration statement, then its bit width will \emph{not} be changed by  {\tt infer\_width}.
@@ -174,7 +174,7 @@ manipulated more efficiently.
 %% Now, wire $c$ has the width as same as $d$, which is 14. The latter connection
 %% from d gives a larger width to the destination $c$. 
 
-\subsubsection{Formalization of InferResets}
+\subsection{Formalization of InferResets}
 We formalize the ``InferResets'' pass by defining a Coq function {\tt infer\_reset}, which iterates over the statements in $ss$ and updates $ce$, so that the concrete reset types of all abstract reset signals can be inferred. 
 %Note that after applying {\tt infer\_type} to all the statements in $ss$, if the bit width of a component is nonzero, that is, a bit width is available in its declaration statement, then its bit width will \emph{not} be changed by  {\tt infer\_width}.
 The rationale behind {\tt infer\_reset} is stated as follows: After applying {\tt infer\_type} to all the statements in $ss$, for each component $x$ of  type \prettyll{Reset},
@@ -264,7 +264,7 @@ The resulting $ce$ contains the inferred concrete reset types.
 %%% the original texts written by xiaomu
 %%% the original texts written by xiaomu
 
-\subsubsection{Formalization of ExpandConnects}
+\subsection{Formalization of ExpandConnects}
 The ``ExpandConnects'' pass expands the connections between aggregate types into those between ground types. 
 We define two Coq functions {\tt expand\_expr} and {\tt expand\_cnct} that expand the expressions and the connect statements respectively. 
 The rationale behind {\tt expand\_expr} and {\tt expand\_cnct} is to break aggregate types in expressions and connect statements recursively into their fields. Note that {\tt expand\_cnct} expands both connect and partial connect statements. The function {\tt expand\_expr} and {\tt expand\_cnct} modify $ss$, instead of $ce$.
@@ -334,10 +334,6 @@ The function {\tt expand\_cnct} uses a function {\tt ls\_cnct} that combines the
 The function {\tt expand\_cnct} handles the \prettyll{is invalid} statements in the same way as connect statements. It produces from a \prettyll{is invalid} statement
  a list of \prettyll{is invalid} statements for its fields.
  
- \zhilin{stopped here}
-
-
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \hide{
@@ -432,7 +428,7 @@ initialize a register.
 %%   is replaced by 3 output ports of ground types.
 %% \end{description}
 
-\subsubsection{Formalization of ExpandWhens}
+\subsection{Formalization of ExpandWhens}
 This is the main pass that ensures that every component in a module is connected to at most once:
 it replaces connect statements within a branch of a \prettyll{when} statement by a single connect statement
 and it removes non-last (redundant) connect statements.
@@ -525,7 +521,7 @@ similar to the example in Subsection~\ref{subsec-lowering-transformations}.
 During this change back, if some component is assigned value {\tt not connected},
 an appropriate error message can be generated.
 
-\subsubsection{Formalization of LowerTypes}
+\subsection{Formalization of LowerTypes}
 The Lower Types pass is primarily aimed at transform aggregate types
 into ground types.  The pass replaces certain defined components with
 aggregate types by a new set of components defined with ground types.
