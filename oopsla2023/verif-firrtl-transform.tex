@@ -2,9 +2,10 @@
 
 %The proof of the functional correctness of ExpandConnects and ExpandWhens.
 
-In this section, 
-we first present the specifications of the ExpandConnects and ExpandWhens passes, 
-then prove their correctness, namely, the Coq implementations conform to their specifications.
+The goal of this section is to prove that the Coq implementations of two most involved lowering transformations ``ExpandConnects'' and ``ExpandWhens'' are functionally correct. Recall that these two transformations were implemented as two functions {\tt expand\_cnct} and {\tt expand\_branch} in Section~\ref{sec-hi-firrtl-transform}. In the sequel, we first specify the correctness properties that are supposed to be satisfied by the two functions. Then, we prove that they indeed satisfy these correctness properties. Note that different from the verification of software compilers, e.g. CompCert, we are not proving the semantic preservation of the compilation passes. This difference is attributed to the fact that it is hard, if not impossible, to define an executable semantics for HiFIRRTL, since some necessary information for the execution, e.g. bit widths of components, are still missing in HiFIRRTL programs. 
+
+%we first present the specifications of the ExpandConnects and ExpandWhens passes, 
+%then prove their correctness, namely, the Coq implementations conform to their specifications.
 
 
 \subsection{Correctness of ExpandConnects}
