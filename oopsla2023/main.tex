@@ -1,5 +1,5 @@
 %% For double-blind review submission, w/o CCS and ACM Reference (max submission space)
-\documentclass[acmsmall,review,anonymous]{acmart}\settopmatter{printfolios=true,printccs=false,printacmref=false}
+\documentclass[acmsmall,review,anonymous]{acmart}%\settopmatter{printfolios=true,printccs=false,printacmref=false}
 %% For double-blind review submission, w/ CCS and ACM Reference
 %\documentclass[acmsmall,review,anonymous]{acmart}\settopmatter{printfolios=true}
 %% For single-blind review submission, w/o CCS and ACM Reference (max submission space)
@@ -302,7 +302,7 @@ resulting in a most restricted form, called low FIRRTL.
 This paper presents Vefirrtl,
 a framework to formally reason about programs in FIRRTL and its lowering transformations.
 Vefirrtl provides a mechanized formal semantics for low FIRRTL,
-and formalizes the syntax of FIRRTL and its lowering transformations, all in 
+and formalizes the syntax of FIRRTL and its lowering transformations, all in
 the interactive theorem prover Coq.
 %Vefirrtl is built using the Coq interactive theorem prover.
 %It provides a mechanized formal semantics for low FIRRTL,
@@ -312,7 +312,7 @@ we extract from it an OCaml interpreter that can execute low FIRRTL programs,
 and empirically check its consistency against Treadle,
 the low FIRRTL reference interpreter,
 on a benchmark suite comprising 120 low FIRRTL programs.
-Experimental results show that our OCaml interpreter is 6.95 times faster than Treadle on average, and 
+Experimental results show that our OCaml interpreter is 6.95 times faster than Treadle on average, and
 produces the same outputs as Treadle for almost all the benchmarks
 except for one due to an undefined semantics in low FIRRTL.
 Furthermore, we specify and verify the functional correctness of two key lowering transformations,

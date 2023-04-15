@@ -10,9 +10,9 @@ and its lowering transformations.
 
 \subsection{FIRRTL IR}
 
-\zhilin{Can we find a running example ?}
+%\zhilin{Can we find a running example ?}
 
-Figure~\ref{fig:example} contains an example FIRRTL program.
+%Figure~\ref{fig:example} contains an example FIRRTL program.
 
 \begin{figure}[t]
 \centering
@@ -228,7 +228,7 @@ $d$ (resp. $d\_b$, $d\_o$ and $d\_h$) denotes a decimal (resp. binary, octal and
 }
 \caption{Syntax of FIRRTL}
 \label{fig-firrtl-synt-simp}
-\end{figure} 
+\end{figure}
 
 \begin{comment}
 \begin{figure}[htbp]
@@ -418,7 +418,7 @@ t & ::= & tg \\
 }
 \caption{Syntax of LoFIRRTL (Rules that are identical to those in Figure~\ref{fig-firrtl-synt-simp} are not repeated)}
 \label{fig-lofirrtl-synt}
-\end{figure} 
+\end{figure}
 %
 Note that in Figure~\ref{fig-lofirrtl-synt}, the rules for $f$, $id$, $op$ are the same as those in Figure~\ref{fig-firrtl-synt-simp}, thus omitted to avoid tediousness.
 In a nutshell, the syntactic rules in Figure~\ref{fig-lofirrtl-synt} are obtained from those in Figure~\ref{fig-firrtl-synt-simp} by replacing $[w]$ with $w$ (so that the width becomes mandatory),
@@ -474,9 +474,19 @@ module MyModule :
 
 In the sequel, we give an informal introduction to the lowering transformations (aka compilation passes) of  FIRRTL. The dependencies between these compilation passes are illustrated in Figure~\ref{fig-c-pass}.
 
+
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width = 0.5\textwidth]{firrtl-compilation-passes.jpg}
+\caption{Dependencies between FIRRTL compilation passes}
+\label{fig-c-pass}
+\end{figure}
+
+
 %% \paragraph*{ResolveKinds} xxx \zhilin{@Xiaomu, please write an introduction here.}
 
-\paragraph*{InferTypes} The InferTypes pass infers the types of components. For instance, InferTypes infers from the code snippet 
+\paragraph*{InferTypes} The InferTypes pass infers the types of components. For instance, InferTypes infers from the code snippet
 \prettyll{ wire x: UInt   x <= UInt<5>(15) x <= UInt<1>(1) } that $x$'s type is \prettyll{ UInt}. Note that for a connect statement   \prettyll{ x <= e}, InferTypes only checks that the type of $e$ is equivalent to that of $x$ (where the bit widths are ignored), but does not update the bit width of $x$ to that of $e$.
 
 \paragraph*{InferWidths}
@@ -607,12 +617,4 @@ is transformed into
     myreg <= mux(``h0'', init, in)
 \end{lstlisting}
 }
-
-
-\begin{figure}[htbp]
-\centering
-\includegraphics[width = 0.5\textwidth]{firrtl-compilation-passes.jpg}
-\caption{Dependencies between FIRRTL compilation passes}
-\label{fig-c-pass}
-\end{figure}
 
