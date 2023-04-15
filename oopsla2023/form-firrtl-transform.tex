@@ -458,7 +458,7 @@ The  {\tt expand\_branch} function are defined by the rules (\ref{rule-expandwhe
 \begin{gather}
     \label{rule-expandwhen-when}
     \inferii[]
-    {\seqq{{\tt expand\_branch}(ss ; \text{\prettyll{when c then} } ss^\mathsf{T} \text{ \prettyll{else} } ss^\mathsf{F}) =
+    {\seqq{{\tt expand\_branch}(ss ; \text{\prettyll{when c then} } ss^\mathsf{T} \text{ \prettyll{else} } ss^\mathsf{F}, cm_0) =
         (ss_\mathrm{dcl} ; ss_\mathrm{dcl}^\mathsf{T} ; ss_\mathrm{dcl}^\mathsf{F}, {\tt combine\_branches}(cm^\mathsf{T}, cm^\mathsf{F}))}}
     {\seqq{{\tt expand\_branch}(ss, cm_0) = (ss_\mathrm{dcl}, cm)}}
     {\begin{gathered}[b] \seqq{{\tt expand\_branch}(ss^\mathsf{T}, cm) = (ss_\mathrm{dcl}^\mathsf{T}, cm^\mathsf{T})} \\
