@@ -34,7 +34,7 @@ $s(sub(e_1, e_2)) = bv_{\theta \bwidth{\max(n_1,n_2)+1} (s(e_1) - s(e_2))}$,
 %
 \item $te(mod(e_1, e_2)) = \theta \bwidth{\min(n_1,n_2)}$ and $s(mod(e_1, e_2)) = bv_{\theta \bwidth{\min(n_1,n_2)} (s(e_1) \bmod s(e_2))}$,
 %
-\item $te(cp(e_1, e_2)) = \mbox{\prettyll{UInt}} \bwidth{1}$, moreover, $s(cp(e_1, e_2)) = 1$ iff $s(e_1)\ cp\ s(e_2)$, where $cp \in \{lt, leq, gt, geq, eq, neq\}$,
+\item $te(cp(e_1, e_2)) = \mbox{\prettyll{UInt}} \bwidth{1}$, moreover, $s(cp(e_1, e_2)) = 1$ iff $s(e_1)\ cp\ s(e_2)$, \\ where $cp \in \{lt, leq, gt, geq, eq, neq\}$,
 %
 \item $te(dshl(e_1, e_2)) = \theta \bwidth{n_1+2^{n_2}-1}$ and $s(dshl(e_1, e_2)) = bv_{\theta \bwidth{n_1+2^{n_2}-1}(s(e_1) \times 2^{s(e_2)})}$,
 %
