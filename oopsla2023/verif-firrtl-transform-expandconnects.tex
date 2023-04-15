@@ -20,23 +20,25 @@ For every connect statement $x <= e$ in $ss_{\rm cnct}$,
 $$
 \begin{array}{l c l}
 ce & \vdash & \mbox{\tt type\_equiv}(\mbox{\tt type\_of\_expr}(x), \mbox{\tt type\_of\_expr}(e)) \rightarrow \\
-& & \ \ {\tt expand\_type}({\tt type\_of\_expr}(x)) = {\tt expand\_type}({\tt type\_of\_expr}(e)).
+& & \ \ {\tt all2}(\mbox{\tt type\_equiv},{\tt expand\_type}({\tt type\_of\_expr}(x)),{\tt expand\_type}({\tt type\_of\_expr}(e))).
 \end{array}
 $$
+
 \end{lemma}
+In Lemma \ref{expand-expr-expand-type}, the ${\tt all2}$ function is used to check whether the predicate {\tt type\_equiv} is satisfied by every pairwise types in ${\tt expand\_type}({\tt type\_of\_expr}(x)))$ and ${\tt expand\_type}({\tt type\_of\_expr}(e)))$.
 
 \begin{lemma}\label{expand-expr-expand-expr-type}
 For every expression $e$, 
-$$ce \vdash {\tt fold}({\tt type\_of\_expr}, {\tt expand\_expr}(e)) = {\tt expand\_type}\,({\tt type\_of\_expr}(e)).$$
+$$ce \vdash {\tt map}({\tt type\_of\_expr}, {\tt expand\_expr}(e)) = {\tt expand\_type}\,({\tt type\_of\_expr}(e)).$$
 \end{lemma}
-Note that in Lemma~\ref{expand-expr-expand-expr-type}, the ${\tt fold}$ function is used to apply the function ${\tt type\_of\_expr}$ to every expression in ${\tt expand\_expr}(e)$ to produce a list of types. 
+Note that in Lemma~\ref{expand-expr-expand-expr-type}, the ${\tt map}$ function is used to apply the function ${\tt type\_of\_expr}$ to every expression in ${\tt expand\_expr}(e)$ to produce a list of types. 
 
 Finally, $ce \vdash \mbox{\tt all\_ground}(\mbox{\tt expand\_cnct}(ss_{\rm cnct}))$ can be proved by the following lemma. 
 \begin{lemma}\label{expand-expr-ground}
 For every expression $e$, 
-$$ce \vdash {\tt fold}({\tt ground}, {\tt expand\_type}({\tt type\_of\_expr}(e))).$$
+$$ce \vdash {\tt all}({\tt ground}, {\tt expand\_type}({\tt type\_of\_expr}(e))).$$
 \end{lemma}
-Note that in Lemma~\ref{expand-expr-ground}, the ${\tt fold}$ function is used to check whether the predicate {\tt ground} is satisfied by every type in ${\tt expand\_type}({\tt type\_of\_expr}(e)))$.
+Note that in Lemma~\ref{expand-expr-ground}, the ${\tt all}$ function is used to check whether the predicate {\tt ground} is satisfied by every type in ${\tt expand\_type}({\tt type\_of\_expr}(e)))$.
 
 
 %%%%%% original texts by xiaomu 
