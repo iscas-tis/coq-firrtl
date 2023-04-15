@@ -82,7 +82,7 @@ as well as specification and verification of the correctness of its lowering tra
 \smallskip
 \noindent
 {\bf Contributions.}
-In this work, we fill in this gap and establish a general framework for formally reasoning about programs in FIRRTL and its lowering transformations. Specifically, we make the following major contributions.
+In this work, we fill in this gap and establish a general framework called Vefirrtl for formally reasoning about programs in FIRRTL and its lowering transformations. Specifically, we make the following major contributions.
 \begin{itemize}
 \item Define an operational semantics for LoFIRRTL, mechanized in Coq. The operational semantics is based on a concept of pseudo-single-static-assignment (pseudo-SSA for short) form of LoFIRRTL programs. Pseudo-SSA form enables us to define the operational semantics of LoFIRRTL in a sequentially compositional way, much like those for software. Our formalization covers generic features of LoFIRRTL for digital circuits, but with memories excluded, since their precise semantics is still unclear and under active debate. To avoid the potential inconsistencies, we choose to omit them in this work and focus on the others whose semantics can be made clear. 
 %We introduce the concept of configurations to trace the execution of the operational semantics and to provide evidences for type safe executions.
@@ -98,7 +98,7 @@ The aforementioned six lowering transformations are believed to be the essential
 \item Specify and verify the functional correctness of the two most involved and impactful lowering transformations in Coq, namely ``ExpandConnects'' and ``ExpandWhens'', which  make dramatic changes to HiFIRRTL programs, e.g. creating new connect statements.
 %The verification ensures the functional correctness that these transformations preserve the behaviors of the original programs by taking the type equivalence and the (conditional) last connect semantics into account.
 \end{itemize}
-The establishment of a general framework for reasoning about programs in FIRRTL and its lowering transformations lays down a solid foundation towards a fully verified compiler for FIRRTL.
+The establishment of the Vefirrtl framework for reasoning about programs in FIRRTL and its lowering transformations lays down a solid foundation towards a fully verified compiler for FIRRTL.
 
 \smallskip
 \noindent
