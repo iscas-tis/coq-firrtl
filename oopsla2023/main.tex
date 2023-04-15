@@ -1,5 +1,5 @@
 %% For double-blind review submission, w/o CCS and ACM Reference (max submission space)
-\documentclass[acmsmall,review,anonymous]{acmart}\settopmatter{printfolios=true,printccs=false,printacmref=false}
+\documentclass[acmsmall,review,anonymous]{acmart}%\settopmatter{printfolios=true,printccs=false,printacmref=false}
 %% For double-blind review submission, w/ CCS and ACM Reference
 %\documentclass[acmsmall,review,anonymous]{acmart}\settopmatter{printfolios=true}
 %% For single-blind review submission, w/o CCS and ACM Reference (max submission space)
@@ -138,7 +138,7 @@
    language=Firrtl,
    backgroundcolor=\color{white},
    extendedchars=true,
-   basicstyle=\footnotesize\ttfamily,
+   basicstyle=\small\ttfamily,
    showstringspaces=false,
    showspaces=false,
    numbers=left,
@@ -154,7 +154,7 @@
 
 
 \newcommand{\prettyll}[1]{\begin{lstinline}[basicstyle=\small\ttfamily]! #1 !\end{lstinline}}
-\newcommand{\fnprettyll}[1]{\begin{lstinline}[basicstyle=\footnotesize\ttfamily]! #1 !\end{lstinline}}
+\newcommand{\fnprettyll}[1]{\begin{lstinline}[basicstyle=\small\ttfamily]! #1 !\end{lstinline}}
 
 %\newif\ifdraft\drafttrue
 \newif\ifdraft\drafttrue
@@ -302,7 +302,7 @@ resulting in a most restricted form, called low FIRRTL.
 This paper presents Vefirrtl,
 a framework to formally reason about programs in FIRRTL and its lowering transformations.
 Vefirrtl provides a mechanized formal semantics for low FIRRTL,
-and formalizes the syntax of FIRRTL and its lowering transformations, all in 
+and formalizes the syntax of FIRRTL and its lowering transformations, all in
 the interactive theorem prover Coq.
 %Vefirrtl is built using the Coq interactive theorem prover.
 %It provides a mechanized formal semantics for low FIRRTL,
@@ -312,7 +312,7 @@ we extract from it an OCaml interpreter that can execute low FIRRTL programs,
 and empirically check its consistency against Treadle,
 the low FIRRTL reference interpreter,
 on a benchmark suite comprising 120 low FIRRTL programs.
-Experimental results show that our OCaml interpreter is 6.95 times faster than Treadle on average, and 
+Experimental results show that our OCaml interpreter is 6.95 times faster than Treadle on average, and
 produces the same outputs as Treadle for almost all the benchmarks
 except for one due to an undefined semantics in low FIRRTL.
 Furthermore, we specify and verify the functional correctness of two key lowering transformations,
@@ -328,33 +328,33 @@ and replaces conditional statements with multiplexers, respectively.
 %%
 \begin{CCSXML}
 <ccs2012>
- <concept>
-  <concept_id>10010520.10010553.10010562</concept_id>
-  <concept_desc>Computer systems organization~Embedded systems</concept_desc>
-  <concept_significance>500</concept_significance>
- </concept>
- <concept>
-  <concept_id>10010520.10010575.10010755</concept_id>
-  <concept_desc>Computer systems organization~Redundancy</concept_desc>
-  <concept_significance>300</concept_significance>
- </concept>
- <concept>
-  <concept_id>10010520.10010553.10010554</concept_id>
-  <concept_desc>Computer systems organization~Robotics</concept_desc>
-  <concept_significance>100</concept_significance>
- </concept>
- <concept>
-  <concept_id>10003033.10003083.10003095</concept_id>
-  <concept_desc>Networks~Network reliability</concept_desc>
-  <concept_significance>100</concept_significance>
- </concept>
-</ccs2012>
+   <concept>
+       <concept_id>10010583.10010682.10010689</concept_id>
+       <concept_desc>Hardware~Hardware description languages and compilation</concept_desc>
+       <concept_significance>500</concept_significance>
+       </concept>
+   <concept>
+       <concept_id>10010583.10010682.10010712.10010715</concept_id>
+       <concept_desc>Hardware~Software tools for EDA</concept_desc>
+       <concept_significance>500</concept_significance>
+       </concept>
+   <concept>
+       <concept_id>10003752.10003790.10002990</concept_id>
+       <concept_desc>Theory of computation~Logic and verification</concept_desc>
+       <concept_significance>500</concept_significance>
+       </concept>
+   <concept>
+       <concept_id>10003752.10010124</concept_id>
+       <concept_desc>Theory of computation~Semantics and reasoning</concept_desc>
+       <concept_significance>500</concept_significance>
+       </concept>
+ </ccs2012>
 \end{CCSXML}
 
-\ccsdesc[500]{Computer systems organization~Embedded systems}
-\ccsdesc[300]{Computer systems organization~Redundancy}
-\ccsdesc{Computer systems organization~Robotics}
-\ccsdesc[100]{Networks~Network reliability}
+\ccsdesc[500]{Hardware~Hardware description languages and compilation}
+\ccsdesc[500]{Hardware~Software tools for EDA}
+\ccsdesc[500]{Theory of computation~Logic and verification}
+\ccsdesc[500]{Theory of computation~Semantics and reasoning}
 
 %%
 %% Keywords. The author(s) should pick words that accurately describe
