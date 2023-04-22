@@ -2208,7 +2208,11 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
                  end)
     | Snode v e => well_typed_fexpr e te
     | Sfcnct e1 e => match e1 with
-                    | Eref v => (sizeof_fgtyp (TE.vtyp v te) == sizeof_fgtyp (type_of_fexpr e te)) && well_typed_fexpr e te
+                    | Eref v => match (TE.vtyp v te) with
+                                | Fuint w => well_typed_fexpr e te && (w >= (sizeof_fgtyp (type_of_fexpr e te)))
+                                | Fsint w => well_typed_fexpr e te && (w >= (sizeof_fgtyp (type_of_fexpr e te)))
+                                | _ => false
+                                end
                     | _ => false
                     end
     | _ => true
@@ -2316,9 +2320,19 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
     (*| Smem m => (rs, s) 
     | Sinst _ => (rs, s) *)
     | Snode v e => (rs, SV.upd v (no_mem_eval_fexpr e s te) s)
-    | Sfcnct (Eref v) e2 => if SV.acc v rs == [::]
-                            then (rs, SV.upd v (no_mem_eval_fexpr e2 s te) s)
-                            else (SV.upd v (no_mem_eval_fexpr e2 s te) rs, s)
+    | Sfcnct (Eref v) e2 => let newv := no_mem_eval_fexpr e2 s te in
+                            let len0 := size newv in
+                            match (TE.vtyp v te) with
+                            | Fuint w => 
+                                      if SV.acc v rs == [::]
+                                      then (rs, SV.upd v (zext (w - len0) newv) s)
+                                      else (SV.upd v (zext (w - len0) newv) rs, s)
+                            | Fsint w => 
+                                      if SV.acc v rs == [::]
+                                      then (rs, SV.upd v (sext (w - len0) newv) s)
+                                      else (SV.upd v (sext (w - len0) newv) rs, s)
+                            | _ => (rs,s)
+                            end
     | Sinvalid v =>
       let tv := TE.vtyp v te in
       (rs, SV.upd v (zeros (sizeof_fgtyp tv)) s)
@@ -2328,9 +2342,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
   Fixpoint no_mem_eval_fstmt (st : fstmt) (rs : vstate) (s : vstate) (te : TE.env) 
     (finstoutl : seq var) (finstoutm : maptuple) (ffmodsmap : mapfstmt) (fterss : mapterss) (finstin : mapls) (finstinmap : mvar) (finstoutmap : mapvar) 
     (allfinstoutl : mapls) (allfinstoutm : mmaptuple) (allfinstportmap : mmapvar) iternum : vstate * vstate * mapterss :=
-    let te1 := upd_typenv_fstmt st te s in 
     match iternum with
-    | 0 => let '(rs0,s0) := no_mem_eval_noninst_fstmt st rs s te1 in (rs0,s0,fterss)
+    | 0 => let '(rs0,s0) := no_mem_eval_noninst_fstmt st rs s te in (rs0,s0,fterss)
     | S iternum0 =>
       (match st with
           | Sfcnct (Eref v) e2 => let newv := ( match e2 with 
@@ -2370,8 +2383,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
                                                                                                           end)
                                                                   end)
                                                       end)                          
-                                          else (no_mem_eval_fexpr e2 s te1)
-                              | _ => (no_mem_eval_fexpr e2 s te1)
+                                          else (no_mem_eval_fexpr e2 s te)
+                              | _ => (no_mem_eval_fexpr e2 s te)
                               end) in
                               if SV.acc v rs == [::]
                                 then (rs, SV.upd v newv s, fterss)
@@ -2388,10 +2401,9 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
                                                                                                   | Some updfinstin =>
                                                                                       (let s1 := upd_inner s s0 a2 updfinstin in
                                                                                        (* evaluate inner module *)
-                                                                                              let finstoutl0 := (match TE.find (imid inst) allfinstoutl with
-                                                                                              | None =>  nil
-                                                                                              | Some a => a 
-                                                                                              end) in
+                                                                                              match TE.find (imid inst) allfinstoutl with
+                                                                                              | None => (rs,s,fterss)
+                                                                                              | Some finstoutl0 => 
                                                                                                 match TE.find (imid inst) allfinstoutm with
                                                                                                 | None =>  (rs,s,fterss)
                                                                                                 | Some a => let finstoutm0 := a in
@@ -2401,15 +2413,26 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
                                                                                                       let '(rs2, s2, fterss2) := 
                                                                                                       List.fold_left (fun '(trs, ts, tfterss) tempst => no_mem_eval_fstmt tempst trs ts te0 finstoutl0 finstoutm0 ffmodsmap tfterss finstin finstinmap0 finstoutmap0 allfinstoutl allfinstoutm allfinstportmap iternum0) (rev mst) (rs0, s1, fterss) in
                                                                                                       (rs, s, TE.add v (te0,rs2,s2,mem0) fterss2)
+                                                                                                  end
                                                                                                 end
-                                                                                                end)
                                                                                               end)
+                                                                                                  end)
                                                                                       end)
                                           end)
                               end
-            | _ => let '(rs0,s0) := no_mem_eval_noninst_fstmt st rs s te1 in (rs0,s0,fterss)
+            | _ => let '(rs0,s0) := no_mem_eval_noninst_fstmt st rs s te in (rs0,s0,fterss)
       end)
       end.  
+
+  Definition no_mem_upd_typenv_fstmt (s : fstmt) (te : TE.env) : TE.env :=
+    match s with
+    | Swire v t  => TE.add v t te
+    | Sreg r => TE.add (rid r) (type r) te
+    | Snode v e => TE.add v (type_of_fexpr e te) te
+    | Sinst inst => upd_typenv_fports (iports inst) te
+    | Sinvalid v => TE.add v (TE.vtyp v te) te
+    | _ => te
+    end.
   
   (* conform lemmas *)
   Lemma conform_eval_swire_upd_env rs1 s1 rs2 s2 te v t :
@@ -2426,7 +2449,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
     done.
   Qed.
 
-  Lemma conform_eval_reg_upd_env rs1 s1 rs2 s2 te r : (* rst e1 e2 对e2有前提？ *)
+  Lemma conform_eval_reg_upd_env rs1 s1 rs2 s2 te r : 
     SV.conform s1 te ->
     SV.conform rs1 te ->
     TE.vtyp (rid r) te = (type r) -> 
@@ -4197,11 +4220,13 @@ Qed.
         simpl.
         reflexivity.
         rewrite leqnn //.
-        admit.
+        rewrite -Nats.expn_pow Nats.expn2_gt0 //.
+        rewrite -Nats.expn_pow.
         apply ltnSE.
         rewrite subn1 Nat.succ_pred.
-        (* rewrite to_nat_bounded. *)
-        admit.
+        rewrite to_nat_bounded //.
+        rewrite Nats.expn_pow.
+        apply Nat.pow_nonzero.
         admit.
         reflexivity.
         reflexivity.
@@ -4261,11 +4286,14 @@ Qed.
         simpl.
         reflexivity.
         rewrite leqnn //.
-        admit.
+        rewrite -Nats.expn_pow Nats.expn2_gt0 //.
+        rewrite -Nats.expn_pow.
         apply ltnSE.
         rewrite subn1 Nat.succ_pred.
+        rewrite to_nat_bounded //.
+        rewrite Nats.expn_pow.
+        apply Nat.pow_nonzero.
         (* rewrite to_nat_bounded. *)
-        admit.
         admit.
         reflexivity.
         reflexivity.
@@ -5025,12 +5053,6353 @@ Qed.
     exact Hcf.
   Admitted.
 
-  Lemma conform_eval_sfcnct_upd_env e : forall rs1 s1 te v ,
-    SV.conform s1 te ->
-    SV.conform rs1 te ->
-    well_formed_fstmt (Sfcnct v e) te ->
-    SV.conform (snd (no_mem_eval_noninst_fstmt (Sfcnct v e) rs1 s1 te)) (upd_typenv_fstmt (Sfcnct v e) te s1) /\
-    SV.conform (fst (no_mem_eval_noninst_fstmt (Sfcnct v e) rs1 s1 te)) (upd_typenv_fstmt (Sfcnct v e) te rs1).
+  Lemma typeof_eval_fexpr e : forall s1 te,
+  SV.conform s1 te ->
+  well_formed_fexpr e te ->
+  size (no_mem_eval_fexpr e s1 te) = sizeof_fgtyp (type_of_fexpr e te) .
+  Proof.
+    induction e.
+    - (* const *)
+      move => s1 te Hcf.
+      simpl.
+      case f;try by done.
+      move => n Hb.
+      rewrite /well_formed_fexpr in Hb.
+      move : Hb => /andP [/eqP Hb _].
+      rewrite size_zext Hb subnn addn0 //.
+      move => n Hb.
+      rewrite /well_formed_fexpr in Hb.
+      move : Hb => /andP [/eqP Hb _].
+      rewrite size_sext Hb subnn addn0 //.
+      move => /andP [/eqP Hb _].
+      symmetry.
+      exact Hb.
+      move => /andP [/eqP Hb _].
+      symmetry.
+      exact Hb.
+      move => /andP [/eqP Hb _].
+      symmetry.
+      exact Hb.
+    - (* cast *)
+      case Hu:u.
+      - (* asuint *)
+        move => s1 te Hcf Hwt.
+        simpl.
+        simpl in Hwt.
+        apply IHe with (s1:=s1) in Hwt.
+        exact Hwt.
+        exact Hcf.
+      - (* assint *)
+        move => s1 te Hcf Hwt.
+        simpl.
+        simpl in Hwt.
+        apply IHe with (s1:=s1) in Hwt.
+        exact Hwt.
+        exact Hcf.
+      - simpl.
+        reflexivity.
+        simpl.
+        reflexivity.
+        simpl.
+        reflexivity.
+    - (* unop *)
+      move => s1 te Hcf.
+      case e.
+        (* pad *)
+      - move => n Hwf.
+        rewrite /well_formed_fexpr in Hwf.
+        move : Hwf => /andP [Hwt Hid].
+        simpl in Hid.
+        simpl in Hwt.
+        case Ht:(type_of_fexpr e0 te) => [n0|n0|||].
+        rewrite Ht in Hwt.
+        simpl.
+        case Hn:(n < size (no_mem_eval_fexpr e0 s1 te)).
+        rewrite Ht.
+        apply IHe in Hcf.
+        rewrite Hcf in Hn.
+        rewrite Ht in Hn.
+        rewrite Hn -Ht //.
+        rewrite /well_formed_fexpr Hwt Hid //.
+        rewrite Ht.
+        apply IHe in Hcf.
+        rewrite Hcf in Hn.
+        rewrite Ht in Hn.
+        rewrite Hn size_zext Hcf Ht subnKC //.
+        apply contraFleq with (b:=(n < sizeof_fgtyp (Fuint n0))).
+        trivial.
+        exact Hn.
+        rewrite /well_formed_fexpr Hwt Hid //.
+        rewrite Ht in Hwt.
+        simpl.
+        case Hn:(n < size (no_mem_eval_fexpr e0 s1 te)).
+        rewrite Ht.
+        apply IHe in Hcf.
+        rewrite Hcf in Hn.
+        rewrite Ht in Hn.
+        rewrite Hn -Ht //.
+        rewrite /well_formed_fexpr Hwt Hid //.
+        rewrite Ht.
+        apply IHe in Hcf.
+        rewrite Hcf in Hn.
+        rewrite Ht in Hn.
+        rewrite Hn size_sext Hcf Ht subnKC //.
+        apply contraFleq with (b:=(n < sizeof_fgtyp (Fsint n0))).
+        trivial.
+        exact Hn.
+        rewrite /well_formed_fexpr Hwt Hid //.
+        rewrite Ht in Hwt.
+        discriminate.
+        rewrite Ht in Hwt.
+        discriminate.
+        rewrite Ht in Hwt.
+        discriminate.
+      - (* shl *)
+        move => n Hwf.
+        rewrite /well_formed_fexpr in Hwf.
+        move : Hwf => /andP [Hwt Hid].
+        simpl in Hid.
+        simpl in Hwt.
+        case Ht:(type_of_fexpr e0 te) => [n0|n0|||].
+        rewrite Ht in Hwt.
+        simpl.
+        rewrite Ht size_cat size_zeros.
+        apply IHe in Hcf.
+        rewrite Hcf Ht.
+        simpl.
+        rewrite addnC //.
+        rewrite /well_formed_fexpr Hwt Hid //.
+        rewrite Ht in Hwt.
+        simpl.
+        rewrite Ht size_cat size_zeros.
+        apply IHe in Hcf.
+        rewrite Hcf Ht.
+        simpl.
+        rewrite addnC //.
+        rewrite /well_formed_fexpr Hwt Hid //.
+        rewrite Ht in Hwt.
+        discriminate.
+        rewrite Ht in Hwt.
+        discriminate.
+        rewrite Ht in Hwt.
+        discriminate.
+      - (* shr *)
+        move => n Hwf.
+        rewrite /well_formed_fexpr in Hwf.
+        move : Hwf => /andP [Hwt Hid].
+        simpl in Hid.
+        simpl in Hwt.
+        case Ht:(type_of_fexpr e0 te) => [n0|n0|||].
+        rewrite Ht in Hwt.
+        simpl.
+        rewrite Ht.
+        case Hn : (n < size (no_mem_eval_fexpr e0 s1 te)).
+        rewrite size_high.
+        apply IHe in Hcf.
+        rewrite Hcf Ht in Hn.
+        simpl in Hn.
+        rewrite Hn.
+        rewrite Hcf Ht.
+        simpl.
+        reflexivity.
+        rewrite /well_formed_fexpr Hwt Hid //.
+        apply IHe in Hcf.
+        rewrite Hcf Ht in Hn.
+        simpl in Hn.
+        rewrite Hn.
+        simpl.
+        reflexivity.
+        rewrite /well_formed_fexpr Hwt Hid //.
+        rewrite Ht in Hwt.
+        simpl.
+        rewrite Ht.
+        case Hn : (n < size (no_mem_eval_fexpr e0 s1 te)).
+        rewrite size_high.
+        apply IHe in Hcf.
+        rewrite Hcf Ht in Hn.
+        simpl in Hn.
+        rewrite Hn.
+        rewrite Hcf Ht.
+        simpl.
+        reflexivity.
+        rewrite /well_formed_fexpr Hwt Hid //.
+        apply IHe in Hcf.
+        rewrite Hcf Ht in Hn.
+        simpl in Hn.
+        rewrite Hn.
+        simpl.
+        reflexivity.
+        rewrite /well_formed_fexpr Hwt Hid //.
+        rewrite Ht in Hwt.
+        discriminate.
+        rewrite Ht in Hwt.
+        discriminate.
+        rewrite Ht in Hwt.
+        discriminate.
+      - (* cvt *)
+        move => Hwf.
+        rewrite /well_formed_fexpr in Hwf.
+        move : Hwf => /andP [Hwt Hid].
+        simpl in Hid.
+        simpl in Hwt.
+        case Ht:(type_of_fexpr e0 te) => [n0|n0|||].
+        rewrite Ht in Hwt.
+        simpl.
+        rewrite Ht.
+        rewrite size_sext.
+        apply IHe in Hcf.
+        rewrite Hcf Ht.
+        simpl.
+        reflexivity.
+        rewrite /well_formed_fexpr Hwt Hid //.
+        rewrite Ht in Hwt.
+        simpl.
+        rewrite Ht.
+        apply IHe in Hcf.
+        rewrite Hcf Ht.
+        simpl.
+        reflexivity.
+        rewrite /well_formed_fexpr Hwt Hid //.
+        rewrite Ht in Hwt.
+        discriminate.
+        rewrite Ht in Hwt.
+        discriminate.
+        rewrite Ht in Hwt.
+        discriminate.
+      - (* neg *)
+        move => Hwf.
+        rewrite /well_formed_fexpr in Hwf.
+        move : Hwf => /andP [Hwt Hid].
+        simpl in Hid.
+        simpl in Hwt.
+        case Ht:(type_of_fexpr e0 te) => [n0|n0|||].
+        rewrite Ht in Hwt.
+        simpl.
+        rewrite Ht.
+        rewrite size_negB size_zext.
+        apply IHe in Hcf.
+        rewrite Hcf Ht.
+        simpl.
+        reflexivity.
+        rewrite /well_formed_fexpr Hwt Hid //.
+        rewrite Ht in Hwt.
+        simpl.
+        rewrite Ht.
+        rewrite size_negB size_sext.
+        apply IHe in Hcf.
+        rewrite Hcf Ht.
+        simpl.
+        reflexivity.
+        rewrite /well_formed_fexpr Hwt Hid //.
+        rewrite Ht in Hwt.
+        discriminate.
+        rewrite Ht in Hwt.
+        discriminate.
+        rewrite Ht in Hwt.
+        discriminate.
+      - (* not *)
+        move => Hwf.
+        rewrite /well_formed_fexpr in Hwf.
+        move : Hwf => /andP [Hwt Hid].
+        simpl in Hid.
+        simpl in Hwt.
+        case Ht:(type_of_fexpr e0 te) => [n0|n0|||].
+        rewrite Ht in Hwt.
+        simpl.
+        rewrite Ht.
+        rewrite size_invB.
+        apply IHe in Hcf.
+        rewrite Hcf Ht.
+        simpl.
+        reflexivity.
+        rewrite /well_formed_fexpr Hwt Hid //.
+        rewrite Ht in Hwt.
+        simpl.
+        rewrite Ht.
+        rewrite size_invB.
+        apply IHe in Hcf.
+        rewrite Hcf Ht.
+        simpl.
+        reflexivity.
+        rewrite /well_formed_fexpr Hwt Hid //.
+        rewrite Ht in Hwt.
+        discriminate.
+        rewrite Ht in Hwt.
+        discriminate.
+        rewrite Ht in Hwt.
+        discriminate.
+      - (* andr *)
+        move => Hwf.
+        simpl.
+        reflexivity.
+      - (* orr *)
+        move => Hwf.
+        simpl.
+        reflexivity.
+      - (* xorr *)
+        move => Hwf.
+        simpl.
+        reflexivity.
+      - (* extr *)
+        move => n n0 Hwf.
+        simpl.
+        rewrite size_extract.
+        reflexivity.
+      - (* head *)
+        move => n Hwf.
+        simpl.
+        rewrite size_high.
+        reflexivity.
+      - (* tail *)
+        move => n Hwf.
+        simpl.
+        rewrite size_low.
+        rewrite /well_formed_fexpr in Hwf.
+        move : Hwf => /andP [Hwt Hid].
+        simpl in Hid.
+        simpl in Hwt.
+        apply IHe in Hcf.
+        rewrite Hcf.
+        reflexivity.
+        rewrite /well_formed_fexpr Hwt Hid //.
+    - (* binop *)
+    move => s1 te Hcf.
+      case e1.
+        (* add *)
+      - move => Hwf.
+        rewrite /well_formed_fexpr in Hwf.
+        move : Hwf => /andP [Hwt Hid].
+        simpl in Hid.
+        simpl in Hwt.
+        move : Hid => /andP [Hid1 Hid2].
+        case Ht1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case Ht2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite Ht1 Ht2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        simpl.
+        rewrite Ht1 Ht2.
+        simpl.
+        rewrite size_addB_ext.
+        generalize Hcf.
+        apply IHe1 in Hcf.
+        rewrite Hcf Ht1.
+        move => Hcf0.
+        apply IHe2 in Hcf0.
+        rewrite Hcf0 Ht2.
+        simpl.
+        rewrite addn1 //.
+        rewrite /well_formed_fexpr Hwt2 Hid2 //.
+        rewrite /well_formed_fexpr Hwt1 Hid1 //.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        case Ht2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        simpl.
+        rewrite Ht1 Ht2.
+        simpl.
+        rewrite size_SadcB_ext.
+        generalize Hcf.
+        apply IHe1 in Hcf.
+        rewrite 2!size_sext Hcf Ht1.
+        move => Hcf0.
+        apply IHe2 in Hcf0.
+        rewrite Hcf0 Ht2.
+        simpl.
+        rewrite subnKC.
+        rewrite subnKC.
+        rewrite maxnn //.
+        rewrite leq_maxr //.
+        rewrite leq_maxl //.
+        rewrite /well_formed_fexpr Hwt2 Hid2 //.
+        rewrite /well_formed_fexpr Hwt1 Hid1 //.
+        generalize Hcf.
+        apply IHe1 in Hcf.
+        rewrite 2!size_sext Hcf Ht1.
+        move => Hcf0.
+        apply IHe2 in Hcf0.
+        rewrite Hcf0 Ht2.
+        simpl.
+        rewrite subnKC.
+        rewrite subnKC //.
+        rewrite leq_maxr //.
+        rewrite leq_maxl //.
+        rewrite /well_formed_fexpr Hwt2 Hid2 //.
+        rewrite /well_formed_fexpr Hwt1 Hid1 //.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 in Hwt.
+        discriminate.
+        rewrite Ht1 in Hwt.
+        discriminate.
+        rewrite Ht1 in Hwt.
+        discriminate.
+      (* sub *)
+      - move => Hwf.
+        rewrite /well_formed_fexpr in Hwf.
+        move : Hwf => /andP [Hwt Hid].
+        simpl in Hid.
+        simpl in Hwt.
+        move : Hid => /andP [Hid1 Hid2].
+        case Ht1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case Ht2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite Ht1 Ht2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        simpl.
+        rewrite Ht1 Ht2.
+        simpl.
+        rewrite size_subB_ext.
+        generalize Hcf.
+        apply IHe1 in Hcf.
+        rewrite Hcf Ht1.
+        move => Hcf0.
+        apply IHe2 in Hcf0.
+        rewrite Hcf0 Ht2.
+        simpl.
+        rewrite addn1 //.
+        rewrite /well_formed_fexpr Hwt2 Hid2 //.
+        rewrite /well_formed_fexpr Hwt1 Hid1 //.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        case Ht2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        simpl.
+        rewrite Ht1 Ht2.
+        simpl.
+        rewrite size_SsbbB_ext.
+        generalize Hcf.
+        apply IHe1 in Hcf.
+        rewrite 2!size_sext Hcf Ht1.
+        move => Hcf0.
+        apply IHe2 in Hcf0.
+        rewrite Hcf0 Ht2.
+        simpl.
+        rewrite subnKC.
+        rewrite subnKC.
+        rewrite maxnn //.
+        rewrite leq_maxr //.
+        rewrite leq_maxl //.
+        rewrite /well_formed_fexpr Hwt2 Hid2 //.
+        rewrite /well_formed_fexpr Hwt1 Hid1 //.
+        generalize Hcf.
+        apply IHe1 in Hcf.
+        rewrite 2!size_sext Hcf Ht1.
+        move => Hcf0.
+        apply IHe2 in Hcf0.
+        rewrite Hcf0 Ht2.
+        simpl.
+        rewrite subnKC.
+        rewrite subnKC //.
+        rewrite leq_maxr //.
+        rewrite leq_maxl //.
+        rewrite /well_formed_fexpr Hwt2 Hid2 //.
+        rewrite /well_formed_fexpr Hwt1 Hid1 //.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 in Hwt.
+        discriminate.
+        rewrite Ht1 in Hwt.
+        discriminate.
+        rewrite Ht1 in Hwt.
+        discriminate.
+      (* mul *)
+      - move => Hwf.
+        rewrite /well_formed_fexpr in Hwf.
+        move : Hwf => /andP [Hwt Hid].
+        simpl in Hid.
+        simpl in Hwt.
+        move : Hid => /andP [Hid1 Hid2].
+        case Ht1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case Ht2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite Ht1 Ht2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        simpl.
+        rewrite Ht1 Ht2.
+        simpl.
+        rewrite size_full_mul.
+        generalize Hcf.
+        apply IHe1 in Hcf.
+        rewrite Hcf Ht1.
+        move => Hcf0.
+        apply IHe2 in Hcf0.
+        rewrite Hcf0 Ht2.
+        simpl.
+        reflexivity.
+        rewrite /well_formed_fexpr Hwt2 Hid2 //.
+        rewrite /well_formed_fexpr Hwt1 Hid1 //.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        case Ht2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        simpl.
+        rewrite Ht1 Ht2.
+        simpl.
+        rewrite size_Sfull_mul.
+        generalize Hcf.
+        apply IHe1 in Hcf.
+        move => Hcf0.
+        apply IHe2 in Hcf0.
+        rewrite Hcf0 Ht2.
+        simpl.
+        rewrite Hcf Ht1.
+        simpl.
+        reflexivity.
+        rewrite /well_formed_fexpr Hwt2 Hid2 //.
+        rewrite /well_formed_fexpr Hwt1 Hid1 //.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 in Hwt.
+        discriminate.
+        rewrite Ht1 in Hwt.
+        discriminate.
+        rewrite Ht1 in Hwt.
+        discriminate.
+      (* div *)
+      - move => Hwf.
+        rewrite /well_formed_fexpr in Hwf.
+        move : Hwf => /andP [Hwt Hid].
+        simpl in Hid.
+        simpl in Hwt.
+        move : Hid => /andP [Hid1 Hid2].
+        case Ht1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case Ht2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite Ht1 Ht2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        simpl.
+        rewrite Ht1 Ht2.
+        simpl.
+        rewrite size_udivB.
+        apply IHe1 in Hcf.
+        rewrite Hcf Ht1.
+        simpl.
+        reflexivity.
+        rewrite /well_formed_fexpr Hwt1 Hid1 //.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        case Ht2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        simpl.
+        rewrite Ht1 Ht2.
+        simpl.
+        rewrite size_sext size_sdivB.
+        apply IHe1 in Hcf.
+        rewrite Hcf Ht1.
+        simpl.
+        reflexivity.
+        rewrite /well_formed_fexpr Hwt1 Hid1 //.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 in Hwt.
+        discriminate.
+        rewrite Ht1 in Hwt.
+        discriminate.
+        rewrite Ht1 in Hwt.
+        discriminate.
+      (* rem *)
+      - move => Hwf.
+        rewrite /well_formed_fexpr in Hwf.
+        move : Hwf => /andP [Hwt Hid].
+        simpl in Hid.
+        simpl in Hwt.
+        move : Hid => /andP [Hid1 Hid2].
+        case Ht1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case Ht2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite Ht1 Ht2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        simpl.
+        rewrite Ht1 Ht2.
+        simpl.
+        rewrite size_low //.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        case Ht2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        simpl.
+        rewrite Ht1 Ht2.
+        simpl.
+        rewrite size_low //.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 in Hwt.
+        discriminate.
+        rewrite Ht1 in Hwt.
+        discriminate.
+        rewrite Ht1 in Hwt.
+        discriminate.
+      (* cmp *)
+      - move => b Hwf.
+        rewrite /well_formed_fexpr in Hwf.
+        move : Hwf => /andP [Hwt Hid].
+        simpl in Hid.
+        simpl in Hwt.
+        move : Hid => /andP [Hid1 Hid2].
+        case b.
+        simpl.
+        case Ht1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case Ht2:(type_of_fexpr e3 te) => [n1|n1|||].
+        simpl.
+        reflexivity.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        case Ht2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        simpl.
+        reflexivity.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 in Hwt.
+        discriminate.
+        rewrite Ht1 in Hwt.
+        discriminate.
+        rewrite Ht1 in Hwt.
+        discriminate.
+        simpl.
+        case Ht1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case Ht2:(type_of_fexpr e3 te) => [n1|n1|||].
+        simpl.
+        reflexivity.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        case Ht2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        simpl.
+        reflexivity.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 in Hwt.
+        discriminate.
+        rewrite Ht1 in Hwt.
+        discriminate.
+        rewrite Ht1 in Hwt.
+        discriminate.
+        simpl.
+        case Ht1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case Ht2:(type_of_fexpr e3 te) => [n1|n1|||].
+        simpl.
+        reflexivity.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        case Ht2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        simpl.
+        reflexivity.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 in Hwt.
+        discriminate.
+        rewrite Ht1 in Hwt.
+        discriminate.
+        rewrite Ht1 in Hwt.
+        discriminate.
+        simpl.
+        case Ht1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case Ht2:(type_of_fexpr e3 te) => [n1|n1|||].
+        simpl.
+        reflexivity.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        case Ht2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        simpl.
+        reflexivity.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 in Hwt.
+        discriminate.
+        rewrite Ht1 in Hwt.
+        discriminate.
+        rewrite Ht1 in Hwt.
+        discriminate.
+        simpl.
+        case Ht1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case Ht2:(type_of_fexpr e3 te) => [n1|n1|||].
+        simpl.
+        reflexivity.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        case Ht2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        simpl.
+        reflexivity.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 in Hwt.
+        discriminate.
+        rewrite Ht1 in Hwt.
+        discriminate.
+        rewrite Ht1 in Hwt.
+        discriminate.
+        simpl.
+        case Ht1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case Ht2:(type_of_fexpr e3 te) => [n1|n1|||].
+        simpl.
+        reflexivity.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        case Ht2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        simpl.
+        reflexivity.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 in Hwt.
+        discriminate.
+        rewrite Ht1 in Hwt.
+        discriminate.
+        rewrite Ht1 in Hwt.
+        discriminate.
+      (* dshl *)
+      - move => Hwf.
+        rewrite /well_formed_fexpr in Hwf.
+        move : Hwf => /andP [Hwt Hid].
+        simpl in Hid.
+        simpl in Hwt.
+        move : Hid => /andP [Hid1 Hid2].
+        case Ht1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case Ht2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite Ht1 Ht2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        simpl.
+        rewrite Ht1 Ht2.
+        simpl.
+        rewrite size_zext size_cat size_zeros.
+        rewrite subn1 addnACl subnK.
+        generalize Hcf.
+        apply IHe1 in Hcf.
+        rewrite Hcf Ht1.
+        simpl.
+        move => Hcf0.
+        apply IHe2 in Hcf0.
+        rewrite Hcf0 Ht2.
+        simpl.
+        rewrite -subn1 addnBA //.
+        rewrite -Nats.expn_pow Nats.expn2_gt0 //.
+        rewrite /well_formed_fexpr Hwt2 Hid2 //.
+        rewrite /well_formed_fexpr Hwt1 Hid1 //.
+        rewrite -Nats.expn_pow.
+        apply ltnSE.
+        rewrite Nat.succ_pred.
+        rewrite to_nat_bounded //.
+        rewrite Nats.expn_pow.
+        apply Nat.pow_nonzero.
+        admit.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        case Ht2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite Ht1 Ht2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        simpl.
+        rewrite Ht1 Ht2.
+        simpl.
+        rewrite size_sext size_cat size_zeros.
+        rewrite subn1 addnACl subnK.
+        generalize Hcf.
+        apply IHe1 in Hcf.
+        rewrite Hcf Ht1.
+        simpl.
+        move => Hcf0.
+        apply IHe2 in Hcf0.
+        rewrite Hcf0 Ht2.
+        simpl.
+        rewrite -subn1 addnBA //.
+        rewrite -Nats.expn_pow Nats.expn2_gt0 //.
+        rewrite /well_formed_fexpr Hwt2 Hid2 //.
+        rewrite /well_formed_fexpr Hwt1 Hid1 //.
+        rewrite -Nats.expn_pow.
+        apply ltnSE.
+        rewrite Nat.succ_pred.
+        rewrite to_nat_bounded //.
+        rewrite Nats.expn_pow.
+        apply Nat.pow_nonzero.
+        admit.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 in Hwt.
+        discriminate.
+        rewrite Ht1 in Hwt.
+        discriminate.
+        rewrite Ht1 in Hwt.
+        discriminate.
+      (* dshr *)
+      - move => Hwf.
+        rewrite /well_formed_fexpr in Hwf.
+        move : Hwf => /andP [Hwt Hid].
+        simpl in Hid.
+        simpl in Hwt.
+        move : Hid => /andP [Hid1 Hid2].
+        case Ht1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case Ht2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite Ht1 Ht2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        simpl.
+        rewrite Ht1 Ht2.
+        simpl.
+        rewrite size_shrB.
+        apply IHe1 in Hcf.
+        rewrite Hcf Ht1.
+        simpl.
+        reflexivity.
+        rewrite /well_formed_fexpr Hwt1 Hid1 //.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        case Ht2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite Ht1 Ht2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        simpl.
+        rewrite Ht1 Ht2.
+        simpl.
+        rewrite size_sarB.
+        apply IHe1 in Hcf.
+        rewrite Hcf Ht1.
+        simpl.
+        reflexivity.
+        rewrite /well_formed_fexpr Hwt1 Hid1 //.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 in Hwt.
+        discriminate.
+        rewrite Ht1 in Hwt.
+        discriminate.
+        rewrite Ht1 in Hwt.
+        discriminate.
+      (* and *)
+      - move => Hwf.
+        rewrite /well_formed_fexpr in Hwf.
+        move : Hwf => /andP [Hwt Hid].
+        simpl in Hid.
+        simpl in Hwt.
+        move : Hid => /andP [Hid1 Hid2].
+        case Ht1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case Ht2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite Ht1 Ht2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        simpl.
+        rewrite Ht1 Ht2.
+        simpl.
+        rewrite size_andB 2!size_zext.
+        generalize Hcf.
+        apply IHe1 in Hcf.
+        rewrite Hcf Ht1.
+        simpl.
+        move => Hcf0.
+        apply IHe2 in Hcf0.
+        rewrite Hcf0 Ht2.
+        simpl.
+        rewrite subnKC.
+        rewrite subnKC.
+        rewrite maxnn //.
+        rewrite leq_maxr //.
+        rewrite leq_maxl //.
+        rewrite /well_formed_fexpr Hwt2 Hid2 //.
+        rewrite /well_formed_fexpr Hwt1 Hid1 //.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        case Ht2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        simpl.
+        rewrite Ht1 Ht2.
+        simpl.
+        rewrite size_andB 2!size_sext.
+        generalize Hcf.
+        apply IHe1 in Hcf.
+        rewrite Hcf Ht1.
+        simpl.
+        move => Hcf0.
+        apply IHe2 in Hcf0.
+        rewrite Hcf0 Ht2.
+        simpl.
+        rewrite subnKC.
+        rewrite subnKC.
+        rewrite maxnn //.
+        rewrite leq_maxr //.
+        rewrite leq_maxl //.
+        rewrite /well_formed_fexpr Hwt2 Hid2 //.
+        rewrite /well_formed_fexpr Hwt1 Hid1 //.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 in Hwt.
+        discriminate.
+        rewrite Ht1 in Hwt.
+        discriminate.
+        rewrite Ht1 in Hwt.
+        discriminate.
+      (* or *)
+      - move => Hwf.
+        rewrite /well_formed_fexpr in Hwf.
+        move : Hwf => /andP [Hwt Hid].
+        simpl in Hid.
+        simpl in Hwt.
+        move : Hid => /andP [Hid1 Hid2].
+        case Ht1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case Ht2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite Ht1 Ht2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        simpl.
+        rewrite Ht1 Ht2.
+        simpl.
+        rewrite size_orB 2!size_zext.
+        generalize Hcf.
+        apply IHe1 in Hcf.
+        rewrite Hcf Ht1.
+        simpl.
+        move => Hcf0.
+        apply IHe2 in Hcf0.
+        rewrite Hcf0 Ht2.
+        simpl.
+        rewrite subnKC.
+        rewrite subnKC.
+        rewrite maxnn //.
+        rewrite leq_maxr //.
+        rewrite leq_maxl //.
+        rewrite /well_formed_fexpr Hwt2 Hid2 //.
+        rewrite /well_formed_fexpr Hwt1 Hid1 //.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        case Ht2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        simpl.
+        rewrite Ht1 Ht2.
+        simpl.
+        rewrite size_orB 2!size_sext.
+        generalize Hcf.
+        apply IHe1 in Hcf.
+        rewrite Hcf Ht1.
+        simpl.
+        move => Hcf0.
+        apply IHe2 in Hcf0.
+        rewrite Hcf0 Ht2.
+        simpl.
+        rewrite subnKC.
+        rewrite subnKC.
+        rewrite maxnn //.
+        rewrite leq_maxr //.
+        rewrite leq_maxl //.
+        rewrite /well_formed_fexpr Hwt2 Hid2 //.
+        rewrite /well_formed_fexpr Hwt1 Hid1 //.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 in Hwt.
+        discriminate.
+        rewrite Ht1 in Hwt.
+        discriminate.
+        rewrite Ht1 in Hwt.
+        discriminate.
+      (* xor *)
+      - move => Hwf.
+        rewrite /well_formed_fexpr in Hwf.
+        move : Hwf => /andP [Hwt Hid].
+        simpl in Hid.
+        simpl in Hwt.
+        move : Hid => /andP [Hid1 Hid2].
+        case Ht1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case Ht2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite Ht1 Ht2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        simpl.
+        rewrite Ht1 Ht2.
+        simpl.
+        rewrite size_xorB 2!size_zext.
+        generalize Hcf.
+        apply IHe1 in Hcf.
+        rewrite Hcf Ht1.
+        simpl.
+        move => Hcf0.
+        apply IHe2 in Hcf0.
+        rewrite Hcf0 Ht2.
+        simpl.
+        rewrite subnKC.
+        rewrite subnKC.
+        rewrite maxnn //.
+        rewrite leq_maxr //.
+        rewrite leq_maxl //.
+        rewrite /well_formed_fexpr Hwt2 Hid2 //.
+        rewrite /well_formed_fexpr Hwt1 Hid1 //.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        case Ht2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        simpl.
+        rewrite Ht1 Ht2.
+        simpl.
+        rewrite size_xorB 2!size_sext.
+        generalize Hcf.
+        apply IHe1 in Hcf.
+        rewrite Hcf Ht1.
+        simpl.
+        move => Hcf0.
+        apply IHe2 in Hcf0.
+        rewrite Hcf0 Ht2.
+        simpl.
+        rewrite subnKC.
+        rewrite subnKC.
+        rewrite maxnn //.
+        rewrite leq_maxr //.
+        rewrite leq_maxl //.
+        rewrite /well_formed_fexpr Hwt2 Hid2 //.
+        rewrite /well_formed_fexpr Hwt1 Hid1 //.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 in Hwt.
+        discriminate.
+        rewrite Ht1 in Hwt.
+        discriminate.
+        rewrite Ht1 in Hwt.
+        discriminate.
+      (* cat *)
+      - move => Hwf.
+        rewrite /well_formed_fexpr in Hwf.
+        move : Hwf => /andP [Hwt Hid].
+        simpl in Hid.
+        simpl in Hwt.
+        move : Hid => /andP [Hid1 Hid2].
+        case Ht1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case Ht2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite Ht1 Ht2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        simpl.
+        rewrite Ht1 Ht2.
+        simpl.
+        rewrite size_cat.
+        generalize Hcf.
+        apply IHe1 in Hcf.
+        rewrite Hcf Ht1.
+        simpl.
+        move => Hcf0.
+        apply IHe2 in Hcf0.
+        rewrite Hcf0 Ht2.
+        simpl.
+        rewrite addnC //.
+        rewrite /well_formed_fexpr Hwt2 Hid2 //.
+        rewrite /well_formed_fexpr Hwt1 Hid1 //.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        case Ht2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        simpl.
+        rewrite Ht1 Ht2.
+        simpl.
+        rewrite size_cat.
+        generalize Hcf.
+        apply IHe1 in Hcf.
+        rewrite Hcf Ht1.
+        simpl.
+        move => Hcf0.
+        apply IHe2 in Hcf0.
+        rewrite Hcf0 Ht2.
+        simpl.
+        rewrite addnC //.
+        rewrite /well_formed_fexpr Hwt2 Hid2 //.
+        rewrite /well_formed_fexpr Hwt1 Hid1 //.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 Ht2 in Hwt.
+        discriminate.
+        rewrite Ht1 in Hwt.
+        discriminate.
+        rewrite Ht1 in Hwt.
+        discriminate.
+        rewrite Ht1 in Hwt.
+        discriminate.
+        - (* mux *)
+      move => s1 te Hcf Hwf.
+      rewrite /well_formed_fexpr in Hwf.
+      move : Hwf => /andP [Hwt Hid].
+      simpl.
+      simpl in Hwt.
+      simpl in Hid.
+      move : Hid => /andP [Hid2 Hid3].
+      move : Hid2 => /andP [Hid1 Hid2].
+      case H2:(type_of_fexpr e2 te) =>[n0|n0|||].
+      case H3:(type_of_fexpr e3 te) =>[n1|n1|||].
+      case H1:(is_zero (no_mem_eval_fexpr e1 s1 te)).
+      simpl.
+      rewrite size_zext.
+      rewrite H2 H3 in Hwt.
+      move : Hwt => /andP [Hwt2 Hwt3].
+      move : Hwt2 => /andP [Hwt1 Hwt2].
+      assert (Hwf2:well_formed_fexpr e2 te).
+      rewrite /well_formed_fexpr.
+      rewrite Hwt2 Hid2 //.
+      assert (Hwf3:well_formed_fexpr e3 te).
+      rewrite /well_formed_fexpr.
+      rewrite Hwt3 Hid3 //.
+      apply IHe3 with (s1:=s1) in Hwf3.
+      rewrite Hwf3 H3.
+      simpl.
+      rewrite subnKC //.
+      rewrite leq_maxr //.
+      exact Hcf.
+      simpl.
+      rewrite size_zext.
+      rewrite H2 H3 in Hwt.
+      move : Hwt => /andP [Hwt2 Hwt3].
+      move : Hwt2 => /andP [Hwt1 Hwt2].
+      assert (Hwf2:well_formed_fexpr e2 te).
+      rewrite /well_formed_fexpr.
+      rewrite Hwt2 Hid2 //.
+      assert (Hwf3:well_formed_fexpr e3 te).
+      rewrite /well_formed_fexpr.
+      rewrite Hwt3 Hid3 //.
+      apply IHe2 with (s1:=s1) in Hwf2.
+      rewrite Hwf2 H2.
+      simpl.
+      rewrite subnKC //.
+      rewrite leq_maxl //.
+      exact Hcf.
+      rewrite H2 H3 in Hwt.
+      discriminate.
+      rewrite H2 H3 in Hwt.
+      discriminate.
+      rewrite H2 H3 in Hwt.
+      discriminate.
+      rewrite H2 H3 in Hwt.
+      discriminate.
+      case H3:(type_of_fexpr e3 te) =>[n1|n1|||].
+      rewrite H2 H3 in Hwt.
+      discriminate.
+      case H1:(is_zero (no_mem_eval_fexpr e1 s1 te)).
+      simpl.
+      rewrite size_sext.
+      rewrite H2 H3 in Hwt.
+      move : Hwt => /andP [Hwt2 Hwt3].
+      move : Hwt2 => /andP [Hwt1 Hwt2].
+      assert (Hwf2:well_formed_fexpr e2 te).
+      rewrite /well_formed_fexpr.
+      rewrite Hwt2 Hid2 //.
+      assert (Hwf3:well_formed_fexpr e3 te).
+      rewrite /well_formed_fexpr.
+      rewrite Hwt3 Hid3 //.
+      apply IHe3 with (s1:=s1) in Hwf3.
+      rewrite Hwf3 H3.
+      simpl.
+      rewrite subnKC //.
+      rewrite leq_maxr //.
+      exact Hcf.
+      simpl.
+      rewrite size_sext.
+      rewrite H2 H3 in Hwt.
+      move : Hwt => /andP [Hwt2 Hwt3].
+      move : Hwt2 => /andP [Hwt1 Hwt2].
+      assert (Hwf2:well_formed_fexpr e2 te).
+      rewrite /well_formed_fexpr.
+      rewrite Hwt2 Hid2 //.
+      assert (Hwf3:well_formed_fexpr e3 te).
+      rewrite /well_formed_fexpr.
+      rewrite Hwt3 Hid3 //.
+      apply IHe2 with (s1:=s1) in Hwf2.
+      rewrite Hwf2 H2.
+      simpl.
+      rewrite subnKC //.
+      rewrite leq_maxl //.
+      exact Hcf.
+      rewrite H2 H3 in Hwt.
+      discriminate.
+      rewrite H2 H3 in Hwt.
+      discriminate.
+      rewrite H2 H3 in Hwt.
+      discriminate.
+      rewrite H2 in Hwt.
+      discriminate.
+      rewrite H2 in Hwt.
+      discriminate.
+      rewrite H2 in Hwt.
+      discriminate.
+    - (* validif *)
+      move => s1 te Hcf Hwf.
+      simpl.
+      rewrite /well_formed_fexpr in Hwf.
+      move : Hwf => /andP [Hwt Hid].
+      simpl in Hwt.
+      simpl in Hid.
+      move : Hid => /andP [Hid1 Hid2].
+      move : Hwt => /andP [Hwt1 Hwt2].
+      apply IHe2 in Hcf.
+      exact Hcf.
+      rewrite /well_formed_fexpr Hwt2 Hid2 //.
+    - (* ref *)
+      move => s1 te Hcf Hwt.
+      simpl.
+      simpl in Hwt.
+      rewrite /well_formed_fexpr in Hwt.
+      move : Hwt => /andP [_ Hid].
+      simpl in Hid.
+      rewrite /is_defined in Hid.
+      apply SV.conform_mem with (v:=s) in Hcf.
+      rewrite -Hcf.
+      rewrite (TE.vtyp_vsize (eqP(eqxx (TE.vtyp s te))))//.
+      exact Hid.
+  Admitted.
+
+  Lemma conform_eval_sfcnct_upd_env0 e : forall rs1 s1 te v ,
+  SV.conform s1 te ->
+  well_formed_fstmt (Sfcnct v e) te ->
+  (match v with
+  | Eref r => (SV.acc r rs1 == [::]) = true
+  | _ => False
+  end) ->
+  SV.conform (snd (no_mem_eval_noninst_fstmt (Sfcnct v e) rs1 s1 te)) (no_mem_upd_typenv_fstmt (Sfcnct v e) te).
+  Proof.
+    move => rs1 s1 te v.
+    case Hv:v => [||||||r].
+    (* v not ref *)
+    move => _ Hwf.
+    move : Hwf => /andP [/eqP H _].
+    simpl in H.
+    discriminate.
+    move => _ Hwf.
+    move : Hwf => /andP [/eqP H _].
+    simpl in H.
+    discriminate.
+    move => _ Hwf.
+    move : Hwf => /andP [/eqP H _].
+    simpl in H.
+    discriminate.
+    move => _ Hwf.
+    move : Hwf => /andP [/eqP H _].
+    simpl in H.
+    discriminate.
+    move => _ Hwf.
+    move : Hwf => /andP [/eqP H _].
+    simpl in H.
+    discriminate.
+    move => _ Hwf.
+    move : Hwf => /andP [/eqP H _].
+    simpl in H.
+    discriminate.
+    move => Hcf Hwf.
+    rewrite /well_formed_fstmt in Hwf.
+    move : Hwf => /andP [Hwt Hid].
+    simpl in Hwt.
+    move : Hid => /andP [Hid Hide].
+    rewrite /is_defined in Hid.
+    assert (Hte : TE.Equal (TE.add r (TE.vtyp r te) te) te).
+    rewrite SV.Lemmas.add_same.
+    apply SV.Lemmas.Equal_refl.
+    case H: (TE.find r te).
+    rewrite (TE.find_some_vtyp H) //.
+    apply SV.Lemmas.find_none_not_mem in H.
+    rewrite Hid in H.
+    discriminate.
+
+    case Ht : (TE.vtyp r te) => [n|n|||].
+    (* uint not reg *)
+    rewrite Ht in Hwt.
+    move : Hwt => /andP [Hwt Hsf].
+    move : rs1 s1 Hcf.
+    rewrite /no_mem_upd_typenv_fstmt.
+    induction e.
+      (* cosnt *)
+    - move => rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hwt.
+      move : Hwt => /eqP Hwt.
+      rewrite Hwt subnn zext0 sext0.
+      simpl in Hsf.
+      rewrite Hwt in Hsf.
+      assert (Htcf : SV.conform
+      (SV.upd r
+         (zext (n - size match f with
+                         | Fuint _ | _ => b
+                         end) match f with
+                              | Fuint _ | _ => b
+                              end) s1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite Ht size_zext subnKC.
+      simpl.
+      reflexivity.
+      case f;done.
+      exact Hcf.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      (* cast *)
+    - case Hu:u; try by done.
+      simpl in Hide.
+      simpl in Hwt.
+      (* uint *)
+      - move => rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hsf.
+      rewrite Hu in Hsf.
+      simpl in Hsf.
+      specialize IHe with (rs1:=rs1) (s1:=s1).
+      simpl in IHe.
+      apply IHe in Hide.
+      rewrite Ht Hr in Hide.
+      simpl in Hide.
+      exact Hide.
+      exact Hwt.
+      exact Hsf.
+      exact Hcf.
+      exact Hr.
+      (* sint *)
+      - move => rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hsf.
+      rewrite Hu in Hsf.
+      simpl in Hsf.
+      specialize IHe with (rs1:=rs1) (s1:=s1).
+      simpl in IHe.
+      apply IHe in Hide.
+      rewrite Ht Hr in Hide.
+      simpl in Hide.
+      exact Hide.
+      exact Hwt.
+      exact Hsf.
+      exact Hcf.
+      exact Hr.
+      (* clk *)
+      - move => rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      assert (Htcf : SV.conform
+      (SV.upd r
+      (zext (n - 1) [:: lsb (no_mem_eval_fexpr e s1 te)]) s1)
+         (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_zext.
+      simpl.
+      rewrite subnKC.
+      rewrite Ht //.
+      simpl in Hsf.
+      rewrite Hu in Hsf.
+      simpl in Hsf.
+      exact Hsf.
+      exact Hcf.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      (* rst *)
+      - move => rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      assert (Htcf : SV.conform
+      (SV.upd r
+      (zext (n - 1) [:: lsb (no_mem_eval_fexpr e s1 te)]) s1)
+         (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_zext.
+      simpl.
+      rewrite subnKC.
+      rewrite Ht //.
+      simpl in Hsf.
+      rewrite Hu in Hsf.
+      simpl in Hsf.
+      exact Hsf.
+      exact Hcf.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      - move => rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      assert (Htcf : SV.conform
+      (SV.upd r
+      (zext (n - 1) [:: lsb (no_mem_eval_fexpr e s1 te)]) s1)
+         (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_zext.
+      simpl.
+      rewrite subnKC.
+      rewrite Ht //.
+      simpl in Hsf.
+      rewrite Hu in Hsf.
+      simpl in Hsf.
+      exact Hsf.
+      exact Hcf.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+    - (* unop *)
+      move : Hide Hwt Hsf.
+      case :e; try by done.
+      (* upad *)
+      - move => pn Hide Hwt Hsf rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      case Hn:(pn < size (no_mem_eval_fexpr e0 s1 te)).
+        case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+                (zext (n - size (no_mem_eval_fexpr e0 s1 te)) (no_mem_eval_fexpr e0 s1 te))
+                s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        rewrite typeof_eval_fexpr in Hn.
+        rewrite Hn in Hsf.
+        rewrite typeof_eval_fexpr.
+        exact Hsf.
+        exact Hcf.
+        rewrite Htyp in Hwt.
+        rewrite /well_formed_fexpr Hwt Hide //.
+        exact Hcf.
+        rewrite Htyp in Hwt.
+        rewrite /well_formed_fexpr Hwt Hide //.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        - assert (Htcf : SV.conform
+        (SV.upd r
+          (zext (n - size (no_mem_eval_fexpr e0 s1 te)) (no_mem_eval_fexpr e0 s1 te))
+          s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        rewrite typeof_eval_fexpr in Hn.
+        rewrite Hn in Hsf.
+        rewrite typeof_eval_fexpr.
+        exact Hsf.
+        exact Hcf.
+        rewrite Htyp in Hwt.
+        rewrite /well_formed_fexpr Hwt Hide //.
+        exact Hcf.
+        rewrite Htyp in Hwt.
+        rewrite /well_formed_fexpr Hwt Hide //.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        - rewrite Htyp in Hwt.
+        discriminate.
+        - rewrite Htyp in Hwt.
+        discriminate.
+        - rewrite Htyp in Hwt.
+        discriminate.
+        case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
+        - assert (Htcf : SV.conform
+        (SV.upd r
+        (zext (n - size (zext (pn - n0) (no_mem_eval_fexpr e0 s1 te)))
+           (zext (pn - n0) (no_mem_eval_fexpr e0 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        rewrite size_zext typeof_eval_fexpr.
+        rewrite Htyp.
+        rewrite subnKC //.
+        rewrite typeof_eval_fexpr in Hn.
+        rewrite Hn Htyp in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        exact Hcf.
+        rewrite Htyp in Hwt.
+        rewrite /well_formed_fexpr Hwt Hide //.
+        rewrite typeof_eval_fexpr in Hn.
+        rewrite Htyp in Hn.
+        apply contraFleq with (b:=(pn < sizeof_fgtyp (Fuint n0))).
+        trivial.
+        exact Hn.
+        exact Hcf.
+        rewrite Htyp in Hwt.
+        rewrite /well_formed_fexpr Hwt Hide //.
+        exact Hcf.
+        rewrite Htyp in Hwt.
+        rewrite /well_formed_fexpr Hwt Hide //.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        - assert (Htcf : SV.conform
+        (SV.upd r
+        (zext (n - size (sext (pn - n0) (no_mem_eval_fexpr e0 s1 te)))
+           (sext (pn - n0) (no_mem_eval_fexpr e0 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        rewrite size_sext typeof_eval_fexpr.
+        rewrite Htyp.
+        rewrite subnKC //.
+        rewrite typeof_eval_fexpr in Hn.
+        rewrite Hn Htyp in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        exact Hcf.
+        rewrite Htyp in Hwt.
+        rewrite /well_formed_fexpr Hwt Hide //.
+        rewrite typeof_eval_fexpr in Hn.
+        rewrite Htyp in Hn.
+        apply contraFleq with (b:=(pn < sizeof_fgtyp (Fuint n0))).
+        trivial.
+        exact Hn.
+        exact Hcf.
+        rewrite Htyp in Hwt.
+        rewrite /well_formed_fexpr Hwt Hide //.
+        exact Hcf.
+        rewrite Htyp in Hwt.
+        rewrite /well_formed_fexpr Hwt Hide //.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        - rewrite Htyp in Hwt.
+        discriminate.
+        - rewrite Htyp in Hwt.
+        discriminate.
+        - rewrite Htyp in Hwt.
+        discriminate.
+      (* shl *)
+      - move => sn Hide Hwt Hsf rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      assert (Htcf : SV.conform
+      (SV.upd r
+      (zext (n - size (zeros sn ++ no_mem_eval_fexpr e0 s1 te))
+         (zeros sn ++ no_mem_eval_fexpr e0 s1 te)) s1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_zext size_cat size_zeros subnKC.
+      rewrite Ht.
+      simpl.
+      reflexivity.
+      case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
+      rewrite typeof_eval_fexpr.
+      rewrite Htyp.
+      rewrite Htyp in Hsf.
+      simpl in Hsf.
+      simpl.
+      rewrite addnC //.
+      exact Hcf.
+      rewrite Htyp in Hwt.
+      rewrite /well_formed_fexpr Hwt Hide //.
+      rewrite typeof_eval_fexpr.
+      rewrite Htyp.
+      rewrite Htyp in Hsf.
+      simpl in Hsf.
+      simpl.
+      rewrite addnC //.
+      exact Hcf.
+      rewrite Htyp in Hwt.
+      rewrite /well_formed_fexpr Hwt Hide //.
+      rewrite Htyp in Hwt.
+      discriminate.
+      rewrite Htyp in Hwt.
+      discriminate.
+      rewrite Htyp in Hwt.
+      discriminate.
+      exact Hcf.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      (* shr *)
+      - move => sn Hide Hwt Hsf rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      case Hsn:(sn < size (no_mem_eval_fexpr e0 s1 te)).
+      assert (Htcf : SV.conform
+      (SV.upd r
+     (zext
+        (n -
+         size
+           (high (size (no_mem_eval_fexpr e0 s1 te) - sn)
+              (no_mem_eval_fexpr e0 s1 te)))
+        (high (size (no_mem_eval_fexpr e0 s1 te) - sn)
+           (no_mem_eval_fexpr e0 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_zext size_high subnKC.
+      rewrite Ht.
+      simpl.
+      reflexivity.
+      case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
+      rewrite typeof_eval_fexpr.
+      rewrite Htyp.
+      rewrite typeof_eval_fexpr in Hsn.
+      rewrite Htyp in Hsn.
+      simpl in Hsn.
+      simpl.
+      rewrite Htyp Hsn in Hsf.
+      simpl in Hsf.
+      exact Hsf.
+      exact Hcf.
+      rewrite Htyp in Hwt.
+      rewrite /well_formed_fexpr Hwt Hide //.
+      exact Hcf.
+      rewrite Htyp in Hwt.
+      rewrite /well_formed_fexpr Hwt Hide //.
+      rewrite typeof_eval_fexpr.
+      rewrite Htyp.
+      rewrite typeof_eval_fexpr in Hsn.
+      rewrite Htyp in Hsn.
+      simpl in Hsn.
+      simpl.
+      rewrite Htyp Hsn in Hsf.
+      simpl in Hsf.
+      exact Hsf.
+      exact Hcf.
+      rewrite Htyp in Hwt.
+      rewrite /well_formed_fexpr Hwt Hide //.
+      exact Hcf.
+      rewrite Htyp in Hwt.
+      rewrite /well_formed_fexpr Hwt Hide //.
+      rewrite Htyp in Hwt.
+      discriminate.
+      rewrite Htyp in Hwt.
+      discriminate.
+      rewrite Htyp in Hwt.
+      discriminate.
+      exact Hcf.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
+      assert (Htcf : SV.conform
+      (SV.upd r
+     (zext (n - size [:: msb (no_mem_eval_fexpr e0 s1 te)])
+        [:: msb (no_mem_eval_fexpr e0 s1 te)]) s1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_zext subnKC.
+      rewrite Ht.
+      simpl.
+      reflexivity.
+      rewrite typeof_eval_fexpr in Hsn.
+      rewrite Htyp in Hsn.
+      simpl in Hsn.
+      rewrite Htyp Hsn in Hsf.
+      simpl in Hsf.
+      simpl.
+      exact Hsf.
+      exact Hcf.
+      rewrite Htyp in Hwt.
+      rewrite /well_formed_fexpr Hwt Hide //.
+      exact Hcf.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      assert (Htcf : SV.conform
+      (SV.upd r
+     (zext (n - size [:: msb (no_mem_eval_fexpr e0 s1 te)])
+        [:: msb (no_mem_eval_fexpr e0 s1 te)]) s1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_zext subnKC.
+      rewrite Ht.
+      simpl.
+      reflexivity.
+      rewrite typeof_eval_fexpr in Hsn.
+      rewrite Htyp in Hsn.
+      simpl in Hsn.
+      rewrite Htyp Hsn in Hsf.
+      simpl in Hsf.
+      simpl.
+      exact Hsf.
+      exact Hcf.
+      rewrite Htyp in Hwt.
+      rewrite /well_formed_fexpr Hwt Hide //.
+      exact Hcf.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      rewrite Htyp in Hwt.
+      discriminate.
+      rewrite Htyp in Hwt.
+      discriminate.
+      rewrite Htyp in Hwt.
+      discriminate.
+    (* cvt *)
+    - move => Hide Hwt Hsf rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
+      assert (Htcf : SV.conform
+      (SV.upd r
+      (zext (n - size (sext 1 (no_mem_eval_fexpr e0 s1 te)))
+        (sext 1 (no_mem_eval_fexpr e0 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_zext subnKC.
+      rewrite Ht.
+      simpl.
+      reflexivity.
+      rewrite size_sext typeof_eval_fexpr.
+      rewrite Htyp.
+      rewrite Htyp in Hsf.
+      simpl in Hsf.
+      simpl.
+      exact Hsf.
+      exact Hcf.
+      rewrite Htyp in Hwt.
+      rewrite /well_formed_fexpr Hwt Hide //.
+      exact Hcf.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      assert (Htcf : SV.conform
+      (SV.upd r
+     (zext (n - size (no_mem_eval_fexpr e0 s1 te)) (no_mem_eval_fexpr e0 s1 te))
+     s1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_zext subnKC.
+      rewrite Ht.
+      simpl.
+      reflexivity.
+      rewrite typeof_eval_fexpr.
+      rewrite Htyp.
+      rewrite Htyp in Hsf.
+      exact Hsf.
+      exact Hcf.
+      rewrite Htyp in Hwt.
+      rewrite /well_formed_fexpr Hwt Hide //.
+      exact Hcf.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      rewrite Htyp in Hwt.
+      discriminate.
+      rewrite Htyp in Hwt.
+      discriminate.
+      rewrite Htyp in Hwt.
+      discriminate.
+    (* neg *)
+    - move => Hide Hwt Hsf rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
+      assert (Htcf : SV.conform
+      (SV.upd r
+      (zext (n - size (-# zext 1 (no_mem_eval_fexpr e0 s1 te)))
+        (-# zext 1 (no_mem_eval_fexpr e0 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_zext subnKC.
+      rewrite Ht.
+      simpl.
+      reflexivity.
+      rewrite size_negB size_zext typeof_eval_fexpr.
+      rewrite Htyp.
+      rewrite Htyp in Hsf.
+      simpl.
+      simpl in Hsf.
+      exact Hsf.
+      exact Hcf.
+      rewrite Htyp in Hwt.
+      rewrite /well_formed_fexpr Hwt Hide //.
+      exact Hcf.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      assert (Htcf : SV.conform
+      (SV.upd r
+      (zext (n - size (-# sext 1 (no_mem_eval_fexpr e0 s1 te)))
+        (-# sext 1 (no_mem_eval_fexpr e0 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_zext subnKC.
+      rewrite Ht.
+      simpl.
+      reflexivity.
+      rewrite size_negB size_sext typeof_eval_fexpr.
+      rewrite Htyp.
+      rewrite Htyp in Hsf.
+      simpl.
+      simpl in Hsf.
+      exact Hsf.
+      exact Hcf.
+      rewrite Htyp in Hwt.
+      rewrite /well_formed_fexpr Hwt Hide //.
+      exact Hcf.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      rewrite Htyp in Hwt.
+      discriminate.
+      rewrite Htyp in Hwt.
+      discriminate.
+      rewrite Htyp in Hwt.
+      discriminate.
+    (* not *)
+    - move => Hide Hwt Hsf rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
+      assert (Htcf : SV.conform
+      (SV.upd r
+     (zext (n - size (~~# no_mem_eval_fexpr e0 s1 te))
+        (~~# no_mem_eval_fexpr e0 s1 te)) s1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_zext subnKC.
+      rewrite Ht.
+      simpl.
+      reflexivity.
+      rewrite size_invB typeof_eval_fexpr.
+      rewrite Htyp.
+      rewrite Htyp in Hsf.
+      simpl.
+      simpl in Hsf.
+      exact Hsf.
+      exact Hcf.
+      rewrite Htyp in Hwt.
+      rewrite /well_formed_fexpr Hwt Hide //.
+      exact Hcf.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      assert (Htcf : SV.conform
+      (SV.upd r
+     (zext (n - size (~~# no_mem_eval_fexpr e0 s1 te))
+        (~~# no_mem_eval_fexpr e0 s1 te)) s1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_zext subnKC.
+      rewrite Ht.
+      simpl.
+      reflexivity.
+      rewrite size_invB typeof_eval_fexpr.
+      rewrite Htyp.
+      rewrite Htyp in Hsf.
+      simpl.
+      simpl in Hsf.
+      exact Hsf.
+      exact Hcf.
+      rewrite Htyp in Hwt.
+      rewrite /well_formed_fexpr Hwt Hide //.
+      exact Hcf.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      rewrite Htyp in Hwt.
+      discriminate.
+      rewrite Htyp in Hwt.
+      discriminate.
+      rewrite Htyp in Hwt.
+      discriminate.
+    (* and *)
+    - move => Hide Hwt Hsf rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      assert (Htcf : SV.conform
+      (SV.upd r (zext (n - 1) [:: foldr andb b1 (no_mem_eval_fexpr e0 s1 te)]) s1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_zext subnKC.
+      rewrite Ht.
+      simpl.
+      reflexivity.
+      simpl.
+      exact Hsf.
+      exact Hcf.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+    (* or *)
+    - move => Hide Hwt Hsf rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      assert (Htcf : SV.conform
+      (SV.upd r (zext (n - 1) [:: foldr orb b0 (no_mem_eval_fexpr e0 s1 te)]) s1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_zext subnKC.
+      rewrite Ht.
+      simpl.
+      reflexivity.
+      simpl.
+      exact Hsf.
+      exact Hcf.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+    (* xor *)
+    - move => Hide Hwt Hsf rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      assert (Htcf : SV.conform
+      (SV.upd r (zext (n - 1) [:: foldr xorb b0 (no_mem_eval_fexpr e0 s1 te)]) s1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_zext subnKC.
+      rewrite Ht.
+      simpl.
+      reflexivity.
+      simpl.
+      exact Hsf.
+      exact Hcf.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+    (* extr *)
+    - move => n0 n1 Hide Hwt Hsf rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      assert (Htcf : SV.conform
+      (SV.upd r (zext (n - size (extract n0 n1 (no_mem_eval_fexpr e0 s1 te)))
+      (extract n0 n1 (no_mem_eval_fexpr e0 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_zext subnKC.
+      rewrite Ht.
+      simpl.
+      reflexivity.
+      rewrite size_extract.
+      exact Hsf.
+      exact Hcf.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+    (* head *)
+    - move => n0 Hide Hwt Hsf rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      assert (Htcf : SV.conform
+      (SV.upd r (zext (n - size (high n0 (no_mem_eval_fexpr e0 s1 te)))
+      (high n0 (no_mem_eval_fexpr e0 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_zext subnKC.
+      rewrite Ht.
+      simpl.
+      reflexivity.
+      rewrite size_high.
+      exact Hsf.
+      exact Hcf.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+    (* tail *)
+    - move => n0 Hide Hwt Hsf rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      assert (Htcf : SV.conform
+      (SV.upd r (zext
+      (n -
+       size
+         (low (size (no_mem_eval_fexpr e0 s1 te) - n0)
+            (no_mem_eval_fexpr e0 s1 te)))
+      (low (size (no_mem_eval_fexpr e0 s1 te) - n0)
+         (no_mem_eval_fexpr e0 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_zext subnKC.
+      rewrite Ht.
+      simpl.
+      reflexivity.
+      rewrite size_low typeof_eval_fexpr.
+      exact Hsf.
+      exact Hcf.
+      rewrite /well_formed_fexpr Hwt Hide //.
+      exact Hcf.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+    - (* binop *)
+    move : Hide Hwt Hsf.
+      case :e1; try by done.
+      (* add *)
+      - move => Hide Hwt Hsf rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      move : Hide => /andP [Hide1 Hide2].
+      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (zext
+              (n -
+               size
+                 (ebinop_op Badd (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+                    (no_mem_eval_fexpr e3 s1 te)))
+              (ebinop_op Badd (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+                 (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_addB_ext typeof_eval_fexpr.
+        rewrite typeof_eval_fexpr.
+        rewrite H1 H2.
+        simpl.
+        rewrite H1 H2 in Hsf.
+        simpl in Hsf.
+        apply ltnSE.
+        apply /ltP.
+        apply Nat.lt_succ_r.
+        apply Nats.leq_le in Hsf.
+        rewrite -addn1 //.
+        exact Hcf.
+        rewrite H2 H1 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt2 Hide2 //.
+        exact Hcf.
+        rewrite H2 H1 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (zext
+        (n -
+         size
+           (ebinop_op Badd (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Badd (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+           (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_SadcB_ext 2!size_sext typeof_eval_fexpr.
+        rewrite typeof_eval_fexpr.
+        rewrite H1 H2.
+        simpl.
+        rewrite subnKC.
+        rewrite subnKC.
+        rewrite maxnn.
+        rewrite H1 H2 in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        rewrite leq_maxr //.
+        rewrite leq_maxl //.
+        exact Hcf.
+        rewrite H2 H1 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt2 Hide2 //.
+        exact Hcf.
+        rewrite H2 H1 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        rewrite typeof_eval_fexpr.
+        rewrite H1 H2.
+        simpl.
+        rewrite subnKC.
+        rewrite subnKC //.
+        rewrite leq_maxr //.
+        rewrite leq_maxl //.
+        exact Hcf.
+        rewrite H2 H1 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt2 Hide2 //.
+        exact Hcf.
+        rewrite H2 H1 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+      (* sub *)
+      - move => Hide Hwt Hsf rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      move : Hide => /andP [Hide1 Hide2].
+      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (zext
+              (n -
+               size
+                 (ebinop_op Bsub (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+                    (no_mem_eval_fexpr e3 s1 te)))
+              (ebinop_op Bsub (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+                 (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_subB_ext typeof_eval_fexpr.
+        rewrite typeof_eval_fexpr.
+        rewrite H1 H2.
+        simpl.
+        rewrite H1 H2 in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        exact Hcf.
+        rewrite H2 H1 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt2 Hide2 //.
+        exact Hcf.
+        rewrite H2 H1 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (zext
+        (n -
+         size
+           (ebinop_op Bsub (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Bsub (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+           (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_SsbbB_ext 2!size_sext typeof_eval_fexpr.
+        rewrite typeof_eval_fexpr.
+        rewrite H1 H2.
+        simpl.
+        rewrite subnKC.
+        rewrite subnKC.
+        rewrite maxnn.
+        rewrite H1 H2 in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        rewrite leq_maxr //.
+        rewrite leq_maxl //.
+        exact Hcf.
+        rewrite H2 H1 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt2 Hide2 //.
+        exact Hcf.
+        rewrite H2 H1 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        rewrite typeof_eval_fexpr.
+        rewrite H1 H2.
+        simpl.
+        rewrite subnKC.
+        rewrite subnKC //.
+        rewrite leq_maxr //.
+        rewrite leq_maxl //.
+        exact Hcf.
+        rewrite H2 H1 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt2 Hide2 //.
+        exact Hcf.
+        rewrite H2 H1 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+      (* mul *)
+      - move => Hide Hwt Hsf rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      move : Hide => /andP [Hide1 Hide2].
+      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (zext
+        (n -
+         size
+           (ebinop_op Bmul (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Bmul (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+           (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_full_mul typeof_eval_fexpr.
+        rewrite typeof_eval_fexpr.
+        rewrite H1 H2.
+        simpl.
+        rewrite H1 H2 in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        exact Hcf.
+        rewrite H2 H1 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt2 Hide2 //.
+        exact Hcf.
+        rewrite H2 H1 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (zext
+        (n -
+         size
+           (ebinop_op Bmul (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Bmul (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+           (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_Sfull_mul typeof_eval_fexpr.
+        rewrite typeof_eval_fexpr.
+        rewrite H1 H2.
+        simpl.
+        rewrite H1 H2 in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        exact Hcf.
+        rewrite H2 H1 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt2 Hide2 //.
+        exact Hcf.
+        rewrite H2 H1 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+      (* div *)
+      - move => Hide Hwt Hsf rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      move : Hide => /andP [Hide1 Hide2].
+      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (zext
+        (n -
+         size
+           (ebinop_op Bdiv (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Bdiv (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+           (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_udivB typeof_eval_fexpr.
+        rewrite H1.
+        simpl.
+        rewrite H1 in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (zext
+        (n -
+        size
+        (ebinop_op Bdiv (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+           (no_mem_eval_fexpr e3 s1 te)))
+     (ebinop_op Bdiv (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+        (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_sext size_sdivB typeof_eval_fexpr.
+        rewrite H1.
+        simpl.
+        rewrite H1 in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+      (* rem *)
+      - move => Hide Hwt Hsf rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      move : Hide => /andP [Hide1 Hide2].
+      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (zext
+        (n -
+        size
+        (ebinop_op Brem (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+           (no_mem_eval_fexpr e3 s1 te)))
+     (ebinop_op Brem (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+        (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_low.
+        rewrite H1 H2 in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (zext
+        (n -
+        size
+           (ebinop_op Brem (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Brem (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+           (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_low.
+        rewrite H1 H2 in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+      (* cmp *)
+      move => b.
+      case : b.
+      move => Hide Hwt Hsf rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      move : Hide => /andP [Hide1 Hide2].
+      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (zext
+        (n -
+        size
+        (ebinop_op (Bcomp Blt) (Fuint n0) (Fuint n1)
+              (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op (Bcomp Blt) (Fuint n0) (Fuint n1) 
+           (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        exact Hsf.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (zext
+        (n -
+        size
+        (ebinop_op (Bcomp Blt) (Fsint n0) (Fsint n1)
+              (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op (Bcomp Blt) (Fsint n0) (Fsint n1) 
+           (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        exact Hsf.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+      discriminate.
+      move => Hide Hwt Hsf rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      move : Hide => /andP [Hide1 Hide2].
+      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (zext
+        (n -
+        size
+        (ebinop_op (Bcomp Bleq) (Fuint n0) (Fuint n1)
+              (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op (Bcomp Bleq) (Fuint n0) (Fuint n1) 
+           (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        exact Hsf.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (zext
+        (n -
+        size
+        (ebinop_op (Bcomp Bleq) (Fsint n0) (Fsint n1)
+              (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op (Bcomp Bleq) (Fsint n0) (Fsint n1) 
+           (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        exact Hsf.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+      discriminate.
+      move => Hide Hwt Hsf rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      move : Hide => /andP [Hide1 Hide2].
+      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (zext
+        (n -
+        size
+        (ebinop_op (Bcomp Bgt) (Fuint n0) (Fuint n1)
+              (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op (Bcomp Bgt) (Fuint n0) (Fuint n1) 
+           (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        exact Hsf.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (zext
+        (n -
+        size
+        (ebinop_op (Bcomp Bgt) (Fsint n0) (Fsint n1)
+              (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op (Bcomp Bgt) (Fsint n0) (Fsint n1) 
+           (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        exact Hsf.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+      discriminate.
+      move => Hide Hwt Hsf rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      move : Hide => /andP [Hide1 Hide2].
+      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (zext
+        (n -
+        size
+        (ebinop_op (Bcomp Bgeq) (Fuint n0) (Fuint n1)
+              (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op (Bcomp Bgeq) (Fuint n0) (Fuint n1) 
+           (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        exact Hsf.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (zext
+        (n -
+        size
+        (ebinop_op (Bcomp Bgeq) (Fsint n0) (Fsint n1)
+              (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op (Bcomp Bgeq) (Fsint n0) (Fsint n1) 
+           (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        exact Hsf.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+      discriminate.
+      move => Hide Hwt Hsf rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      move : Hide => /andP [Hide1 Hide2].
+      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (zext
+        (n -
+        size
+        (ebinop_op (Bcomp Beq) (Fuint n0) (Fuint n1)
+              (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op (Bcomp Beq) (Fuint n0) (Fuint n1) 
+           (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        exact Hsf.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (zext
+        (n -
+        size
+        (ebinop_op (Bcomp Beq) (Fsint n0) (Fsint n1)
+              (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op (Bcomp Beq) (Fsint n0) (Fsint n1) 
+           (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        exact Hsf.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+      discriminate.
+      move => Hide Hwt Hsf rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      move : Hide => /andP [Hide1 Hide2].
+      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (zext
+        (n -
+        size
+        (ebinop_op (Bcomp Bneq) (Fuint n0) (Fuint n1)
+              (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op (Bcomp Bneq) (Fuint n0) (Fuint n1) 
+           (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        exact Hsf.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (zext
+        (n -
+        size
+        (ebinop_op (Bcomp Bneq) (Fsint n0) (Fsint n1)
+              (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op (Bcomp Bneq) (Fsint n0) (Fsint n1) 
+           (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        exact Hsf.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+      (* dshl *)
+      move => Hide Hwt Hsf rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      move : Hide => /andP [Hide1 Hide2].
+      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (zext
+        (n -
+        size
+        (ebinop_op Bdshl (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Bdshl (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+           (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_zext size_cat size_zeros.
+        rewrite subn1 addnACl subnK.
+        rewrite H2 H1 in Hsf.
+        simpl in Hsf.
+        rewrite typeof_eval_fexpr.
+        rewrite typeof_eval_fexpr.
+        rewrite H1 H2.
+        simpl.
+        rewrite -subn1 addnBA //.
+        rewrite -Nats.expn_pow Nats.expn2_gt0 //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt2 Hide2 //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        rewrite -Nats.expn_pow.
+        apply ltnSE.
+        rewrite Nat.succ_pred.
+        rewrite to_nat_bounded //.
+        rewrite Nats.expn_pow.
+        apply Nat.pow_nonzero.
+        admit.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite H2 H1 in Hwt.
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (zext
+        (n -
+        size
+        (ebinop_op Bdshl (Fsint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Bdshl (Fsint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+           (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+           apply SV.conform_upd.
+           rewrite Ht size_zext subnKC.
+           simpl.
+           reflexivity.
+           simpl.
+           rewrite size_sext size_cat size_zeros.
+           rewrite subn1 addnACl subnK.
+           rewrite H2 H1 in Hsf.
+           simpl in Hsf.
+           rewrite typeof_eval_fexpr.
+           rewrite typeof_eval_fexpr.
+           rewrite H1 H2.
+           simpl.
+           rewrite -subn1 addnBA //.
+           rewrite -Nats.expn_pow Nats.expn2_gt0 //.
+           exact Hcf.
+           move : Hwt => /andP [Hwt1 Hwt2].
+           rewrite /well_formed_fexpr Hwt2 Hide2 //.
+           exact Hcf.
+           move : Hwt => /andP [Hwt1 Hwt2].
+           rewrite /well_formed_fexpr Hwt1 Hide1 //.
+           rewrite -Nats.expn_pow.
+           apply ltnSE.
+           rewrite Nat.succ_pred.
+           rewrite to_nat_bounded //.
+           rewrite Nats.expn_pow.
+           apply Nat.pow_nonzero.
+           admit.
+           exact Hcf.
+           move : Hte Htcf.
+           apply SV.conform_equal.
+           rewrite H2 H1 in Hwt.
+          discriminate.
+          rewrite H2 H1 in Hwt.
+          discriminate.
+          rewrite H2 H1 in Hwt.
+          discriminate.
+          rewrite H1 H2 in Hwt.
+          discriminate.
+          rewrite H1 in Hwt.
+          discriminate.
+          rewrite H1 in Hwt.
+          discriminate.
+          rewrite H1 in Hwt.
+          discriminate.
+      (* shr *)
+      move => Hide Hwt Hsf rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      move : Hide => /andP [Hide1 Hide2].
+      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (zext
+        (n -
+        size
+        (ebinop_op Bdshr (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Bdshr (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+           (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_shrB.
+        rewrite typeof_eval_fexpr.
+        rewrite H1.
+        simpl.
+        rewrite H1 in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite H2 H1 in Hwt.
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (zext
+        (n -
+        size
+        (ebinop_op Bdshr (Fsint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Bdshr (Fsint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+           (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_sarB.
+        rewrite typeof_eval_fexpr.
+        rewrite H1.
+        simpl.
+        rewrite H1 in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        exact Hcf.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+      (* and *)
+      move => Hide Hwt Hsf rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      move : Hide => /andP [Hide1 Hide2].
+      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (zext
+        (n -
+        size
+        (ebinop_op Band (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Band (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+           (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_andB.
+        rewrite 2!size_zext typeof_eval_fexpr.
+        rewrite typeof_eval_fexpr.
+        rewrite H1 H2.
+        simpl.
+        rewrite subnKC.
+        rewrite subnKC.
+        rewrite maxnn.
+        rewrite H1 H2 in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        rewrite leq_maxr //.
+        rewrite leq_maxl //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt2 Hide2 //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (zext
+        (n -
+        size
+        (ebinop_op Band (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Band (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+           (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_andB.
+        rewrite 2!size_sext typeof_eval_fexpr.
+        rewrite typeof_eval_fexpr.
+        rewrite H1 H2.
+        simpl.
+        rewrite subnKC.
+        rewrite subnKC.
+        rewrite maxnn.
+        rewrite H1 H2 in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        rewrite leq_maxr //.
+        rewrite leq_maxl //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt2 Hide2 //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+      (* or *)
+      move => Hide Hwt Hsf rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      move : Hide => /andP [Hide1 Hide2].
+      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (zext
+        (n -
+        size
+        (ebinop_op Bor (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Bor (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+           (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_orB.
+        rewrite 2!size_zext typeof_eval_fexpr.
+        rewrite typeof_eval_fexpr.
+        rewrite H1 H2.
+        simpl.
+        rewrite subnKC.
+        rewrite subnKC.
+        rewrite maxnn.
+        rewrite H1 H2 in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        rewrite leq_maxr //.
+        rewrite leq_maxl //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt2 Hide2 //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (zext
+        (n -
+        size
+        (ebinop_op Bor (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Bor (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+           (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_orB.
+        rewrite 2!size_sext typeof_eval_fexpr.
+        rewrite typeof_eval_fexpr.
+        rewrite H1 H2.
+        simpl.
+        rewrite subnKC.
+        rewrite subnKC.
+        rewrite maxnn.
+        rewrite H1 H2 in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        rewrite leq_maxr //.
+        rewrite leq_maxl //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt2 Hide2 //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+      (* xor *)
+      move => Hide Hwt Hsf rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      move : Hide => /andP [Hide1 Hide2].
+      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (zext
+        (n -
+        size
+        (ebinop_op Bxor (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Bxor (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+           (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_xorB.
+        rewrite 2!size_zext typeof_eval_fexpr.
+        rewrite typeof_eval_fexpr.
+        rewrite H1 H2.
+        simpl.
+        rewrite subnKC.
+        rewrite subnKC.
+        rewrite maxnn.
+        rewrite H1 H2 in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        rewrite leq_maxr //.
+        rewrite leq_maxl //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt2 Hide2 //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (zext
+        (n -
+        size
+        (ebinop_op Bxor (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Bxor (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+           (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_xorB.
+        rewrite 2!size_sext typeof_eval_fexpr.
+        rewrite typeof_eval_fexpr.
+        rewrite H1 H2.
+        simpl.
+        rewrite subnKC.
+        rewrite subnKC.
+        rewrite maxnn.
+        rewrite H1 H2 in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        rewrite leq_maxr //.
+        rewrite leq_maxl //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt2 Hide2 //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+      (* cat *)
+      move => Hide Hwt Hsf rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      move : Hide => /andP [Hide1 Hide2].
+      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (zext
+        (n -
+        size
+        (ebinop_op Bcat (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Bcat (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+           (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_cat.
+        rewrite typeof_eval_fexpr.
+        rewrite typeof_eval_fexpr.
+        rewrite H1 H2.
+        simpl.
+        rewrite H1 H2 in Hsf.
+        simpl in Hsf.
+        rewrite addnC //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt2 Hide2 //.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (zext
+        (n -
+        size
+        (ebinop_op Bcat (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Bcat (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+           (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_cat.
+        rewrite typeof_eval_fexpr.
+        rewrite typeof_eval_fexpr.
+        rewrite H1 H2.
+        simpl.
+        rewrite H1 H2 in Hsf.
+        simpl in Hsf.
+        rewrite addnC //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt2 Hide2 //.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+    - (* mux *)
+    move => rs1 s1 Hcf Hr.
+    simpl.
+    rewrite Hr Ht.
+    simpl.
+    simpl in Hwt.
+    simpl in Hsf.
+    simpl in Hide.
+    move : Hide => /andP [Hid2 Hid3].
+    move : Hid2 => /andP [Hid1 Hid2].
+    case H2:(type_of_fexpr e2 te) => [n0|n0|||].
+    - case H3:(type_of_fexpr e3 te) => [n1|n1|||].
+      rewrite H2 H3 in Hwt.
+      move : Hwt => /andP [Hwt2 Hwt3].
+      move : Hwt2 => /andP [_ Hwt2].
+      case (is_zero (no_mem_eval_fexpr e1 s1 te)).
+      simpl.
+      rewrite size_zext.
+      rewrite H2 H3 in Hsf.
+      simpl in Hsf.
+      assert (Htcf : SV.conform (SV.upd r
+      (zext (n - (size (no_mem_eval_fexpr e3 s1 te) + (maxn n0 n1 - n1)))
+         (zext (maxn n0 n1 - n1) (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite Ht size_zext size_zext subnKC.
+      simpl.
+      reflexivity.
+      rewrite typeof_eval_fexpr.
+      rewrite H3 subnKC.
+      exact Hsf.
+      simpl.
+      apply leq_maxr.
+      exact Hcf.
+      rewrite /well_formed_fexpr Hwt3 Hid3 //.
+      exact Hcf.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      simpl.
+      rewrite size_zext.
+      rewrite H2 H3 in Hsf.
+      simpl in Hsf.
+      assert (Htcf : SV.conform (SV.upd r
+      (zext (n - (size (no_mem_eval_fexpr e2 s1 te) + (maxn n0 n1 - n0)))
+         (zext (maxn n0 n1 - n0) (no_mem_eval_fexpr e2 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite Ht size_zext size_zext subnKC.
+      simpl.
+      reflexivity.
+      rewrite typeof_eval_fexpr.
+      rewrite H2 subnKC.
+      exact Hsf.
+      simpl.
+      apply leq_maxl.
+      exact Hcf.
+      rewrite /well_formed_fexpr Hwt2 Hid2 //.
+      exact Hcf.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      rewrite H2 H3 in Hwt.
+      discriminate.
+      rewrite H2 H3 in Hwt.
+      discriminate.
+      rewrite H2 H3 in Hwt.
+      discriminate.
+      rewrite H2 H3 in Hwt.
+      discriminate.
+      - case H3:(type_of_fexpr e3 te) => [n1|n1|||].
+      rewrite H2 H3 in Hwt.
+      discriminate.
+      rewrite H2 H3 in Hwt.
+      move : Hwt => /andP [Hwt2 Hwt3].
+      move : Hwt2 => /andP [_ Hwt2].
+      case (is_zero (no_mem_eval_fexpr e1 s1 te)).
+      simpl.
+      rewrite size_sext.
+      rewrite H2 H3 in Hsf.
+      simpl in Hsf.
+      assert (Htcf : SV.conform (SV.upd r
+      (zext (n - (size (no_mem_eval_fexpr e3 s1 te) + (maxn n0 n1 - n1)))
+         (sext (maxn n0 n1 - n1) (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite Ht size_zext size_sext subnKC.
+      simpl.
+      reflexivity.
+      rewrite typeof_eval_fexpr.
+      rewrite H3 subnKC.
+      exact Hsf.
+      simpl.
+      apply leq_maxr.
+      exact Hcf.
+      rewrite /well_formed_fexpr Hwt3 Hid3 //.
+      exact Hcf.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      simpl.
+      rewrite size_sext.
+      rewrite H2 H3 in Hsf.
+      simpl in Hsf.
+      assert (Htcf : SV.conform (SV.upd r
+      (zext (n - (size (no_mem_eval_fexpr e2 s1 te) + (maxn n0 n1 - n0)))
+         (sext (maxn n0 n1 - n0) (no_mem_eval_fexpr e2 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite Ht size_zext size_sext subnKC.
+      simpl.
+      reflexivity.
+      rewrite typeof_eval_fexpr.
+      rewrite H2 subnKC.
+      exact Hsf.
+      simpl.
+      apply leq_maxl.
+      exact Hcf.
+      rewrite /well_formed_fexpr Hwt2 Hid2 //.
+      exact Hcf.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      rewrite H2 H3 in Hwt.
+      discriminate.
+      rewrite H2 H3 in Hwt.
+      discriminate.
+      rewrite H2 H3 in Hwt.
+      discriminate.
+      rewrite H2 in Hwt.
+      discriminate.
+      rewrite H2 in Hwt.
+      discriminate.
+      rewrite H2 in Hwt.
+      discriminate.
+    - (* validif *)
+      move => rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hwt.
+      simpl in Hsf.
+      simpl in Hide.
+      move : Hide => /andP [Hid1 Hid2].
+      move : Hwt => /andP [Hwt1 Hwt2].
+      apply IHe2 with (s1:=s1) (rs1:=rs1) in Hcf.
+      simpl in Hcf.
+      rewrite Ht Hr in Hcf.
+      simpl in Hcf.
+      exact Hcf.
+      exact Hid2.
+      exact Hwt2.
+      exact Hsf.
+      exact Hr.
+    - (* case ref *)
+    move => rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      assert (Htcf : SV.conform (SV.upd r (zext (n - size (SV.acc s s1)) (SV.acc s s1)) s1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite Ht size_zext subnKC.
+      simpl.
+      reflexivity.
+      rewrite -(typeof_eval_fexpr Hcf) in Hsf.
+      simpl in Hsf.
+      exact Hsf.
+      rewrite /well_formed_fexpr Hwt Hide //.
+      exact Hcf.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+    (* sint *)
+    rewrite Ht in Hwt.
+    move : Hwt => /andP [Hwt Hsf].
+    move : rs1 s1 Hcf.
+    rewrite /no_mem_upd_typenv_fstmt.
+    induction e.
+      (* cosnt *)
+    - move => rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hwt.
+      move : Hwt => /eqP Hwt.
+      rewrite Hwt subnn zext0 sext0.
+      simpl in Hsf.
+      rewrite Hwt in Hsf.
+      assert (Htcf : SV.conform
+      (SV.upd r
+         (sext (n - size match f with
+                         | Fuint _ | _ => b
+                         end) match f with
+                              | Fuint _ | _ => b
+                              end) s1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite Ht size_sext subnKC.
+      simpl.
+      reflexivity.
+      case f;done.
+      exact Hcf.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      (* cast *)
+    - case Hu:u; try by done.
+      simpl in Hide.
+      simpl in Hwt.
+      (* uint *)
+      - move => rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hsf.
+      rewrite Hu in Hsf.
+      simpl in Hsf.
+      specialize IHe with (rs1:=rs1) (s1:=s1).
+      simpl in IHe.
+      apply IHe in Hide.
+      rewrite Ht Hr in Hide.
+      simpl in Hide.
+      exact Hide.
+      exact Hwt.
+      exact Hsf.
+      exact Hcf.
+      exact Hr.
+      (* sint *)
+      - move => rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hsf.
+      rewrite Hu in Hsf.
+      simpl in Hsf.
+      specialize IHe with (rs1:=rs1) (s1:=s1).
+      simpl in IHe.
+      apply IHe in Hide.
+      rewrite Ht Hr in Hide.
+      simpl in Hide.
+      exact Hide.
+      exact Hwt.
+      exact Hsf.
+      exact Hcf.
+      exact Hr.
+      (* clk *)
+      - move => rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      assert (Htcf : SV.conform
+      (SV.upd r
+      (sext (n - 1) [:: lsb (no_mem_eval_fexpr e s1 te)]) s1)
+         (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_sext.
+      simpl.
+      rewrite subnKC.
+      rewrite Ht //.
+      simpl in Hsf.
+      rewrite Hu in Hsf.
+      simpl in Hsf.
+      exact Hsf.
+      exact Hcf.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      (* rst *)
+      - move => rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      assert (Htcf : SV.conform
+      (SV.upd r
+      (sext (n - 1) [:: lsb (no_mem_eval_fexpr e s1 te)]) s1)
+         (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_sext.
+      simpl.
+      rewrite subnKC.
+      rewrite Ht //.
+      simpl in Hsf.
+      rewrite Hu in Hsf.
+      simpl in Hsf.
+      exact Hsf.
+      exact Hcf.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      - move => rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      assert (Htcf : SV.conform
+      (SV.upd r
+      (sext (n - 1) [:: lsb (no_mem_eval_fexpr e s1 te)]) s1)
+         (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_sext.
+      simpl.
+      rewrite subnKC.
+      rewrite Ht //.
+      simpl in Hsf.
+      rewrite Hu in Hsf.
+      simpl in Hsf.
+      exact Hsf.
+      exact Hcf.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+    - (* unop *)
+      move : Hide Hwt Hsf.
+      case :e; try by done.
+      (* upad *)
+      - move => pn Hide Hwt Hsf rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      case Hn:(pn < size (no_mem_eval_fexpr e0 s1 te)).
+        case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+                (sext (n - size (no_mem_eval_fexpr e0 s1 te)) (no_mem_eval_fexpr e0 s1 te))
+                s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        rewrite typeof_eval_fexpr in Hn.
+        rewrite Hn in Hsf.
+        rewrite typeof_eval_fexpr.
+        exact Hsf.
+        exact Hcf.
+        rewrite Htyp in Hwt.
+        rewrite /well_formed_fexpr Hwt Hide //.
+        exact Hcf.
+        rewrite Htyp in Hwt.
+        rewrite /well_formed_fexpr Hwt Hide //.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        - assert (Htcf : SV.conform
+        (SV.upd r
+          (sext (n - size (no_mem_eval_fexpr e0 s1 te)) (no_mem_eval_fexpr e0 s1 te))
+          s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        rewrite typeof_eval_fexpr in Hn.
+        rewrite Hn in Hsf.
+        rewrite typeof_eval_fexpr.
+        exact Hsf.
+        exact Hcf.
+        rewrite Htyp in Hwt.
+        rewrite /well_formed_fexpr Hwt Hide //.
+        exact Hcf.
+        rewrite Htyp in Hwt.
+        rewrite /well_formed_fexpr Hwt Hide //.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        - rewrite Htyp in Hwt.
+        discriminate.
+        - rewrite Htyp in Hwt.
+        discriminate.
+        - rewrite Htyp in Hwt.
+        discriminate.
+        case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
+        - assert (Htcf : SV.conform
+        (SV.upd r
+        (sext (n - size (zext (pn - n0) (no_mem_eval_fexpr e0 s1 te)))
+           (zext (pn - n0) (no_mem_eval_fexpr e0 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        rewrite size_zext typeof_eval_fexpr.
+        rewrite Htyp.
+        rewrite subnKC //.
+        rewrite typeof_eval_fexpr in Hn.
+        rewrite Hn Htyp in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        exact Hcf.
+        rewrite Htyp in Hwt.
+        rewrite /well_formed_fexpr Hwt Hide //.
+        rewrite typeof_eval_fexpr in Hn.
+        rewrite Htyp in Hn.
+        apply contraFleq with (b:=(pn < sizeof_fgtyp (Fuint n0))).
+        trivial.
+        exact Hn.
+        exact Hcf.
+        rewrite Htyp in Hwt.
+        rewrite /well_formed_fexpr Hwt Hide //.
+        exact Hcf.
+        rewrite Htyp in Hwt.
+        rewrite /well_formed_fexpr Hwt Hide //.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        - assert (Htcf : SV.conform
+        (SV.upd r
+        (sext (n - size (sext (pn - n0) (no_mem_eval_fexpr e0 s1 te)))
+           (sext (pn - n0) (no_mem_eval_fexpr e0 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        rewrite size_sext typeof_eval_fexpr.
+        rewrite Htyp.
+        rewrite subnKC //.
+        rewrite typeof_eval_fexpr in Hn.
+        rewrite Hn Htyp in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        exact Hcf.
+        rewrite Htyp in Hwt.
+        rewrite /well_formed_fexpr Hwt Hide //.
+        rewrite typeof_eval_fexpr in Hn.
+        rewrite Htyp in Hn.
+        apply contraFleq with (b:=(pn < sizeof_fgtyp (Fuint n0))).
+        trivial.
+        exact Hn.
+        exact Hcf.
+        rewrite Htyp in Hwt.
+        rewrite /well_formed_fexpr Hwt Hide //.
+        exact Hcf.
+        rewrite Htyp in Hwt.
+        rewrite /well_formed_fexpr Hwt Hide //.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        - rewrite Htyp in Hwt.
+        discriminate.
+        - rewrite Htyp in Hwt.
+        discriminate.
+        - rewrite Htyp in Hwt.
+        discriminate.
+      (* shl *)
+      - move => sn Hide Hwt Hsf rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      assert (Htcf : SV.conform
+      (SV.upd r
+      (sext (n - size (zeros sn ++ no_mem_eval_fexpr e0 s1 te))
+         (zeros sn ++ no_mem_eval_fexpr e0 s1 te)) s1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_sext size_cat size_zeros subnKC.
+      rewrite Ht.
+      simpl.
+      reflexivity.
+      case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
+      rewrite typeof_eval_fexpr.
+      rewrite Htyp.
+      rewrite Htyp in Hsf.
+      simpl in Hsf.
+      simpl.
+      rewrite addnC //.
+      exact Hcf.
+      rewrite Htyp in Hwt.
+      rewrite /well_formed_fexpr Hwt Hide //.
+      rewrite typeof_eval_fexpr.
+      rewrite Htyp.
+      rewrite Htyp in Hsf.
+      simpl in Hsf.
+      simpl.
+      rewrite addnC //.
+      exact Hcf.
+      rewrite Htyp in Hwt.
+      rewrite /well_formed_fexpr Hwt Hide //.
+      rewrite Htyp in Hwt.
+      discriminate.
+      rewrite Htyp in Hwt.
+      discriminate.
+      rewrite Htyp in Hwt.
+      discriminate.
+      exact Hcf.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      (* shr *)
+      - move => sn Hide Hwt Hsf rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      case Hsn:(sn < size (no_mem_eval_fexpr e0 s1 te)).
+      assert (Htcf : SV.conform
+      (SV.upd r
+     (sext
+        (n -
+         size
+           (high (size (no_mem_eval_fexpr e0 s1 te) - sn)
+              (no_mem_eval_fexpr e0 s1 te)))
+        (high (size (no_mem_eval_fexpr e0 s1 te) - sn)
+           (no_mem_eval_fexpr e0 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_sext size_high subnKC.
+      rewrite Ht.
+      simpl.
+      reflexivity.
+      case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
+      rewrite typeof_eval_fexpr.
+      rewrite Htyp.
+      rewrite typeof_eval_fexpr in Hsn.
+      rewrite Htyp in Hsn.
+      simpl in Hsn.
+      simpl.
+      rewrite Htyp Hsn in Hsf.
+      simpl in Hsf.
+      exact Hsf.
+      exact Hcf.
+      rewrite Htyp in Hwt.
+      rewrite /well_formed_fexpr Hwt Hide //.
+      exact Hcf.
+      rewrite Htyp in Hwt.
+      rewrite /well_formed_fexpr Hwt Hide //.
+      rewrite typeof_eval_fexpr.
+      rewrite Htyp.
+      rewrite typeof_eval_fexpr in Hsn.
+      rewrite Htyp in Hsn.
+      simpl in Hsn.
+      simpl.
+      rewrite Htyp Hsn in Hsf.
+      simpl in Hsf.
+      exact Hsf.
+      exact Hcf.
+      rewrite Htyp in Hwt.
+      rewrite /well_formed_fexpr Hwt Hide //.
+      exact Hcf.
+      rewrite Htyp in Hwt.
+      rewrite /well_formed_fexpr Hwt Hide //.
+      rewrite Htyp in Hwt.
+      discriminate.
+      rewrite Htyp in Hwt.
+      discriminate.
+      rewrite Htyp in Hwt.
+      discriminate.
+      exact Hcf.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
+      assert (Htcf : SV.conform
+      (SV.upd r
+     (sext (n - size [:: msb (no_mem_eval_fexpr e0 s1 te)])
+        [:: msb (no_mem_eval_fexpr e0 s1 te)]) s1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_sext subnKC.
+      rewrite Ht.
+      simpl.
+      reflexivity.
+      rewrite typeof_eval_fexpr in Hsn.
+      rewrite Htyp in Hsn.
+      simpl in Hsn.
+      rewrite Htyp Hsn in Hsf.
+      simpl in Hsf.
+      simpl.
+      exact Hsf.
+      exact Hcf.
+      rewrite Htyp in Hwt.
+      rewrite /well_formed_fexpr Hwt Hide //.
+      exact Hcf.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      assert (Htcf : SV.conform
+      (SV.upd r
+     (sext (n - size [:: msb (no_mem_eval_fexpr e0 s1 te)])
+        [:: msb (no_mem_eval_fexpr e0 s1 te)]) s1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_sext subnKC.
+      rewrite Ht.
+      simpl.
+      reflexivity.
+      rewrite typeof_eval_fexpr in Hsn.
+      rewrite Htyp in Hsn.
+      simpl in Hsn.
+      rewrite Htyp Hsn in Hsf.
+      simpl in Hsf.
+      simpl.
+      exact Hsf.
+      exact Hcf.
+      rewrite Htyp in Hwt.
+      rewrite /well_formed_fexpr Hwt Hide //.
+      exact Hcf.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      rewrite Htyp in Hwt.
+      discriminate.
+      rewrite Htyp in Hwt.
+      discriminate.
+      rewrite Htyp in Hwt.
+      discriminate.
+    (* cvt *)
+    - move => Hide Hwt Hsf rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
+      assert (Htcf : SV.conform
+      (SV.upd r
+      (sext (n - size (sext 1 (no_mem_eval_fexpr e0 s1 te)))
+        (sext 1 (no_mem_eval_fexpr e0 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_sext subnKC.
+      rewrite Ht.
+      simpl.
+      reflexivity.
+      rewrite size_sext typeof_eval_fexpr.
+      rewrite Htyp.
+      rewrite Htyp in Hsf.
+      simpl in Hsf.
+      simpl.
+      exact Hsf.
+      exact Hcf.
+      rewrite Htyp in Hwt.
+      rewrite /well_formed_fexpr Hwt Hide //.
+      exact Hcf.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      assert (Htcf : SV.conform
+      (SV.upd r
+     (sext (n - size (no_mem_eval_fexpr e0 s1 te)) (no_mem_eval_fexpr e0 s1 te))
+     s1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_sext subnKC.
+      rewrite Ht.
+      simpl.
+      reflexivity.
+      rewrite typeof_eval_fexpr.
+      rewrite Htyp.
+      rewrite Htyp in Hsf.
+      exact Hsf.
+      exact Hcf.
+      rewrite Htyp in Hwt.
+      rewrite /well_formed_fexpr Hwt Hide //.
+      exact Hcf.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      rewrite Htyp in Hwt.
+      discriminate.
+      rewrite Htyp in Hwt.
+      discriminate.
+      rewrite Htyp in Hwt.
+      discriminate.
+    (* neg *)
+    - move => Hide Hwt Hsf rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
+      assert (Htcf : SV.conform
+      (SV.upd r
+      (sext (n - size (-# zext 1 (no_mem_eval_fexpr e0 s1 te)))
+        (-# zext 1 (no_mem_eval_fexpr e0 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_sext subnKC.
+      rewrite Ht.
+      simpl.
+      reflexivity.
+      rewrite size_negB size_zext typeof_eval_fexpr.
+      rewrite Htyp.
+      rewrite Htyp in Hsf.
+      simpl.
+      simpl in Hsf.
+      exact Hsf.
+      exact Hcf.
+      rewrite Htyp in Hwt.
+      rewrite /well_formed_fexpr Hwt Hide //.
+      exact Hcf.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      assert (Htcf : SV.conform
+      (SV.upd r
+      (sext (n - size (-# sext 1 (no_mem_eval_fexpr e0 s1 te)))
+        (-# sext 1 (no_mem_eval_fexpr e0 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_sext subnKC.
+      rewrite Ht.
+      simpl.
+      reflexivity.
+      rewrite size_negB size_sext typeof_eval_fexpr.
+      rewrite Htyp.
+      rewrite Htyp in Hsf.
+      simpl.
+      simpl in Hsf.
+      exact Hsf.
+      exact Hcf.
+      rewrite Htyp in Hwt.
+      rewrite /well_formed_fexpr Hwt Hide //.
+      exact Hcf.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      rewrite Htyp in Hwt.
+      discriminate.
+      rewrite Htyp in Hwt.
+      discriminate.
+      rewrite Htyp in Hwt.
+      discriminate.
+    (* not *)
+    - move => Hide Hwt Hsf rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
+      assert (Htcf : SV.conform
+      (SV.upd r
+     (sext (n - size (~~# no_mem_eval_fexpr e0 s1 te))
+        (~~# no_mem_eval_fexpr e0 s1 te)) s1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_sext subnKC.
+      rewrite Ht.
+      simpl.
+      reflexivity.
+      rewrite size_invB typeof_eval_fexpr.
+      rewrite Htyp.
+      rewrite Htyp in Hsf.
+      simpl.
+      simpl in Hsf.
+      exact Hsf.
+      exact Hcf.
+      rewrite Htyp in Hwt.
+      rewrite /well_formed_fexpr Hwt Hide //.
+      exact Hcf.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      assert (Htcf : SV.conform
+      (SV.upd r
+     (sext (n - size (~~# no_mem_eval_fexpr e0 s1 te))
+        (~~# no_mem_eval_fexpr e0 s1 te)) s1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_sext subnKC.
+      rewrite Ht.
+      simpl.
+      reflexivity.
+      rewrite size_invB typeof_eval_fexpr.
+      rewrite Htyp.
+      rewrite Htyp in Hsf.
+      simpl.
+      simpl in Hsf.
+      exact Hsf.
+      exact Hcf.
+      rewrite Htyp in Hwt.
+      rewrite /well_formed_fexpr Hwt Hide //.
+      exact Hcf.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      rewrite Htyp in Hwt.
+      discriminate.
+      rewrite Htyp in Hwt.
+      discriminate.
+      rewrite Htyp in Hwt.
+      discriminate.
+    (* and *)
+    - move => Hide Hwt Hsf rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      assert (Htcf : SV.conform
+      (SV.upd r (sext (n - 1) [:: foldr andb b1 (no_mem_eval_fexpr e0 s1 te)]) s1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_sext subnKC.
+      rewrite Ht.
+      simpl.
+      reflexivity.
+      simpl.
+      exact Hsf.
+      exact Hcf.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+    (* or *)
+    - move => Hide Hwt Hsf rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      assert (Htcf : SV.conform
+      (SV.upd r (sext (n - 1) [:: foldr orb b0 (no_mem_eval_fexpr e0 s1 te)]) s1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_sext subnKC.
+      rewrite Ht.
+      simpl.
+      reflexivity.
+      simpl.
+      exact Hsf.
+      exact Hcf.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+    (* xor *)
+    - move => Hide Hwt Hsf rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      assert (Htcf : SV.conform
+      (SV.upd r (sext (n - 1) [:: foldr xorb b0 (no_mem_eval_fexpr e0 s1 te)]) s1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_sext subnKC.
+      rewrite Ht.
+      simpl.
+      reflexivity.
+      simpl.
+      exact Hsf.
+      exact Hcf.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+    (* extr *)
+    - move => n0 n1 Hide Hwt Hsf rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      assert (Htcf : SV.conform
+      (SV.upd r (sext (n - size (extract n0 n1 (no_mem_eval_fexpr e0 s1 te)))
+      (extract n0 n1 (no_mem_eval_fexpr e0 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_sext subnKC.
+      rewrite Ht.
+      simpl.
+      reflexivity.
+      rewrite size_extract.
+      exact Hsf.
+      exact Hcf.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+    (* head *)
+    - move => n0 Hide Hwt Hsf rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      assert (Htcf : SV.conform
+      (SV.upd r (sext (n - size (high n0 (no_mem_eval_fexpr e0 s1 te)))
+      (high n0 (no_mem_eval_fexpr e0 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_sext subnKC.
+      rewrite Ht.
+      simpl.
+      reflexivity.
+      rewrite size_high.
+      exact Hsf.
+      exact Hcf.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+    (* tail *)
+    - move => n0 Hide Hwt Hsf rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      assert (Htcf : SV.conform
+      (SV.upd r (sext
+      (n -
+       size
+         (low (size (no_mem_eval_fexpr e0 s1 te) - n0)
+            (no_mem_eval_fexpr e0 s1 te)))
+      (low (size (no_mem_eval_fexpr e0 s1 te) - n0)
+         (no_mem_eval_fexpr e0 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_sext subnKC.
+      rewrite Ht.
+      simpl.
+      reflexivity.
+      rewrite size_low typeof_eval_fexpr.
+      exact Hsf.
+      exact Hcf.
+      rewrite /well_formed_fexpr Hwt Hide //.
+      exact Hcf.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+    - (* binop *)
+    move : Hide Hwt Hsf.
+      case :e1; try by done.
+      (* add *)
+      - move => Hide Hwt Hsf rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      move : Hide => /andP [Hide1 Hide2].
+      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (sext
+              (n -
+               size
+                 (ebinop_op Badd (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+                    (no_mem_eval_fexpr e3 s1 te)))
+              (ebinop_op Badd (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+                 (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_addB_ext typeof_eval_fexpr.
+        rewrite typeof_eval_fexpr.
+        rewrite H1 H2.
+        simpl.
+        rewrite H1 H2 in Hsf.
+        simpl in Hsf.
+        apply ltnSE.
+        apply /ltP.
+        apply Nat.lt_succ_r.
+        apply Nats.leq_le in Hsf.
+        rewrite -addn1 //.
+        exact Hcf.
+        rewrite H2 H1 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt2 Hide2 //.
+        exact Hcf.
+        rewrite H2 H1 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (sext
+        (n -
+         size
+           (ebinop_op Badd (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Badd (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+           (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_SadcB_ext 2!size_sext typeof_eval_fexpr.
+        rewrite typeof_eval_fexpr.
+        rewrite H1 H2.
+        simpl.
+        rewrite subnKC.
+        rewrite subnKC.
+        rewrite maxnn.
+        rewrite H1 H2 in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        rewrite leq_maxr //.
+        rewrite leq_maxl //.
+        exact Hcf.
+        rewrite H2 H1 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt2 Hide2 //.
+        exact Hcf.
+        rewrite H2 H1 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        rewrite typeof_eval_fexpr.
+        rewrite H1 H2.
+        simpl.
+        rewrite subnKC.
+        rewrite subnKC //.
+        rewrite leq_maxr //.
+        rewrite leq_maxl //.
+        exact Hcf.
+        rewrite H2 H1 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt2 Hide2 //.
+        exact Hcf.
+        rewrite H2 H1 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+      (* sub *)
+      - move => Hide Hwt Hsf rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      move : Hide => /andP [Hide1 Hide2].
+      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (sext
+              (n -
+               size
+                 (ebinop_op Bsub (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+                    (no_mem_eval_fexpr e3 s1 te)))
+              (ebinop_op Bsub (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+                 (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_subB_ext typeof_eval_fexpr.
+        rewrite typeof_eval_fexpr.
+        rewrite H1 H2.
+        simpl.
+        rewrite H1 H2 in Hsf.
+        simpl in Hsf.
+        apply ltnSE.
+        apply /ltP.
+        apply Nat.lt_succ_r.
+        apply Nats.leq_le in Hsf.
+        rewrite -addn1 //.
+        (*exact Hsf.*)
+        exact Hcf.
+        rewrite H2 H1 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt2 Hide2 //.
+        exact Hcf.
+        rewrite H2 H1 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (sext
+        (n -
+         size
+           (ebinop_op Bsub (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Bsub (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+           (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_SsbbB_ext 2!size_sext typeof_eval_fexpr.
+        rewrite typeof_eval_fexpr.
+        rewrite H1 H2.
+        simpl.
+        rewrite subnKC.
+        rewrite subnKC.
+        rewrite maxnn.
+        rewrite H1 H2 in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        rewrite leq_maxr //.
+        rewrite leq_maxl //.
+        exact Hcf.
+        rewrite H2 H1 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt2 Hide2 //.
+        exact Hcf.
+        rewrite H2 H1 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        rewrite typeof_eval_fexpr.
+        rewrite H1 H2.
+        simpl.
+        rewrite subnKC.
+        rewrite subnKC //.
+        rewrite leq_maxr //.
+        rewrite leq_maxl //.
+        exact Hcf.
+        rewrite H2 H1 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt2 Hide2 //.
+        exact Hcf.
+        rewrite H2 H1 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+      (* mul *)
+      - move => Hide Hwt Hsf rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      move : Hide => /andP [Hide1 Hide2].
+      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (sext
+        (n -
+         size
+           (ebinop_op Bmul (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Bmul (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+           (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_full_mul typeof_eval_fexpr.
+        rewrite typeof_eval_fexpr.
+        rewrite H1 H2.
+        simpl.
+        rewrite H1 H2 in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        exact Hcf.
+        rewrite H2 H1 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt2 Hide2 //.
+        exact Hcf.
+        rewrite H2 H1 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (sext
+        (n -
+         size
+           (ebinop_op Bmul (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Bmul (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+           (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_Sfull_mul typeof_eval_fexpr.
+        rewrite typeof_eval_fexpr.
+        rewrite H1 H2.
+        simpl.
+        rewrite H1 H2 in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        exact Hcf.
+        rewrite H2 H1 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt2 Hide2 //.
+        exact Hcf.
+        rewrite H2 H1 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+      (* div *)
+      - move => Hide Hwt Hsf rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      move : Hide => /andP [Hide1 Hide2].
+      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (sext
+        (n -
+         size
+           (ebinop_op Bdiv (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Bdiv (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+           (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_udivB typeof_eval_fexpr.
+        rewrite H1.
+        simpl.
+        rewrite H1 in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (sext
+        (n -
+        size
+        (ebinop_op Bdiv (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+           (no_mem_eval_fexpr e3 s1 te)))
+     (ebinop_op Bdiv (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+        (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_sext size_sdivB typeof_eval_fexpr.
+        rewrite H1.
+        simpl.
+        rewrite H1 in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+      (* rem *)
+      - move => Hide Hwt Hsf rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      move : Hide => /andP [Hide1 Hide2].
+      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (sext
+        (n -
+        size
+        (ebinop_op Brem (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+           (no_mem_eval_fexpr e3 s1 te)))
+     (ebinop_op Brem (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+        (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_low.
+        rewrite H1 H2 in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (sext
+        (n -
+        size
+           (ebinop_op Brem (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Brem (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+           (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_low.
+        rewrite H1 H2 in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+      (* cmp *)
+      move => b.
+      case : b.
+      move => Hide Hwt Hsf rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      move : Hide => /andP [Hide1 Hide2].
+      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (sext
+        (n -
+        size
+        (ebinop_op (Bcomp Blt) (Fuint n0) (Fuint n1)
+              (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op (Bcomp Blt) (Fuint n0) (Fuint n1) 
+           (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        exact Hsf.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (sext
+        (n -
+        size
+        (ebinop_op (Bcomp Blt) (Fsint n0) (Fsint n1)
+              (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op (Bcomp Blt) (Fsint n0) (Fsint n1) 
+           (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        exact Hsf.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+      discriminate.
+      move => Hide Hwt Hsf rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      move : Hide => /andP [Hide1 Hide2].
+      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (sext
+        (n -
+        size
+        (ebinop_op (Bcomp Bleq) (Fuint n0) (Fuint n1)
+              (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op (Bcomp Bleq) (Fuint n0) (Fuint n1) 
+           (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        exact Hsf.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (sext
+        (n -
+        size
+        (ebinop_op (Bcomp Bleq) (Fsint n0) (Fsint n1)
+              (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op (Bcomp Bleq) (Fsint n0) (Fsint n1) 
+           (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        exact Hsf.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+      discriminate.
+      move => Hide Hwt Hsf rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      move : Hide => /andP [Hide1 Hide2].
+      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (sext
+        (n -
+        size
+        (ebinop_op (Bcomp Bgt) (Fuint n0) (Fuint n1)
+              (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op (Bcomp Bgt) (Fuint n0) (Fuint n1) 
+           (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        exact Hsf.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (sext
+        (n -
+        size
+        (ebinop_op (Bcomp Bgt) (Fsint n0) (Fsint n1)
+              (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op (Bcomp Bgt) (Fsint n0) (Fsint n1) 
+           (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        exact Hsf.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+      discriminate.
+      move => Hide Hwt Hsf rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      move : Hide => /andP [Hide1 Hide2].
+      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (sext
+        (n -
+        size
+        (ebinop_op (Bcomp Bgeq) (Fuint n0) (Fuint n1)
+              (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op (Bcomp Bgeq) (Fuint n0) (Fuint n1) 
+           (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        exact Hsf.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (sext
+        (n -
+        size
+        (ebinop_op (Bcomp Bgeq) (Fsint n0) (Fsint n1)
+              (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op (Bcomp Bgeq) (Fsint n0) (Fsint n1) 
+           (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        exact Hsf.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+      discriminate.
+      move => Hide Hwt Hsf rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      move : Hide => /andP [Hide1 Hide2].
+      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (sext
+        (n -
+        size
+        (ebinop_op (Bcomp Beq) (Fuint n0) (Fuint n1)
+              (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op (Bcomp Beq) (Fuint n0) (Fuint n1) 
+           (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        exact Hsf.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (sext
+        (n -
+        size
+        (ebinop_op (Bcomp Beq) (Fsint n0) (Fsint n1)
+              (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op (Bcomp Beq) (Fsint n0) (Fsint n1) 
+           (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        exact Hsf.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+      discriminate.
+      move => Hide Hwt Hsf rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      move : Hide => /andP [Hide1 Hide2].
+      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (sext
+        (n -
+        size
+        (ebinop_op (Bcomp Bneq) (Fuint n0) (Fuint n1)
+              (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op (Bcomp Bneq) (Fuint n0) (Fuint n1) 
+           (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        exact Hsf.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (sext
+        (n -
+        size
+        (ebinop_op (Bcomp Bneq) (Fsint n0) (Fsint n1)
+              (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op (Bcomp Bneq) (Fsint n0) (Fsint n1) 
+           (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        exact Hsf.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+      (* dshl *)
+      move => Hide Hwt Hsf rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      move : Hide => /andP [Hide1 Hide2].
+      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (sext
+        (n -
+        size
+        (ebinop_op Bdshl (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Bdshl (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+           (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_zext size_cat size_zeros.
+        rewrite subn1 addnACl subnK.
+        rewrite H2 H1 in Hsf.
+        simpl in Hsf.
+        rewrite typeof_eval_fexpr.
+        rewrite typeof_eval_fexpr.
+        rewrite H1 H2.
+        simpl.
+        rewrite -subn1 addnBA //.
+        rewrite -Nats.expn_pow Nats.expn2_gt0 //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt2 Hide2 //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        rewrite -Nats.expn_pow.
+        apply ltnSE.
+        rewrite Nat.succ_pred.
+        rewrite to_nat_bounded //.
+        rewrite Nats.expn_pow.
+        apply Nat.pow_nonzero.
+        admit.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite H2 H1 in Hwt.
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (sext
+        (n -
+        size
+        (ebinop_op Bdshl (Fsint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Bdshl (Fsint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+           (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+           apply SV.conform_upd.
+           rewrite Ht size_sext subnKC.
+           simpl.
+           reflexivity.
+           simpl.
+           rewrite size_sext size_cat size_zeros.
+           rewrite subn1 addnACl subnK.
+           rewrite H2 H1 in Hsf.
+           simpl in Hsf.
+           rewrite typeof_eval_fexpr.
+           rewrite typeof_eval_fexpr.
+           rewrite H1 H2.
+           simpl.
+           rewrite -subn1 addnBA //.
+           rewrite -Nats.expn_pow Nats.expn2_gt0 //.
+           exact Hcf.
+           move : Hwt => /andP [Hwt1 Hwt2].
+           rewrite /well_formed_fexpr Hwt2 Hide2 //.
+           exact Hcf.
+           move : Hwt => /andP [Hwt1 Hwt2].
+           rewrite /well_formed_fexpr Hwt1 Hide1 //.
+           rewrite -Nats.expn_pow.
+           apply ltnSE.
+           rewrite Nat.succ_pred.
+           rewrite to_nat_bounded //.
+           rewrite Nats.expn_pow.
+           apply Nat.pow_nonzero.
+           admit.
+           exact Hcf.
+           move : Hte Htcf.
+           apply SV.conform_equal.
+           rewrite H2 H1 in Hwt.
+          discriminate.
+          rewrite H2 H1 in Hwt.
+          discriminate.
+          rewrite H2 H1 in Hwt.
+          discriminate.
+          rewrite H1 H2 in Hwt.
+          discriminate.
+          rewrite H1 in Hwt.
+          discriminate.
+          rewrite H1 in Hwt.
+          discriminate.
+          rewrite H1 in Hwt.
+          discriminate.
+      (* shr *)
+      move => Hide Hwt Hsf rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      move : Hide => /andP [Hide1 Hide2].
+      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (sext
+        (n -
+        size
+        (ebinop_op Bdshr (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Bdshr (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+           (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_shrB.
+        rewrite typeof_eval_fexpr.
+        rewrite H1.
+        simpl.
+        rewrite H1 in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite H2 H1 in Hwt.
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (sext
+        (n -
+        size
+        (ebinop_op Bdshr (Fsint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Bdshr (Fsint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+           (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_sarB.
+        rewrite typeof_eval_fexpr.
+        rewrite H1.
+        simpl.
+        rewrite H1 in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        exact Hcf.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+      (* and *)
+      move => Hide Hwt Hsf rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      move : Hide => /andP [Hide1 Hide2].
+      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (sext
+        (n -
+        size
+        (ebinop_op Band (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Band (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+           (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_andB.
+        rewrite 2!size_zext typeof_eval_fexpr.
+        rewrite typeof_eval_fexpr.
+        rewrite H1 H2.
+        simpl.
+        rewrite subnKC.
+        rewrite subnKC.
+        rewrite maxnn.
+        rewrite H1 H2 in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        rewrite leq_maxr //.
+        rewrite leq_maxl //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt2 Hide2 //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (sext
+        (n -
+        size
+        (ebinop_op Band (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Band (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+           (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_andB.
+        rewrite 2!size_sext typeof_eval_fexpr.
+        rewrite typeof_eval_fexpr.
+        rewrite H1 H2.
+        simpl.
+        rewrite subnKC.
+        rewrite subnKC.
+        rewrite maxnn.
+        rewrite H1 H2 in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        rewrite leq_maxr //.
+        rewrite leq_maxl //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt2 Hide2 //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+      (* or *)
+      move => Hide Hwt Hsf rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      move : Hide => /andP [Hide1 Hide2].
+      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (sext
+        (n -
+        size
+        (ebinop_op Bor (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Bor (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+           (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_orB.
+        rewrite 2!size_zext typeof_eval_fexpr.
+        rewrite typeof_eval_fexpr.
+        rewrite H1 H2.
+        simpl.
+        rewrite subnKC.
+        rewrite subnKC.
+        rewrite maxnn.
+        rewrite H1 H2 in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        rewrite leq_maxr //.
+        rewrite leq_maxl //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt2 Hide2 //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (sext
+        (n -
+        size
+        (ebinop_op Bor (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Bor (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+           (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_orB.
+        rewrite 2!size_sext typeof_eval_fexpr.
+        rewrite typeof_eval_fexpr.
+        rewrite H1 H2.
+        simpl.
+        rewrite subnKC.
+        rewrite subnKC.
+        rewrite maxnn.
+        rewrite H1 H2 in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        rewrite leq_maxr //.
+        rewrite leq_maxl //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt2 Hide2 //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+      (* xor *)
+      move => Hide Hwt Hsf rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      move : Hide => /andP [Hide1 Hide2].
+      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (sext
+        (n -
+        size
+        (ebinop_op Bxor (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Bxor (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+           (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_xorB.
+        rewrite 2!size_zext typeof_eval_fexpr.
+        rewrite typeof_eval_fexpr.
+        rewrite H1 H2.
+        simpl.
+        rewrite subnKC.
+        rewrite subnKC.
+        rewrite maxnn.
+        rewrite H1 H2 in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        rewrite leq_maxr //.
+        rewrite leq_maxl //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt2 Hide2 //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (sext
+        (n -
+        size
+        (ebinop_op Bxor (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Bxor (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+           (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_xorB.
+        rewrite 2!size_sext typeof_eval_fexpr.
+        rewrite typeof_eval_fexpr.
+        rewrite H1 H2.
+        simpl.
+        rewrite subnKC.
+        rewrite subnKC.
+        rewrite maxnn.
+        rewrite H1 H2 in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        rewrite leq_maxr //.
+        rewrite leq_maxl //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt2 Hide2 //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+      (* cat *)
+      move => Hide Hwt Hsf rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      move : Hide => /andP [Hide1 Hide2].
+      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (sext
+        (n -
+        size
+        (ebinop_op Bcat (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Bcat (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+           (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_cat.
+        rewrite typeof_eval_fexpr.
+        rewrite typeof_eval_fexpr.
+        rewrite H1 H2.
+        simpl.
+        rewrite H1 H2 in Hsf.
+        simpl in Hsf.
+        rewrite addnC //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt2 Hide2 //.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (sext
+        (n -
+        size
+        (ebinop_op Bcat (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Bcat (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+           (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_cat.
+        rewrite typeof_eval_fexpr.
+        rewrite typeof_eval_fexpr.
+        rewrite H1 H2.
+        simpl.
+        rewrite H1 H2 in Hsf.
+        simpl in Hsf.
+        rewrite addnC //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt2 Hide2 //.
+        exact Hcf.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+    - (* mux *)
+    move => rs1 s1 Hcf Hr.
+    simpl.
+    rewrite Hr Ht.
+    simpl.
+    simpl in Hwt.
+    simpl in Hsf.
+    simpl in Hide.
+    move : Hide => /andP [Hid2 Hid3].
+    move : Hid2 => /andP [Hid1 Hid2].
+    case H2:(type_of_fexpr e2 te) => [n0|n0|||].
+    - case H3:(type_of_fexpr e3 te) => [n1|n1|||].
+      rewrite H2 H3 in Hwt.
+      move : Hwt => /andP [Hwt2 Hwt3].
+      move : Hwt2 => /andP [_ Hwt2].
+      case (is_zero (no_mem_eval_fexpr e1 s1 te)).
+      simpl.
+      rewrite size_zext.
+      rewrite H2 H3 in Hsf.
+      simpl in Hsf.
+      assert (Htcf : SV.conform (SV.upd r
+      (sext (n - (size (no_mem_eval_fexpr e3 s1 te) + (maxn n0 n1 - n1)))
+         (zext (maxn n0 n1 - n1) (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite Ht size_sext size_zext subnKC.
+      simpl.
+      reflexivity.
+      rewrite typeof_eval_fexpr.
+      rewrite H3 subnKC.
+      exact Hsf.
+      simpl.
+      apply leq_maxr.
+      exact Hcf.
+      rewrite /well_formed_fexpr Hwt3 Hid3 //.
+      exact Hcf.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      simpl.
+      rewrite size_zext.
+      rewrite H2 H3 in Hsf.
+      simpl in Hsf.
+      assert (Htcf : SV.conform (SV.upd r
+      (sext (n - (size (no_mem_eval_fexpr e2 s1 te) + (maxn n0 n1 - n0)))
+         (zext (maxn n0 n1 - n0) (no_mem_eval_fexpr e2 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite Ht size_sext size_zext subnKC.
+      simpl.
+      reflexivity.
+      rewrite typeof_eval_fexpr.
+      rewrite H2 subnKC.
+      exact Hsf.
+      simpl.
+      apply leq_maxl.
+      exact Hcf.
+      rewrite /well_formed_fexpr Hwt2 Hid2 //.
+      exact Hcf.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      rewrite H2 H3 in Hwt.
+      discriminate.
+      rewrite H2 H3 in Hwt.
+      discriminate.
+      rewrite H2 H3 in Hwt.
+      discriminate.
+      rewrite H2 H3 in Hwt.
+      discriminate.
+      - case H3:(type_of_fexpr e3 te) => [n1|n1|||].
+      rewrite H2 H3 in Hwt.
+      discriminate.
+      rewrite H2 H3 in Hwt.
+      move : Hwt => /andP [Hwt2 Hwt3].
+      move : Hwt2 => /andP [_ Hwt2].
+      case (is_zero (no_mem_eval_fexpr e1 s1 te)).
+      simpl.
+      rewrite size_sext.
+      rewrite H2 H3 in Hsf.
+      simpl in Hsf.
+      assert (Htcf : SV.conform (SV.upd r
+      (sext (n - (size (no_mem_eval_fexpr e3 s1 te) + (maxn n0 n1 - n1)))
+         (sext (maxn n0 n1 - n1) (no_mem_eval_fexpr e3 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite Ht size_sext size_sext subnKC.
+      simpl.
+      reflexivity.
+      rewrite typeof_eval_fexpr.
+      rewrite H3 subnKC.
+      exact Hsf.
+      simpl.
+      apply leq_maxr.
+      exact Hcf.
+      rewrite /well_formed_fexpr Hwt3 Hid3 //.
+      exact Hcf.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      simpl.
+      rewrite size_sext.
+      rewrite H2 H3 in Hsf.
+      simpl in Hsf.
+      assert (Htcf : SV.conform (SV.upd r
+      (sext (n - (size (no_mem_eval_fexpr e2 s1 te) + (maxn n0 n1 - n0)))
+         (sext (maxn n0 n1 - n0) (no_mem_eval_fexpr e2 s1 te))) s1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite Ht size_sext size_sext subnKC.
+      simpl.
+      reflexivity.
+      rewrite typeof_eval_fexpr.
+      rewrite H2 subnKC.
+      exact Hsf.
+      simpl.
+      apply leq_maxl.
+      exact Hcf.
+      rewrite /well_formed_fexpr Hwt2 Hid2 //.
+      exact Hcf.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      rewrite H2 H3 in Hwt.
+      discriminate.
+      rewrite H2 H3 in Hwt.
+      discriminate.
+      rewrite H2 H3 in Hwt.
+      discriminate.
+      rewrite H2 in Hwt.
+      discriminate.
+      rewrite H2 in Hwt.
+      discriminate.
+      rewrite H2 in Hwt.
+      discriminate.
+    - (* validif *)
+      move => rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hwt.
+      simpl in Hsf.
+      simpl in Hide.
+      move : Hide => /andP [Hid1 Hid2].
+      move : Hwt => /andP [Hwt1 Hwt2].
+      apply IHe2 with (s1:=s1) (rs1:=rs1) in Hcf.
+      simpl in Hcf.
+      rewrite Ht Hr in Hcf.
+      simpl in Hcf.
+      exact Hcf.
+      exact Hid2.
+      exact Hwt2.
+      exact Hsf.
+      exact Hr.
+    - (* case ref *)
+    move => rs1 s1 Hcf Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      assert (Htcf : SV.conform (SV.upd r (sext (n - size (SV.acc s s1)) (SV.acc s s1)) s1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite Ht size_sext subnKC.
+      simpl.
+      reflexivity.
+      rewrite -(typeof_eval_fexpr Hcf) in Hsf.
+      simpl in Hsf.
+      exact Hsf.
+      rewrite /well_formed_fexpr Hwt Hide //.
+      exact Hcf.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+
+    rewrite Ht in Hwt.
+    discriminate.
+    rewrite Ht in Hwt.
+    discriminate.
+    rewrite Ht in Hwt.
+    discriminate.
+  Admitted.
+
+  Lemma conform_eval_sfcnct_upd_envr0 e : forall rs1 s1 te v ,
+  SV.conform s1 te ->
+  SV.conform rs1 te ->
+  well_formed_fstmt (Sfcnct v e) te ->
+  (match v with
+  | Eref r => (SV.acc r rs1 == [::]) = false
+  | _ => False
+  end) ->
+  SV.conform (fst (no_mem_eval_noninst_fstmt (Sfcnct v e) rs1 s1 te)) (no_mem_upd_typenv_fstmt (Sfcnct v e) te) /\
+  SV.conform (snd (no_mem_eval_noninst_fstmt (Sfcnct v e) rs1 s1 te)) (no_mem_upd_typenv_fstmt (Sfcnct v e) te).
   Proof.
     move => rs1 s1 te v.
     case Hv:v => [||||||r].
@@ -5059,751 +11428,5337 @@ Qed.
     move : Hwf => /andP [/eqP H _].
     simpl in H.
     discriminate.
-    (* v is ref *)
-    (*move => Hcf Hcfr Hwf.
-    assert (Haddsame : TE.Equal (TE.add r (type_of_fexpr e te) te) te).
-    rewrite SV.Lemmas.add_same.
-    apply SV.Lemmas.Equal_refl.
+    
+    move => Hcf Hcfr Hwf.
     rewrite /well_formed_fstmt in Hwf.
     move : Hwf => /andP [Hwt Hid].
     simpl in Hwt.
-    move : Hwt => /andP [Hty _].
-    move /eqP : Hty => Hty.
-    simpl in Hid.
-    move : Hid => /andP [Hid _].
+    move : Hid => /andP [Hid Hide].
     rewrite /is_defined in Hid.
-    rewrite -Hty.
-    case H: (TE.find r te) => [n0|].
+    assert (Hte : TE.Equal (TE.add r (TE.vtyp r te) te) te).
+    rewrite SV.Lemmas.add_same.
+    apply SV.Lemmas.Equal_refl.
+    case H: (TE.find r te).
     rewrite (TE.find_some_vtyp H) //.
     apply SV.Lemmas.find_none_not_mem in H.
     rewrite Hid in H.
     discriminate.
-    move : Hcf Hcfr Hwf.*)
-    move : rs1 s1.
+
+    case Ht : (TE.vtyp r te) => [n|n|||].
+    (* uint not reg *)
+    rewrite Ht in Hwt.
+    move : Hwt => /andP [Hwt Hsf].
+    move : rs1 s1 Hcf Hcfr.
+    rewrite /no_mem_upd_typenv_fstmt.
     induction e.
     (* cosnt *)
     - rewrite /upd_typenv_fstmt.
-      move => rs1 s1 Hcf Hcfr Hwf.
+      move => rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
       split.
-      simpl.
-      - case (SV.acc r rs1).
-      simpl.
-      apply SV.conform_upd.
-      rewrite /well_formed_fstmt in Hwf.
-      move : Hwf => /andP [Hwt Hid].
       simpl in Hwt.
-      move : Hwt => /andP [_ Hwt].
-      move /eqP : Hwt => Hwt.
-      rewrite Hwt subnn.
-      simpl in Hid.
-      move : Hid => /andP [Hid _].
-      rewrite /is_defined in Hid.
-      case f;try by done.
-      rewrite size_zext addn0 //.
-      rewrite size_sext addn0 //.
-      exact Hcf.
-      simpl.
-      (*simpl in Haddsame.
-      intros.
-      apply SV.conform_equal with (E1:=te).
-      exact (SV.Lemmas.Equal_sym Haddsame).
-      exact Hcf.
-      *)
-      admit.
-      simpl.
-      - case (SV.acc r rs1).
-      simpl.
-      (*simpl in Haddsame.
-      intros.
-      apply SV.conform_equal with (E1:=te).
-      exact (SV.Lemmas.Equal_sym Haddsame).
-      exact Hcfr.
-      *)
-      admit.
-      simpl.
-      intros.
+      move : Hwt => /eqP Hwt.
+      rewrite Hwt subnn zext0 sext0.
+      simpl in Hsf.
+      rewrite Hwt in Hsf.
+      assert (Htcf : SV.conform
+        (SV.upd r
+          (zext (n - size match f with
+                          | Fuint _ | _ => b
+                          end) match f with
+                                | Fuint _ | _ => b
+                                end) rs1) (TE.add r (TE.vtyp r te) te)).
       apply SV.conform_upd.
-      rewrite /well_formed_fstmt in Hwf.
-      move : Hwf => /andP [Hwt Hid].
-      simpl in Hwt.
-      move : Hwt => /andP [_ Hwt].
-      move /eqP : Hwt => Hwt.
-      rewrite Hwt subnn.
-      simpl in Hid.
-      move : Hid => /andP [Hid _].
-      rewrite /is_defined in Hid.
-      case f;try by done.
-      rewrite size_zext addn0 //.
-      rewrite size_sext addn0 //.
+      rewrite Ht size_zext subnKC.
+      simpl.
+      reflexivity.
+      case f;done.
       exact Hcfr.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+    exact Hcf.
+
     (* cast *)
-    - case u; try by done.
-      (* uint *)
-      - rewrite /upd_typenv_fstmt.
-      move => rs1 s1 Hcf Hcfr Hwf.
-      split.
-      simpl.
-      - case Hreg:(SV.acc r rs1).
-      simpl.
-      apply SV.conform_upd.
-      rewrite /well_formed_fstmt in Hwf.
-      move : Hwf => /andP [Hwt Hid].
+    - case Hu:u; try by done.
+      simpl in Hide.
       simpl in Hwt.
-      simpl in Hid.
-      move : Hwt => /andP [Hty Hwt].
-      move /eqP : Hty => Hty.
-      rewrite -Hty.
+      (* uint *) 
+      - move => rs1 s1 Hcf Hcfr Hr.
       simpl.
-      
-      assert (Hwf : well_formed_fstmt (Sfcnct (Eref r) e) te).
-      rewrite /well_formed_fstmt.
-      apply rwP with (P := well_typed_fstmt (Sfcnct (Eref r) e) te /\
-      is_defined_fstmt (Sfcnct (Eref r) e) te).
-      apply andP.
-      split.
+      rewrite Hr Ht.
       simpl.
-      apply rwP with (P := (sizeof_fgtyp (TE.vtyp r te) == sizeof_fgtyp (type_of_fexpr e te)) /\
-      well_typed_fexpr e te).
-      apply andP.
-      split.
-      move /eqP : Hty => Hty.
-      exact Hty.
-      exact Hwt.
-      simpl.
-      exact Hid.
+      simpl in Hsf.
+      rewrite Hu in Hsf.
+      simpl in Hsf.
       specialize IHe with (rs1:=rs1) (s1:=s1).
-      apply IHe in Hcf.
-      move : Hcf => [Hcf _].
-      apply SV.conform_mem with (v:=r) in Hcf.
-      rewrite TE.vsize_add_eq in Hcf.
-      simpl in Hcf.
-      rewrite Hreg in Hcf.
-      simpl in Hcf.
-      rewrite SV.acc_upd_eq in Hcf.
-      rewrite -Hcf //.
-      try reflexivity.
-      reflexivity.
-      apply SV.Lemmas.mem_add_eq.
-      apply TE.SE.eq_refl.
-      exact Hcfr.
-      exact Hwf.
-      exact Hcf.
-      simpl.
-      admit.
-
-      simpl.
-      - case Hreg:(SV.acc r rs1).
-      simpl.
-      admit.
-      simpl. 
-      apply SV.conform_upd.
-      rewrite /well_formed_fstmt in Hwf.
-      move : Hwf => /andP [Hwt Hid].
-      simpl in Hwt.
-      simpl in Hid.
-      move : Hwt => /andP [Hty Hwt].
-      move /eqP : Hty => Hty.
-      rewrite -Hty.
-      simpl.
-      
-      assert (Hwf : well_formed_fstmt (Sfcnct (Eref r) e) te).
-      rewrite /well_formed_fstmt.
-      apply rwP with (P := well_typed_fstmt (Sfcnct (Eref r) e) te /\
-      is_defined_fstmt (Sfcnct (Eref r) e) te).
-      apply andP.
-      split.
-      simpl.
-      apply rwP with (P := (sizeof_fgtyp (TE.vtyp r te) == sizeof_fgtyp (type_of_fexpr e te)) /\
-      well_typed_fexpr e te).
-      apply andP.
-      split.
-      move /eqP : Hty => Hty.
-      exact Hty.
-      exact Hwt.
-      simpl.
-      exact Hid.
-      specialize IHe with (rs1:=rs1) (s1:=s1).
-      rewrite Hty.
-      apply IHe in Hcf.
-      move : Hcf => [_ Hcf2].
-      apply SV.conform_mem with (v:=r) in Hcf2.
-      rewrite TE.vsize_add_eq in Hcf2.
-      simpl in Hcf2.
-      rewrite Hreg in Hcf2.
-      simpl in Hcf2.
-      rewrite SV.acc_upd_eq in Hcf2.
-      exact Hcf2.
-      try reflexivity.
-      reflexivity.
-      apply SV.Lemmas.mem_add_eq.
-      apply TE.SE.eq_refl.
-      exact Hcfr.
-      exact Hwf.
-      exact Hcfr.
-      (* sint *)
-
-
-      
-      (* sint *)
-      - move => rs1 s1 te v Hcf Hwf.
-      apply SV.conform_upd.
-      simpl.
-      rewrite /well_formed_fstmt in Hwf.
-      move : Hwf => /andP [Hwt Hid].
-      simpl in Hwt.
-      simpl in Hid.
-      assert (Hwf : well_formed_fstmt (Snode v e) te).
-      rewrite /well_formed_fstmt.
-      simpl.
-      rewrite Hwt Hid //.
-      specialize IHe with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
       simpl in IHe.
-      apply IHe in Hcf.
-      apply SV.conform_mem with (v:=v) in Hcf.
-      rewrite TE.vsize_add_eq in Hcf.
-      rewrite SV.acc_upd_eq in Hcf.
+      apply IHe in Hide.
+      rewrite Ht Hr in Hide.
+      simpl in Hide.
+      exact Hide.
+      exact Hwt.
+      exact Hsf.
       exact Hcf.
-      try reflexivity.
+      exact Hcfr.
+      exact Hr.
+      (* sint *)
+      - move => rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hsf.
+      rewrite Hu in Hsf.
+      simpl in Hsf.
+      specialize IHe with (rs1:=rs1) (s1:=s1).
+      simpl in IHe.
+      apply IHe in Hide.
+      rewrite Ht Hr in Hide.
+      simpl in Hide.
+      exact Hide.
+      exact Hwt.
+      exact Hsf.
+      exact Hcf.
+      exact Hcfr.
+      exact Hr.
+      (* clk *)
+      - move => rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      split.
+      assert (Htcf : SV.conform
+      (SV.upd r
+      (zext (n - 1) [:: lsb (no_mem_eval_fexpr e s1 te)]) rs1)
+        (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_zext.
+      simpl.
+      rewrite subnKC.
+      rewrite Ht //.
+      simpl in Hsf.
+      rewrite Hu in Hsf.
+      simpl in Hsf.
+      exact Hsf.
+      exact Hcfr.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      exact Hcf.
+      (* rst *)
+      - move => rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      split.
+      assert (Htcf : SV.conform
+      (SV.upd r
+      (zext (n - 1) [:: lsb (no_mem_eval_fexpr e s1 te)]) rs1)
+        (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_zext.
+      simpl.
+      rewrite subnKC.
+      rewrite Ht //.
+      simpl in Hsf.
+      rewrite Hu in Hsf.
+      simpl in Hsf.
+      exact Hsf.
+      exact Hcfr.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      exact Hcf.
+      - move => rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      split.
+      assert (Htcf : SV.conform
+      (SV.upd r
+      (zext (n - 1) [:: lsb (no_mem_eval_fexpr e s1 te)]) rs1)
+        (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_zext.
+      simpl.
+      rewrite subnKC.
+      rewrite Ht //.
+      simpl in Hsf.
+      rewrite Hu in Hsf.
+      simpl in Hsf.
+      exact Hsf.
+      exact Hcfr.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      exact Hcf.
+      - (* unop *)
+      move : Hide Hwt Hsf.
+      case :e; try by done.
+      (* upad *)
+      - move => pn Hide Hwt Hsf rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      split.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      case Hn:(pn < size (no_mem_eval_fexpr e0 s1 te)).
+        case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+                (zext (n - size (no_mem_eval_fexpr e0 s1 te)) (no_mem_eval_fexpr e0 s1 te))
+                rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        rewrite typeof_eval_fexpr in Hn.
+        rewrite Hn in Hsf.
+        rewrite typeof_eval_fexpr.
+        exact Hsf.
+        exact Hcf.
+        rewrite Htyp in Hwt.
+        rewrite /well_formed_fexpr Hwt Hide //.
+        exact Hcf.
+        rewrite Htyp in Hwt.
+        rewrite /well_formed_fexpr Hwt Hide //.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        - assert (Htcf : SV.conform
+        (SV.upd r
+          (zext (n - size (no_mem_eval_fexpr e0 s1 te)) (no_mem_eval_fexpr e0 s1 te))
+          rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        rewrite typeof_eval_fexpr in Hn.
+        rewrite Hn in Hsf.
+        rewrite typeof_eval_fexpr.
+        exact Hsf.
+        exact Hcf.
+        rewrite Htyp in Hwt.
+        rewrite /well_formed_fexpr Hwt Hide //.
+        exact Hcf.
+        rewrite Htyp in Hwt.
+        rewrite /well_formed_fexpr Hwt Hide //.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        - rewrite Htyp in Hwt.
+        discriminate.
+        - rewrite Htyp in Hwt.
+        discriminate.
+        - rewrite Htyp in Hwt.
+        discriminate.
+        case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
+        - assert (Htcf : SV.conform
+        (SV.upd r
+        (zext (n - size (zext (pn - n0) (no_mem_eval_fexpr e0 s1 te)))
+          (zext (pn - n0) (no_mem_eval_fexpr e0 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        rewrite size_zext typeof_eval_fexpr.
+        rewrite Htyp.
+        rewrite subnKC //.
+        rewrite typeof_eval_fexpr in Hn.
+        rewrite Hn Htyp in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        exact Hcf.
+        rewrite Htyp in Hwt.
+        rewrite /well_formed_fexpr Hwt Hide //.
+        rewrite typeof_eval_fexpr in Hn.
+        rewrite Htyp in Hn.
+        apply contraFleq with (b:=(pn < sizeof_fgtyp (Fuint n0))).
+        trivial.
+        exact Hn.
+        exact Hcf.
+        rewrite Htyp in Hwt.
+        rewrite /well_formed_fexpr Hwt Hide //.
+        exact Hcf.
+        rewrite Htyp in Hwt.
+        rewrite /well_formed_fexpr Hwt Hide //.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        - assert (Htcf : SV.conform
+        (SV.upd r
+        (zext (n - size (sext (pn - n0) (no_mem_eval_fexpr e0 s1 te)))
+          (sext (pn - n0) (no_mem_eval_fexpr e0 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        rewrite size_sext typeof_eval_fexpr.
+        rewrite Htyp.
+        rewrite subnKC //.
+        rewrite typeof_eval_fexpr in Hn.
+        rewrite Hn Htyp in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        exact Hcf.
+        rewrite Htyp in Hwt.
+        rewrite /well_formed_fexpr Hwt Hide //.
+        rewrite typeof_eval_fexpr in Hn.
+        rewrite Htyp in Hn.
+        apply contraFleq with (b:=(pn < sizeof_fgtyp (Fuint n0))).
+        trivial.
+        exact Hn.
+        exact Hcf.
+        rewrite Htyp in Hwt.
+        rewrite /well_formed_fexpr Hwt Hide //.
+        exact Hcf.
+        rewrite Htyp in Hwt.
+        rewrite /well_formed_fexpr Hwt Hide //.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        - rewrite Htyp in Hwt.
+        discriminate.
+        - rewrite Htyp in Hwt.
+        discriminate.
+        - rewrite Htyp in Hwt.
+        discriminate.
+      exact Hcf.
+      (* shl *)
+      - move => sn Hide Hwt Hsf rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      split.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      assert (Htcf : SV.conform
+      (SV.upd r
+      (zext (n - size (zeros sn ++ no_mem_eval_fexpr e0 s1 te))
+        (zeros sn ++ no_mem_eval_fexpr e0 s1 te)) rs1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_zext size_cat size_zeros subnKC.
+      rewrite Ht.
+      simpl.
       reflexivity.
-      apply SV.Lemmas.mem_add_eq.
-      apply TE.SE.eq_refl.
-      exact Hwf.
+      case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
+      rewrite typeof_eval_fexpr.
+      rewrite Htyp.
+      rewrite Htyp in Hsf.
+      simpl in Hsf.
+      simpl.
+      rewrite addnC //.
       exact Hcf.
-      - move => rs1 s1 te v Hcf Hwf.
+      rewrite Htyp in Hwt.
+      rewrite /well_formed_fexpr Hwt Hide //.
+      rewrite typeof_eval_fexpr.
+      rewrite Htyp.
+      rewrite Htyp in Hsf.
+      simpl in Hsf.
+      simpl.
+      rewrite addnC //.
+      exact Hcf.
+      rewrite Htyp in Hwt.
+      rewrite /well_formed_fexpr Hwt Hide //.
+      rewrite Htyp in Hwt.
+      discriminate.
+      rewrite Htyp in Hwt.
+      discriminate.
+      rewrite Htyp in Hwt.
+      discriminate.
+      exact Hcfr.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      exact Hcf.
+      (* shr *)
+      - move => sn Hide Hwt Hsf rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      split.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      case Hsn:(sn < size (no_mem_eval_fexpr e0 s1 te)).
+      assert (Htcf : SV.conform
+      (SV.upd r
+      (zext
+        (n -
+        size
+          (high (size (no_mem_eval_fexpr e0 s1 te) - sn)
+              (no_mem_eval_fexpr e0 s1 te)))
+        (high (size (no_mem_eval_fexpr e0 s1 te) - sn)
+          (no_mem_eval_fexpr e0 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
       apply SV.conform_upd.
+      rewrite size_zext size_high subnKC.
+      rewrite Ht.
       simpl.
       reflexivity.
+      case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
+      rewrite typeof_eval_fexpr.
+      rewrite Htyp.
+      rewrite typeof_eval_fexpr in Hsn.
+      rewrite Htyp in Hsn.
+      simpl in Hsn.
+      simpl.
+      rewrite Htyp Hsn in Hsf.
+      simpl in Hsf.
+      exact Hsf.
       exact Hcf.
-      - move => rs1 s1 te v Hcf Hwf.
+      rewrite Htyp in Hwt.
+      rewrite /well_formed_fexpr Hwt Hide //.
+      exact Hcf.
+      rewrite Htyp in Hwt.
+      rewrite /well_formed_fexpr Hwt Hide //.
+      rewrite typeof_eval_fexpr.
+      rewrite Htyp.
+      rewrite typeof_eval_fexpr in Hsn.
+      rewrite Htyp in Hsn.
+      simpl in Hsn.
+      simpl.
+      rewrite Htyp Hsn in Hsf.
+      simpl in Hsf.
+      exact Hsf.
+      exact Hcf.
+      rewrite Htyp in Hwt.
+      rewrite /well_formed_fexpr Hwt Hide //.
+      exact Hcf.
+      rewrite Htyp in Hwt.
+      rewrite /well_formed_fexpr Hwt Hide //.
+      rewrite Htyp in Hwt.
+      discriminate.
+      rewrite Htyp in Hwt.
+      discriminate.
+      rewrite Htyp in Hwt.
+      discriminate.
+      exact Hcfr.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
+      assert (Htcf : SV.conform
+      (SV.upd r
+      (zext (n - size [:: msb (no_mem_eval_fexpr e0 s1 te)])
+        [:: msb (no_mem_eval_fexpr e0 s1 te)]) rs1) (TE.add r (TE.vtyp r te) te)).
       apply SV.conform_upd.
+      rewrite size_zext subnKC.
+      rewrite Ht.
       simpl.
       reflexivity.
+      rewrite typeof_eval_fexpr in Hsn.
+      rewrite Htyp in Hsn.
+      simpl in Hsn.
+      rewrite Htyp Hsn in Hsf.
+      simpl in Hsf.
+      simpl.
+      exact Hsf.
       exact Hcf.
-      - move => rs1 s1 te v Hcf Hwf.
+      rewrite Htyp in Hwt.
+      rewrite /well_formed_fexpr Hwt Hide //.
+      exact Hcfr.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      assert (Htcf : SV.conform
+      (SV.upd r
+      (zext (n - size [:: msb (no_mem_eval_fexpr e0 s1 te)])
+        [:: msb (no_mem_eval_fexpr e0 s1 te)]) rs1) (TE.add r (TE.vtyp r te) te)).
       apply SV.conform_upd.
+      rewrite size_zext subnKC.
+      rewrite Ht.
       simpl.
       reflexivity.
+      rewrite typeof_eval_fexpr in Hsn.
+      rewrite Htyp in Hsn.
+      simpl in Hsn.
+      rewrite Htyp Hsn in Hsf.
+      simpl in Hsf.
+      simpl.
+      exact Hsf.
       exact Hcf.
-    (* enoup *)
-    - case e; try by done.
-    (* upad *)
-      - move => n rs1 s1 te v Hcf Hwf.
-      simpl.
-      apply SV.conform_upd.
-      rewrite /well_formed_fstmt in Hwf.
-      move : Hwf => /andP [Hwt Hid].
-      simpl in Hwt.
-      simpl in Hid.
-      case Hn:(n < sizeof_fgtyp (type_of_fexpr e0 te)).
-        - case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
-          - rewrite Htyp in Hwt.
-            assert (Hwf : well_formed_fstmt (Snode v e0) te).
-            rewrite /well_formed_fstmt.
-            simpl.
-            rewrite Hwt Hid //.
-            specialize IHe with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-            simpl in IHe.
-            apply IHe in Hcf.
-            apply SV.conform_mem with (v:=v) in Hcf.
-            rewrite TE.vsize_add_eq in Hcf.
-            rewrite SV.acc_upd_eq in Hcf.
-            rewrite Hcf in Hn.
-            rewrite Hn.
-            rewrite Htyp in Hcf.
-            exact Hcf.
-            reflexivity.
-            reflexivity.
-            apply SV.Lemmas.mem_add_eq.
-            apply TE.SE.eq_refl.
-            exact Hwf.
-          - rewrite Htyp in Hwt.
-            assert (Hwf : well_formed_fstmt (Snode v e0) te).
-            rewrite /well_formed_fstmt.
-            simpl.
-            rewrite Hwt Hid //.
-            specialize IHe with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-            simpl in IHe.
-            apply IHe in Hcf.
-            apply SV.conform_mem with (v:=v) in Hcf.
-            rewrite TE.vsize_add_eq in Hcf.
-            rewrite SV.acc_upd_eq in Hcf.
-            rewrite Hcf in Hn.
-            rewrite Hn.
-            rewrite Htyp in Hcf.
-            exact Hcf.
-            reflexivity.
-            reflexivity.
-            apply SV.Lemmas.mem_add_eq.
-            apply TE.SE.eq_refl.
-            exact Hwf.
-          - rewrite Htyp in Hwt.
-            discriminate.
-          - rewrite Htyp in Hwt.
-            discriminate.
-          - rewrite Htyp in Hwt.
-            discriminate.
-        - case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
-          - rewrite Htyp in Hwt.
-            assert (Hwf : well_formed_fstmt (Snode v e0) te).
-            rewrite /well_formed_fstmt.
-            simpl.
-            rewrite Hwt Hid //.
-            specialize IHe with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-            simpl in IHe.
-            apply IHe in Hcf.
-            apply SV.conform_mem with (v:=v) in Hcf.
-            rewrite TE.vsize_add_eq in Hcf.
-            rewrite SV.acc_upd_eq in Hcf.
-            rewrite Hcf in Hn.
-            rewrite Hn.
-            rewrite Htyp in Hcf.
-            rewrite size_zext -Hcf.
-            simpl.
-            rewrite subnKC //.
-            simpl in Hcf.
-            rewrite -Hcf in Hn.
-            apply contraFleq with (b:=(n < n0)).
-            trivial.
-            exact Hn.
-            reflexivity.
-            reflexivity.
-            apply SV.Lemmas.mem_add_eq.
-            apply TE.SE.eq_refl.
-            exact Hwf.
-          - rewrite Htyp in Hwt.
-            assert (Hwf : well_formed_fstmt (Snode v e0) te).
-            rewrite /well_formed_fstmt.
-            simpl.
-            rewrite Hwt Hid //.
-            specialize IHe with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-            simpl in IHe.
-            apply IHe in Hcf.
-            apply SV.conform_mem with (v:=v) in Hcf.
-            rewrite TE.vsize_add_eq in Hcf.
-            rewrite SV.acc_upd_eq in Hcf.
-            rewrite Hcf in Hn.
-            rewrite Hn.
-            rewrite Htyp in Hcf.
-            rewrite size_sext -Hcf.
-            simpl.
-            rewrite subnKC //.
-            simpl in Hcf.
-            rewrite -Hcf in Hn.
-            apply contraFleq with (b:=(n < n0)).
-            trivial.
-            exact Hn.
-            reflexivity.
-            reflexivity.
-            apply SV.Lemmas.mem_add_eq.
-            apply TE.SE.eq_refl.
-            exact Hwf.
-          - rewrite Htyp in Hwt.
-            discriminate.
-          - rewrite Htyp in Hwt.
-            discriminate.
-          - rewrite Htyp in Hwt.
-            discriminate.
-          exact Hcf.
-      - (* shl *)
-      move => n rs1 s1 te v Hcf Hwf.
-      simpl.
-      apply SV.conform_upd.
-      rewrite /well_formed_fstmt in Hwf.
-      move : Hwf => /andP [Hwt Hid].
-      simpl in Hwt.
-      simpl in Hid.
-      case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
-        - rewrite Htyp in Hwt.
-        assert (Hwf : well_formed_fstmt (Snode v e0) te).
-        rewrite /well_formed_fstmt.
-        simpl.
-        rewrite Hwt Hid //.
-        specialize IHe with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-        simpl in IHe.
-        apply IHe in Hcf.
-        apply SV.conform_mem with (v:=v) in Hcf.
-        rewrite TE.vsize_add_eq in Hcf.
-        rewrite SV.acc_upd_eq in Hcf.
-        rewrite size_cat -Hcf Htyp size_zeros.
-        simpl.
-        rewrite addnC //.
-        reflexivity.
-        reflexivity.
-        apply SV.Lemmas.mem_add_eq.
-        apply TE.SE.eq_refl.
-        exact Hwf.
-        - rewrite Htyp in Hwt.
-        assert (Hwf : well_formed_fstmt (Snode v e0) te).
-        rewrite /well_formed_fstmt.
-        simpl.
-        rewrite Hwt Hid //.
-        specialize IHe with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-        simpl in IHe.
-        apply IHe in Hcf.
-        apply SV.conform_mem with (v:=v) in Hcf.
-        rewrite TE.vsize_add_eq in Hcf.
-        rewrite SV.acc_upd_eq in Hcf.
-        rewrite size_cat -Hcf Htyp size_zeros.
-        simpl.
-        rewrite addnC //.
-        reflexivity.
-        reflexivity.
-        apply SV.Lemmas.mem_add_eq.
-        apply TE.SE.eq_refl.
-        exact Hwf.
-        - rewrite Htyp in Hwt.
-        discriminate.
-        - rewrite Htyp in Hwt.
-        discriminate.
-        - rewrite Htyp in Hwt.
-        discriminate.
-        exact Hcf.
-      - (* shr *)
-      move => n rs1 s1 te v Hcf Hwf.
-      simpl.
-      apply SV.conform_upd.
-      rewrite /well_formed_fstmt in Hwf.
-      move : Hwf => /andP [Hwt Hid].
-      simpl in Hwt.
-      simpl in Hid.
-      case Hn:(n < sizeof_fgtyp (type_of_fexpr e0 te)).
-        - case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
-          - rewrite Htyp in Hwt.
-            assert (Hwf : well_formed_fstmt (Snode v e0) te).
-            rewrite /well_formed_fstmt.
-            simpl.
-            rewrite Hwt Hid //.
-            specialize IHe with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-            simpl in IHe.
-            apply IHe in Hcf.
-            apply SV.conform_mem with (v:=v) in Hcf.
-            rewrite TE.vsize_add_eq in Hcf.
-            rewrite SV.acc_upd_eq in Hcf.
-            rewrite Hcf in Hn.
-            rewrite Hn.
-            rewrite Htyp in Hcf.
-            simpl in Hcf.
-            rewrite -Hcf in Hn.
-            rewrite Hn -Hcf size_high.
-            simpl.
-            reflexivity.
-            reflexivity.
-            reflexivity.
-            apply SV.Lemmas.mem_add_eq.
-            apply TE.SE.eq_refl.
-            exact Hwf.
-          - rewrite Htyp in Hwt.
-            assert (Hwf : well_formed_fstmt (Snode v e0) te).
-            rewrite /well_formed_fstmt.
-            simpl.
-            rewrite Hwt Hid //.
-            specialize IHe with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-            simpl in IHe.
-            apply IHe in Hcf.
-            apply SV.conform_mem with (v:=v) in Hcf.
-            rewrite TE.vsize_add_eq in Hcf.
-            rewrite SV.acc_upd_eq in Hcf.
-            rewrite Hcf in Hn.
-            rewrite Hn.
-            rewrite Htyp in Hcf.
-            simpl in Hcf.
-            rewrite -Hcf in Hn.
-            rewrite Hn -Hcf size_high.
-            simpl.
-            reflexivity.
-            reflexivity.
-            reflexivity.
-            apply SV.Lemmas.mem_add_eq.
-            apply TE.SE.eq_refl.
-            exact Hwf.
-          - rewrite Htyp in Hwt.
-            discriminate.
-          - rewrite Htyp in Hwt.
-            discriminate.
-          - rewrite Htyp in Hwt.
-            discriminate.
-        - case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
-          - rewrite Htyp in Hwt.
-            assert (Hwf : well_formed_fstmt (Snode v e0) te).
-            rewrite /well_formed_fstmt.
-            simpl.
-            rewrite Hwt Hid //.
-            specialize IHe with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-            simpl in IHe.
-            apply IHe in Hcf.
-            apply SV.conform_mem with (v:=v) in Hcf.
-            rewrite TE.vsize_add_eq in Hcf.
-            rewrite SV.acc_upd_eq in Hcf.
-            rewrite Hcf in Hn.
-            rewrite Hn.
-            rewrite Htyp in Hcf.
-            simpl in Hcf.
-            rewrite -Hcf in Hn.
-            rewrite Hn.
-            simpl.
-            reflexivity.
-            reflexivity.
-            reflexivity.
-            apply SV.Lemmas.mem_add_eq.
-            apply TE.SE.eq_refl.
-            exact Hwf.
-          - rewrite Htyp in Hwt.
-            assert (Hwf : well_formed_fstmt (Snode v e0) te).
-            rewrite /well_formed_fstmt.
-            simpl.
-            rewrite Hwt Hid //.
-            specialize IHe with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-            simpl in IHe.
-            apply IHe in Hcf.
-            apply SV.conform_mem with (v:=v) in Hcf.
-            rewrite TE.vsize_add_eq in Hcf.
-            rewrite SV.acc_upd_eq in Hcf.
-            rewrite Hcf in Hn.
-            rewrite Hn.
-            rewrite Htyp in Hcf.
-            simpl in Hcf.
-            rewrite -Hcf in Hn.
-            rewrite Hn.
-            simpl.
-            reflexivity.
-            reflexivity.
-            reflexivity.
-            apply SV.Lemmas.mem_add_eq.
-            apply TE.SE.eq_refl.
-            exact Hwf.
-          - rewrite Htyp in Hwt.
-            discriminate.
-          - rewrite Htyp in Hwt.
-            discriminate.
-          - rewrite Htyp in Hwt.
-            discriminate.
-          exact Hcf.
-      - (* cvt *)
-      move => rs1 s1 te v Hcf Hwf.
-      simpl.
-      apply SV.conform_upd.
-      rewrite /well_formed_fstmt in Hwf.
-      move : Hwf => /andP [Hwt Hid].
-      simpl in Hwt.
-      simpl in Hid.
-      case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
-        - rewrite Htyp in Hwt.
-        assert (Hwf : well_formed_fstmt (Snode v e0) te).
-        rewrite /well_formed_fstmt.
-        simpl.
-        rewrite Hwt Hid //.
-        specialize IHe with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-        simpl in IHe.
-        apply IHe in Hcf.
-        apply SV.conform_mem with (v:=v) in Hcf.
-        rewrite TE.vsize_add_eq in Hcf.
-        rewrite SV.acc_upd_eq in Hcf.
-        rewrite size_sext -Hcf Htyp.
-        simpl. 
-        reflexivity.
-        reflexivity.
-        reflexivity.
-        apply SV.Lemmas.mem_add_eq.
-        apply TE.SE.eq_refl.
-        exact Hwf.
-        - rewrite Htyp in Hwt.
-        assert (Hwf : well_formed_fstmt (Snode v e0) te).
-        rewrite /well_formed_fstmt.
-        simpl.
-        rewrite Hwt Hid //.
-        specialize IHe with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-        simpl in IHe.
-        apply IHe in Hcf.
-        apply SV.conform_mem with (v:=v) in Hcf.
-        rewrite TE.vsize_add_eq in Hcf.
-        rewrite SV.acc_upd_eq in Hcf.
-        rewrite Htyp in Hcf.
-        exact Hcf.
-        reflexivity.
-        reflexivity.
-        apply SV.Lemmas.mem_add_eq.
-        apply TE.SE.eq_refl.
-        exact Hwf.
-        - rewrite Htyp in Hwt.
-        discriminate.
-        - rewrite Htyp in Hwt.
-        discriminate.
-        - rewrite Htyp in Hwt.
-        discriminate.
-        exact Hcf.
-      - (* neg *)
-      move => rs1 s1 te v Hcf Hwf.
-      simpl.
-      apply SV.conform_upd.
-      rewrite /well_formed_fstmt in Hwf.
-      move : Hwf => /andP [Hwt Hid].
-      simpl in Hwt.
-      simpl in Hid.
-      case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
-        - rewrite Htyp in Hwt.
-        assert (Hwf : well_formed_fstmt (Snode v e0) te).
-        rewrite /well_formed_fstmt.
-        simpl.
-        rewrite Hwt Hid //.
-        specialize IHe with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-        simpl in IHe.
-        apply IHe in Hcf.
-        apply SV.conform_mem with (v:=v) in Hcf.
-        rewrite TE.vsize_add_eq in Hcf.
-        rewrite SV.acc_upd_eq in Hcf.
-        rewrite size_negB size_zext -Hcf Htyp.
-        simpl. 
-        reflexivity.
-        reflexivity.
-        reflexivity.
-        apply SV.Lemmas.mem_add_eq.
-        apply TE.SE.eq_refl.
-        exact Hwf.
-        - rewrite Htyp in Hwt.
-        assert (Hwf : well_formed_fstmt (Snode v e0) te).
-        rewrite /well_formed_fstmt.
-        simpl.
-        rewrite Hwt Hid //.
-        specialize IHe with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-        simpl in IHe.
-        apply IHe in Hcf.
-        apply SV.conform_mem with (v:=v) in Hcf.
-        rewrite TE.vsize_add_eq in Hcf.
-        rewrite SV.acc_upd_eq in Hcf.
-        rewrite size_negB size_sext -Hcf Htyp.
-        simpl. 
-        reflexivity.
-        reflexivity.
-        reflexivity.
-        apply SV.Lemmas.mem_add_eq.
-        apply TE.SE.eq_refl.
-        exact Hwf.
-        - rewrite Htyp in Hwt.
-        discriminate.
-        - rewrite Htyp in Hwt.
-        discriminate.
-        - rewrite Htyp in Hwt.
-        discriminate.
-        exact Hcf.
-      - (* not *)
-      move => rs1 s1 te v Hcf Hwf.
-      simpl.
-      apply SV.conform_upd.
-      rewrite /well_formed_fstmt in Hwf.
-      move : Hwf => /andP [Hwt Hid].
-      simpl in Hwt.
-      simpl in Hid.
-      case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
-        - rewrite Htyp in Hwt.
-        assert (Hwf : well_formed_fstmt (Snode v e0) te).
-        rewrite /well_formed_fstmt.
-        simpl.
-        rewrite Hwt Hid //.
-        specialize IHe with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-        simpl in IHe.
-        apply IHe in Hcf.
-        apply SV.conform_mem with (v:=v) in Hcf.
-        rewrite TE.vsize_add_eq in Hcf.
-        rewrite SV.acc_upd_eq in Hcf.
-        rewrite size_invB.
-        rewrite Htyp in Hcf.
-        exact Hcf.
-        reflexivity.
-        reflexivity.
-        apply SV.Lemmas.mem_add_eq.
-        apply TE.SE.eq_refl.
-        exact Hwf.
-        - rewrite Htyp in Hwt.
-        assert (Hwf : well_formed_fstmt (Snode v e0) te).
-        rewrite /well_formed_fstmt.
-        simpl.
-        rewrite Hwt Hid //.
-        specialize IHe with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-        simpl in IHe.
-        apply IHe in Hcf.
-        apply SV.conform_mem with (v:=v) in Hcf.
-        rewrite TE.vsize_add_eq in Hcf.
-        rewrite SV.acc_upd_eq in Hcf.
-        rewrite size_invB.
-        rewrite Htyp in Hcf.
-        exact Hcf.
-        reflexivity.
-        reflexivity.
-        apply SV.Lemmas.mem_add_eq.
-        apply TE.SE.eq_refl.
-        exact Hwf.
-        - rewrite Htyp in Hwt.
-        discriminate.
-        - rewrite Htyp in Hwt.
-        discriminate.
-        - rewrite Htyp in Hwt.
-        discriminate.
-        exact Hcf.
-      - (* and *)
-      move => rs1 s1 te v Hcf Hwf.
-      simpl.
-      apply SV.conform_upd.
-      admit.
+      rewrite Htyp in Hwt.
+      rewrite /well_formed_fexpr Hwt Hide //.
+      exact Hcfr.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      rewrite Htyp in Hwt.
+      discriminate.
+      rewrite Htyp in Hwt.
+      discriminate.
+      rewrite Htyp in Hwt.
+      discriminate.
       exact Hcf.
-      - (* orr *)
-      move => rs1 s1 te v Hcf Hwf.
+      (* cvt *)
+      - move => Hide Hwt Hsf rs1 s1 Hcf Hcfr Hr.
       simpl.
+      rewrite Hr Ht.
+      simpl.
+      split.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
+      assert (Htcf : SV.conform
+      (SV.upd r
+      (zext (n - size (sext 1 (no_mem_eval_fexpr e0 s1 te)))
+        (sext 1 (no_mem_eval_fexpr e0 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
       apply SV.conform_upd.
-      admit.
-      exact Hcf.
-      - (* xorr *)
-      move => rs1 s1 te v Hcf Hwf.
+      rewrite size_zext subnKC.
+      rewrite Ht.
       simpl.
+      reflexivity.
+      rewrite size_sext typeof_eval_fexpr.
+      rewrite Htyp.
+      rewrite Htyp in Hsf.
+      simpl in Hsf.
+      simpl.
+      exact Hsf.
+      exact Hcf.
+      rewrite Htyp in Hwt.
+      rewrite /well_formed_fexpr Hwt Hide //.
+      exact Hcfr.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      assert (Htcf : SV.conform
+      (SV.upd r
+      (zext (n - size (no_mem_eval_fexpr e0 s1 te)) (no_mem_eval_fexpr e0 s1 te))
+      rs1) (TE.add r (TE.vtyp r te) te)).
       apply SV.conform_upd.
-      admit.
-      exact Hcf.
-      - (* extr *)
-      move => n n0 rs1 s1 te v Hcf Hwf.
+      rewrite size_zext subnKC.
+      rewrite Ht.
       simpl.
-      apply SV.conform_upd. 
+      reflexivity.
+      rewrite typeof_eval_fexpr.
+      rewrite Htyp.
+      rewrite Htyp in Hsf.
+      exact Hsf.
+      exact Hcf.
+      rewrite Htyp in Hwt.
+      rewrite /well_formed_fexpr Hwt Hide //.
+      exact Hcfr.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      rewrite Htyp in Hwt.
+      discriminate.
+      rewrite Htyp in Hwt.
+      discriminate.
+      rewrite Htyp in Hwt.
+      discriminate.
+      exact Hcf.
+      (* neg *)
+      - move => Hide Hwt Hsf rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      split.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
+      assert (Htcf : SV.conform
+      (SV.upd r
+      (zext (n - size (-# zext 1 (no_mem_eval_fexpr e0 s1 te)))
+        (-# zext 1 (no_mem_eval_fexpr e0 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_zext subnKC.
+      rewrite Ht.
+      simpl.
+      reflexivity.
+      rewrite size_negB size_zext typeof_eval_fexpr.
+      rewrite Htyp.
+      rewrite Htyp in Hsf.
+      simpl.
+      simpl in Hsf.
+      exact Hsf.
+      exact Hcf.
+      rewrite Htyp in Hwt.
+      rewrite /well_formed_fexpr Hwt Hide //.
+      exact Hcfr.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      assert (Htcf : SV.conform
+      (SV.upd r
+      (zext (n - size (-# sext 1 (no_mem_eval_fexpr e0 s1 te)))
+        (-# sext 1 (no_mem_eval_fexpr e0 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_zext subnKC.
+      rewrite Ht.
+      simpl.
+      reflexivity.
+      rewrite size_negB size_sext typeof_eval_fexpr.
+      rewrite Htyp.
+      rewrite Htyp in Hsf.
+      simpl.
+      simpl in Hsf.
+      exact Hsf.
+      exact Hcf.
+      rewrite Htyp in Hwt.
+      rewrite /well_formed_fexpr Hwt Hide //.
+      exact Hcfr.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      rewrite Htyp in Hwt.
+      discriminate.
+      rewrite Htyp in Hwt.
+      discriminate.
+      rewrite Htyp in Hwt.
+      discriminate.
+      exact Hcf.
+      (* not *)
+      - move => Hide Hwt Hsf rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      split.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
+      assert (Htcf : SV.conform
+      (SV.upd r
+      (zext (n - size (~~# no_mem_eval_fexpr e0 s1 te))
+        (~~# no_mem_eval_fexpr e0 s1 te)) rs1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_zext subnKC.
+      rewrite Ht.
+      simpl.
+      reflexivity.
+      rewrite size_invB typeof_eval_fexpr.
+      rewrite Htyp.
+      rewrite Htyp in Hsf.
+      simpl.
+      simpl in Hsf.
+      exact Hsf.
+      exact Hcf.
+      rewrite Htyp in Hwt.
+      rewrite /well_formed_fexpr Hwt Hide //.
+      exact Hcfr.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      assert (Htcf : SV.conform
+      (SV.upd r
+      (zext (n - size (~~# no_mem_eval_fexpr e0 s1 te))
+        (~~# no_mem_eval_fexpr e0 s1 te)) rs1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_zext subnKC.
+      rewrite Ht.
+      simpl.
+      reflexivity.
+      rewrite size_invB typeof_eval_fexpr.
+      rewrite Htyp.
+      rewrite Htyp in Hsf.
+      simpl.
+      simpl in Hsf.
+      exact Hsf.
+      exact Hcf.
+      rewrite Htyp in Hwt.
+      rewrite /well_formed_fexpr Hwt Hide //.
+      exact Hcfr.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      rewrite Htyp in Hwt.
+      discriminate.
+      rewrite Htyp in Hwt.
+      discriminate.
+      rewrite Htyp in Hwt.
+      discriminate.
+      exact Hcf.
+      (* and *)
+      - move => Hide Hwt Hsf rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      split.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      assert (Htcf : SV.conform
+      (SV.upd r (zext (n - 1) [:: foldr andb b1 (no_mem_eval_fexpr e0 s1 te)]) rs1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_zext subnKC.
+      rewrite Ht.
+      simpl.
+      reflexivity.
+      simpl.
+      exact Hsf.
+      exact Hcfr.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      exact Hcf.
+      (* or *)
+      - move => Hide Hwt Hsf rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      split.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      assert (Htcf : SV.conform
+      (SV.upd r (zext (n - 1) [:: foldr orb b0 (no_mem_eval_fexpr e0 s1 te)]) rs1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_zext subnKC.
+      rewrite Ht.
+      simpl.
+      reflexivity.
+      simpl.
+      exact Hsf.
+      exact Hcfr.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      exact Hcf.
+      (* xor *)
+      - move => Hide Hwt Hsf rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      split.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      assert (Htcf : SV.conform
+      (SV.upd r (zext (n - 1) [:: foldr xorb b0 (no_mem_eval_fexpr e0 s1 te)]) rs1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_zext subnKC.
+      rewrite Ht.
+      simpl.
+      reflexivity.
+      simpl.
+      exact Hsf.
+      exact Hcfr.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      exact Hcf.
+      (* extr *)
+      - move => n0 n1 Hide Hwt Hsf rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      split.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      assert (Htcf : SV.conform
+      (SV.upd r (zext (n - size (extract n0 n1 (no_mem_eval_fexpr e0 s1 te)))
+      (extract n0 n1 (no_mem_eval_fexpr e0 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_zext subnKC.
+      rewrite Ht.
+      simpl.
+      reflexivity.
       rewrite size_extract.
-      simpl.
-      reflexivity.
+      exact Hsf.
+      exact Hcfr.
+      move : Hte Htcf.
+      apply SV.conform_equal.
       exact Hcf.
-      - (* head *)
-      move => n rs1 s1 te v Hcf Hwf.
+      (* head *)
+      - move => n0 Hide Hwt Hsf rs1 s1 Hcf Hcfr Hr.
       simpl.
-      apply SV.conform_upd. 
-      rewrite size_high.
+      rewrite Hr Ht.
       simpl.
-      reflexivity.
-      exact Hcf.
-      - (* tail *)
-      move => n rs1 s1 te v Hcf Hwf.
-      simpl.
-      apply SV.conform_upd. 
-      rewrite size_low.
-      simpl.
-      rewrite /well_formed_fstmt in Hwf.
-      move : Hwf => /andP [Hwt Hid].
+      split.
+      simpl in Hsf.
       simpl in Hwt.
-      simpl in Hid.
-      assert (Hwf : well_formed_fstmt (Snode v e0) te).
-      rewrite /well_formed_fstmt.
+      simpl in Hide.
+      assert (Htcf : SV.conform
+      (SV.upd r (zext (n - size (high n0 (no_mem_eval_fexpr e0 s1 te)))
+      (high n0 (no_mem_eval_fexpr e0 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_zext subnKC.
+      rewrite Ht.
       simpl.
-      rewrite Hwt Hid //.
-      specialize IHe with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-      simpl in IHe.
-      apply IHe in Hcf.
-      apply SV.conform_mem with (v:=v) in Hcf.
-      rewrite TE.vsize_add_eq in Hcf.
-      rewrite SV.acc_upd_eq in Hcf.
-      rewrite Hcf //.
       reflexivity.
-      reflexivity.
-      apply SV.Lemmas.mem_add_eq.
-      apply TE.SE.eq_refl.
-      exact Hwf.
+      rewrite size_high.
+      exact Hsf.
+      exact Hcfr.
+      move : Hte Htcf.
+      apply SV.conform_equal.
       exact Hcf.
-    - (* case ebinop *)  admit.
-    
+      (* tail *)
+      - move => n0 Hide Hwt Hsf rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      split.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      assert (Htcf : SV.conform
+      (SV.upd r (zext
+      (n -
+      size
+        (low (size (no_mem_eval_fexpr e0 s1 te) - n0)
+            (no_mem_eval_fexpr e0 s1 te)))
+      (low (size (no_mem_eval_fexpr e0 s1 te) - n0)
+        (no_mem_eval_fexpr e0 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_zext subnKC.
+      rewrite Ht.
+      simpl.
+      reflexivity.
+      rewrite size_low typeof_eval_fexpr.
+      exact Hsf.
+      exact Hcf.
+      rewrite /well_formed_fexpr Hwt Hide //.
+      exact Hcfr.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      exact Hcf.
+      - (* binop *)
+      move : Hide Hwt Hsf.
+      case :e1; try by done.
+      (* add *)
+      - move => Hide Hwt Hsf rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      split.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      move : Hide => /andP [Hide1 Hide2].
+      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (zext
+              (n -
+              size
+                (ebinop_op Badd (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+                    (no_mem_eval_fexpr e3 s1 te)))
+              (ebinop_op Badd (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+                (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_addB_ext typeof_eval_fexpr.
+        rewrite typeof_eval_fexpr.
+        rewrite H1 H2.
+        simpl.
+        rewrite H1 H2 in Hsf.
+        simpl in Hsf.
+        apply ltnSE.
+        apply /ltP.
+        apply Nat.lt_succ_r.
+        apply Nats.leq_le in Hsf.
+        rewrite -addn1 //.
+        exact Hcf.
+        rewrite H2 H1 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt2 Hide2 //.
+        exact Hcf.
+        rewrite H2 H1 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (zext
+        (n -
+        size
+          (ebinop_op Badd (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Badd (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+          (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_SadcB_ext 2!size_sext typeof_eval_fexpr.
+        rewrite typeof_eval_fexpr.
+        rewrite H1 H2.
+        simpl.
+        rewrite subnKC.
+        rewrite subnKC.
+        rewrite maxnn.
+        rewrite H1 H2 in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        rewrite leq_maxr //.
+        rewrite leq_maxl //.
+        exact Hcf.
+        rewrite H2 H1 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt2 Hide2 //.
+        exact Hcf.
+        rewrite H2 H1 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        rewrite typeof_eval_fexpr.
+        rewrite H1 H2.
+        simpl.
+        rewrite subnKC.
+        rewrite subnKC //.
+        rewrite leq_maxr //.
+        rewrite leq_maxl //.
+        exact Hcf.
+        rewrite H2 H1 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt2 Hide2 //.
+        exact Hcf.
+        rewrite H2 H1 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        exact Hcf.
+      (* sub *)
+      - move => Hide Hwt Hsf rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      split.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      move : Hide => /andP [Hide1 Hide2].
+      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (zext
+              (n -
+              size
+                (ebinop_op Bsub (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+                    (no_mem_eval_fexpr e3 s1 te)))
+              (ebinop_op Bsub (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+                (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_subB_ext typeof_eval_fexpr.
+        rewrite typeof_eval_fexpr.
+        rewrite H1 H2.
+        simpl.
+        rewrite H1 H2 in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        exact Hcf.
+        rewrite H2 H1 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt2 Hide2 //.
+        exact Hcf.
+        rewrite H2 H1 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (zext
+        (n -
+        size
+          (ebinop_op Bsub (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Bsub (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+          (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_SsbbB_ext 2!size_sext typeof_eval_fexpr.
+        rewrite typeof_eval_fexpr.
+        rewrite H1 H2.
+        simpl.
+        rewrite subnKC.
+        rewrite subnKC.
+        rewrite maxnn.
+        rewrite H1 H2 in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        rewrite leq_maxr //.
+        rewrite leq_maxl //.
+        exact Hcf.
+        rewrite H2 H1 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt2 Hide2 //.
+        exact Hcf.
+        rewrite H2 H1 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        rewrite typeof_eval_fexpr.
+        rewrite H1 H2.
+        simpl.
+        rewrite subnKC.
+        rewrite subnKC //.
+        rewrite leq_maxr //.
+        rewrite leq_maxl //.
+        exact Hcf.
+        rewrite H2 H1 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt2 Hide2 //.
+        exact Hcf.
+        rewrite H2 H1 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        exact Hcf.
+      (* mul *)
+      - move => Hide Hwt Hsf rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      split.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      move : Hide => /andP [Hide1 Hide2].
+      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (zext
+        (n -
+        size
+          (ebinop_op Bmul (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Bmul (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+          (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_full_mul typeof_eval_fexpr.
+        rewrite typeof_eval_fexpr.
+        rewrite H1 H2.
+        simpl.
+        rewrite H1 H2 in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        exact Hcf.
+        rewrite H2 H1 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt2 Hide2 //.
+        exact Hcf.
+        rewrite H2 H1 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (zext
+        (n -
+        size
+          (ebinop_op Bmul (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Bmul (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+          (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_Sfull_mul typeof_eval_fexpr.
+        rewrite typeof_eval_fexpr.
+        rewrite H1 H2.
+        simpl.
+        rewrite H1 H2 in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        exact Hcf.
+        rewrite H2 H1 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt2 Hide2 //.
+        exact Hcf.
+        rewrite H2 H1 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        exact Hcf.
+      (* div *)
+      - move => Hide Hwt Hsf rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      split.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      move : Hide => /andP [Hide1 Hide2].
+      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (zext
+        (n -
+        size
+          (ebinop_op Bdiv (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Bdiv (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+          (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_udivB typeof_eval_fexpr.
+        rewrite H1.
+        simpl.
+        rewrite H1 in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (zext
+        (n -
+        size
+        (ebinop_op Bdiv (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+          (no_mem_eval_fexpr e3 s1 te)))
+      (ebinop_op Bdiv (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+        (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_sext size_sdivB typeof_eval_fexpr.
+        rewrite H1.
+        simpl.
+        rewrite H1 in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+      exact Hcf.
+      (* rem *)
+      - move => Hide Hwt Hsf rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      split.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      move : Hide => /andP [Hide1 Hide2].
+      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (zext
+        (n -
+        size
+        (ebinop_op Brem (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+          (no_mem_eval_fexpr e3 s1 te)))
+      (ebinop_op Brem (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+        (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_low.
+        rewrite H1 H2 in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (zext
+        (n -
+        size
+          (ebinop_op Brem (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Brem (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+          (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_low.
+        rewrite H1 H2 in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        exact Hcf.
+      (* cmp *)
+      move => b.
+      case : b.
+      move => Hide Hwt Hsf rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      split.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      move : Hide => /andP [Hide1 Hide2].
+      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (zext
+        (n -
+        size
+        (ebinop_op (Bcomp Blt) (Fuint n0) (Fuint n1)
+              (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op (Bcomp Blt) (Fuint n0) (Fuint n1) 
+          (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        exact Hsf.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (zext
+        (n -
+        size
+        (ebinop_op (Bcomp Blt) (Fsint n0) (Fsint n1)
+              (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op (Bcomp Blt) (Fsint n0) (Fsint n1) 
+          (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        exact Hsf.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+      discriminate.
+      exact Hcf.
+      move => Hide Hwt Hsf rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      split.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      move : Hide => /andP [Hide1 Hide2].
+      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (zext
+        (n -
+        size
+        (ebinop_op (Bcomp Bleq) (Fuint n0) (Fuint n1)
+              (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op (Bcomp Bleq) (Fuint n0) (Fuint n1) 
+          (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        exact Hsf.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (zext
+        (n -
+        size
+        (ebinop_op (Bcomp Bleq) (Fsint n0) (Fsint n1)
+              (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op (Bcomp Bleq) (Fsint n0) (Fsint n1) 
+          (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        exact Hsf.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+      discriminate.
+      exact Hcf.
+      move => Hide Hwt Hsf rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      split.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      move : Hide => /andP [Hide1 Hide2].
+      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (zext
+        (n -
+        size
+        (ebinop_op (Bcomp Bgt) (Fuint n0) (Fuint n1)
+              (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op (Bcomp Bgt) (Fuint n0) (Fuint n1) 
+          (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        exact Hsf.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (zext
+        (n -
+        size
+        (ebinop_op (Bcomp Bgt) (Fsint n0) (Fsint n1)
+              (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op (Bcomp Bgt) (Fsint n0) (Fsint n1) 
+          (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        exact Hsf.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+      discriminate.
+      exact Hcf.
+      move => Hide Hwt Hsf rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      split.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      move : Hide => /andP [Hide1 Hide2].
+      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (zext
+        (n -
+        size
+        (ebinop_op (Bcomp Bgeq) (Fuint n0) (Fuint n1)
+              (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op (Bcomp Bgeq) (Fuint n0) (Fuint n1) 
+          (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        exact Hsf.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (zext
+        (n -
+        size
+        (ebinop_op (Bcomp Bgeq) (Fsint n0) (Fsint n1)
+              (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op (Bcomp Bgeq) (Fsint n0) (Fsint n1) 
+          (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        exact Hsf.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+      discriminate.
+      exact Hcf.
+      move => Hide Hwt Hsf rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      split.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      move : Hide => /andP [Hide1 Hide2].
+      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (zext
+        (n -
+        size
+        (ebinop_op (Bcomp Beq) (Fuint n0) (Fuint n1)
+              (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op (Bcomp Beq) (Fuint n0) (Fuint n1) 
+          (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        exact Hsf.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (zext
+        (n -
+        size
+        (ebinop_op (Bcomp Beq) (Fsint n0) (Fsint n1)
+              (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op (Bcomp Beq) (Fsint n0) (Fsint n1) 
+          (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        exact Hsf.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+      discriminate.
+      exact Hcf.
+      move => Hide Hwt Hsf rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      split.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      move : Hide => /andP [Hide1 Hide2].
+      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (zext
+        (n -
+        size
+        (ebinop_op (Bcomp Bneq) (Fuint n0) (Fuint n1)
+              (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op (Bcomp Bneq) (Fuint n0) (Fuint n1) 
+          (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        exact Hsf.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (zext
+        (n -
+        size
+        (ebinop_op (Bcomp Bneq) (Fsint n0) (Fsint n1)
+              (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op (Bcomp Bneq) (Fsint n0) (Fsint n1) 
+          (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        exact Hsf.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        exact Hcf.
+      (* dshl *)
+      move => Hide Hwt Hsf rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      split.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      move : Hide => /andP [Hide1 Hide2].
+      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (zext
+        (n -
+        size
+        (ebinop_op Bdshl (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Bdshl (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+          (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_zext size_cat size_zeros.
+        rewrite subn1 addnACl subnK.
+        rewrite H2 H1 in Hsf.
+        simpl in Hsf.
+        rewrite typeof_eval_fexpr.
+        rewrite typeof_eval_fexpr.
+        rewrite H1 H2.
+        simpl.
+        rewrite -subn1 addnBA //.
+        rewrite -Nats.expn_pow Nats.expn2_gt0 //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt2 Hide2 //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        rewrite -Nats.expn_pow.
+        apply ltnSE.
+        rewrite Nat.succ_pred.
+        rewrite to_nat_bounded //.
+        rewrite Nats.expn_pow.
+        apply Nat.pow_nonzero.
+        admit.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite H2 H1 in Hwt.
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (zext
+        (n -
+        size
+        (ebinop_op Bdshl (Fsint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Bdshl (Fsint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+          (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+          apply SV.conform_upd.
+          rewrite Ht size_zext subnKC.
+          simpl.
+          reflexivity.
+          simpl.
+          rewrite size_sext size_cat size_zeros.
+          rewrite subn1 addnACl subnK.
+          rewrite H2 H1 in Hsf.
+          simpl in Hsf.
+          rewrite typeof_eval_fexpr.
+          rewrite typeof_eval_fexpr.
+          rewrite H1 H2.
+          simpl.
+          rewrite -subn1 addnBA //.
+          rewrite -Nats.expn_pow Nats.expn2_gt0 //.
+          exact Hcf.
+          move : Hwt => /andP [Hwt1 Hwt2].
+          rewrite /well_formed_fexpr Hwt2 Hide2 //.
+          exact Hcf.
+          move : Hwt => /andP [Hwt1 Hwt2].
+          rewrite /well_formed_fexpr Hwt1 Hide1 //.
+          rewrite -Nats.expn_pow.
+          apply ltnSE.
+          rewrite Nat.succ_pred.
+          rewrite to_nat_bounded //.
+          rewrite Nats.expn_pow.
+          apply Nat.pow_nonzero.
+          admit.
+          exact Hcfr.
+          move : Hte Htcf.
+          apply SV.conform_equal.
+          rewrite H2 H1 in Hwt.
+          discriminate.
+          rewrite H2 H1 in Hwt.
+          discriminate.
+          rewrite H2 H1 in Hwt.
+          discriminate.
+          rewrite H1 H2 in Hwt.
+          discriminate.
+          rewrite H1 in Hwt.
+          discriminate.
+          rewrite H1 in Hwt.
+          discriminate.
+          rewrite H1 in Hwt.
+          discriminate.
+          exact Hcf.
+      (* shr *)
+      move => Hide Hwt Hsf rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      split.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      move : Hide => /andP [Hide1 Hide2].
+      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (zext
+        (n -
+        size
+        (ebinop_op Bdshr (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Bdshr (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+          (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_shrB.
+        rewrite typeof_eval_fexpr.
+        rewrite H1.
+        simpl.
+        rewrite H1 in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite H2 H1 in Hwt.
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (zext
+        (n -
+        size
+        (ebinop_op Bdshr (Fsint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Bdshr (Fsint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+          (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_sarB.
+        rewrite typeof_eval_fexpr.
+        rewrite H1.
+        simpl.
+        rewrite H1 in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        exact Hcf.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        exact Hcf.
+      (* and *)
+      move => Hide Hwt Hsf rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      split.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      move : Hide => /andP [Hide1 Hide2].
+      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (zext
+        (n -
+        size
+        (ebinop_op Band (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Band (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+          (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_andB.
+        rewrite 2!size_zext typeof_eval_fexpr.
+        rewrite typeof_eval_fexpr.
+        rewrite H1 H2.
+        simpl.
+        rewrite subnKC.
+        rewrite subnKC.
+        rewrite maxnn.
+        rewrite H1 H2 in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        rewrite leq_maxr //.
+        rewrite leq_maxl //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt2 Hide2 //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (zext
+        (n -
+        size
+        (ebinop_op Band (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Band (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+          (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_andB.
+        rewrite 2!size_sext typeof_eval_fexpr.
+        rewrite typeof_eval_fexpr.
+        rewrite H1 H2.
+        simpl.
+        rewrite subnKC.
+        rewrite subnKC.
+        rewrite maxnn.
+        rewrite H1 H2 in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        rewrite leq_maxr //.
+        rewrite leq_maxl //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt2 Hide2 //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        exact Hcf.
+      (* or *)
+      move => Hide Hwt Hsf rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      split.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      move : Hide => /andP [Hide1 Hide2].
+      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (zext
+        (n -
+        size
+        (ebinop_op Bor (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Bor (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+          (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_orB.
+        rewrite 2!size_zext typeof_eval_fexpr.
+        rewrite typeof_eval_fexpr.
+        rewrite H1 H2.
+        simpl.
+        rewrite subnKC.
+        rewrite subnKC.
+        rewrite maxnn.
+        rewrite H1 H2 in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        rewrite leq_maxr //.
+        rewrite leq_maxl //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt2 Hide2 //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (zext
+        (n -
+        size
+        (ebinop_op Bor (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Bor (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+          (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_orB.
+        rewrite 2!size_sext typeof_eval_fexpr.
+        rewrite typeof_eval_fexpr.
+        rewrite H1 H2.
+        simpl.
+        rewrite subnKC.
+        rewrite subnKC.
+        rewrite maxnn.
+        rewrite H1 H2 in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        rewrite leq_maxr //.
+        rewrite leq_maxl //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt2 Hide2 //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        exact Hcf.
+      (* xor *) 
+      move => Hide Hwt Hsf rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      split.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      move : Hide => /andP [Hide1 Hide2].
+      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (zext
+        (n -
+        size
+        (ebinop_op Bxor (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Bxor (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+          (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_xorB.
+        rewrite 2!size_zext typeof_eval_fexpr.
+        rewrite typeof_eval_fexpr.
+        rewrite H1 H2.
+        simpl.
+        rewrite subnKC.
+        rewrite subnKC.
+        rewrite maxnn.
+        rewrite H1 H2 in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        rewrite leq_maxr //.
+        rewrite leq_maxl //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt2 Hide2 //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (zext
+        (n -
+        size
+        (ebinop_op Bxor (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Bxor (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+          (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_xorB.
+        rewrite 2!size_sext typeof_eval_fexpr.
+        rewrite typeof_eval_fexpr.
+        rewrite H1 H2.
+        simpl.
+        rewrite subnKC.
+        rewrite subnKC.
+        rewrite maxnn.
+        rewrite H1 H2 in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        rewrite leq_maxr //.
+        rewrite leq_maxl //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt2 Hide2 //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        exact Hcf.
+      (* cat *)
+      move => Hide Hwt Hsf rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      split.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      move : Hide => /andP [Hide1 Hide2].
+      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (zext
+        (n -
+        size
+        (ebinop_op Bcat (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Bcat (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+          (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_cat.
+        rewrite typeof_eval_fexpr.
+        rewrite typeof_eval_fexpr.
+        rewrite H1 H2.
+        simpl.
+        rewrite H1 H2 in Hsf.
+        simpl in Hsf.
+        rewrite addnC //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt2 Hide2 //.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (zext
+        (n -
+        size
+        (ebinop_op Bcat (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Bcat (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+          (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_zext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_cat.
+        rewrite typeof_eval_fexpr.
+        rewrite typeof_eval_fexpr.
+        rewrite H1 H2.
+        simpl.
+        rewrite H1 H2 in Hsf.
+        simpl in Hsf.
+        rewrite addnC //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt2 Hide2 //.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        exact Hcf.
+      - (* mux *)
+      move => rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      split.
+      simpl in Hwt.
+      simpl in Hsf.
+      simpl in Hide.
+      move : Hide => /andP [Hid2 Hid3].
+      move : Hid2 => /andP [Hid1 Hid2].
+      case H2:(type_of_fexpr e2 te) => [n0|n0|||].
+      - case H3:(type_of_fexpr e3 te) => [n1|n1|||].
+      rewrite H2 H3 in Hwt.
+      move : Hwt => /andP [Hwt2 Hwt3].
+      move : Hwt2 => /andP [_ Hwt2].
+      case (is_zero (no_mem_eval_fexpr e1 s1 te)).
+      simpl.
+      rewrite size_zext.
+      rewrite H2 H3 in Hsf.
+      simpl in Hsf.
+      assert (Htcf : SV.conform (SV.upd r
+      (zext (n - (size (no_mem_eval_fexpr e3 s1 te) + (maxn n0 n1 - n1)))
+        (zext (maxn n0 n1 - n1) (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite Ht size_zext size_zext subnKC.
+      simpl.
+      reflexivity.
+      rewrite typeof_eval_fexpr.
+      rewrite H3 subnKC.
+      exact Hsf.
+      simpl.
+      apply leq_maxr.
+      exact Hcf.
+      rewrite /well_formed_fexpr Hwt3 Hid3 //.
+      exact Hcfr.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      simpl.
+      rewrite size_zext.
+      rewrite H2 H3 in Hsf.
+      simpl in Hsf.
+      assert (Htcf : SV.conform (SV.upd r
+      (zext (n - (size (no_mem_eval_fexpr e2 s1 te) + (maxn n0 n1 - n0)))
+        (zext (maxn n0 n1 - n0) (no_mem_eval_fexpr e2 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite Ht size_zext size_zext subnKC.
+      simpl.
+      reflexivity.
+      rewrite typeof_eval_fexpr.
+      rewrite H2 subnKC.
+      exact Hsf.
+      simpl.
+      apply leq_maxl.
+      exact Hcf.
+      rewrite /well_formed_fexpr Hwt2 Hid2 //.
+      exact Hcfr.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      rewrite H2 H3 in Hwt.
+      discriminate.
+      rewrite H2 H3 in Hwt.
+      discriminate.
+      rewrite H2 H3 in Hwt.
+      discriminate.
+      rewrite H2 H3 in Hwt.
+      discriminate.
+      - case H3:(type_of_fexpr e3 te) => [n1|n1|||].
+      rewrite H2 H3 in Hwt.
+      discriminate.
+      rewrite H2 H3 in Hwt.
+      move : Hwt => /andP [Hwt2 Hwt3].
+      move : Hwt2 => /andP [_ Hwt2].
+      case (is_zero (no_mem_eval_fexpr e1 s1 te)).
+      simpl.
+      rewrite size_sext.
+      rewrite H2 H3 in Hsf.
+      simpl in Hsf.
+      assert (Htcf : SV.conform (SV.upd r
+      (zext (n - (size (no_mem_eval_fexpr e3 s1 te) + (maxn n0 n1 - n1)))
+        (sext (maxn n0 n1 - n1) (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite Ht size_zext size_sext subnKC.
+      simpl.
+      reflexivity.
+      rewrite typeof_eval_fexpr.
+      rewrite H3 subnKC.
+      exact Hsf.
+      simpl.
+      apply leq_maxr.
+      exact Hcf.
+      rewrite /well_formed_fexpr Hwt3 Hid3 //.
+      exact Hcfr.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      simpl.
+      rewrite size_sext.
+      rewrite H2 H3 in Hsf.
+      simpl in Hsf.
+      assert (Htcf : SV.conform (SV.upd r
+      (zext (n - (size (no_mem_eval_fexpr e2 s1 te) + (maxn n0 n1 - n0)))
+        (sext (maxn n0 n1 - n0) (no_mem_eval_fexpr e2 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite Ht size_zext size_sext subnKC.
+      simpl.
+      reflexivity.
+      rewrite typeof_eval_fexpr.
+      rewrite H2 subnKC.
+      exact Hsf.
+      simpl.
+      apply leq_maxl.
+      exact Hcf.
+      rewrite /well_formed_fexpr Hwt2 Hid2 //.
+      exact Hcfr.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      rewrite H2 H3 in Hwt.
+      discriminate.
+      rewrite H2 H3 in Hwt.
+      discriminate.
+      rewrite H2 H3 in Hwt.
+      discriminate.
+      rewrite H2 in Hwt.
+      discriminate.
+      rewrite H2 in Hwt.
+      discriminate.
+      rewrite H2 in Hwt.
+      discriminate.
+      exact Hcf.
+      - (* validif *)
+      move => rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hwt.
+      simpl in Hsf.
+      simpl in Hide.
+      move : Hide => /andP [Hid1 Hid2].
+      move : Hwt => /andP [Hwt1 Hwt2].
+      apply IHe2 with (s1:=s1) (rs1:=rs1) in Hcf.
+      simpl in Hcf.
+      rewrite Ht Hr in Hcf.
+      simpl in Hcf.
+      exact Hcf.
+      exact Hid2.
+      exact Hwt2.
+      exact Hsf.
+      exact Hcfr.
+      exact Hr.
+      - (* case ref *)
+      move => rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      split.
+      assert (Htcf : SV.conform (SV.upd r (zext (n - size (SV.acc s s1)) (SV.acc s s1)) rs1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite Ht size_zext subnKC.
+      simpl.
+      reflexivity.
+      rewrite -(typeof_eval_fexpr Hcf) in Hsf.
+      simpl in Hsf.
+      exact Hsf.
+      rewrite /well_formed_fexpr Hwt Hide //.
+      exact Hcfr.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      exact Hcf.
+      (* sint *)
+      rewrite Ht in Hwt.
+      move : Hwt => /andP [Hwt Hsf].
+      move : rs1 s1 Hcf Hcfr.
+      rewrite /no_mem_upd_typenv_fstmt.
+      induction e.
+      (* cosnt *)
+      - move => rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      split.
+      simpl in Hwt.
+      move : Hwt => /eqP Hwt.
+      rewrite Hwt subnn zext0 sext0.
+      simpl in Hsf.
+      rewrite Hwt in Hsf.
+      assert (Htcf : SV.conform
+      (SV.upd r
+        (sext (n - size match f with
+                        | Fuint _ | _ => b
+                        end) match f with
+                              | Fuint _ | _ => b
+                              end) rs1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite Ht size_sext subnKC.
+      simpl.
+      reflexivity.
+      case f;done.
+      exact Hcfr.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      exact Hcf.
+      (* cast *)
+      - case Hu:u; try by done.
+      simpl in Hide.
+      simpl in Hwt.
+      (* uint *)
+      - move => rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hsf.
+      rewrite Hu in Hsf.
+      simpl in Hsf.
+      specialize IHe with (rs1:=rs1) (s1:=s1).
+      simpl in IHe.
+      apply IHe in Hide.
+      rewrite Ht Hr in Hide.
+      simpl in Hide.
+      exact Hide.
+      exact Hwt.
+      exact Hsf.
+      exact Hcf.
+      exact Hcfr.
+      exact Hr.
+      (* sint *)
+      - move => rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hsf.
+      rewrite Hu in Hsf.
+      simpl in Hsf.
+      specialize IHe with (rs1:=rs1) (s1:=s1).
+      simpl in IHe.
+      apply IHe in Hide.
+      rewrite Ht Hr in Hide.
+      simpl in Hide.
+      exact Hide.
+      exact Hwt.
+      exact Hsf.
+      exact Hcf.
+      exact Hcfr.
+      exact Hr.
+      (* clk *)
+      - move => rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      split.
+      assert (Htcf : SV.conform
+      (SV.upd r
+      (sext (n - 1) [:: lsb (no_mem_eval_fexpr e s1 te)]) rs1)
+        (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_sext.
+      simpl.
+      rewrite subnKC.
+      rewrite Ht //.
+      simpl in Hsf.
+      rewrite Hu in Hsf.
+      simpl in Hsf.
+      exact Hsf.
+      exact Hcfr.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      exact Hcf.
+      (* rst *)
+      - move => rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      split.
+      assert (Htcf : SV.conform
+      (SV.upd r
+      (sext (n - 1) [:: lsb (no_mem_eval_fexpr e s1 te)]) rs1)
+        (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_sext.
+      simpl.
+      rewrite subnKC.
+      rewrite Ht //.
+      simpl in Hsf.
+      rewrite Hu in Hsf.
+      simpl in Hsf.
+      exact Hsf.
+      exact Hcfr.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      exact Hcf.
+      - move => rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      split.
+      assert (Htcf : SV.conform
+      (SV.upd r
+      (sext (n - 1) [:: lsb (no_mem_eval_fexpr e s1 te)]) rs1)
+        (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_sext.
+      simpl.
+      rewrite subnKC.
+      rewrite Ht //.
+      simpl in Hsf.
+      rewrite Hu in Hsf.
+      simpl in Hsf.
+      exact Hsf.
+      exact Hcfr.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      exact Hcf.
+      - (* unop *)
+      move : Hide Hwt Hsf.
+      case :e; try by done.
+      (* upad *)
+      - move => pn Hide Hwt Hsf rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      split.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      case Hn:(pn < size (no_mem_eval_fexpr e0 s1 te)).
+        case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+                (sext (n - size (no_mem_eval_fexpr e0 s1 te)) (no_mem_eval_fexpr e0 s1 te))
+                rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        rewrite typeof_eval_fexpr in Hn.
+        rewrite Hn in Hsf.
+        rewrite typeof_eval_fexpr.
+        exact Hsf.
+        exact Hcf.
+        rewrite Htyp in Hwt.
+        rewrite /well_formed_fexpr Hwt Hide //.
+        exact Hcf.
+        rewrite Htyp in Hwt.
+        rewrite /well_formed_fexpr Hwt Hide //.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        - assert (Htcf : SV.conform
+        (SV.upd r
+          (sext (n - size (no_mem_eval_fexpr e0 s1 te)) (no_mem_eval_fexpr e0 s1 te))
+          rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        rewrite typeof_eval_fexpr in Hn.
+        rewrite Hn in Hsf.
+        rewrite typeof_eval_fexpr.
+        exact Hsf.
+        exact Hcf.
+        rewrite Htyp in Hwt.
+        rewrite /well_formed_fexpr Hwt Hide //.
+        exact Hcf.
+        rewrite Htyp in Hwt.
+        rewrite /well_formed_fexpr Hwt Hide //.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        - rewrite Htyp in Hwt.
+        discriminate.
+        - rewrite Htyp in Hwt.
+        discriminate.
+        - rewrite Htyp in Hwt.
+        discriminate.
+        case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
+        - assert (Htcf : SV.conform
+        (SV.upd r
+        (sext (n - size (zext (pn - n0) (no_mem_eval_fexpr e0 s1 te)))
+          (zext (pn - n0) (no_mem_eval_fexpr e0 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        rewrite size_zext typeof_eval_fexpr.
+        rewrite Htyp.
+        rewrite subnKC //.
+        rewrite typeof_eval_fexpr in Hn.
+        rewrite Hn Htyp in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        exact Hcf.
+        rewrite Htyp in Hwt.
+        rewrite /well_formed_fexpr Hwt Hide //.
+        rewrite typeof_eval_fexpr in Hn.
+        rewrite Htyp in Hn.
+        apply contraFleq with (b:=(pn < sizeof_fgtyp (Fuint n0))).
+        trivial.
+        exact Hn.
+        exact Hcf.
+        rewrite Htyp in Hwt.
+        rewrite /well_formed_fexpr Hwt Hide //.
+        exact Hcf.
+        rewrite Htyp in Hwt.
+        rewrite /well_formed_fexpr Hwt Hide //.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        - assert (Htcf : SV.conform
+        (SV.upd r
+        (sext (n - size (sext (pn - n0) (no_mem_eval_fexpr e0 s1 te)))
+          (sext (pn - n0) (no_mem_eval_fexpr e0 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        rewrite size_sext typeof_eval_fexpr.
+        rewrite Htyp.
+        rewrite subnKC //.
+        rewrite typeof_eval_fexpr in Hn.
+        rewrite Hn Htyp in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        exact Hcf.
+        rewrite Htyp in Hwt.
+        rewrite /well_formed_fexpr Hwt Hide //.
+        rewrite typeof_eval_fexpr in Hn.
+        rewrite Htyp in Hn.
+        apply contraFleq with (b:=(pn < sizeof_fgtyp (Fuint n0))).
+        trivial.
+        exact Hn.
+        exact Hcf.
+        rewrite Htyp in Hwt.
+        rewrite /well_formed_fexpr Hwt Hide //.
+        exact Hcf.
+        rewrite Htyp in Hwt.
+        rewrite /well_formed_fexpr Hwt Hide //.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        - rewrite Htyp in Hwt.
+        discriminate.
+        - rewrite Htyp in Hwt.
+        discriminate.
+        - rewrite Htyp in Hwt.
+        discriminate.
+        exact Hcf.
+      (* shl *)
+      - move => sn Hide Hwt Hsf rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      split.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      assert (Htcf : SV.conform
+      (SV.upd r
+      (sext (n - size (zeros sn ++ no_mem_eval_fexpr e0 s1 te))
+        (zeros sn ++ no_mem_eval_fexpr e0 s1 te)) rs1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_sext size_cat size_zeros subnKC.
+      rewrite Ht.
+      simpl.
+      reflexivity.
+      case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
+      rewrite typeof_eval_fexpr.
+      rewrite Htyp.
+      rewrite Htyp in Hsf.
+      simpl in Hsf.
+      simpl.
+      rewrite addnC //.
+      exact Hcf.
+      rewrite Htyp in Hwt.
+      rewrite /well_formed_fexpr Hwt Hide //.
+      rewrite typeof_eval_fexpr.
+      rewrite Htyp.
+      rewrite Htyp in Hsf.
+      simpl in Hsf.
+      simpl.
+      rewrite addnC //.
+      exact Hcf.
+      rewrite Htyp in Hwt.
+      rewrite /well_formed_fexpr Hwt Hide //.
+      rewrite Htyp in Hwt.
+      discriminate.
+      rewrite Htyp in Hwt.
+      discriminate.
+      rewrite Htyp in Hwt.
+      discriminate.
+      exact Hcfr.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      exact Hcf.
+      (* shr *)
+      - move => sn Hide Hwt Hsf rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      split.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      case Hsn:(sn < size (no_mem_eval_fexpr e0 s1 te)).
+      assert (Htcf : SV.conform
+      (SV.upd r
+      (sext
+        (n -
+        size
+          (high (size (no_mem_eval_fexpr e0 s1 te) - sn)
+              (no_mem_eval_fexpr e0 s1 te)))
+        (high (size (no_mem_eval_fexpr e0 s1 te) - sn)
+          (no_mem_eval_fexpr e0 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_sext size_high subnKC.
+      rewrite Ht.
+      simpl.
+      reflexivity.
+      case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
+      rewrite typeof_eval_fexpr.
+      rewrite Htyp.
+      rewrite typeof_eval_fexpr in Hsn.
+      rewrite Htyp in Hsn.
+      simpl in Hsn.
+      simpl.
+      rewrite Htyp Hsn in Hsf.
+      simpl in Hsf.
+      exact Hsf.
+      exact Hcf.
+      rewrite Htyp in Hwt.
+      rewrite /well_formed_fexpr Hwt Hide //.
+      exact Hcf.
+      rewrite Htyp in Hwt.
+      rewrite /well_formed_fexpr Hwt Hide //.
+      rewrite typeof_eval_fexpr.
+      rewrite Htyp.
+      rewrite typeof_eval_fexpr in Hsn.
+      rewrite Htyp in Hsn.
+      simpl in Hsn.
+      simpl.
+      rewrite Htyp Hsn in Hsf.
+      simpl in Hsf.
+      exact Hsf.
+      exact Hcf.
+      rewrite Htyp in Hwt.
+      rewrite /well_formed_fexpr Hwt Hide //.
+      exact Hcf.
+      rewrite Htyp in Hwt.
+      rewrite /well_formed_fexpr Hwt Hide //.
+      rewrite Htyp in Hwt.
+      discriminate.
+      rewrite Htyp in Hwt.
+      discriminate.
+      rewrite Htyp in Hwt.
+      discriminate.
+      exact Hcfr.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
+      assert (Htcf : SV.conform
+      (SV.upd r
+      (sext (n - size [:: msb (no_mem_eval_fexpr e0 s1 te)])
+        [:: msb (no_mem_eval_fexpr e0 s1 te)]) rs1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_sext subnKC.
+      rewrite Ht.
+      simpl.
+      reflexivity.
+      rewrite typeof_eval_fexpr in Hsn.
+      rewrite Htyp in Hsn.
+      simpl in Hsn.
+      rewrite Htyp Hsn in Hsf.
+      simpl in Hsf.
+      simpl.
+      exact Hsf.
+      exact Hcf.
+      rewrite Htyp in Hwt.
+      rewrite /well_formed_fexpr Hwt Hide //.
+      exact Hcfr.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      assert (Htcf : SV.conform
+      (SV.upd r
+      (sext (n - size [:: msb (no_mem_eval_fexpr e0 s1 te)])
+        [:: msb (no_mem_eval_fexpr e0 s1 te)]) rs1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_sext subnKC.
+      rewrite Ht.
+      simpl.
+      reflexivity.
+      rewrite typeof_eval_fexpr in Hsn.
+      rewrite Htyp in Hsn.
+      simpl in Hsn.
+      rewrite Htyp Hsn in Hsf.
+      simpl in Hsf.
+      simpl.
+      exact Hsf.
+      exact Hcf.
+      rewrite Htyp in Hwt.
+      rewrite /well_formed_fexpr Hwt Hide //.
+      exact Hcfr.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      rewrite Htyp in Hwt.
+      discriminate.
+      rewrite Htyp in Hwt.
+      discriminate.
+      rewrite Htyp in Hwt.
+      discriminate.
+      exact Hcf.
+      (* cvt *)
+      - move => Hide Hwt Hsf rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      split.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
+      assert (Htcf : SV.conform
+      (SV.upd r
+      (sext (n - size (sext 1 (no_mem_eval_fexpr e0 s1 te)))
+        (sext 1 (no_mem_eval_fexpr e0 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_sext subnKC.
+      rewrite Ht.
+      simpl.
+      reflexivity.
+      rewrite size_sext typeof_eval_fexpr.
+      rewrite Htyp.
+      rewrite Htyp in Hsf.
+      simpl in Hsf.
+      simpl.
+      exact Hsf.
+      exact Hcf.
+      rewrite Htyp in Hwt.
+      rewrite /well_formed_fexpr Hwt Hide //.
+      exact Hcfr.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      assert (Htcf : SV.conform
+      (SV.upd r
+      (sext (n - size (no_mem_eval_fexpr e0 s1 te)) (no_mem_eval_fexpr e0 s1 te))
+      rs1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_sext subnKC.
+      rewrite Ht.
+      simpl.
+      reflexivity.
+      rewrite typeof_eval_fexpr.
+      rewrite Htyp.
+      rewrite Htyp in Hsf.
+      exact Hsf.
+      exact Hcf.
+      rewrite Htyp in Hwt.
+      rewrite /well_formed_fexpr Hwt Hide //.
+      exact Hcfr.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      rewrite Htyp in Hwt.
+      discriminate.
+      rewrite Htyp in Hwt.
+      discriminate.
+      rewrite Htyp in Hwt.
+      discriminate.
+      exact Hcf.
+      (* neg *)
+      - move => Hide Hwt Hsf rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      split.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
+      assert (Htcf : SV.conform
+      (SV.upd r
+      (sext (n - size (-# zext 1 (no_mem_eval_fexpr e0 s1 te)))
+        (-# zext 1 (no_mem_eval_fexpr e0 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_sext subnKC.
+      rewrite Ht.
+      simpl.
+      reflexivity.
+      rewrite size_negB size_zext typeof_eval_fexpr.
+      rewrite Htyp.
+      rewrite Htyp in Hsf.
+      simpl.
+      simpl in Hsf.
+      exact Hsf.
+      exact Hcf.
+      rewrite Htyp in Hwt.
+      rewrite /well_formed_fexpr Hwt Hide //.
+      exact Hcfr.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      assert (Htcf : SV.conform
+      (SV.upd r
+      (sext (n - size (-# sext 1 (no_mem_eval_fexpr e0 s1 te)))
+        (-# sext 1 (no_mem_eval_fexpr e0 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_sext subnKC.
+      rewrite Ht.
+      simpl.
+      reflexivity.
+      rewrite size_negB size_sext typeof_eval_fexpr.
+      rewrite Htyp.
+      rewrite Htyp in Hsf.
+      simpl.
+      simpl in Hsf.
+      exact Hsf.
+      exact Hcf.
+      rewrite Htyp in Hwt.
+      rewrite /well_formed_fexpr Hwt Hide //.
+      exact Hcfr.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      rewrite Htyp in Hwt.
+      discriminate.
+      rewrite Htyp in Hwt.
+      discriminate.
+      rewrite Htyp in Hwt.
+      discriminate.
+      exact Hcf.
+      (* not *)
+      - move => Hide Hwt Hsf rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      split.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
+      assert (Htcf : SV.conform
+      (SV.upd r
+      (sext (n - size (~~# no_mem_eval_fexpr e0 s1 te))
+        (~~# no_mem_eval_fexpr e0 s1 te)) rs1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_sext subnKC.
+      rewrite Ht.
+      simpl.
+      reflexivity.
+      rewrite size_invB typeof_eval_fexpr.
+      rewrite Htyp.
+      rewrite Htyp in Hsf.
+      simpl.
+      simpl in Hsf.
+      exact Hsf.
+      exact Hcf.
+      rewrite Htyp in Hwt.
+      rewrite /well_formed_fexpr Hwt Hide //.
+      exact Hcfr.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      assert (Htcf : SV.conform
+      (SV.upd r
+      (sext (n - size (~~# no_mem_eval_fexpr e0 s1 te))
+        (~~# no_mem_eval_fexpr e0 s1 te)) rs1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_sext subnKC.
+      rewrite Ht.
+      simpl.
+      reflexivity.
+      rewrite size_invB typeof_eval_fexpr.
+      rewrite Htyp.
+      rewrite Htyp in Hsf.
+      simpl.
+      simpl in Hsf.
+      exact Hsf.
+      exact Hcf.
+      rewrite Htyp in Hwt.
+      rewrite /well_formed_fexpr Hwt Hide //.
+      exact Hcfr.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      rewrite Htyp in Hwt.
+      discriminate.
+      rewrite Htyp in Hwt.
+      discriminate.
+      rewrite Htyp in Hwt.
+      discriminate.
+      exact Hcf.
+      (* and *)
+      - move => Hide Hwt Hsf rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      split.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      assert (Htcf : SV.conform
+      (SV.upd r (sext (n - 1) [:: foldr andb b1 (no_mem_eval_fexpr e0 s1 te)]) rs1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_sext subnKC.
+      rewrite Ht.
+      simpl.
+      reflexivity.
+      simpl.
+      exact Hsf.
+      exact Hcfr.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      exact Hcf.
+      (* or *)
+      - move => Hide Hwt Hsf rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      split.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      assert (Htcf : SV.conform
+      (SV.upd r (sext (n - 1) [:: foldr orb b0 (no_mem_eval_fexpr e0 s1 te)]) rs1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_sext subnKC.
+      rewrite Ht.
+      simpl.
+      reflexivity.
+      simpl.
+      exact Hsf.
+      exact Hcfr.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      exact Hcf.
+      (* xor *)
+      - move => Hide Hwt Hsf rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      split.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      assert (Htcf : SV.conform
+      (SV.upd r (sext (n - 1) [:: foldr xorb b0 (no_mem_eval_fexpr e0 s1 te)]) rs1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_sext subnKC.
+      rewrite Ht.
+      simpl.
+      reflexivity.
+      simpl.
+      exact Hsf.
+      exact Hcfr.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      exact Hcf.
+      (* extr *)
+      - move => n0 n1 Hide Hwt Hsf rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      split.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      assert (Htcf : SV.conform
+      (SV.upd r (sext (n - size (extract n0 n1 (no_mem_eval_fexpr e0 s1 te)))
+      (extract n0 n1 (no_mem_eval_fexpr e0 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_sext subnKC.
+      rewrite Ht.
+      simpl.
+      reflexivity.
+      rewrite size_extract.
+      exact Hsf.
+      exact Hcfr.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      exact Hcf.
+      (* head *)
+      - move => n0 Hide Hwt Hsf rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      split.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      assert (Htcf : SV.conform
+      (SV.upd r (sext (n - size (high n0 (no_mem_eval_fexpr e0 s1 te)))
+      (high n0 (no_mem_eval_fexpr e0 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_sext subnKC.
+      rewrite Ht.
+      simpl.
+      reflexivity.
+      rewrite size_high.
+      exact Hsf.
+      exact Hcfr.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      exact Hcf.
+      (* tail *)
+      - move => n0 Hide Hwt Hsf rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      split.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      assert (Htcf : SV.conform
+      (SV.upd r (sext
+      (n -
+      size
+        (low (size (no_mem_eval_fexpr e0 s1 te) - n0)
+            (no_mem_eval_fexpr e0 s1 te)))
+      (low (size (no_mem_eval_fexpr e0 s1 te) - n0)
+        (no_mem_eval_fexpr e0 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_sext subnKC.
+      rewrite Ht.
+      simpl.
+      reflexivity.
+      rewrite size_low typeof_eval_fexpr.
+      exact Hsf.
+      exact Hcf.
+      rewrite /well_formed_fexpr Hwt Hide //.
+      exact Hcfr.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      exact Hcf.
+      - (* binop *)
+      move : Hide Hwt Hsf.
+      case :e1; try by done.
+      (* add *)
+      - move => Hide Hwt Hsf rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      split.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      move : Hide => /andP [Hide1 Hide2].
+      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (sext
+              (n -
+              size
+                (ebinop_op Badd (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+                    (no_mem_eval_fexpr e3 s1 te)))
+              (ebinop_op Badd (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+                (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_addB_ext typeof_eval_fexpr.
+        rewrite typeof_eval_fexpr.
+        rewrite H1 H2.
+        simpl.
+        rewrite H1 H2 in Hsf.
+        simpl in Hsf.
+        apply ltnSE.
+        apply /ltP.
+        apply Nat.lt_succ_r.
+        apply Nats.leq_le in Hsf.
+        rewrite -addn1 //.
+        exact Hcf.
+        rewrite H2 H1 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt2 Hide2 //.
+        exact Hcf.
+        rewrite H2 H1 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (sext
+        (n -
+        size
+          (ebinop_op Badd (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Badd (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+          (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_SadcB_ext 2!size_sext typeof_eval_fexpr.
+        rewrite typeof_eval_fexpr.
+        rewrite H1 H2.
+        simpl.
+        rewrite subnKC.
+        rewrite subnKC.
+        rewrite maxnn.
+        rewrite H1 H2 in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        rewrite leq_maxr //.
+        rewrite leq_maxl //.
+        exact Hcf.
+        rewrite H2 H1 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt2 Hide2 //.
+        exact Hcf.
+        rewrite H2 H1 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        rewrite typeof_eval_fexpr.
+        rewrite H1 H2.
+        simpl.
+        rewrite subnKC.
+        rewrite subnKC //.
+        rewrite leq_maxr //.
+        rewrite leq_maxl //.
+        exact Hcf.
+        rewrite H2 H1 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt2 Hide2 //.
+        exact Hcf.
+        rewrite H2 H1 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        exact Hcf.
+      (* sub *)
+      - move => Hide Hwt Hsf rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      split.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      move : Hide => /andP [Hide1 Hide2].
+      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (sext
+              (n -
+              size
+                (ebinop_op Bsub (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+                    (no_mem_eval_fexpr e3 s1 te)))
+              (ebinop_op Bsub (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+                (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_subB_ext typeof_eval_fexpr.
+        rewrite typeof_eval_fexpr.
+        rewrite H1 H2.
+        simpl.
+        rewrite H1 H2 in Hsf.
+        simpl in Hsf.
+        apply ltnSE.
+        apply /ltP.
+        apply Nat.lt_succ_r.
+        apply Nats.leq_le in Hsf.
+        rewrite -addn1 //.
+        exact Hcf.
+        rewrite H2 H1 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt2 Hide2 //.
+        exact Hcf.
+        rewrite H2 H1 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (sext
+        (n -
+        size
+          (ebinop_op Bsub (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Bsub (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+          (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_SsbbB_ext 2!size_sext typeof_eval_fexpr.
+        rewrite typeof_eval_fexpr.
+        rewrite H1 H2.
+        simpl.
+        rewrite subnKC.
+        rewrite subnKC.
+        rewrite maxnn.
+        rewrite H1 H2 in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        rewrite leq_maxr //.
+        rewrite leq_maxl //.
+        exact Hcf.
+        rewrite H2 H1 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt2 Hide2 //.
+        exact Hcf.
+        rewrite H2 H1 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        rewrite typeof_eval_fexpr.
+        rewrite H1 H2.
+        simpl.
+        rewrite subnKC.
+        rewrite subnKC //.
+        rewrite leq_maxr //.
+        rewrite leq_maxl //.
+        exact Hcf.
+        rewrite H2 H1 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt2 Hide2 //.
+        exact Hcf.
+        rewrite H2 H1 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        exact Hcf.
+      (* mul *)
+      - move => Hide Hwt Hsf rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      split.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      move : Hide => /andP [Hide1 Hide2].
+      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (sext
+        (n -
+        size
+          (ebinop_op Bmul (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Bmul (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+          (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_full_mul typeof_eval_fexpr.
+        rewrite typeof_eval_fexpr.
+        rewrite H1 H2.
+        simpl.
+        rewrite H1 H2 in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        exact Hcf.
+        rewrite H2 H1 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt2 Hide2 //.
+        exact Hcf.
+        rewrite H2 H1 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (sext
+        (n -
+        size
+          (ebinop_op Bmul (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Bmul (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+          (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_Sfull_mul typeof_eval_fexpr.
+        rewrite typeof_eval_fexpr.
+        rewrite H1 H2.
+        simpl.
+        rewrite H1 H2 in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        exact Hcf.
+        rewrite H2 H1 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt2 Hide2 //.
+        exact Hcf.
+        rewrite H2 H1 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        exact Hcf.
+      (* div *)
+      - move => Hide Hwt Hsf rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      split.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      move : Hide => /andP [Hide1 Hide2].
+      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (sext
+        (n -
+        size
+          (ebinop_op Bdiv (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Bdiv (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+          (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_udivB typeof_eval_fexpr.
+        rewrite H1.
+        simpl.
+        rewrite H1 in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (sext
+        (n -
+        size
+        (ebinop_op Bdiv (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+          (no_mem_eval_fexpr e3 s1 te)))
+      (ebinop_op Bdiv (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+        (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_sext size_sdivB typeof_eval_fexpr.
+        rewrite H1.
+        simpl.
+        rewrite H1 in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        exact Hcf.
+      (* rem *)
+      - move => Hide Hwt Hsf rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      split.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      move : Hide => /andP [Hide1 Hide2].
+      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (sext
+        (n -
+        size
+        (ebinop_op Brem (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+          (no_mem_eval_fexpr e3 s1 te)))
+      (ebinop_op Brem (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+        (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_low.
+        rewrite H1 H2 in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (sext
+        (n -
+        size
+          (ebinop_op Brem (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Brem (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+          (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_low.
+        rewrite H1 H2 in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        exact Hcf.
+      (* cmp *)
+      move => b.
+      case : b.
+      move => Hide Hwt Hsf rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      split.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      move : Hide => /andP [Hide1 Hide2].
+      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (sext
+        (n -
+        size
+        (ebinop_op (Bcomp Blt) (Fuint n0) (Fuint n1)
+              (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op (Bcomp Blt) (Fuint n0) (Fuint n1) 
+          (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        exact Hsf.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (sext
+        (n -
+        size
+        (ebinop_op (Bcomp Blt) (Fsint n0) (Fsint n1)
+              (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op (Bcomp Blt) (Fsint n0) (Fsint n1) 
+          (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        exact Hsf.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+      discriminate.
+      exact Hcf.
+      move => Hide Hwt Hsf rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      split.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      move : Hide => /andP [Hide1 Hide2].
+      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (sext
+        (n -
+        size
+        (ebinop_op (Bcomp Bleq) (Fuint n0) (Fuint n1)
+              (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op (Bcomp Bleq) (Fuint n0) (Fuint n1) 
+          (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        exact Hsf.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (sext
+        (n -
+        size
+        (ebinop_op (Bcomp Bleq) (Fsint n0) (Fsint n1)
+              (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op (Bcomp Bleq) (Fsint n0) (Fsint n1) 
+          (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        exact Hsf.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+      discriminate.
+      exact Hcf.
+      move => Hide Hwt Hsf rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      split.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      move : Hide => /andP [Hide1 Hide2].
+      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (sext
+        (n -
+        size
+        (ebinop_op (Bcomp Bgt) (Fuint n0) (Fuint n1)
+              (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op (Bcomp Bgt) (Fuint n0) (Fuint n1) 
+          (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        exact Hsf.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (sext
+        (n -
+        size
+        (ebinop_op (Bcomp Bgt) (Fsint n0) (Fsint n1)
+              (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op (Bcomp Bgt) (Fsint n0) (Fsint n1) 
+          (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        exact Hsf.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+      discriminate.
+      exact Hcf.
+      move => Hide Hwt Hsf rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      split.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      move : Hide => /andP [Hide1 Hide2].
+      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (sext
+        (n -
+        size
+        (ebinop_op (Bcomp Bgeq) (Fuint n0) (Fuint n1)
+              (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op (Bcomp Bgeq) (Fuint n0) (Fuint n1) 
+          (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        exact Hsf.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (sext
+        (n -
+        size
+        (ebinop_op (Bcomp Bgeq) (Fsint n0) (Fsint n1)
+              (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op (Bcomp Bgeq) (Fsint n0) (Fsint n1) 
+          (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        exact Hsf.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+      discriminate.
+      exact Hcf.
+      move => Hide Hwt Hsf rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      split.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      move : Hide => /andP [Hide1 Hide2].
+      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (sext
+        (n -
+        size
+        (ebinop_op (Bcomp Beq) (Fuint n0) (Fuint n1)
+              (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op (Bcomp Beq) (Fuint n0) (Fuint n1) 
+          (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        exact Hsf.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (sext
+        (n -
+        size
+        (ebinop_op (Bcomp Beq) (Fsint n0) (Fsint n1)
+              (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op (Bcomp Beq) (Fsint n0) (Fsint n1) 
+          (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        exact Hsf.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+      discriminate.
+      exact Hcf.
+      move => Hide Hwt Hsf rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      split.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      move : Hide => /andP [Hide1 Hide2].
+      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (sext
+        (n -
+        size
+        (ebinop_op (Bcomp Bneq) (Fuint n0) (Fuint n1)
+              (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op (Bcomp Bneq) (Fuint n0) (Fuint n1) 
+          (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        exact Hsf.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (sext
+        (n -
+        size
+        (ebinop_op (Bcomp Bneq) (Fsint n0) (Fsint n1)
+              (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op (Bcomp Bneq) (Fsint n0) (Fsint n1) 
+          (no_mem_eval_fexpr e2 s1 te) (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        exact Hsf.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        exact Hcf.
+      (* dshl *)
+      move => Hide Hwt Hsf rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      split.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      move : Hide => /andP [Hide1 Hide2].
+      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (sext
+        (n -
+        size
+        (ebinop_op Bdshl (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Bdshl (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+          (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_zext size_cat size_zeros.
+        rewrite subn1 addnACl subnK.
+        rewrite H2 H1 in Hsf.
+        simpl in Hsf.
+        rewrite typeof_eval_fexpr.
+        rewrite typeof_eval_fexpr.
+        rewrite H1 H2.
+        simpl.
+        rewrite -subn1 addnBA //.
+        rewrite -Nats.expn_pow Nats.expn2_gt0 //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt2 Hide2 //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        rewrite -Nats.expn_pow.
+        apply ltnSE.
+        rewrite Nat.succ_pred.
+        rewrite to_nat_bounded //.
+        rewrite Nats.expn_pow.
+        apply Nat.pow_nonzero.
+        admit.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite H2 H1 in Hwt.
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (sext
+        (n -
+        size
+        (ebinop_op Bdshl (Fsint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Bdshl (Fsint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+          (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+          apply SV.conform_upd.
+          rewrite Ht size_sext subnKC.
+          simpl.
+          reflexivity.
+          simpl.
+          rewrite size_sext size_cat size_zeros.
+          rewrite subn1 addnACl subnK.
+          rewrite H2 H1 in Hsf.
+          simpl in Hsf.
+          rewrite typeof_eval_fexpr.
+          rewrite typeof_eval_fexpr.
+          rewrite H1 H2.
+          simpl.
+          rewrite -subn1 addnBA //.
+          rewrite -Nats.expn_pow Nats.expn2_gt0 //.
+          exact Hcf.
+          move : Hwt => /andP [Hwt1 Hwt2].
+          rewrite /well_formed_fexpr Hwt2 Hide2 //.
+          exact Hcf.
+          move : Hwt => /andP [Hwt1 Hwt2].
+          rewrite /well_formed_fexpr Hwt1 Hide1 //.
+          rewrite -Nats.expn_pow.
+          apply ltnSE.
+          rewrite Nat.succ_pred.
+          rewrite to_nat_bounded //.
+          rewrite Nats.expn_pow.
+          apply Nat.pow_nonzero.
+          admit.
+          exact Hcfr.
+          move : Hte Htcf.
+          apply SV.conform_equal.
+          rewrite H2 H1 in Hwt.
+          discriminate.
+          rewrite H2 H1 in Hwt.
+          discriminate.
+          rewrite H2 H1 in Hwt.
+          discriminate.
+          rewrite H1 H2 in Hwt.
+          discriminate.
+          rewrite H1 in Hwt.
+          discriminate.
+          rewrite H1 in Hwt.
+          discriminate.
+          rewrite H1 in Hwt.
+          discriminate.
+          exact Hcf.
+      (* shr *)
+      move => Hide Hwt Hsf rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      split.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      move : Hide => /andP [Hide1 Hide2].
+      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (sext
+        (n -
+        size
+        (ebinop_op Bdshr (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Bdshr (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+          (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_shrB.
+        rewrite typeof_eval_fexpr.
+        rewrite H1.
+        simpl.
+        rewrite H1 in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite H2 H1 in Hwt.
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (sext
+        (n -
+        size
+        (ebinop_op Bdshr (Fsint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Bdshr (Fsint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+          (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_sarB.
+        rewrite typeof_eval_fexpr.
+        rewrite H1.
+        simpl.
+        rewrite H1 in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        exact Hcf.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        exact Hcf.
+      (* and *)
+      move => Hide Hwt Hsf rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      split.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      move : Hide => /andP [Hide1 Hide2].
+      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (sext
+        (n -
+        size
+        (ebinop_op Band (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Band (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+          (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_andB.
+        rewrite 2!size_zext typeof_eval_fexpr.
+        rewrite typeof_eval_fexpr.
+        rewrite H1 H2.
+        simpl.
+        rewrite subnKC.
+        rewrite subnKC.
+        rewrite maxnn.
+        rewrite H1 H2 in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        rewrite leq_maxr //.
+        rewrite leq_maxl //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt2 Hide2 //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (sext
+        (n -
+        size
+        (ebinop_op Band (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Band (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+          (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_andB.
+        rewrite 2!size_sext typeof_eval_fexpr.
+        rewrite typeof_eval_fexpr.
+        rewrite H1 H2.
+        simpl.
+        rewrite subnKC.
+        rewrite subnKC.
+        rewrite maxnn.
+        rewrite H1 H2 in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        rewrite leq_maxr //.
+        rewrite leq_maxl //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt2 Hide2 //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        exact Hcf.
+      (* or *)
+      move => Hide Hwt Hsf rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      split.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      move : Hide => /andP [Hide1 Hide2].
+      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (sext
+        (n -
+        size
+        (ebinop_op Bor (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Bor (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+          (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_orB.
+        rewrite 2!size_zext typeof_eval_fexpr.
+        rewrite typeof_eval_fexpr.
+        rewrite H1 H2.
+        simpl.
+        rewrite subnKC.
+        rewrite subnKC.
+        rewrite maxnn.
+        rewrite H1 H2 in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        rewrite leq_maxr //.
+        rewrite leq_maxl //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt2 Hide2 //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (sext
+        (n -
+        size
+        (ebinop_op Bor (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Bor (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+          (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_orB.
+        rewrite 2!size_sext typeof_eval_fexpr.
+        rewrite typeof_eval_fexpr.
+        rewrite H1 H2.
+        simpl.
+        rewrite subnKC.
+        rewrite subnKC.
+        rewrite maxnn.
+        rewrite H1 H2 in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        rewrite leq_maxr //.
+        rewrite leq_maxl //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt2 Hide2 //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        exact Hcf.
+      (* xor *)
+      move => Hide Hwt Hsf rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      split.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      move : Hide => /andP [Hide1 Hide2].
+      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (sext
+        (n -
+        size
+        (ebinop_op Bxor (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Bxor (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+          (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_xorB.
+        rewrite 2!size_zext typeof_eval_fexpr.
+        rewrite typeof_eval_fexpr.
+        rewrite H1 H2.
+        simpl.
+        rewrite subnKC.
+        rewrite subnKC.
+        rewrite maxnn.
+        rewrite H1 H2 in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        rewrite leq_maxr //.
+        rewrite leq_maxl //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt2 Hide2 //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (sext
+        (n -
+        size
+        (ebinop_op Bxor (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Bxor (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+          (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_xorB.
+        rewrite 2!size_sext typeof_eval_fexpr.
+        rewrite typeof_eval_fexpr.
+        rewrite H1 H2.
+        simpl.
+        rewrite subnKC.
+        rewrite subnKC.
+        rewrite maxnn.
+        rewrite H1 H2 in Hsf.
+        simpl in Hsf.
+        exact Hsf.
+        rewrite leq_maxr //.
+        rewrite leq_maxl //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt2 Hide2 //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        exact Hcf.
+      (* cat *)
+      move => Hide Hwt Hsf rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      split.
+      simpl in Hsf.
+      simpl in Hwt.
+      simpl in Hide.
+      move : Hide => /andP [Hide1 Hide2].
+      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (sext
+        (n -
+        size
+        (ebinop_op Bcat (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Bcat (Fuint n0) (Fuint n1) (no_mem_eval_fexpr e2 s1 te)
+          (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_cat.
+        rewrite typeof_eval_fexpr.
+        rewrite typeof_eval_fexpr.
+        rewrite H1 H2.
+        simpl.
+        rewrite H1 H2 in Hsf.
+        simpl in Hsf.
+        rewrite addnC //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt2 Hide2 //.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        - assert (Htcf : SV.conform
+              (SV.upd r
+              (sext
+        (n -
+        size
+        (ebinop_op Bcat (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+              (no_mem_eval_fexpr e3 s1 te)))
+        (ebinop_op Bcat (Fsint n0) (Fsint n1) (no_mem_eval_fexpr e2 s1 te)
+          (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+        apply SV.conform_upd.
+        rewrite Ht size_sext subnKC.
+        simpl.
+        reflexivity.
+        simpl.
+        rewrite size_cat.
+        rewrite typeof_eval_fexpr.
+        rewrite typeof_eval_fexpr.
+        rewrite H1 H2.
+        simpl.
+        rewrite H1 H2 in Hsf.
+        simpl in Hsf.
+        rewrite addnC //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt1 Hide1 //.
+        exact Hcf.
+        rewrite H1 H2 in Hwt.
+        move : Hwt => /andP [Hwt1 Hwt2].
+        rewrite /well_formed_fexpr Hwt2 Hide2 //.
+        exact Hcfr.
+        move : Hte Htcf.
+        apply SV.conform_equal.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H2 H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        rewrite H1 in Hwt.
+        discriminate.
+        exact Hcf.
+      - (* mux *)
+      move => rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      split.
+      simpl in Hwt.
+      simpl in Hsf.
+      simpl in Hide.
+      move : Hide => /andP [Hid2 Hid3].
+      move : Hid2 => /andP [Hid1 Hid2].
+      case H2:(type_of_fexpr e2 te) => [n0|n0|||].
+      - case H3:(type_of_fexpr e3 te) => [n1|n1|||].
+      rewrite H2 H3 in Hwt.
+      move : Hwt => /andP [Hwt2 Hwt3].
+      move : Hwt2 => /andP [_ Hwt2].
+      case (is_zero (no_mem_eval_fexpr e1 s1 te)).
+      simpl.
+      rewrite size_zext.
+      rewrite H2 H3 in Hsf.
+      simpl in Hsf.
+      assert (Htcf : SV.conform (SV.upd r
+      (sext (n - (size (no_mem_eval_fexpr e3 s1 te) + (maxn n0 n1 - n1)))
+        (zext (maxn n0 n1 - n1) (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite Ht size_sext size_zext subnKC.
+      simpl.
+      reflexivity.
+      rewrite typeof_eval_fexpr.
+      rewrite H3 subnKC.
+      exact Hsf.
+      simpl.
+      apply leq_maxr.
+      exact Hcf.
+      rewrite /well_formed_fexpr Hwt3 Hid3 //.
+      exact Hcfr.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      simpl.
+      rewrite size_zext.
+      rewrite H2 H3 in Hsf.
+      simpl in Hsf.
+      assert (Htcf : SV.conform (SV.upd r
+      (sext (n - (size (no_mem_eval_fexpr e2 s1 te) + (maxn n0 n1 - n0)))
+        (zext (maxn n0 n1 - n0) (no_mem_eval_fexpr e2 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite Ht size_sext size_zext subnKC.
+      simpl.
+      reflexivity.
+      rewrite typeof_eval_fexpr.
+      rewrite H2 subnKC.
+      exact Hsf.
+      simpl.
+      apply leq_maxl.
+      exact Hcf.
+      rewrite /well_formed_fexpr Hwt2 Hid2 //.
+      exact Hcfr.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      rewrite H2 H3 in Hwt.
+      discriminate.
+      rewrite H2 H3 in Hwt.
+      discriminate.
+      rewrite H2 H3 in Hwt.
+      discriminate.
+      rewrite H2 H3 in Hwt.
+      discriminate.
+      - case H3:(type_of_fexpr e3 te) => [n1|n1|||].
+      rewrite H2 H3 in Hwt.
+      discriminate.
+      rewrite H2 H3 in Hwt.
+      move : Hwt => /andP [Hwt2 Hwt3].
+      move : Hwt2 => /andP [_ Hwt2].
+      case (is_zero (no_mem_eval_fexpr e1 s1 te)).
+      simpl.
+      rewrite size_sext.
+      rewrite H2 H3 in Hsf.
+      simpl in Hsf.
+      assert (Htcf : SV.conform (SV.upd r
+      (sext (n - (size (no_mem_eval_fexpr e3 s1 te) + (maxn n0 n1 - n1)))
+        (sext (maxn n0 n1 - n1) (no_mem_eval_fexpr e3 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite Ht size_sext size_sext subnKC.
+      simpl.
+      reflexivity.
+      rewrite typeof_eval_fexpr.
+      rewrite H3 subnKC.
+      exact Hsf.
+      simpl.
+      apply leq_maxr.
+      exact Hcf.
+      rewrite /well_formed_fexpr Hwt3 Hid3 //.
+      exact Hcfr.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      simpl.
+      rewrite size_sext.
+      rewrite H2 H3 in Hsf.
+      simpl in Hsf.
+      assert (Htcf : SV.conform (SV.upd r
+      (sext (n - (size (no_mem_eval_fexpr e2 s1 te) + (maxn n0 n1 - n0)))
+        (sext (maxn n0 n1 - n0) (no_mem_eval_fexpr e2 s1 te))) rs1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite Ht size_sext size_sext subnKC.
+      simpl.
+      reflexivity.
+      rewrite typeof_eval_fexpr.
+      rewrite H2 subnKC.
+      exact Hsf.
+      simpl.
+      apply leq_maxl.
+      exact Hcf.
+      rewrite /well_formed_fexpr Hwt2 Hid2 //.
+      exact Hcfr.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      rewrite H2 H3 in Hwt.
+      discriminate.
+      rewrite H2 H3 in Hwt.
+      discriminate.
+      rewrite H2 H3 in Hwt.
+      discriminate.
+      rewrite H2 in Hwt.
+      discriminate.
+      rewrite H2 in Hwt.
+      discriminate.
+      rewrite H2 in Hwt.
+      discriminate.
+      exact Hcf.
+      - (* validif *)
+      move => rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      simpl in Hwt.
+      simpl in Hsf.
+      simpl in Hide.
+      move : Hide => /andP [Hid1 Hid2].
+      move : Hwt => /andP [Hwt1 Hwt2].
+      apply IHe2 with (s1:=s1) (rs1:=rs1) in Hcf.
+      simpl in Hcf.
+      rewrite Ht Hr in Hcf.
+      simpl in Hcf.
+      exact Hcf.
+      exact Hid2.
+      exact Hwt2.
+      exact Hsf.
+      exact Hcfr.
+      exact Hr.
+      - (* case ref *)
+      move => rs1 s1 Hcf Hcfr Hr.
+      simpl.
+      rewrite Hr Ht.
+      simpl.
+      split.
+      assert (Htcf : SV.conform (SV.upd r (sext (n - size (SV.acc s s1)) (SV.acc s s1)) rs1) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite Ht size_sext subnKC.
+      simpl.
+      reflexivity.
+      rewrite -(typeof_eval_fexpr Hcf) in Hsf.
+      simpl in Hsf.
+      exact Hsf.
+      rewrite /well_formed_fexpr Hwt Hide //.
+      exact Hcfr.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      exact Hcf.
+
+      rewrite Ht in Hwt.
+      discriminate.
+      rewrite Ht in Hwt.
+      discriminate.
+      rewrite Ht in Hwt.
+      discriminate.
 Admitted.
-*)
+
+  Definition conform_terss (t : mapterss) : Prop :=
+    forall (v : V.t),
+      (match TE.find v t with
+      | Some (tte, trs, ts, _) => SV.conform trs tte /\ SV.conform ts tte
+      | None => false
+      end).
+
+  Lemma conform_eval_instsfcnct_upd_env n : forall rs s te finstoutl finstoutm ffmodsmap fterss finstin finstinmap finstoutmap
+    allfinstoutl allfinstoutm allfinstportmap v e ,
+    SV.conform s te ->
+    SV.conform rs te ->
+    conform_terss fterss ->
+    well_formed_fstmt (Sfcnct v e) te ->
+    match e with 
+    | Eref r0 => if mylListIn r0 finstoutl then
+                match TE.find r0 finstoutm with
+                | Some (a4,a0) => match TE.find a4 ffmodsmap with
+                                  | Some _ => match TE.find a0 fterss with
+                                                | Some (((_,_),_),_) => match TE.find a4 finstin with
+                                                                        | Some _ => match TE.find a0 finstinmap with
+                                                                                    | Some _ => match TE.find r0 finstoutmap with
+                                                                                                        | Some _ => true
+                                                                                                        | None => false
+                                                                                                        end
+                                                                                    | None => false
+                                                                                    end
+                                                                        | None => false
+                                                                        end
+                                                | None => false
+                                                end
+                                  | None => false
+                                  end
+                | None => false
+                end
+                else true
+    | _ => true
+    end ->
+    (match v with
+    | Eref r => (*match e with
+                | Eref r0 => if mylListIn r0 finstoutl then*)
+                (if (SV.acc r rs == [::]) then SV.conform (snd (fst (no_mem_eval_fstmt (Sfcnct v e) rs s te finstoutl finstoutm ffmodsmap fterss finstin finstinmap finstoutmap allfinstoutl allfinstoutm allfinstportmap n))) (no_mem_upd_typenv_fstmt (Sfcnct v e) te)
+                else SV.conform (fst (fst (no_mem_eval_fstmt (Sfcnct v e) rs s te finstoutl finstoutm ffmodsmap fterss finstin finstinmap finstoutmap allfinstoutl allfinstoutm allfinstportmap n))) (no_mem_upd_typenv_fstmt (Sfcnct v e) te))
+                (*            else False
+                | _ => False
+                end*)
+    | _ => False
+    end).
+  Proof.
+    induction n.
+
+    move => rs s te finstoutl finstoutm ffmodsmap fterss finstin finstinmap finstoutmap
+    allfinstoutl allfinstoutm allfinstportmap v.
+    case Hv:v => [||||||r].
+    (* v not ref *)
+    discriminate.
+    discriminate.
+    discriminate.
+    discriminate.
+    discriminate.
+    discriminate.
+
+    move => e Hcf Hcfr Hterss Hwf _.
+    rewrite /well_formed_fstmt in Hwf.
+    move : Hwf => /andP [Hwt Hid].
+    simpl in Hwt.
+    move : Hid => /andP [Hid Hide].
+    rewrite /is_defined in Hid.
+    assert (Hte : TE.Equal (TE.add r (TE.vtyp r te) te) te).
+    rewrite SV.Lemmas.add_same.
+    apply SV.Lemmas.Equal_refl.
+    case H: (TE.find r te).
+    rewrite (TE.find_some_vtyp H) //.
+    apply SV.Lemmas.find_none_not_mem in H.
+    rewrite Hid in H.
+    discriminate.
+    (* v is ref *)
+    case Hr:(SV.acc r rs).
+    - simpl.
+      case Ht : (TE.vtyp r te) => [n|n|||].
+      rewrite Ht in Hwt.
+      move : Hwt => /andP [Hwt Hsf].
+      rewrite Hr.
+      simpl.
+      assert (Htcf : SV.conform (SV.upd r
+      (zext (n - size (no_mem_eval_fexpr e s te)) (no_mem_eval_fexpr e s te)) s) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_zext subnKC.
+      rewrite Ht //.
+      rewrite typeof_eval_fexpr.
+      exact Hsf.
+      exact Hcf.
+      rewrite /well_formed_fexpr Hwt Hide //.
+      exact Hcf.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      rewrite Ht in Hwt.
+      move : Hwt => /andP [Hwt Hsf].
+      rewrite Hr.
+      simpl.
+      assert (Htcf : SV.conform (SV.upd r
+      (sext (n - size (no_mem_eval_fexpr e s te)) (no_mem_eval_fexpr e s te)) s) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_sext subnKC.
+      rewrite Ht //.
+      rewrite typeof_eval_fexpr.
+      exact Hsf.
+      exact Hcf.
+      rewrite /well_formed_fexpr Hwt Hide //.
+      exact Hcf.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      rewrite Ht in Hwt.
+      discriminate.
+      rewrite Ht in Hwt.
+      discriminate.
+      rewrite Ht in Hwt.
+      discriminate.
+    - simpl.
+      case Ht : (TE.vtyp r te) => [n|n|||].
+      rewrite Ht in Hwt.
+      move : Hwt => /andP [Hwt Hsf].
+      rewrite Hr.
+      simpl.
+      assert (Htcf : SV.conform (SV.upd r
+      (zext (n - size (no_mem_eval_fexpr e s te)) (no_mem_eval_fexpr e s te)) rs) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_zext subnKC.
+      rewrite Ht //.
+      rewrite typeof_eval_fexpr.
+      exact Hsf.
+      exact Hcf.
+      rewrite /well_formed_fexpr Hwt Hide //.
+      exact Hcfr.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      rewrite Ht in Hwt.
+      move : Hwt => /andP [Hwt Hsf].
+      rewrite Hr.
+      simpl.
+      assert (Htcf : SV.conform (SV.upd r
+      (sext (n - size (no_mem_eval_fexpr e s te)) (no_mem_eval_fexpr e s te)) rs) (TE.add r (TE.vtyp r te) te)).
+      apply SV.conform_upd.
+      rewrite size_sext subnKC.
+      rewrite Ht //.
+      rewrite typeof_eval_fexpr.
+      exact Hsf.
+      exact Hcf.
+      rewrite /well_formed_fexpr Hwt Hide //.
+      exact Hcfr.
+      move : Hte Htcf.
+      apply SV.conform_equal.
+      rewrite Ht in Hwt.
+      discriminate.
+      rewrite Ht in Hwt.
+      discriminate.
+      rewrite Ht in Hwt.
+      discriminate.
+    (* 用n证n+1 *)
+    move => rs s te finstoutl finstoutm ffmodsmap fterss finstin finstinmap finstoutmap
+    allfinstoutl allfinstoutm allfinstportmap v.
+    case Hv:v => [||||||r].
+    (* v not ref *)
+    discriminate.
+    discriminate.
+    discriminate.
+    discriminate.
+    discriminate.
+    discriminate.
+    move => e Hcf Hcfr Hterss Hwf H0.
+    rewrite /well_formed_fstmt in Hwf.
+    move : Hwf => /andP [Hwt Hid].
+    simpl in Hwt.
+    move : Hid => /andP [Hid Hide].
+    rewrite /is_defined in Hid.
+    assert (Hte : TE.Equal (TE.add r (TE.vtyp r te) te) te).
+    rewrite SV.Lemmas.add_same.
+    apply SV.Lemmas.Equal_refl.
+    case H: (TE.find r te).
+    rewrite (TE.find_some_vtyp H) //.
+    apply SV.Lemmas.find_none_not_mem in H.
+    rewrite Hid in H.
+    discriminate.
+    case Hr:(SV.acc r rs).
+    - simpl.
+      rewrite Hr.
+      simpl.
+      case He:e => [||||||r0].
+      admit.
+      admit.
+      admit.
+      admit.
+      admit.
+      admit.
+      rewrite He in H0.
+      case Hinst:(mylListIn r0 finstoutl).
+      rewrite Hinst in H0.
+      case Ht0:(TE.find r0 finstoutm) => [[a4 a0]|].
+      case Ht1:(TE.find a4 ffmodsmap) => [mst|].
+      case Ht2:(TE.find a0 fterss) => [[[[te0 rs0]s0]mem0]|].
+      case Ht3:(TE.find a4 finstin) => [a2|].
+      case Ht4:(TE.find a0 finstinmap) => [updfinstin|].
+      case Ht5:(TE.find r0 finstoutmap) => [a3|].
+      admit.
+      rewrite Ht0 in H0.
+      discriminate.
+
+Admitted.
+
+  Lemma conform_eval_inst_upd_env n : forall rs s te finstoutl finstoutm ffmodsmap fterss finstin finstinmap finstoutmap
+    allfinstoutl allfinstoutm allfinstportmap inst ,
+    SV.conform s te ->
+    SV.conform rs te ->
+    conform_terss fterss ->
+    well_formed_fstmt (Sinst inst) te ->
+    match TE.find (imid inst) ffmodsmap with
+    | Some mst => match TE.find (iid inst) fterss with
+                  | Some _ => match TE.find (imid inst) finstin with
+                              | Some _ => true
+                              | None => false
+                              end
+                  | None => false
+                  end
+    | None => false
+    end ->
+    conform_terss (snd (no_mem_eval_fstmt (Sinst inst) rs s te finstoutl finstoutm ffmodsmap fterss finstin finstinmap finstoutmap allfinstoutl allfinstoutm allfinstportmap n)).
+  Proof.
+    induction n.
+
+    move => rs s te finstoutl finstoutm ffmodsmap fterss finstin finstinmap finstoutmap
+    allfinstoutl allfinstoutm allfinstportmap inst.
+    move => Hcf Hcfr Hterss Hwf Ht.
+
+    simpl.
+    exact Hterss.
+    simpl.
+    move => rs s te finstoutl finstoutm ffmodsmap fterss finstin finstinmap finstoutmap
+    allfinstoutl allfinstoutm allfinstportmap inst.
+    move => Hcf Hcfr Hterss Hwf Ht.
+    case H0 : (TE.find (imid inst) ffmodsmap) => [t0|].
+    case H1 : (TE.find (iid inst) fterss) => [[[[t10 t11]t12]t13]|].
+    case H2 : (TE.find (imid inst) finstin) => [t2|].
+    case H3 : (TE.find (iid inst) finstinmap) => [t3|].
+    case H4 : (TE.find (imid inst) allfinstoutl) => [t4|].
+    case H5 : (TE.find (imid inst) allfinstoutm) => [t5|].
+    case H6 : (TE.find (imid inst) allfinstportmap) => [[t60 t61]|].
+    (* rs2 s2 对 t10 conform *)
+    (* fterss2 conform *)
+    admit.
+    simpl.
+    exact Hterss.
+    simpl.
+    exact Hterss.
+    simpl.
+    exact Hterss.
+    simpl.
+    exact Hterss.
+    simpl.
+    exact Hterss.
+    simpl.
+    exact Hterss.
+    simpl.
+    exact Hterss.
+Admitted.
 
 End MakeFirrtl.
  
