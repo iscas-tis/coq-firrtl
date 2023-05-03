@@ -776,7 +776,7 @@ Section InferTypeP.
 
   Fixpoint ftype_list (ft : ftype) (l : list ftype) : list ftype :=
     match ft with
-    | Gtyp t => rcons l ft
+    | Gtyp t => rcons ft l
     | Atyp t n => list_repeat_fn (ftype_list t) n l
     | Btyp b => ftype_list_btyp b l
     end
@@ -787,11 +787,23 @@ Section InferTypeP.
          end.
 
   (*list also the nested sub aggragate types*)
+  (* Fixpoint ftype_list_all (ft : ftype) (l : list ftype) : list ftype := *)
+  (*   match ft with *)
+  (*   | Gtyp t => rcons l ft *)
+  (*   | Atyp t n => rcons (list_repeat_fn (ftype_list_all t) n l) ft *)
+  (*   | Btyp b => rcons (ftype_list_btyp_all b l) ft *)
+  (*   end *)
+  (* with ftype_list_btyp_all (b : ffield) (l : list ftype) : list ftype := *)
+  (*        match b with *)
+  (*        | Fnil => l *)
+  (*        | Fflips v fl t fs => ftype_list_all t (ftype_list_btyp_all fs l) *)
+  (*        end. *)
+  
   Fixpoint ftype_list_all (ft : ftype) (l : list ftype) : list ftype :=
     match ft with
-    | Gtyp t => rcons l ft
-    | Atyp t n => rcons (list_repeat_fn (ftype_list_all t) n l) ft
-    | Btyp b => rcons (ftype_list_btyp_all b l) ft
+    | Gtyp t => cons ft l
+    | Atyp t n => cons ft (repeat n (ftype_list_all t l))
+    | Btyp b => cons ft (ftype_list_btyp_all b l)
     end
   with ftype_list_btyp_all (b : ffield) (l : list ftype) : list ftype :=
          match b with
@@ -812,7 +824,7 @@ Section InferTypeP.
 
   Definition upd_aggr_elements_all (v:pvar) (t: cmpnt_init_typs ProdVarOrder.T * fcomponent) (ce:CEP.env) : CEP.env :=
     let ts := ftype_list_all (type_of_cmpnttyp (fst t)) nil in
-    CEP.add v t (upd_aggr_elements_aux v ts (snd t) ce initial_index).
+    (* CEP.add v t *) (upd_aggr_elements_aux v ts (snd t) ce v.2).
   
   Definition ce0 :CEP.env:= CEP.empty (cmpnt_init_typs ProdVarOrder.T * fcomponent).
   Definition agt := HiFP.aggr_typ (Atyp (Btyp (Fflips 5%num Nflip (Gtyp (Fsint 1)) (Fflips 6%num Nflip (Atyp (Gtyp (Fsint 2)) 2) Fnil))) 3).

@@ -24,6 +24,13 @@ Section InferWidthP.
   Definition empty_wmap : wmap := CEP.empty (ftype).
   Definition finds (v:pvar) (w:wmap) := match CEP.find v w with Some t => t | None => def_ftype end.
 
+  (* Import HiFP. *)
+  (* Definition def_ftype' := Gtyp (Fuint 0). *)
+  (* Definition wmap' := CEP.t (seq HiFP.hfexpr). *)
+  (* Definition empty_wmap' : wmap' := CEP.empty (seq HiFP.hfexpr). *)
+  (* Definition finds' (v:pvar) (w:wmap') := match CEP.find v w with Some t => t | None => ([::]) end. *)
+
+  
    (* access to subfield is represented by the the snd element of pvar *)
   Fixpoint get_field_name (r : HiFP.href) : N :=
     match r with
@@ -35,7 +42,17 @@ Section InferWidthP.
     | _ => 0
     end.
 
-  (* store the larger width in wmap *)
+  (* (* store the larger width in wmap *) *)
+  (* (*TODO: fix the definition to update the related fields too*) *)
+  (*  Definition add_wmap' (p:pvar) t w : wmap' := *)
+  (*    match CEP.find p w with *)
+  (*    (*already added in wmap, then upd to the larger one*) *)
+  (*    | Some t1 => CEP.add p (t::t1) w *)
+  (*    (*not in wmap yet, then add it with corresponding def_type*) *)
+  (*    | None => CEP.add p [::t] w *)
+  (*    end. *)
+
+     (* store the larger width in wmap *)
   (*TODO: fix the definition to update the related fields too*)
    Definition add_wmap (p:pvar) t w : wmap :=
      match CEP.find p w with
@@ -96,6 +113,9 @@ Section InferWidthP.
      | Swire v t => if HiF.is_deftyp t then add_wmap v t w else w
      | Sreg v r => if HiF.is_deftyp (type r) then add_wmap v (type r) w else w
      | Sfcnct (Eid r1) e =>
+         (* if HiF.is_deftyp (HiFP.type_of_hfexpr e ce)  *)
+         (* then find which isdef, infer that first *)
+         
          let t1 := type_of_cmpnttyp (fst (CEP.vtyp r1 ce)) in
          let te := HiFP.type_of_hfexpr e ce in
          (*t1 is default type, means r1 is declared with zero width, 
@@ -124,6 +144,44 @@ Section InferWidthP.
           | Qnil => w
           | Qcons hd tl => inferwidth_wmap_sts tl ce (inferwidth_wmap hd ce w)
           end.
+
+   (*    Fixpoint inferwidth_wmap' (s : HiFP.hfstmt) (ce : CEP.env) (w : wmap'): wmap' := *)
+   (*   match s with *)
+   (*   (*node declaration, if with default type (zero width) then add node to wmap*) *)
+   (*   (*possible bundle*) *)
+   (*   | Snode v e => if HiF.is_deftyp (HiFP.type_of_hfexpr e ce) *)
+   (*                  then add_wmap' v e w else w *)
+   (*   | Swire v t => if HiF.is_deftyp t then add_wmap' v (HiFP.eref (Eid v)) w else w *)
+   (*   | Sreg v r => if HiF.is_deftyp (type r) then add_wmap' v  w else w *)
+   (*   | Sfcnct (Eid r1) e => *)
+   (*       let t1 := type_of_cmpnttyp (fst (CEP.vtyp r1 ce)) in *)
+   (*       let te := HiFP.type_of_hfexpr e ce in *)
+   (*       (*t1 is default type, means r1 is declared with zero width,  *)
+   (*        *or r1 is a subfield/subindex that infertype have not registered it in ce*) *)
+   (*       if HiF.is_deftyp t1 then add_wmap r1 te w else w *)
+   (*   (* | Spcnct (Eid r1) e => *) *)
+   (*   (*     let t1 := type_of_cmpnttyp (fst (CEP.vtyp r1 ce)) in *) *)
+   (*   (*     let te := type_of_hfexprP e ce in *) *)
+   (*   (*     if HiF.is_deftyp t1 then add_wmap r1 te w else w *) *)
+   (*   | Swhen c s1 s2 => inferwidth_wmap_sts s2 ce (inferwidth_wmap_sts s1 ce w) *)
+   (*   | Sinst v1 v2 => if HiF.is_deftyp (HiFP.type_of_ref (HiFP.eid v2) ce) *)
+   (*                    then add_wmap v1 (HiFP.type_of_ref (HiFP.eid v2) ce) w else w *)
+   (*   | Sskip *)
+   (*   | Sinvalid _ *)
+   (*   | Smem _ _ *)
+   (*   (* | Sfcnct (Esubfield _ _) _ *) *)
+   (*   (* | Sfcnct (Esubindex _ _) _ *) *)
+   (*   (* | Sfcnct (Esubaccess _ _) _ *) *)
+   (*   (* | Spcnct (Esubfield _ _) _ *) *)
+   (*   (* | Spcnct (Esubindex _ _) _ *) *)
+   (*   (* | Spcnct (Esubaccess _ _) _ *) *)
+   (*   | _=> w    *)
+   (*   end *)
+   (* with inferwidth_wmap_sts (s : HiFP.hfstmt_seq) (ce : CEP.env) (w : wmap): wmap := *)
+   (*        match s with *)
+   (*        | Qnil => w *)
+   (*        | Qcons hd tl => inferwidth_wmap_sts tl ce (inferwidth_wmap hd ce w) *)
+   (*        end. *)
 
    
    (* Fixpoint inferWidth_wmap0 (s : hfstmt) (ce : cenv) (w : wmap0): wmap0 := *)
@@ -354,7 +412,7 @@ Section InferWidthP.
        ce2 = wmap_map2_cenv wm1 ce1 ->
        inferWidth_sstmt_sem' (Snode v e) ce1 ce2.
    Proof.
-     intros.
+     intros. 
      have Hnone : (add_width_2_cenv None None = None) by done.
      move : (HiFP.PCELemmas.map2_1bis wm1 ce1 v Hnone) => Hint.
      apply inferWidth_snode_sem.
