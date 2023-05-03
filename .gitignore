@@ -1,3 +1,7 @@
+*.bbl
+*.blg
+*.log
+*.out
 *.vo
 *.vos
 *.vok

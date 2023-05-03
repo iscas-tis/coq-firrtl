@@ -563,6 +563,11 @@
 \newcommand\ssym{{\sf Start}}
 \newcommand\esym{{\sf End}}
 
+\newcommand\wid{{\sf wd}}
+\newcommand\tEnv{{te}}
+\newcommand\sEnv{{s}}
+\newcommand\rEnv{{rs}}
+
 \newcommand\pnfa{\mathcal{A}}
 \newcommand\psst{\mathcal{T}}
 
@@ -645,12 +650,12 @@
 
 \newcommand{\uint}[1]
 {
-UInt\mbox{<}#1\mbox{>}
+\mbox{\prettyll{UInt}}\mbox{<}#1\mbox{>}
 }
 
 \newcommand{\sint}[1]
 {
-SInt\mbox{<}#1\mbox{>}
+\mbox{\prettyll{SInt}}\mbox{<}#1\mbox{>}
 }
 
 \newcommand{\bwidth}[1]
@@ -658,18 +663,18 @@ SInt\mbox{<}#1\mbox{>}
 \mbox{<} #1 \mbox{>}
 }
 
-\newcommand\iports{InPorts}
-\newcommand\oports{OutPorts}
-\newcommand\sports{SubPorts}
-\newcommand\siports{SubInPorts}
-\newcommand\soports{SubOutPorts}
-\newcommand\ports{Ports}
-\newcommand\wires{Wires}
-\newcommand\nodes{Nodes}
-\newcommand\registers{Regs}
-\newcommand\varset{Vars}
-\newcommand\cpnts{Cpnts}
-\newcommand\ccpnts{CCpnts}
-\newcommand\gtypes{GTypes}
-\newcommand\bv{BitVec}
+\newcommand\iports{\sf InPorts}
+\newcommand\oports{\sf OutPorts}
+\newcommand\sports{\sf SubPorts}
+\newcommand\siports{\sf SubInPorts}
+\newcommand\soports{\sf SubOutPorts}
+\newcommand\ports{\sf Ports}
+\newcommand\wires{\sf Wires}
+\newcommand\nodes{\sf Nodes}
+\newcommand\registers{\sf Regs}
+\newcommand\varset{\sf Vars}
+\newcommand\cpnts{\sf Cpnts}
+\newcommand\ccpnts{\sf CCpnts}
+\newcommand\gtypes{\sf GTypes}
+\newcommand\bv{\sf BitVec}
 \newcommand\modinst{MI}

@@ -1,5 +1,5 @@
 %% For double-blind review submission, w/o CCS and ACM Reference (max submission space)
-\documentclass[acmsmall,review,anonymous]{acmart}\settopmatter{printfolios=true,printccs=false,printacmref=false}
+\documentclass[acmsmall,review,anonymous]{acmart}%\settopmatter{printfolios=true,printccs=false,printacmref=false}
 %% For double-blind review submission, w/ CCS and ACM Reference
 %\documentclass[acmsmall,review,anonymous]{acmart}\settopmatter{printfolios=true}
 %% For single-blind review submission, w/o CCS and ACM Reference (max submission space)
@@ -62,7 +62,7 @@
 %% Use this when submitting an article to a sponsored event. You'll
 %% receive a unique submission ID from the organizers
 %% of the event, and this ID should be used as the parameter to this command.
-%%\acmSubmissionID{123-A56-BU3}
+\acmSubmissionID{\#792}
 
 %%
 %% For managing citations, it is recommended to use bibliography
@@ -103,6 +103,8 @@
 %\usepackage{amssymb}
 \usepackage{mathtools}
 \usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{pifont}
 \usepackage{bussproofs}
 \usepackage{multirow}
 \usepackage{graphics}
@@ -143,7 +145,7 @@
    numberstyle=\scriptsize,
    numbersep=5pt,
    tabsize=2,
-   breaklines=true,
+   breaklines=false,
    showtabs=false,
    captionpos=b
 }
@@ -151,14 +153,15 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
-\newcommand{\prettyll}[1]{\begin{lstinline}! #1 !\end{lstinline}}
+\newcommand{\prettyll}[1]{\begin{lstinline}[basicstyle=\small\ttfamily]! #1 !\end{lstinline}}
+\newcommand{\fnprettyll}[1]{\begin{lstinline}[basicstyle=\footnotesize\ttfamily]! #1 !\end{lstinline}}
 
 %\newif\ifdraft\drafttrue
 \newif\ifdraft\drafttrue
 \ifdraft
 \newcommand{\zhilin}[1]{\color{brown} {ZL: #1 :LZ} \color{black}}
 \newcommand{\xiaomu}[1]{\color{blue} {XM: #1 :MX} \color{black}}
-\newcommand{\david}[1]{\color{cyan} {DV: #1 :VD} \color{black}}
+\newcommand{\david}[1]{\color{cyan} {DNJ: #1 :DNJ} \color{black}}
 \newcommand{\keyin}[1]{\color{red} {KY: #1 :YK} \color{black}}
 \newcommand{\fu}[1]{\color{purple} {Fu: #1 :Fu} \color{black}}
 \else
@@ -214,21 +217,21 @@
 \author{Keyin Wang}
 \affiliation{%
   \institution{Institute of Software, Chinese Academy of Sciences  University of Chinese Academy of Sciences}
-  \streetaddress{P.O.Box 8718}
+  \streetaddress{P.O. Box 8718}
   \city{Beijing}
   \country{China}}
  \affiliation{%
   \institution{University of Chinese Academy of Sciences}
-  \streetaddress{No.19(A) Yuquan Road, Shijingshan District}
+  \streetaddress{No. 19(A) Yuquan Road, Shijingshan District}
   \city{Beijing}
   \country{China}}
-\email{}
+\email{wangky@ios.ac.cn}
 \orcid{}
 
-\author{David Jansen}
+\author{David N. Jansen}
 \affiliation{%
   \institution{Institute of Software, Chinese Academy of Sciences}
-  \streetaddress{P.O.Box 8718}
+  \streetaddress{P.O. Box 8718}
   \city{Beijing}
   \country{China}}
 \email{dnjansen@ios.ac.cn}
@@ -242,36 +245,48 @@
   \country{China}}
  \affiliation{%
   \institution{University of Chinese Academy of Sciences}
-  \streetaddress{No.19(A) Yuquan Road, Shijingshan District}
+  \streetaddress{No. 19(A) Yuquan Road, Shijingshan District}
   \city{Beijing}
   \country{China}}
 \email{wuzl@ios.ac.cn}
 \orcid{}
 
-
-\author{Lijun Zhang}
+\author{Jiuyang Liu}
 \affiliation{%
   \institution{Huazhong University of Science and Technology}
-  \streetaddress{P.O.Box 8718}
+  \streetaddress{P.O. Box 8718}
   \city{Wuhan}
   \country{China}}
  \affiliation{%
   \institution{University of Chinese Academy of Sciences}
-  \streetaddress{No.19(A) Yuquan Road, Shijingshan District}
+  \streetaddress{No. 19(A) Yuquan Road, Shijingshan District}
   \city{Beijing}
   \country{China}}
 \email{jiuyang@hust.edu.cn}
 \orcid{}
 
+\author{Fu Song}
+\affiliation{%
+  \institution{ShanghaiTech University}
+  \streetaddress{P.O. Box 8718}
+  \city{Shanghai}
+  \country{China}}
+ \affiliation{%
+  \institution{ShanghaiTech University}
+  \city{Shanghai}
+  \country{China}}
+\email{songfu@shanghaitech.edu.cn}
+\orcid{}
+
 \author{Lijun Zhang}
 \affiliation{%
   \institution{Institute of Software, Chinese Academy of Sciences}
-  \streetaddress{P.O.Box 8718}
+  \streetaddress{P.O. Box 8718}
   \city{Beijing}
   \country{China}}
  \affiliation{%
   \institution{University of Chinese Academy of Sciences}
-  \streetaddress{No.19(A) Yuquan Road, Shijingshan District}
+  \streetaddress{No. 19(A) Yuquan Road, Shijingshan District}
   \city{Beijing}
   \country{China}}
 \email{zhanglj@ios.ac.cn}
@@ -291,22 +306,31 @@
 %% The abstract is a short summary of the work to be presented in the
 %% article.
 \begin{abstract}
-FIRRTL is an intermediate representation for the Chisel hardware description language
+FIRRTL is an intermediate representation for the Chisel hardware construction language
 and has been intensively used in designing RISC-V CPUs.
-This paper presents \emph{Vefirrtl,} a framework for reasoning
-about programs expressed in FIRRTL
-and about lowering transformations that remove some high-level constructs.
-Vefirrtl provides a
-mechanized formal semantics of FIRRTL and
-its type system. The framework is built using the Coq interactive theorem prover. It includes
-an axiomatic semantics for High FIRRTL and an operational semantics for Low FIRRTL and proves relations among them.
-To validate Vefirrtl's design, we extract an interpreter from the
-Coq formal semantics that can execute programs from the FIRRTL test
-suite and thus be compared against FIRRTL reference implementations.
-To demonstrate Vefirrtl's practicality, we formalize and verify two key transformations of FIRRTL programs,
-namely ``Infer Width'' and ``Expand Whens'',
-which infer bit widths of signals
-and replace conditional statements with multiplexers, respectively.
+FIRRTL features high-level constructs like vector and bundle types,
+which are then removed by a sequence of lowering transformations,
+resulting in a most restricted form, called low FIRRTL.
+This paper presents Vefirrtl,
+a framework to formally reason about programs in FIRRTL and its lowering transformations.
+Vefirrtl provides a mechanized formal semantics for low FIRRTL,
+and formalizes the syntax of FIRRTL and its lowering transformations, all in
+the interactive theorem prover Coq.
+%Vefirrtl is built using the Coq interactive theorem prover.
+%It provides a mechanized formal semantics for low FIRRTL,
+%and Moreover, it formalizes the syntax of FIRRTL and its lowering transformations.
+To validate the formal semantics for low FIRRTL,
+we extract from it an OCaml interpreter that can execute low FIRRTL programs,
+and empirically check its consistency against Treadle,
+the low FIRRTL reference interpreter,
+on a benchmark suite comprising 120 low FIRRTL programs.
+Experimental results show that our OCaml interpreter is 6.95 times faster than Treadle on average, and
+produces the same outputs as Treadle for almost all the benchmarks
+except for one due to an undefined semantics in low FIRRTL.
+Furthermore, we specify and verify the functional correctness of two key lowering transformations,
+namely ``ExpandConnects'' and ``ExpandWhens'',
+which expands the connect statements for vector and bundle types,
+and replaces conditional statements with multiplexers, respectively.
 %
 \end{abstract}
 
@@ -316,38 +340,38 @@ and replace conditional statements with multiplexers, respectively.
 %%
 \begin{CCSXML}
 <ccs2012>
- <concept>
-  <concept_id>10010520.10010553.10010562</concept_id>
-  <concept_desc>Computer systems organization~Embedded systems</concept_desc>
-  <concept_significance>500</concept_significance>
- </concept>
- <concept>
-  <concept_id>10010520.10010575.10010755</concept_id>
-  <concept_desc>Computer systems organization~Redundancy</concept_desc>
-  <concept_significance>300</concept_significance>
- </concept>
- <concept>
-  <concept_id>10010520.10010553.10010554</concept_id>
-  <concept_desc>Computer systems organization~Robotics</concept_desc>
-  <concept_significance>100</concept_significance>
- </concept>
- <concept>
-  <concept_id>10003033.10003083.10003095</concept_id>
-  <concept_desc>Networks~Network reliability</concept_desc>
-  <concept_significance>100</concept_significance>
- </concept>
-</ccs2012>
+   <concept>
+       <concept_id>10010583.10010682.10010689</concept_id>
+       <concept_desc>Hardware~Hardware description languages and compilation</concept_desc>
+       <concept_significance>500</concept_significance>
+       </concept>
+   <concept>
+       <concept_id>10010583.10010682.10010712.10010715</concept_id>
+       <concept_desc>Hardware~Software tools for EDA</concept_desc>
+       <concept_significance>500</concept_significance>
+       </concept>
+   <concept>
+       <concept_id>10003752.10003790.10002990</concept_id>
+       <concept_desc>Theory of computation~Logic and verification</concept_desc>
+       <concept_significance>500</concept_significance>
+       </concept>
+   <concept>
+       <concept_id>10003752.10010124</concept_id>
+       <concept_desc>Theory of computation~Semantics and reasoning</concept_desc>
+       <concept_significance>500</concept_significance>
+       </concept>
+ </ccs2012>
 \end{CCSXML}
 
-\ccsdesc[500]{Computer systems organization~Embedded systems}
-\ccsdesc[300]{Computer systems organization~Redundancy}
-\ccsdesc{Computer systems organization~Robotics}
-\ccsdesc[100]{Networks~Network reliability}
+\ccsdesc[500]{Hardware~Hardware description languages and compilation}
+\ccsdesc[500]{Hardware~Software tools for EDA}
+\ccsdesc[500]{Theory of computation~Logic and verification}
+\ccsdesc[500]{Theory of computation~Semantics and reasoning}
 
 %%
 %% Keywords. The author(s) should pick words that accurately describe
 %% the work being presented. Separate the keywords with commas.
-\keywords{datasets, neural networks, gaze detection, text tagging}
+\keywords{RISC-V CPU design, FIRRTL, lowering transformations, formal semantics, verification}
 %% A "teaser" image appears between the author and affiliation
 %% information and the body of the document, and typically spans the
 %% page.
@@ -373,7 +397,7 @@ and replace conditional statements with multiplexers, respectively.
 %% information and builds the first part of the formatted document.
 \maketitle
 
-\zhilin{Submitted papers (including resubmissions) must be at most 23 pages in 10 point font. There is no page limit on references. No appendices are allowed on the main paper, instead authors can upload supplementary material with no page or content restrictions, but reviewers may choose to ignore it. }
+%\zhilin{Submitted papers (including resubmissions) must be at most 23 pages in 10 point font. There is no page limit on references. No appendices are allowed on the main paper, instead authors can upload supplementary material with no page or content restrictions, but reviewers may choose to ignore it. }
 
 
 \section{Introduction}
@@ -384,7 +408,7 @@ and replace conditional statements with multiplexers, respectively.
 
 \input{firrtl}
 
-\section{Formalization of Low FIRRTL}
+\section{Formalization of Low FIRRTL}\label{sec-form-low-firrtl}
 
 \subsection{Operational Semantics of LoFIRRTL}\label{sec-lofirrtl-sem}
 
@@ -394,7 +418,7 @@ and replace conditional statements with multiplexers, respectively.
 
 \input{firrtl-interpret-extraction}
 
-\subsection{Validation of the OCaml LoFIRRTL Interpreter}
+\subsection{Validation of the OCaml LoFIRRTL Interpreter}\label{sec-validate-interpreter}
 
 \input{firrtl-interpret-validation}
 
@@ -402,17 +426,17 @@ and replace conditional statements with multiplexers, respectively.
 
 
 
-\section{Formalization of HiFIRRTL and its transformations}
+\section{Formalization of HiFIRRTL transformations}\label{sec-hi-firrtl-transform}
 
-\subsection{Formalization of HiFIRRTL}
+%\subsection{Formalization of HiFIRRTL}
 
-\input{form-firrtl-high}
+%\input{form-firrtl-high}
 
-\subsection{Formalization of HiFIRRTL transformations}
+%\subsection{Formalization of HiFIRRTL transformations}
 
 \input{form-firrtl-transform}
 
-\section{Verification of Functional Correctness of ExpandConnects and ExpandWhens}
+\section{Specification and Verification of Functional Correctness of $\bf ExpandConnects$ and $\bf ExpandWhens$}\label{sec-spec-verif-expand}
 
 \input{verif-firrtl-transform}
 
@@ -452,20 +476,20 @@ and replace conditional statements with multiplexers, respectively.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%
 }
 
-\section{Related work}
+\section{Related work}\label{sec-related-work}
 
 \input{related}
 
-\section{Conclusion}
+\section{Conclusion and Future Work}\label{sec-conc}
 
 \input{conclusion}
 
-\begin{acks}
-To Robert, for the bagels and explaining CMYK and color spaces.
-\end{acks}
+%\begin{acks}
+%To Robert, for the bagels and explaining CMYK and color spaces.
+%\end{acks}
 
 
-
+\newpage
 
 %%
 %% The next two lines define the bibliography style to be used, and
@@ -473,12 +497,18 @@ To Robert, for the bagels and explaining CMYK and color spaces.
 %\bibliographystyle{ACM-Reference-Format}
 \bibliography{main}
 
-
+\clearpage
+\begin{center}
+\Large{\bf Supplementary Material of Submission \#792}
+\end{center}
 %%
 %% If your work has an appendix, this is the place to put it.
 \appendix
 
 \input{appendix.tex}
+
+
+\input{appendix-detailed-results.tex}
 
 \end{document}
 \endinput

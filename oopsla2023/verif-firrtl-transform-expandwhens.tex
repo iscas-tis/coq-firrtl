@@ -1,0 +1,85 @@
+%!TEX root = main.tex
+
+Recall that the ``ExpandWhens'' pass was implemented by the function {\tt expand\_branch} in Section~\ref{sec-hi-firrtl-transform}. 
+The function {\tt expand\_branch} requires a mutual induction over statements and statement sequences, because each \prettyll{when} statement may contain two statement sequences, one for each branch. Therefore, a correctness proof for  {\tt expand\_branch} would also require such a mutual induction. 
+
+%but the proof is more long than complicated. \fu{May move into the next subsection}
+
+In the sequel, we first introduce a concept of expression trees to specify the correctness property of {\tt expand\_branch}, then prove that {\tt expand\_branch} satisfies the property. 
+
+\paragraph*{Specification}
+We first define the concept of expression trees. 
+%
+\begin{definition}[Expression trees]
+An \emph{expression tree} is either a binary tree whose internal nodes are annotated with conditions
+(usually, conditions found in \prettyll{when} statements) and whose leaves are annotated with expressions, or a single-node tree that is annotated by one of three special constants, namely, 
+{\tt invalid}, {\tt not connected}, and {\tt undeclared}.
+\end{definition}
+Intuitively,  an expression tree is attached to a component $x$, it summarizes all the connections for $x$ under different conditions, that is, it manifests the structure of the multiplexer expression that is obtained by weaving together all the expressions connected to $x$, according to the (possibly) nested structure of \prettyll{when} statements. The special constants are used to denote the abnormal situations that $x$ is either stated as \prettyll{invalid}, or not connected in some cases, or undeclared.  
+
+The concept of expression trees serves as a basis for the specification of the functional correctness property of {\tt expand\_branch}.  
+We define a function {\tt expand\_branch\_one\_var\_sem} in Coq, which constructs an expression tree for each ground-type (sub-)component.
+It takes as parameters a statement sequence $ss$ and a ground-type (sub-)component $\mathit{ref}$. 
+It constructs the expression tree for $\mathit{ref}$ recursively, based on the nested structure of \prettyll{when} statements and connect statements in $ss$.
+Let ${\tt expand\_branch}(ss, cm_0) = (ss', cm)$, then the correctness property of {\tt expand\_branch} is stated as 
+%
+\begin{equation}\label{eqn-correct-when}
+\bigwedge \limits_{ref} cm(ref) = {\tt expand\_branch\_one\_var\_sem}(ss, ref),
+\end{equation}
+%
+where $ref$ ranges over all the ground-type (sub-)components of $ss$.
+%If $ss$ does not contain a connect under every condition, the default value is inserted in these case(s).
+
+
+%An expression tree is able to describe the declarations and connects of one (sub)component under all conditions.
+
+%\begin{example}
+%Let 
+%\end{example}
+
+\paragraph*{Verification}
+%
+%The correctness proof for the ExpandWhens pass compares the Coq implementation with (a formalization of) the output specified above.
+%
+%We have formalized the following central statement of the ExpandWhens transformation:
+%
+%\begin{quote}
+%For every ground-type writable (sub)component,
+%ExpandWhens retains the last connect or \prettyll{is invalid} statement
+%that appears under any combination of \prettyll{when} conditions in the module.
+%\linebreak
+%If the (sub)component is declared under multiple conditions,
+%ExpandWhens selects between them using a multiplexer or \prettyll{validif} expression.
+%\end{quote}
+
+%To describe the dependency on (a combination of) conditions,
+%we introduce an auxiliary notion:
+
+%\paragraph*{Verification}
+For the correctness proof, we define a predicate {\tt expand\_branch\_sem\_conform}, which, 
+given the statement sequence of a module or of a \prettyll{when} branch,
+check whether the implementation ${\tt expand\_branch}(ss, cm_0)$ satisfies the correctness property stated in Equation~(\ref{eqn-correct-when}). 
+
+The proof of the validity of {\tt expand\_branch\_sem\_conform} requires a mutual induction over statement sequences and statements:
+If a statement sequence $ss$ and a statement $s$ satisfy the correctness property, then also the statement sequence $ss ; s$.
+Moreover, a statement \prettyll{when} $c$ \prettyll{:} $ss^\mathsf{T}$ \prettyll{else} $ss^\mathsf{F}$
+satisfies the correctness property if both $ss^\mathsf{T}$ and $ss^\mathsf{F}$ satisfy it. 
+The mutual induction also requires us to define the two Coq datatypes mutually inductive;
+we cannot just use the sequence or list types from the standard Coq library. To be frank, the proof is more long than complicated. 
+
+%The function receives type and writability information from two component environments:
+%one for all components in the current module,
+%and one for the ports of all other modules (that may be accessed in instances of these modules).
+
+%To find (sub)components of ground type,
+%one needs type and writability information about the components,
+%which we receive from the component environment.
+
+%To guarantee that the type and writability information can actually be retrieved from the component environments,
+%we need a one-to-one correspondence between a component environment and a connect map:
+%there is an entry in the connect map
+%iff there is a writable component declaration in the component environment.
+%We therefore proved a lemma stating that {\tt expand\_branch}
+%preserves the correspondence.
+%Again we had to use mutual induction over statement sequences and statements.
+
