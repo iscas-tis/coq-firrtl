@@ -78,12 +78,10 @@ let s_str2N name2ports (map,flag,rl,wl,datatoetc,memmap) stmt =
                   let (map1,flag1,rls,wls,data2etc) = mem_str2N m map0 flag0 rl wl datatoetc in 
                   (map1,flag1,rls,wls, data2etc,IntMap.add flag IntMap.empty memmap)
   | Ast.Snode (v, _) -> (StringMap.add v flag map,flag + 1, rl, wl, datatoetc, memmap)
-  | Ast.Sinst (v1, e) -> (match e with
-                        | Ast.Eref v2 -> let (map0, flag0) = List.fold_left (fun (a,b) p -> (match p with
+  | Ast.Sinst (v1, v2) -> let (map0, flag0) = List.fold_left (fun (a,b) p -> (match p with
                                                         | Ast.Finput (v3, _) -> (StringMap.add (v1^"."^v3) b a, b + 1)
                                                         | Ast.Foutput (v3, _) -> (StringMap.add (v1^"."^v3) b a, b + 1))) (map,flag) (StringMap.find v2 name2ports) in
                                              (map0, flag0, rl, wl, datatoetc, memmap)
-                        | _ -> (map,flag, rl, wl, datatoetc, memmap))
   | _ -> (map,flag, rl, wl, datatoetc, memmap)
 
 let g_modsmap name2ports (modsmap,ls, fmap, rlsm, wlsm, datatoetc, memmap) hd =  
@@ -121,9 +119,7 @@ let numins flag a_cir =
   match a_cir with
   | (_, ml) -> List.fold_left (fun (m,f) x -> match x with 
                                             | Ast.FInmod (mv, _, sl) -> List.fold_left (fun (mm,ff) xx -> match xx with 
-                                                                                        | Ast.Sinst (v1, e) -> (match e with
-                                                                                                              | Ast.Eref _ -> (StringMap.add (mv^"."^v1) ff mm,ff+1)
-                                                                                                              | _ -> (mm,ff))
+                                                                                        | Ast.Sinst (v1, _) -> (StringMap.add (mv^"."^v1) ff mm,ff+1)
                                                                                         | _ -> (mm,ff)) (m,f) sl
                                             | Ast.FExmod _ -> (m,f)) (initmap,flag) ml
 
@@ -239,10 +235,7 @@ let trans_stmt mv modsmap modsnum insnum name2ports s =
                   (List.fold_left (fun ls x -> List.cons (Firrtl.LoFirrtl.mk_freader_port (Obj.magic (StringMap.find (m.mid^"."^x^".addr") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".data") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".en") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".clk") smap))) ls) [] m.reader)
                   (List.fold_left (fun ls x -> List.cons (Firrtl.LoFirrtl.mk_fwriter_port (Obj.magic (StringMap.find (m.mid^"."^x^".addr") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".data") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".en") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".clk") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".mask") smap))) ls) [] m.writer)
                   (Z.to_int m.read_latency) (Z.to_int m.write_latency) (trans_ruw m.read_write))
-  | Ast.Sinst (v, e) -> match e with
-                        | Ast.Eref v2 -> 
-                          Firrtl.Sinst (Firrtl.LoFirrtl.mk_finst (Obj.magic (StringMap.find (mv^"."^v) insnum)) (Obj.magic (StringMap.find v2 modsnum)) (List.fold_left (trans_subport v smap) [] (StringMap.find v2 name2ports)))
-                        | _ -> Firrtl.Sskip
+  | Ast.Sinst (v, v2) -> Firrtl.Sinst (Firrtl.LoFirrtl.mk_finst (Obj.magic (StringMap.find (mv^"."^v) insnum)) (Obj.magic (StringMap.find v2 modsnum)) (List.fold_left (trans_subport v smap) [] (StringMap.find v2 name2ports)))
 
 let trans_port pmap fpl p = 
   match p with
@@ -293,13 +286,10 @@ let read_la_map a_cir modsnum modsmap =
 (* var -> map(N -> N)*)
 let mmapport name2ports modsmap insnum mv (inin2exin,exout2inout) s = 
   match s with
-  | Ast.Sinst (v1, e) -> (match e with
-                        | Ast.Eref v2 -> 
-                        let (newin, newout) = List.fold_left (fun (a,b) p -> (match p with
+  | Ast.Sinst (v1, v2) -> let (newin, newout) = List.fold_left (fun (a,b) p -> (match p with
                                                         | Ast.Finput (v3, _) -> (IntMap.add (StringMap.find v3 (StringMap.find v2 modsmap)) (StringMap.find (v1^"."^v3) (StringMap.find mv modsmap)) a,b)
                                                         | Ast.Foutput (v3, _) -> (a,IntMap.add (StringMap.find (v1^"."^v3) (StringMap.find mv modsmap)) (StringMap.find v3 (StringMap.find v2 modsmap)) b))) (initmap0,exout2inout) (StringMap.find v2 name2ports) in
                         (IntMap.add (StringMap.find (mv^"."^v1) insnum) newin inin2exin, newout)
-                        | _ -> (inin2exin,exout2inout) )
   | _ -> (inin2exin,exout2inout)
 
 let mapport name2ports modsmap insnum instportm m = 
@@ -314,14 +304,11 @@ let mapinstport a_cir name2ports modsmap insnum =
 
 let oouti2e name2ports modsmap insnum mv inout2exout s = 
   match s with
-  | Ast.Sinst (v1, e) -> (match e with
-                        | Ast.Eref v2 -> 
-                        let newout = List.fold_left (fun a p -> (match p with
+  | Ast.Sinst (v1, v2) -> let newout = List.fold_left (fun a p -> (match p with
                                                         | Ast.Finput (_, _) -> a
                                                         | Ast.Foutput (v3, _) -> IntMap.add (StringMap.find v3 (StringMap.find v2 modsmap)) (StringMap.find (v1^"."^v3) (StringMap.find mv modsmap)) a))
                                                          initmap0 (StringMap.find v2 name2ports) in
                         IntMap.add (StringMap.find (mv^"."^v1) insnum) newout inout2exout
-                        | _ -> inout2exout)
   | _ -> inout2exout
 
 let outi2e name2ports modsmap insnum instportm m = 
@@ -337,11 +324,9 @@ let instouti2e a_cir name2ports modsmap insnum =
 let initinst modsnum _ insnum initmodmap memmap tt m = (* te -> ( inst -> te/rs/s/mem)*)
   match m with
   | Ast.FInmod (v, _, sl) ->  List.fold_left (fun t s -> match s with
-                              | Ast.Sinst (v1, e) -> (match e with
-                                                    | Ast.Eref v2 -> let tesrs = IntMap.find (StringMap.find v2 modsnum) initmodmap in
+                              | Ast.Sinst (v1, v2) -> let tesrs = IntMap.find (StringMap.find v2 modsnum) initmodmap in
                                                                      let tmem = StringMap.find v2 memmap in
                                                                                 IntMap.add (StringMap.find (v^"."^v1) insnum) (((tesrs, Env.Store.empty), Env.Store.empty),tmem) t
-                                                    | _ -> t)
                               | _ -> t
                             ) tt sl
   | Ast.FExmod _ -> tt
@@ -374,12 +359,10 @@ match mo with
 | Ast.FInmod (v, _, sl) ->  let modname = StringMap.find v modsnum in
                             let tmodsmap = StringMap.find v modsmap in (* string -> int *)
                             let (outportm,outportl) =  List.fold_left (fun (t1,t2) s -> match s with
-                                                      | Ast.Sinst (v1, e) -> (match e with
-                                                                            | Ast.Eref v2 -> let templ = StringMap.find v2 instout in(* 该inst stmt声明的mod的 outport list *)
+                                                      | Ast.Sinst (v1, v2) -> let templ = StringMap.find v2 instout in(* 该inst stmt声明的mod的 outport list *)
                                                                                              let ttempl = List.map (fun str -> StringMap.find (v1^"."^str) tmodsmap) templ in
                                                                                              let tempm = List.fold_left (fun tt1 tp -> IntMap.add tp ((StringMap.find v2 modsnum),StringMap.find (v^"."^v1) insnum) tt1) t1 ttempl in
                                                                                                          (tempm, List.append ttempl t2)
-                                                                            | _ -> (t1,t2))
                                                       | _ -> (t1,t2)
                             ) (initmap0,[]) sl in
                             (IntMap.add modname outportm m,IntMap.add modname outportl l)
@@ -393,9 +376,7 @@ let findoutport a_cir modsmap modsnum insnum =
 let inst2sl_m modsnum insnum fstmtsmap m mo = 
   match mo with
   | Ast.FInmod (v, _, sl) -> List.fold_left (fun m0 s -> match s with
-                             | Ast.Sinst (v1, e) -> (match e with
-                                                    | Ast.Eref v2 -> IntMap.add (StringMap.find (v^"."^v1) insnum) (IntMap.find (StringMap.find v2 modsnum) fstmtsmap) m0
-                                                    | _ -> m0)
+                             | Ast.Sinst (v1, v2) -> IntMap.add (StringMap.find (v^"."^v1) insnum) (IntMap.find (StringMap.find v2 modsnum) fstmtsmap) m0
                              | _ -> m0) m sl
   | Ast.FExmod _ -> m
 
@@ -446,9 +427,7 @@ module C = Graph.Components.Make(G)
 
 let modgraph_s modnum modsnum g s =
   match s with
-  | Ast.Sinst (_,e) -> (match e with
-                        | Ast.Eref v2 -> G.add_edge g modnum (StringMap.find v2 modsnum)
-                        | _ -> g)
+  | Ast.Sinst (_,v2) -> G.add_edge g modnum (StringMap.find v2 modsnum)
   | _ -> g
 
 let modgraph_m modsnum g m = 
@@ -466,7 +445,7 @@ let parse f =
   let lexbuf = Lexing.from_channel (open_in f) in
   FirrtlParser.file FirrtlLexer.token lexbuf
 
-let lowf_ast = parse "./demo/Accumulator.lo.fir" 
+let lowf_ast = parse "./demo/Mytest1.lo.fir" 
 
 let p_stmt s = 
   match s with
@@ -479,7 +458,7 @@ let p_stmt s =
   | Firrtl.Sreg r -> printf "%d reg\n" (Obj.magic r.rid)
   | Firrtl.Sskip -> printf "skip\n"
   | _ -> printf "\n"
-
+(*
 let () = 
   let clks = 100 in
   let (name2ports,_ , _) = plbyname lowf_ast in
@@ -674,7 +653,7 @@ let () =
                                           | None -> (*printf "no output3\n"; *)
                                              IntMap.add (Obj.magic a) [] b) initmap0 (List.map Obj.magic ointls) in
 
-let ((((_,_),_),_), outputmap0) = Firrtl.LoFirrtl.run_module0 (Obj.magic (StringMap.find cv modsnum)) rs0 s0 te0 finp_bitsmap (List.map Obj.magic inp_intlst) (List.map Obj.magic ointls) readerls writerls data2etc mem0 clks clks finstoutl finstoutm ffstmtsmap finitterss freadla finstin finstportmap iternum in
+(*let ((((_,_),_),_), outputmap0) = Firrtl.LoFirrtl.run_module0 (Obj.magic (StringMap.find cv modsnum)) rs0 s0 te0 finp_bitsmap (List.map Obj.magic inp_intlst) (List.map Obj.magic ointls) readerls writerls data2etc mem0 clks clks finstoutl finstoutm ffstmtsmap finitterss freadla finstin finstportmap iternum in
 
   let out_map0 = List.fold_left (fun b a -> match (Env.TE.find a outputmap0) with
                                           | Some ols -> let newol = (if (List.mem a (List.map Obj.magic uintlst)) then (List.map string_of_big_int (List.map nat_of_bits ols))
@@ -683,7 +662,7 @@ let ((((_,_),_),_), outputmap0) = Firrtl.LoFirrtl.run_module0 (Obj.magic (String
                                              IntMap.add (Obj.magic a) newol b
                                           | None -> (*printf "no output3\n"; *)
                                              IntMap.add (Obj.magic a) [] b) initmap0 (List.map Obj.magic ointls) in
-
+*)
   let oc = open_out file in
   fprintf oc "input:\n";
   List.iter (fprintf oc "%s ") inp_lst;
@@ -695,9 +674,9 @@ let ((((_,_),_),_), outputmap0) = Firrtl.LoFirrtl.run_module0 (Obj.magic (String
   StringMap.iter (fun key value -> if (List.mem key inp_lst) then (fprintf oc "%s:" key; List.iter (fprintf oc " %d") value; fprintf oc "\n")) inp_map;
   fprintf oc "answer:\n";
   IntMap.iter (fun key value -> (fprintf oc "%d:" key; List.iter (fprintf oc " %s") (value)); fprintf oc "\n") out_map;
-  fprintf oc "answer0:\n";
+  (*fprintf oc "answer0:\n";
   IntMap.iter (fun key value -> (fprintf oc "%d:" key; List.iter (fprintf oc " %s") (value)); fprintf oc "\n") out_map0;
-  fprintf oc "label:\n";
+  *)fprintf oc "label:\n";
   StringMap.iter (fun key value -> if (String.equal cv key) then ((fprintf oc "%s:" key); StringMap.iter (fun key0 value0 -> (fprintf oc "\n"; fprintf oc "%s:%d" key0 value0)) value)
                                     ) modsmap;
   (*StringMap.iter (fun key0 value0 -> (fprintf oc "%s: %d" key0 value0); fprintf oc "\n") modsnum;
@@ -752,4 +731,4 @@ let ((((_,_),_),_), outputmap0) = Firrtl.LoFirrtl.run_module0 (Obj.magic (String
   printf "12: %d\n" (Z.to_int (nat_of_bits (Env.Store.acc (Obj.magic 12) rs3)));
   printf "%d\n" (Seq.size (Env.Store.acc (Obj.magic 3) s2));
   printf "%d\n" (Env.TE.vsize (Obj.magic 4) te3);
-  *)
+  *)*)
