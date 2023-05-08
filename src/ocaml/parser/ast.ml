@@ -100,7 +100,8 @@ type freg =
     reset : rst
   }
 
-let mk_freg v t c e1 e2 = { rid = v; rtype = t; clock = c; reset = Rst(e1,e1) }
+let mk_freg v t c e1 e2 = { rid = v; rtype = t; clock = c; reset = Rst(e1,e2) }
+let mk_freg_non v t c = { rid = v; rtype = t; clock = c; reset = NRst}
 let mk_fmem v e z1 z2 z3 vl1 vl2 r = { mid = v; data_type = e; depth = z1;  read_latency = z2; write_latency = z3; reader = vl1; writer = vl2; read_write = r }
 let  mk_fmem_non v e z1 z2 z3 r = { mid = v; data_type = e; depth = z1;  read_latency = z2; write_latency = z3; reader = []; writer = []; read_write = r }
 let mk_fmem_r v e z1 z2 z3 vl r = { mid = v; data_type = e; depth = z1;  read_latency = z2; write_latency = z3; reader = vl; writer = []; read_write = r }
@@ -114,7 +115,7 @@ type fstmt =
   | Snode of var * fexpr
   | Sfcnct of fexpr * fexpr
   | Sinvalid of var
-  | Sinst of var * fexpr
+  | Sinst of var * var
   (*  | Sattach of var list *)
 
 type fport =
@@ -222,7 +223,7 @@ let rec pp_statements out sl =  output_string out "[::"; List.iter (fun c -> pp_
                              
 and  pp_statement out s =
   match s with
-  | Sskip -> output_string out "sskip"
+  | Sskip -> output_string out "sskip\n"
   | Swire (v, ty) -> output_string out "(swire "; output_string out (v^" "); pp_type out ty; output_string out ")\n"
   | Smem m -> output_string out "smem ("; output_string out ((m.mid)^" "); pp_type out (m.data_type); output_string out "Depth "; output_string out (Z.to_string m.depth); output_string out " ReadL "; output_string out (Z.to_string m.read_latency); output_string out " WriteL "; output_string out (Z.to_string m.write_latency); output_string out "  Reader "; List.iter (fun c ->  output_string out (c^" "); output_string out "") m.reader; output_string out " Writer "; List.iter (fun c ->  output_string out (c^" "); output_string out "") m.writer; output_string out " "; output_string out " RuW "; pp_ruw out (m.read_write); output_string out ")\n"
   | Sfcnct (e1, e2) -> output_string out "(sfcnct "; pp_expr out e1; output_string out " "; pp_expr out e2; output_string out ")\n"
@@ -233,13 +234,12 @@ and  pp_statement out s =
      | Rst (e1, e2) ->
         output_string out "sreg (mk_freg "; output_string out ((r.rid)^" "); pp_type out (r.rtype); output_string out " "; output_string out ((r.clock)^" "); output_string out " "; output_string out "(rrst "; pp_expr out e1; output_string out " "; pp_expr out e2; output_string out "))\n")
   | Snode (v, e) -> output_string out "(snode "; output_string out (v^" "); pp_expr out e; output_string out ")\n"
-  | Sinst (v, e) -> output_string out "(sinst "; output_string out (v^" "); output_string out "of "; pp_expr out e; output_string out ")\n"
+  | Sinst (v, e) -> output_string out "(sinst "; output_string out (v^" "); output_string out "of "; output_string out (e^" "); output_string out ")\n"
           
 let pp_module out fmod =
   match fmod with
   | FInmod (v, pl, sl) -> output_string out "(FInmod "; output_string out (v^"\n"); pp_ports out pl; pp_statements out sl; output_string out ").\n"
   | FExmod (v, pl, sl) -> output_string out "(FInmod "; output_string out (v^"\n"); pp_ports out pl; pp_statements out sl; output_string out ").\n"
-  (* | _ -> output_string out "\n" *)
           
 let pp_modules out fmod = List.iter (fun c -> pp_module out c; output_string out "") fmod
 
