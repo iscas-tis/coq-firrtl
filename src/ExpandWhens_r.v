@@ -99,13 +99,13 @@ Definition proj2 (p : nat) : nat :=
 (* pair and (proj1, proj2) are each other's inverse functions.
 uses lemma sqrt_square : Nat.sqrt (n * n) = n. *)
 
-Lemma proj1_pair : forall (x y : nat), x = proj1 (pair x y).
+Lemma proj1_pair : forall (x y : nat), proj1 (pair x y) = x.
 Admitted.
 
-Lemma proj2_pair : forall (x y : nat), y = proj2 (pair x y).
+Lemma proj2_pair : forall (x y : nat), proj2 (pair x y) = y.
 Admitted.
 
-Lemma pair_proj : forall p : nat, p = pair (proj1 p) (proj2 p).
+Lemma pair_proj : forall p : nat, pair (proj1 p) (proj2 p) = p.
 Admitted.
 
 Definition nat_to_var (n : nat) : VarOrder.T := bin_of_nat n.
@@ -176,8 +176,8 @@ assert (Hdiv : forall (a d : VarOrder.T) (b c e : nat),
                         -(bin_of_natK (pair a b * 3 + c))
                         H bin_of_natK //).
       move /eqP : H0 => H0.
-      rewrite (proj2_pair a b) H0 -proj2_pair.
-      rewrite -(nat_of_binK a) (proj1_pair a b) H0 -proj1_pair nat_of_binK.
+      rewrite -(proj2_pair a b) H0 proj2_pair.
+      rewrite -(nat_of_binK a) -(proj1_pair a b) H0 proj1_pair nat_of_binK.
       split ; reflexivity.
 induction ref1 ; simpl href_without_subaccess ; try done.
 * (* Eid s == ... *)
@@ -243,15 +243,15 @@ Qed.
 Fixpoint var2ref' (depth n : nat) : @error_type href :=
    match depth, n with
    | 0, _ | _, 0 => Err Einternal
-   | S d', _ => match n %% 3 with
-                | 1 => OK (Eid (nat_to_var ((n - 1) / 3)))
-                | 2 => let p := (n - 2) / 3 in
-                       match var2ref' d' (proj1 p) with Err e => Err e
-                       | OK ref => OK (Esubfield ref (nat_to_var (proj2 p))) end
-                | _ => let p := (n - 3) / 3 in
-                       match var2ref' d' (proj1 p) with Err e => Err e
-                       | OK ref => OK (Esubindex ref (proj2 p)) end
-                end
+   | S d', _ => if n %% 3 == 1
+                then OK (Eid (nat_to_var ((n - 1) %/ 3)))
+                else if n %%3 == 2
+                     then let p := (n - 2) %/ 3 in
+                          match var2ref' d' (proj1 p) with Err e => Err e
+                          | OK ref => OK (Esubfield ref (nat_to_var (proj2 p))) end
+                     else let p := (n - 3) %/ 3 in
+                          match var2ref' d' (proj1 p) with Err e => Err e
+                          | OK ref => OK (Esubindex ref (proj2 p)) end
    end.
 
 Definition var2ref (id : VarOrder.T) : @error_type href := var2ref' (var_to_nat id) (var_to_nat id).
@@ -261,9 +261,114 @@ Lemma var2ref_ref2var :
                   then ref2var ref = OK id
                   else forall ref: href, ref2var ref <> OK id.
 Proof.
-(* difficult for me to find the relevant lemmas, they seem to be spread out over
-   several libraries and the Coq documentation appears incomplete. Also difficult
-   that there are two formalizations of N interacting here. *)
+enough (   (forall (d id : VarOrder.T) (ref : href),
+               d >= id -> var2ref' d id = OK ref -> ref2var ref = OK id)
+        /\ (forall (id d : VarOrder.T) (e : error_info),
+               d >= id -> var2ref' d id = Err e -> forall ref: href, ref2var ref <> OK id)).
+      intro.
+      destruct H.
+      unfold var2ref, var_to_nat.
+      destruct (var2ref' id id) eqn: Hv2r.
+      * specialize (H id id h).
+        apply H ; done.
+      * specialize (H0 id id e).
+        apply H0 ; done.
+split.
+* intro.
+  rewrite -(bin_of_natK d).
+  induction (nat_of_bin d).
+  + rewrite bin_of_natK.
+    simpl var2ref'.
+    done.
+  + rewrite bin_of_natK.
+    rewrite bin_of_natK in IHn.
+    intros.
+    simpl var2ref' in H0.
+    destruct (nat_of_bin id) as [|idminus1] eqn: Hid ; try done.
+    rewrite -Hid in H0 H.
+    destruct (id %% 3 == 1) eqn: H1.
+    - injection H0 ; clear H0 ; intro ; rewrite -H0.
+      rewrite /ref2var /nat_to_var bin_of_natK Hid -addn1 addnK.
+      enough (idminus1 %/3 * 3 + 1 = id) by (rewrite H2 nat_of_binK //).
+      rewrite Hid addn1 divnK // /dvdn.
+      replace 1 with ((0 + 1) %% 3) in H1 at 2 by (apply modn_small ; done).
+      rewrite Hid -addn1 eqn_modDr in H1.
+      rewrite H1 ; done.
+    destruct (id %% 3 == 2) eqn: H2.
+    - destruct (var2ref' n (proj1 ((id - 2) %/ 3))) eqn: Hv2r ; try done.
+      injection H0 ; clear H0 ; intro ; rewrite -H0.
+      simpl ref2var.
+      specialize (IHn (bin_of_nat (proj1 ((id - 2) %/ 3))) h).
+      rewrite bin_of_natK in IHn.
+      rewrite /nat_to_var /var_to_nat bin_of_natK.
+      replace (ref2var h) with (OK (bin_of_nat (proj1 ((id - 2) %/ 3))))
+            by (symmetry ; apply IHn ; try exact Hv2r ; admit).
+      rewrite bin_of_natK pair_proj.
+      enough ((id - 2) %/3 * 3 + 2 = id) by (rewrite H3 nat_of_binK //).
+      (* the rest is similar to the above *)
+      rewrite divnK.
+      * admit (* This can be proven because id >= 2, because of H2 *).
+      * unfold dvdn.
+        admit (* This can again be proven because of H2 *).
+    - destruct (var2ref' n (proj1 ((id - 3) %/ 3))) eqn: Hv2r ; try done.
+      injection H0 ; clear H0 ; intro ; rewrite -H0.
+      simpl ref2var.
+      specialize (IHn (bin_of_nat (proj1 ((id - 3) %/ 3))) h).
+      rewrite bin_of_natK in IHn.
+      rewrite /nat_to_var /var_to_nat.
+      replace (ref2var h) with (OK (bin_of_nat (proj1 ((id - 3) %/ 3))))
+            by (symmetry ; apply IHn ; try exact Hv2r ; admit).
+      rewrite bin_of_natK pair_proj.
+      enough ((id - 3) %/3 * 3 + 3 = id) by (rewrite H3 nat_of_binK //).
+      (* the rest is similar to the above *)
+      rewrite divnK.
+      * admit (* This can be proven because id >= 3, because of Hid, H1, and H2. *).
+      * unfold dvdn.
+        admit (* This can again be proven because of H1 and H2 *).
+* intros.
+  contradict H0.
+  move : id d H H0 e.
+  induction ref.
+  + intros.
+    unfold ref2var, nat_to_var in H0.
+    injection H0 ; clear H0 ; intro.
+    rewrite -H0.
+    rewrite bin_of_natK.
+    replace (nat_of_bin d) with ((nat_of_bin d).-1.+1)
+          by (rewrite addn1 in H0 ; apply prednK ;
+              apply leq_trans with (n := id) ; try done ;
+              rewrite -H0 bin_of_natK ; apply ltn0Sn).
+    rewrite (addn1 (s * 3)).
+    simpl var2ref'.
+    rewrite -{1}(addn1 (s * 3)) modnMDl.
+    replace (1 %% 3) with 1 by (rewrite modn_small ; reflexivity).
+    discriminate.
+  + intros.
+    simpl ref2var in H0.
+    destruct (ref2var ref) ; try done.
+    specialize (IHref s0 (bin_of_nat d.-1)).
+    injection H0 ; clear H0 ; intro.
+    rewrite -H0.
+    unfold var2ref, var_to_nat, nat_to_var.
+    rewrite bin_of_natK addnS.
+    replace (nat_of_bin d) with ((nat_of_bin d).-1.+1)
+          by (rewrite addnS in H0 ; apply prednK ;
+              apply leq_trans with (n := id) ; try done ;
+              rewrite -H0 bin_of_natK ; apply ltn0Sn).
+    unfold var2ref' ; fold var2ref'.
+    rewrite -addnS modnMDl.
+    replace (2 %% 3) with 2 by (rewrite modn_small //).
+    rewrite (addnK 2).
+    rewrite (mulnK (pair s0 s)) // proj1_pair proj2_pair.
+    rewrite bin_of_natK in IHref.
+    destruct (var2ref' d.-1 s0).
+    - discriminate.
+    - apply IHref ; try done.
+      admit (* follows from H and H0 *).
+  + (* The case Esubindex is similar to the above. *)
+    admit.
+  + unfold ref2var.
+    done.
 Admitted.
 
 (* Note that we cannot get a lemma like n <> 0 -> var2ref n <> Err e.
@@ -315,13 +420,6 @@ There may be numbers that are projected to 0. *)
    (* a map to store connects *)
    Definition cmap := CE.t def_expr.
    Definition empty_cmap : cmap := CE.empty def_expr.
-
-   (* equality of cmaps is decidable. (We take extensional equality.) *)
-   Axiom cmap_eq_dec : forall {x y : CE.t def_expr}, {x = y} + {x <> y}.
-   Definition cmap_eqn : CE.t def_expr -> CE.t def_expr -> bool := CE.equal def_expr_eqn.
-   Axiom cmap_eqP : Equality.axiom cmap_eqn.
-   Canonical cmap_eqMixin := EqMixin cmap_eqP.
-   Canonical cmap_eqType := Eval hnf in EqType (CE.t def_expr) cmap_eqMixin.
 
    Definition map2_helper_cs_tf (c : hfexpr)
                                 (true_expr : option def_expr) (false_expr : option def_expr) : option def_expr :=
