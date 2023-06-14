@@ -119,6 +119,13 @@ Section HiFirrtl.
    Scheme hfstmt_seq_hfstmt_ind := Induction for hfstmt_seq Sort Prop
    with hfstmt_hfstmt_seq_ind := Induction for hfstmt Sort Prop.
 
+   (** equality of hstmt are decidable *)
+  Axiom hfstmt_eq_dec : forall {x y : hfstmt}, {x = y} + {x <> y}.
+  Parameter hfstmt_eqn : forall (x y : hfstmt), bool.
+  Axiom hfstmt_eqP : Equality.axiom hfstmt_eqn.
+  Canonical hfstmt_eqMixin := EqMixin hfstmt_eqP.
+  Canonical hfstmt_eqType := Eval hnf in EqType hfstmt hfstmt_eqMixin.
+
    Definition Qhead (default : hfstmt) (s : hfstmt_seq) : hfstmt :=
    match s with Qnil => default
               | Qcons h tl => h end.
@@ -127,13 +134,18 @@ Section HiFirrtl.
    match s1 with Qnil => s2
                | Qcons h1 tl1 => Qcons h1 (Qcat tl1 s2) end.
 
-(* Fixpoint Qcatrev (s1 s2 : hfstmt_seq) : hfstmt_seq := (* calculates the reversal of s1, followed by s2 *)
+   Fixpoint Qcatrev (s1 s2 : hfstmt_seq) : hfstmt_seq := (* calculates the reversal of s1, followed by s2 *)
    match s1 with Qnil => s2
                | Qcons h1 tl1 => Qcatrev tl1 (Qcons h1 s2) end.
 
    Definition Qrev (s : hfstmt_seq) : hfstmt_seq := Qcatrev s Qnil.
 
-   Fixpoint Qfoldl {R : Type} (f : R -> hfstmt -> R) (s : hfstmt_seq) (default : R) :=
+   Fixpoint Qin (s : hfstmt) (ss : hfstmt_seq) :=
+    match ss with Qnil => false
+                | Qcons h tl => (hfstmt_eqn h s) || (Qin s tl)
+    end.
+
+  (* Fixpoint Qfoldl {R : Type} (f : R -> hfstmt -> R) (s : hfstmt_seq) (default : R) :=
    match s with Qnil => default
               | Qcons h tl => Qfoldl f tl (f default h) end.
    Fixpoint Qfoldr {R : Type} (f : hfstmt -> R -> R) (default : R) (s : hfstmt_seq) :=
@@ -228,7 +240,7 @@ End HiFirrtl.
       | _, _ => fbtyp_weak_equiv fs1 b2
       end
     | Fnil => true
-    end.
+    end. (* ?fp2==fp1  *)
 
   Definition ftype_weak_equiv t1 t2 :=
     match t1, t2 with
