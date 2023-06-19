@@ -757,59 +757,6 @@ Definition texpr_match_ttree cm tm : Prop :=
 Inductive expandBranch_connection_stmt : HiFP.hfstmt -> CEP.t def_expr -> CEP.t def_expr -> CEP.t expr_tree -> CEP.t expr_tree -> Prop :=
   | ExpandBranch_connection_skip cm cm' tm tm':
       expandBranch_connection_stmt (HiFP.sskip) cm cm' tm tm'
-  (* old version
-  | ExpandBranch_connection_wire v t cm cm' tm tm':
-      forall texpr ttree,
-      CEP.find v cm' = texpr -> (* D_undefined *)
-      CEP.find v tm' = Some ttree -> 
-      texpr = connection_tree2expr ttree ->
-      expandBranch_connection_stmt (Swire v t) cm cm' tm tm'
-  | ExpandBranch_connection_reg v r cm cm' tm tm' :
-      forall texpr ttree,
-      CEP.find v cm' = texpr -> (* D_expr (Eid r) *)
-      CEP.find v tm' = Some ttree -> 
-      texpr = connection_tree2expr ttree ->
-      expandBranch_connection_stmt (Sreg v r) cm cm' tm tm'
-  | ExpandBranch_connection_inst v1 v2 cm cm' tm tm':
-      forall texpr ttree,
-      CEP.find v1 cm' = texpr -> (* D_undefined *)
-      CEP.find v1 tm' = Some ttree -> 
-      texpr = connection_tree2expr ttree ->
-      expandBranch_connection_stmt (Sinst v1 v2) cm cm' tm tm'
-  | ExpandBranch_connection_node v e cm tm:
-      expandBranch_connection_stmt (Snode v e) cm cm tm tm
-  | ExpandBranch_connection_mem v m cm cm' tm tm' :
-      forall texpr ttree,
-      CEP.find v cm' = texpr -> (* D_undefined *)
-      CEP.find v tm' = Some ttree -> 
-      texpr = connection_tree2expr ttree ->
-      expandBranch_connection_stmt (Smem v m) cm cm' tm tm'
-  | ExpandBranch_connection_invalid v cm cm' tm tm':
-      forall texpr ttree,
-      CEP.find v cm' = texpr -> (* D_invalid *)
-      CEP.find v tm' = Some ttree -> 
-      texpr = connection_tree2expr ttree ->
-      expandBranch_connection_stmt (Sinvalid (Eid v)) cm cm' tm tm'
-  | ExpandBranch_connection_fcnct v e cm cm' tm tm':
-      forall texpr ttree,
-      CEP.find v cm' = texpr -> (* D_expr *)
-      CEP.find v tm' = Some ttree -> 
-      texpr = connection_tree2expr ttree ->
-      expandBranch_connection_stmt (Sfcnct (Eid v) e) cm cm' tm tm'
-  | ExpandBranch_connection_when c s1 s2 cm cm' cm'' cm0 tm tm' tm' tm0 :
-      expandBranch_connection_stmts s1 cm cm' tm tm' ->
-      expandBranch_connection_stmts s2 cm cm'' tm tm'' ->
-      (forall v texpr1 texpr2 ttree1 ttree2 ttree',
-      CEP.mem v cm0 /\ CEP.mem v tm0 ->
-      CEP.find v cm' = texpr1 ->
-      CEP.find v cm'' = texpr2 ->
-      CEP.find v tm' = Some ttree1 ->
-      CEP.find v tm'' = Some ttree2 ->
-      helper_tree c (Some ttree1) (Some ttree2) = Some ttree' ->
-      helper_tf c texpr1 texpr2 = connection_tree2expr ttree'
-      ) ->
-      expandBranch_connection_stmt (Swhen c s1 s2) cm cm0 tm tm0
-  *)
   | ExpandBranch_connection_wire v t cm cm' tm tm':
       texpr_match_ttree cm tm ->
       texpr_match_ttree cm' tm' ->
@@ -851,45 +798,16 @@ with expandBranch_connection_stmts : HiFP.hfstmt_seq -> CEP.t def_expr -> CEP.t 
       expandBranch_connection_stmts ss cm' cm'' tm' tm'' ->
       expandBranch_connection_stmts (Qcons s ss) cm cm'' tm tm''.
 
-(* old version
-  for every statement case only look at the corresponding varaiable, hard to use to handle statement sequence.
-Lemma expandBranch_connection_wire_match :
-  forall v ty cm tm seq_result texpr ttree,
-  CEP.find v (snd (expandBranch_fun (Swire v ty) seq_result cm)) = texpr -> 
-  CEP.find v (expandBranch_connection_tree (Swire v ty) tm) = Some ttree -> 
-  expandBranch_connection_stmt (Swire v ty) cm (snd (expandBranch_fun (Swire v ty) seq_result cm)) tm (expandBranch_connection_tree (Swire v ty) tm).
-Proof.
-  intros.
-  apply ExpandBranch_connection_wire with (texpr := texpr) (ttree := ttree); try done.
-  rewrite /expandBranch_fun in H. 
-  simpl in H. 
-  assert (Hfindadd : CEP.find v (CEP.add v D_undefined cm) = Some D_undefined).
-  apply HiFP.PCELemmas.add_eq_o.
-  apply CEP.SE.eq_refl.
-  rewrite Hfindadd in H.
-  clear Hfindadd.
-  rewrite -H.
-  rewrite /expandBranch_connection_tree in H0.
-  assert (Hfindadd : CEP.find v (CEP.add v T_undefined tm) = Some T_undefined).
-  apply HiFP.PCELemmas.add_eq_o.
-  apply CEP.SE.eq_refl.
-  rewrite Hfindadd in H0.
-  clear Hfindadd.
-  inversion H0.
-  rewrite /connection_tree2expr //.
-Qed.
-*)
-
 (* new lemma should prove that after dealing with any single statement, for every element, its texpr and ttree match property should hold. *)
 Lemma expandBranch_connection_wire_match :
   forall v ty cm cm' tm tm' seq_result,
   texpr_match_ttree cm tm ->
   cm' = snd (expandBranch_fun (Swire v ty) (Some seq_result) cm) -> 
   tm' = expandBranch_connection_tree (Swire v ty) tm -> 
-  expandBranch_connection_stmt (Swire v ty) cm cm' tm tm'.
+  texpr_match_ttree cm' tm'.
 Proof.
   move => v ty cm cm' tm tm' seq_result Hpre Hcm' Htm'.
-  apply ExpandBranch_connection_wire; try by done.
+  (*apply ExpandBranch_connection_wire; try by done.*)
   simpl in Hcm'.
   simpl in Htm'.
   rewrite /texpr_match_ttree in Hpre.
@@ -911,21 +829,21 @@ Proof.
   rewrite StructStateP.Lemmas.add_neq_o in Hte.
   rewrite StructStateP.Lemmas.add_neq_o in Htt.
   apply Hpre with (v := v1); try by done.
-
-  move /eqP : Heq => Heq.
-
-  Search (CEP.SE.eq).
-Admitted.
+  1,2:apply contra_not with (P := (v1 == v)).
+  1,3:apply StructStateP.Lemmas_M.KeySetoid.
+  1,2:apply elimF with (b := (v1 == v)); try by done.
+  1,2:apply idP.
+Qed.
 
 Lemma expandBranch_connection_reg_match :
   forall v ty cm cm' tm tm' seq_result,
   texpr_match_ttree cm tm ->
   cm' = snd (expandBranch_fun (Sreg v ty) (Some seq_result) cm) -> 
   tm' = expandBranch_connection_tree (Sreg v ty) tm -> 
-  expandBranch_connection_stmt (Sreg v ty) cm cm' tm tm'.
+  texpr_match_ttree cm' tm'.
 Proof.
   move => v ty cm cm' tm tm' seq_result Hpre Hcm' Htm'.
-  apply ExpandBranch_connection_reg; try by done.
+  (*apply ExpandBranch_connection_reg; try by done.*)
   simpl in Hcm'.
   simpl in Htm'.
   rewrite /texpr_match_ttree in Hpre.
@@ -948,18 +866,21 @@ Proof.
   rewrite StructStateP.Lemmas.add_neq_o in Htt.
   apply Hpre with (v := v1); try by done.
 
-  move /eqP : Heq => Heq.
-Admitted.
+  1,2:apply contra_not with (P := (v1 == v)).
+  1,3:apply StructStateP.Lemmas_M.KeySetoid.
+  1,2:apply elimF with (b := (v1 == v)); try by done.
+  1,2:apply idP.
+Qed.
 
 Lemma expandBranch_connection_mem_match :
   forall v ty cm cm' tm tm' seq_result,
   texpr_match_ttree cm tm ->
   cm' = snd (expandBranch_fun (Smem v ty) (Some seq_result) cm) -> 
   tm' = expandBranch_connection_tree (Smem v ty) tm -> 
-  expandBranch_connection_stmt (Smem v ty) cm cm' tm tm'.
+  texpr_match_ttree cm' tm'.
 Proof.
   move => v ty cm cm' tm tm' seq_result Hpre Hcm' Htm'.
-  apply ExpandBranch_connection_mem; try by done.
+  (*apply ExpandBranch_connection_mem; try by done.*)
   simpl in Hcm'.
   simpl in Htm'.
   rewrite /texpr_match_ttree in Hpre.
@@ -982,19 +903,21 @@ Proof.
   rewrite StructStateP.Lemmas.add_neq_o in Htt.
   apply Hpre with (v := v1); try by done.
 
-  move /eqP : Heq => Heq.
-
-Admitted.
+  1,2:apply contra_not with (P := (v1 == v)).
+  1,3:apply StructStateP.Lemmas_M.KeySetoid.
+  1,2:apply elimF with (b := (v1 == v)); try by done.
+  1,2:apply idP.
+Qed.
 
 Lemma expandBranch_connection_inst_match :
   forall v ty cm cm' tm tm' seq_result,
   texpr_match_ttree cm tm ->
   cm' = snd (expandBranch_fun (Sinst v ty) (Some seq_result) cm) -> 
   tm' = expandBranch_connection_tree (Sinst v ty) tm -> 
-  expandBranch_connection_stmt (Sinst v ty) cm cm' tm tm'.
+  texpr_match_ttree cm' tm'.
 Proof.
   move => v ty cm cm' tm tm' seq_result Hpre Hcm' Htm'.
-  apply ExpandBranch_connection_inst; try by done.
+  (*apply ExpandBranch_connection_inst; try by done.*)
   simpl in Hcm'.
   simpl in Htm'.
   rewrite /texpr_match_ttree in Hpre.
@@ -1016,22 +939,24 @@ Proof.
   rewrite StructStateP.Lemmas.add_neq_o in Hte.
   rewrite StructStateP.Lemmas.add_neq_o in Htt.
   apply Hpre with (v := v1); try by done.
-
-  move /eqP : Heq => Heq.
-Admitted.
+  1,2:apply contra_not with (P := (v1 == v)).
+  1,3:apply StructStateP.Lemmas_M.KeySetoid.
+  1,2:apply elimF with (b := (v1 == v)); try by done.
+  1,2:apply idP.
+Qed.
 
 Lemma expandBranch_connection_node_match :
   forall v ty cm cm' tm tm' seq_result,
   texpr_match_ttree cm tm ->
   cm' = snd (expandBranch_fun (Snode v ty) (Some seq_result) cm) -> 
   tm' = expandBranch_connection_tree (Snode v ty) tm -> 
-  expandBranch_connection_stmt (Snode v ty) cm cm' tm tm'.
+  texpr_match_ttree cm' tm'.
 Proof.
   move => v ty cm cm' tm tm' seq_result Hpre Hcm' Htm'.
   simpl in Hcm'.
   simpl in Htm'.
-  rewrite Hcm' Htm'.
-  apply ExpandBranch_connection_node with (cm' := cm) (tm' := tm); try by done.
+  rewrite Hcm' Htm' //.
+  (*apply ExpandBranch_connection_node with (cm' := cm) (tm' := tm); try by done.*)
 Qed.
 
 Lemma expandBranch_connection_invalid_match :
@@ -1039,10 +964,10 @@ Lemma expandBranch_connection_invalid_match :
   texpr_match_ttree cm tm ->
   cm' = snd (expandBranch_fun (Sinvalid (Eid v)) (Some seq_result) cm) -> 
   tm' = expandBranch_connection_tree (Sinvalid (Eid v)) tm -> 
-  expandBranch_connection_stmt (Sinvalid (Eid v)) cm cm' tm tm'.
+  texpr_match_ttree cm' tm'.
 Proof.
   move => v cm cm' tm tm' seq_result Hpre Hcm' Htm'.
-  apply ExpandBranch_connection_invalid; try by done.
+  (*apply ExpandBranch_connection_invalid; try by done.*)
   simpl in Hcm'.
   simpl in Htm'.
   rewrite /texpr_match_ttree in Hpre.
@@ -1065,18 +990,21 @@ Proof.
   rewrite StructStateP.Lemmas.add_neq_o in Htt.
   apply Hpre with (v := v1); try by done.
 
-  move /eqP : Heq => Heq.
-Admitted.
+  1,2:apply contra_not with (P := (v1 == v)).
+  1,3:apply StructStateP.Lemmas_M.KeySetoid.
+  1,2:apply elimF with (b := (v1 == v)); try by done.
+  1,2:apply idP.
+Qed.
 
 Lemma expandBranch_connection_fcnct_match :
   forall v e cm cm' tm tm' seq_result,
   texpr_match_ttree cm tm ->
   cm' = snd (expandBranch_fun (Sfcnct (Eid v) e) (Some seq_result) cm) -> 
   tm' = expandBranch_connection_tree (Sfcnct (Eid v) e) tm -> 
-  expandBranch_connection_stmt (Sfcnct (Eid v) e) cm cm' tm tm'.
+  texpr_match_ttree cm' tm'.
 Proof.
   move => v e cm cm' tm tm' seq_result Hpre Hcm' Htm'.
-  apply ExpandBranch_connection_fcnct; try by done.
+  (*apply ExpandBranch_connection_fcnct; try by done.*)
   simpl in Hcm'.
   simpl in Htm'.
   rewrite /texpr_match_ttree in Hpre.
@@ -1099,311 +1027,32 @@ Proof.
   rewrite StructStateP.Lemmas.add_neq_o in Htt.
   apply Hpre with (v := v1); try by done.
 
-  move /eqP : Heq => Heq.
-Admitted.
-
-(* old version on all the other single statement case
-Lemma expandBranch_connection_reg_match :
-  forall v r cm tm seq_result texpr ttree,
-  CEP.find v (snd (expandBranch_fun (Sreg v r) seq_result cm)) = texpr -> 
-  CEP.find v (expandBranch_connection_tree (Sreg v r) tm) = Some ttree -> 
-  expandBranch_connection_stmt (Sreg v r) cm (snd (expandBranch_fun (Sreg v r) seq_result cm)) tm (expandBranch_connection_tree (Sreg v r) tm).
-Proof.
-  intros.
-  apply ExpandBranch_connection_reg with (texpr := texpr) (ttree := ttree); try done.
-  rewrite /expandBranch_fun in H. 
-  simpl in H. 
-  assert (Hfindadd : CEP.find v (CEP.add v (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) v))) cm) = Some (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) v)))).
-  apply HiFP.PCELemmas.add_eq_o.
-  apply CEP.SE.eq_refl.
-  rewrite Hfindadd in H.
-  clear Hfindadd.
-  rewrite -H.
-  rewrite /expandBranch_connection_tree in H0.
-  assert (Hfindadd : CEP.find v (CEP.add v (T_fexpr (Eref (Eid (var:=ProdVarOrder.T) v))) tm) = Some (T_fexpr (Eref (Eid (var:=ProdVarOrder.T) v)))).
-  apply HiFP.PCELemmas.add_eq_o.
-  apply CEP.SE.eq_refl.
-  rewrite Hfindadd in H0.
-  clear Hfindadd.
-  inversion H0.
-  rewrite /connection_tree2expr //.
+  1,2:apply contra_not with (P := (v1 == v)).
+  1,3:apply StructStateP.Lemmas_M.KeySetoid.
+  1,2:apply elimF with (b := (v1 == v)); try by done.
+  1,2:apply idP.
 Qed.
-
-Lemma expandBranch_connection_inst_match :
-  forall v1 v2 cm tm seq_result texpr ttree,
-  CEP.find v1 (snd (expandBranch_fun (Sinst v1 v2) seq_result cm)) = texpr -> 
-  CEP.find v1 (expandBranch_connection_tree (Sinst v1 v2) tm) = Some ttree -> 
-  expandBranch_connection_stmt (Sinst v1 v2) cm (snd (expandBranch_fun (Sinst v1 v2) seq_result cm)) tm (expandBranch_connection_tree (Sinst v1 v2) tm).
-Proof.
-  intros.
-  apply ExpandBranch_connection_inst with (texpr := texpr) (ttree := ttree); try done.
-  rewrite /expandBranch_fun in H. 
-  simpl in H. 
-  assert (Hfindadd : CEP.find v1 (CEP.add v1 (D_undefined) cm) = Some (D_undefined)).
-  apply HiFP.PCELemmas.add_eq_o.
-  apply CEP.SE.eq_refl.
-  rewrite Hfindadd in H.
-  clear Hfindadd.
-  rewrite -H.
-  rewrite /expandBranch_connection_tree in H0.
-  assert (Hfindadd : CEP.find v1 (CEP.add v1 (T_undefined) tm) = Some (T_undefined)).
-  apply HiFP.PCELemmas.add_eq_o.
-  apply CEP.SE.eq_refl.
-  rewrite Hfindadd in H0.
-  clear Hfindadd.
-  inversion H0.
-  rewrite /connection_tree2expr //.
-Qed.
-
-Lemma expandBranch_connection_snode_match :
-  forall v e cm tm seq_result,
-  expandBranch_connection_stmt (Snode v e) cm (snd (expandBranch_fun (Snode v e) seq_result cm)) tm (expandBranch_connection_tree (Snode v e) tm).
-Proof.
-  intros.
-  apply ExpandBranch_connection_node.
-Qed.
-
-Lemma expandBranch_connection_mem_match :
-  forall v m cm tm seq_result texpr ttree,
-  CEP.find v (snd (expandBranch_fun (Smem v m) seq_result cm)) = texpr -> 
-  CEP.find v (expandBranch_connection_tree (Smem v m) tm) = Some ttree -> 
-  expandBranch_connection_stmt (Smem v m) cm (snd (expandBranch_fun (Smem v m) seq_result cm)) tm (expandBranch_connection_tree (Smem v m) tm).
-Proof.
-  intros.
-  apply ExpandBranch_connection_mem with (texpr := texpr) (ttree := ttree); try done.
-  rewrite /expandBranch_fun in H. 
-  simpl in H. 
-  assert (Hfindadd : CEP.find v (CEP.add v D_undefined cm) = Some D_undefined).
-  apply HiFP.PCELemmas.add_eq_o.
-  apply CEP.SE.eq_refl.
-  rewrite Hfindadd in H.
-  clear Hfindadd.
-  rewrite -H.
-  rewrite /expandBranch_connection_tree in H0.
-  assert (Hfindadd : CEP.find v (CEP.add v T_undefined tm) = Some T_undefined).
-  apply HiFP.PCELemmas.add_eq_o.
-  apply CEP.SE.eq_refl.
-  rewrite Hfindadd in H0.
-  clear Hfindadd.
-  inversion H0.
-  rewrite /connection_tree2expr //.
-Qed.
-
-Lemma expandBranch_connection_invalid_match :
-  forall v cm tm seq_result texpr ttree,
-  CEP.find v (snd (expandBranch_fun (Sinvalid (Eid v)) seq_result cm)) = texpr -> 
-  CEP.find v (expandBranch_connection_tree (Sinvalid (Eid v)) tm) = Some ttree -> 
-  expandBranch_connection_stmt (Sinvalid (Eid v)) cm (snd (expandBranch_fun (Sinvalid (Eid v)) seq_result cm)) tm (expandBranch_connection_tree (Sinvalid (Eid v)) tm).
-Proof.
-  intros.
-  apply ExpandBranch_connection_invalid with (texpr := texpr) (ttree := ttree); try done.
-  rewrite /expandBranch_fun in H. 
-  simpl in H. 
-  assert (Hfindadd : CEP.find v (CEP.add v D_invalidated cm) = Some D_invalidated).
-  apply HiFP.PCELemmas.add_eq_o.
-  apply CEP.SE.eq_refl.
-  rewrite Hfindadd in H.
-  clear Hfindadd.
-  rewrite -H.
-  rewrite /expandBranch_connection_tree in H0.
-  assert (Hfindadd : CEP.find v (CEP.add v T_invalidated tm) = Some T_invalidated).
-  apply HiFP.PCELemmas.add_eq_o.
-  apply CEP.SE.eq_refl.
-  rewrite Hfindadd in H0.
-  clear Hfindadd.
-  inversion H0.
-  rewrite /connection_tree2expr //.
-Qed.
-
-Lemma expandBranch_connection_fcnct_match :
-  forall v e cm tm seq_result texpr ttree,
-  CEP.find v (snd (expandBranch_fun (Sfcnct (Eid v) e) seq_result cm)) = texpr -> 
-  CEP.find v (expandBranch_connection_tree (Sfcnct (Eid v) e) tm) = Some ttree -> 
-  expandBranch_connection_stmt (Sfcnct (Eid v) e) cm (snd (expandBranch_fun (Sfcnct (Eid v) e) seq_result cm)) tm (expandBranch_connection_tree (Sfcnct (Eid v) e) tm).
-Proof.
-  intros.
-  apply ExpandBranch_connection_fcnct with (texpr := texpr) (ttree := ttree); try done.
-  rewrite /expandBranch_fun in H. 
-  simpl in H. 
-  assert (Hfindadd : CEP.find v (CEP.add v (D_fexpr e) cm) = Some (D_fexpr e)).
-  apply HiFP.PCELemmas.add_eq_o.
-  apply CEP.SE.eq_refl.
-  rewrite Hfindadd in H.
-  clear Hfindadd.
-  rewrite -H.
-  rewrite /expandBranch_connection_tree in H0.
-  assert (Hfindadd : CEP.find v (CEP.add v (T_fexpr e) tm) = Some (T_fexpr e)).
-  apply HiFP.PCELemmas.add_eq_o.
-  apply CEP.SE.eq_refl.
-  rewrite Hfindadd in H0.
-  clear Hfindadd.
-  Info 1 auto.
-  inversion H0.
-  rewrite /connection_tree2expr //.
-Qed.
-
-Lemma expandBranch_connection_when_match :
-  forall c s1 s2 cm cm' cm'' cm0 tm tm' tm'' tm0 (seq_result : HiFP.hfstmt_seq),
-  cm' = (snd (expandBranch_funs s1 (Some seq_result) cm)) ->
-  cm'' = (snd (expandBranch_funs s2 (Some seq_result) cm)) ->
-  tm' = (expandBranch_connection_trees s1 tm) ->
-  tm'' = (expandBranch_connection_trees s2 tm) ->
-  (forall v texpr1 ttree1,
-  CEP.find v cm' = texpr1 ->
-  CEP.find v tm' = Some ttree1 ->
-  texpr1 = connection_tree2expr ttree1) ->
-  (forall v texpr2 ttree2,
-  CEP.find v cm'' = texpr2 ->
-  CEP.find v tm'' = Some ttree2 ->
-  texpr2 = connection_tree2expr ttree2) ->
-  expandBranch_connection_stmts s1 cm cm' tm tm' ->
-  expandBranch_connection_stmts s2 cm cm'' tm tm'' ->
-  expandBranch_connection_stmt (Swhen c s1 s2) cm cm0 tm tm0.
-Proof.
-  intros.
-  apply ExpandBranch_connection_when with (cm' := cm') (cm'' := cm'') (tm' := tm') (tm'' := tm''); try by done.
-  intros.
-  specialize H3 with (v := v) (texpr1 := texpr1) (ttree1 := ttree1).
-  specialize H4 with (v := v) (texpr2 := texpr2) (ttree2 := ttree2).
-  rewrite H3; try by done.
-  rewrite H4; try by done.
-  clear H3 H4 H8 H9 H10 H11.
-  move : H12.
-  case Ht1 : ttree1 => [||e1|c1 tt1 ft1].
-    - (* T_undefined *)
-    admit.
-    - (* T_invalid *)
-    admit.
-    - (* T_expr *)
-    case Ht2 : ttree2 => [||e2|c2 tt2 ft2].
-      - (* T_undefined *)
-      admit.
-      - (* T_invalid *)
-      admit.
-      - (* T_expr *)
-      simpl.
-      move => Hchoice.
-      inversion Hchoice.
-      clear H4 Hchoice.
-      simpl.
-      done.
-      - (* T_choice *)
-      move => Hchoice.
-      simpl in Hchoice.
-      inversion Hchoice.
-      clear H4 Hchoice.
-      rewrite {1}/connection_tree2expr.
-      case Hsn: (connection_tree2expr (T_choice c2 tt2 ft2)) => [texpr|]; try by done.
-      case Htexpr: texpr => [||te]; try by done.
-      rewrite Htexpr in Hsn.
-      admit.
-      admit.
-      admit.
-      admit. 
-    - (* T_choice *)
-    case Hsn1: (connection_tree2expr (T_choice c1 tt1 ft1)) => [texpr|]; try by done.
-    case Htexpr1: texpr => [||te]; try by done.
-    rewrite Htexpr1 in Hsn1.
-    admit. (* undefined *)
-
-    case Ht2 : ttree2 => [||e2|c2 tt2 ft2].
-      - (* T_undefined *)
-      simpl.
-      move => Hchoice.
-      inversion Hchoice.
-      clear H4 Hchoice.
-      rewrite Hsn1 Htexpr1//.
-      - (* T_invalid *)
-      simpl.
-      move => Hchoice.
-      inversion Hchoice.
-      clear H4 Hchoice.
-      rewrite Hsn1 Htexpr1//.
-      - (* T_expr *)
-      rewrite {1}/connection_tree2expr.
-      simpl.
-      move => Hchoice.
-      inversion Hchoice.
-      rewrite Htexpr1 in Hsn1.
-      clear H4 Hchoice.
-      admit.
-      - (* T_choice *)
-      case Hsn2: (connection_tree2expr (T_choice c2 tt2 ft2)) => [texpr'|]; try by done.
-      case Htexpr2: texpr' => [||te']; try by done.
-      rewrite Htexpr2 in Hsn2.
-        (* undefined *)
-        admit.
-        (* invalid *)
-        rewrite Htexpr1 in Hsn1.
-        rewrite Htexpr2 in Hsn2.
-        simpl.
-        admit.
-        (* expr *)
-        rewrite Htexpr1 in Hsn1.
-        rewrite Htexpr2 in Hsn2.
-        simpl.
-        admit.
-        (* None *)
-        admit.
-    case Ht2 : ttree2 => [||e2|c2 tt2 ft2].
-      - (* T_undefined *)
-      simpl.
-      move => Hchoice.
-      inversion Hchoice.
-      clear H4 Hchoice.
-      rewrite Hsn1 Htexpr1//.
-      - (* T_invalid *)
-      simpl.
-      move => Hchoice.
-      inversion Hchoice.
-      clear H4 Hchoice.
-      rewrite Hsn1 Htexpr1//.
-      - (* T_expr *)
-      rewrite {1}/connection_tree2expr.
-      simpl.
-      move => Hchoice.
-      inversion Hchoice.
-      rewrite Htexpr1 in Hsn1.
-      clear H4 Hchoice.
-      admit.
-      - (* T_choice *)
-      case Hsn2: (connection_tree2expr (T_choice c2 tt2 ft2)) => [texpr'|]; try by done.
-      case Htexpr2: texpr' => [||te']; try by done.
-      rewrite Htexpr2 in Hsn2.
-        (* undefined *)
-        admit.
-        (* invalid *)
-        rewrite Htexpr1 in Hsn1.
-        rewrite Htexpr2 in Hsn2.
-        simpl.
-        admit.
-        (* expr *)
-        rewrite Htexpr1 in Hsn1.
-        rewrite Htexpr2 in Hsn2.
-        simpl.
-        admit.
-        (* None *)
-        admit.
-    (* None *)
-    admit.
-Admitted.
-*)
 
 Lemma expandBranch_connection_when_match' : 
   forall c s1 s2 cm cm0 tm tm0 (seq_result : HiFP.hfstmt_seq),
   texpr_match_ttree cm tm ->
+  texpr_match_ttree ((expandBranch_funs s1 (Some seq_result) cm).2) (expandBranch_connection_trees s1 tm) ->
+  texpr_match_ttree ((expandBranch_funs s2 (expandBranch_funs s1 (Some seq_result) cm).1 cm).2) ((expandBranch_connection_trees s2 tm)) ->
   cm0 = (snd (expandBranch_fun (Swhen c s1 s2) (Some seq_result) cm)) ->
   tm0 = (expandBranch_connection_tree (Swhen c s1 s2) tm) ->
-  expandBranch_connection_stmt (Swhen c s1 s2) cm cm0 tm tm0.
+  texpr_match_ttree cm0 tm0.
+(*with texpr_match_tree_stmts : 
+  forall ss cm cm0 tm tm0 (seq_result : HiFP.hfstmt_seq),
+  texpr_match_ttree cm tm ->
+  cm0 = (snd (expandBranch_funs ss (Some seq_result) cm)) ->
+  tm0 = (expandBranch_connection_trees ss tm) ->
+  texpr_match_ttree cm0 tm0*)
 Proof.
-  move => c s1 s2 cm cm0 tm tm0 seq_result Hpre Hcm0 Htm0.
-  apply ExpandBranch_connection_when; try by done.
+  (*clear expandBranch_connection_when_match'.*)
+  move => c s1 s2 cm cm0 tm tm0 seq_result Hpre Hm1 Hm2 Hcm0 Htm0.
+  (*apply ExpandBranch_connection_when; try by done.*)
   simpl in Hcm0.
   simpl in Htm0.
-  assert (Hm1 : texpr_match_ttree ((expandBranch_funs s1 (Some seq_result) cm).2) (expandBranch_connection_trees s1 tm)).
-  admit. (* 从stmts match可得 *)
-  assert (Hm2 : texpr_match_ttree ((expandBranch_funs s2 (expandBranch_funs s1 (Some seq_result) cm).1 cm).2) ((expandBranch_connection_trees s2 tm))).
-  admit.
   rewrite /texpr_match_ttree.
   rewrite Hcm0 Htm0.
   clear Hcm0 Htm0.
@@ -1733,29 +1382,27 @@ Proof.
   admit.
   1,2: simpl.
   1,2: done.
-Admitted.
-
+  Admitted.
 
 Lemma expandBranch_connection_stmt_match (s : HiFP.hfstmt) :
   forall cm cm' tm tm' (seq_result : HiFP.hfstmt_seq),
   texpr_match_ttree cm tm ->
   cm' = snd (expandBranch_fun s (Some seq_result) cm) ->
   tm' = expandBranch_connection_tree s tm ->
-  expandBranch_connection_stmt s cm cm' tm tm'
+  texpr_match_ttree cm' tm'
 with expandBranch_connection_stmts_match (ss : HiFP.hfstmt_seq) :
   forall cm cm' tm tm' (seq_result : HiFP.hfstmt_seq),
   texpr_match_ttree cm tm ->
   cm' = snd (expandBranch_funs ss (Some seq_result) cm) ->
   tm' = expandBranch_connection_trees ss tm ->
-  expandBranch_connection_stmts ss cm cm' tm tm'.
+  texpr_match_ttree cm' tm'.
 Proof.
   clear expandBranch_connection_stmt_match.
   case Hs : s => [|v t|||||v e|v|c s1 s2]; try done.
   - move => cm cm' tm tm' seq_result Hpre Hcm' Htm'.
     simpl in Hcm'.
     simpl in Htm'.
-    rewrite Hcm' Htm'.
-    apply ExpandBranch_connection_skip.
+    rewrite Hcm' Htm' //.
   - apply expandBranch_connection_wire_match.
   - apply expandBranch_connection_reg_match.
   - apply expandBranch_connection_mem_match.
@@ -1775,206 +1422,29 @@ Proof.
     admit.
     admit.
     admit.
-  - (* when *)
-
-  apply expandBranch_connection_when_match'.
+    - (* when *)
+  move => cm cm' tm tm' seq_result Hpre Hcm' Htm'.
+  apply expandBranch_connection_when_match' with (c := c) (s1 := s1) (s2 := s2) (cm := cm) (tm := tm) (seq_result := seq_result); try by done.
+  apply expandBranch_connection_stmts_match with (ss := s1) (cm := cm) (tm := tm) (seq_result := seq_result); try by done.
+  case H' : (expandBranch_funs s1 (Some seq_result) cm).1 => [seq_result'|].
+  apply expandBranch_connection_stmts_match with (ss := s2) (cm := cm) (tm := tm) (seq_result := seq_result'); try by done.
   admit.
-
   clear expandBranch_connection_stmts_match.
 
   induction ss.
   - move => cm cm' tm tm' seq_result Hpre Hcm' Htm'.
     simpl in Hcm'.
     simpl in Htm'.
-    rewrite Hcm' Htm'.
-    apply ExpandBranch_connections_nil.
+    rewrite Hcm' Htm' //.
+    (*apply ExpandBranch_connections_nil.*)
   - move => cm cm' tm tm' seq_result Hpre Hcm' Htm'.
     simpl in Hcm'.
     simpl in Htm'.
-    apply ExpandBranch_connections_con with (cm' := snd (expandBranch_fun h (Some seq_result) cm)) (tm' := (expandBranch_connection_tree h tm)).
-    apply expandBranch_connection_stmt_match with (seq_result := seq_result); try by done.
-    case Hf : ((expandBranch_fun h (Some seq_result) cm).1) => [seq_result'|].
-    rewrite Hf in Hcm'.
-    apply IHss with (seq_result := seq_result'); try by done.
-    admit. (* same as 单条 *)
+    case H1 : (expandBranch_fun h (Some seq_result) cm).1 => [seq_result'|].
+    apply IHss with (cm := (expandBranch_fun h (Some seq_result) cm).2) (tm := (expandBranch_connection_tree h tm)) (seq_result := seq_result'); try by done.
+    apply expandBranch_connection_stmt_match with (s := h) (cm := cm) (tm := tm) (seq_result := seq_result); try by done.
+    rewrite -H1 //.
     admit. (* (expandBranch_fun h (Some seq_result) cm).1 = None *)
 Admitted.
-
-(* old version
-Definition ExpandBranch_connection_match (ss : HiFP.hfstmt_seq) : Prop :=
- forall (v : pvar) (ce_other_modules : CEP.env) (cm_init : CEP.t def_expr) (init_decl_map : CEP.env) (ce : CEP.env),
- match (CEP.find v (expandBranch_connection_tree ss (CEP.empty expr_tree))) with
- | None => True (* ? *)
- | Some expr_tree => CEP.find v (snd (expandBranch_fun ss ce_other_modules (Qnil ProdVarOrder.T) cm_init))
- = connection_tree2expr expr_tree
-end.
-
-(*Lemma expandBranch_connection_stmt_match (s : HiFP.hfstmt) :
-  forall cm cm' tm tm' (seq_result : HiFP.hfstmt_seq),
-  cm' = snd (expandBranch_fun s (Some seq_result) cm) ->
-  tm' = expandBranch_connection_tree s tm ->
-  expandBranch_connection_stmt s cm cm' tm tm'
-with expandBranch_connection_stmts_match (ss : HiFP.hfstmt_seq) :
-  forall cm cm' tm tm' (seq_result : HiFP.hfstmt_seq),
-  cm' = snd (expandBranch_funs ss (Some seq_result) cm) ->
-  tm' = expandBranch_connection_trees ss tm ->
-  expandBranch_connection_stmts ss cm cm' tm tm'.
-Proof.
-  clear expandBranch_connection_stmt_match.
-      case Hh : h => [|v t|v r|v m|v1 v2|v e|v e|v|e s1 s2].
-    - (* skip *)
-      apply ExpandBranch_connection_skip.
-    - (* wire *)
-    case Hf : (CEP.find v (expandBranch_connection_tree (Swire v t) tm)) => [e|].
-    apply expandBranch_connection_wire_match with (texpr := (CEP.find v (snd (expandBranch_fun (Swire v t) (Some seq_result) cm))))  (ttree := e).
-    done.
-    rewrite Hf //.
-    assert (CEP.mem v (expandBranch_connection_tree (Swire v t) tm)).
-    simpl.
-    rewrite HiFP.PCELemmas.mem_add_eq //.
-    apply CEP.SE.eq_refl.
-    simpl in Hf.
-    rewrite HiFP.PCELemmas.add_eq_o in Hf.
-    discriminate.
-    apply CEP.SE.eq_refl.
-      (* reg *)
-      admit.
-      admit.
-      admit.
-      admit.
-      admit.
-      admit.
-    (* when *)
-    apply expandBranch_connection_when_match with (cm' := (snd (expandBranch_funs s1 (Some seq_result) cm)))
-      (cm'' := (snd (expandBranch_funs s2 (Some seq_result) cm))) (tm' := (expandBranch_connection_trees s1 tm)) 
-      (tm'' := (expandBranch_connection_trees s2 tm)) (seq_result := seq_result); try by done.
-    admit.
-    admit.
-    admit.
-    admit.
-
-    case Hf : (fst (expandBranch_fun h (Some seq_result) cm)) => [seq_result'|].
-    specialize IHss with (cm := snd (expandBranch_fun h (Some seq_result) cm)) (cm' := cm') 
-    (tm := (expandBranch_connection_tree h tm)) (tm' := tm') (seq_result := seq_result').
-    apply IHss; try by done.
-    rewrite H. 
-    clear H H0.
-    move : IHss.
-    case Hh :( expandBranch_fun h (Some seq_result) cm) => [t1 t2].
-    move => IHss.
-    rewrite -Hf Hh.
-    simpl.
-    done.
-
-    (* (expandBranch_fun h (Some seq_result) cm).1 = None
-    discriminate. *)
-
-Fixpoint already_ground_type (ss : HiFP.hfstmt_seq) (prop : Prop) : Prop :=
-  match ss with
-  | Qnil => prop
-  | Qcons s st => let new_prop := (match s with
-                  | Sskip => prop
-                  | Swire _ ty => match ty with
-                                  | Gtyp _ => prop
-                                  | _ => False
-                                  end
-                  | Sreg r reg => match (type reg) with
-                                  | Gtyp _ => prop
-                                  | _ => False
-                                  end
-                  | Smem r mem => match (data_type mem) with
-                                  | Gtyp _ => prop
-                                  | _ => False
-                                  end
-                  | Swhen _ s1 s2 => already_ground_type s1 prop /\ already_ground_type s2 prop
-                  | _ => prop
-                  end) 
-                  in already_ground_type st new_prop
-  end.
-
-Lemma add_expandBranch_connection : 
-  forall (ss : HiFP.hfstmt_seq) (ce_other_modules : CEP.env) (result : HiFP.hfstmt_seq) (cm_init : CEP.t def_expr)
-  (v r : pvar) (texpr : def_expr),
-  if v == r then CEP.find v (snd (expandBranch_fun ss ce_other_modules result (CEP.add r texpr cm_init))) = Some texpr
-  else CEP.find v (snd (expandBranch_fun ss ce_other_modules result (CEP.add r texpr cm_init))) = CEP.find v (snd (expandBranch_fun ss ce_other_modules result cm_init)).
-Proof.
-Admitted.
-
-Lemma add_expandBranch_connection_tree :
-  forall (ss : HiFP.hfstmt_seq) (v r : pvar) (tchild : expr_tree),
-  if v == r then CEP.find v
-    (expandBranch_connection_tree ss
-      (CEP.add r T_undefined (CEP.empty expr_tree))) = Some T_undefined
-  else (expandBranch_connection_tree ss (CEP.add r T_undefined (CEP.empty expr_tree))) = (expandBranch_connection_tree ss (CEP.empty expr_tree)).
-Proof.
-Admitted.
-
-Theorem ExpandWhens_connection_correct :
-  forall (ss : HiFP.hfstmt_seq),
-  already_ground_type ss True -> ExpandBranch_connection_match ss
-with ExpandWhens_connection_correct_Swhen :
-  forall (s : HiFP.hfstmt),
-  match s with
-  | Swhen c ss_true ss_false => already_ground_type ss_true True ->
-                                already_ground_type ss_false True ->
-                                ExpandBranch_connection_match ss_true /\
-                                ExpandBranch_connection_match ss_false
-  | _ => True
-  end.
-Proof.
-  (* prove ExpandWhens_connection_correct *)
-  clear ExpandWhens_connection_correct.
-  intros.
-  induction ss. 
-  - rewrite /ExpandBranch_connection_match.
-    simpl.
-    trivial.
-  - rewrite /ExpandBranch_connection_match.
-    intros.
-    rewrite /ExpandBranch_connection_match in IHss.
-    case Htree : (CEP.find v (expandBranch_connection_tree (Qcons h ss) (CEP.empty expr_tree))) => [t|]; try done.
-    unfold expandBranch_connection_tree in Htree; fold expandBranch_connection_tree in Htree.
-    unfold expandBranch_fun; fold expandBranch_fun.
-    move : t Htree.
-    case Hh : h => [|r ty|r reg||||||c ts fs]; try done.
-      - (* skip *)
-      intros.
-      specialize IHss with (v := v) (ce_other_modules := ce_other_modules) (cm_init := cm_init).
-      rewrite Htree in IHss.
-      simpl in H. 
-      rewrite Hh in H.
-      rewrite IHss //.
-      - (* wire *)
-      intros.
-      rewrite /init_ref.
-      simpl in H. 
-      rewrite Hh in H.
-      move : H.
-      case ty => [gt||]; try done.
-        - (* ground type *)
-        move => Hground.
-        case Heq : (v == r).
-        specialize add_expandBranch_connection with (ss := ss) (ce_other_modules := ce_other_modules)
-          (result := (Qcons (Swire (var:=ProdVarOrder.T) r (Gtyp gt)) (Qnil ProdVarOrder.T))) (cm_init := cm_init) (v := v) (r := r) (texpr := D_undefined).
-        move => Hadd.
-        rewrite Heq in Hadd.
-        rewrite Hadd.
-        rewrite /connection_tree2expr.
-        
-  admit.
-  (* prove ExpandWhens_connection_correct_Swhen *)
-  clear ExpandWhens_connection_correct_Swhen.
-  intro.
-  destruct s; try done.
-  intros.
-  split.
-  apply ExpandWhens_connection_correct.
-  done.
-  apply ExpandWhens_connection_correct.
-  done.
-Admitted.
-*)*)
-
-
 
 End ExpandWhens.
