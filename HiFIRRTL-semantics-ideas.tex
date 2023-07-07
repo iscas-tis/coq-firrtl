@@ -1,0 +1,159 @@
+\documentclass{article}
+
+\usepackage{amsmath}
+\usepackage{amsthm}
+\theoremstyle{definition}
+\newtheorem{definition}{Definition}
+\newtheorem{lemma}[definition]{Lemma}
+
+\title{Ideas for a semantics for HiFIRRTL}
+\author{David N. Jansen \\ based on discussion with Xiaomu Shi, Keyin Wang and Zhilin Wu}
+
+\begin{document}
+
+\maketitle
+
+\section{Introduction}
+
+This document describes a semantics for HiFIRRTL modules and circuits.
+The basic idea is that every HiFIRRTL module is mapped to a \emph{module graph.}
+Actually this is a hypergraph, because edges may have a tree structure as well.
+Module graphs can be combined into a circuit graph,
+similar to how HiFIRRTL modules are combined into a circuit.
+
+The transformation from HiFIRRTL to LoFIRRTL should preserve the semantics on the level of module graphs
+as much as possible.
+Only for a few passes, we need to look into the behavioural semantics of a module graph,
+namely when the structure is replaced by a bisimilar structure.
+
+\section{Module graphs}
+
+\begin{definition}
+A module graph consists of:
+\begin{itemize}
+\item	a set of components.
+	There are the following components:
+	input ports;
+	output ports;
+	wires;
+	registers;
+	(perhaps nodes, but I don't think that is necessary);
+	memories;
+	instances;
+	constants;
+	(perhaps invalid sources, to translate an ``is invalid'' statement);
+	multiplexers;
+	primitive operations (add, subtract, multiply, divide, modulus, comparison, padding,
+		type cast, shift left, shift right, dynamic shift left, dynamic shift right,
+		convert to SInt, negate, bitwise complement, bitwise and, bitwise or, bitwise xor,
+		reduce by and, reduce by or, reduce by xor, concatenate, extract bits);
+	an instance of another module graph.
+
+	Every component has some input connectors and/or output connectors.
+	Input and output connectors have a data type (e.g.\@ $\mathsf{SInt}$) and a bit width.
+\item	a set of connection trees.
+	A connection tree links any number of output connectors of component(s), called sources,
+	to an input connector, called destination.
+	If multiple sources are used, then a ternary tree structure indicates
+	how to decide which one to use in a specific condition:
+	every internal node of the tree has structure $(\mathit{cond}, \mathit{connect}_\mathit{true}, \mathit{connect}_\mathit{false})$.
+	Depending on $\mathit{cond}$, one of the two connectors is actually used.
+	Note that $\mathit{cond}$ is also linked to an output connector of a component.
+	A connection tree has a data type (e.g. $\mathsf{SInt}$) and a bit width.
+\end{itemize}
+\end{definition}
+
+\noindent
+A module graph has a behavioural semantics,
+where inputs and outputs behave as in (idealized) circuits
+and connection trees decide dynamically based on the respective condition
+which connector to use.
+
+\section{Semantics of HiFIRRTL modules}
+
+The structural semantics of a HiFIRRTL module is defined to be a set of module graphs.
+
+Given a module with input ports $I$, output ports $O$, and statement sequence $S$,
+the respective module graph has to contain:
+\begin{itemize}
+\item	an input port component for every element in $I$.
+\item	an output port component for every element in $O$.
+\item	other components and connection trees are defined inductively depending on $S$:
+	\begin{itemize}
+	\item	If $S$ is the empty statement sequence,
+		then there are no (further) components or connection trees.
+	\item	If $S = (s_1, s_2, \ldots, s_{n+1})$,
+		then the module graph is a modification of the graph $G$ for $I, O, (s_1, \ldots, s_n)$ as follows:
+		\begin{itemize}
+		\item	If $s_{n+1} = \mathtt{skip}$, the result is $G$.
+		\item	If $s_{n+1} = \mathtt{register} \ldots$, the result is $G$ with an additional register component as specified in $s_{n+1}$.
+		\item	If $s_{n+1} = \mathit{target} \mathtt{<=} \mathit{source}$, the result is $G$ with an additional or changed connection tree to $\mathit{target}$,
+			and possibly components as indicated in the expression $\mathit{source}$.
+			(If defined in detail, this will require an inductive semantics of expressions.)
+		\item	similarly for other statements
+		\end{itemize}
+	\end{itemize}
+	The bit widths of every input and output connector satisfy the following conditions:
+	If the HiFIRRTL module specifies a bit width explicitly,
+	then that is the bit width of the connector.
+	Otherwise, any bit width is allowed,
+	as long as it satisfies the default bit width constraints of all components in the HiFIRRTL module.
+\end{itemize}
+
+\noindent
+If all bit widths in the HiFIRRTL module are specified,
+then there is at most one module graph that can be the semantics of the HiFIRRTL module;
+otherwise, there may be multiple module graphs,
+namely all those that satisfy the default bit width constraints.
+(An ill-specified HiFIRRTL module may have no semantics at all,
+namely if the bit widths of some connection trees cannot be determined at all.)
+
+What are the default bit width constraints?
+Every HiFIRRTL component specifies a default width for its output connectors,
+which depends on the input connector widths.
+For example, for an adder, the specification is
+$\mathit{width}_\mathit{result} \geq \max \{\mathit{width}_a, \mathit{width}_b\} + 1$.
+
+Note that a module graph does not contain aggregate type components or connections.
+So the HiFIRRTL semantics also has to translate any component with an aggregate type
+into multiple components in the graph.
+\textbf{TO DO:} This may be problematic for subaccesses, dynamic accesses to an array.
+Perhaps we have to allow arrays after all.
+
+\section{Remarks on the lowering transforms}
+
+\subsection{InferWidths}
+
+chooses the minimal element (in terms of bit width) from the set of module graphs and changes the HiFIRRTL module such that only this element remains in the semantics.
+
+\begin{definition}
+	The bit-width-preorder between module graphs $G_1, G_2$ is defined as follows:
+	$G_1 \leq G_2$ if the two module graphs contain the same elements,
+	and the bit width of each element in $G_1$ is smaller than or equal to the bit width of the same element in $G_2$.
+\end{definition}
+
+\noindent
+Based on a lemma like the one below
+we can guarantee that the minimal element in the set of module graphs does not incur any unintended data loss.
+(Data loss may occur if the user chooses a non-default bit width,
+e.g.\@ if the result of an addition of 32-bit summands is stored in a 32-bit register,
+but then the user has to explicitly specify that the goal register has 32 bits.)
+
+\begin{lemma}
+	The output bit widths of every HiFIRRTL component are monotonous,
+	i.e.\@ if no data loss occurs at output bit width $n$,
+	then no data loss occurs at any output bit width $>n$.
+\end{lemma}
+
+\subsection{LowerTypes}
+
+changes the HiFIRRTL module code but not its semantics
+because aggregate-type components were already translated to sets of ground-type components before.
+
+\subsection{ExpandWhens}
+
+replaces the connection trees by multiplexers.
+We will need to prove that this does not fundamentally change the behaviour
+through a bisimulation between the module graphs.
+
+\end{document}
