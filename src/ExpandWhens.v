@@ -649,11 +649,11 @@ Definition well_connected_m cm :=
 Fixpoint well_defined_stmt s cm seq_init :=
   match s with
   | Swhen _ s1 s2 => match (expandBranch_funs s1 seq_init cm) with
-                    | (Some _, OK cm1) => well_defined_stmts s1 cm seq_init /\ well_connected_m cm1
+                    | (Some _, OK cm1) => well_defined_stmts s1 cm seq_init(* /\ well_connected_m cm1*)
                     | _ => False
                     end /\
                     match (expandBranch_funs s2 (expandBranch_funs s1 seq_init cm).1 cm).2 with
-                    | OK cm2 => well_defined_stmts s2 cm (expandBranch_funs s1 seq_init cm).1 /\ well_connected_m cm2
+                    | OK cm2 => well_defined_stmts s2 cm (expandBranch_funs s1 seq_init cm).1(* /\ well_connected_m cm2*)
                     | _ => False
                     end
   | Sfcnct (Eid v0) _ => match cm with
@@ -726,15 +726,13 @@ Proof.
     apply expandBranch_declaration_when_match with (cm := cm) (seq_init' := seq_init'); try by done.
     rewrite H //.
     apply expandBranch_declarations_match with (cm := cm); try by done.
-    rewrite Hm' in H1.
-    move : H1 => [H1 _]; done.
+    rewrite Hm' in H1; done.
     rewrite H //.
     apply expandBranch_declarations_match with (cm := cm); try by done.
     rewrite H in H2.
     simpl in H2.
     case H2' : (expandBranch_funs s2 (Some seq_init') (OK cm)).2 => [cm2||].
-    rewrite H2' in H2.
-    move : H2 => [H2 _]; done.
+    rewrite H2' in H2; done.
     rewrite H2' in H2; done.
     rewrite H2' in H2; done.
     simpl in H0.
@@ -852,6 +850,24 @@ Definition temp_tree_map := expandBranch_connection_tree ess (CEP.empty expr_tre
 Definition a_tree := CEP.find p1 temp_tree_map.
 Compute (a_tree).*)
 
+(* Fixpoint connection_tree2expr (tree: expr_tree) : def_expr :=
+  match tree with
+  | T_undefined => D_undefined
+  | T_invalidated => D_invalidated
+  | (T_fexpr e) => (D_fexpr e)
+  | (T_choice cond true_tree false_tree) => let true_expr := connection_tree2expr true_tree in
+                                          let false_expr := connection_tree2expr false_tree in
+                                          match true_expr, false_expr with
+                                          | (D_fexpr te), (D_fexpr fe) => (*if te == fe then Some (D_fexpr te)
+                                                        else*) (D_fexpr (Emux cond te fe))
+                                          | D_invalidated, (D_fexpr fe) => false_expr
+                                          | (D_fexpr fe), D_invalidated => true_expr
+                                          | D_undefined, _ => true_expr
+                                          | _, D_undefined => false_expr
+                                          | _, _ => true_expr
+                                          end
+   end.*)
+
 Fixpoint connection_tree2expr (tree: expr_tree) : option def_expr :=
   match tree with
   (*| T_undeclared => None*)
@@ -865,6 +881,8 @@ Fixpoint connection_tree2expr (tree: expr_tree) : option def_expr :=
                                                         else*) Some (D_fexpr (Emux cond te fe))
                                           | Some D_invalidated, Some (D_fexpr fe) => false_expr
                                           | Some (D_fexpr fe), Some D_invalidated => true_expr
+                                          | Some D_undefined, _ => true_expr
+                                          | _, Some D_undefined => false_expr
                                           | None, _ => false_expr
                                           | _, _ => true_expr
                                           end
@@ -983,30 +1001,27 @@ Proof.
   move : Hcm'.
   case : cm0 => [cm'||]; try by done.
   move => Hcm'.
-  (*apply ExpandBranch_connection_reg; try by done.*)
+  (*apply ExpandBranch_connection_wire; try by done.*)
   simpl in Hcm'.
   inversion Hcm'.
   simpl in Htm'.
   rewrite /texpr_match_ttree in Hpre.
   rewrite /texpr_match_ttree.
-  move => v1 texpr1 ttree1.
+  move => v1 texpr1 Hte.
   rewrite Htm'.
-  move => Hte Htt.
+  specialize Hpre with (v := v1) (texpr1 := texpr1).
   case Heq : (v1 == v).
   rewrite StructStateP.Lemmas.P.F.add_eq_o in Hte.
-  rewrite StructStateP.Lemmas.P.F.add_eq_o in Htt.
-  inversion Htt.
-  rewrite -Hte.
+  rewrite StructStateP.Lemmas.P.F.add_eq_o.
   simpl.
-  done.
+  rewrite -Hte //.
   1,2: move /eqP : Heq => Heq.
   1,2: rewrite Heq.
   1,2: apply CEP.SE.eq_refl.
 
   rewrite StructStateP.Lemmas.add_neq_o in Hte.
-  rewrite StructStateP.Lemmas.add_neq_o in Htt.
-  apply Hpre with (v := v1); try by done.
-
+  rewrite StructStateP.Lemmas.add_neq_o.
+  apply Hpre in Hte; done.
   1,2:apply contra_not with (P := (v1 == v)).
   1,3:apply StructStateP.Lemmas_M.KeySetoid.
   1,2:apply elimF with (b := (v1 == v)); try by done.
@@ -1027,30 +1042,27 @@ Proof.
   move : Hcm'.
   case : cm0 => [cm'||]; try by done.
   move => Hcm'.
-  (*apply ExpandBranch_connection_mem; try by done.*)
+  (*apply ExpandBranch_connection_wire; try by done.*)
   simpl in Hcm'.
   inversion Hcm'.
   simpl in Htm'.
   rewrite /texpr_match_ttree in Hpre.
   rewrite /texpr_match_ttree.
-  move => v1 texpr1 ttree1.
+  move => v1 texpr1 Hte.
   rewrite Htm'.
-  move => Hte Htt.
+  specialize Hpre with (v := v1) (texpr1 := texpr1).
   case Heq : (v1 == v).
   rewrite StructStateP.Lemmas.P.F.add_eq_o in Hte.
-  rewrite StructStateP.Lemmas.P.F.add_eq_o in Htt.
-  inversion Htt.
-  rewrite -Hte.
+  rewrite StructStateP.Lemmas.P.F.add_eq_o.
   simpl.
-  done.
+  rewrite -Hte //.
   1,2: move /eqP : Heq => Heq.
   1,2: rewrite Heq.
   1,2: apply CEP.SE.eq_refl.
 
   rewrite StructStateP.Lemmas.add_neq_o in Hte.
-  rewrite StructStateP.Lemmas.add_neq_o in Htt.
-  apply Hpre with (v := v1); try by done.
-
+  rewrite StructStateP.Lemmas.add_neq_o.
+  apply Hpre in Hte; done.
   1,2:apply contra_not with (P := (v1 == v)).
   1,3:apply StructStateP.Lemmas_M.KeySetoid.
   1,2:apply elimF with (b := (v1 == v)); try by done.
@@ -1071,29 +1083,27 @@ Proof.
   move : Hcm'.
   case : cm0 => [cm'||]; try by done.
   move => Hcm'.
-  (*apply ExpandBranch_connection_inst; try by done.*)
+  (*apply ExpandBranch_connection_wire; try by done.*)
   simpl in Hcm'.
   inversion Hcm'.
   simpl in Htm'.
   rewrite /texpr_match_ttree in Hpre.
   rewrite /texpr_match_ttree.
-  move => v1 texpr1 ttree1.
+  move => v1 texpr1 Hte.
   rewrite Htm'.
-  move => Hte Htt.
+  specialize Hpre with (v := v1) (texpr1 := texpr1).
   case Heq : (v1 == v).
   rewrite StructStateP.Lemmas.P.F.add_eq_o in Hte.
-  rewrite StructStateP.Lemmas.P.F.add_eq_o in Htt.
-  inversion Htt.
-  rewrite -Hte.
+  rewrite StructStateP.Lemmas.P.F.add_eq_o.
   simpl.
-  done.
+  rewrite -Hte //.
   1,2: move /eqP : Heq => Heq.
   1,2: rewrite Heq.
   1,2: apply CEP.SE.eq_refl.
 
   rewrite StructStateP.Lemmas.add_neq_o in Hte.
-  rewrite StructStateP.Lemmas.add_neq_o in Htt.
-  apply Hpre with (v := v1); try by done.
+  rewrite StructStateP.Lemmas.add_neq_o.
+  apply Hpre in Hte; done.
   1,2:apply contra_not with (P := (v1 == v)).
   1,3:apply StructStateP.Lemmas_M.KeySetoid.
   1,2:apply elimF with (b := (v1 == v)); try by done.
@@ -1178,30 +1188,27 @@ Proof.
   case : cm0 => [cm'||]; try by done.
   case Hc : (CEP.find v cm) => [t|].
   move => Hmem Hpre Hcm' Htm'.
-  (*apply ExpandBranch_connection_fcnct; try by done.*)
+  (*apply ExpandBranch_connection_invalid; try by done.*)
   simpl in Hcm'.
   rewrite Hc in Hcm'.
   inversion Hcm'.
   simpl in Htm'.
   rewrite /texpr_match_ttree in Hpre.
   rewrite /texpr_match_ttree.
-  move => v1 texpr1 ttree1.
+  move => v1 texpr1 Hte.
   rewrite Htm'.
-  move => Hte Htt.
   case Heq : (v1 == v).
   rewrite StructStateP.Lemmas.P.F.add_eq_o in Hte.
-  rewrite StructStateP.Lemmas.P.F.add_eq_o in Htt.
-  inversion Htt.
-  rewrite -Hte.
+  rewrite StructStateP.Lemmas.P.F.add_eq_o.
   simpl.
-  done.
+  rewrite -Hte //.
   1,2: move /eqP : Heq => Heq.
   1,2: rewrite Heq.
   1,2: apply CEP.SE.eq_refl.
 
   rewrite StructStateP.Lemmas.add_neq_o in Hte.
-  rewrite StructStateP.Lemmas.add_neq_o in Htt.
-  apply Hpre with (v := v1); try by done.
+  rewrite StructStateP.Lemmas.add_neq_o.
+  apply Hpre with (v := v1) (texpr1 := texpr1); try by done.
 
   1,2:apply contra_not with (P := (v1 == v)).
   1,3:apply StructStateP.Lemmas_M.KeySetoid.
@@ -1216,21 +1223,10 @@ Lemma Tchoice_no_none : forall c t1 t2, connection_tree2expr (T_choice c t1 t2) 
 Proof.
   intros.
   case H1 : t1.
-  case H2 : t2.
+  case H2 : t2; simpl; done.
+  case H2 : t2 => [|||c0 s1 s2]; simpl; try done.
 
-Admitted.
 
-Lemma texpr_match_ttree_none s : forall seq_init cm cm' tm v, texpr_match_ttree cm tm -> CEP.find v (expandBranch_connection_trees s tm) = None -> 
-(expandBranch_funs s seq_init (OK cm)).2 = OK cm' -> (CEP.find v cm') = None.
-Proof.
-  induction s.
-  
-Admitted.
-
-Lemma ttree_match_texpr_none: forall s seq_init cm cm' tm v, texpr_match_ttree cm tm -> (expandBranch_funs s seq_init (OK cm)).2 = OK cm'
--> (CEP.find v cm') = None -> CEP.find v (expandBranch_connection_trees s tm) = None.
-Proof.
-  
 Admitted.
 
 Lemma expandBranch_connection_when_match' : 
@@ -1309,33 +1305,15 @@ rewrite H' in Hm2.
   rewrite Ht2' in Hm2.
   case Ht1 : ttree1 => [||e1|c1 tt1 ft1].
   - (* undefined *)
-    (* case Hs' : s' => [seq_init'|].
-    rewrite H Hs' Hm' in H1.
-    move : H1 => [_ H1].
-    rewrite /well_connected_m in H1.
-    specialize H1 with (v := v).
-    case Hf : (CEP.find v cm') => [y|].
-    rewrite Hf in H1.
-    case Hy : y => [||].
-    rewrite Hy in H1; discriminate.
-    apply Hm1 with (texpr1 := Some y)in Ht1';try done.
-    rewrite Hy Ht1 in Ht1'.
-    simpl in Ht1'.
-    discriminate.
-    apply Hm1 with (texpr1 := Some y)in Ht1'; try done.
-    rewrite Hy Ht1 in Ht1'.
-    simpl in Ht1'.
-    discriminate.
-    apply Hm1 with (texpr1 := None)in Ht1'; try done.
-    rewrite Ht1 in Ht1'.
-    simpl in Ht1'.
-    discriminate.
-    rewrite H Hs' in H1; done.*)
-    admit.
-  - (* T_invalid *)
   case Ht2 : ttree2 => [||e2|c2 tt2 ft2].
     - (* T_undefined *)
-    admit.
+    simpl.
+    rewrite -Hexpr0.
+    rewrite (Hm1 (Logic.eq_refl (CEP.find v cm'))).
+    rewrite (Hm2 (Logic.eq_refl (CEP.find v cm2))).
+    rewrite Ht1 Ht2.
+    simpl.
+    done.
     - (* T_invalid *)
     simpl.
     rewrite -Hexpr0.
@@ -1344,60 +1322,77 @@ rewrite H' in Hm2.
     rewrite Ht1 Ht2.
     simpl.
     done.
-    (* rewrite Ht1 Ht2 in Htree0.
-    simpl in Htree0.
-    inversion Htree0.
-    specialize Hm1 with (v := v) (texpr1 := (CEP.find v cm')) (ttree1 := ttree1).
-    rewrite Ht1 in Hm1.
-    simpl in Hm1.
-    specialize Hm2 with (v := v) (texpr1 := (CEP.find v cm2)) (ttree1 := ttree2).
-    rewrite Ht2 in Hm2.
-    simpl in Hm2.
-    rewrite Hm1 in Hexpr0; try by done.
-    rewrite Hm2 in Hexpr0; try by done.
-    rewrite -Ht2 //.
-    rewrite -Ht1 //. *)
     - (* T_expr *)
-    rewrite Ht1 Ht2 in Htree0.
-    simpl in Htree0.
-    inversion Htree0.
-    specialize Hm1 with (v := v) (texpr1 := (CEP.find v cm')) (ttree1 := ttree1).
-    rewrite Ht1 in Hm1.
-    simpl in Hm1.
-    specialize Hm2 with (v := v) (texpr1 := (CEP.find v cm2)) (ttree1 := ttree2).
-    rewrite Ht2 in Hm2.
-    simpl in Hm2.
-    rewrite Hm1 in Hexpr0; try by done.
-    rewrite Hm2 in Hexpr0; try by done.
-    rewrite -Ht2 //.
-    rewrite -Ht1 //.
+    simpl.
+    rewrite -Hexpr0.
+    rewrite (Hm1 (Logic.eq_refl (CEP.find v cm'))).
+    rewrite (Hm2 (Logic.eq_refl (CEP.find v cm2))).
+    rewrite Ht1 Ht2.
+    simpl.
+    done.
     - (* T_choice *)
-    rewrite Ht1 Ht2 in Htree0.
-    simpl in Htree0.
-    inversion Htree0.
-    specialize Hm1 with (v := v) (texpr1 := (CEP.find v cm')) (ttree1 := ttree1).
-    rewrite Ht1 in Hm1.
-    simpl in Hm1.
-    specialize Hm2 with (v := v) (texpr1 := (CEP.find v cm2)) (ttree1 := ttree2).
-    rewrite Ht2 in Hm2.
+    simpl.
+    rewrite -Hexpr0.
+    rewrite (Hm1 (Logic.eq_refl (CEP.find v cm'))).
+    rewrite (Hm2 (Logic.eq_refl (CEP.find v cm2))).
+    rewrite Ht1 Ht2.
+    case Hb2: (connection_tree2expr (T_choice c2 tt2 ft2)) => [texpr'|].
+    case Htexpr': texpr' => [||te']; try by done.
+    simpl; done.
+  - (* T_invalid *)
+  case Ht2 : ttree2 => [||e2|c2 tt2 ft2].
+    - (* T_undefined *)
+    simpl.
+    rewrite -Hexpr0.
+    rewrite (Hm1 (Logic.eq_refl (CEP.find v cm'))).
+    rewrite (Hm2 (Logic.eq_refl (CEP.find v cm2))).
+    rewrite Ht1 Ht2.
+    simpl.
+    done.
+    - (* T_invalid *)
+    simpl.
+    rewrite -Hexpr0.
+    rewrite (Hm1 (Logic.eq_refl (CEP.find v cm'))).
+    rewrite (Hm2 (Logic.eq_refl (CEP.find v cm2))).
+    rewrite Ht1 Ht2.
+    simpl.
+    done.
+    - (* T_expr *)
+    simpl.
+    rewrite -Hexpr0.
+    rewrite (Hm1 (Logic.eq_refl (CEP.find v cm'))).
+    rewrite (Hm2 (Logic.eq_refl (CEP.find v cm2))).
+    rewrite Ht1 Ht2.
+    simpl.
+    done.
+    - (* T_choice *)
+    rewrite -Hexpr0.
+    rewrite (Hm1 (Logic.eq_refl (CEP.find v cm'))).
+    rewrite (Hm2 (Logic.eq_refl (CEP.find v cm2))).
+    rewrite Ht1 Ht2.
     case Hb2: (connection_tree2expr (T_choice c2 tt2 ft2)) => [texpr|].
     case Htexpr: texpr => [||te]; try by done.
       - (* undefined *)
-      admit.
+        rewrite {1}/connection_tree2expr.
+        rewrite {2}/connection_tree2expr.
+        rewrite /helper_tf.
+        simpl in Hb2.
+        simpl.
+        rewrite Hb2 Htexpr //.
       - (* invalid *)
-      rewrite Htexpr in Hb2.
-      rewrite Hb2 in Hm2.
-      rewrite Hm1 in Hexpr0; try by done.
-      rewrite Hm2 in Hexpr0; try by done.
-      rewrite -Ht2 //.
-      rewrite -Ht1 //.
+        rewrite {1}/connection_tree2expr.
+        rewrite {2}/connection_tree2expr.
+        rewrite /helper_tf.
+        simpl in Hb2.
+        simpl.
+        rewrite Hb2 Htexpr //.
       - (* expr *)
-      rewrite Htexpr in Hb2.
-      rewrite Hb2 in Hm2.
-      rewrite Hm1 in Hexpr0; try by done.
-      rewrite Hm2 in Hexpr0; try by done.
-      rewrite -Ht2 //.
-      rewrite -Ht1 //.
+        rewrite {1}/connection_tree2expr.
+        rewrite {2}/connection_tree2expr.
+        rewrite /helper_tf.
+        simpl in Hb2.
+        simpl.
+        rewrite Hb2 Htexpr //.
       - (* T_choice 不全是none *)
       specialize Tchoice_no_none with (c := c2) (t1 := tt2) (t2 := ft2).
       move => Ht.
@@ -1405,292 +1400,296 @@ rewrite H' in Hm2.
   - (* T_expr *)
   case Ht2 : ttree2 => [||e2|c2 tt2 ft2].
     - (* T_undefined *)
-    admit.
+    simpl.
+    rewrite -Hexpr0.
+    rewrite (Hm1 (Logic.eq_refl (CEP.find v cm'))).
+    rewrite (Hm2 (Logic.eq_refl (CEP.find v cm2))).
+    rewrite Ht1 Ht2.
+    simpl.
+    done.
     - (* T_invalid *)
-    rewrite Ht1 Ht2 in Htree0.
-    simpl in Htree0.
-    inversion Htree0.
-    specialize Hm1 with (v := v) (texpr1 := (CEP.find v cm')) (ttree1 := ttree1).
-    rewrite Ht1 in Hm1.
-    simpl in Hm1.
-    specialize Hm2 with (v := v) (texpr1 := (CEP.find v cm2)) (ttree1 := ttree2).
-    rewrite Ht2 in Hm2.
-    simpl in Hm2.
-    rewrite Hm1 in Hexpr0; try by done.
-    rewrite Hm2 in Hexpr0; try by done.
-    rewrite -Ht2 //.
-    rewrite -Ht1 //.
+    simpl.
+    rewrite -Hexpr0.
+    rewrite (Hm1 (Logic.eq_refl (CEP.find v cm'))).
+    rewrite (Hm2 (Logic.eq_refl (CEP.find v cm2))).
+    rewrite Ht1 Ht2.
+    simpl.
+    done.
     - (* T_expr *)
-    rewrite Ht1 Ht2 in Htree0.
-    simpl in Htree0.
-    inversion Htree0.
-    specialize Hm1 with (v := v) (texpr1 := (CEP.find v cm')) (ttree1 := ttree1).
-    rewrite Ht1 in Hm1.
-    simpl in Hm1.
-    specialize Hm2 with (v := v) (texpr1 := (CEP.find v cm2)) (ttree1 := ttree2).
-    rewrite Ht2 in Hm2.
-    simpl in Hm2.
-    rewrite Hm1 in Hexpr0; try by done.
-    rewrite Hm2 in Hexpr0; try by done.
-    rewrite -Ht2 //.
-    rewrite -Ht1 //.
+    simpl.
+    rewrite -Hexpr0.
+    rewrite (Hm1 (Logic.eq_refl (CEP.find v cm'))).
+    rewrite (Hm2 (Logic.eq_refl (CEP.find v cm2))).
+    rewrite Ht1 Ht2.
+    simpl.
+    done.
     - (* T_choice *)
-    rewrite Ht1 Ht2 in Htree0.
-    simpl in Htree0.
-    inversion Htree0.
-    specialize Hm1 with (v := v) (texpr1 := (CEP.find v cm')) (ttree1 := ttree1).
-    rewrite Ht1 in Hm1.
-    simpl in Hm1.
-    specialize Hm2 with (v := v) (texpr1 := (CEP.find v cm2)) (ttree1 := ttree2).
-    rewrite Ht2 in Hm2.
-    case Hb2: (connection_tree2expr (T_choice c2 tt2 ft2)) => [texpr|]; try by done.
+    rewrite -Hexpr0.
+    rewrite (Hm1 (Logic.eq_refl (CEP.find v cm'))).
+    rewrite (Hm2 (Logic.eq_refl (CEP.find v cm2))).
+    rewrite Ht1 Ht2.
+    case Hb2: (connection_tree2expr (T_choice c2 tt2 ft2)) => [texpr|].
     case Htexpr: texpr => [||te]; try by done.
       - (* undefined *)
-      admit.
+        rewrite {1}/connection_tree2expr.
+        rewrite {2}/connection_tree2expr.
+        rewrite /helper_tf.
+        rewrite Htexpr in Hb2.
+        simpl in Hb2.
+        simpl.
+        rewrite Hb2 //.
       - (* invalid *)
-      rewrite Htexpr in Hb2.
-      rewrite Hb2 in Hm2.
-      rewrite Hm1 in Hexpr0; try by done.
-      rewrite Hm2 in Hexpr0; try by done.
-      simpl in Hexpr0.
-      unfold connection_tree2expr; fold connection_tree2expr.
-      simpl in Hb2.
-      rewrite Hb2.
-      rewrite -Hexpr0 //.
-      rewrite -Ht2 //.
-      rewrite -Ht1 //.
+        rewrite {1}/connection_tree2expr.
+        rewrite {2}/connection_tree2expr.
+        rewrite /helper_tf.
+        simpl in Hb2.
+        simpl.
+        rewrite Hb2 Htexpr //.
       - (* expr *)
-      rewrite Htexpr in Hb2.
-      rewrite Hb2 in Hm2.
-      rewrite Hm1 in Hexpr0; try by done.
-      rewrite Hm2 in Hexpr0; try by done.
-      simpl in Hexpr0.
-      unfold connection_tree2expr; fold connection_tree2expr.
-      simpl in Hb2.
-      rewrite Hb2.
-      rewrite -Hexpr0 //.
-      rewrite -Ht2 //.
-      rewrite -Ht1 //.
-      - admit.
+        rewrite {1}/connection_tree2expr.
+        rewrite {2}/connection_tree2expr.
+        rewrite /helper_tf.
+        simpl in Hb2.
+        simpl.
+        rewrite Hb2 Htexpr //.
+      - (* T_choice 不全是none *)
+      specialize Tchoice_no_none with (c := c2) (t1 := tt2) (t2 := ft2).
+      move => Ht.
+      rewrite Hb2 in Ht; discriminate.
   - (* T_choice *)
   case Hb1: (connection_tree2expr (T_choice c1 tt1 ft1)) => [texpr|]; try by done.
     case Htexpr1: texpr => [||te]; try by done.
     rewrite Htexpr1 in Hb1.
-    admit. (* undefined *)
+    - (* undefined *)
+    (*rewrite Ht1 in Hm1.
+    rewrite -(Hm1 (Logic.eq_refl (CEP.find v cm'))) in Hb1.
+    rewrite Hb1 in Hexpr0.
+    simpl in Hexpr0.
+    assert (Hh : texpr0 = Some D_undefined).
+    case Hh' : (CEP.find v cm2) => [a|]; rewrite Hh' in Hexpr0.
+    1,2: rewrite Hexpr0 //.
+    clear Hexpr0.
+    rewrite Hh. *)
+    case Ht2 : ttree2 => [||e2|c2 tt2 ft2].
+      - (* T_undefined *)
+      simpl.
+      rewrite -Hexpr0.
+      rewrite (Hm1 (Logic.eq_refl (CEP.find v cm'))).
+      rewrite (Hm2 (Logic.eq_refl (CEP.find v cm2))).
+      rewrite Ht1 Ht2 Hb1.
+      simpl.
+      done.
+      - (* T_invalid *)
+      simpl in Hb1.
+      simpl.
+      rewrite Hb1.
+      rewrite -Hexpr0.
+      rewrite (Hm1 (Logic.eq_refl (CEP.find v cm'))).
+      rewrite (Hm2 (Logic.eq_refl (CEP.find v cm2))).
+      rewrite Ht1 Ht2.
+      simpl.
+      rewrite Hb1.
+      done.
+      - (* T_expr *)
+      simpl in Hb1.
+      simpl.
+      rewrite Hb1.
+      rewrite -Hexpr0.
+      rewrite (Hm1 (Logic.eq_refl (CEP.find v cm'))).
+      rewrite (Hm2 (Logic.eq_refl (CEP.find v cm2))).
+      rewrite Ht1 Ht2.
+      simpl.
+      rewrite Hb1.
+      done.
+      - (* T_choice *)
+      simpl.
+      simpl in Hb1.
+      rewrite Hb1.
+      rewrite -Hexpr0.
+      rewrite (Hm1 (Logic.eq_refl (CEP.find v cm'))).
+      rewrite (Hm2 (Logic.eq_refl (CEP.find v cm2))).
+      rewrite Ht1 Ht2.
+      simpl.
+      rewrite Hb1.
+      case Hb2: (connection_tree2expr (T_choice c2 tt2 ft2)) => [texpr'|].
+      case Htexpr': texpr' => [||te']; try by done.
+      simpl in Hb2.
+      rewrite Hb2.
+      simpl; done.
+      simpl in Hb2.
+      rewrite Hb2.
+      simpl; done.
+      simpl in Hb2.
+      rewrite Hb2.
+      simpl; done.
+      simpl in Hb2.
+      rewrite Hb2.
+      simpl; done.
     - (* invalid *)
     case Ht2 : ttree2 => [||e2|c2 tt2 ft2].
       - (* T_undefined *)
-      admit.
-      - (* T_invalid *)
+      rewrite -Hexpr0.
+      rewrite (Hm1 (Logic.eq_refl (CEP.find v cm'))).
+      rewrite (Hm2 (Logic.eq_refl (CEP.find v cm2))).
+      rewrite Ht1 Ht2.
       rewrite Htexpr1 in Hb1.
-      rewrite Ht1 Ht2 in Htree0.
-      simpl in Htree0.
-      inversion Htree0.
-      rewrite Hb1.
-      specialize Hm1 with (v := v) (texpr1 := (CEP.find v cm')) (ttree1 := ttree1).
-      rewrite Ht1 Hb1 in Hm1.
-      specialize Hm2 with (v := v) (texpr1 := (CEP.find v cm2)) (ttree1 := ttree2).
-      rewrite Ht2 in Hm2.
-      simpl in Hm2.
-      rewrite Hm1 in Hexpr0; try by done.
-      rewrite Hm2 in Hexpr0; try by done.
-      rewrite -Ht2 //.
-      rewrite -Ht1 //.
-      - (* T_expr *)
-      rewrite Htexpr1 in Hb1.
-      rewrite Ht1 Ht2 in Htree0.
-      simpl in Htree0.
-      inversion Htree0.
-      specialize Hm1 with (v := v) (texpr1 := (CEP.find v cm')) (ttree1 := ttree1).
-      rewrite Ht1 Hb1 in Hm1.
-      specialize Hm2 with (v := v) (texpr1 := (CEP.find v cm2)) (ttree1 := ttree2).
-      rewrite Ht2 in Hm2.
-      simpl in Hm2.
-      rewrite Hm1 in Hexpr0; try by done.
-      rewrite Hm2 in Hexpr0; try by done.
-      simpl in Hexpr0.
       simpl in Hb1.
       simpl.
       rewrite Hb1.
-      rewrite -Hexpr0 //.
-      rewrite -Ht2 //.
-      rewrite -Ht1 //.
+      simpl.
+      done.
+      - (* T_invalid *)
+      rewrite -Hexpr0.
+      rewrite (Hm1 (Logic.eq_refl (CEP.find v cm'))).
+      rewrite (Hm2 (Logic.eq_refl (CEP.find v cm2))).
+      rewrite Ht1 Ht2.
+      rewrite Htexpr1 in Hb1.
+      simpl in Hb1.
+      simpl.
+      rewrite Hb1.
+      simpl.
+      done.
+      - (* T_expr *)
+      rewrite -Hexpr0.
+      rewrite (Hm1 (Logic.eq_refl (CEP.find v cm'))).
+      rewrite (Hm2 (Logic.eq_refl (CEP.find v cm2))).
+      rewrite Ht1 Ht2.
+      rewrite Htexpr1 in Hb1.
+      simpl in Hb1.
+      simpl.
+      rewrite Hb1.
+      simpl.
+      done.
       - (* T_choice *)
-      case Hb2: (connection_tree2expr (T_choice c2 tt2 ft2)) => [texpr'|]; try by done.
-      case Htexpr2: texpr' => [||te']; try by done.
-      rewrite Htexpr2 in Hb2.
-        (* undefined *)
-        admit.
-        (* invalid *)
-        rewrite Htexpr1 in Hb1.
-        rewrite Htexpr2 in Hb2.
-        rewrite Ht1 Ht2 in Htree0.
-        simpl in Htree0.
-        inversion Htree0.
-        specialize Hm1 with (v := v) (texpr1 := (CEP.find v cm')) (ttree1 := ttree1).
-        rewrite Ht1 Hb1 in Hm1.
-        specialize Hm2 with (v := v) (texpr1 := (CEP.find v cm2)) (ttree1 := ttree2).
-        rewrite Ht2 in Hm2.
-        rewrite Hm1 in Hexpr0; try by done.
-        rewrite Hm2 in Hexpr0; try by done.
-        rewrite Hb2 in Hexpr0.
-        simpl in Hexpr0.
-        simpl in Hb1.
-        simpl in Hb2.
-        simpl.
-        rewrite Hb1 Hb2.
-        rewrite -Hexpr0 //.
-        rewrite -Ht2 //.
-        rewrite -Ht1 //.
-        (* expr *)
-        rewrite Htexpr1 in Hb1.
-        rewrite Htexpr2 in Hb2.
-        rewrite Ht1 Ht2 in Htree0.
-        simpl in Htree0.
-        inversion Htree0.
-        specialize Hm1 with (v := v) (texpr1 := (CEP.find v cm')) (ttree1 := ttree1).
-        rewrite Ht1 Hb1 in Hm1.
-        specialize Hm2 with (v := v) (texpr1 := (CEP.find v cm2)) (ttree1 := ttree2).
-        rewrite Ht2 in Hm2.
-        rewrite Hm1 in Hexpr0; try by done.
-        rewrite Hm2 in Hexpr0; try by done.
-        rewrite Hb2 in Hexpr0.
-        simpl in Hexpr0.
-        simpl in Hb1.
-        simpl in Hb2.
-        simpl.
-        rewrite Hb1 Hb2.
-        rewrite -Hexpr0 //.
-        rewrite -Ht2 //.
-        rewrite -Ht1 //.
-        (* None *)
-        admit.
+      rewrite -Hexpr0.
+      rewrite (Hm1 (Logic.eq_refl (CEP.find v cm'))).
+      rewrite (Hm2 (Logic.eq_refl (CEP.find v cm2))).
+      rewrite Htexpr1 in Hb1.
+      rewrite Ht1 Ht2.
+      case Hb2: (connection_tree2expr (T_choice c2 tt2 ft2)) => [texpr'|].
+      case Htexpr': texpr' => [||te']; try by done.
+      rewrite Htexpr' in Hb2.
+        - (* undefined *)
+          simpl in Hb1.
+          simpl in Hb2.
+          simpl.
+          rewrite Hb1 Hb2.
+          simpl.
+          done.
+        - (* invalid *)
+          simpl in Hb1.
+          simpl in Hb2.
+          simpl.
+          rewrite Hb1 Hb2 Htexpr'.
+          simpl.
+          done.
+        - (* expr *)
+          simpl in Hb1.
+          simpl in Hb2.
+          simpl.
+          rewrite Hb1 Hb2 Htexpr'.
+          simpl.
+          done.
+        - (* T_choice 不全是none *)
+          specialize Tchoice_no_none with (c := c2) (t1 := tt2) (t2 := ft2).
+          move => Ht.
+          rewrite Hb2 in Ht; discriminate.
     - (* expr *)
     case Ht2 : ttree2 => [||e2|c2 tt2 ft2].
       - (* T_undefined *)
-      admit.
-      - (* T_invalid *)
+      rewrite -Hexpr0.
+      rewrite (Hm1 (Logic.eq_refl (CEP.find v cm'))).
+      rewrite (Hm2 (Logic.eq_refl (CEP.find v cm2))).
       rewrite Htexpr1 in Hb1.
-      rewrite Ht1 Ht2 in Htree0.
-      simpl in Htree0.
-      inversion Htree0.
+      simpl in Hb1.
+      simpl.
+      rewrite Ht1 Ht2.
+      simpl.
       rewrite Hb1.
-      specialize Hm1 with (v := v) (texpr1 := (CEP.find v cm')) (ttree1 := ttree1).
-      rewrite Ht1 Hb1 in Hm1.
-      specialize Hm2 with (v := v) (texpr1 := (CEP.find v cm2)) (ttree1 := ttree2).
-      rewrite Ht2 in Hm2.
-      simpl in Hm2.
-      rewrite Hm1 in Hexpr0; try by done.
-      rewrite Hm2 in Hexpr0; try by done.
-      rewrite -Ht2 //.
-      rewrite -Ht1 //.
-      - (* T_expr *)
+      simpl.
+      done.
+      - (* T_invalid *)
+      rewrite -Hexpr0.
+      rewrite (Hm1 (Logic.eq_refl (CEP.find v cm'))).
+      rewrite (Hm2 (Logic.eq_refl (CEP.find v cm2))).
+      rewrite Ht1 Ht2.
       rewrite Htexpr1 in Hb1.
-      rewrite Ht1 Ht2 in Htree0.
-      simpl in Htree0.
-      inversion Htree0.
-      specialize Hm1 with (v := v) (texpr1 := (CEP.find v cm')) (ttree1 := ttree1).
-      rewrite Ht1 Hb1 in Hm1.
-      specialize Hm2 with (v := v) (texpr1 := (CEP.find v cm2)) (ttree1 := ttree2).
-      rewrite Ht2 in Hm2.
-      simpl in Hm2.
-      rewrite Hm1 in Hexpr0; try by done.
-      rewrite Hm2 in Hexpr0; try by done.
-      simpl in Hexpr0.
       simpl in Hb1.
       simpl.
       rewrite Hb1.
-      rewrite -Hexpr0 //.
-      rewrite -Ht2 //.
-      rewrite -Ht1 //.
+      simpl.
+      done.
+      - (* T_expr *)
+      rewrite -Hexpr0.
+      rewrite (Hm1 (Logic.eq_refl (CEP.find v cm'))).
+      rewrite (Hm2 (Logic.eq_refl (CEP.find v cm2))).
+      rewrite Ht1 Ht2.
+      rewrite Htexpr1 in Hb1.
+      simpl in Hb1.
+      simpl.
+      rewrite Hb1.
+      simpl.
+      done.
       - (* T_choice *)
-      case Hb2: (connection_tree2expr (T_choice c2 tt2 ft2)) => [texpr'|]; try by done.
-      case Htexpr2: texpr' => [||te']; try by done.
-      rewrite Htexpr2 in Hb2.
-        (* undefined *)
-        admit.
-        (* invalid *)
-        rewrite Htexpr1 in Hb1.
-        rewrite Htexpr2 in Hb2.
-        rewrite Ht1 Ht2 in Htree0.
-        simpl in Htree0.
-        inversion Htree0.
-        specialize Hm1 with (v := v) (texpr1 := (CEP.find v cm')) (ttree1 := ttree1).
-        rewrite Ht1 Hb1 in Hm1.
-        specialize Hm2 with (v := v) (texpr1 := (CEP.find v cm2)) (ttree1 := ttree2).
-        rewrite Ht2 in Hm2.
-        rewrite Hm1 in Hexpr0; try by done.
-        rewrite Hm2 in Hexpr0; try by done.
-        rewrite Hb2 in Hexpr0.
-        simpl in Hexpr0.
-        simpl in Hb1.
-        simpl in Hb2.
-        simpl.
-        rewrite Hb1 Hb2.
-        rewrite -Hexpr0 //.
-        rewrite -Ht2 //.
-        rewrite -Ht1 //.
-        (* expr *)
-        rewrite Htexpr1 in Hb1.
-        rewrite Htexpr2 in Hb2.
-        rewrite Ht1 Ht2 in Htree0.
-        simpl in Htree0.
-        inversion Htree0.
-        specialize Hm1 with (v := v) (texpr1 := (CEP.find v cm')) (ttree1 := ttree1).
-        rewrite Ht1 Hb1 in Hm1.
-        specialize Hm2 with (v := v) (texpr1 := (CEP.find v cm2)) (ttree1 := ttree2).
-        rewrite Ht2 in Hm2.
-        rewrite Hm1 in Hexpr0; try by done.
-        rewrite Hm2 in Hexpr0; try by done.
-        rewrite Hb2 in Hexpr0.
-        simpl in Hexpr0.
-        simpl in Hb1.
-        simpl in Hb2.
-        simpl.
-        rewrite Hb1 Hb2.
-        rewrite -Hexpr0 //.
-        rewrite -Ht2 //.
-        rewrite -Ht1 //.
-        (* None *)
-        admit.
-  admit.
-  (* 2 为none *)
-  rewrite Ht1' Ht2' in Htree0.
-  simpl in Htree0.
-  assert (Htree0' : ttree1 = ttree0).
-  case Htt1 : ttree1; rewrite Htt1 in Htree0.
-  inversion Htree0; reflexivity.
-  inversion Htree0; reflexivity.
-  inversion Htree0; reflexivity.
-  inversion Htree0; reflexivity.
-  clear Htree0.
-  rewrite -Htree0'.
-  case Hfind1 : (CEP.find v cm') => [texpr1|].
-  apply Hm1 with (texpr1 := Some texpr1) in Ht1'; try done.
-  assert (Htexpr01 : texpr0 = Some texpr1).
-
-  (*forall s seq_init, texpr_match_ttree cm tm -> CEP.find v (expandBranch_connection_trees s tm) = None -> 
-  (expandBranch_funs s seq_init (OK cm)).2 = OK cm2 -> (CEP.find v cm2) = None. *)
-
-  assert (Hfind2 : (CEP.find v cm2) = None).
-  admit.
-  rewrite Hfind1 Hfind2 in Hexpr0.
-  simpl in Hexpr0.
-  case H1' : texpr1; rewrite H1' in Hexpr0.
-  1,2,3: rewrite -Hexpr0 //.
-  rewrite Htexpr01 //.
-
-  (*forall s seq_init, texpr_match_ttree cm tm -> (expandBranch_funs s seq_init (OK cm)).2 = OK cm2 
-  -> (CEP.find v cm2) = None -> CEP.find v (expandBranch_connection_trees s tm) = None. *)
-  admit.
-
-  (* 1 为none *)
-  assert (Hfind1 : (CEP.find v cm') = None).
-  admit.
-
-  admit.
-  1,2: simpl.
-  1,2: done.
+      rewrite -Hexpr0.
+      rewrite (Hm1 (Logic.eq_refl (CEP.find v cm'))).
+      rewrite (Hm2 (Logic.eq_refl (CEP.find v cm2))).
+      rewrite Htexpr1 in Hb1.
+      rewrite Ht1 Ht2.
+      case Hb2: (connection_tree2expr (T_choice c2 tt2 ft2)) => [texpr'|].
+      case Htexpr': texpr' => [||te']; try by done.
+      rewrite Htexpr' in Hb2.
+        - (* undefined *)
+          simpl in Hb1.
+          simpl in Hb2.
+          simpl.
+          rewrite Hb1 Hb2.
+          simpl.
+          done.
+        - (* invalid *)
+          simpl in Hb1.
+          simpl in Hb2.
+          simpl.
+          rewrite Hb1 Hb2 Htexpr'.
+          simpl.
+          done.
+        - (* expr *)
+          simpl in Hb1.
+          simpl in Hb2.
+          simpl.
+          rewrite Hb1 Hb2 Htexpr'.
+          simpl.
+          done.
+        - (* T_choice 不全是none *)
+          specialize Tchoice_no_none with (c := c2) (t1 := tt2) (t2 := ft2).
+          move => Ht.
+          rewrite Hb2 in Ht; discriminate.
+      - specialize Tchoice_no_none with (c := c1) (t1 := tt1) (t2 := ft1).
+        move => Ht.
+        rewrite Hb1 in Ht; discriminate.
+    - (* None *)
+      assert (Hh : helper_tree c (Some ttree1) None = (Some ttree1)).
+      simpl.
+      case Hh' : ttree1; try by done.
+      rewrite Ht2' in Hm2.
+      rewrite Hh -Hexpr0 (Hm1 (Logic.eq_refl (CEP.find v cm'))).
+      rewrite (Hm2 (Logic.eq_refl (CEP.find v cm2))).
+      rewrite /helper_tf.
+      case Hh' : (connection_tree2expr ttree1) => [a|]; try by done.
+      case Hh'' : a; try by done.
+  - (* None *)
+    assert (Hh : helper_tree c None (CEP.find v (expandBranch_connection_trees s2 tm)) = (CEP.find v (expandBranch_connection_trees s2 tm))).
+    case Hh' : ((CEP.find v (expandBranch_connection_trees s2 tm))) => [a|]; try by done.
+    rewrite Ht1' in Hm1.
+    rewrite Hh -Hexpr0 (Hm1 (Logic.eq_refl (CEP.find v cm'))).
+    case Hh' : (CEP.find v (expandBranch_connection_trees s2 tm)) => [a|];try by done.
+    rewrite Hh' in Hm2.
+    rewrite (Hm2 (Logic.eq_refl (CEP.find v cm2))).
+    simpl.
+    case Hh'' : (connection_tree2expr a); try by done.
+    rewrite Hh' in Hm2.
+    rewrite (Hm2 (Logic.eq_refl (CEP.find v cm2))).
+  1,2,3: simpl; done.
 
 rewrite H' in H2; done.
 rewrite H' in H2; done.
@@ -1700,8 +1699,7 @@ rewrite H Hs' in H1; done.
 case Hs' : s' => [seq_init'|].
 rewrite H Hs' Hm' in H1; done.
 rewrite H Hs' in H1; done.
-  Admitted.
-
+Qed.
 
 Lemma expandBranch_connection_stmt_match (s : HiFP.hfstmt) :
   forall cm cm0 tm tm' (seq_result : HiFP.hfstmt_seq),
@@ -1762,8 +1760,7 @@ Proof.
   case Hs' : s' => [seq_init'|].
   case Hm' : m' => [cm1||].
   rewrite Hs' Hm' in H.
-  rewrite H in H1. 
-  move : H1 => [H1 _]; done.
+  rewrite H in H1; done.
   rewrite Hs' Hm' in H.
   rewrite H in H1; done.
   rewrite Hs' Hm' in H.
@@ -1777,8 +1774,7 @@ Proof.
   rewrite H Hs' in H2.
   simpl in H2.
   case H' : (expandBranch_funs s2 (Some seq_init') (OK cm)).2 => [cm2||].
-  rewrite H' in H2.
-  move : H2 => [H2 _]; done.
+  rewrite H' in H2; done.
   rewrite H' in H2; done.
   rewrite H' in H2; done.
   rewrite H Hs' in H1; done.
@@ -1827,25 +1823,59 @@ Proof.
   - move => cm seq_result Hwd.
     simpl.
     exists (CEP.add v D_undefined cm); done.
-  admit.
-  admit.
-  admit.
-  admit.
   - move => cm seq_result Hwd.
     simpl.
-    admit.
-  admit.
+    exists (CEP.add v (D_fexpr (Eref (Eid v))) cm); done.
+  - move => cm seq_result Hwd.
+    simpl.
+    exists (CEP.add v D_undefined cm); done.
+  - move => cm seq_result Hwd.
+    simpl.
+    exists (CEP.add v D_undefined cm); done.
+  - move => cm seq_result Hwd.
+    simpl.
+    exists cm; done.
   - move => cm seq_result Hwd.
     simpl.
     simpl in Hwd.
-
-
-
-Admitted.
+    move : Hs Hwd. 
+    case Hv:v => [v0|||]; try done.
+    move => Hs Hmem.
+    case Hfind : (CEP.find v0 cm) => [a|].
+    exists (CEP.add v0 (D_fexpr e) cm); done.
+    apply StructStateP.Lemmas.find_none_not_mem in Hfind. 
+    rewrite Hfind in Hmem; discriminate.
+  - move => cm seq_result Hwd.
+    simpl.
+    simpl in Hwd.
+    move : Hs Hwd. 
+    case Hv:v => [v0|||]; try done.
+    move => Hs Hmem.
+    case Hfind : (CEP.find v0 cm) => [a|].
+    exists (CEP.add v0 D_invalidated cm); done.
+    apply StructStateP.Lemmas.find_none_not_mem in Hfind. 
+    rewrite Hfind in Hmem; discriminate.
+  - move => cm seq_result Hwd.
+    simpl.
+    simpl in Hwd.
+    move : Hwd => [H1 H2].
+    case Hh : (expandBranch_funs s1 seq_result (OK cm)) => [s' m'].
+    case Hh' : s' => [seq_init'|]; rewrite Hh Hh' in H1; try done.
+    case Hh'' : m' => [cm1||]; rewrite Hh'' in H1; try done.
+    simpl.
+    case Hh''' : (expandBranch_funs s2 (Some seq_init') (OK cm)).2 => [cm2||]; rewrite Hh Hh' Hh''' in H2; try done.
+    exists (CEP.map2 (helper_tf c) cm1 cm2); done.
+Qed.
 
 Lemma expandBranchs_good_answer ss :
-  forall cm seq_init, well_defined_stmts ss cm seq_init -> exists cm', (expandBranch_funs ss seq_init cm).2 = OK cm'.
+  forall cm seq_init, well_defined_stmts ss (OK cm) seq_init -> exists cm', (expandBranch_funs ss seq_init (OK cm)).2 = OK cm'.
 Proof.
+  induction ss. 
+  simpl.
+  intros.
+  exists cm; done.
+  intros.
+  simpl.
   
 Admitted.
 
