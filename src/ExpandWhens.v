@@ -1876,8 +1876,29 @@ Proof.
   exists cm; done.
   intros.
   simpl.
-  
-Admitted.
+  case Hm : (expandBranch_fun h seq_init (OK cm)).2 => [cm'||].
+  apply IHss.
+  simpl in H. 
+  move : H => [H1 H2].
+  move : H2 => [H0 H2].
+  rewrite Hm in H2; done.
+  simpl in H. 
+  move : H => [H1 H2].
+  move : H2 => [H0 H2].
+  case Hh : (expandBranch_fun h seq_init (OK cm)) => [s' m'].
+  case Hh' : s' => [seq_init'|]; rewrite Hh Hh' in H0; try done.
+  rewrite Hh in Hm. 
+  simpl in Hm.
+  rewrite Hm in H0; done.
+  simpl in H. 
+  move : H => [H1 H2].
+  move : H2 => [H0 H2].
+  case Hh : (expandBranch_fun h seq_init (OK cm)) => [s' m'].
+  case Hh' : s' => [seq_init'|]; rewrite Hh Hh' in H0; try done.
+  rewrite Hh in Hm. 
+  simpl in Hm.
+  rewrite Hm in H0; done.
+  Qed.
 
 Definition well_typed_s (s : HiFP.hfstmt) : Prop :=
   match s with
@@ -1889,35 +1910,52 @@ Definition well_typed_s (s : HiFP.hfstmt) : Prop :=
   end.
 
 Lemma expandBranch_egty s :
-  forall cm seq_init, ~well_typed_s s -> (expandBranch_fun s seq_init cm).2 = Egtyp .
+  forall cm seq_init, ~well_typed_s s -> (expandBranch_fun s seq_init (OK cm)).2 = Egtyp.
 Proof.
-  
-Admitted.
+  intros.
+  rewrite /well_typed_s in H.
+  case Hs : s => [|v t|v r|v m|v v1|v n|v e|v|c s1 s2]; rewrite Hs in H; try done.
+  - simpl.
+    case Hv : v => [r|||]; rewrite Hv in H; try done.
+  - simpl.
+    case Hv : v => [r|||]; rewrite Hv in H; try done.
+  Qed.
 
-Fixpoint repeatdef_ss (ss : HiFP.hfstmt_seq) : Prop :=
+Fixpoint repeatdef_s (s : HiFP.hfstmt) (seq_init : HiFP.hfstmt_seq) (cm : em) : Prop :=
+  match s with
+  | Swire _ _ 
+  | Smem _ _ 
+  | Sinst _ _ 
+  | Sreg _ _ 
+  | Snode _ _ => Qin s seq_init
+  | Swhen _ s1 s2 => repeatdef_ss s1 seq_init cm \/ repeatdef_ss s2 seq_init cm
+  | _ => False
+  end
+with repeatdef_ss (ss : HiFP.hfstmt_seq) (seq_init : HiFP.hfstmt_seq) (cm : em) :=
   match ss with
   | Qnil => False
-  | Qcons s st => match s with
-                  | Swire _ _ 
-                  | Smem _ _ 
-                  | Sinst _ _ 
-                  | Sreg _ _
-                  | Snode _ _ => Qin s st
-                  | Swhen _ s1 s2 => repeatdef_ss s1 \/ repeatdef_ss s2
-                  | _ => False
-                  end
+  | Qcons s st => repeatdef_s s seq_init cm \/ repeatdef_ss st (expandBranch_fun s (Some seq_init) cm).1
   end.
 
 Lemma expandBranch_repeat ss :
   forall cm seq_init, repeatdef_ss ss -> (expandBranch_funs ss seq_init cm).1 = None .
 Proof.
-  
+  intros.
+  induction ss. 
+  - rewrite /repeatdef_ss in H; done.
+  - simpl.
+    unfold repeatdef_ss in H; fold repeatdef_ss in H.
+    case Hh : h => [|v t|v r|v m|v v1|v n|v e|v|c s1 s2]; rewrite Hh in H; try done.
+    - simpl.
+      case Hs : seq_init => [seq_init'|]; simpl; try done.
 Admitted.
 
-Lemma expandBranch_undefined ss : (* error怎么给？ *)
-  forall seq_init cm cm', (expandBranch_funs ss seq_init cm).2 = OK cm' -> exists v, CEP.find v cm' = Some D_undefined -> expandwhens_ss (expandBranch_funs ss seq_init cm).1 (expandBranch_funs ss seq_init cm).2 = Eundefine.
+(* 如果不发生别的错误，有undefiend时会返回 Eundefine *)
+Lemma expandBranch_undefined ss : 
+  forall seq_init cm cm', (expandBranch_funs ss seq_init cm) = (Some seq0, OK cm') -> (exists v, CEP.find v cm' = Some D_undefined) -> expandwhens_ss (expandBranch_funs ss seq_init cm).1 (expandBranch_funs ss seq_init cm).2 = Eundefine.
 Proof.
-
+  move => seq_init cm cm' Hcm.
+  rewrite /expandwhens_ss.
 Admitted.
 
 (* ? *)
