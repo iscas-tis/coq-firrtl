@@ -52,14 +52,12 @@ A module graph consists of:
 	Every component has some input connectors and/or output connectors.
 	Input and output connectors have a data type (e.g.\@ $\mathsf{SInt}$) and a bit width.
 \item	a set of connection trees.
-	A connection tree links any number of output connectors of component(s), called sources,
-	to an input connector, called destination.
-	If multiple sources are used, then a ternary tree structure indicates
-	how to decide which one to use in a specific condition:
-	every internal node of the tree has structure $(\mathit{cond}, \mathit{connect}_\mathit{true}, \mathit{connect}_\mathit{false})$.
-	Depending on $\mathit{cond}$, one of the two connectors is actually used.
-	Note that $\mathit{cond}$ is also linked to an output connector of a component.
-	A connection tree has a data type (e.g. $\mathsf{SInt}$) and a bit width.
+	The root of the tree is marked with an input connector.
+	Every leaf in the tree marked with an output connector of a data type that is equivalent with the input connector of the root.
+	Every internal node has two children (a \texttt{true} and a \texttt{false} child)
+	and is additionally marked with an output connector of data type $\mathsf{UInt\langle 1\rangle}$;
+	the latter is called the condition.
+	Depending on the condition, data from one of the two children is selected to be forwarded to the parent.
 \end{itemize}
 \end{definition}
 
@@ -71,7 +69,7 @@ which connector to use.
 
 \section{Semantics of HiFIRRTL modules}
 
-The structural semantics of a HiFIRRTL module is defined to be a set of module graphs.
+The circuit semantics of a HiFIRRTL module is defined to be a set of module graphs.
 
 Given a module with input ports $I$, output ports $O$, and statement sequence $S$,
 the respective module graph has to contain:
@@ -93,11 +91,13 @@ the respective module graph has to contain:
 		\item	similarly for other statements
 		\end{itemize}
 	\end{itemize}
-	The bit widths of every input and output connector satisfy the following conditions:
-	If the HiFIRRTL module specifies a bit width explicitly,
-	then that is the bit width of the connector.
-	Otherwise, any bit width is allowed,
-	as long as it satisfies the default bit width constraints of all components in the HiFIRRTL module.
+\item	If some components have unspecified widths, there may be multiple module graphs in the set.
+	Every such module graph has to satisfy what the specification calls the ``legality of its incoming connections'',
+	but we prefer to call it ``avoidance of data loss''.
+	the inferred width of the input connector at the root of every connection tree is $\geq$ the maximum width of the output connectors of the leaves.
+	(Primitive operations, multiplexers and similar components have internal rules
+	on what the output width is, given the input widths.
+	These internal rules can be found in the specification.)
 \end{itemize}
 
 \noindent
@@ -106,7 +106,8 @@ then there is at most one module graph that can be the semantics of the HiFIRRTL
 otherwise, there may be multiple module graphs,
 namely all those that satisfy the default bit width constraints.
 (An ill-specified HiFIRRTL module may have no semantics at all,
-namely if the bit widths of some connection trees cannot be determined at all.)
+namely if the bit widths of some connection trees cannot be determined at all,
+or if it contains combinatorial cycles.)
 
 What are the default bit width constraints?
 Every HiFIRRTL component specifies a default width for its output connectors,
@@ -119,6 +120,10 @@ So the HiFIRRTL semantics also has to translate any component with an aggregate 
 into multiple components in the graph.
 \textbf{TO DO:} This may be problematic for subaccesses, dynamic accesses to an array.
 Perhaps we have to allow arrays after all.
+Possible solution: we allow a special subaccess component
+(with many input connectors: a $\mathsf{UInt}$ selector and a list of input connectors that all have the same data type)
+that implements the subaccess
+until it is replaced by a chain of multiplexers.
 
 \section{Remarks on the lowering transforms}
 
