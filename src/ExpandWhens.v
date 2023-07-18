@@ -56,8 +56,9 @@ Definition helper_tf (c : HiFP.hfexpr) (true_expr : option def_expr) (false_expr
 (*Fixpoint expandBranch_fun (s : HiFP.hfstmt) (hseq_result : option HiFP.hfstmt_seq) (cm_result : CEP.t def_expr) : (option HiFP.hfstmt_seq * CEP.t def_expr) :=
   (* ss : statement seq going to be expanded 
      ce_other_modules : type information for ports of other modules, used in inst case
-     hseq_result : declaration statement in ss, including those in branches
-     cm_result : rhs expr map for every var that is connected to, also solving last connecting*)
+     hseq_result : declaration statements that came before statement s, including those in branches
+     cm_result : rhs expr map for every var that was already connected to before statement s, also solving last connect semantics
+     result: declarations and connections from hseq_result and cm_result, updated with statement s *)
   match s with
   | Sskip => (hseq_result, cm_result)
   | Swire v type => let new_seq := match hseq_result with
@@ -76,7 +77,7 @@ Definition helper_tf (c : HiFP.hfexpr) (true_expr : option def_expr) (false_expr
                 | None => None
                 | Some hseq_result => if (Qin s hseq_result) then None else Some (Qcons s hseq_result)
                 end in
-                let cm_mem := CEP.add v D_undefined cm_result
+                let cm_mem := CEP.add v D_undefined cm_result (* should not add v but to the ports of v *)
                 in (new_seq, cm_mem) (* TBD *)
   | Sinvalid (Eid r) => let cm_inv := CEP.add r D_invalidated cm_result
                         in (hseq_result, cm_inv)
@@ -99,6 +100,13 @@ Definition helper_tf (c : HiFP.hfexpr) (true_expr : option def_expr) (false_expr
   | _ => (hseq_result, cm_result) 
   end
 with expandBranch_funs (ss : HiFP.hfstmt_seq) (hseq_result : option HiFP.hfstmt_seq) (cm_result : CEP.t def_expr) : (option HiFP.hfstmt_seq * CEP.t def_expr) :=
+  (* Expands a branch, i.e. it updates (hseq_result, cm_result) with the effect of statement sequence ss.
+
+     ss: statement sequence going to be expanded
+     ce_other_modules : type information for ports of other modules, used in inst case
+     hseq_result : declaration statements that came before statement sequence ss, including those in branches
+     cm_result : rhs expr map for every var that was already connected to before statement sequence ss, also solving last connect semantics
+     result: declarations and connections from hseq_result and cm_result, updated with statement sequence ss *)
   match ss with
   | Qnil => (hseq_result, cm_result)
   | Qcons s stl => (*let (new_hseq, new_cm) := expandBranch_fun s hseq_result cm_result in *)
@@ -204,6 +212,11 @@ Fixpoint unfold_cm (cml : seq (pvar * def_expr)) sts : ret_seq :=
   end.   
 
 Definition expandwhens_ss (dclseq : option HiFP.hfstmt_seq) (cm : em) : ret_seq :=
+  (* translates the connections in cm into statements
+
+  dclseq: sequence of declarations for a module
+  cm: connection map for a module
+  result: dclseq, extended with connect statements that correspond to all entries of cm *)
   match dclseq with
   | None => Erepeatdef
   | Some dseq => match cm with
@@ -215,6 +228,13 @@ Definition expandwhens_ss (dclseq : option HiFP.hfstmt_seq) (cm : em) : ret_seq 
                 | Egtyp => Eaggtyp
                 end
   end
+  (* It is possible to use CEP.fold as follows:
+     let newcncts := CEP.fold ((v : pvar) (el : def_expr) (sts : HiFP.hfstmt_seq)
+                               => match el with
+                                  | D_fexpr tempe => Qcons (Sfcnct (Eid v) tempe) sts
+                                  | D_invalidated => Qcons (Sinvalid (Eid v))sts
+                                  | _ => sts (* D_undefined 未被连接error *)
+                                  end) cm (Qnil ProdVarOrder.T) in *)
   . (* rev *)
 
   (* Definition cm_true := expandBranch_fun (Qcons est (Qnil ProdVarOrder.T)) ce0 (Qnil ProdVarOrder.T) (CEP.empty def_expr).
@@ -232,6 +252,12 @@ Definition expandwhens_ss (dclseq : option HiFP.hfstmt_seq) (cm : em) : ret_seq 
 
 (* Proof of declarations *)
 Fixpoint expandBranch_declaration (init_decl_map : CEP.env) (s : HiFP.hfstmt) (ce : CEP.env) : CEP.env :=
+  (* creates a map of declarations based on s
+
+  init_decl_map: map of declarations before s
+  s: the declaration in this statement is added to init_decl_map
+  ce: declarations of types of other modules, used for the Sinst statement
+  result: init_decl_map, extended with the declaration in statement s *)
   match s with
   | Sskip => init_decl_map
   | Swire v type => match (CEP.find v init_decl_map) with
@@ -259,6 +285,12 @@ Fixpoint expandBranch_declaration (init_decl_map : CEP.env) (s : HiFP.hfstmt) (c
   | _ => init_decl_map
   end
 with expandBranch_declarations (init_decl_map : CEP.env) (ss : HiFP.hfstmt_seq) (ce : CEP.env) : CEP.env :=
+  (* creates a map of declarations based on ss
+
+  init_decl_map: map of declarations before ss
+  ss: the declarations in this statement sequence are added to init_decl_map
+  ce: declarations of types of other modules, used for the Sinst statements
+  result: init_decl_map, extended with the declarations in statement sequence ss *)
   match ss with
   | Qnil => init_decl_map
   | Qcons s stl => let newmap := expandBranch_declaration init_decl_map s ce in 
@@ -315,7 +347,7 @@ Inductive expandBranch_declaration_stmt : HiFP.hfstmt -> HiFP.hfstmt_seq -> CEP.
       expandBranch_declaration_stmt (Sfcnct v e) seq_init ce ce'
   | ExpandBranch_declaration_when c s1 s2 seq_init seq_init' ce ce' ce'' :
       expandBranch_declaration_stmts s1 seq_init ce ce' ->
-      expandBranch_declaration_stmts s2 seq_init' ce ce'' ->
+      expandBranch_declaration_stmts s2 seq_init' ce ce'' -> (* should ce in this line be ce'? *)
       expandBranch_declaration_stmt (Swhen c s1 s2) seq_init ce ce''
 with expandBranch_declaration_stmts : HiFP.hfstmt_seq -> HiFP.hfstmt_seq -> CEP.env -> CEP.env -> Prop := 
   | ExpandBranch_declarations_nil seq_init ce ce' :
