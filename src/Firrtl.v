@@ -2481,9 +2481,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
     no_mem_run_module0_inline (rev reordersl) rs s te io_in name ols clk_num len.
 
   (* conform lemmas *)
-  (* Well-formness, is defined && well-typed *)
-  
-  (* Use TE.mem v te to determine if v is defined *)
+
   Definition is_defined (v : var) (te : TE.env) : bool :=
     TE.mem v te.
 
@@ -2511,7 +2509,11 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
 
   (************************************************************)
   
-  Definition well_typed_fstmt (s : fstmt) (te : TE.env) s1 rs1 : bool :=
+  (* inline *)
+  (* well formed expression *)
+  Definition well_formed_fexpr e te := well_typed_fexpr e te && is_defined_fexpr e te.
+  
+  Definition well_typed_fstmt_inline (s : fstmt) (te : TE.env) s1 rs1 : bool :=
     match s with
     | Sskip => true
     | Swire v t => 0 < sizeof_fgtyp t
@@ -2528,17 +2530,16 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
                                 | Fsint w => well_typed_fexpr e te && (w >= (sizeof_fgtyp (type_of_fexpr e te)))
                                 | _ => false
                                 end
+    | Sinst _ => false
     | _ => true
     end.
     
-  (* well formed expression *)
-  Definition well_formed_fexpr e te := well_typed_fexpr e te && is_defined_fexpr e te.
   (* well formed statement *)
-  Definition well_formed_fstmt s te s1 rs1 := well_typed_fstmt s te s1 rs1 && is_defined_fstmt s te.
+  Definition well_formed_fstmt_inline s te s1 rs1 := well_typed_fstmt_inline s te s1 rs1 && is_defined_fstmt s te.
 
-  Lemma conform_eval_swire_upd_env rs1 s1 te v t :
+  Lemma conform_eval_swire_upd_env_inline rs1 s1 te v t :
     SV.conform s1 te ->
-    well_formed_fstmt (Swire v t) te s1 rs1 ->
+    well_formed_fstmt_inline (Swire v t) te s1 rs1 ->
     SV.conform (snd (no_mem_eval_noninst_fstmt (Swire v t) rs1 s1 (no_mem_upd_typenv_fstmt (Swire v t) te))) (no_mem_upd_typenv_fstmt (Swire v t) te).
   Proof.
     rewrite /= => Hcf1 Hwf.
@@ -2548,21 +2549,23 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
     exact Hcf1.
   Qed.
 
-  Lemma conform_eval_reg_upd_env rs1 s1 te r : 
+  (*Lemma conform_eval_reg_upd_env_inline rs1 s1 te r : 
+    SV.conform s1 te ->
+    SV.conformr rs1 te ->
+    well_formed_fstmt_inline (Sreg r) te s1 rs1 ->
+    (SV.conform (snd (no_mem_eval_noninst_fstmt (Sreg r) rs1 s1 (no_mem_upd_typenv_fstmt (Sreg r) te))) (no_mem_upd_typenv_fstmt (Sreg r) te)) 
+    /\ (SV.conformr (fst (no_mem_eval_noninst_fstmt (Sreg r) rs1 s1 (no_mem_upd_typenv_fstmt (Sreg r) te))) (no_mem_upd_typenv_fstmt (Sreg r) te)).
+  Proof.*)
+
+  Lemma conform_eval_reg_upd_env_inline rs1 s1 te r : 
     SV.conform s1 te ->
     SV.conform rs1 te ->
-    (*TE.vtyp (rid r) te = (type r) -> 
-    (match (reset r) with
-    | NRst => True
-    | Rst _ e2 => (size (no_mem_eval_fexpr e2 (SV.upd (rid r) (zeros (sizeof_fgtyp (type r))) s1) (TE.add (rid r) (type r) te)) = (sizeof_fgtyp (type r))
-                /\ size (no_mem_eval_fexpr e2 (SV.upd (rid r) (SV.acc (rid r) rs1) s1) (TE.add (rid r) (type r) te)) = (sizeof_fgtyp (type r)))
-    end) -> *)
-    well_formed_fstmt (Sreg r) te s1 rs1 ->
+    well_formed_fstmt_inline (Sreg r) te s1 rs1 ->
     (SV.conform (snd (no_mem_eval_noninst_fstmt (Sreg r) rs1 s1 (no_mem_upd_typenv_fstmt (Sreg r) te))) (no_mem_upd_typenv_fstmt (Sreg r) te)) 
     /\ (SV.conform (fst (no_mem_eval_noninst_fstmt (Sreg r) rs1 s1 (no_mem_upd_typenv_fstmt (Sreg r) te))) (no_mem_upd_typenv_fstmt (Sreg r) te)).
   Proof.
     rewrite /= => Hcf1 Hcfr1 Hwf.
-    rewrite /well_formed_fstmt in Hwf.
+    rewrite /well_formed_fstmt_inline in Hwf.
     move /andP : Hwf => [Hwf Hmem].
     rewrite /is_defined_fstmt /is_defined in Hmem.
     simpl in Hwf. 
@@ -2674,64 +2677,30 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
           rewrite size_zeros//.
           apply SV.Upd_upd.
           done.
-        - split.
-        simpl.
-        apply SV.conform_Upd with (zeros (sizeof_fgtyp (type r))) s1.
-        rewrite size_zeros//.
-        apply SV.Upd_upd.
-        done.
-        simpl.
-        apply SV.conform_Upd with (zeros (sizeof_fgtyp (type r))) rs1.
-        rewrite size_zeros//.
-        apply SV.Upd_upd.
-        done.
-        - split.
-        simpl.
-        apply SV.conform_Upd with (zeros (sizeof_fgtyp (type r))) s1.
-        rewrite size_zeros//.
-        apply SV.Upd_upd.
-        done.
-        simpl.
-        apply SV.conform_Upd with (zeros (sizeof_fgtyp (type r))) rs1.
-        rewrite size_zeros//.
-        apply SV.Upd_upd.
-        done.
-        - split.
-        simpl.
-        apply SV.conform_Upd with (zeros (sizeof_fgtyp (type r))) s1.
-        rewrite size_zeros//.
-        apply SV.Upd_upd.
-        done.
-        simpl.
-        apply SV.conform_Upd with (zeros (sizeof_fgtyp (type r))) rs1.
-        rewrite size_zeros//.
-        apply SV.Upd_upd.
-        done.
+        - 1,2,3: split.
+        1,2,3,4,5,6,7,8: simpl.
+        1,3,5: apply SV.conform_Upd with (zeros (sizeof_fgtyp (type r))) s1.
+        1,4,7: rewrite size_zeros//.
+        1,3,5: apply SV.Upd_upd.
+        1,2,3: done.
+        1,2,3: apply SV.conform_Upd with (zeros (sizeof_fgtyp (type r))) rs1.
+        1,4,7: rewrite size_zeros//.
+        1,3,5: apply SV.Upd_upd.
+        1,2,3: done.
         - (* Fasyncreset *)
         split.
-        simpl.
-        apply SV.conform_upd.
-        rewrite Hreset in He2.
-        move /andP : He2 => [He2 He22].
-        move /andP : He2 => [He2 He21].
-        move /eqP : He21 => He21.
-        move /eqP : He22 => He22.
-        move /andP : He2 => [Hwf1 Hwf2].
-        symmetry.
-        exact He21.
+        1,2: apply SV.conform_upd.
+        1,2,3,4: rewrite Hreset in He2.
+        1,2,3,4: move /andP : He2 => [He2 He22].
+        1,2,3,4: move /andP : He2 => [He2 He21].
+        1,2,3,4: move /eqP : He21 => He21.
+        1,2,3,4: move /eqP : He22 => He22.
+        1,2,3,4: move /andP : He2 => [Hwf1 Hwf2].
+        1,3: symmetry.
+        1,2: exact He21.
         move : Hzeros1.
         apply SV.conform_equal.
         exact (SV.Lemmas.Equal_sym Haddsame).
-        simpl.
-        apply SV.conform_upd.
-        rewrite Hreset in He2.
-        move /andP : He2 => [He2 He22].
-        move /andP : He2 => [He2 He21].
-        move /eqP : He21 => He21.
-        move /eqP : He22 => He22.
-        move /andP : He2 => [Hwf1 Hwf2].
-        symmetry.
-        exact He21.
         move : Hzeros.
         apply SV.conform_equal.
         exact (SV.Lemmas.Equal_sym Haddsame).
@@ -2795,39 +2764,16 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
           move : Hcfr1.
           apply SV.conform_equal.
           exact Haddsame.
-        - split.
-        simpl.
-        apply SV.conform_Upd with (SV.acc (rid r) rs1) s1.
-        rewrite -(SV.conform_mem Hcfr1)//.
-        rewrite (TE.vtyp_vsize Htypr) //.
-        apply SV.Upd_upd.
-        done.
-        simpl.
-        move : Hcfr1.
-        apply SV.conform_equal.
-        exact Haddsame.
-        - split.
-        simpl.
-        apply SV.conform_Upd with (SV.acc (rid r) rs1) s1.
-        rewrite -(SV.conform_mem Hcfr1)//.
-        rewrite (TE.vtyp_vsize Htypr) //.
-        apply SV.Upd_upd.
-        done.
-        simpl.
-        move : Hcfr1.
-        apply SV.conform_equal.
-        exact Haddsame.
-        - split.
-        simpl.
-        apply SV.conform_Upd with (SV.acc (rid r) rs1) s1.
-        rewrite -(SV.conform_mem Hcfr1)//.
-        rewrite (TE.vtyp_vsize Htypr) //.
-        apply SV.Upd_upd.
-        done.
-        simpl.
-        move : Hcfr1.
-        apply SV.conform_equal.
-        exact Haddsame.
+        - 1,2,3: split.
+        1,2,3,4,5,6: simpl.
+        1,3,5: apply SV.conform_Upd with (SV.acc (rid r) rs1) s1.
+        1,4,7: rewrite -(SV.conform_mem Hcfr1)//.
+        1,2,3: rewrite (TE.vtyp_vsize Htypr) //.
+        1,3,5: apply SV.Upd_upd.
+        1,2,3: done.
+        1,2,3: move : Hcfr1.
+        1,2,3: apply SV.conform_equal.
+        1,2,3: exact Haddsame.
         - (* Fasyncreset *)
         split.
         simpl.
@@ -2862,9 +2808,9 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         exact Hcfr1.
   Qed.
 
-  Lemma conform_eval_invalid_upd_env rs1 s1 te v :
+  Lemma conform_eval_invalid_upd_env_inline rs1 s1 te v :
     SV.conform s1 te ->
-    well_formed_fstmt (Sinvalid v) te s1 rs1 ->
+    well_formed_fstmt_inline (Sinvalid v) te s1 rs1 ->
     SV.conform (snd (no_mem_eval_noninst_fstmt (Sinvalid v) rs1 s1 (no_mem_upd_typenv_fstmt (Sinvalid v) te))) (no_mem_upd_typenv_fstmt (Sinvalid v) te).
   Proof.
     rewrite /= => Hcf1 Hwf.
@@ -3734,7 +3680,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         rewrite to_nat_bounded //.
         rewrite Nats.expn_pow.
         apply Nat.pow_nonzero.
-        admit.
+        lia.
         rewrite Ht1 Ht2 in Hwt.
         discriminate.
         rewrite Ht1 Ht2 in Hwt.
@@ -3769,7 +3715,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         rewrite to_nat_bounded //.
         rewrite Nats.expn_pow.
         apply Nat.pow_nonzero.
-        admit.
+        lia.
         rewrite Ht1 Ht2 in Hwt.
         discriminate.
         rewrite Ht1 Ht2 in Hwt.
@@ -4254,10 +4200,10 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       rewrite -Hcf.
       rewrite (TE.vtyp_vsize (eqP(eqxx (TE.vtyp s te))))//.
       exact Hid.
-  Admitted.
+  Qed.
 
   Lemma acyclic_eval_expr_node : forall v e te s1 rs1 ty,
-  well_formed_fstmt (Snode v e) te s1 rs1 -> no_mem_eval_fexpr e s1 (TE.add v ty te) = no_mem_eval_fexpr e s1 te.
+  well_formed_fstmt_inline (Snode v e) te s1 rs1 -> no_mem_eval_fexpr e s1 (TE.add v ty te) = no_mem_eval_fexpr e s1 te.
   Admitted.
 
   Lemma acyclic_eval_stmt_node : forall v e te s1 rs1,
@@ -4265,12 +4211,12 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
   Admitted.
 
   Lemma acyclic_typ_expr_node : forall v e te s1 rs1 ty,
-  well_formed_fstmt (Snode v e) te s1 rs1 -> type_of_fexpr e (TE.add v ty te) = type_of_fexpr e te.
+  well_formed_fstmt_inline (Snode v e) te s1 rs1 -> type_of_fexpr e (TE.add v ty te) = type_of_fexpr e te.
   Admitted.
 
-  Lemma conform_eval_node_upd_env e : forall rs1 s1 te v ,
+  Lemma conform_eval_node_upd_env_inline e : forall rs1 s1 te v ,
     SV.conform s1 te ->
-    well_formed_fstmt (Snode v e) te s1 rs1 ->
+    well_formed_fstmt_inline (Snode v e) te s1 rs1 ->
     SV.conform (snd (no_mem_eval_noninst_fstmt (Snode v e) rs1 s1 (no_mem_upd_typenv_fstmt (Snode v e) te))) (no_mem_upd_typenv_fstmt (Snode v e) te).
   Proof.
     rewrite {1}/no_mem_upd_typenv_fstmt.
@@ -4282,7 +4228,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
     - rewrite /upd_typenv_fstmt.
     move => rs1 s1 te v Hcf Hwf.
     apply SV.conform_upd.
-    rewrite /well_formed_fstmt /= in Hwf.
+    rewrite /well_formed_fstmt_inline /= in Hwf.
     move : Hwf => /andP [/eqP H _].
     simpl.
     rewrite H subnn zext0 sext0.
@@ -4294,12 +4240,12 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       - move => rs1 s1 te v Hcf Hwf.
       apply SV.conform_upd.
       simpl.
-      rewrite /well_formed_fstmt in Hwf.
+      rewrite /well_formed_fstmt_inline in Hwf.
       move : Hwf => /andP [Hwt Hid].
       simpl in Hwt.
       simpl in Hid.
-      assert (Hwf : well_formed_fstmt (Snode v e) te s1 rs1).
-      rewrite /well_formed_fstmt.
+      assert (Hwf : well_formed_fstmt_inline (Snode v e) te s1 rs1).
+      rewrite /well_formed_fstmt_inline.
       simpl.
       rewrite Hwt Hid //.
       specialize IHe with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
@@ -4319,12 +4265,12 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       - move => rs1 s1 te v Hcf Hwf.
       apply SV.conform_upd.
       simpl.
-      rewrite /well_formed_fstmt in Hwf.
+      rewrite /well_formed_fstmt_inline in Hwf.
       move : Hwf => /andP [Hwt Hid].
       simpl in Hwt.
       simpl in Hid.
-      assert (Hwf : well_formed_fstmt (Snode v e) te s1 rs1).
-      rewrite /well_formed_fstmt.
+      assert (Hwf : well_formed_fstmt_inline (Snode v e) te s1 rs1).
+      rewrite /well_formed_fstmt_inline.
       simpl.
       rewrite Hwt Hid //.
       specialize IHe with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
@@ -4361,15 +4307,15 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       - move => n rs1 s1 te v Hcf Hwf.
       simpl.
       apply SV.conform_upd.
-      rewrite /well_formed_fstmt in Hwf.
+      rewrite /well_formed_fstmt_inline in Hwf.
       move : Hwf => /andP [Hwt Hid].
       simpl in Hwt.
       simpl in Hid.
       case Hn:(n < sizeof_fgtyp (type_of_fexpr e0 te)).
         - case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
           - rewrite Htyp in Hwt.
-            assert (Hwf : well_formed_fstmt (Snode v e0) te s1 rs1).
-            rewrite /well_formed_fstmt.
+            assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
+            rewrite /well_formed_fstmt_inline.
             simpl.
             rewrite Hwt Hid //.
             specialize IHe with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
@@ -4388,8 +4334,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
             apply TE.SE.eq_refl.
             exact Hwf.
           - rewrite Htyp in Hwt.
-            assert (Hwf : well_formed_fstmt (Snode v e0) te s1 rs1).
-            rewrite /well_formed_fstmt.
+            assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
+            rewrite /well_formed_fstmt_inline.
             simpl.
             rewrite Hwt Hid //.
             specialize IHe with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
@@ -4415,8 +4361,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
             discriminate.
         - case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
           - rewrite Htyp in Hwt.
-            assert (Hwf : well_formed_fstmt (Snode v e0) te s1 rs1).
-            rewrite /well_formed_fstmt.
+            assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
+            rewrite /well_formed_fstmt_inline.
             simpl.
             rewrite Hwt Hid //.
             specialize IHe with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
@@ -4442,8 +4388,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
             apply TE.SE.eq_refl.
             exact Hwf.
           - rewrite Htyp in Hwt.
-            assert (Hwf : well_formed_fstmt (Snode v e0) te s1 rs1).
-            rewrite /well_formed_fstmt.
+            assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
+            rewrite /well_formed_fstmt_inline.
             simpl.
             rewrite Hwt Hid //.
             specialize IHe with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
@@ -4479,14 +4425,14 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       move => n rs1 s1 te v Hcf Hwf.
       simpl.
       apply SV.conform_upd.
-      rewrite /well_formed_fstmt in Hwf.
+      rewrite /well_formed_fstmt_inline in Hwf.
       move : Hwf => /andP [Hwt Hid].
       simpl in Hwt.
       simpl in Hid.
       case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
         - rewrite Htyp in Hwt.
-        assert (Hwf : well_formed_fstmt (Snode v e0) te s1 rs1).
-        rewrite /well_formed_fstmt.
+        assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
+        rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt Hid //.
         specialize IHe with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
@@ -4504,8 +4450,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         apply TE.SE.eq_refl.
         exact Hwf.
         - rewrite Htyp in Hwt.
-        assert (Hwf : well_formed_fstmt (Snode v e0) te s1 rs1).
-        rewrite /well_formed_fstmt.
+        assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
+        rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt Hid //.
         specialize IHe with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
@@ -4533,15 +4479,15 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       move => n rs1 s1 te v Hcf Hwf.
       simpl.
       apply SV.conform_upd.
-      rewrite /well_formed_fstmt in Hwf.
+      rewrite /well_formed_fstmt_inline in Hwf.
       move : Hwf => /andP [Hwt Hid].
       simpl in Hwt.
       simpl in Hid.
       case Hn:(n < sizeof_fgtyp (type_of_fexpr e0 te)).
         - case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
           - rewrite Htyp in Hwt.
-            assert (Hwf : well_formed_fstmt (Snode v e0) te s1 rs1).
-            rewrite /well_formed_fstmt.
+            assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
+            rewrite /well_formed_fstmt_inline.
             simpl.
             rewrite Hwt Hid //.
             specialize IHe with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
@@ -4564,8 +4510,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
             apply TE.SE.eq_refl.
             exact Hwf.
           - rewrite Htyp in Hwt.
-            assert (Hwf : well_formed_fstmt (Snode v e0) te s1 rs1).
-            rewrite /well_formed_fstmt.
+            assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
+            rewrite /well_formed_fstmt_inline.
             simpl.
             rewrite Hwt Hid //.
             specialize IHe with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
@@ -4595,8 +4541,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
             discriminate.
         - case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
           - rewrite Htyp in Hwt.
-            assert (Hwf : well_formed_fstmt (Snode v e0) te s1 rs1).
-            rewrite /well_formed_fstmt.
+            assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
+            rewrite /well_formed_fstmt_inline.
             simpl.
             rewrite Hwt Hid //.
             specialize IHe with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
@@ -4619,8 +4565,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
             apply TE.SE.eq_refl.
             exact Hwf.
           - rewrite Htyp in Hwt.
-            assert (Hwf : well_formed_fstmt (Snode v e0) te s1 rs1).
-            rewrite /well_formed_fstmt.
+            assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
+            rewrite /well_formed_fstmt_inline.
             simpl.
             rewrite Hwt Hid //.
             specialize IHe with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
@@ -4653,14 +4599,14 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       move => rs1 s1 te v Hcf Hwf.
       simpl.
       apply SV.conform_upd.
-      rewrite /well_formed_fstmt in Hwf.
+      rewrite /well_formed_fstmt_inline in Hwf.
       move : Hwf => /andP [Hwt Hid].
       simpl in Hwt.
       simpl in Hid.
       case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
         - rewrite Htyp in Hwt.
-        assert (Hwf : well_formed_fstmt (Snode v e0) te s1 rs1).
-        rewrite /well_formed_fstmt.
+        assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
+        rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt Hid //.
         specialize IHe with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
@@ -4678,8 +4624,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         apply TE.SE.eq_refl.
         exact Hwf.
         - rewrite Htyp in Hwt.
-        assert (Hwf : well_formed_fstmt (Snode v e0) te s1 rs1).
-        rewrite /well_formed_fstmt.
+        assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
+        rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt Hid //.
         specialize IHe with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
@@ -4706,14 +4652,14 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       move => rs1 s1 te v Hcf Hwf.
       simpl.
       apply SV.conform_upd.
-      rewrite /well_formed_fstmt in Hwf.
+      rewrite /well_formed_fstmt_inline in Hwf.
       move : Hwf => /andP [Hwt Hid].
       simpl in Hwt.
       simpl in Hid.
       case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
         - rewrite Htyp in Hwt.
-        assert (Hwf : well_formed_fstmt (Snode v e0) te s1 rs1).
-        rewrite /well_formed_fstmt.
+        assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
+        rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt Hid //.
         specialize IHe with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
@@ -4731,8 +4677,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         apply TE.SE.eq_refl.
         exact Hwf.
         - rewrite Htyp in Hwt.
-        assert (Hwf : well_formed_fstmt (Snode v e0) te s1 rs1).
-        rewrite /well_formed_fstmt.
+        assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
+        rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt Hid //.
         specialize IHe with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
@@ -4760,14 +4706,14 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       move => rs1 s1 te v Hcf Hwf.
       simpl.
       apply SV.conform_upd.
-      rewrite /well_formed_fstmt in Hwf.
+      rewrite /well_formed_fstmt_inline in Hwf.
       move : Hwf => /andP [Hwt Hid].
       simpl in Hwt.
       simpl in Hid.
       case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
         - rewrite Htyp in Hwt.
-        assert (Hwf : well_formed_fstmt (Snode v e0) te s1 rs1).
-        rewrite /well_formed_fstmt.
+        assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
+        rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt Hid //.
         specialize IHe with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
@@ -4785,8 +4731,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         apply TE.SE.eq_refl.
         exact Hwf.
         - rewrite Htyp in Hwt.
-        assert (Hwf : well_formed_fstmt (Snode v e0) te s1 rs1).
-        rewrite /well_formed_fstmt.
+        assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
+        rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt Hid //.
         specialize IHe with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
@@ -4853,12 +4799,12 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       apply SV.conform_upd. 
       rewrite size_low.
       simpl.
-      rewrite /well_formed_fstmt in Hwf.
+      rewrite /well_formed_fstmt_inline in Hwf.
       move : Hwf => /andP [Hwt Hid].
       simpl in Hwt.
       simpl in Hid.
-      assert (Hwf : well_formed_fstmt (Snode v e0) te s1 rs1).
-      rewrite /well_formed_fstmt.
+      assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
+      rewrite /well_formed_fstmt_inline.
       simpl.
       rewrite Hwt Hid //.
       specialize IHe with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
@@ -4880,7 +4826,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
     move => rs1 s1 te v Hcf Hwf.
     simpl.
     apply SV.conform_upd.
-    rewrite /well_formed_fstmt in Hwf.
+    rewrite /well_formed_fstmt_inline in Hwf.
     move : Hwf => /andP [Hwt Hid].
     simpl in Hwt.
     simpl in Hid.
@@ -4891,12 +4837,12 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       move : Hwt => /andP [Hwt2 Hwt3].
       simpl.
       rewrite size_addB_ext.
-      assert (Hwf2 : well_formed_fstmt (Snode v e2) te s1 rs1).
-      rewrite /well_formed_fstmt.
+      assert (Hwf2 : well_formed_fstmt_inline (Snode v e2) te s1 rs1).
+      rewrite /well_formed_fstmt_inline.
       simpl.
       rewrite Hwt2 Hid2 //.
-      assert (Hwf3 : well_formed_fstmt (Snode v e3) te s1 rs1).
-      rewrite /well_formed_fstmt.
+      assert (Hwf3 : well_formed_fstmt_inline (Snode v e3) te s1 rs1).
+      rewrite /well_formed_fstmt_inline.
       simpl.
       rewrite Hwt3 Hid3 //.
       specialize IHe1 with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
@@ -4921,7 +4867,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       reflexivity.
       apply SV.Lemmas.mem_add_eq.
       apply TE.SE.eq_refl.
-      rewrite /well_formed_fstmt.
+      rewrite /well_formed_fstmt_inline.
       simpl.
       rewrite Hwt3 Hid3 //.
       reflexivity.
@@ -4944,12 +4890,12 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       move : Hwt => /andP [Hwt2 Hwt3].
       simpl.
       rewrite size_SadcB_ext.
-      assert (Hwf2 : well_formed_fstmt (Snode v e2) te s1 rs1).
-      rewrite /well_formed_fstmt.
+      assert (Hwf2 : well_formed_fstmt_inline (Snode v e2) te s1 rs1).
+      rewrite /well_formed_fstmt_inline.
       simpl.
       rewrite Hwt2 Hid2 //.
-      assert (Hwf3 : well_formed_fstmt (Snode v e3) te s1 rs1).
-      rewrite /well_formed_fstmt.
+      assert (Hwf3 : well_formed_fstmt_inline (Snode v e3) te s1 rs1).
+      rewrite /well_formed_fstmt_inline.
       simpl.
       rewrite Hwt3 Hid3 //.
       specialize IHe1 with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
@@ -4983,15 +4929,15 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       reflexivity.
       apply SV.Lemmas.mem_add_eq.
       apply TE.SE.eq_refl.
-      rewrite /well_formed_fstmt.
+      rewrite /well_formed_fstmt_inline.
       simpl.
       rewrite Hwt2 Hid2 //.
-      assert (Hwf2 : well_formed_fstmt (Snode v e2) te s1 rs1).
-      rewrite /well_formed_fstmt.
+      assert (Hwf2 : well_formed_fstmt_inline (Snode v e2) te s1 rs1).
+      rewrite /well_formed_fstmt_inline.
       simpl.
       rewrite Hwt2 Hid2 //.
-      assert (Hwf3 : well_formed_fstmt (Snode v e3) te s1 rs1).
-      rewrite /well_formed_fstmt.
+      assert (Hwf3 : well_formed_fstmt_inline (Snode v e3) te s1 rs1).
+      rewrite /well_formed_fstmt_inline.
       simpl.
       rewrite Hwt3 Hid3 //.
       specialize IHe1 with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
@@ -5025,7 +4971,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       reflexivity.
       apply SV.Lemmas.mem_add_eq.
       apply TE.SE.eq_refl.
-      rewrite /well_formed_fstmt.
+      rewrite /well_formed_fstmt_inline.
       simpl.
       rewrite Hwt2 Hid2 //.
       rewrite H2 H3 in Hwt.
@@ -5045,7 +4991,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       move => rs1 s1 te v Hcf Hwf.
       simpl.
       apply SV.conform_upd.
-      rewrite /well_formed_fstmt in Hwf.
+      rewrite /well_formed_fstmt_inline in Hwf.
       move : Hwf => /andP [Hwt Hid].
       simpl in Hwt.
       simpl in Hid.
@@ -5056,12 +5002,12 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         move : Hwt => /andP [Hwt2 Hwt3].
         simpl.
         rewrite size_subB_ext.
-        assert (Hwf2 : well_formed_fstmt (Snode v e2) te s1 rs1).
-        rewrite /well_formed_fstmt.
+        assert (Hwf2 : well_formed_fstmt_inline (Snode v e2) te s1 rs1).
+        rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt2 Hid2 //.
-        assert (Hwf3 : well_formed_fstmt (Snode v e3) te s1 rs1).
-        rewrite /well_formed_fstmt.
+        assert (Hwf3 : well_formed_fstmt_inline (Snode v e3) te s1 rs1).
+        rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt3 Hid3 //.
         specialize IHe1 with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
@@ -5086,7 +5032,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         reflexivity.
         apply SV.Lemmas.mem_add_eq.
         apply TE.SE.eq_refl.
-        rewrite /well_formed_fstmt.
+        rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt3 Hid3 //.
         reflexivity.
@@ -5109,12 +5055,12 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         move : Hwt => /andP [Hwt2 Hwt3].
         simpl.
         rewrite size_SsbbB_ext.
-        assert (Hwf2 : well_formed_fstmt (Snode v e2) te s1 rs1).
-        rewrite /well_formed_fstmt.
+        assert (Hwf2 : well_formed_fstmt_inline (Snode v e2) te s1 rs1).
+        rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt2 Hid2 //.
-        assert (Hwf3 : well_formed_fstmt (Snode v e3) te s1 rs1).
-        rewrite /well_formed_fstmt.
+        assert (Hwf3 : well_formed_fstmt_inline (Snode v e3) te s1 rs1).
+        rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt3 Hid3 //.
         specialize IHe1 with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
@@ -5148,15 +5094,15 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         reflexivity.
         apply SV.Lemmas.mem_add_eq.
         apply TE.SE.eq_refl.
-        rewrite /well_formed_fstmt.
+        rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt2 Hid2 //.
-        assert (Hwf2 : well_formed_fstmt (Snode v e2) te s1 rs1).
-        rewrite /well_formed_fstmt.
+        assert (Hwf2 : well_formed_fstmt_inline (Snode v e2) te s1 rs1).
+        rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt2 Hid2 //.
-        assert (Hwf3 : well_formed_fstmt (Snode v e3) te s1 rs1).
-        rewrite /well_formed_fstmt.
+        assert (Hwf3 : well_formed_fstmt_inline (Snode v e3) te s1 rs1).
+        rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt3 Hid3 //.
         specialize IHe1 with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
@@ -5190,7 +5136,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         reflexivity.
         apply SV.Lemmas.mem_add_eq.
         apply TE.SE.eq_refl.
-        rewrite /well_formed_fstmt.
+        rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt2 Hid2 //.
         rewrite H2 H3 in Hwt.
@@ -5210,7 +5156,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         move => rs1 s1 te v Hcf Hwf.
         simpl.
         apply SV.conform_upd.
-        rewrite /well_formed_fstmt in Hwf.
+        rewrite /well_formed_fstmt_inline in Hwf.
         move : Hwf => /andP [Hwt Hid].
         simpl in Hwt.
         simpl in Hid.
@@ -5221,12 +5167,12 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
           move : Hwt => /andP [Hwt2 Hwt3].
           simpl.
           rewrite size_full_mul.
-          assert (Hwf2 : well_formed_fstmt (Snode v e2) te s1 rs1).
-          rewrite /well_formed_fstmt.
+          assert (Hwf2 : well_formed_fstmt_inline (Snode v e2) te s1 rs1).
+          rewrite /well_formed_fstmt_inline.
           simpl.
           rewrite Hwt2 Hid2 //.
-          assert (Hwf3 : well_formed_fstmt (Snode v e3) te s1 rs1).
-          rewrite /well_formed_fstmt.
+          assert (Hwf3 : well_formed_fstmt_inline (Snode v e3) te s1 rs1).
+          rewrite /well_formed_fstmt_inline.
           simpl.
           rewrite Hwt3 Hid3 //.
           specialize IHe1 with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
@@ -5251,7 +5197,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
           reflexivity.
           apply SV.Lemmas.mem_add_eq.
           apply TE.SE.eq_refl.
-          rewrite /well_formed_fstmt.
+          rewrite /well_formed_fstmt_inline.
           simpl.
           rewrite Hwt3 Hid3 //.
           reflexivity.
@@ -5274,12 +5220,12 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
           move : Hwt => /andP [Hwt2 Hwt3].
           simpl.
           rewrite size_Sfull_mul.
-          assert (Hwf2 : well_formed_fstmt (Snode v e2) te s1 rs1).
-          rewrite /well_formed_fstmt.
+          assert (Hwf2 : well_formed_fstmt_inline (Snode v e2) te s1 rs1).
+          rewrite /well_formed_fstmt_inline.
           simpl.
           rewrite Hwt2 Hid2 //.
-          assert (Hwf3 : well_formed_fstmt (Snode v e3) te s1 rs1).
-          rewrite /well_formed_fstmt.
+          assert (Hwf3 : well_formed_fstmt_inline (Snode v e3) te s1 rs1).
+          rewrite /well_formed_fstmt_inline.
           simpl.
           rewrite Hwt3 Hid3 //.
           specialize IHe1 with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
@@ -5308,7 +5254,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
           reflexivity.
           apply SV.Lemmas.mem_add_eq.
           apply TE.SE.eq_refl.
-          rewrite /well_formed_fstmt.
+          rewrite /well_formed_fstmt_inline.
           simpl.
           rewrite Hwt2 Hid2 //.
           rewrite H2 H3 in Hwt.
@@ -5328,7 +5274,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       move => rs1 s1 te v Hcf Hwf.
       simpl.
       apply SV.conform_upd.
-      rewrite /well_formed_fstmt in Hwf.
+      rewrite /well_formed_fstmt_inline in Hwf.
       move : Hwf => /andP [Hwt Hid].
       simpl in Hwt.
       simpl in Hid.
@@ -5339,8 +5285,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         move : Hwt => /andP [Hwt2 Hwt3].
         simpl.
         rewrite size_udivB.
-        assert (Hwf2 : well_formed_fstmt (Snode v e2) te s1 rs1).
-        rewrite /well_formed_fstmt.
+        assert (Hwf2 : well_formed_fstmt_inline (Snode v e2) te s1 rs1).
+        rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt2 Hid2 //.
         specialize IHe1 with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
@@ -5356,7 +5302,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         reflexivity.
         apply SV.Lemmas.mem_add_eq.
         apply TE.SE.eq_refl.
-        rewrite /well_formed_fstmt.
+        rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt2 Hid2 //.
         rewrite H2 H3 in Hwt.
@@ -5374,8 +5320,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         move : Hwt => /andP [Hwt2 Hwt3].
         simpl.
         rewrite size_sext size_sdivB.
-        assert (Hwf2 : well_formed_fstmt (Snode v e2) te s1 rs1).
-        rewrite /well_formed_fstmt.
+        assert (Hwf2 : well_formed_fstmt_inline (Snode v e2) te s1 rs1).
+        rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt2 Hid2 //.
         specialize IHe1 with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
@@ -5391,7 +5337,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         reflexivity.
         apply SV.Lemmas.mem_add_eq.
         apply TE.SE.eq_refl.
-        rewrite /well_formed_fstmt.
+        rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt2 Hid2 //.
         rewrite H2 H3 in Hwt.
@@ -5411,7 +5357,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       move => rs1 s1 te v Hcf Hwf.
       simpl.
       apply SV.conform_upd.
-      rewrite /well_formed_fstmt in Hwf.
+      rewrite /well_formed_fstmt_inline in Hwf.
       move : Hwf => /andP [Hwt Hid].
       simpl in Hwt.
       simpl in Hid.
@@ -5455,7 +5401,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       case b.
       simpl.
       apply SV.conform_upd.
-      rewrite /well_formed_fstmt in Hwf.
+      rewrite /well_formed_fstmt_inline in Hwf.
       move : Hwf => /andP [Hwt _].
       simpl in Hwt.
       case H2:(type_of_fexpr e2 te) => [n0|n0|||].
@@ -5490,7 +5436,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       exact Hcf.
       simpl.
       apply SV.conform_upd.
-      rewrite /well_formed_fstmt in Hwf.
+      rewrite /well_formed_fstmt_inline in Hwf.
       move : Hwf => /andP [Hwt _].
       simpl in Hwt.
       case H2:(type_of_fexpr e2 te) => [n0|n0|||].
@@ -5525,7 +5471,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       exact Hcf.
       simpl.
       apply SV.conform_upd.
-      rewrite /well_formed_fstmt in Hwf.
+      rewrite /well_formed_fstmt_inline in Hwf.
       move : Hwf => /andP [Hwt _].
       simpl in Hwt.
       case H2:(type_of_fexpr e2 te) => [n0|n0|||].
@@ -5560,7 +5506,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       exact Hcf.
       simpl.
       apply SV.conform_upd.
-      rewrite /well_formed_fstmt in Hwf.
+      rewrite /well_formed_fstmt_inline in Hwf.
       move : Hwf => /andP [Hwt _].
       simpl in Hwt.
       case H2:(type_of_fexpr e2 te) => [n0|n0|||].
@@ -5595,7 +5541,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       exact Hcf.
       simpl.
       apply SV.conform_upd.
-      rewrite /well_formed_fstmt in Hwf.
+      rewrite /well_formed_fstmt_inline in Hwf.
       move : Hwf => /andP [Hwt _].
       simpl in Hwt.
       case H2:(type_of_fexpr e2 te) => [n0|n0|||].
@@ -5630,7 +5576,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       exact Hcf.
       simpl.
       apply SV.conform_upd.
-      rewrite /well_formed_fstmt in Hwf.
+      rewrite /well_formed_fstmt_inline in Hwf.
       move : Hwf => /andP [Hwt _].
       simpl in Hwt.
       case H2:(type_of_fexpr e2 te) => [n0|n0|||].
@@ -5667,7 +5613,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       move => rs1 s1 te v Hcf Hwf.
       simpl.
       apply SV.conform_upd.
-      rewrite /well_formed_fstmt in Hwf.
+      rewrite /well_formed_fstmt_inline in Hwf.
       move : Hwf => /andP [Hwt Hid].
       simpl in Hwt.
       simpl in Hid.
@@ -5678,12 +5624,12 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         move : Hwt => /andP [Hwt2 Hwt3].
         simpl.
         rewrite size_zext size_cat size_zeros.
-        assert (Hwf2 : well_formed_fstmt (Snode v e2) te s1 rs1).
-        rewrite /well_formed_fstmt.
+        assert (Hwf2 : well_formed_fstmt_inline (Snode v e2) te s1 rs1).
+        rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt2 Hid2 //.
-        assert (Hwf3 : well_formed_fstmt (Snode v e3) te s1 rs1).
-        rewrite /well_formed_fstmt.
+        assert (Hwf3 : well_formed_fstmt_inline (Snode v e3) te s1 rs1).
+        rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt3 Hid3 //.
         specialize IHe1 with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
@@ -5718,12 +5664,12 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         rewrite to_nat_bounded //.
         rewrite Nats.expn_pow.
         apply Nat.pow_nonzero.
-        admit.
+        lia.
         reflexivity.
         reflexivity.
         apply SV.Lemmas.mem_add_eq.
         apply TE.SE.eq_refl.
-        rewrite /well_formed_fstmt.
+        rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt3 Hid3 //.
         reflexivity.
@@ -5744,12 +5690,12 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         move : Hwt => /andP [Hwt2 Hwt3].
         simpl.
         rewrite size_sext size_cat size_zeros.
-        assert (Hwf2 : well_formed_fstmt (Snode v e2) te s1 rs1).
-        rewrite /well_formed_fstmt.
+        assert (Hwf2 : well_formed_fstmt_inline (Snode v e2) te s1 rs1).
+        rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt2 Hid2 //.
-        assert (Hwf3 : well_formed_fstmt (Snode v e3) te s1 rs1).
-        rewrite /well_formed_fstmt.
+        assert (Hwf3 : well_formed_fstmt_inline (Snode v e3) te s1 rs1).
+        rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt3 Hid3 //.
         specialize IHe1 with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
@@ -5784,13 +5730,12 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         rewrite to_nat_bounded //.
         rewrite Nats.expn_pow.
         apply Nat.pow_nonzero.
-        (* rewrite to_nat_bounded. *)
-        admit.
+        lia.
         reflexivity.
         reflexivity.
         apply SV.Lemmas.mem_add_eq.
         apply TE.SE.eq_refl.
-        rewrite /well_formed_fstmt.
+        rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt3 Hid3 //.
         reflexivity.
@@ -5817,7 +5762,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       move => rs1 s1 te v Hcf Hwf.
       simpl.
       apply SV.conform_upd.
-      rewrite /well_formed_fstmt in Hwf.
+      rewrite /well_formed_fstmt_inline in Hwf.
       move : Hwf => /andP [Hwt Hid].
       simpl in Hwt.
       simpl in Hid.
@@ -5828,8 +5773,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         move : Hwt => /andP [Hwt2 Hwt3].
         simpl.
         rewrite size_shrB.
-        assert (Hwf2 : well_formed_fstmt (Snode v e2) te s1 rs1).
-        rewrite /well_formed_fstmt.
+        assert (Hwf2 : well_formed_fstmt_inline (Snode v e2) te s1 rs1).
+        rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt2 Hid2 //.
         specialize IHe1 with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
@@ -5845,7 +5790,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         reflexivity.
         apply SV.Lemmas.mem_add_eq.
         apply TE.SE.eq_refl.
-        rewrite /well_formed_fstmt.
+        rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt2 Hid2 //.
         rewrite H2 H3 in Hwt.
@@ -5861,8 +5806,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         move : Hwt => /andP [Hwt2 Hwt3].
         simpl.
         rewrite size_sarB.
-        assert (Hwf2 : well_formed_fstmt (Snode v e2) te s1 rs1).
-        rewrite /well_formed_fstmt.
+        assert (Hwf2 : well_formed_fstmt_inline (Snode v e2) te s1 rs1).
+        rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt2 Hid2 //.
         specialize IHe1 with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
@@ -5878,7 +5823,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         reflexivity.
         apply SV.Lemmas.mem_add_eq.
         apply TE.SE.eq_refl.
-        rewrite /well_formed_fstmt.
+        rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt2 Hid2 //.
         rewrite H2 H3 in Hwt.
@@ -5900,7 +5845,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       move => rs1 s1 te v Hcf Hwf.
       simpl.
       apply SV.conform_upd.
-      rewrite /well_formed_fstmt in Hwf.
+      rewrite /well_formed_fstmt_inline in Hwf.
       move : Hwf => /andP [Hwt Hid].
       simpl in Hwt.
       simpl in Hid.
@@ -5911,12 +5856,12 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         move : Hwt => /andP [Hwt2 Hwt3].
         simpl.
         rewrite size_andB 2!size_zext.
-        assert (Hwf2 : well_formed_fstmt (Snode v e2) te s1 rs1).
-        rewrite /well_formed_fstmt.
+        assert (Hwf2 : well_formed_fstmt_inline (Snode v e2) te s1 rs1).
+        rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt2 Hid2 //.
-        assert (Hwf3 : well_formed_fstmt (Snode v e3) te s1 rs1).
-        rewrite /well_formed_fstmt.
+        assert (Hwf3 : well_formed_fstmt_inline (Snode v e3) te s1 rs1).
+        rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt3 Hid3 //.
         specialize IHe1 with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
@@ -5944,7 +5889,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         reflexivity.
         apply SV.Lemmas.mem_add_eq.
         apply TE.SE.eq_refl.
-        rewrite /well_formed_fstmt.
+        rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt3 Hid3 //.
         reflexivity.
@@ -5967,12 +5912,12 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         move : Hwt => /andP [Hwt2 Hwt3].
         simpl.
         rewrite size_andB 2!size_sext.
-        assert (Hwf2 : well_formed_fstmt (Snode v e2) te s1 rs1).
-        rewrite /well_formed_fstmt.
+        assert (Hwf2 : well_formed_fstmt_inline (Snode v e2) te s1 rs1).
+        rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt2 Hid2 //.
-        assert (Hwf3 : well_formed_fstmt (Snode v e3) te s1 rs1).
-        rewrite /well_formed_fstmt.
+        assert (Hwf3 : well_formed_fstmt_inline (Snode v e3) te s1 rs1).
+        rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt3 Hid3 //.
         specialize IHe1 with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
@@ -6000,7 +5945,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         reflexivity.
         apply SV.Lemmas.mem_add_eq.
         apply TE.SE.eq_refl.
-        rewrite /well_formed_fstmt.
+        rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt3 Hid3 //.
         reflexivity.
@@ -6025,7 +5970,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       move => rs1 s1 te v Hcf Hwf.
       simpl.
       apply SV.conform_upd.
-      rewrite /well_formed_fstmt in Hwf.
+      rewrite /well_formed_fstmt_inline in Hwf.
       move : Hwf => /andP [Hwt Hid].
       simpl in Hwt.
       simpl in Hid.
@@ -6036,12 +5981,12 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         move : Hwt => /andP [Hwt2 Hwt3].
         simpl.
         rewrite size_orB 2!size_zext.
-        assert (Hwf2 : well_formed_fstmt (Snode v e2) te s1 rs1).
-        rewrite /well_formed_fstmt.
+        assert (Hwf2 : well_formed_fstmt_inline (Snode v e2) te s1 rs1).
+        rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt2 Hid2 //.
-        assert (Hwf3 : well_formed_fstmt (Snode v e3) te s1 rs1).
-        rewrite /well_formed_fstmt.
+        assert (Hwf3 : well_formed_fstmt_inline (Snode v e3) te s1 rs1).
+        rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt3 Hid3 //.
         specialize IHe1 with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
@@ -6069,7 +6014,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         reflexivity.
         apply SV.Lemmas.mem_add_eq.
         apply TE.SE.eq_refl.
-        rewrite /well_formed_fstmt.
+        rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt3 Hid3 //.
         reflexivity.
@@ -6092,12 +6037,12 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         move : Hwt => /andP [Hwt2 Hwt3].
         simpl.
         rewrite size_orB 2!size_sext.
-        assert (Hwf2 : well_formed_fstmt (Snode v e2) te s1 rs1).
-        rewrite /well_formed_fstmt.
+        assert (Hwf2 : well_formed_fstmt_inline (Snode v e2) te s1 rs1).
+        rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt2 Hid2 //.
-        assert (Hwf3 : well_formed_fstmt (Snode v e3) te s1 rs1).
-        rewrite /well_formed_fstmt.
+        assert (Hwf3 : well_formed_fstmt_inline (Snode v e3) te s1 rs1).
+        rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt3 Hid3 //.
         specialize IHe1 with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
@@ -6125,7 +6070,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         reflexivity.
         apply SV.Lemmas.mem_add_eq.
         apply TE.SE.eq_refl.
-        rewrite /well_formed_fstmt.
+        rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt3 Hid3 //.
         reflexivity.
@@ -6150,7 +6095,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       move => rs1 s1 te v Hcf Hwf.
       simpl.
       apply SV.conform_upd.
-      rewrite /well_formed_fstmt in Hwf.
+      rewrite /well_formed_fstmt_inline in Hwf.
       move : Hwf => /andP [Hwt Hid].
       simpl in Hwt.
       simpl in Hid.
@@ -6161,12 +6106,12 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         move : Hwt => /andP [Hwt2 Hwt3].
         simpl.
         rewrite size_xorB 2!size_zext.
-        assert (Hwf2 : well_formed_fstmt (Snode v e2) te s1 rs1).
-        rewrite /well_formed_fstmt.
+        assert (Hwf2 : well_formed_fstmt_inline (Snode v e2) te s1 rs1).
+        rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt2 Hid2 //.
-        assert (Hwf3 : well_formed_fstmt (Snode v e3) te s1 rs1).
-        rewrite /well_formed_fstmt.
+        assert (Hwf3 : well_formed_fstmt_inline (Snode v e3) te s1 rs1).
+        rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt3 Hid3 //.
         specialize IHe1 with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
@@ -6194,7 +6139,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         reflexivity.
         apply SV.Lemmas.mem_add_eq.
         apply TE.SE.eq_refl.
-        rewrite /well_formed_fstmt.
+        rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt3 Hid3 //.
         reflexivity.
@@ -6217,12 +6162,12 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         move : Hwt => /andP [Hwt2 Hwt3].
         simpl.
         rewrite size_xorB 2!size_sext.
-        assert (Hwf2 : well_formed_fstmt (Snode v e2) te s1 rs1).
-        rewrite /well_formed_fstmt.
+        assert (Hwf2 : well_formed_fstmt_inline (Snode v e2) te s1 rs1).
+        rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt2 Hid2 //.
-        assert (Hwf3 : well_formed_fstmt (Snode v e3) te s1 rs1).
-        rewrite /well_formed_fstmt.
+        assert (Hwf3 : well_formed_fstmt_inline (Snode v e3) te s1 rs1).
+        rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt3 Hid3 //.
         specialize IHe1 with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
@@ -6250,7 +6195,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         reflexivity.
         apply SV.Lemmas.mem_add_eq.
         apply TE.SE.eq_refl.
-        rewrite /well_formed_fstmt.
+        rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt3 Hid3 //.
         reflexivity.
@@ -6275,7 +6220,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       move => rs1 s1 te v Hcf Hwf.
       simpl.
       apply SV.conform_upd.
-      rewrite /well_formed_fstmt in Hwf.
+      rewrite /well_formed_fstmt_inline in Hwf.
       move : Hwf => /andP [Hwt Hid].
       simpl in Hwt.
       simpl in Hid.
@@ -6286,12 +6231,12 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         move : Hwt => /andP [Hwt2 Hwt3].
         simpl.
         rewrite size_cat.
-        assert (Hwf2 : well_formed_fstmt (Snode v e2) te s1 rs1).
-        rewrite /well_formed_fstmt.
+        assert (Hwf2 : well_formed_fstmt_inline (Snode v e2) te s1 rs1).
+        rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt2 Hid2 //.
-        assert (Hwf3 : well_formed_fstmt (Snode v e3) te s1 rs1).
-        rewrite /well_formed_fstmt.
+        assert (Hwf3 : well_formed_fstmt_inline (Snode v e3) te s1 rs1).
+        rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt3 Hid3 //.
         specialize IHe1 with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
@@ -6315,7 +6260,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         reflexivity.
         apply SV.Lemmas.mem_add_eq.
         apply TE.SE.eq_refl.
-        rewrite /well_formed_fstmt.
+        rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt3 Hid3 //.
         reflexivity.
@@ -6338,12 +6283,12 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         move : Hwt => /andP [Hwt2 Hwt3].
         simpl.
         rewrite size_cat.
-        assert (Hwf2 : well_formed_fstmt (Snode v e2) te s1 rs1).
-        rewrite /well_formed_fstmt.
+        assert (Hwf2 : well_formed_fstmt_inline (Snode v e2) te s1 rs1).
+        rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt2 Hid2 //.
-        assert (Hwf3 : well_formed_fstmt (Snode v e3) te s1 rs1).
-        rewrite /well_formed_fstmt.
+        assert (Hwf3 : well_formed_fstmt_inline (Snode v e3) te s1 rs1).
+        rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt3 Hid3 //.
         specialize IHe1 with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
@@ -6367,7 +6312,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         reflexivity.
         apply SV.Lemmas.mem_add_eq.
         apply TE.SE.eq_refl.
-        rewrite /well_formed_fstmt.
+        rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt3 Hid3 //.
         reflexivity.
@@ -6392,7 +6337,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
     move => rs1 s1 te v Hcf Hwf.
       apply SV.conform_upd.
       simpl.
-      rewrite /well_formed_fstmt in Hwf.
+      rewrite /well_formed_fstmt_inline in Hwf.
       move : Hwf => /andP [Hwt Hid].
       simpl in Hwt.
       simpl in Hid.
@@ -6419,7 +6364,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         reflexivity.
         apply SV.Lemmas.mem_add_eq.
         apply TE.SE.eq_refl.
-        rewrite /well_formed_fstmt.
+        rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt3 Hid3 //.
         simpl.
@@ -6437,7 +6382,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         reflexivity.
         apply SV.Lemmas.mem_add_eq.
         apply TE.SE.eq_refl.
-        rewrite /well_formed_fstmt.
+        rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt2 Hid2 //.
         rewrite H2 H3 in Hwt.
@@ -6470,7 +6415,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         reflexivity.
         apply SV.Lemmas.mem_add_eq.
         apply TE.SE.eq_refl.
-        rewrite /well_formed_fstmt.
+        rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt3 Hid3 //.
         simpl.
@@ -6488,7 +6433,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         reflexivity.
         apply SV.Lemmas.mem_add_eq.
         apply TE.SE.eq_refl.
-        rewrite /well_formed_fstmt.
+        rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt2 Hid2 //.
         rewrite H2 H3 in Hwt.
@@ -6508,7 +6453,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
     move => rs1 s1 te v Hcf Hwf.
     apply SV.conform_upd.
     simpl.
-      rewrite /well_formed_fstmt in Hwf.
+      rewrite /well_formed_fstmt_inline in Hwf.
       move : Hwf => /andP [Hwt Hid].
       simpl in Hwt.
       simpl in Hid.
@@ -6524,13 +6469,13 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       reflexivity.
       apply SV.Lemmas.mem_add_eq.
       apply TE.SE.eq_refl.
-      rewrite /well_formed_fstmt.
+      rewrite /well_formed_fstmt_inline.
       simpl.
       rewrite Hwf Hid //.
       exact Hcf.
     - (* case ref *)
     move => rs1 s1 te v Hcf Hwf.
-    rewrite /well_formed_fstmt in Hwf.
+    rewrite /well_formed_fstmt_inline in Hwf.
     move : Hwf => /andP [Hwt Hid].
     simpl in Hwt.
     simpl in Hid.
@@ -6542,8 +6487,233 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
     rewrite (TE.vtyp_vsize (eqP(eqxx (TE.vtyp s te))))//.
     exact Hid.
     exact Hcf.
+  Qed.
+
+  Lemma conform_eval_sfcnct_upd_env0_inline e : forall rs1 s1 te r ,
+    SV.conform s1 te ->
+    well_formed_fstmt_inline (Sfcnct r e) te s1 rs1 ->
+    (SV.acc r rs1 == [::]) = true ->
+    SV.conform (snd (no_mem_eval_noninst_fstmt (Sfcnct r e) rs1 s1 te)) (no_mem_upd_typenv_fstmt (Sfcnct r e) te).
+  Proof.
   Admitted.
 
+  Lemma conform_eval_sfcnct_upd_envr0_inline e : forall rs1 s1 te r ,
+    SV.conform s1 te ->
+    SV.conform rs1 te ->
+    well_formed_fstmt_inline (Sfcnct r e) te s1 rs1 ->
+    (SV.acc r rs1 == [::]) = false ->
+    SV.conform (fst (no_mem_eval_noninst_fstmt (Sfcnct r e) rs1 s1 te)) (no_mem_upd_typenv_fstmt (Sfcnct r e) te) /\
+    SV.conform (snd (no_mem_eval_noninst_fstmt (Sfcnct r e) rs1 s1 te)) (no_mem_upd_typenv_fstmt (Sfcnct r e) te).
+  Proof.
+  Admitted.
+
+  Fixpoint well_formed_fstmts_inline sts te s rs := match sts with
+    | [::] => true
+    | hd :: tl => well_formed_fstmt_inline hd te s rs && 
+                  well_formed_fstmts_inline tl (no_mem_upd_typenv_fstmt hd te) (snd (no_mem_eval_noninst_fstmt hd rs s (no_mem_upd_typenv_fstmt hd te))) 
+                  (fst (no_mem_eval_noninst_fstmt hd rs s (no_mem_upd_typenv_fstmt hd te)))
+  end.
+
+  Lemma conform_eval_stmts_inline sts : forall rs s te,
+    SV.conform s te ->
+    SV.conform rs te ->
+    well_formed_fstmts_inline sts te s rs ->
+    SV.conform (fst (no_mem_eval_fstmts_inline sts rs s te)) (no_mem_upd_typenv_fstmts sts te) /\ SV.conform (snd (no_mem_eval_fstmts_inline sts rs s te)) (no_mem_upd_typenv_fstmts sts te).
+  Proof.
+    induction sts.
+    - move => rs s te Hcf Hcfr Hwf.
+    simpl.
+    split.
+    exact Hcfr.
+    exact Hcf.
+    - move => rs s te Hcf Hcfr Hwf.
+    simpl in Hwf.
+    move : Hwf => /andP [Hwf Hwfs].
+    simpl.
+    case Hhd : (no_mem_eval_noninst_fstmt a rs s (no_mem_upd_typenv_fstmt a te)) => [rs0 s0].
+    specialize IHsts with (rs:=rs0) (s:=s0) (te:=(no_mem_upd_typenv_fstmt a te)).
+    apply IHsts.
+
+    have ->: s0 = snd (no_mem_eval_noninst_fstmt a rs s (no_mem_upd_typenv_fstmt a te)) by rewrite Hhd//.
+    - case Hs : a => [||||||v e|||].
+      (* sskip *)
+      simpl.
+      exact Hcf.
+      (* swire *)
+      apply conform_eval_swire_upd_env_inline.
+      exact Hcf.
+      rewrite -Hs.
+      exact Hwf.
+      (* sreg *)
+      apply conform_eval_reg_upd_env_inline.
+      exact Hcf.
+      exact Hcfr.
+      rewrite -Hs.
+      exact Hwf.
+      (* smem *)
+      simpl.
+      done.
+      (* sinst *)
+      rewrite Hs /well_formed_fstmt_inline /well_typed_fstmt_inline in Hwf.
+      discriminate.
+      (* snode *)
+      apply conform_eval_node_upd_env_inline.
+      exact Hcf.
+      rewrite -Hs.
+      exact Hwf.
+      (* sfcnct *)
+      case Hr : (SV.acc v rs == [::]).
+      apply conform_eval_sfcnct_upd_env0_inline.
+      exact Hcf.
+      rewrite -Hs.
+      exact Hwf.
+      exact Hr.
+      apply conform_eval_sfcnct_upd_envr0_inline.
+      exact Hcf.
+      exact Hcfr.
+      rewrite -Hs.
+      exact Hwf.
+      exact Hr.
+      (* sinvalid *)
+      apply conform_eval_invalid_upd_env_inline.
+      exact Hcf.
+      rewrite -Hs.
+      exact Hwf.
+      (* swhen *)
+      simpl.
+      exact Hcf.
+      (* sstop *)
+      simpl.
+      exact Hcf.
+
+    have ->: rs0 = fst (no_mem_eval_noninst_fstmt a rs s (no_mem_upd_typenv_fstmt a te)) by rewrite Hhd//.
+    - case Hs : a => [||||||v e|||].
+      (* sskip *)
+      simpl.
+      exact Hcfr.
+      (* swire *)
+      simpl.
+      admit.
+      (* sreg *)
+      apply conform_eval_reg_upd_env_inline.
+      exact Hcf.
+      exact Hcfr.
+      rewrite -Hs.
+      exact Hwf.
+      (* smem *)
+      simpl.
+      done.
+      (* sinst *)
+      admit.
+      (* snode *)
+      simpl.
+      admit.
+      (* sfcnct *)
+      case Hr : (SV.acc v rs == [::]).
+      simpl.
+      case : (TE.vtyp v te) => [n0|n0|||].
+      rewrite Hr.
+      simpl.
+      exact Hcfr.
+      rewrite Hr.
+      simpl.
+      exact Hcfr.
+      simpl.
+      exact Hcfr.
+      simpl.
+      exact Hcfr.
+      simpl.
+      exact Hcfr.
+      apply conform_eval_sfcnct_upd_envr0_inline.
+      exact Hcf.
+      exact Hcfr.
+      rewrite -Hs.
+      exact Hwf.
+      exact Hr.
+      (* sinvalid *)
+      simpl.
+      admit.
+      (* swhen *)
+      simpl.
+      exact Hcfr.
+      (* sstop *)
+      simpl.
+      exact Hcfr.
+      have -> : s0 = snd (no_mem_eval_noninst_fstmt a rs s (no_mem_upd_typenv_fstmt a te)) by rewrite Hhd //.
+      have -> : rs0 = fst (no_mem_eval_noninst_fstmt a rs s (no_mem_upd_typenv_fstmt a te)) by rewrite Hhd //.
+      exact Hwfs.
+  Admitted.
+
+  (************************************************************)
+  (* non_inline *)
+
+  Definition well_typed_fstmt (st : fstmt) (te : TE.env) s rs finstoutl finstoutm ffmodsmap fterss finstin 
+  finstinmap finstoutmap allfinstoutl allfinstoutm allfinstportmap n : Prop :=
+  match st with 
+  | Sfcnct v (Eref r0) => if mylListIn r0 finstoutl
+                          then 
+                          match TE.find r0 finstoutm with
+                          | Some (a4,a0) => match TE.find a4 ffmodsmap with
+                                            | Some mst => match TE.find a0 fterss with
+                                                          | Some (((te0,rs1),s1),_) => match TE.find a4 finstin with
+                                                                                  | Some a2 => match TE.find a0 finstinmap with
+                                                                                              | Some updfinstin => match TE.find a4 allfinstoutl with
+                                                                                                          | Some finstoutl0 => match TE.find r0 finstoutmap with
+                                                                                                                  | Some a3 => match TE.find a4 allfinstoutm with
+                                                                                                                              | Some finstoutm0 => match TE.find a4 allfinstportmap with
+                                                                                                                                          | Some (finstinmap0, finstoutmap0) => ((TE.vtyp v te) = (TE.vtyp a3 (no_mem_upd_typenv_fstmts (rev mst) te0))) /\
+                                                                                                                                            TE.mem a3 (no_mem_upd_typenv_fstmts (rev mst) te0) /\
+                                                                                                                                            (let ts := snd (fst (fold_left
+                                                                                                                                            (fun '(y, tfterss) =>
+                                                                                                                                             let
+                                                                                                                                             '(trs, ts) := y in
+                                                                                                                                              fun tempst : fstmt =>
+                                                                                                                                              no_mem_eval_fstmt tempst trs ts (no_mem_upd_typenv_fstmts (rev mst) te0) finstoutl0 finstoutm0
+                                                                                                                                                ffmodsmap tfterss finstin finstinmap0 finstoutmap0 allfinstoutl
+                                                                                                                                                allfinstoutm allfinstportmap n.-1) (rev mst)
+                                                                                                                                            (rs1, upd_inner s s1 a2 updfinstin, fterss))) in 
+                                                                                                                                            SV.conform ts (no_mem_upd_typenv_fstmts (rev mst) te0)) /\ (well_typed_fstmt_inline st te s rs)
+                                                                                                                                          | None => false
+                                                                                                                                          end
+                                                                                                                              | None => false
+                                                                                                                              end
+                                                                                                                  | None => false
+                                                                                                                  end
+                                                                                                          | None => false
+                                                                                                          end
+                                                                                              | None => false
+                                                                                              end
+                                                                                  | None => false
+                                                                                  end
+                                                          | None => false
+                                                          end
+                                            | None => false
+                                            end
+                          | None => false
+                          end 
+                          else well_typed_fstmt_inline st te s rs
+  | Sinst inst => (SV.conform s (upd_typenv_fports (iports inst) te)) /\ well_typed_fstmt_inline st te s rs
+  | _ => well_typed_fstmt_inline st te s rs
+  end.
+
+  (* well formed statement *)
+  Definition well_formed_fstmt s te s1 rs1 finstoutl finstoutm ffmodsmap fterss finstin 
+  finstinmap finstoutmap allfinstoutl allfinstoutm allfinstportmap n
+  := well_typed_fstmt s te s1 rs1 finstoutl finstoutm ffmodsmap fterss finstin 
+  finstinmap finstoutmap allfinstoutl allfinstoutm allfinstportmap n /\ is_defined_fstmt s te.
+
+  Fixpoint well_formed_fstmts sts (te : TE.env) s rs finstoutl finstoutm ffmodsmap fterss finstin 
+  finstinmap finstoutmap allfinstoutl allfinstoutm allfinstportmap n : Prop := match sts with
+    | [::] => true
+    | hd :: tl => well_formed_fstmt hd te s rs finstoutl finstoutm ffmodsmap fterss finstin 
+                  finstinmap finstoutmap allfinstoutl allfinstoutm allfinstportmap n /\
+                  well_formed_fstmts tl (no_mem_upd_typenv_fstmt hd te) (snd (fst (no_mem_eval_fstmt hd rs s (no_mem_upd_typenv_fstmt hd te) finstoutl 
+                  finstoutm ffmodsmap fterss finstin finstinmap finstoutmap allfinstoutl allfinstoutm allfinstportmap n))) 
+                  (fst (fst (no_mem_eval_fstmt hd rs s (no_mem_upd_typenv_fstmt hd te) finstoutl finstoutm ffmodsmap fterss finstin 
+                  finstinmap finstoutmap allfinstoutl allfinstoutm allfinstportmap n))) finstoutl finstoutm ffmodsmap fterss finstin 
+                  finstinmap finstoutmap allfinstoutl allfinstoutm allfinstportmap n
+  end.
+(*
   Lemma conform_eval_sfcnct_upd_env0 e : forall rs1 s1 te r ,
     SV.conform s1 te ->
     well_formed_fstmt (Sfcnct r e) te s1 rs1 ->
@@ -8261,7 +8431,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         rewrite to_nat_bounded //.
         rewrite Nats.expn_pow.
         apply Nat.pow_nonzero.
-        admit.
+        lia.
         exact Hcf.
         move : Hte Htcf.
         apply SV.conform_equal.
@@ -8311,7 +8481,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
            rewrite to_nat_bounded //.
            rewrite Nats.expn_pow.
            apply Nat.pow_nonzero.
-           admit.
+           lia.
            exact Hcf.
            move : Hte Htcf.
            apply SV.conform_equal.
@@ -10711,7 +10881,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         rewrite to_nat_bounded //.
         rewrite Nats.expn_pow.
         apply Nat.pow_nonzero.
-        admit.
+        lia.
         exact Hcf.
         move : Hte Htcf.
         apply SV.conform_equal.
@@ -10761,7 +10931,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
            rewrite to_nat_bounded //.
            rewrite Nats.expn_pow.
            apply Nat.pow_nonzero.
-           admit.
+           lia.
            exact Hcf.
            move : Hte Htcf.
            apply SV.conform_equal.
@@ -11469,7 +11639,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
     discriminate.
     rewrite Ht in Hwt.
     discriminate.
-  Admitted.
+  Qed.
 
   Lemma conform_eval_sfcnct_upd_envr0 e : forall rs1 s1 te r ,
     SV.conform s1 te ->
@@ -13249,7 +13419,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         rewrite to_nat_bounded //.
         rewrite Nats.expn_pow.
         apply Nat.pow_nonzero.
-        admit.
+        lia.
         exact Hcfr.
         move : Hte Htcf.
         apply SV.conform_equal.
@@ -13299,7 +13469,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
           rewrite to_nat_bounded //.
           rewrite Nats.expn_pow.
           apply Nat.pow_nonzero.
-          admit.
+          lia.
           exact Hcfr.
           move : Hte Htcf.
           apply SV.conform_equal.
@@ -15771,7 +15941,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         rewrite to_nat_bounded //.
         rewrite Nats.expn_pow.
         apply Nat.pow_nonzero.
-        admit.
+        lia.
         exact Hcfr.
         move : Hte Htcf.
         apply SV.conform_equal.
@@ -15821,7 +15991,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
           rewrite to_nat_bounded //.
           rewrite Nats.expn_pow.
           apply Nat.pow_nonzero.
-          admit.
+          lia.
           exact Hcfr.
           move : Hte Htcf.
           apply SV.conform_equal.
@@ -16545,14 +16715,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       discriminate.
       rewrite Ht in Hwt.
       discriminate.
-Admitted.
-
-  Definition conform_terss (t : mapterss) : Prop :=
-    forall (v : V.t),
-      (match TE.find v t with
-      | Some (tte, trs, ts, _) => SV.conform trs tte /\ SV.conform ts tte
-      | None => false
-      end).
+  Qed.
 
   Lemma conform_updinner : forall a2 s s0 te te0 finstinmap,
     SV.conform s te ->
@@ -16607,189 +16770,149 @@ Admitted.
       exact Hcf0.
       exact Ht.
   Qed.
-  
-  Fixpoint well_formed_fstmts sts te s rs := match sts with
-    | [::] => true
-    | hd :: tl => well_formed_fstmt hd te s rs && well_formed_fstmts tl te s rs
-  end.
-
-  Lemma conform_eval_stmts_inline sts : forall rs s te,
+*)
+  Lemma conform_eval_stmt : forall a rs s te finstoutl finstoutm ffmodsmap fterss finstin finstinmap finstoutmap
+  allfinstoutl allfinstoutm allfinstportmap n,
     SV.conform s te ->
     SV.conform rs te ->
-    well_formed_fstmts sts te s rs ->
-    SV.conform (fst (no_mem_eval_fstmts_inline sts rs s te)) (no_mem_upd_typenv_fstmts sts te) /\ SV.conform (snd (no_mem_eval_fstmts_inline sts rs s te)) (no_mem_upd_typenv_fstmts sts te).
-  Proof.
-    induction sts.
-    - move => rs s te Hcf Hcfr Hwf.
-    simpl.
-    split.
-    exact Hcfr.
-    exact Hcf.
-    - move => rs s te Hcf Hcfr Hwf.
-    simpl in Hwf.
-    move : Hwf => /andP [Hwf Hwfs].
-    simpl.
-    case Hhd : (no_mem_eval_noninst_fstmt a rs s (no_mem_upd_typenv_fstmt a te)) => [rs0 s0].
-    specialize IHsts with (rs:=rs0) (s:=s0) (te:=(no_mem_upd_typenv_fstmt a te)).
-    apply IHsts.
-
-    have ->: s0 = snd (no_mem_eval_noninst_fstmt a rs s (no_mem_upd_typenv_fstmt a te)) by rewrite Hhd//.
-    - case Hs : a => [||||||v e|||].
-      (* sskip *)
-      simpl.
-      exact Hcf.
-      (* swire *)
-      apply conform_eval_swire_upd_env.
-      exact Hcf.
-      rewrite -Hs.
-      exact Hwf.
-      (* sreg *)
-      apply conform_eval_reg_upd_env.
-      exact Hcf.
-      exact Hcfr.
-      rewrite -Hs.
-      exact Hwf.
-      (* smem *)
-      simpl.
-      done.
-      (* sinst *)
-      admit.
-      (* snode *)
-      apply conform_eval_node_upd_env.
-      exact Hcf.
-      rewrite -Hs.
-      exact Hwf.
-      (* sfcnct *)
-      case Hr : (SV.acc v rs == [::]).
-      apply conform_eval_sfcnct_upd_env0.
-      exact Hcf.
-      rewrite -Hs.
-      exact Hwf.
-      exact Hr.
-      apply conform_eval_sfcnct_upd_envr0.
-      exact Hcf.
-      exact Hcfr.
-      rewrite -Hs.
-      exact Hwf.
-      exact Hr.
-      (* sinvalid *)
-      apply conform_eval_invalid_upd_env.
-      exact Hcf.
-      rewrite -Hs.
-      exact Hwf.
-      (* swhen *)
-      simpl.
-      exact Hcf.
-      (* sstop *)
-      simpl.
-      exact Hcf.
-
-    have ->: rs0 = fst (no_mem_eval_noninst_fstmt a rs s (no_mem_upd_typenv_fstmt a te)) by rewrite Hhd//.
-    - case Hs : a => [||||||v e|||].
-      (* sskip *)
-      simpl.
-      exact Hcfr.
-      (* swire *)
-      simpl.
-      admit.
-      (* sreg *)
-      apply conform_eval_reg_upd_env.
-      exact Hcf.
-      exact Hcfr.
-      rewrite -Hs.
-      exact Hwf.
-      (* smem *)
-      simpl.
-      done.
-      (* sinst *)
-      admit.
-      (* snode *)
-      simpl.
-      admit.
-      (* sfcnct *)
-      case Hr : (SV.acc v rs == [::]).
-      simpl.
-      case : (TE.vtyp v te) => [n0|n0|||].
-      rewrite Hr.
-      simpl.
-      exact Hcfr.
-      rewrite Hr.
-      simpl.
-      exact Hcfr.
-      simpl.
-      exact Hcfr.
-      simpl.
-      exact Hcfr.
-      simpl.
-      exact Hcfr.
-      apply conform_eval_sfcnct_upd_envr0.
-      exact Hcf.
-      exact Hcfr.
-      rewrite -Hs.
-      exact Hwf.
-      exact Hr.
-      (* sinvalid *)
-      simpl.
-      admit.
-      (* swhen *)
-      simpl.
-      exact Hcfr.
-      (* sstop *)
-      simpl.
-      exact Hcfr.
-  Admitted.
- 
-  Lemma conform_eval_stmt : forall a rs s te,
-    SV.conform s te ->
-    SV.conform rs te ->
-    well_formed_fstmt a te s rs ->
+    well_formed_fstmt a te s rs finstoutl finstoutm ffmodsmap fterss finstin finstinmap finstoutmap
+    allfinstoutl allfinstoutm allfinstportmap n ->
     SV.conform (snd (no_mem_eval_noninst_fstmt a rs s (no_mem_upd_typenv_fstmt a te))) (no_mem_upd_typenv_fstmt a te) /\
     SV.conform (fst (no_mem_eval_noninst_fstmt a rs s (no_mem_upd_typenv_fstmt a te))) (no_mem_upd_typenv_fstmt a te).
   Proof.
-    (*
+    move => a rs s te finstoutl finstoutm ffmodsmap fterss finstin finstinmap finstoutmap
+    allfinstoutl allfinstoutm allfinstportmap n.
+    move => Hcf Hcfr Hwf.
+    split.
     - case Hs : a => [||||||v e|||].
       (* sskip *)
       simpl.
-      exact Hcf.
+      done.
       (* swire *)
-      apply conform_eval_swire_upd_env.
+      apply conform_eval_swire_upd_env_inline.
       exact Hcf.
-      rewrite -Hs.
-      exact Hwf.
+      rewrite Hs /well_formed_fstmt in Hwf.
+      move : Hwf => [Hwt Hid].
+      rewrite /well_typed_fstmt in Hwt.
+      rewrite /well_formed_fstmt_inline Hwt Hid //.
       (* sreg *)
-      apply conform_eval_reg_upd_env.
+      apply conform_eval_reg_upd_env_inline.
       exact Hcf.
       exact Hcfr.
-      rewrite -Hs.
-      exact Hwf.
+      rewrite Hs /well_formed_fstmt in Hwf.
+      move : Hwf => [Hwt Hid].
+      rewrite /well_typed_fstmt in Hwt.
+      rewrite /well_formed_fstmt_inline Hwt Hid //.
       (* smem *)
       simpl.
       done.
       (* sinst *)
-      admit.
+      simpl.
+      rewrite Hs /well_formed_fstmt /well_typed_fstmt in Hwf.
+      move : Hwf => [[Hwf _]_].
+      done.
       (* snode *)
-      apply conform_eval_node_upd_env.
+      apply conform_eval_node_upd_env_inline.
       exact Hcf.
-      rewrite -Hs.
-      exact Hwf.
+      rewrite Hs /well_formed_fstmt in Hwf.
+      move : Hwf => [Hwt Hid].
+      rewrite /well_typed_fstmt in Hwt.
+      rewrite /well_formed_fstmt_inline Hwt Hid //.
       (* sfcnct *)
       case Hr : (SV.acc v rs == [::]).
-      apply conform_eval_sfcnct_upd_env0.
+      apply conform_eval_sfcnct_upd_env0_inline.
       exact Hcf.
-      rewrite -Hs.
-      exact Hwf.
+      
+      rewrite Hs in Hwf.
+      move : Hwf Hs.
+      case : e.
+      1,2,3,6: move => t1 t2 Hwt Hs.
+      5,6: move => t1 t2 t3 Hwt Hs.
+      7: move => v1 Hwt Hs.
+      1,2,3,4,5,6,7: rewrite /well_formed_fstmt /well_typed_fstmt in Hwt.
+      1,2,3,4,5,6,7: rewrite /well_formed_fstmt_inline.
+      1,2,3,4,5,6,7: apply /andP.
+      1,2,3,4,5,6: done.
+      case H0: (mylListIn v1 finstoutl).
+      case H1: (TE.find v1 finstoutm) => [[a4 a0]|].
+      case H2: (TE.find a4 ffmodsmap) => [mst|].
+      case H3: (TE.find a0 fterss) => [[[[te0 rs1]s1]mem0]|].
+      case H4: (TE.find a4 finstin) => [a2|].
+      case H5: (TE.find a0 finstinmap) => [updfinstin|].
+      case H6: (TE.find a4 allfinstoutl) =>[finstoutl0|].
+      case H7: (TE.find v1 finstoutmap) => [a3|].
+      case H8: (TE.find a4 allfinstoutm) => [finstoutm0|].
+      case H9: (TE.find a4 allfinstportmap) => [[finstinmap0 finstoutmap0]|].
+      rewrite H0 H1 H2 H3 H4 H5 H6 H7 H8 H9 in Hwt.
+      move : Hwt => [Hwt Hid].
+      move : Hwt => [_ Hwt].
+      move : Hwt => [_ Hwt].
+      move : Hwt => [_ Hwt].
+      rewrite Hwt Hid //.
+      1: rewrite H0 H1 H2 H3 H4 H5 H6 H7 H8 H9 in Hwt.
+      2: rewrite H0 H1 H2 H3 H4 H5 H6 H7 H8 in Hwt.
+      3: rewrite H0 H1 H2 H3 H4 H5 H6 H7 in Hwt.
+      4: rewrite H0 H1 H2 H3 H4 H5 H6 in Hwt.
+      5: rewrite H0 H1 H2 H3 H4 H5 in Hwt.
+      6: rewrite H0 H1 H2 H3 H4 in Hwt.
+      7: rewrite H0 H1 H2 H3 in Hwt.
+      8: rewrite H0 H1 H2 in Hwt.
+      9: rewrite H0 H1 in Hwt.
+      1,2,3,4,5,6,7,8,9: move : Hwt => [Hwt Hid].
+      1,2,3,4,5,6,7,8,9: discriminate.
+      rewrite H0 in Hwt.
+      done.
       exact Hr.
-      apply conform_eval_sfcnct_upd_envr0.
+      apply conform_eval_sfcnct_upd_envr0_inline.
       exact Hcf.
       exact Hcfr.
-      rewrite -Hs.
-      exact Hwf.
+      rewrite Hs in Hwf.
+      move : Hwf Hs.
+      case : e.
+      1,2,3,6: move => t1 t2 Hwt Hs.
+      5,6: move => t1 t2 t3 Hwt Hs.
+      7: move => v1 Hwt Hs.
+      1,2,3,4,5,6,7: rewrite /well_formed_fstmt /well_typed_fstmt in Hwt.
+      1,2,3,4,5,6,7: rewrite /well_formed_fstmt_inline.
+      1,2,3,4,5,6,7: apply /andP.
+      1,2,3,4,5,6: done.
+      case H0: (mylListIn v1 finstoutl).
+      case H1: (TE.find v1 finstoutm) => [[a4 a0]|].
+      case H2: (TE.find a4 ffmodsmap) => [mst|].
+      case H3: (TE.find a0 fterss) => [[[[te0 rs1]s1]mem0]|].
+      case H4: (TE.find a4 finstin) => [a2|].
+      case H5: (TE.find a0 finstinmap) => [updfinstin|].
+      case H6: (TE.find a4 allfinstoutl) =>[finstoutl0|].
+      case H7: (TE.find v1 finstoutmap) => [a3|].
+      case H8: (TE.find a4 allfinstoutm) => [finstoutm0|].
+      case H9: (TE.find a4 allfinstportmap) => [[finstinmap0 finstoutmap0]|].
+      rewrite H0 H1 H2 H3 H4 H5 H6 H7 H8 H9 in Hwt.
+      move : Hwt => [Hwt Hid].
+      move : Hwt => [_ Hwt].
+      move : Hwt => [_ Hwt].
+      move : Hwt => [_ Hwt].
+      rewrite Hwt Hid //.
+      1: rewrite H0 H1 H2 H3 H4 H5 H6 H7 H8 H9 in Hwt.
+      2: rewrite H0 H1 H2 H3 H4 H5 H6 H7 H8 in Hwt.
+      3: rewrite H0 H1 H2 H3 H4 H5 H6 H7 in Hwt.
+      4: rewrite H0 H1 H2 H3 H4 H5 H6 in Hwt.
+      5: rewrite H0 H1 H2 H3 H4 H5 in Hwt.
+      6: rewrite H0 H1 H2 H3 H4 in Hwt.
+      7: rewrite H0 H1 H2 H3 in Hwt.
+      8: rewrite H0 H1 H2 in Hwt.
+      9: rewrite H0 H1 in Hwt.
+      1,2,3,4,5,6,7,8,9: move : Hwt => [Hwt Hid].
+      1,2,3,4,5,6,7,8,9: discriminate.
+      rewrite H0 in Hwt.
+      done.
       exact Hr.
       (* sinvalid *)
-      apply conform_eval_invalid_upd_env.
+      apply conform_eval_invalid_upd_env_inline.
       exact Hcf.
-      rewrite -Hs.
-      exact Hwf.
+      rewrite Hs /well_formed_fstmt in Hwf.
+      move : Hwf => [Hwt Hid].
+      rewrite /well_typed_fstmt in Hwt.
+      rewrite /well_formed_fstmt_inline Hwt Hid //.
       (* swhen *)
       simpl.
       exact Hcf.
@@ -16797,7 +16920,6 @@ Admitted.
       simpl.
       exact Hcf.
 
-    have ->: rs0 = fst (no_mem_eval_noninst_fstmt a rs s (no_mem_upd_typenv_fstmt a te)) by rewrite Hhd//.
     - case Hs : a => [||||||v e|||].
       (* sskip *)
       simpl.
@@ -16806,11 +16928,13 @@ Admitted.
       simpl.
       admit.
       (* sreg *)
-      apply conform_eval_reg_upd_env.
+      apply conform_eval_reg_upd_env_inline.
       exact Hcf.
       exact Hcfr.
-      rewrite -Hs.
-      exact Hwf.
+      rewrite Hs /well_formed_fstmt in Hwf.
+      move : Hwf => [Hwt Hid].
+      rewrite /well_typed_fstmt in Hwt.
+      rewrite /well_formed_fstmt_inline Hwt Hid //.
       (* smem *)
       simpl.
       done.
@@ -16823,23 +16947,17 @@ Admitted.
       case Hr : (SV.acc v rs == [::]).
       simpl.
       case : (TE.vtyp v te) => [n0|n0|||].
-      rewrite Hr.
-      simpl.
-      exact Hcfr.
-      rewrite Hr.
-      simpl.
-      exact Hcfr.
-      simpl.
-      exact Hcfr.
-      simpl.
-      exact Hcfr.
-      simpl.
-      exact Hcfr.
-      apply conform_eval_sfcnct_upd_envr0.
+      1,2: rewrite Hr.
+      1,2,3,4,5: simpl.
+      1,2,3,4,5: exact Hcfr.
+      apply conform_eval_sfcnct_upd_envr0_inline.
       exact Hcf.
       exact Hcfr.
-      rewrite -Hs.
-      exact Hwf.
+      rewrite Hs /well_formed_fstmt in Hwf.
+      move : Hwf => [Hwt Hid].
+      (*rewrite /well_typed_fstmt in Hwt.
+      rewrite /well_formed_fstmt_inline Hwt Hid //.*)
+      admit.
       exact Hr.
       (* sinvalid *)
       simpl.
@@ -16850,14 +16968,14 @@ Admitted.
       (* sstop *)
       simpl.
       exact Hcfr.
-    *)
   Admitted.
 
   Lemma conform_eval_stmts sts : forall rs s te finstoutl finstoutm ffmodsmap fterss finstin finstinmap finstoutmap
     allfinstoutl allfinstoutm allfinstportmap n,
     SV.conform s te ->
     SV.conform rs te ->
-    well_formed_fstmts sts te s rs ->
+    well_formed_fstmts sts te s rs finstoutl finstoutm ffmodsmap fterss finstin 
+    finstinmap finstoutmap allfinstoutl allfinstoutm allfinstportmap n ->
     SV.conform (fst (fst (no_mem_eval_fstmts sts rs s te finstoutl finstoutm ffmodsmap fterss finstin finstinmap finstoutmap allfinstoutl allfinstoutm allfinstportmap n))) (no_mem_upd_typenv_fstmts sts te)
     /\ SV.conform (snd (fst (no_mem_eval_fstmts sts rs s te finstoutl finstoutm ffmodsmap fterss finstin finstinmap finstoutmap allfinstoutl allfinstoutm allfinstportmap n))) (no_mem_upd_typenv_fstmts sts te).
   Proof.
@@ -16872,7 +16990,7 @@ Admitted.
   - move => rs s te finstoutl finstoutm ffmodsmap fterss finstin finstinmap finstoutmap allfinstoutl allfinstoutm allfinstportmap n.
     move => Hcf Hcfr Hwfs.
     simpl in Hwfs.
-    move : Hwfs => /andP [Hwf Hwfs].
+    move : Hwfs => [Hwf Hwfs].
     simpl.
     case Hhd : (no_mem_eval_fstmt a rs s
     (no_mem_upd_typenv_fstmt a te)
@@ -16880,7 +16998,6 @@ Admitted.
     fterss finstin finstinmap
     finstoutmap allfinstoutl
     allfinstoutm allfinstportmap n) => [[rs0 s0] temp].
-    generalize IHsts.
     specialize IHsts with (rs:=rs0) (s:=s0) (te:=(no_mem_upd_typenv_fstmt a te))
           (finstoutl := finstoutl) (finstoutm := finstoutm)
           (ffmodsmap := ffmodsmap) (fterss := fterss)
@@ -16888,7 +17005,6 @@ Admitted.
           (finstoutmap := finstoutmap) (allfinstoutl := allfinstoutl)
           (allfinstoutm := allfinstoutm) (allfinstportmap := allfinstportmap)
           (n := n).
-    move => IHsts0.
     apply IHsts.
 
     have ->: s0 = snd (fst (no_mem_eval_fstmt a rs s (no_mem_upd_typenv_fstmt a te) finstoutl finstoutm
@@ -16901,7 +17017,12 @@ Admitted.
     simpl.
     have -> : s1 = snd (no_mem_eval_noninst_fstmt a rs s (no_mem_upd_typenv_fstmt a te)) by rewrite Htemp.
     clear Htemp rs1 s1.
-    apply conform_eval_stmt.
+    apply conform_eval_stmt with (finstoutl := finstoutl) (finstoutm := finstoutm)
+    (ffmodsmap := ffmodsmap) (fterss := fterss)
+    (finstin := finstin) (finstinmap := finstinmap)
+    (finstoutmap := finstoutmap) (allfinstoutl := allfinstoutl)
+    (allfinstoutm := allfinstoutm) (allfinstportmap := allfinstportmap)
+    (n := 0).
     exact Hcf.
     exact Hcfr.
     exact Hwf.
@@ -16912,13 +17033,39 @@ Admitted.
     1,2,3,4: case Htemp : (no_mem_eval_noninst_fstmt a rs s (no_mem_upd_typenv_fstmt a te)) => [rs1 s1].
     1,2,3,4: simpl.
     1,2,3,4: have -> : s1 = snd (no_mem_eval_noninst_fstmt a rs s (no_mem_upd_typenv_fstmt a te)) by rewrite Htemp.
-    1,2,3,4: apply conform_eval_stmt.
+    1,2,3,4: apply conform_eval_stmt with (finstoutl := finstoutl) (finstoutm := finstoutm)
+    (ffmodsmap := ffmodsmap) (fterss := fterss)
+    (finstin := finstin) (finstinmap := finstinmap)
+    (finstoutmap := finstoutmap) (allfinstoutl := allfinstoutl)
+    (allfinstoutm := allfinstoutm) (allfinstportmap := allfinstportmap)
+    (n := n.+1).
     1,4,7,10: exact Hcf.
     1,3,5,7: exact Hcfr.
     1,2,3,4: exact Hwf.
 
     (* sinst *)
-    admit.
+    case H1: (TE.find (imid inst) ffmodsmap) => [mst|].
+    case H2: (TE.find (iid inst) fterss) => [[[[te0 rs1]s1]mem0]|].
+    case H3: (TE.find (imid inst) finstin) => [a2|].
+    case H4: (TE.find (iid inst) finstinmap) => [updfinstin|].
+    case H5: (TE.find (imid inst) allfinstoutl) =>[finstoutl0|].
+    case H6: (TE.find (imid inst) allfinstoutm) => [finstoutm0|].
+    case H7: (TE.find (imid inst) allfinstportmap) => [[finstinmap0 finstoutmap0]|].
+    case Htemp : (fold_left
+    (fun '(y, tfterss) =>
+     let
+     '(trs, ts) := y in
+      fun tempst : fstmt =>
+      no_mem_eval_fstmt tempst trs ts te0 finstoutl0
+        finstoutm0 ffmodsmap tfterss finstin finstinmap0
+        finstoutmap0 allfinstoutl allfinstoutm
+        allfinstportmap n) (rev mst)
+    (rs1, upd_inner s s1 a2 updfinstin, fterss)) => [[trs ts] tm].
+    clear Htemp.
+    1,2,3,4,5,6,7,8: simpl.
+    1,2,3,4,5,6,7,8: rewrite Ha /well_formed_fstmt /well_typed_fstmt in Hwf.
+    1,2,3,4,5,6,7,8: move : Hwf => [[Hwf _]_].
+    1,2,3,4,5,6,7,8: done.
     (* cnct *)
     case He : e => [||||||v1].
     1,2,3,4,5,6: rewrite -He -Ha.
@@ -16926,26 +17073,25 @@ Admitted.
     1,2,3,4,5,6:simpl.
     1,2,3,4,5,6:have -> : s1 = snd (no_mem_eval_noninst_fstmt a rs s (no_mem_upd_typenv_fstmt a te)) by rewrite Htemp.
     1,2,3,4,5,6:clear Htemp rs1 s1.
-    1,2,3,4,5,6:apply conform_eval_stmt.
+    1,2,3,4,5,6:apply conform_eval_stmt with (finstoutl := finstoutl) (finstoutm := finstoutm)
+    (ffmodsmap := ffmodsmap) (fterss := fterss)
+    (finstin := finstin) (finstinmap := finstinmap)
+    (finstoutmap := finstoutmap) (allfinstoutl := allfinstoutl)
+    (allfinstoutm := allfinstoutm) (allfinstportmap := allfinstportmap)
+    (n := n.+1).
     1,4,7,10,13,16:exact Hcf.
     1,3,5,7,9,11:exact Hcfr.
-    1,2,3,4,5,6:exact Hwf.
+    1,2,3,4,5,6: exact Hwf.
 
-    move : IHsts Hhd IHn He.
+    rewrite /well_formed_fstmt in Hwf.
+    move : Hwf => [Hwt Hid].
+    rewrite Ha He /well_typed_fstmt in Hwt.
+
     case H0 : (mylListIn v1 finstoutl).
-    2: move => IHsts Hhd IHn He.
-    2: rewrite -He -Ha.
-    2:case Htemp : (no_mem_eval_noninst_fstmt a rs s (no_mem_upd_typenv_fstmt a te)) => [rs1 s1].
-    2:simpl.
-    2:have -> : s1 = snd (no_mem_eval_noninst_fstmt a rs s (no_mem_upd_typenv_fstmt a te)) by rewrite Htemp.
-    2:apply conform_eval_stmt.
-    2:exact Hcf.
-    2:exact Hcfr.
-    2:exact Hwf.
     case Hr: (SV.acc v rs == [::]).
-    2: move => IHsts Hhd IHn He.
     2:simpl.
     2:done.
+
     case H1: (TE.find v1 finstoutm) => [[a4 a0]|].
     case H2: (TE.find a4 ffmodsmap) => [mst|].
     case H3: (TE.find a0 fterss) => [[[[te0 rs1]s1]mem0]|].
@@ -16955,11 +17101,11 @@ Admitted.
     case H7: (TE.find v1 finstoutmap) => [a3|].
     case H8: (TE.find a4 allfinstoutm) => [finstoutm0|].
     case H9: (TE.find a4 allfinstportmap) => [[finstinmap0 finstoutmap0]|].
-    move => IHsts Hhd IHn He.
-    simpl.
-
-    rewrite /well_formed_fstmt in Hwf.
-    move : Hwf => /andP [Hwt Hid].
+    rewrite H0 H1 H2 H3 H4 H5 H6 H7 H8 H9 in Hwt.
+    move : Hwt => [Hiot Hcfi].
+    move : Hcfi => [Hmemi Hcfi].
+    move : Hcfi => [Hcfi _].
+    rewrite Nat.pred_succ in Hcfi.
     rewrite Ha in Hid.
     simpl in Hid.
     move : Hid => /andP [Hid Hide].
@@ -16972,7 +17118,6 @@ Admitted.
     apply SV.Lemmas.find_none_not_mem in H.
     rewrite Hid in H.
     discriminate.
-
     assert (Htcf : SV.conform
     (SV.upd v
     (SV.acc a3
@@ -16988,364 +17133,64 @@ Admitted.
                      allfinstoutl allfinstoutm allfinstportmap n) 
                  (rev mst) (rs1, upd_inner s s1 a2 updfinstin, fterss))))) s) (TE.add v (TE.vtyp v te) te)).
     apply SV.conform_upd.
-    have -> : TE.vtyp v te = TE.vtyp a3 (no_mem_upd_typenv_fstmts (rev mst) te0).
-    admit.
-    case Htemp : (fold_left
-      (fun '(y, tfterss) =>
-      let
-      '(trs, ts) := y in
-        fun tempst : fstmt =>
-        no_mem_eval_fstmt tempst trs ts (no_mem_upd_typenv_fstmts (rev mst) te0) finstoutl0
-          finstoutm0 ffmodsmap tfterss finstin
-          finstinmap0 finstoutmap0 allfinstoutl
-          allfinstoutm allfinstportmap n) 
-      (rev mst)
-      (rs1, upd_inner s s1 a2 updfinstin, fterss)) => [[trs ts] tf].
-    simpl.
+    rewrite Hiot.
 
-    assert (Hcf3 : SV.conform ts (no_mem_upd_typenv_fstmts (rev mst) te0)).
-    have -> : ts = snd (fst (fold_left
-    (fun '(y, tfterss) =>
-     let
-     '(trs, ts) := y in
-      fun tempst : fstmt =>
-      no_mem_eval_fstmt tempst trs ts (no_mem_upd_typenv_fstmts (rev mst) te0) finstoutl0 finstoutm0
-        ffmodsmap tfterss finstin finstinmap0 finstoutmap0 allfinstoutl
-        allfinstoutm allfinstportmap n) (rev mst)
-    (rs1, upd_inner s s1 a2 updfinstin, fterss))) by rewrite Htemp //.
-
-    clear Htemp.
-    induction (rev mst).
-    simpl.
-    apply conform_updinner with (te:=te).
-    exact Hcf.
-    admit. (* conform fterss *)
-    admit. (* inst 前提 *)
-    simpl.
-    (*
-    move : te0 rs1 s1 H3 Htemp.
-    induction (rev mst).
-    simpl.
-    move => te0 rs1 s1 H3 Htemp.
-    apply conform_updinner with (te:=te).
-    exact Hcf.
-    admit. (* conform fterss *)
-    admit. (* inst 前提 *)
-    simpl.
-    move => te0 rs1 s1 H3 Htemp.
-    case Htemp0 : (no_mem_eval_fstmt a1 rs1 (upd_inner s s1 a2 updfinstin) te0
-    finstoutl0 finstoutm0 ffmodsmap fterss finstin finstinmap0
-    finstoutmap0 allfinstoutl allfinstoutm allfinstportmap n) => [[rs2 s2] fterss2].
-    simpl.*)
-    
-
-    admit.
-    apply SV.conform_mem with (v:=a3) in Hcf3.
-    rewrite -Hcf3.
+    apply SV.conform_mem with (v:=a3) in Hcfi.
+    rewrite -Hcfi.
     rewrite -(TE.vtyp_vsize (eqP(eqxx (TE.vtyp a3 (no_mem_upd_typenv_fstmts (rev mst) te0)))))//.
-    admit.
+    exact Hmemi.
     exact Hcf.
     move : Hte Htcf.
     apply SV.conform_equal.
 
+    rewrite H0 H1 H2 H3 H4 H5 H6 H7 H8 H9 in Hwt.
+    discriminate.
+    rewrite H0 H1 H2 H3 H4 H5 H6 H7 H8 in Hwt.
+    discriminate.
+    rewrite H0 H1 H2 H3 H4 H5 H6 H7 in Hwt.
+    discriminate.
+    rewrite H0 H1 H2 H3 H4 H5 H6 in Hwt.
+    discriminate.
+    rewrite H0 H1 H2 H3 H4 H5 in Hwt.
+    discriminate.
+    rewrite H0 H1 H2 H3 H4 in Hwt.
+    discriminate.
+    rewrite H0 H1 H2 H3 in Hwt.
+    discriminate.
+    rewrite H0 H1 H2 in Hwt.
+    discriminate.
+    rewrite H0 H1 in Hwt.
+    discriminate.
 
-    
+    rewrite -He -Ha.
+    case Htemp : (no_mem_eval_noninst_fstmt a rs s (no_mem_upd_typenv_fstmt a te)) => [rs1 s1].
+    simpl.
+    have -> : s1 = snd (no_mem_eval_noninst_fstmt a rs s (no_mem_upd_typenv_fstmt a te)) by rewrite Htemp.
+    apply conform_eval_stmt with (finstoutl := finstoutl) (finstoutm := finstoutm)
+    (ffmodsmap := ffmodsmap) (fterss := fterss)
+    (finstin := finstin) (finstinmap := finstinmap)
+    (finstoutmap := finstoutmap) (allfinstoutl := allfinstoutl)
+    (allfinstoutm := allfinstoutm) (allfinstportmap := allfinstportmap)
+    (n := n.+1).
+    exact Hcf.
+    exact Hcfr.
+    rewrite H0 in Hwt.
+    rewrite Ha He in Hid.
+    rewrite /well_formed_fstmt Ha He /well_typed_fstmt H0 Hwt Hid //.
 
-    
+    (* rs *)
+    admit.
 
+    have -> : s0 = snd (fst (no_mem_eval_fstmt a rs s (no_mem_upd_typenv_fstmt a te)
+    finstoutl finstoutm ffmodsmap fterss finstin finstinmap
+    finstoutmap allfinstoutl allfinstoutm allfinstportmap n)) by rewrite Hhd //.
+    have -> : rs0 = fst (fst (no_mem_eval_fstmt a rs s (no_mem_upd_typenv_fstmt a te)
+    finstoutl finstoutm ffmodsmap fterss finstin finstinmap
+    finstoutmap allfinstoutl allfinstoutm allfinstportmap n)) by rewrite Hhd //.
+    exact Hwfs.
   Admitted.
 
-
-  Lemma conform_eval_instsfcnct_upd_env n : forall rs s te finstoutl finstoutm ffmodsmap fterss finstin finstinmap finstoutmap
-    allfinstoutl allfinstoutm allfinstportmap v e ,
-    SV.conform s te ->
-    SV.conform rs te ->
-    (*forall conform_terss fterss ->*)
-    well_formed_fstmt (Sfcnct v e) te ->
-    match e with 
-    | Eref r0 => if mylListIn r0 finstoutl then
-                match TE.find r0 finstoutm with
-                | Some (a4,a0) => match TE.find a4 ffmodsmap with
-                                  | Some _ => match TE.find a0 fterss with
-                                                | Some (((te0,_),s0),_) => match TE.find a4 finstin with
-                                                                        | Some a2 => match TE.find a0 finstinmap with
-                                                                                    | Some updfinstin => match TE.find a4 allfinstoutl with
-                                                                                                | Some _ => match TE.find r0 finstoutmap with
-                                                                                                        | Some a3 => match TE.find a4 allfinstoutm with
-                                                                                                                    | Some _ => match TE.find a4 allfinstportmap with
-                                                                                                                                | Some _ => match v with
-                                                                                                                                            | Eref r => TE.mem a3 te0 && (sizeof_fgtyp (TE.vtyp r te) == sizeof_fgtyp (TE.vtyp a3 te0))
-                                                                                                                                            | _ => false
-                                                                                                                                            end
-                                                                                                                                | None => false
-                                                                                                                                end
-                                                                                                                    | None => false
-                                                                                                                    end
-                                                                                                        | None => false
-                                                                                                        end
-                                                                                                | None => false
-                                                                                                end
-                                                                                    | None => false
-                                                                                    end
-                                                                        | None => false
-                                                                        end
-                                                | None => false
-                                                end
-                                  | None => false
-                                  end
-                | None => false
-                end
-                else true
-    | _ => true
-    end ->
-    (match v with
-    | Eref r => (if (SV.acc r rs == [::]) then SV.conform (snd (fst (no_mem_eval_fstmt (Sfcnct v e) rs s te finstoutl finstoutm ffmodsmap fterss finstin finstinmap finstoutmap allfinstoutl allfinstoutm allfinstportmap n))) (no_mem_upd_typenv_fstmt (Sfcnct v e) te)
-                else SV.conform (fst (fst (no_mem_eval_fstmt (Sfcnct v e) rs s te finstoutl finstoutm ffmodsmap fterss finstin finstinmap finstoutmap allfinstoutl allfinstoutm allfinstportmap n))) (no_mem_upd_typenv_fstmt (Sfcnct v e) te))
-    | _ => False
-    end).
-  Proof.
-    induction n.
-
-    move => rs s te finstoutl finstoutm ffmodsmap fterss finstin finstinmap finstoutmap
-    allfinstoutl allfinstoutm allfinstportmap v.
-    case Hv:v => [||||||r].
-    (* v not ref *)
-    discriminate.
-    discriminate.
-    discriminate.
-    discriminate.
-    discriminate.
-    discriminate.
-
-    move => e Hcf Hcfr Hwf _.
-    rewrite /well_formed_fstmt in Hwf.
-    move : Hwf => /andP [Hwt Hid].
-    simpl in Hwt.
-    move : Hid => /andP [Hid Hide].
-    rewrite /is_defined in Hid.
-    assert (Hte : TE.Equal (TE.add r (TE.vtyp r te) te) te).
-    rewrite SV.Lemmas.add_same.
-    apply SV.Lemmas.Equal_refl.
-    case H: (TE.find r te).
-    rewrite (TE.find_some_vtyp H) //.
-    apply SV.Lemmas.find_none_not_mem in H.
-    rewrite Hid in H.
-    discriminate.
-    (* v is ref *)
-    case Hr:(SV.acc r rs).
-    - simpl.
-      case Ht : (TE.vtyp r te) => [n|n|||].
-      rewrite Ht in Hwt.
-      move : Hwt => /andP [Hwt Hsf].
-      rewrite Hr.
-      simpl.
-      assert (Htcf : SV.conform (SV.upd r
-      (zext (n - size (no_mem_eval_fexpr e s te)) (no_mem_eval_fexpr e s te)) s) (TE.add r (TE.vtyp r te) te)).
-      apply SV.conform_upd.
-      rewrite size_zext subnKC.
-      rewrite Ht //.
-      rewrite typeof_eval_fexpr.
-      exact Hsf.
-      exact Hcf.
-      rewrite /well_formed_fexpr Hwt Hide //.
-      exact Hcf.
-      move : Hte Htcf.
-      apply SV.conform_equal.
-      rewrite Ht in Hwt.
-      move : Hwt => /andP [Hwt Hsf].
-      rewrite Hr.
-      simpl.
-      assert (Htcf : SV.conform (SV.upd r
-      (sext (n - size (no_mem_eval_fexpr e s te)) (no_mem_eval_fexpr e s te)) s) (TE.add r (TE.vtyp r te) te)).
-      apply SV.conform_upd.
-      rewrite size_sext subnKC.
-      rewrite Ht //.
-      rewrite typeof_eval_fexpr.
-      exact Hsf.
-      exact Hcf.
-      rewrite /well_formed_fexpr Hwt Hide //.
-      exact Hcf.
-      move : Hte Htcf.
-      apply SV.conform_equal.
-      rewrite Ht in Hwt.
-      discriminate.
-      rewrite Ht in Hwt.
-      discriminate.
-      rewrite Ht in Hwt.
-      discriminate.
-    - simpl.
-      case Ht : (TE.vtyp r te) => [n|n|||].
-      rewrite Ht in Hwt.
-      move : Hwt => /andP [Hwt Hsf].
-      rewrite Hr.
-      simpl.
-      assert (Htcf : SV.conform (SV.upd r
-      (zext (n - size (no_mem_eval_fexpr e s te)) (no_mem_eval_fexpr e s te)) rs) (TE.add r (TE.vtyp r te) te)).
-      apply SV.conform_upd.
-      rewrite size_zext subnKC.
-      rewrite Ht //.
-      rewrite typeof_eval_fexpr.
-      exact Hsf.
-      exact Hcf.
-      rewrite /well_formed_fexpr Hwt Hide //.
-      exact Hcfr.
-      move : Hte Htcf.
-      apply SV.conform_equal.
-      rewrite Ht in Hwt.
-      move : Hwt => /andP [Hwt Hsf].
-      rewrite Hr.
-      simpl.
-      assert (Htcf : SV.conform (SV.upd r
-      (sext (n - size (no_mem_eval_fexpr e s te)) (no_mem_eval_fexpr e s te)) rs) (TE.add r (TE.vtyp r te) te)).
-      apply SV.conform_upd.
-      rewrite size_sext subnKC.
-      rewrite Ht //.
-      rewrite typeof_eval_fexpr.
-      exact Hsf.
-      exact Hcf.
-      rewrite /well_formed_fexpr Hwt Hide //.
-      exact Hcfr.
-      move : Hte Htcf.
-      apply SV.conform_equal.
-      rewrite Ht in Hwt.
-      discriminate.
-      rewrite Ht in Hwt.
-      discriminate.
-      rewrite Ht in Hwt.
-      discriminate.
-    (* 用n证n+1 *)
-    move => rs s te finstoutl finstoutm ffmodsmap fterss finstin finstinmap finstoutmap
-    allfinstoutl allfinstoutm allfinstportmap v.
-    case Hv:v => [||||||r].
-    (* v not ref *)
-    discriminate.
-    discriminate.
-    discriminate.
-    discriminate.
-    discriminate.
-    discriminate.
-    move => e Hcf Hcfr Hwf H0.
-    generalize Hwf.
-    rewrite /well_formed_fstmt in Hwf.
-    move : Hwf => /andP [Hwt Hid].
-    simpl in Hwt.
-    move : Hid => /andP [Hid Hide].
-    rewrite /is_defined in Hid.
-    move => Hwfs.
-    assert (Hte : TE.Equal (TE.add r (TE.vtyp r te) te) te).
-    rewrite SV.Lemmas.add_same.
-    apply SV.Lemmas.Equal_refl.
-    case H: (TE.find r te).
-    rewrite (TE.find_some_vtyp H) //.
-    apply SV.Lemmas.find_none_not_mem in H.
-    rewrite Hid in H.
-    discriminate.
-    case Hr:(SV.acc r rs).
-    - simpl.
-      rewrite Hr.
-      simpl.
-      case He:e => [||||||r0].
-      admit.
-      admit.
-      admit.
-      admit.
-      admit.
-      admit.
-      rewrite He in H0.
-      case Hinst:(mylListIn r0 finstoutl).
-      case Ht0:(TE.find r0 finstoutm) => [[a4 a0]|].
-      case Ht1:(TE.find a4 ffmodsmap) => [mst|].
-      case Ht2:(TE.find a0 fterss) => [[[[te0 rs0]s0]mem0]|].
-      case Ht3:(TE.find a4 finstin) => [a2|].
-      case Ht4:(TE.find a0 finstinmap) => [updfinstin|].
-      case Ht5:(TE.find a4 allfinstoutl) =>[finstoutl0|].
-      case Ht6:(TE.find r0 finstoutmap) => [a3|].
-      case Ht7:(TE.find a4 allfinstoutm) => [finstoutm0|].
-      case Ht8:(TE.find a4 allfinstportmap) => [[finstinmap0 finstoutmap0]|].
-      
-      
-      assert (Htcf : SV.conform (SV.upd r
-      (SV.acc a3
-         (snd
-            (fst
-               (fold_left
-                  (fun '(y, tfterss) =>
-                   let
-                   '(trs, ts) := y in
-                    fun tempst : fstmt =>
-                    no_mem_eval_fstmt tempst trs ts te0 finstoutl0 finstoutm0
-                      ffmodsmap tfterss finstin finstinmap0 finstoutmap0
-                      allfinstoutl allfinstoutm allfinstportmap n) 
-                  (rev mst) (rs0, upd_inner s s0 a2 updfinstin, fterss))))) s) (TE.add r (TE.vtyp r te) te)).
-      apply SV.conform_upd.
-      rewrite Hinst Ht0 Ht1 Ht2 Ht3 Ht4 Ht5 Ht6 Ht7 Ht8 in H0.
-      move /andP : H0 =>H0.
-      move : H0 => [Hmem /eqP H0].
-      rewrite H0.
-
-      specialize IHn with (rs:=rs) (s:=s) (te:=te) (finstoutl:=finstoutl) (finstoutm:=finstoutm)
-      (ffmodsmap:=ffmodsmap) (fterss:=fterss) (finstin:=finstin) (finstinmap:=finstinmap)
-      (finstoutmap:=finstoutmap) (allfinstoutl:=allfinstoutl) (allfinstoutm:=allfinstoutm)
-      (allfinstportmap:=allfinstportmap) (v:=v) (e:=e).
-      apply IHn in Hcf.
-      rewrite Hv Hr in Hcf.
-      simpl in Hcf.
-      
-      assert (Hupd : SV.conform (upd_inner s s0 a2 updfinstin) te0).
-      admit.
-      assert (Heval : SV.conform (snd
-      (fst
-         (fold_left
-            (fun '(y, tfterss) =>
-             let
-             '(trs, ts) := y in
-              fun tempst : fstmt =>
-              no_mem_eval_fstmt tempst trs ts te0 finstoutl0 finstoutm0 ffmodsmap tfterss finstin
-                finstinmap0 finstoutmap0 allfinstoutl allfinstoutm allfinstportmap n) 
-            (rev mst) (rs0, upd_inner s s0 a2 updfinstin, fterss)))) te0).
-      induction (rev mst).
-      simpl.
-      exact Hupd.
-      simpl.
-
-      admit.
-      have -> : sizeof_fgtyp (TE.vtyp a3 te0) = TE.vsize a3 te0.
-      symmetry.
-      apply TE.vtyp_vsize.
-      reflexivity.
-      apply SV.conform_mem.
-      exact Heval.
-      exact Hmem.
-      exact Hcfr.
-      rewrite Hv //.
-      move : H0 => /eqP H0.
-      rewrite He Hinst Ht0 Ht1 Ht2 Ht3 Ht4 Ht5 Ht6 Ht7 Ht8 Hv Hmem H0 //.
-      exact Hcf.
-      move : Hte Htcf.
-      apply SV.conform_equal.
-      rewrite Hinst Ht0 Ht1 Ht2 Ht3 Ht4 Ht5 Ht6 Ht7 Ht8 in H0.
-      discriminate.
-      rewrite Hinst Ht0 Ht1 Ht2 Ht3 Ht4 Ht5 Ht6 Ht7 in H0.
-      discriminate.
-      rewrite Hinst Ht0 Ht1 Ht2 Ht3 Ht4 Ht5 Ht6 in H0.
-      discriminate.
-      rewrite Hinst Ht0 Ht1 Ht2 Ht3 Ht4 Ht5 in H0.
-      discriminate.
-      rewrite Hinst Ht0 Ht1 Ht2 Ht3 Ht4 in H0.
-      discriminate.
-      rewrite Hinst Ht0 Ht1 Ht2 Ht3 in H0.
-      discriminate.
-      rewrite Hinst Ht0 Ht1 Ht2 in H0.
-      discriminate.
-      rewrite Hinst Ht0 Ht1 in H0.
-      discriminate.
-      rewrite Hinst Ht0 in H0.
-      discriminate.
-      simpl.
-
-
-Admitted.
-
+(*
   Lemma conform_eval_inst_upd_env n : forall rs s te finstoutl finstoutm ffmodsmap fterss finstin finstinmap finstoutmap
     allfinstoutl allfinstoutm allfinstportmap inst ,
     SV.conform s te ->
