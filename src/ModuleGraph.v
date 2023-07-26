@@ -65,14 +65,12 @@ intros.
 destruct x, y.
 case: (@input_data_type_eq_dec x x0) => H.
 * left.
-  destruct x, x0 ; try done ;
-        simpl not_implicit_width in n, n0 ; destruct n0, n ;
+  destruct x, x0 ; try done ; destruct n, n0 ;
         try reflexivity ;
         injection H ; intro ; rewrite H0 ; reflexivity.
 * right.
   destruct x, x0 ; try done ;
-        simpl not_implicit_width in n, n0 ;
-        injection ; destruct n0, n ;
+        injection ; destruct n, n0 ;
         contradict H ; rewrite H ; reflexivity.
 Qed.
 Definition output_data_type_eqn (x y : output_data_type) : bool :=
@@ -84,7 +82,7 @@ Proof.
 rewrite /Equality.axiom /output_data_type_eqn.
 intros.
 destruct x, y.
-destruct x, x0 ; simpl not_implicit_width in n, n0 ; destruct n, n0 ; simpl input_data_type_eqn ;
+destruct x, x0 ; destruct n, n0 ; simpl input_data_type_eqn ;
      try (apply ReflectF ; discriminate) ;
      try (apply ReflectT ; reflexivity) ;
      destruct (n1 == n2) eqn: Hn1n2.
@@ -109,11 +107,14 @@ Definition Reset_o : output_data_type :=
    (* convert Reset to an output data type *)
    exist not_implicit_width Reset I.
 
+Definition is_arithmetic (x : input_data_type) : Prop :=
+   match x with SInt _ | UInt _ => True
+              | _ => False end.
+
 Definition arithmetic_data_type : Type :=
    (* data type for arithmetic operations (mainly primitive operations):
       only SInt and UInt are allowed *)
-   { x : input_data_type | match x with SInt _ | UInt _ => True
-                                      | _ => False end }.
+   { x : input_data_type | is_arithmetic x }.
 
 (* equality of arithmetic_data_type is decidable *)
 Lemma arithmetic_data_type_eq_dec : forall {x y : arithmetic_data_type}, {x = y} + {x <> y}.
@@ -122,12 +123,11 @@ intros.
 destruct x, y.
 case: (@input_data_type_eq_dec x x0) => H.
 * left.
-  destruct x, x0 ; try done ;
-        injection H ; intro ; rewrite H0 ;
-        destruct y0, y ; reflexivity.
+  destruct x, x0 ; try done ; destruct i, i0 ;
+        injection H ; intro ; rewrite H0 ; reflexivity.
 * right.
   destruct x, x0 ; try done ;
-        injection ; destruct y0, y ;
+        injection ; destruct i, i0 ;
         contradict H ; rewrite H ; reflexivity.
 Qed.
 Definition arithmetic_data_type_eqn (x y : arithmetic_data_type) : bool :=
@@ -139,7 +139,7 @@ Proof.
 rewrite /Equality.axiom /output_data_type_eqn.
 intros.
 destruct x, y.
-destruct x, x0 ; destruct y, y0 ; simpl arithmetic_data_type_eqn ;
+destruct x, x0 ; destruct i, i0 ; simpl arithmetic_data_type_eqn ;
      try (apply ReflectF ; discriminate) ;
      try (apply ReflectT ; reflexivity) ;
      destruct (n == n0) eqn: Hnn0.
@@ -160,19 +160,21 @@ Inductive vertex_type :=
    Constant : arithmetic_data_type -> vertex_type |
    (* register, wire etc. *)
    Adder : arithmetic_data_type (* data type of the input connectors *) -> vertex_type |
-   Multiplexer : output_data_type (* data type of the input connectors *) -> vertex_type
+   Multiplier : arithmetic_data_type (* first factor *) -> nat (* width of second factor *) -> vertex_type |
+   Mux : output_data_type (* data type of the input connectors *) -> vertex_type
    (* actually, more vertex types for every primitive operation *).
 
 (* equality of vertex_type is decidable *)
 Lemma vertex_type_eq_dec : forall {x y : vertex_type}, {x = y} + {x <> y}.
-Proof.  decide equality ; try apply input_data_type_eq_dec ; try apply output_data_type_eq_dec ; try apply arithmetic_data_type_eq_dec.  Qed.
+Proof.  decide equality ; try apply input_data_type_eq_dec ; try apply output_data_type_eq_dec ; try apply arithmetic_data_type_eq_dec ; apply Nat.eq_dec.  Qed.
 Definition vertex_type_eqn (x y : vertex_type) : bool :=
 match x, y with
 | OutPort i, OutPort j
 | InPort i, InPort j => i == j
 | Constant a, Constant b
 | Adder a, Adder b => a == b
-| Multiplexer o, Multiplexer w => o == w
+| Multiplier a n, Multiplier b m => (a == b) && (n == m)
+| Mux o, Mux w => o == w
 | _, _ => false
 end.
 Lemma vertex_type_eqP : Equality.axiom vertex_type_eqn.
@@ -180,18 +182,21 @@ Proof.
 rewrite /Equality.axiom ; intros.
 case: (@vertex_type_eq_dec x y) => H.
 * rewrite H /vertex_type_eqn ; clear -y.
-  destruct y ; try rewrite eq_refl ; apply ReflectT ; reflexivity.
+  destruct y ; try rewrite eq_refl ; try rewrite eq_refl andTb ; apply ReflectT ; try reflexivity.
 * rewrite /vertex_type_eqn.
   destruct x, y ; try contradiction ; try (apply ReflectF ; exact H).
-  - 1, 2:
+  + 1, 2:
     assert (i <> i0) by (contradict H ; rewrite H ; reflexivity) ;
     move /eqP : H0 => H0 ; apply negbTE in H0 ;
     rewrite H0 ; apply ReflectF ; exact H.
-  - 1, 2:
+  + 3: destruct (n == n0) eqn: Hn.
+    4: rewrite andbF ; apply ReflectF ; exact H.
+    3: move /eqP : Hn => Hn ; rewrite Hn andbT ; rewrite Hn in H ; clear Hn.
+  + 1, 2, 3:
     assert (a <> a0) by (contradict H ; rewrite H ; reflexivity) ;
     move /eqP : H0 => H0 ; apply negbTE in H0 ;
     rewrite H0 ; apply ReflectF ; exact H.
-  - assert (o <> o0) by (contradict H ; rewrite H ; reflexivity) ;
+  + assert (o <> o0) by (contradict H ; rewrite H ; reflexivity) ;
     move /eqP : H0 => H0 ; apply negbTE in H0 ;
     rewrite H0 ; apply ReflectF ; exact H.
 Qed.
@@ -207,7 +212,10 @@ Definition  input_connectors (v : vertex_type) : seq input_data_type :=
    | InPort _ => [::] (* An InPort has no input connector because the data comes from somewhere outside the module *)
    | Constant _ => [::]
    | Adder (exist it _) => [:: it ; it] (* has two inputs of the same data type *)
-   | Multiplexer (exist it _) => [:: UInt 1 ; it ; it]
+   | Multiplier (exist (SInt w) _) n => [:: SInt w ; SInt n]
+   | Multiplier (exist (UInt w) _) n => [:: UInt w ; UInt n]
+   | Multiplier (exist _ p) _ => False_rect (seq input_data_type) p
+   | Mux (exist it _) => [:: UInt 1 ; it ; it]
    end.
 
 Definition output_connectors (v : vertex_type) : seq output_data_type :=
@@ -218,11 +226,14 @@ Definition output_connectors (v : vertex_type) : seq output_data_type :=
    | InPort it => [:: exist not_implicit_width it I] (* convert to output_data_type *)
    | Constant (exist (SInt w) _) => [:: SInt_o w]
    | Constant (exist (UInt w) _) => [:: UInt_o w]
-   | Constant (exist _ p) => False_rect (seq output_data_type) p (* p is a proof that this cannot happen *)
+   | Constant (exist _ p) => False_rect (seq output_data_type) p (* p is a proof of False, so this cannot happen in reality *)
    | Adder (exist (SInt w) _) => [:: SInt_o (w+1)]
    | Adder (exist (UInt w) _) => [:: UInt_o (w+1)]
-   | Adder (exist _ p) => False_rect (seq output_data_type) p (* p is a proof that this cannot happen *)
-   | Multiplexer ot => [:: ot]
+   | Adder (exist _ p) => False_rect (seq output_data_type) p (* p is a proof of False, so this cannot happen in reality *)
+   | Multiplier (exist (SInt w) _) n => [:: SInt_o (w+n)]
+   | Multiplier (exist (UInt w) _) n => [:: UInt_o (w+n)]
+   | Multiplier (exist _ p) _ => False_rect (seq output_data_type) p
+   | Mux ot => [:: ot]
    end.
 
 (* Perhaps module_graph_vertices could be the type of FMap from VarOrder
@@ -269,6 +280,22 @@ Definition module_graph_connection_trees (V: module_graph_vertices): Type :=
 
 Definition module_graph : Type :=
    { V : module_graph_vertices & module_graph_connection_trees V }.
+
+(* an example to test the typing ... *)
+Definition Adder0 := Adder (exist is_arithmetic (SInt 2) I).
+
+Lemma Adder0_inputs : input_connectors Adder0 = [:: SInt 2; SInt 2].
+Proof.  done.  Qed.
+Lemma Adder0_outputs : output_connectors Adder0 = [:: SInt_o 3].
+Proof.  done.  Qed.
+
+Definition MGV0' := { v : vertex_type | v = Adder0 }.
+
+Check existT.
+
+Definition MGV0 := existT (fun v : MGV0' => v) MGV0'.
+
+
 
 (* The following is not syntactically correct, as we haven't included hfmodule completely. *)
 
