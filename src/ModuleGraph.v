@@ -367,6 +367,7 @@ Definition  input_connectors (v : vertex_type) : seq input_data_type :=
    end.
 
 Definition output_connectors (v : vertex_type) : seq output_data_type :=
+(* a list of types of the output connectors of a vertex of type v *)
    match v with
    | OutPort _ => [::] (* An OutPort has no output connector because the data is sent to somewhere outside the module *)
    | InPort (SInt_implicit w) => [:: SInt_o w]
@@ -503,20 +504,25 @@ Definition output_connectors (v : vertex_type) : seq output_data_type :=
    Advantage of defining it as FMap is that it is easier to define Sem,
    because operators to add an element to a FMap are readily available. *)
 
-Definition module_graph_vertices : Type := { V : Set & V -> vertex_type }.
+Definition module_graph_vertex_set : Type := FMap VarOrder vertex_type.
+(* keys: vertex identifiers, e.g. VarOrder; values : vertex_type *)
+
+(* Xiaomu, please complete this definition of FMap. *)
+
+... { V : Set & V -> vertex_type }.
    (* This is a type of pairs consisting of a set and a function from this set to vertex_type.
       Given V : module_graph_vertices, the set is (projT1 V) and the function is (projT2 V).
       I would like V to be a finite set but I don't know exactly how to specify that. *)
 
-Definition output_connectors_of_module_graph (V : module_graph_vertices) : Type :=
+Definition output_connectors_of_module_graph (V : module_graph_vertex_set) : Type :=
    { x : (projT1 V) * nat | snd x < size (output_connectors ((projT2 V) (fst x)))}.
    (* This is a type of pairs, where the first is an element of a module_graph_vertices set,
       and the second of the pair is a natural number that is < than the number of output connectors of that element. *)
 
-Definition output_connector_type (V : module_graph_vertices) (oc : output_connectors_of_module_graph V) : output_data_type :=
+Definition output_connector_type (V : module_graph_vertex_set) (oc : output_connectors_of_module_graph V) : output_data_type :=
    match oc with exist (v, i) _ => nth Reset_o (output_connectors ((projT2 V) v)) i end.
 
-Inductive connection_tree (V: module_graph_vertices) :=
+Inductive connection_tree (V: module_graph_vertex_set) :=
    Invalidated | Not_connected |
    Leaf : (output_connectors_of_module_graph V) -> connection_tree V |
    Choice : {cond : output_connectors_of_module_graph V |
@@ -524,19 +530,21 @@ Inductive connection_tree (V: module_graph_vertices) :=
                     (* the type of cond needs to be UInt_o 1 *)
             -> connection_tree V -> connection_tree V -> connection_tree V.
 
-Definition input_connectors_of_module_graph (V : module_graph_vertices) : Type :=
+Definition input_connectors_of_module_graph (V : module_graph_vertex_set) : Type :=
    { x : (projT1 V) * nat | snd x < size (input_connectors ((projT2 V) (fst x)))}.
    (* This is a set containing pairs, where the first is an element of a module_graph_vertices set,
       and the second of the pair is a natural number that is < than the number of input connectors of that element. *)
 
-Definition input_connector_type (V : module_graph_vertices) (ic : input_connectors_of_module_graph V) : input_data_type :=
+Definition input_connector_type (V : module_graph_vertex_set) (ic : input_connectors_of_module_graph V) : input_data_type :=
    match ic with exist (v, i) _ => nth Reset (input_connectors ((projT2 V) v)) i end.
 
-Definition module_graph_connection_trees (V: module_graph_vertices): Type :=
+Definition module_graph_connection_trees (V: module_graph_vertex_set): Type :=
    input_connectors_of_module_graph V -> connection_tree V.
 
 Definition module_graph : Type :=
-   { V : module_graph_vertices & module_graph_connection_trees V }.
+(* a pair, namely a set of module_graph_vertices, together with a mapping that gives a connection tree
+for every input connector of every module_graph_vertex. *)
+   { V : module_graph_vertex_set & module_graph_connection_trees V }.
 
 (* an example to test the typing ... *)
 Definition Adder0 := Binop_add (exist is_arithmetic (SInt 2) I).
@@ -551,12 +559,24 @@ Definition MGV0' := { v : vertex_type | v = Adder0 }.
 Definition MGV0 := existT (fun v : MGV0' => v) MGV0'.
 
 (*
-Fixpoint trans_expr (e : hfexpr) (G : module_graph) : module_graph :=
+Fixpoint trans_expr (e : hfexpr) (G : module_graph) (i : input_connectors_of_module_graph (proj1T G)) : module_graph :=
+(* For example, if a connect statement i <= e is added to FIRRTL program P,
+then the module graph of P should be extended by a calculation of e
+and the connection (output of e) ---> (input of i). *)
+
+(* Keyin, please start with this... *)
+
 *)
 
 (* The following is not syntactically correct, as we haven't included hfmodule completely. *)
 
 Fixpoint Sem (F : hfmodule) (G : module_graph) : bool :=
+(* Indicates whether G conforms to F.
+   (If F has errors, there is no such G.)
+   (If F has implicit width components, then there are many such Gs.) *)
+
+(* David will try to add something here. *)
+
    (* module graph G is a possible semantics of FIRRTL module F *)
    match F with
    | FInMod _ [::] [::] => Empty (projT1 G) (* G has no vertices *)
