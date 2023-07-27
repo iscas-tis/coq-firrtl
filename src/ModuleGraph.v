@@ -107,6 +107,14 @@ Definition Reset_o : output_data_type :=
    (* convert Reset to an output data type *)
    exist not_implicit_width Reset I.
 
+Definition Clock_o : output_data_type :=
+   (* convert Clock to an output data type *)
+   exist not_implicit_width Clock I.
+
+Definition AsyncReset_o : output_data_type :=
+   (* convert AsyncReset to an output data type *)
+   exist not_implicit_width AsyncReset I.
+
 Definition is_arithmetic (x : input_data_type) : Prop :=
    match x with SInt _ | UInt _ => True
               | _ => False end.
@@ -159,6 +167,50 @@ Inductive vertex_type :=
    InPort : input_data_type -> vertex_type |
    Constant : arithmetic_data_type -> vertex_type |
    (* register, wire etc. *)
+
+   Cast_UInt : output_data_type -> vertex_type |
+   Cast_SInt : output_data_type -> vertex_type |
+   Cast_Clock : output_data_type -> vertex_type |
+   (*Cast_Reset : output_data_type -> vertex_type |*)
+   Cast_Async : output_data_type -> vertex_type |
+
+   Unop_pad : nat -> arithmetic_data_type -> vertex_type |
+   Unop_shl : nat -> arithmetic_data_type -> vertex_type |
+   Unop_shr : nat -> arithmetic_data_type -> vertex_type |
+   Unop_cvt : arithmetic_data_type -> vertex_type |
+   Unop_neg : arithmetic_data_type -> vertex_type |
+   Unop_not : arithmetic_data_type -> vertex_type |
+   Unop_andr : arithmetic_data_type -> vertex_type |
+   Unop_orr : arithmetic_data_type -> vertex_type |
+   Unop_xorr : arithmetic_data_type -> vertex_type |
+   Unop_bits : nat -> nat -> arithmetic_data_type -> vertex_type |
+   Unop_head : nat -> arithmetic_data_type -> vertex_type |
+   Unop_tail : nat -> arithmetic_data_type -> vertex_type |
+   Binop_sub : arithmetic_data_type -> vertex_type |
+   Binop_mul : arithmetic_data_type -> nat -> vertex_type |
+   Binop_div : arithmetic_data_type -> vertex_type |
+   Binop_rem : arithmetic_data_type -> nat -> vertex_type |
+   Binop_lt : arithmetic_data_type -> vertex_type |
+   Binop_leq : arithmetic_data_type -> vertex_type |
+   Binop_gt : arithmetic_data_type -> vertex_type |
+   Binop_geq : arithmetic_data_type -> vertex_type |
+   Binop_eq : arithmetic_data_type -> vertex_type |
+   Binop_neq : arithmetic_data_type -> vertex_type |
+   Binop_dshl : arithmetic_data_type -> nat -> vertex_type |
+   Binop_dshr : arithmetic_data_type -> nat -> vertex_type |
+   Binop_and : arithmetic_data_type -> vertex_type |
+   Binop_or : arithmetic_data_type -> vertex_type |
+   Binop_xor : arithmetic_data_type -> vertex_type |
+   Binop_cat : arithmetic_data_type -> nat -> vertex_type |
+   Invalid : input_data_type(* unknow *) -> vertex_type |
+   (*Reference : input_data_type -> vertex_type |*)
+   
+   Register : input_data_type -> vertex_type |
+   Wire : input_data_type -> vertex_type |
+   (*memory : ?
+   inst : ?*)
+   Node : input_data_type -> vertex_type |
+
    Adder : arithmetic_data_type (* data type of the input connectors *) -> vertex_type |
    Multiplier : arithmetic_data_type (* first factor *) -> nat (* width of second factor *) -> vertex_type |
    Mux : output_data_type (* data type of the input connectors *) -> vertex_type
@@ -172,9 +224,50 @@ match x, y with
 | OutPort i, OutPort j
 | InPort i, InPort j => i == j
 | Constant a, Constant b
+
+| Cast_UInt a, Cast_UInt b
+| Cast_SInt a, Cast_SInt b
+| Cast_Clock a, Cast_Clock b
+(*| Cast_Reset a, Cast_Reset b*)
+| Cast_Async a, Cast_Async b
+| Unop_cvt a, Unop_cvt b
+| Unop_neg a, Unop_neg b
+| Unop_not a, Unop_not b
+| Unop_andr a, Unop_andr b
+| Unop_orr a, Unop_orr b
+| Unop_xorr a, Unop_xorr b
+| Binop_sub a, Binop_sub b
+| Binop_div a, Binop_div b
+| Binop_lt a, Binop_lt b
+| Binop_leq a, Binop_leq b
+| Binop_gt a, Binop_gt b
+| Binop_geq a, Binop_geq b
+| Binop_eq a, Binop_eq b
+| Binop_neq a, Binop_neq b
+| Binop_and a, Binop_and b
+| Binop_or a, Binop_or b
+| Binop_xor a, Binop_xor b
+| Invalid a, Invalid b
+(*| Reference a, Reference b*)
+| Register a, Register b
+| Wire a, Wire b
+(*memory : ?
+inst : ?*)
+| Node a, Node b
 | Adder a, Adder b => a == b
 | Multiplier a n, Multiplier b m => (a == b) && (n == m)
 | Mux o, Mux w => o == w
+| Unop_pad n1 a, Unop_pad n2 b 
+| Unop_shl n1 a, Unop_shl n2 b
+| Unop_shr n1 a, Unop_shr n2 b
+| Unop_head n1 a, Unop_head n2 b
+| Unop_tail n1 a, Unop_tail n2 b => (a == b) && (n1 == n2)
+| Unop_bits n1 n2 a, Unop_bits n3 n4 b => (a == b) && (n1 == n3) && (n2 == n4)
+| Binop_mul a b, Binop_mul c d
+| Binop_rem a b, Binop_rem c d 
+| Binop_cat a b, Binop_cat c d 
+| Binop_dshl a b, Binop_dshl c d
+| Binop_dshr a b, Binop_dshr c d => (a == c) && (b == d)
 | _, _ => false
 end.
 Lemma vertex_type_eqP : Equality.axiom vertex_type_eqn.
@@ -211,11 +304,59 @@ Definition  input_connectors (v : vertex_type) : seq input_data_type :=
    | OutPort it => [:: it]
    | InPort _ => [::] (* An InPort has no input connector because the data comes from somewhere outside the module *)
    | Constant _ => [::]
-   | Adder (exist it _) => [:: it ; it] (* has two inputs of the same data type *)
-   | Multiplier (exist (SInt w) _) n => [:: SInt w ; SInt n]
+
+   | Invalid _ => [::]
+   | Register it
+   | Wire it
+   (* 
+   reference it
+   memory : ?
+   inst : ? *)
+   | Node it => [:: it]
+
+   | Cast_UInt (exist it _) => [:: it]
+   | Cast_SInt (exist it _) => [:: it]
+   | Cast_Clock (exist it _) => [:: it]
+   (*| Cast_Reset (exist it _) => [:: it]*)
+   | Cast_Async (exist it _) => [:: it]
+   | Unop_cvt (exist it _)
+   | Unop_neg (exist it _)
+   | Unop_not (exist it _)
+   | Unop_andr (exist it _)
+   | Unop_orr (exist it _)
+   | Unop_xorr (exist it _) => [:: it]
+   | Unop_pad (*nat*) _ (exist it _) (* ? *)
+   | Unop_shl _ (exist it _)
+   | Unop_shr _ (exist it _) 
+   | Unop_bits _ _ (exist it _) 
+   | Unop_head _ (exist it _) 
+   | Unop_tail _ (exist it _) => [:: it]
+   | Binop_sub (exist it _) 
+   | Binop_div (exist it _) 
+   | Binop_lt (exist it _) 
+   | Binop_leq (exist it _) 
+   | Binop_gt (exist it _) 
+   | Binop_geq (exist it _) 
+   | Binop_eq (exist it _) 
+   | Binop_neq (exist it _) 
+   | Binop_and (exist it _) 
+   | Binop_or (exist it _) 
+   | Binop_xor (exist it _) => [:: it; it]
+   | Binop_mul (exist (UInt n1) _) n2 
+   | Binop_cat (exist (UInt n1) _) n2 
+   | Binop_rem (exist (UInt n1) _) n2 => [:: (UInt n1); (UInt n2)]
+   | Binop_mul (exist (SInt n1) _) n2 
+   | Binop_cat (exist (SInt n1) _) n2 
+   | Binop_rem (exist (SInt n1) _) n2 => [:: (SInt n1); (SInt n2)]
+   (*| Multiplier (exist (SInt w) _) n => [:: SInt w ; SInt n]
    | Multiplier (exist (UInt w) _) n => [:: UInt w ; UInt n]
-   | Multiplier (exist _ p) _ => False_rect (seq input_data_type) p
+   | Multiplier (exist _ p) _ => False_rect (seq input_data_type) p *)
+   | Binop_dshl (exist it _) n2
+   | Binop_dshr (exist it _) n2 => [:: it; (UInt n2)]
+
+   | Adder (exist it _) => [:: it ; it] (* has two inputs of the same data type *)
    | Mux (exist it _) => [:: UInt 1 ; it ; it]
+   | _ => [::]
    end.
 
 Definition output_connectors (v : vertex_type) : seq output_data_type :=
@@ -227,6 +368,126 @@ Definition output_connectors (v : vertex_type) : seq output_data_type :=
    | Constant (exist (SInt w) _) => [:: SInt_o w]
    | Constant (exist (UInt w) _) => [:: UInt_o w]
    | Constant (exist _ p) => False_rect (seq output_data_type) p (* p is a proof of False, so this cannot happen in reality *)
+   
+   | Cast_UInt (exist (UInt w) _) => [:: UInt_o w]
+   | Cast_UInt (exist (SInt w) _) => [:: UInt_o w]
+   | Cast_UInt (exist Clock _) => [:: UInt_o 1]
+   | Cast_UInt (exist Reset _) => [:: UInt_o 1]
+   | Cast_UInt (exist AsyncReset _) => [:: UInt_o 1]
+   | Cast_UInt (exist _ p) => False_rect (seq output_data_type) p
+   | Cast_SInt (exist (UInt w) _) => [:: SInt_o w]
+   | Cast_SInt (exist (SInt w) _) => [:: SInt_o w]
+   | Cast_SInt (exist Clock _) => [:: SInt_o 1]
+   | Cast_SInt (exist Reset _) => [:: SInt_o 1]
+   | Cast_SInt (exist AsyncReset _) => [:: SInt_o 1]
+   | Cast_SInt (exist _ p) => False_rect (seq output_data_type) p
+   | Cast_Clock (exist it _) => [:: Clock_o]
+   | Cast_Async (exist it _) => [:: AsyncReset_o]
+   | Unop_cvt (exist (UInt w) _) => [:: SInt_o (w+1)]
+   | Unop_cvt (exist (SInt w) _) => [:: SInt_o (w+1)]
+   | Unop_cvt (exist _ p) => False_rect (seq output_data_type) p
+   | Unop_neg (exist (UInt w) _) => [:: SInt_o (w+1)]
+   | Unop_neg (exist (SInt w) _) => [:: SInt_o (w+1)]
+   | Unop_neg (exist _ p) => False_rect (seq output_data_type) p
+   | Unop_not (exist (UInt w) _) => [:: UInt_o w]
+   | Unop_not (exist (SInt w) _) => [:: UInt_o w]
+   | Unop_not (exist _ p) => False_rect (seq output_data_type) p
+   | Binop_and (exist (UInt w) _) 
+   | Binop_or (exist (UInt w) _) 
+   | Binop_xor (exist (UInt w) _) => [:: UInt_o w]
+   | Binop_and (exist (SInt w) _) 
+   | Binop_or (exist (SInt w) _) 
+   | Binop_xor (exist (SInt w) _) => [:: SInt_o w]
+   | Binop_or (exist _ p)
+   | Binop_xor (exist _ p)
+   | Binop_and (exist _ p) => False_rect (seq output_data_type) p
+   | Unop_andr (exist it _)
+   | Unop_orr (exist it _)
+   | Unop_xorr (exist it _) => [:: UInt_o 1]
+   | Binop_sub (exist (SInt w) _) => [:: SInt_o (w+1)]
+   | Binop_sub (exist (UInt w) _) => [:: UInt_o (w+1)]
+   | Binop_sub (exist _ p) => False_rect (seq output_data_type) p (* p is a proof of False, so this cannot happen in reality *)
+   | Binop_div (exist (SInt w) _) => [:: SInt_o (w+1)]
+   | Binop_div (exist (UInt w) _) => [:: UInt_o (w)]
+   | Binop_div (exist _ p) => False_rect (seq output_data_type) p
+   | Binop_lt (exist (UInt w) _) 
+   | Binop_lt (exist (SInt w) _) 
+   | Binop_leq (exist (UInt w) _) 
+   | Binop_leq (exist (SInt w) _) 
+   | Binop_gt (exist (UInt w) _) 
+   | Binop_gt (exist (SInt w) _) 
+   | Binop_geq (exist (UInt w) _) 
+   | Binop_geq (exist (SInt w) _) 
+   | Binop_eq (exist (UInt w) _) 
+   | Binop_eq (exist (SInt w) _) 
+   | Binop_neq (exist (UInt w) _) 
+   | Binop_neq (exist (SInt w) _) => [:: UInt_o 1]
+   | Binop_lt (exist _ p) 
+   | Binop_leq (exist _ p) 
+   | Binop_gt (exist _ p) 
+   | Binop_geq (exist _ p) 
+   | Binop_eq (exist _ p) 
+   | Binop_neq (exist _ p) => False_rect (seq output_data_type) p
+
+   | Invalid (UInt w) => [:: UInt_o w]
+   | Invalid (SInt w) => [:: SInt_o w]
+   | Invalid Clock => [:: Clock_o]
+   | Invalid Reset => [:: Reset_o]
+   | Invalid AsyncReset => [:: AsyncReset_o]
+   | Invalid _ => (*?*) [::]
+   | Register (UInt w) => [:: UInt_o w]
+   | Register (SInt w) => [:: SInt_o w]
+   | Register Clock => [:: Clock_o]
+   | Register Reset => [:: Reset_o]
+   | Register AsyncReset => [:: AsyncReset_o]
+   | Register _ => (*?*) [::]
+   | Wire (UInt w) => [:: UInt_o w]
+   | Wire (SInt w) => [:: SInt_o w]
+   | Wire Clock => [:: Clock_o]
+   | Wire Reset => [:: Reset_o]
+   | Wire AsyncReset => [:: AsyncReset_o]
+   | Wire _ => (*?*) [::]
+   | Node (UInt w) => [:: UInt_o w]
+   | Node (SInt w) => [:: SInt_o w]
+   | Node Clock => [:: Clock_o]
+   | Node Reset => [:: Reset_o]
+   | Node AsyncReset => [:: AsyncReset_o]
+   | Node _ => (*?*) [::]
+   (* 
+   reference it
+   memory : ?
+   inst : ? *)
+
+   | Binop_mul (exist (UInt n1) _) n2 => [:: UInt_o (n1 + n2)]   
+   | Binop_mul (exist (SInt n1) _) n2 => [:: SInt_o (n1 + n2)]
+   | Binop_cat (exist (UInt n1) _) n2 => [:: UInt_o (n1 + n2)]   
+   | Binop_cat (exist (SInt n1) _) n2 => [:: SInt_o (n1 + n2)]   
+   | Binop_rem (exist (UInt n1) _) n2 => [:: UInt_o (Nat.min n1 n2)]
+   | Binop_rem (exist (SInt n1) _) n2 => [:: SInt_o (Nat.min n1 n2)]
+   | Binop_rem (exist _ p) _ => False_rect (seq output_data_type) p
+   | Binop_dshl (exist (UInt n1) _) n2 => [:: UInt_o (n1 + (Nat.pow 2 n2) -1)] 
+   | Binop_dshl (exist (SInt n1) _) n2 => [:: SInt_o (n1 + (Nat.pow 2 n2) -1)]   
+   | Binop_dshr (exist (UInt n1) _) n2 => [:: UInt_o n1]
+   | Binop_dshr (exist (SInt n1) _) n2 => [:: SInt_o n1]
+   | Binop_cat (exist _ p) _
+   | Binop_dshl (exist _ p) _
+   | Binop_dshr (exist _ p) _
+   | Binop_mul (exist _ p) _ => False_rect (seq output_data_type) p
+   | Unop_pad n (exist (UInt n1) _) => [:: UInt_o (Nat.max n n1)]   
+   | Unop_pad n (exist (SInt n1) _) => [:: SInt_o (Nat.max n n1)]   
+   | Unop_pad n (exist _ p) => False_rect (seq output_data_type) p
+   | Unop_shl n (exist (UInt n1) _) => [:: UInt_o (n + n1)] 
+   | Unop_shl n (exist (SInt n1) _) => [:: SInt_o (n + n1)]   
+   | Unop_shl n (exist _ p) => False_rect (seq output_data_type) p
+   | Unop_shr n (exist (UInt n1) _) => [:: UInt_o (Nat.max (n1 - n) 1)] 
+   | Unop_shr n (exist (SInt n1) _) => [:: SInt_o (Nat.max (n1 - n) 1)] 
+   | Unop_shr n (exist _ p) => False_rect (seq output_data_type) p
+   | Unop_bits hi lo (exist it _) => [:: UInt_o (hi - lo + 1)]
+   | Unop_head n (exist it _) => [:: UInt_o n] 
+   | Unop_tail n (exist (UInt n1) _) => [:: UInt_o (n1 - n)]
+   | Unop_tail n (exist (SInt n1) _) => [:: UInt_o (n1 - n)]
+   | Unop_tail n (exist _ p) => False_rect (seq output_data_type) p
+
    | Adder (exist (SInt w) _) => [:: SInt_o (w+1)]
    | Adder (exist (UInt w) _) => [:: UInt_o (w+1)]
    | Adder (exist _ p) => False_rect (seq output_data_type) p (* p is a proof of False, so this cannot happen in reality *)
@@ -295,7 +556,9 @@ Check existT.
 
 Definition MGV0 := existT (fun v : MGV0' => v) MGV0'.
 
-
+(*
+Fixpoint trans_expr (e : hfexpr) (G : module_graph) : module_graph :=
+*)
 
 (* The following is not syntactically correct, as we haven't included hfmodule completely. *)
 

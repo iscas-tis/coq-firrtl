@@ -12,10 +12,10 @@ let initmap0 = IntMap.empty
 
 let file = "./demo/input.txt"
 
-let rec printf_list l = 
+let rec printf_list oc l = 
   match l with
-    | [] -> printf "\n"
-    | h::t -> printf "%d " h; printf_list t
+    | [] -> fprintf oc "\n"
+    | h::t -> fprintf oc "%d " h; printf_list oc t
 
 let rec printf_list0 l = 
   match l with

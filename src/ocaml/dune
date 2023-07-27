@@ -6,6 +6,6 @@
 
 (executables
 ; (names            main)
- (names            pparser transast1);transast1
+ (names            pparser inline);transast1
  (libraries        firrtl_lang ocamlgraph unix);interpreter
 )

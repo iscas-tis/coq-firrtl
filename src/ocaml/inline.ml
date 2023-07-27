@@ -12,7 +12,8 @@ let parse f =
   let lexbuf = Lexing.from_channel (open_in f) in
   FirrtlParser.file FirrtlLexer.token lexbuf
 
-let lowf_ast = parse "./demo/Mytest1.lo.fir" 
+let lowf_ast = parse "./demo/Mytest.lo.fir" 
+let file = "./demo/input.txt"
 
 let rec addpre_e v0 e = 
   match e with
@@ -99,6 +100,7 @@ let trans_main flag mainmap flattenmain =
   | Ast.FExmod (_, pl, sl) -> Firrtl.FExmod (Obj.magic flag, List.fold_left (Transast1.trans_port mainmap) [] pl, List.map (trans_stmt mainmap) sl)
 
 let () = 
+  let oc = open_out file in
   let (fmodmap ,cv, instdepth) = generate_fmodmap lowf_ast in
   match StringMap.find cv fmodmap with
   | Ast.FInmod (_, pl, sl) -> let flattensl = flatstmts fmodmap sl instdepth [] in
@@ -115,7 +117,7 @@ let () =
                                 else (List.map Helper.z_of_bits)) in
                               let (_,inp_intlst,uintlst) = Helper.m_extract_i mainmap inp_bitsmap flattenmain in
                               let inp_map = StringMap.map (List.map Z.to_int) (StringMap.mapi my2Z inp_bitsmap) in
-                              StringMap.iter (fun key value -> printf "%s: \n" key; Transast1.printf_list value) inp_map;
+                              StringMap.iter (fun key value -> fprintf oc "%s: \n" key; Transast1.printf_list oc value) inp_map;
                               (*IntMap.iter (fun key _ -> printf "%d:\n" key; printf "\n") inp_intmap;
                               Transast1.printf_list0 inp_lst;
                               Transast1.printf_list inp_intlst;

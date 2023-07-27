@@ -16,5 +16,7 @@ Separate Extraction
          seq.catrev nat_of_int n_of_int int_of_nat int_of_n int_of_z
          NBitsDef.from_string NBitsDef.from_hex NBitsDef.from_bin
          NBitsDef.to_hex NBitsDef.to_nat NBitsDef.to_bin
-         LoFirrtl.run_module0 LoFirrtl.run_module.
+         LoFirrtl.run_module0 LoFirrtl.run_module
+         LoFirrtl.no_mem_run_module_inline LoFirrtl.no_mem_run_module0_inline
+         LoFirrtl.no_mem_run_module LoFirrtl.no_mem_run_module0.
 Cd "../../..".

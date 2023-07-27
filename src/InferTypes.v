@@ -776,7 +776,7 @@ Section InferTypeP.
 
   Fixpoint ftype_list (ft : ftype) (l : list ftype) : list ftype :=
     match ft with
-    | Gtyp t => rcons ft l
+    | Gtyp t => rcons l ft
     | Atyp t n => list_repeat_fn (ftype_list t) n l
     | Btyp b => ftype_list_btyp b l
     end

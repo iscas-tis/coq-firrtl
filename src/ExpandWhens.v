@@ -2004,3 +2004,58 @@ precondition:
 所有没有未cnct的
 
 End ExpandWhens.
+
+(*
+From Coq Require Import FunInd FMaps FMapAVL OrderedType ZArith.
+From mathcomp Require Import ssreflect ssrbool ssrnat ssrint eqtype seq ssrfun.
+From simplssrlib Require Import Types SsrOrder FSets FMaps Tactics Var Store.
+From nbits Require Import NBits.
+From firrtl Require Import Firrtl Env HiEnv HiFirrtl InferTypes.
+
+(* translate a hifirrtl program to module graph *)
+(* mgnode : vertices in mg, maight be recorded like (its kind of component e.g. wire, its type e.g. UInt<4>)
+  something like in CE 
+   mgedge : connections in mg, only record final connections *)
+
+
+
+Inductive mgedge : Type :=
+  | E_undefined
+  | E_invalidate
+  | E_expr : HiFP.hfexpr -> mgedge
+  (*| Tbranch : HiF.hfexpr -> HiF.hfexpr -> mgedge (* cond, true *)
+  | Fbranch : HiF.hfexpr -> HiF.hfexpr -> mgedge (* cond, false *) *)
+  | E_choice : HiFP.hfexpr -> mgedge -> mgedge -> mgedge (* cond, true, false *)
+  .
+
+Definition addps2mg (p : hfport) (mg : (* type of mg *)) : (* type of mg *) :=
+  match p with
+  | Finput v t => CE.add v (aggr_typ t, In_port) mgnode
+  | Foutput v t => CE.add v (aggr_typ t, Out_port) mgnode
+  end.
+
+Fixpoint adds2mg (s : hfstmt) (mg : ) : :=
+  match s with
+  | Swire v t => CE.add v (aggr_typ t, Wire) mgnode
+  | Sreg v r => CE.add v (reg_typ r, Register) mgnode
+  | Smem v m => CE.add v (mem_typ t, Memory) mgnode
+  | Sinst v1 v2 => (* tbd *) mgnode
+  | Snode v e => CE.add v (aggr_typ (type_of_hfexpr e mgnode), Node) mgnode
+  | Sfcnct r e => 
+  | Sinvalid r => 
+  | Swhen e s1 s2 => 
+  | Sskip => mg
+  end
+with addss2mg (ss : hfstmt_seq) (mg : ) : :=
+  match ss with
+  | Qnil => mg
+  | Qcons s st => addss2mg st (adds2mg s mg)
+  end.
+
+Definition trans2mg (m : hfmodule) := 
+  match m with 
+  | FInmod v ps ss => let mg0 := fold_left (fun tmg tp => addps2mg tp tmg) ps mg.empty in
+                      let 
+  | FExmod _ _ _ => (* empty set of mg *)
+  end.
+*)

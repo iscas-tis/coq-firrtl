@@ -465,7 +465,7 @@ Module MakeHiFirrtl
     | Eref r => valid_rhs_ref r ce
     | Ecast _ _ => true
     | Eprim_binop _ _ _ => true
-    | Eprim_unop _ _ => true
+    | Eprim_unop _ _ => true (* 为什么直接true？ky *)
     (* DNJ: The arguments of a multiplexer or a validif need to be passive.
     I am not sure whether something similar holds for primitive expression arguments;
     I guess they should be valid_rhs_fexpr themselves. *)
