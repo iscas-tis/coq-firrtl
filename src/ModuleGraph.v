@@ -504,16 +504,47 @@ Definition output_connectors (v : vertex_type) : seq output_data_type :=
    Advantage of defining it as FMap is that it is easier to define Sem,
    because operators to add an element to a FMap are readily available. *)
 
-Definition module_graph_vertex_set : Type := FMap VarOrder vertex_type.
+(* Definition module_graph_vertex_set : Type := FMap VarOrder vertex_type. *)
 (* keys: vertex identifiers, e.g. VarOrder; values : vertex_type *)
 
 (* Xiaomu, please complete this definition of FMap. *)
 
-... { V : Set & V -> vertex_type }.
+From Coq Require Import FMaps.
+
+Module Type SFMap <: FMapInterface.S.
+  Declare Module SE : OrderedType.OrderedType.
+  Module E : OrderedType.OrderedType
+  with Definition t := SE.t
+  with Definition eq := SE.eq
+  with Definition lt := SE.lt
+    := SE.
+  Include Sfun SE.
+End SFMap.
+
+Module Type VtypFMap <: SFMap.
+  Include SFMap.
+  Definition env : Type := t vertex_type.
+  (* Parameter def_vtyp : vertex_type. *)
+  
+End VtypFMap.
+
+Module MakeVtypFMap (V : SsrOrder) (VM : SFMap with Module SE := V)
+<: VtypFMap with Module SE := V.
+  Include VM.
+  Definition env : Type := t vertex_type.
+End MakeVtypFMap.
+
+Module module_graph_vertex_set_s <: VtypFMap := MakeVtypFMap VarOrder VM. 
+Module ProdVarOrder := MakeProdOrderWithDefaultSucc VarOrder VarOrder.
+Module PVM <: SsrFMapWithNew := FMaps.MakeTreeMapWithNew ProdVarOrder.
+Module module_graph_vertex_set_p <: VtypFMap := MakeVtypFMap ProdVarOrder PVM.
+
+(* ... { V : Set & V -> vertex_type }. *)
    (* This is a type of pairs consisting of a set and a function from this set to vertex_type.
       Given V : module_graph_vertices, the set is (projT1 V) and the function is (projT2 V).
       I would like V to be a finite set but I don't know exactly how to specify that. *)
 
+Definition module_graph_vertex_set : Type := { V : Set & V -> vertex_type }.
 Definition output_connectors_of_module_graph (V : module_graph_vertex_set) : Type :=
    { x : (projT1 V) * nat | snd x < size (output_connectors ((projT2 V) (fst x)))}.
    (* This is a type of pairs, where the first is an element of a module_graph_vertices set,
