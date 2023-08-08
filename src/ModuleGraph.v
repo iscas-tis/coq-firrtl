@@ -505,6 +505,117 @@ Definition output_connectors (v : vertex_type) : seq output_data_type :=
    | Mux ot => [:: ot]
    end.
 
+Fixpoint nseq_seq {T : Type} (n : nat) (s : seq T) : seq T :=
+   (* produces a list containing n copies of s *)
+   match n with
+   | 0 => [::]
+   | S n' => s ++ nseq_seq n' s
+   end.
+
+Lemma nseq_seq_len : forall (T : Type) (n : nat) (s : seq T), size (nseq_seq n s) = size s * n.
+Proof.
+intros.
+induction n.
+* rewrite muln0 /nseq_seq /size //.
+* simpl nseq_seq. rewrite size_cat mulnS IHn //.
+Qed.
+
+Fixpoint ground_type_seq (t : ftype) : seq fgtyp :=
+   (* produces a sequence of ground-type elements that corresponds to the (possibly aggregate) type t *)
+   match t with
+   | Gtyp t' => [:: t']
+   | Atyp t' n => nseq_seq n (ground_type_seq t')
+   | Btyp ff => ground_type_seq_fields ff
+   end
+with ground_type_seq_fields (ff : ffield) : seq fgtyp :=
+   match ff with
+   | Fnil => [::]
+   | Fflips _ _ t ff' => ground_type_seq t ++ ground_type_seq_fields ff'
+   end.
+
+(*
+Fixpoint size_of_ftype (t : ftype) : nat :=
+   (* counts how many elements ground_type_seq t contains *)
+   match t with
+   | Gtyp t' => 1
+   | Atyp t' n => n * (size_of_ftype t')
+   | Btyp ff => size_of_ftype_fields ff
+   end
+with size_of_ftype_fields (ff : ffield) : nat :=
+   match ff with
+   | Fnil => 0
+   | Fflips _ _ t ff' => size_of_ftype t + size_of_ftype_fields ff'
+   end.
+*)
+
+Lemma size_of_ftype_correct : forall t : ftype, size (ground_type_seq t) = size_of_ftype t
+with size_of_ftype_fields_correct : forall ff : ffield, size (ground_type_seq_fields ff) = size_of_fields ff.
+Proof.
+* clear size_of_ftype_correct.
+  induction t.
+  + unfold ground_type_seq, size, size_of_ftype.
+    reflexivity.
+  + simpl ground_type_seq ; simpl size_of_ftype.
+    rewrite nseq_seq_len IHt //.
+  + apply size_of_ftype_fields_correct.
+* clear size_of_ftype_fields_correct.
+  induction ff.
+  + unfold ground_type_seq_fields, size, size_of_fields.
+    reflexivity.
+  + simpl ground_type_seq_fields ; simpl size_of_fields.
+    rewrite size_cat IHff size_of_ftype_correct //.
+Qed.
+
+Fixpoint type_of_subfield (ff : ffield) (var : VarOrder.T) : option ftype :=
+   match ff with
+   | Fnil => None (* error *)
+   | Fflips var' _ t ff' => if var == var' then Some t else type_of_subfield ff' var
+   end.
+
+Fixpoint type_of_ref (ref : href VarOrder.T) (env : CE.env) : option ftype :=
+   (* produces the type of a (possibly non-trivial) reference.
+      CE is a component environment that information about every aggregate
+      (not about the ground elements contained in the aggregate). *)
+   match ref with
+   | Eid var => if CE.find var env is Some (Aggr_typ t, _) then Some t else None (* error *)
+   | Esubfield ref' var => match type_of_ref ref' env with
+                           | Some (Btyp ff) => type_of_subfield ff var
+                           | _ => None (* error *)
+                           end
+   | Esubindex ref' _ => match type_of_ref ref' env with
+                         | Some (Atyp t' _) => Some t'
+                         | _ => None (* error *)
+                         end
+   | Esubaccess _ _ => None (* not implemented *)
+   end.
+
+Fixpoint offset_of_subfield (ff : ffield) (var : VarOrder.T) : option nat :=
+   match ff with
+   | Fnil => None (* error *)
+   | Fflips var' _ t ff' => if var == var' then Some 0
+                            else if offset_of_subfield ff' var is Some offset
+                                 then Some (size_of_ftype t + offset)
+                                 else None
+   end.
+
+Fixpoint offset_of_ref (ref : href VarOrder.T) (env : CE.env) : option nat :=
+   (* produces the offset of a (possibly non-trivial) reference to a part of a variable of type t *)
+   match ref with
+   | Eid _ => Some 0
+   | Esubfield ref' var => match type_of_ref ref' env with
+                           | Some (Btyp ff) => match offset_of_ref ref' env, offset_of_subfield ff var with
+                                               | Some n, Some m => Some (n + m)
+                                               | _, _ => None
+                                               end
+                           | _ => None (* error *)
+                           end
+   | Esubindex ref' i => match type_of_ref ref' env, offset_of_ref ref' env with
+                         | Some (Atyp t' _), Some n => Some (n + (size_of_ftype t' * i))
+                         | _, _ => None (* error *)
+                         end
+   | Esubaccess _ _ => None (* not implemented *)
+   end.
+
 (* Perhaps module_graph_vertices could be the type of FMap from VarOrder
    (or any other set of identifiers)
    to vertex_type instead of the set below.
@@ -556,15 +667,21 @@ Module module_graph_vertex_set_p <: VtypFMap := MakeVtypFMap ProdVarOrder PVM.
       I would like V to be a finite set but I don't know exactly how to specify that. *)
 
 Definition module_graph_vertex_set : Type := { V : Set & V -> vertex_type }.
-Definition output_connectors_of_module_graph (V : module_graph_vertex_set) : Type :=
-   { x : (projT1 V) * nat | snd x < size (output_connectors ((projT2 V) (fst x)))}.
+Definition output_connectors_of_module_graph (V : module_graph_vertex_set_p.env) : Type :=
+   { x : module_graph_vertex_set_p.key * nat | if module_graph_vertex_set_p.find (fst x) V is Some elt
+                                               then snd x < size (output_connectors elt)
+                                               else False }.
    (* This is a type of pairs, where the first is an element of a module_graph_vertices set,
       and the second of the pair is a natural number that is < than the number of output connectors of that element. *)
 
-Definition output_connector_type (V : module_graph_vertex_set) (oc : output_connectors_of_module_graph V) : output_data_type :=
-   match oc with exist (v, i) _ => nth i (output_connectors ((projT2 V) v)) Reset_o end.
+Definition output_connector_type (V : module_graph_vertex_set_p.env) (oc : output_connectors_of_module_graph V) : output_data_type.
+destruct oc as [x p].
+destruct (module_graph_vertex_set_p.find (fst x) V) as [elt|].
+clear -x elt ; exact (nth (snd x) (output_connectors elt) Reset_o).
+clear -p ; exact (False_rect output_data_type p).
+Defined.
 
-Inductive connection_tree (V: module_graph_vertex_set) :=
+Inductive connection_tree (V: module_graph_vertex_set_p.env) :=
    Invalidated | Not_connected |
    Leaf : (output_connectors_of_module_graph V) -> connection_tree V |
    Choice : {cond : output_connectors_of_module_graph V |
@@ -572,33 +689,27 @@ Inductive connection_tree (V: module_graph_vertex_set) :=
                     (* the type of cond needs to be UInt_o 1 *)
             -> connection_tree V -> connection_tree V -> connection_tree V.
 
-Definition input_connectors_of_module_graph (V : module_graph_vertex_set) : Type :=
-   { x : (projT1 V) * nat | snd x < size (input_connectors ((projT2 V) (fst x)))}.
+Definition input_connectors_of_module_graph (V : module_graph_vertex_set_p.env) : Type :=
+   { x : module_graph_vertex_set_p.key * nat | if module_graph_vertex_set_p.find (fst x) V is Some elt
+                                               then snd x < size (input_connectors elt)
+                                               else False }.
    (* This is a set containing pairs, where the first is an element of a module_graph_vertices set,
       and the second of the pair is a natural number that is < than the number of input connectors of that element. *)
 
-Definition input_connector_type (V : module_graph_vertex_set) (ic : input_connectors_of_module_graph V) : input_data_type :=
-   match ic with exist (v, i) _ => nth i (input_connectors ((projT2 V) v)) Reset end.
+Definition input_connector_type (V : module_graph_vertex_set_p.env) (ic : input_connectors_of_module_graph V) : input_data_type.
+destruct ic as [x p].
+destruct (module_graph_vertex_set_p.find (fst x) V) as [elt|].
+clear -x elt ; exact (nth (snd x) (input_connectors elt) Reset).
+clear -p ; exact (False_rect input_data_type p).
+Defined.
 
-Definition module_graph_connection_trees (V: module_graph_vertex_set): Type :=
+Definition module_graph_connection_trees (V: module_graph_vertex_set_p.env): Type :=
    input_connectors_of_module_graph V -> connection_tree V.
 
 Definition module_graph : Type :=
 (* a pair, namely a set of module_graph_vertices, together with a mapping that gives a connection tree
 for every input connector of every module_graph_vertex. *)
-   { V : module_graph_vertex_set & module_graph_connection_trees V }.
-
-(* an example to test the typing ... *)
-Definition Adder0 := Binop_add (exist is_arithmetic (SInt 2) I).
-
-Lemma Adder0_inputs : input_connectors Adder0 = [:: SInt 2; SInt 2].
-Proof.  done.  Qed.
-Lemma Adder0_outputs : output_connectors Adder0 = [:: SInt_o 3].
-Proof.  done.  Qed.
-
-Definition MGV0' := { v : vertex_type | v = Adder0 }.
-
-Definition MGV0 := existT (fun v : MGV0' => v) MGV0'.
+   { V : module_graph_vertex_set_p.env & module_graph_connection_trees V }.
 
 
 (* module_graph_vertex_set_p : pair identifier -> vertex_type *)
@@ -885,7 +996,126 @@ and the connection (output of e) ---> (input of i). *)
 
 
 
-(* The following is not syntactically correct, as we haven't included hfmodule completely. *)
+(* Idea for semantics relation: the final semantic relation, Sem (F : hfmodule) (G: module_graph),
+is defined using an auxiliary relation Sem_frag (G_old : module_graph) (ss : hfstmt_seq) (G_new : module_graph),
+with the meaning: If ss is the final fragment of the statement sequence of a module,
+then G_old can be transformed into G_new by ss.
+
+It further uses an auxiliary relation Sem_port (pp : seq hfport) (G : module_graph),
+that translates the ports of a module to graph elements. *)
+
+Fixpoint remove_t (V : module_graph_vertex_set_p.env) (var : nat) (cnt : nat) : module_graph_vertex_set_p.env :=
+   (* remove (var, 0), (var, 1), ..., (var, cnt-1) from the vertex set V *)
+   match cnt with
+   | 0 => V
+   | S cnt' => remove_t (module_graph_vertex_set_p.remove (N.of_nat var, N.of_nat cnt') V) var cnt'
+   end.
+
+Definition input_type_conforms_to_ground_type (it : input_data_type) (t : fgtyp) : bool :=
+match it, t with
+| SInt n, Fsint m
+| UInt n, Fuint m => n == m
+| SInt_implicit _, Fsint 0
+| UInt_implicit _, Fuint 0 => true (* not sure whether the width is actually 0 *)
+| Reset, Freset
+| AsyncReset, Fasyncreset
+| Clock, Fclock => true
+| _, _ => false
+end.
+
+Definition output_type_conforms_to_ground_type (ot : output_data_type) (t : fgtyp) : bool :=
+match ot, t with
+| exist (SInt n) _, Fsint m
+| exist (UInt n) _, Fuint m => n == m
+| exist Reset _, Freset
+| exist AsyncReset _, Fasyncreset
+| exist Clock _, Fclock => true
+| _, _ => false
+end.
+
+Fixpoint multi_conjunction_check (n : nat) (f : nat -> bool) : bool :=
+   (* returns true if f 0 && f 1 && ... && f (n-1) holds *)
+   match n with
+   | 0 => true
+   | S n' => f n' && multi_conjunction_check n' f
+   end.
+
+Fixpoint Sem_inport (t : ftype) (var : nat) (offset : nat) (V : module_graph_vertex_set_p.env) : bool :=
+   (* returns true if the keys (var, offset), (var, offset + 1), (var, offset + 2), ...
+      in map V contain type-correct inports or outports corresponding to type t
+      (Non-flipped fields are in-ports, flipped fields are out-ports). *)
+   match t with
+   | Gtyp t' => match module_graph_vertex_set_p.find (N.of_nat var, N.of_nat offset) V with
+                | Some (InPort it) => input_type_conforms_to_ground_type it t'
+                | _ => false
+                end
+   | Atyp t' n => multi_conjunction_check n (fun i : nat => Sem_inport t' var (offset + (i * size_of_ftype t')) V)
+   | Btyp ff => Sem_inport_fields ff var offset V
+   end
+with Sem_inport_fields (ff : ffield) (var : nat) (offset : nat) (V : module_graph_vertex_set_p.env) : bool :=
+   match ff with
+   | Fnil => true
+   | Fflips _ Nflip   t' ff' =>    Sem_inport t' var offset V
+                                && Sem_inport_fields ff' var (offset + size_of_ftype t') V
+   | Fflips _ Flipped t' ff' =>    Sem_outport t' var offset V
+                                && Sem_inport_fields ff' var (offset + size_of_ftype t') V
+   end
+with Sem_outport (t : ftype) (var : nat) (offset : nat) (V : module_graph_vertex_set_p.env) : bool :=
+   (* returns true if the keys (var, offset), (var, offset + 1), (var, offset + 2), ...
+      in map V contain type-correct inports or outports corresponding to type t
+      (Non-flipped fields are out-ports, flipped fields are in-ports). *)
+   match t with
+   | Gtyp t' => match module_graph_vertex_set_p.find (N.of_nat var, N.of_nat offset) V with
+                | Some (OutPort it) => input_type_conforms_to_ground_type it t'
+                | _ => false
+                end
+   | Atyp t' n => multi_conjunction_check n (fun i : nat => Sem_outport t' var (offset + (i * size_of_ftype t')) V)
+   | Btyp ff => Sem_outport_fields ff var offset V
+   end
+with Sem_outport_fields (ff : ffield) (var : nat) (offset : nat) (V : module_graph_vertex_set_p.env) : bool :=
+   match ff with
+   | Fnil => true
+   | Fflips _ Nflip   t' ff' =>    Sem_outport t' var offset V
+                                && Sem_outport_fields ff' var (offset + size_of_ftype t') V
+   | Fflips _ Flipped t' ff' =>    Sem_inport t' var offset V
+                                && Sem_outport_fields ff' var (offset + size_of_ftype t') V
+   end.
+
+Fixpoint Sem_port (pp : list (hfport VarOrder.T)) (V : module_graph_vertex_set_p.env) : bool :=
+(* returns true if the vertex set V conforms to the sequence of ports pp. *)
+   match pp with
+   | [::] => module_graph_vertex_set_p.is_empty V
+   | (Finput  var t) :: pp' =>    Sem_port pp' (remove_t V var (size_of_ftype t))
+                               && Sem_inport t var 0 V
+   | (Foutput var t) :: pp' =>    Sem_port pp' (remove_t V var (size_of_ftype t))
+                               && Sem_outport t var 0 V
+   end.
+
+Fixpoint Sem_frag (G_old : module_graph) (ss : hfstmt_seq VarOrder.T) (G_new : module_graph) : Prop :=
+   (* ss is the final fragment of the statements of some module.
+      The function returns True if G_new can be constructed from G_old by applying ss. *)
+   match ss with
+   | Qnil => G_old = G_new (* module_graph_vertex_set_p.equal vertex_type_eqn (projT1 G_old) (projT1 G_new) && (projT2 G_old and projT2 G_new correspond to each other as well) *)
+   | Qcons s ss' => exists G' : module_graph, Sem_frag_stmt G_old s G' /\ Sem_frag G' ss' G_new
+   end
+with Sem_frag_stmt (G_old : module_graph) (s : hfstmt VarOrder.T) (G_new : module_graph) : Prop :=
+   (* The function returns True if G_new can be constructed from G_old by applying s. *)
+   match s with
+   | Sskip => G_old = G_new
+   | Swire var t => False
+   | Sreg var reg => False
+   | Smem var mem => False
+   | Sinst var1 var2 => False
+   | Snode var expr => False
+   | Sfcnct ref expr => False
+   | Sinvalid ref => (* The vertices are the same;
+                        the connection trees are almost the same, except that
+                        G_new contains a connection tree "Invalidated" for every ground element of ref. *)
+                        module_graph_vertex_set_p.equal vertex_type_eqn (projT1 G_old) (projT1 G_new)
+                     /\ forall ic : input_connectors_of_module_graph (projT1 G_old),
+                           (projT2 G_old) ic = (projT2 G_new) ic
+   | Swhen cond ss_true ss_false => False
+   end.
 
 Fixpoint Sem (F : hfmodule) (G : module_graph) : bool :=
 (* Indicates whether G conforms to F.
