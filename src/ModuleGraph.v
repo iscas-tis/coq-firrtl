@@ -815,19 +815,18 @@ Definition data_type_in2out (dt : input_data_type) : output_data_type :=
 
 Definition data_type_out2in (dt : output_data_type) : input_data_type :=
    match dt with
+   | exist (UInt w) _ => UInt 0
    | _ => UInt 0
    end.
 
 Definition data_type_out2arith (dt : output_data_type) : arithmetic_data_type :=
    match dt with
+   | exist (SInt w) _ => SInt_a w
+   | exist (UInt w) _ => UInt_a w
+   | exist (Reset) _
+   | exist (AsyncReset) _
+   | exist (Clock) _ 
    | _ => UInt_a 0
-   (* 
-   SInt_o n => SInt n 
-   | UInt_o n => UInt n 
-   | Reset_o => Reset
-   | AsyncReset_o => AsyncReset
-   | Clock_o => Clock
-   *)
    end.
 
 Fixpoint add_vertex_input (v : N (*pvar match(_,0)从(_,1)开始添加*)) (n : N (*index*)) (l: list input_data_type) (vmap : module_graph_vertex_set_p.env) :=
@@ -836,6 +835,7 @@ Fixpoint add_vertex_input (v : N (*pvar match(_,0)从(_,1)开始添加*)) (n : N
    | hd :: tl => let ohd := data_type_in2out hd in
                  let nvmap := module_graph_vertex_set_p.add (v, n) (InPort ohd) vmap in
                  add_vertex_input v (N.add n 1) tl nvmap
+                 (* 添加 Not_connected *)
    end.
 
 Fixpoint add_vertex_output (v : N) (N : N) (l: list input_data_type) (vmap : module_graph_vertex_set_p.env) :=
@@ -899,69 +899,119 @@ Fixpoint list_outputs (p : N) (n : N) (counts : nat) (l : list output_data_type)
             end
    end. (* return 从(p,1)到(p,n)的output_connectors *)
 
-Definition add_vertex_cast (c : ucast) (v : N) (l: list output_data_type) (vmap : module_graph_vertex_set_p.env) :=
+Definition add_vertex_cast (c : ucast) (l: list output_data_type) (vmap : module_graph_vertex_set_p.env) : vertex_type :=
    match c with
-   | AsUInt => module_graph_vertex_set_p.add (v, N0) (Cast_UInt (List.hd (UInt_o 0) l)) vmap
-   | AsSInt => module_graph_vertex_set_p.add (v, N0) (Cast_SInt (List.hd (SInt_o 0) l)) vmap
-   | AsClock => module_graph_vertex_set_p.add (v, N0) (Cast_Clock (List.hd Clock_o l)) vmap
-   | AsAsync => module_graph_vertex_set_p.add (v, N0) (Cast_Async (List.hd AsyncReset_o l)) vmap
-   | AsReset => vmap(*? spec 中没有了*)
+   | AsUInt => Cast_UInt (List.hd (UInt_o 0) l)
+   | AsSInt => Cast_SInt (List.hd (SInt_o 0) l)
+   | AsClock => Cast_Clock (List.hd Clock_o l)
+   | AsAsync => Cast_Async (List.hd AsyncReset_o l)
+   | AsReset => Cast_Async (List.hd AsyncReset_o l)(*? spec 中没有了*)
    end.
 
-Definition add_vertex_unop (u : unop) (v : N) (l: list output_data_type) (vmap : module_graph_vertex_set_p.env) :=
+Definition add_vertex_unop (u : eunop) (l: list output_data_type) (vmap : module_graph_vertex_set_p.env) :=
    match u with
-  | Upad n => module_graph_vertex_set_p.add (v, N0) (Unop_pad n (List.hd (UInt_o 0) l)) vmap
-  | Ushl n =>
-  | Ushr n =>
-  | Ucvt =>
-  | Uneg
-  | Unot
-  | Uandr
-  | Uorr
-  | Uxorr
-  | Uextr hi lo =>
-  | Uhead n =>
-  | Utail n =>
+  | Upad n => Unop_pad n (data_type_out2arith (List.hd (UInt_o 0) l))
+  | Ushl n => Unop_shl n (data_type_out2arith (List.hd (UInt_o 0) l))
+  | Ushr n => Unop_shr n (data_type_out2arith (List.hd (UInt_o 0) l))
+  | Ucvt => Unop_cvt (data_type_out2arith (List.hd (UInt_o 0) l))
+  | Uneg => Unop_neg (data_type_out2arith (List.hd (UInt_o 0) l))
+  | Unot => Unop_not (data_type_out2arith (List.hd (UInt_o 0) l))
+  | Uandr => Unop_andr (data_type_out2arith (List.hd (UInt_o 0) l))
+  | Uorr => Unop_orr (data_type_out2arith (List.hd (UInt_o 0) l))
+  | Uxorr => Unop_xorr (data_type_out2arith (List.hd (UInt_o 0) l))
+  | Uextr hi lo => Unop_bits hi lo (data_type_out2arith (List.hd (UInt_o 0) l))
+  | Uhead n => Unop_head n (data_type_out2arith (List.hd (UInt_o 0) l))
+  | Utail n => Unop_tail n (data_type_out2arith (List.hd (UInt_o 0) l))
    end.
 
-Fixpoint list_rhs_expr (e : hfexpr) (vmap : module_graph_vertex_set_p.env) (es : list output_connectors) (n : N) : list output_connectors * G * N :=
-   match e with
-   | Econst t bs => if t 是explicit, rcons es t 
-                    else 用bs推出长度, 转换data_type
-   | Eref (Eid (p, 0)) => let (keys, _) := List.split (elements vmap) (* list (key*value) *) in
-                          let n := List.length (fst (List.split keys)) in
-                          list_outputs p n 0 nil
-   | Eref (Eid pv) => match (find pv vmap) with
-                     | Some v => output_connectors v
-                     | None => [::]
-                     end
-
-   | Ecast c e => let vtl := e 的 output_connectors 的typelist in 
-                  let nvmap := add_vertex_cast c n vtl vmap in
-                  let ncncttree := e 的output_connectors 连接到 (n,0) ... in
-                  ((n,0)的output_connector list, (nvmap, ncncttree), (N.add N 1))
-   | Eprim_unop u e => 同上 add_vertex_unop
-
-   | Eprim_binop b e1 e2 =>
-   | Emux e1 e2 e3 =>
+Definition add_vertex_binop (b : ebinop) (l1: list output_data_type) (l2: list output_data_type) (vmap : module_graph_vertex_set_p.env) :=
+   match b with
+   | Badd => match (data_type_out2arith (List.hd (UInt_o 0) l1)), (data_type_out2arith (List.hd (UInt_o 0) l2)) with
+             | exist (SInt w1) _, exist (SInt w2) _ =>
+             | exist (UInt w1) _, exist (UInt w2) _ =>
+             | =>
+             end
+   
+   Binop_add ( (List.hd (UInt_o 0) l1))
+   | Bsub => 
+   | Bdiv => 
+   | Brem => 
+   | Bmul => 
+   | Bcomp c => 
+   | Band => 
+   | Bor => 
+   | Bxor => 
+   | Bcat => 
+   | Bdshl => 
+   | Bdshr => 
    end.
 
-Fixpoint list_lhs_expr (e : hfexpr) (vmap : module_graph_vertex_set_p) (es : seq input_connectors) : seq input_connectors :=
+Fixpoint list_lhs_expr (e : hfexpr) (vmap : module_graph_vertex_set_p.env) (cs : list input_connectors) (ts : list input_data_type) : list input_connectors * list input_data_type :=
    match e with
-   | Econst _ _ => [::]
    | Eref (Eid (p, 0)) => let (keys, _) := List.split (elements vmap) (* list (key*value) *) in
                           let n := List.length (fst (List.split keys)) in
-                          list_inputs p n 0 nil
+                          (* connectors' name * *)list_inputs p n 0 nil
    | Eref (Eid pv) => match (find pv vmap) with
                      | Some v => input_connectors v
                      | None => [::]
                      end
-   | Ecast c e => let  
-   
-   -> hfexpr -> hfexpr
-| Eprim_unop : eunop -> hfexpr -> hfexpr
-| Eprim_binop : ebinop -> hfexpr -> hfexpr -> hfexpr
-| Emux : hfexpr -> hfexpr -> hfexpr -> hfexpr
+   | _ => [::]
+   end.
+
+Fixpoint list_rhs_expr (e : hfexpr) (vmap : module_graph_vertex_set_p.env) (cs : list output_connectors) (ts : list output_data_type) (n : N) : list output_connectors * list output_data_type * G * N :=
+   match e with
+   | Econst t bs => let arith_typ := match t with
+                                    | SInt n => SInt_a n 
+                                    | UInt n => UInt_a n 
+                                    | Reset 
+                                    | AsyncReset 
+                                    | Clock => UInt_a 1
+                                    | SInt_implicit _ => SInt_a (size bs)
+                                    | UInt_implicit _ => UInt_a (size bs)
+                                    end in
+                    let nv := Constant arith_typ in 
+                    let nvmap := module_graph_vertex_set_p.add (n,N0) nv vmap in
+                    (output_connectors_name, output_connectors nv, (nvmap * connection_tree), (N.add n N1))
+   | Eref (Eid (p, 0)) => let (keys, _) := List.split (elements vmap) (* list (key*value) *) in
+                          let n := List.length (fst (List.split keys)) in
+                          let otl := list_outputs p n 0 nil in
+                          (output_connectors_name, otl, G, n)
+   | Eref (Eid pv) => let otl := match (find pv vmap) with
+                                 | Some v => output_connectors v
+                                 | None => [::]
+                                 end in
+                      (output_connectors_name, otl, G, n)
+
+   | Ecast c e => let eotl := e 的 output_connectors 的typelist in 
+                  let eonl := e 的 output_connectors 的namelist in 
+                  let nv := add_vertex_cast c eotl vmap in
+                  let nvmap := module_graph_vertex_set_p.add (v, N0) nv vmap in
+                  let ncncttree := eonl 连接到 (n,0) in
+                  let nconstraint := eotl 对应 (input_connectors nv) in
+                  ((n,0)的output_connectors_name, output_connectors nv, (nvmap, ncncttree), (N.add n N1))
+   | Eprim_unop u e => 同上 add_vertex_unop
+
+   | Eprim_binop b e1 e2 =>let eotl1 := e1 的 output_connectors 的typelist in 
+                           let eonl1 := e1 的 output_connectors 的namelist in 
+                           let eotl2 := e2 的 output_connectors 的typelist in 
+                           let eonl2 := e2 的 output_connectors 的namelist in 
+                           let nv := add_vertex_binop b eotl1 eotl2 vmap in
+
+                           let nvmap := module_graph_vertex_set_p.add (v, N0) nv vmap in
+                           let ncncttree := eonl1\eonl2 连接到 (n,0) in
+                           let nconstraint := eotl1\eotl2 对应 (input_connectors nv) in
+                           ((n,0)的output_connectors_name, output_connectors nv, (nvmap, ncncttree), (N.add n N1))
+
+   | Emux e1 e2 e3 => let (eotl1, eonl1, g1, n1) := list_rhs_expr e1 vmap cs ts n in
+                      let (eotl2, eonl2, g2, n2) := list_rhs_expr e2 g2.vmap cs ts n1 in
+                      let (eotl3, eonl3, g3, n3) := list_rhs_expr e3 g3.vmap cs ts n3 in
+                      let nv := add_vertex_mux eotl1 eotl2 eotl3 vmap in (* 是list *)
+
+                      let nvmap := module_graph_vertex_set_p.add (v, N0) nv vmap in
+                           let ncncttree := eonl1\eonl2 连接到 (n,0) in
+                           let nconstraint := eotl1\eotl2 对应 (input_connectors nv) in
+                           ((n,0)的output_connectors_name, output_connectors nv, (nvmap, ncncttree), (N.add n N1))
+
    end.
 
 Fixpoint trans_stmt (s : hfstmt) (G : module_graph) : module_graph := 
