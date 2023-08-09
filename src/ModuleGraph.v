@@ -1,8 +1,8 @@
-From mathcomp Require Import ssreflect ssrbool ssrnat eqtype seq.
 From simplssrlib Require Import SsrOrder FMaps Var ZAriths.
-From Coq Require Import ZArith (* for Nat.eq_dec *).
+From Coq Require Import ZArith (* for Nat.eq_dec *) FMaps.
 From nbits Require Import NBits.
 From firrtl Require Import HiFirrtl Firrtl Env HiEnv. (* for hfmodule and its parts *)
+From mathcomp Require Import ssreflect ssrbool ssrnat eqtype seq.
 
 (* This file contains first ideas on how to define a module graph as a semantic structure for FIRRTL modules.
    Many definitions are not yet complete but include only a few constructs so as to illustrate what the structure is. *)
@@ -285,11 +285,11 @@ case: (@vertex_type_eq_dec x y) => H.
   destruct y ; try rewrite eq_refl ; try rewrite eq_refl andTb ; try rewrite eq_refl andTb ; apply ReflectT ; try reflexivity.
 * rewrite /vertex_type_eqn.
   destruct x, y ; try contradiction ; try (apply ReflectF ; exact H).
-  + 1, 2, 38, 39, 40:
+  + 1, 38, 39, 40:
     assert (i <> i0) by (contradict H ; rewrite H ; reflexivity) ;
     move /eqP : H0 => H0 ; apply negbTE in H0 ;
     rewrite H0 ; apply ReflectF ; exact H.
-  + 2, 3, 4, 5, 35, 36:
+  + 1, 3, 4, 5, 6, 36, 37:
     assert (o <> o0) by (contradict H ; rewrite H ; reflexivity) ;
     move /eqP : H0 => H0 ; apply negbTE in H0 ;
     rewrite H0 ; apply ReflectF ; exact H.
@@ -629,10 +629,6 @@ Fixpoint offset_of_ref (ref : href VarOrder.T) (env : CE.env) : option nat :=
 (* Definition module_graph_vertex_set : Type := FMap VarOrder vertex_type. *)
 (* keys: vertex identifiers, e.g. VarOrder; values : vertex_type *)
 
-(* Xiaomu, please complete this definition of FMap. *)
-
-From Coq Require Import FMaps.
-
 Module Type SFMap <: FMapInterface.S.
   Declare Module SE : OrderedType.OrderedType.
   Module E : OrderedType.OrderedType
@@ -677,7 +673,7 @@ Definition output_connectors_of_module_graph (V : module_graph_vertex_set_p.env)
 Definition output_connector_type (V : module_graph_vertex_set_p.env) (oc : output_connectors_of_module_graph V) : output_data_type.
 destruct oc as [x p].
 destruct (module_graph_vertex_set_p.find (fst x) V) as [elt|].
-clear -x elt ; exact (nth (snd x) (output_connectors elt) Reset_o).
+clear -x elt ; exact (nth Reset_o (output_connectors elt) (snd x)).
 clear -p ; exact (False_rect output_data_type p).
 Defined.
 
@@ -699,7 +695,7 @@ Definition input_connectors_of_module_graph (V : module_graph_vertex_set_p.env) 
 Definition input_connector_type (V : module_graph_vertex_set_p.env) (ic : input_connectors_of_module_graph V) : input_data_type.
 destruct ic as [x p].
 destruct (module_graph_vertex_set_p.find (fst x) V) as [elt|].
-clear -x elt ; exact (nth (snd x) (input_connectors elt) Reset).
+clear -x elt ; exact (nth Reset (input_connectors elt) (snd x)).
 clear -p ; exact (False_rect input_data_type p).
 Defined.
 
@@ -767,7 +763,7 @@ Definition ftype2input_data_type (ft : ftype) : input_data_type :=
    | _ => UInt 0
    end.
 *)
-
+(*
 Inductive hfport : Type :=
 | Finput : pvar -> vtype -> hfport
 | Foutput : pvar -> vtype -> hfport.
@@ -784,15 +780,17 @@ with href : Type :=
 | Esubfield : href -> pvar -> href (* HiFirrtl *)
 | Esubindex : href -> nat -> href (* HiFirrtl *)
 | Esubaccess : href -> hfexpr -> href (* HiFirrtl *)
-.
+.*)
 
 Fixpoint list_repeat_fn (f : list input_data_type -> list input_data_type) (n : nat) (l : list input_data_type) : list input_data_type :=
+   (* Applies function f n times to list l *)
    match n with
    | 0 => l
    | S m => list_repeat_fn f m (f l)
    end.
 
 Fixpoint vtype_list (ft : vtype) (l : list input_data_type) : list input_data_type :=
+   (* appends to list l the ground type elements of type ft *)
    match ft with
    | vGtyp t => rcons l t
    | vAtyp t n => list_repeat_fn (vtype_list t) n l
@@ -1099,7 +1097,7 @@ Fixpoint Sem_frag (G_old : module_graph) (ss : hfstmt_seq VarOrder.T) (G_new : m
    | Qcons s ss' => exists G' : module_graph, Sem_frag_stmt G_old s G' /\ Sem_frag G' ss' G_new
    end
 with Sem_frag_stmt (G_old : module_graph) (s : hfstmt VarOrder.T) (G_new : module_graph) : Prop :=
-   (* The function returns True if G_new can be constructed from G_old by applying s. *)
+   (* The predicate returns True if G_new can be constructed from G_old by applying s. *)
    match s with
    | Sskip => G_old = G_new
    | Swire var t => False
@@ -1117,27 +1115,18 @@ with Sem_frag_stmt (G_old : module_graph) (s : hfstmt VarOrder.T) (G_new : modul
    | Swhen cond ss_true ss_false => False
    end.
 
-Fixpoint Sem (F : hfmodule) (G : module_graph) : bool :=
-(* Indicates whether G conforms to F.
+Fixpoint Sem (F : hfmodule) (G : module_graph) : Prop :=
+(* The predicate returns True if G conforms to F.
    (If F has errors, there is no such G.)
    (If F has implicit width components, then there are many such Gs.) *)
-
-(* David will try to add something here. *)
-
-   (* module graph G is a possible semantics of FIRRTL module F *)
    match F with
-   | FInMod _ [::] [::] => Empty (projT1 G) (* G has no vertices *)
-   | FInMod name (p :: pp) [::] => exists G' : module_graph, Sem (FInMod name pp [::]) G'
-                                                             /\ the name of p is different from names in G'
-                                                             /\ projT1 G = projT1 G' :+ p
-                                                             /\ forall ic : input_connectors_of_module_graph (projT1 G), projT2 G ic = Not_connected
-   | FInMod name ports (Qcons s ss) => exists G' : module_graph, Sem (FInMod name ports ss) G'
-                                                                 /\ the difference between G' and G is the translation of s
-     (* I think in the inductive statement above it would be easier if we could use Qrcons instead of Qcons. *)
-   | FExMod _ _ _ => false
+   | FInMod n pp ss => exists V : module_graph_vertex_set_p.env,    Sem_port pp V
+                                                                 /\ Sem_frag V ss G
+   | FExMod _ _ _ => False
    end.
 
 Theorem ExpandConnect_correct :
+(* Proves that ExpandConnect_fun preserves the semantics *)
    forall (F : hfmodule) (G : module_graph),
       F does not contain unspecified widths ->
       match ExpandConnect_fun F with
@@ -1145,4 +1134,6 @@ Theorem ExpandConnect_correct :
       | Error _ => true
       end.
 
-(* If F allows multiple module graphs G, then it may happen that F' allows fewer module graphs. *)
+(* If F allows multiple module graphs G, then it may happen that F' allows fewer module graphs.
+   However, as the theorem requires that F does not contain unspecified widths, there should be only one conforming module graph,
+   and so the  *)
