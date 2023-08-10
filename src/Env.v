@@ -35,21 +35,7 @@ Import Prenex Implicits.
   (* Equality of types *)
 
   Lemma fgtyp_eq_dec (x y : fgtyp) : {x = y} + {x <> y}.
-  Proof.
-    destruct x; destruct y; try (intros; right; move=> []; discriminate).
-    - intros; case: (Nat.eq_dec n n0) => H.
-      + left; rewrite H; reflexivity.
-      + right; move=> []; auto.
-    - intros; case: (Nat.eq_dec n n0) => H.
-      + left; rewrite H; reflexivity.
-      + right; move=> []; auto.
-    (* - intros; case: (Nat.eq_dec n n0) => H. *)
-    (*   + left; rewrite H; reflexivity. *)
-    (*   + right; move=> []; auto. *)
-    - left; done.
-    - left; done.
-    - left; done.
-  Qed.
+  Proof. decide equality ; apply Nat.eq_dec. Qed.
 
   Definition fgtyp_eqn (x y : fgtyp) : bool :=
     match x, y with

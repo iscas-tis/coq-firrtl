@@ -173,8 +173,8 @@ Inductive vertex_type :=
    (* what kind of vertices can be in the module graph *)
    OutPort : input_data_type (* within the module there is only an input
                                 (the output goes to some place outside the module) *) -> vertex_type |
-   InPort : output_data_type -> vertex_type | (* main moudle only at present *)
-   Constant : arithmetic_data_type -> vertex_type |
+   InPort : output_data_type -> vertex_type | (* main module only at present *)
+   Constant : arithmetic_data_type -> bits (* value of the constant *) -> vertex_type |
    (* register, wire etc. *)
 
    Cast_UInt : output_data_type -> vertex_type |
@@ -505,67 +505,7 @@ Definition output_connectors (v : vertex_type) : seq output_data_type :=
    | Mux ot => [:: ot]
    end.
 
-Fixpoint nseq_seq {T : Type} (n : nat) (s : seq T) : seq T :=
-   (* produces a list containing n copies of s *)
-   match n with
-   | 0 => [::]
-   | S n' => s ++ nseq_seq n' s
-   end.
-
-Lemma nseq_seq_len : forall (T : Type) (n : nat) (s : seq T), size (nseq_seq n s) = size s * n.
-Proof.
-intros.
-induction n.
-* rewrite muln0 /nseq_seq /size //.
-* simpl nseq_seq. rewrite size_cat mulnS IHn //.
-Qed.
-
-Fixpoint ground_type_seq (t : ftype) : seq fgtyp :=
-   (* produces a sequence of ground-type elements that corresponds to the (possibly aggregate) type t *)
-   match t with
-   | Gtyp t' => [:: t']
-   | Atyp t' n => nseq_seq n (ground_type_seq t')
-   | Btyp ff => ground_type_seq_fields ff
-   end
-with ground_type_seq_fields (ff : ffield) : seq fgtyp :=
-   match ff with
-   | Fnil => [::]
-   | Fflips _ _ t ff' => ground_type_seq t ++ ground_type_seq_fields ff'
-   end.
-
 (*
-Fixpoint size_of_ftype (t : ftype) : nat :=
-   (* counts how many elements ground_type_seq t contains *)
-   match t with
-   | Gtyp t' => 1
-   | Atyp t' n => n * (size_of_ftype t')
-   | Btyp ff => size_of_ftype_fields ff
-   end
-with size_of_ftype_fields (ff : ffield) : nat :=
-   match ff with
-   | Fnil => 0
-   | Fflips _ _ t ff' => size_of_ftype t + size_of_ftype_fields ff'
-   end.
-*)
-
-Lemma size_of_ftype_correct : forall t : ftype, size (ground_type_seq t) = size_of_ftype t
-with size_of_ftype_fields_correct : forall ff : ffield, size (ground_type_seq_fields ff) = size_of_fields ff.
-Proof.
-* clear size_of_ftype_correct.
-  induction t.
-  + unfold ground_type_seq, size, size_of_ftype.
-    reflexivity.
-  + simpl ground_type_seq ; simpl size_of_ftype.
-    rewrite nseq_seq_len IHt //.
-  + apply size_of_ftype_fields_correct.
-* clear size_of_ftype_fields_correct.
-  induction ff.
-  + unfold ground_type_seq_fields, size, size_of_fields.
-    reflexivity.
-  + simpl ground_type_seq_fields ; simpl size_of_fields.
-    rewrite size_cat IHff size_of_ftype_correct //.
-Qed.
-
 Fixpoint type_of_subfield (ff : ffield) (var : VarOrder.T) : option ftype :=
    match ff with
    | Fnil => None (* error *)
@@ -588,8 +528,11 @@ Fixpoint type_of_ref (ref : href VarOrder.T) (env : CE.env) : option ftype :=
                          end
    | Esubaccess _ _ => None (* not implemented *)
    end.
+*)
 
+(*
 Fixpoint offset_of_subfield (ff : ffield) (var : VarOrder.T) : option nat :=
+   (* auxiliary function for offset_of_ref *)
    match ff with
    | Fnil => None (* error *)
    | Fflips var' _ t ff' => if var == var' then Some 0
@@ -599,7 +542,8 @@ Fixpoint offset_of_subfield (ff : ffield) (var : VarOrder.T) : option nat :=
    end.
 
 Fixpoint offset_of_ref (ref : href VarOrder.T) (env : CE.env) : option nat :=
-   (* produces the offset of a (possibly non-trivial) reference to a part of a variable of type t *)
+   (* produces the offset of a (possibly non-trivial) reference to a part of a variable of type t.
+      However, this function may need to be changed because vtype_list is different. *)
    match ref with
    | Eid _ => Some 0
    | Esubfield ref' var => match type_of_ref ref' env with
@@ -615,6 +559,7 @@ Fixpoint offset_of_ref (ref : href VarOrder.T) (env : CE.env) : option nat :=
                          end
    | Esubaccess _ _ => None (* not implemented *)
    end.
+*)
 
 (* Perhaps module_graph_vertices could be the type of FMap from VarOrder
    (or any other set of identifiers)
@@ -706,7 +651,6 @@ Definition module_graph : Type :=
 (* a pair, namely a set of module_graph_vertices, together with a mapping that gives a connection tree
 for every input connector of every module_graph_vertex. *)
    { V : module_graph_vertex_set_p.env & module_graph_connection_trees V }.
-
 
 (* module_graph_vertex_set_p : pair identifier -> vertex_type *)
 (* 
@@ -801,6 +745,47 @@ Fixpoint vtype_list (ft : vtype) (l : list input_data_type) : list input_data_ty
    | vFnil => l
    | vFflips v fl t fs => vtype_list_btyp fs (vtype_list t l)
    end.
+
+Lemma vtype_list_cat : forall (ft : vtype) (l : list input_data_type), vtype_list ft l = l ++ vtype_list ft [::]
+with vtype_list_btyp_cat : forall (b : vfield) (l : list input_data_type), vtype_list_btyp b l = l ++ vtype_list_btyp b [::].
+Proof.
+* clear vtype_list_cat.
+  induction ft.
+  + intro. rewrite /vtype_list {2}/rcons cats1 //.
+  + simpl vtype_list.
+    induction n.
+    - intro. rewrite /list_repeat_fn cats0 //.
+    - intro. simpl list_repeat_fn.
+      rewrite (IHn (vtype_list ft l)) (IHn (vtype_list ft [::])).
+      rewrite IHft -catA //.
+  + intro. simpl vtype_list. apply vtype_list_btyp_cat.
+* clear vtype_list_btyp_cat.
+  induction b.
+  + intro. rewrite /vtype_list_btyp cats0 //.
+  + intro. simpl vtype_list_btyp.
+    rewrite (IHb (vtype_list v l)) (IHb (vtype_list v [::])).
+    rewrite (vtype_list_cat v l) -catA //.
+Qed.
+
+(*
+Lemma vtype_list_size : forall ft : vtype, size (vtype_list ft [::]) = size_of_ftype ft
+with vtype_list_btyp_size : forall ff : vfield, size (vtype_list_btyp ff) = size_of_fields ff.
+Proof.
+* clear vtype_list_size.
+  induction t.
+  + unfold vtype_list, size, size_of_ftype.
+    reflexivity.
+  + simpl vtype_list ; simpl size_of_ftype.
+    rewrite nseq_seq_len IHt //.
+  + apply vtype_list_btyp_size.
+* clear vtype_list_btyp_size.
+  induction ff.
+  + unfold vtype_list_btyp, size, size_of_fields.
+    reflexivity.
+  + simpl vtype_list_btyp ; simpl size_of_fields.
+    rewrite size_cat IHff vtype_list_size //.
+Qed.
+*)
 
 Definition data_type_in2out (dt : input_data_type) : output_data_type :=
    match dt with
@@ -1089,7 +1074,7 @@ Fixpoint multi_conjunction_check (n : nat) (f : nat -> bool) : bool :=
    end.
 
 Fixpoint Sem_inport (t : ftype) (var : nat) (offset : nat) (V : module_graph_vertex_set_p.env) : bool :=
-   (* returns true if the keys (var, offset), (var, offset + 1), (var, offset + 2), ...
+   (* The predicate returns true if the keys (var, offset), (var, offset + 1), (var, offset + 2), ...
       in map V contain type-correct inports or outports corresponding to type t
       (Non-flipped fields are in-ports, flipped fields are out-ports). *)
    match t with
@@ -1109,7 +1094,7 @@ with Sem_inport_fields (ff : ffield) (var : nat) (offset : nat) (V : module_grap
                                 && Sem_inport_fields ff' var (offset + size_of_ftype t') V
    end
 with Sem_outport (t : ftype) (var : nat) (offset : nat) (V : module_graph_vertex_set_p.env) : bool :=
-   (* returns true if the keys (var, offset), (var, offset + 1), (var, offset + 2), ...
+   (* The predicate returns true if the keys (var, offset), (var, offset + 1), (var, offset + 2), ...
       in map V contain type-correct inports or outports corresponding to type t
       (Non-flipped fields are out-ports, flipped fields are in-ports). *)
    match t with
@@ -1130,7 +1115,7 @@ with Sem_outport_fields (ff : ffield) (var : nat) (offset : nat) (V : module_gra
    end.
 
 Fixpoint Sem_port (pp : list (hfport VarOrder.T)) (V : module_graph_vertex_set_p.env) : bool :=
-(* returns true if the vertex set V conforms to the sequence of ports pp. *)
+(* The predicate returns true if the vertex set V conforms to the sequence of ports pp. *)
    match pp with
    | [::] => module_graph_vertex_set_p.is_empty V
    | (Finput  var t) :: pp' =>    Sem_port pp' (remove_t V var (size_of_ftype t))
@@ -1141,7 +1126,7 @@ Fixpoint Sem_port (pp : list (hfport VarOrder.T)) (V : module_graph_vertex_set_p
 
 Fixpoint Sem_frag (G_old : module_graph) (ss : hfstmt_seq VarOrder.T) (G_new : module_graph) : Prop :=
    (* ss is the final fragment of the statements of some module.
-      The function returns True if G_new can be constructed from G_old by applying ss. *)
+      The predicate returns True if G_new can be constructed from G_old by applying ss. *)
    match ss with
    | Qnil => G_old = G_new (* module_graph_vertex_set_p.equal vertex_type_eqn (projT1 G_old) (projT1 G_new) && (projT2 G_old and projT2 G_new correspond to each other as well) *)
    | Qcons s ss' => exists G' : module_graph, Sem_frag_stmt G_old s G' /\ Sem_frag G' ss' G_new
@@ -1150,18 +1135,30 @@ with Sem_frag_stmt (G_old : module_graph) (s : hfstmt VarOrder.T) (G_new : modul
    (* The predicate returns True if G_new can be constructed from G_old by applying s. *)
    match s with
    | Sskip => G_old = G_new
-   | Swire var t => False
+   | Swire var t => False (* G_new contains one vertex more than G_old;
+                             the connection trees are the same,
+                             except that the input connectors of the new wire are not connected. *)
    | Sreg var reg => False
    | Smem var mem => False
    | Sinst var1 var2 => False
    | Snode var expr => False
    | Sfcnct ref expr => False
+                        (* The vertices of G_new extend the vertices of G_old by components needed by expr.
+                           The connection trees extend the connection trees of G_old as needed by expr, except that
+                           G_new contains a connection tree that flows from the output connector of expr to the input connector of ref.
+                           If the types do not match, then the relation is False. (ResetWire <= ClockWire)
+                           If ref has an implicit width, then the relation only holds if width(ref) >= width(expr). *)
    | Sinvalid ref => (* The vertices are the same;
                         the connection trees are almost the same, except that
                         G_new contains a connection tree "Invalidated" for every ground element of ref. *)
-                        module_graph_vertex_set_p.equal vertex_type_eqn (projT1 G_old) (projT1 G_new)
-                     /\ forall ic : input_connectors_of_module_graph (projT1 G_old),
-                           (projT2 G_old) ic = (projT2 G_new) ic
+                     exists vertices_equal : module_graph_vertex_set_p.Equal (projT1 G_old) (projT1 G_new),
+                        forall ic : input_connectors_of_module_graph (projT1 G_old),
+                           match ic with
+                           exist (v, n) p => (projT2 G_old) ic =
+                                             (projT2 G_new) (exist (fun (x : input_connectors_of_module_graph (projT1 G_new) : if module_graph_vertex_set_p.find (fst x) (projT1 G_new) is Some elt
+                                                                                         then snd x < size (input_connectors elt)
+                                                                                         else False => ... p ... vertices_equal ...) (v, n) I)
+                           end
    | Swhen cond ss_true ss_false => False
    end.
 
@@ -1170,20 +1167,35 @@ Fixpoint Sem (F : hfmodule) (G : module_graph) : Prop :=
    (If F has errors, there is no such G.)
    (If F has implicit width components, then there are many such Gs.) *)
    match F with
-   | FInMod n pp ss => exists V : module_graph_vertex_set_p.env,    Sem_port pp V
-                                                                 /\ Sem_frag V ss G
+   | FInMod n pp ss => exists V : module_graph_vertex_set_p.env,
+         Sem_port pp V /\ Sem_frag (existT module_graph_connection_trees V
+                                           (fun (v : input_connectors_of_module_graph V) => Not_connected V))
+                                   ss G
    | FExMod _ _ _ => False
    end.
+
+Theorem InferWidths_correct :
+(* Proves that InferWidth_fun preserves the semantics *)
+   forall (F : hfmodule) (G : module_graph),
+      match InferWidths_fun F with
+      | OK F' => Sem F' G -> Sem F G (* implication is necessary because F may allow more graphs than F' *)
+                 (* Additionally, we might require:
+                    /\ ((exists G1, Sem F G1) -> exists G2, Sem F' G2)
+                    /\ F' does not contain unspecified widths *)
+      | Error _ => True
+      end.
 
 Theorem ExpandConnect_correct :
 (* Proves that ExpandConnect_fun preserves the semantics *)
    forall (F : hfmodule) (G : module_graph),
       F does not contain unspecified widths ->
       match ExpandConnect_fun F with
-      | OK F' => Sem F' G <-> Sem F G.
-      | Error _ => true
+      | OK F' => Sem F' G <-> Sem F G (* equivalence is ok because F does not contain unspecified widths *)
+                 (* Additionally, we might require:
+                    /\ F' does not contain aggregate types/connections *)
+      | Error _ => True
       end.
 
 (* If F allows multiple module graphs G, then it may happen that F' allows fewer module graphs.
    However, as the theorem requires that F does not contain unspecified widths, there should be only one conforming module graph,
-   and so the  *)
+   and so the equivalence is ok. *)
