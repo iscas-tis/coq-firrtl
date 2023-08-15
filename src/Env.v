@@ -16,6 +16,8 @@ Import Prenex Implicits.
   Inductive fgtyp : Set :=
     Fuint : nat -> fgtyp
   | Fsint : nat -> fgtyp
+  | Fuint_implicit : nat (* implicitly inferred width, HiFIRRTL only *) -> fgtyp
+  | Fsint_implicit : nat (* implicitly inferred width, HiFIRRTL only *) -> fgtyp
   | Fclock
   | Freset (* HiFIRRTL only *)
   | Fasyncreset
@@ -26,8 +28,8 @@ Import Prenex Implicits.
 
   Definition sizeof_fgtyp (t : fgtyp) : nat :=
     match t with
-    | Fuint w => w
-    | Fsint w => w
+    | Fuint w | Fuint_implicit w => w
+    | Fsint w | Fsint_implicit w => w
     (* | Fanalog w => w *)
     | _ => 1
     end.
@@ -39,8 +41,8 @@ Import Prenex Implicits.
 
   Definition fgtyp_eqn (x y : fgtyp) : bool :=
     match x, y with
-    | Fuint wx, Fuint wy => wx == wy
-    | Fsint wx, Fsint wy => wx == wy
+    | Fuint wx, Fuint wy | Fuint_implicit wx, Fuint_implicit wy => wx == wy
+    | Fsint wx, Fsint wy | Fsint_implicit wx, Fsint_implicit wy => wx == wy
     (* | Fanalog wx, Fanalog wy => wx == wy *)
     | Fclock, Fclock => true
     | Freset, Freset => true
@@ -93,6 +95,54 @@ Import Prenex Implicits.
   Definition fgtyp_eqMixin := EqMixin fgtyp_eqP.
   Canonical fgtyp_eqType := Eval hnf in EqType fgtyp fgtyp_eqMixin.
 
+  (* a type for situations where an explicit width is required *)
+
+  Definition not_implicit_width (x : fgtyp) : Prop :=
+  match x with Fuint_implicit _ | Fsint_implicit _ => False
+               | _ => True end.
+
+  Definition fgtyp_explicit : Type :=
+   (* disallow implicit widths *)
+   { x : fgtyp | not_implicit_width x }.
+
+
+(* equality of fgtyp_explicit is decidable *)
+Lemma fgtyp_explicit_eq_dec : forall {x y : fgtyp_explicit}, {x = y} + {x <> y}.
+Proof.
+intros.
+destruct x, y.
+case: (@fgtyp_eq_dec x x0) => H.
+* left.
+  destruct x, x0 ; try done ; destruct n, n0 ;
+        try reflexivity ;
+        injection H ; intro ; rewrite H0 ; reflexivity.
+* right.
+  destruct x, x0 ; try done ;
+        injection ; destruct n, n0 ;
+        contradict H ; rewrite H ; reflexivity.
+Qed.
+Definition fgtyp_explicit_eqn (x y : fgtyp_explicit) : bool :=
+match x, y with
+exist x' _, exist y' _ => fgtyp_eqn x' y'
+end.
+Lemma fgtyp_explicit_eqP : Equality.axiom fgtyp_explicit_eqn.
+Proof.
+rewrite /Equality.axiom /fgtyp_explicit_eqn.
+intros.
+destruct x, y.
+destruct x, x0 ; destruct n, n0 ; simpl fgtyp_eqn ;
+     try (apply ReflectF ; discriminate) ;
+     try (apply ReflectT ; reflexivity) ;
+     destruct (n1 == n2) eqn: Hn1n2.
+1, 3: apply ReflectT ;
+      move /eqP : Hn1n2 => Hn1n2 ; rewrite Hn1n2 ; reflexivity.
+all: apply ReflectF ;
+     move /eqP : Hn1n2 => Hn1n2 ; contradict Hn1n2 ;
+     injection Hn1n2 ; intro ; done.
+Qed.
+Canonical fgtyp_explicit_eqMixin := EqMixin fgtyp_explicit_eqP.
+Canonical fgtyp_explicit_eqType := Eval hnf in EqType fgtyp_explicit fgtyp_explicit_eqMixin.
+
 
   (*Delimit Scope fgtyp_scope with fgtyp.*)
 
@@ -139,7 +189,8 @@ Module Type TypEnv <: SsrFMap.
   Axiom vtyp_vsize :
     forall {x : SE.t} {e : env} {ty : fgtyp},
       vtyp x e = ty -> vsize x e = sizeof_fgtyp ty.
-
+  Axiom deftyp_not_implicit :
+    forall (w : nat), deftyp != Fuint_implicit w /\ deftyp != Fsint_implicit w.
 End TypEnv.
 
 Module MakeTypEnv (V : SsrOrder) (VM : SsrFMap with Module SE := V) <:
@@ -202,6 +253,10 @@ Module MakeTypEnv (V : SsrOrder) (VM : SsrFMap with Module SE := V) <:
 
   Lemma vtyp_vsize x e ty : vtyp x e = ty -> vsize x e = sizeof_fgtyp ty.
   Proof. rewrite /vsize /vtyp. move=> ->. reflexivity. Qed.
+
+  Lemma deftyp_not_implicit :
+    forall (n : nat), deftyp != Fuint_implicit n /\ deftyp != Fsint_implicit n.
+  Proof. rewrite /deftyp //. Qed.
 
 End MakeTypEnv.
 

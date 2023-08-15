@@ -305,8 +305,8 @@ Module MakeFirrtl
   
   Definition ftcast (bs : bits) (fty : fgtyp) (tty : fgtyp) : bits :=
     match fty with
-    | Fuint w => ucastB bs (sizeof_fgtyp tty)
-    | Fsint w => scastB bs (sizeof_fgtyp tty)
+    | Fuint w | Fuint_implicit w => ucastB bs (sizeof_fgtyp tty)
+    | Fsint w | Fsint_implicit w => scastB bs (sizeof_fgtyp tty)
     | _ => ucastB bs 1
     end.
   
@@ -327,20 +327,20 @@ Module MakeFirrtl
     match o with
     | Upad n => fun b => if (n < size b) then b else
                  (match t with
-                  | Fuint w => zext (n - w) b
-                  | Fsint w => sext (n - w) b
+                  | Fuint w | Fuint_implicit w => zext (n - w) b
+                  | Fsint w | Fsint_implicit w => sext (n - w) b
                   | _ => b
                   end)
     | Ushl n => fun b => cat (zeros n) b
     | Ushr n => fun b => if (n < size b) then high (size b - n) b else [::msb b]
     | Ucvt =>  fun b =>
                  (match t with
-                  | Fuint w => sext 1 b
+                  | Fuint w | Fuint_implicit w => zext 1 b
                   | _ => b
                   end)
     | Uneg => fun b => (match t with
-                    | Fuint _ => negB (zext 1 b)
-                    | Fsint _ => negB (sext 1 b)
+                    | Fuint _ | Fuint_implicit _ => negB (zext 1 b)
+                    | Fsint _ | Fsint_implicit _ => negB (sext 1 b)
                     | _ => b
                     end)
     | Unot => invB
@@ -1222,6 +1222,9 @@ Qed.
 
   Definition ebinop_op (o : ebinop) (t1 t2 : fgtyp) : bits -> bits -> bits :=
     match t1, t2 with
+    | Fuint_implicit w1, Fuint_implicit w2
+    | Fuint_implicit w1, Fuint w2
+    | Fuint w1, Fuint_implicit w2
     | Fuint w1, Fuint w2 =>
       fun a b =>
         let w := maxn w1 w2 in
@@ -1243,6 +1246,9 @@ Qed.
       | Bdshl => zext ((Nat.pow 2 (size b) - 1) - (to_nat b)) (cat (zeros (to_nat b)) a)
       | Bdshr => (shrB (to_nat b) a)
       end
+    | Fsint_implicit w1, Fsint_implicit w2
+    | Fsint_implicit w1, Fsint w2
+    | Fsint w1, Fsint_implicit w2
     | Fsint w1, Fsint w2 =>
       fun a b =>
         let w := maxn w1 w2 in
@@ -1261,6 +1267,9 @@ Qed.
       | Bcat => cat b a
       | _ => a
       end
+    | Fsint_implicit _, Fuint_implicit _
+    | Fsint_implicit _, Fuint _
+    | Fsint _, Fuint_implicit _
     | Fsint _, Fuint _ =>
       fun a b =>
       match o with
@@ -1272,9 +1281,18 @@ Qed.
     end.
     
   Fixpoint type_of_fexpr (e : fexpr) (te : TE.env) : fgtyp :=
+    (* type_of_fexpr should never return ..._implicit *)
     match e with
-    | Econst t c => t
-    | Eref v => TE.vtyp v te
+    | Econst t c => match t with
+                    | Fuint_implicit w => Fuint w
+                    | Fsint_implicit w => Fsint w
+                    | _ => t
+                    end
+    | Eref v => match TE.vtyp v te with
+                | Fuint_implicit w => Fuint w
+                | Fsint_implicit w => Fsint w
+                | t => t
+                end
     | Ecast AsUInt e => Fuint (sizeof_fgtyp (type_of_fexpr e te))
     | Ecast AsSInt e => Fsint (sizeof_fgtyp (type_of_fexpr e te))
     | Ecast AsClock e => Fuint 1
@@ -1307,12 +1325,12 @@ Qed.
                                   | _ => TE.deftyp
                                   end
                         | Uneg => match (type_of_fexpr e te) with
-                                  | Fuint w => Fsint (w + 1)
+                                  | Fuint w
                                   | Fsint w => Fsint (w + 1)
                                   | _ => TE.deftyp
                                   end
                         | Unot => match (type_of_fexpr e te) with
-                                  | Fuint w => Fuint w
+                                  | Fuint w
                                   | Fsint w => Fuint w
                                   | _ => TE.deftyp
                                   end
@@ -1340,8 +1358,8 @@ Qed.
                                        end
                              | Bcomp c => Fuint 1
                              | Band | Bor | Bxor => match type_of_fexpr e1 te, type_of_fexpr e2 te with
-                                                    | Fuint s1, Fuint s2 => Fuint (maxn s1 s2)
-                                                    | Fsint s1, Fsint s2 => Fsint (maxn s1 s2)
+                                                    | Fuint s1, Fuint s2
+                                                    | Fsint s1, Fsint s2 => Fuint (maxn s1 s2)
                                                     | _, _ => TE.deftyp
                                                     end
                              | Bdiv => match type_of_fexpr e1 te with
@@ -1355,28 +1373,95 @@ Qed.
                                        | _, _ => TE.deftyp
                                        end
                              | Bcat => match type_of_fexpr e1 te, type_of_fexpr e2 te with
-                                      | Fuint s1, Fuint s2 => Fuint (s1 + s2)
+                                      | Fuint s1, Fuint s2
                                       | Fsint s1, Fsint s2 => Fuint (s1 + s2)
                                       | _, _ => TE.deftyp
                                       end
                              end
-    | Emux c e1 e2 => let t1 := (type_of_fexpr e1 te) in
-                      let t2 := (type_of_fexpr e2 te) in
-                      match t1, t2 with
-                      | Fuint w1, Fuint w2 => Fuint (maxn w1 w2)
-                      | Fsint w1, Fsint w2 => Fsint (maxn w1 w2)
-                      | _, _ => TE.deftyp
-                      end
+    | Emux c e1 e2 => if type_of_fexpr c te is Fuint 1
+                      then let t1 := (type_of_fexpr e1 te) in
+                           let t2 := (type_of_fexpr e2 te) in
+                           match t1, t2 with
+                           | Fuint w1, Fuint w2 => Fuint (maxn w1 w2)
+                           | Fsint w1, Fsint w2 => Fsint (maxn w1 w2)
+                           | Fclock, Fclock
+                           | Freset, Freset
+                           | Fasyncreset, Fasyncreset => t1
+                           | _, _ => TE.deftyp
+                           end
+                      else TE.deftyp
     | Evalidif c e => (* if (Z.ltb 0 (to_Z (eval_fexpr c s))) then *)
-                      (type_of_fexpr e te)
+                      if type_of_fexpr c te is Fuint 1
+                      then type_of_fexpr e te
+                      else TE.deftyp
     end.
+
+Lemma type_of_fexpr_is_not_implicit:
+   forall (e : fexpr) (te : TE.env) (w : nat),
+         type_of_fexpr e te != Fuint_implicit w
+      /\ type_of_fexpr e te != Fsint_implicit w.
+Proof.
+induction e.
+* (* Econst *)
+  simpl type_of_fexpr.
+  destruct f ; done.
+* (* Ecast *)
+  simpl type_of_fexpr.
+  destruct u ; done.
+* (* Eprim_unop *)
+  simpl type_of_fexpr.
+  destruct e ; try done.
+  + (* Ushl, Ucvt, Uneg, Unot *)
+     2,4,5,6: intro ;
+              destruct (type_of_fexpr e0 te) ;
+              try apply TE.deftyp_not_implicit ;
+              done.
+  + (* Upad *)
+    intro.
+    destruct (n < sizeof_fgtyp (type_of_fexpr e0 te)) ; try done.
+    destruct (type_of_fexpr e0 te) ; try apply TE.deftyp_not_implicit ; done.
+  + (* Ushr *)
+    intro.
+    destruct (type_of_fexpr e0 te) ; try apply TE.deftyp_not_implicit ;
+    destruct (n < n0) ; done.
+* (* Eprim_binop *)
+  simpl type_of_fexpr.
+  destruct e1 eqn: He1 ; try done.
+  + (* Badd, Bsub, Bmul, Brem, Bdshl, Band, Bor, Bxor, Bcat *)
+    1,2,3,5,6,8,9,10,11: intro ;
+         destruct (type_of_fexpr e2 te), (type_of_fexpr e3 te) ;
+         try apply TE.deftyp_not_implicit ; done.
+  + (* Bdiv, Bdshr *)
+    1,2: intro ;
+         destruct (type_of_fexpr e2 te) ;
+         try apply TE.deftyp_not_implicit ; done.
+* (* Emux *)
+  simpl type_of_fexpr.
+  intro.
+  destruct (type_of_fexpr e1 te) ; try apply TE.deftyp_not_implicit.
+  destruct n ; try apply TE.deftyp_not_implicit.
+  destruct n ; try apply TE.deftyp_not_implicit.
+  destruct (type_of_fexpr e2 te), (type_of_fexpr e3 te) ;
+  try apply TE.deftyp_not_implicit ; done.
+* (* Evalidif *)
+  simpl type_of_fexpr.
+  intro.
+  destruct (type_of_fexpr e1 te) ; try apply TE.deftyp_not_implicit.
+  destruct n ; try apply TE.deftyp_not_implicit.
+  destruct n ; try apply TE.deftyp_not_implicit.
+  apply IHe2.
+* (* Eref *)
+  simpl type_of_fexpr.
+  intro.
+  destruct (TE.vtyp s te) ; done.
+Qed.
 
   (* Expression evaluation, value *)
   Fixpoint eval_fexpr (e : fexpr) (rs : vstate) (s : vstate) (te : TE.env) (readerls : seq var) (writerls : seq var) (data2etc : mapdata2etc) (memmap : mapmem) (read_la : boolmap) : vstate * bits :=
     match e with
     | Econst t c => let val := match t with
-                    | Fuint w1 => zext (w1 - size c) c
-                    | Fsint w2 => sext (w2 - size c) c
+                    | Fuint w1 | Fuint_implicit w1 => zext (w1 - size c) c
+                    | Fsint w2 | Fsint_implicit w2 => sext (w2 - size c) c
                     | _ => c
                     end in (rs, val)
     | Eref v => (* SV.acc v s*)
@@ -1435,6 +1520,9 @@ Qed.
       | Fsint w1, Fsint w2 => if ~~ (is_zero valc) 
       then (sext ((max w1 w2) - w1) val1)
       else (sext ((max w1 w2) - w2) val2)
+      | Fclock, Fclock
+      | Freset, Freset
+      | Fasyncreset, Fasyncreset => if ~~ (is_zero valc) then val1 else val2
       | _, _ => [::]
       end in (rs2, val)
     | Evalidif c e => 
@@ -2096,32 +2184,32 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
     | Ecast _ e1 => well_typed_fexpr e1 te
     | Eprim_unop o e1 => match o with 
                         | Upad _ => match (type_of_fexpr e1 te) with
-                                    | Fuint _ => well_typed_fexpr e1 te
+                                    | Fuint _
                                     | Fsint _ => well_typed_fexpr e1 te
                                     | _ => false
                                     end
                         | Ushl _ => match (type_of_fexpr e1 te) with
-                                    | Fuint _ => well_typed_fexpr e1 te
+                                    | Fuint _
                                     | Fsint _ => well_typed_fexpr e1 te
                                     | _ => false
                                     end
                         | Ushr _ => match (type_of_fexpr e1 te) with
-                                    | Fuint _ => well_typed_fexpr e1 te
+                                    | Fuint _
                                     | Fsint _ => well_typed_fexpr e1 te
                                     | _ => false
                                     end
                         | Ucvt => match (type_of_fexpr e1 te) with
-                                    | Fuint _ => well_typed_fexpr e1 te
+                                    | Fuint _
                                     | Fsint _ => well_typed_fexpr e1 te
                                     | _ => false
                                     end
                         | Uneg => match (type_of_fexpr e1 te) with
-                                    | Fuint _ => well_typed_fexpr e1 te
+                                    | Fuint _
                                     | Fsint _ => well_typed_fexpr e1 te
                                     | _ => false
                                     end
                         | Unot => match (type_of_fexpr e1 te) with
-                                    | Fuint _ => well_typed_fexpr e1 te
+                                    | Fuint _
                                     | Fsint _ => well_typed_fexpr e1 te
                                     | _ => false
                                     end
@@ -2129,59 +2217,63 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
                         end
     | Eprim_binop b e1 e2 => match b with
                         | Bdshl => match type_of_fexpr e1 te, type_of_fexpr e2 te with
-                                  | Fuint _, Fuint _ => well_typed_fexpr e1 te && (well_typed_fexpr e2 te)
+                                  | Fuint _, Fuint _
                                   | Fsint _, Fuint _ => well_typed_fexpr e1 te && (well_typed_fexpr e2 te)
                                   | _, _ => false
                                   end
                         | Bdshr => match type_of_fexpr e1 te, type_of_fexpr e2 te with
-                                  | Fuint _, Fuint _ => well_typed_fexpr e1 te && (well_typed_fexpr e2 te)
+                                  | Fuint _, Fuint _
                                   | Fsint _, Fuint _ => well_typed_fexpr e1 te && (well_typed_fexpr e2 te)
                                   | _, _ => false
                                   end
                         | Badd | Bsub => match type_of_fexpr e1 te, type_of_fexpr e2 te with
-                                  | Fuint _, Fuint _ => well_typed_fexpr e1 te && (well_typed_fexpr e2 te)
+                                  | Fuint _, Fuint _
                                   | Fsint _, Fsint _ => well_typed_fexpr e1 te && (well_typed_fexpr e2 te)
                                   | _, _ => false
                                   end
                         | Bmul => match type_of_fexpr e1 te, type_of_fexpr e2 te with
-                                  | Fuint _, Fuint _ => well_typed_fexpr e1 te && (well_typed_fexpr e2 te)
+                                  | Fuint _, Fuint _
                                   | Fsint _, Fsint _ => well_typed_fexpr e1 te && (well_typed_fexpr e2 te)
                                   | _, _ => false
                                   end
                         | Band | Bor | Bxor => match type_of_fexpr e1 te, type_of_fexpr e2 te with
-                                  | Fuint _, Fuint _ => well_typed_fexpr e1 te && (well_typed_fexpr e2 te)
+                                  | Fuint _, Fuint _
                                   | Fsint _, Fsint _ => well_typed_fexpr e1 te && (well_typed_fexpr e2 te)
                                   | _, _ => false
                                   end
                         | Bdiv => match type_of_fexpr e1 te, type_of_fexpr e2 te with
-                                  | Fuint _, Fuint _ => well_typed_fexpr e1 te && (well_typed_fexpr e2 te)
+                                  | Fuint _, Fuint _
                                   | Fsint _, Fsint _ => well_typed_fexpr e1 te && (well_typed_fexpr e2 te)
                                   | _, _ => false
                                   end
                         | Brem => match type_of_fexpr e1 te, type_of_fexpr e2 te with
-                                  | Fuint _, Fuint _ => well_typed_fexpr e1 te && (well_typed_fexpr e2 te)
+                                  | Fuint _, Fuint _
                                   | Fsint _, Fsint _ => well_typed_fexpr e1 te && (well_typed_fexpr e2 te)
                                   | _, _ => false
                                   end
                         | Bcat => match type_of_fexpr e1 te, type_of_fexpr e2 te with
-                                  | Fuint _, Fuint _ => well_typed_fexpr e1 te && (well_typed_fexpr e2 te)
+                                  | Fuint _, Fuint _
                                   | Fsint _, Fsint _ => well_typed_fexpr e1 te && (well_typed_fexpr e2 te)
                                   | _, _ => false
                                 end
                         | Bcomp _ => match type_of_fexpr e1 te, type_of_fexpr e2 te with
-                                  | Fuint _, Fuint _ => well_typed_fexpr e1 te && (well_typed_fexpr e2 te)
+                                  | Fuint _, Fuint _
                                   | Fsint _, Fsint _ => well_typed_fexpr e1 te && (well_typed_fexpr e2 te)
                                   | _, _ => false
                                   end
                         end
-    | Emux c e1 e2 => let t1 := (type_of_fexpr e1 te) in
+    | Emux c e1 e2 => (type_of_fexpr c te == Fuint 1) &&
+                      let t1 := (type_of_fexpr e1 te) in
                       let t2 := (type_of_fexpr e2 te) in
                       match t1, t2 with
-                      | Fuint _, Fuint _ => (well_typed_fexpr c te) && (well_typed_fexpr e1 te) && (well_typed_fexpr e2 te)
-                      | Fsint _, Fsint _ => (well_typed_fexpr c te) && (well_typed_fexpr e1 te) && (well_typed_fexpr e2 te)
+                      | Fuint _, Fuint _
+                      | Fsint _, Fsint _
+                      | Fclock, Fclock
+                      | Freset, Freset
+                      | Fasyncreset, Fasyncreset => (well_typed_fexpr c te) && (well_typed_fexpr e1 te) && (well_typed_fexpr e2 te)
                       | _, _ => false
                       end
-    | Evalidif c e1 => (well_typed_fexpr c te) && (well_typed_fexpr e1 te)
+    | Evalidif c e1 => (type_of_fexpr c te == Fuint 1) && (well_typed_fexpr c te) && (well_typed_fexpr e1 te)
     end.
 
   (* no mem evaluation *)
@@ -2189,8 +2281,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
   Fixpoint no_mem_eval_fexpr (e : fexpr) (s : vstate) (te : TE.env) : bits :=
     match e with
     | Econst t c => match t with
-                  | Fuint w1 => zext (sizeof_fgtyp t - size c) c
-                  | Fsint w2 => sext (sizeof_fgtyp t - size c) c
+                  | Fuint _ | Fuint_implicit _ => zext (sizeof_fgtyp t - size c) c
+                  | Fsint _ | Fsint_implicit _ => sext (sizeof_fgtyp t - size c) c
                   | _ => c
                   end
     | Eref v => SV.acc v s
@@ -2213,6 +2305,10 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       then (zext ((maxn w1 w2) - w1) (no_mem_eval_fexpr e1 s te)) else(zext ((maxn w1 w2) - w2) (no_mem_eval_fexpr e2 s te))
       | Fsint w1, Fsint w2 => if ~~ (is_zero (no_mem_eval_fexpr c s te)) 
       then (sext ((maxn w1 w2) - w1) (no_mem_eval_fexpr e1 s te)) else(sext ((maxn w1 w2) - w2) (no_mem_eval_fexpr e2 s te))
+      | Fclock, Fclock
+      | Freset, Freset
+      | Fasyncreset, Fasyncreset => if ~~ (is_zero (no_mem_eval_fexpr c s te))
+      then no_mem_eval_fexpr e1 s te else no_mem_eval_fexpr e2 s te
       | _, _ => [::]
       end       
     | Evalidif c e => (* if ~~ (is_zero (no_mem_eval_fexpr c s te)) then*) (no_mem_eval_fexpr e s te) (* else [::]*)
@@ -2253,11 +2349,11 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
     | Sfcnct v e2 => let newv := no_mem_eval_fexpr e2 s te in
                             let len0 := size newv in
                             match (TE.vtyp v te) with
-                            | Fuint w => 
+                            | Fuint w | Fuint_implicit w => 
                                       if SV.acc v rs == [::]
                                       then (rs, SV.upd v (zext (w - len0) newv) s)
                                       else (SV.upd v (zext (w - len0) newv) rs, s)
-                            | Fsint w => 
+                            | Fsint w | Fsint_implicit w => 
                                       if SV.acc v rs == [::]
                                       then (rs, SV.upd v (sext (w - len0) newv) s)
                                       else (SV.upd v (sext (w - len0) newv) rs, s)
@@ -2526,8 +2622,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
                  end)
     | Snode v e => well_typed_fexpr e te
     | Sfcnct v e => match (TE.vtyp v te) with
-                                | Fuint w => well_typed_fexpr e te && (w >= (sizeof_fgtyp (type_of_fexpr e te)))
-                                | Fsint w => well_typed_fexpr e te && (w >= (sizeof_fgtyp (type_of_fexpr e te)))
+                                | Fuint w | Fuint_implicit w => well_typed_fexpr e te && (w >= (sizeof_fgtyp (type_of_fexpr e te)))
+                                | Fsint w | Fsint_implicit w => well_typed_fexpr e te && (w >= (sizeof_fgtyp (type_of_fexpr e te)))
                                 | _ => false
                                 end
     | Sinst _ => false
@@ -2632,7 +2728,13 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       rewrite size_zeros//.
       apply SV.Upd_upd.
       done.
-      case Htypee1 : (type_of_fexpr e1 (TE.add (rid r) (type r) te)) => [n||||].
+       destruct (type_of_fexpr e1 (TE.add (rid r) (type r) te)) as [n|n|n|n| | |] eqn: Htypee1.
+      4: (* Fsint_implicit *)
+         assert (type_of_fexpr e1 (TE.add (rid r) (type r) te) != Fsint_implicit n) by (apply type_of_fexpr_is_not_implicit) ;
+         rewrite Htypee1 eq_refl // in H.
+      3: (* Fuint_implicit *)
+         assert (type_of_fexpr e1 (TE.add (rid r) (type r) te) != Fuint_implicit n) by (apply type_of_fexpr_is_not_implicit) ;
+         rewrite Htypee1 eq_refl /negb // in H.
       - (* Fuint n *)
         case Hn : n => [|n'].
           - split.
@@ -2677,16 +2779,11 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
           rewrite size_zeros//.
           apply SV.Upd_upd.
           done.
-        - 1,2,3: split.
-        1,2,3,4,5,6,7,8: simpl.
-        1,3,5: apply SV.conform_Upd with (zeros (sizeof_fgtyp (type r))) s1.
-        1,4,7: rewrite size_zeros//.
-        1,3,5: apply SV.Upd_upd.
-        1,2,3: done.
-        1,2,3: apply SV.conform_Upd with (zeros (sizeof_fgtyp (type r))) rs1.
-        1,4,7: rewrite size_zeros//.
-        1,3,5: apply SV.Upd_upd.
-        1,2,3: done.
+        - 1,2,3: split ; simpl.
+        1,3,5: apply SV.conform_Upd with (zeros (sizeof_fgtyp (type r))) s1 ;
+              try rewrite size_zeros// ; try apply SV.Upd_upd ; try done.
+        1,2,3: apply SV.conform_Upd with (zeros (sizeof_fgtyp (type r))) rs1 ;
+              try rewrite size_zeros// ; try apply SV.Upd_upd ; try done.
         - (* Fasyncreset *)
         split.
         1,2: apply SV.conform_upd.
@@ -2717,7 +2814,13 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       move : Hcfr1.
       apply SV.conform_equal.
       exact Haddsame.
-      case Htypee1 : (type_of_fexpr e1 (TE.add (rid r) (type r) te)) => [n||||].
+      destruct (type_of_fexpr e1 (TE.add (rid r) (type r) te)) as [n|n|n|n| | |] eqn: Htypee1.
+      4: (* Fsint_implicit *)
+         assert (type_of_fexpr e1 (TE.add (rid r) (type r) te) != Fsint_implicit n) by (apply type_of_fexpr_is_not_implicit) ;
+         rewrite Htypee1 eq_refl // in H.
+      3: (* Fuint_implicit *)
+         assert (type_of_fexpr e1 (TE.add (rid r) (type r) te) != Fuint_implicit n) by (apply type_of_fexpr_is_not_implicit) ;
+         rewrite Htypee1 eq_refl /negb // in H.
       - (* Fuint n *)
         case Hn : n => [|n'].
           - split.
@@ -2764,16 +2867,13 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
           move : Hcfr1.
           apply SV.conform_equal.
           exact Haddsame.
-        - 1,2,3: split.
-        1,2,3,4,5,6: simpl.
-        1,3,5: apply SV.conform_Upd with (SV.acc (rid r) rs1) s1.
-        1,4,7: rewrite -(SV.conform_mem Hcfr1)//.
-        1,2,3: rewrite (TE.vtyp_vsize Htypr) //.
-        1,3,5: apply SV.Upd_upd.
-        1,2,3: done.
-        1,2,3: move : Hcfr1.
-        1,2,3: apply SV.conform_equal.
-        1,2,3: exact Haddsame.
+        - 1,2,3: split ; simpl.
+        1,3,5: apply SV.conform_Upd with (SV.acc (rid r) rs1) s1 ;
+              try rewrite -(SV.conform_mem Hcfr1)// ; try rewrite (TE.vtyp_vsize Htypr) // ;
+              try apply SV.Upd_upd ; try done.
+        1,2,3: move : Hcfr1 ;
+               apply SV.conform_equal ;
+               exact Haddsame.
         - (* Fasyncreset *)
         split.
         simpl.
@@ -2831,23 +2931,17 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       move => s1 te Hcf.
       simpl.
       case f;try by done.
-      move => n Hb.
-      rewrite /well_formed_fexpr in Hb.
-      move : Hb => /andP [/eqP Hb _].
-      rewrite size_zext Hb subnn addn0 //.
-      move => n Hb.
-      rewrite /well_formed_fexpr in Hb.
-      move : Hb => /andP [/eqP Hb _].
-      rewrite size_sext Hb subnn addn0 //.
-      move => /andP [/eqP Hb _].
-      symmetry.
-      exact Hb.
-      move => /andP [/eqP Hb _].
-      symmetry.
-      exact Hb.
-      move => /andP [/eqP Hb _].
-      symmetry.
-      exact Hb.
+      1,3: move => n Hb ;
+           rewrite /well_formed_fexpr in Hb ;
+           move : Hb => /andP [/eqP Hb _] ;
+           rewrite size_zext Hb subnn addn0 //.
+      1,2: move => n Hb ;
+           rewrite /well_formed_fexpr in Hb ;
+           move : Hb => /andP [/eqP Hb _] ;
+           rewrite size_sext Hb subnn addn0 //.
+      1,2,3: move => /andP [/eqP Hb _] ;
+             symmetry ;
+             exact Hb.
     - (* cast *)
       case Hu:u.
       - (* asuint *)
@@ -2864,12 +2958,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         apply IHe with (s1:=s1) in Hwt.
         exact Hwt.
         exact Hcf.
-      - simpl.
-        reflexivity.
-        simpl.
-        reflexivity.
-        simpl.
-        reflexivity.
+      - 1,2,3: reflexivity.
     - (* unop *)
       move => s1 te Hcf.
       case e.
@@ -2879,8 +2968,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         move : Hwf => /andP [Hwt Hid].
         simpl in Hid.
         simpl in Hwt.
-        case Ht:(type_of_fexpr e0 te) => [n0|n0|||].
-        rewrite Ht in Hwt.
+        destruct (type_of_fexpr e0 te) as [n0|n0|n0|n0| | |] eqn:Ht ; try discriminate.
         simpl.
         case Hn:(n < size (no_mem_eval_fexpr e0 s1 te)).
         rewrite Ht.
@@ -2898,7 +2986,6 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         trivial.
         exact Hn.
         rewrite /well_formed_fexpr Hwt Hid //.
-        rewrite Ht in Hwt.
         simpl.
         case Hn:(n < size (no_mem_eval_fexpr e0 s1 te)).
         rewrite Ht.
@@ -2916,20 +3003,13 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         trivial.
         exact Hn.
         rewrite /well_formed_fexpr Hwt Hid //.
-        rewrite Ht in Hwt.
-        discriminate.
-        rewrite Ht in Hwt.
-        discriminate.
-        rewrite Ht in Hwt.
-        discriminate.
       - (* shl *)
         move => n Hwf.
         rewrite /well_formed_fexpr in Hwf.
         move : Hwf => /andP [Hwt Hid].
         simpl in Hid.
         simpl in Hwt.
-        case Ht:(type_of_fexpr e0 te) => [n0|n0|||].
-        rewrite Ht in Hwt.
+        destruct (type_of_fexpr e0 te) as [n0|n0|n0|n0| | |] eqn:Ht ; try discriminate.
         simpl.
         rewrite Ht size_cat size_zeros.
         apply IHe in Hcf.
@@ -2937,7 +3017,6 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         simpl.
         rewrite addnC //.
         rewrite /well_formed_fexpr Hwt Hid //.
-        rewrite Ht in Hwt.
         simpl.
         rewrite Ht size_cat size_zeros.
         apply IHe in Hcf.
@@ -2945,20 +3024,13 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         simpl.
         rewrite addnC //.
         rewrite /well_formed_fexpr Hwt Hid //.
-        rewrite Ht in Hwt.
-        discriminate.
-        rewrite Ht in Hwt.
-        discriminate.
-        rewrite Ht in Hwt.
-        discriminate.
       - (* shr *)
         move => n Hwf.
         rewrite /well_formed_fexpr in Hwf.
         move : Hwf => /andP [Hwt Hid].
         simpl in Hid.
         simpl in Hwt.
-        case Ht:(type_of_fexpr e0 te) => [n0|n0|||].
-        rewrite Ht in Hwt.
+        destruct (type_of_fexpr e0 te) as [n0|n0|n0|n0| | |] eqn:Ht ; try discriminate.
         simpl.
         rewrite Ht.
         case Hn : (n < size (no_mem_eval_fexpr e0 s1 te)).
@@ -2978,7 +3050,6 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         simpl.
         reflexivity.
         rewrite /well_formed_fexpr Hwt Hid //.
-        rewrite Ht in Hwt.
         simpl.
         rewrite Ht.
         case Hn : (n < size (no_mem_eval_fexpr e0 s1 te)).
@@ -2998,29 +3069,21 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         simpl.
         reflexivity.
         rewrite /well_formed_fexpr Hwt Hid //.
-        rewrite Ht in Hwt.
-        discriminate.
-        rewrite Ht in Hwt.
-        discriminate.
-        rewrite Ht in Hwt.
-        discriminate.
       - (* cvt *)
         move => Hwf.
         rewrite /well_formed_fexpr in Hwf.
         move : Hwf => /andP [Hwt Hid].
         simpl in Hid.
         simpl in Hwt.
-        case Ht:(type_of_fexpr e0 te) => [n0|n0|||].
-        rewrite Ht in Hwt.
+        destruct (type_of_fexpr e0 te) as [n0|n0|n0|n0| | |] eqn:Ht ; try discriminate.
         simpl.
         rewrite Ht.
-        rewrite size_sext.
+        rewrite size_zext.
         apply IHe in Hcf.
         rewrite Hcf Ht.
         simpl.
         reflexivity.
         rewrite /well_formed_fexpr Hwt Hid //.
-        rewrite Ht in Hwt.
         simpl.
         rewrite Ht.
         apply IHe in Hcf.
@@ -3028,20 +3091,13 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         simpl.
         reflexivity.
         rewrite /well_formed_fexpr Hwt Hid //.
-        rewrite Ht in Hwt.
-        discriminate.
-        rewrite Ht in Hwt.
-        discriminate.
-        rewrite Ht in Hwt.
-        discriminate.
       - (* neg *)
         move => Hwf.
         rewrite /well_formed_fexpr in Hwf.
         move : Hwf => /andP [Hwt Hid].
         simpl in Hid.
         simpl in Hwt.
-        case Ht:(type_of_fexpr e0 te) => [n0|n0|||].
-        rewrite Ht in Hwt.
+        destruct (type_of_fexpr e0 te) as [n0|n0|n0|n0| | |] eqn:Ht ; try discriminate.
         simpl.
         rewrite Ht.
         rewrite size_negB size_zext.
@@ -3050,7 +3106,6 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         simpl.
         reflexivity.
         rewrite /well_formed_fexpr Hwt Hid //.
-        rewrite Ht in Hwt.
         simpl.
         rewrite Ht.
         rewrite size_negB size_sext.
@@ -3059,20 +3114,13 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         simpl.
         reflexivity.
         rewrite /well_formed_fexpr Hwt Hid //.
-        rewrite Ht in Hwt.
-        discriminate.
-        rewrite Ht in Hwt.
-        discriminate.
-        rewrite Ht in Hwt.
-        discriminate.
       - (* not *)
         move => Hwf.
         rewrite /well_formed_fexpr in Hwf.
         move : Hwf => /andP [Hwt Hid].
         simpl in Hid.
         simpl in Hwt.
-        case Ht:(type_of_fexpr e0 te) => [n0|n0|||].
-        rewrite Ht in Hwt.
+        destruct (type_of_fexpr e0 te) as [n0|n0|n0|n0| | |] eqn:Ht ; try discriminate.
         simpl.
         rewrite Ht.
         rewrite size_invB.
@@ -3081,7 +3129,6 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         simpl.
         reflexivity.
         rewrite /well_formed_fexpr Hwt Hid //.
-        rewrite Ht in Hwt.
         simpl.
         rewrite Ht.
         rewrite size_invB.
@@ -3090,24 +3137,10 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         simpl.
         reflexivity.
         rewrite /well_formed_fexpr Hwt Hid //.
-        rewrite Ht in Hwt.
-        discriminate.
-        rewrite Ht in Hwt.
-        discriminate.
-        rewrite Ht in Hwt.
-        discriminate.
-      - (* andr *)
-        move => Hwf.
-        simpl.
-        reflexivity.
-      - (* orr *)
-        move => Hwf.
-        simpl.
-        reflexivity.
-      - (* xorr *)
-        move => Hwf.
-        simpl.
-        reflexivity.
+      - (* andr, orr, xorr *)
+        1,2,3: move => Hwf ;
+               simpl ;
+               reflexivity.
       - (* extr *)
         move => n n0 Hwf.
         simpl.
@@ -3140,9 +3173,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         simpl in Hid.
         simpl in Hwt.
         move : Hid => /andP [Hid1 Hid2].
-        case Ht1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case Ht2:(type_of_fexpr e3 te) => [n1|n1|||].
-        rewrite Ht1 Ht2 in Hwt.
+        destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: Ht1 ; try discriminate.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: Ht2 ; try discriminate.
         move : Hwt => /andP [Hwt1 Hwt2].
         simpl.
         rewrite Ht1 Ht2.
@@ -3158,18 +3190,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         rewrite addn1 //.
         rewrite /well_formed_fexpr Hwt2 Hid2 //.
         rewrite /well_formed_fexpr Hwt1 Hid1 //.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        case Ht2:(type_of_fexpr e3 te) => [n1|n1|||].
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: Ht2 ; try discriminate.
         move : Hwt => /andP [Hwt1 Hwt2].
         simpl.
         rewrite Ht1 Ht2.
@@ -3202,18 +3223,6 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         rewrite leq_maxl //.
         rewrite /well_formed_fexpr Hwt2 Hid2 //.
         rewrite /well_formed_fexpr Hwt1 Hid1 //.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 in Hwt.
-        discriminate.
-        rewrite Ht1 in Hwt.
-        discriminate.
-        rewrite Ht1 in Hwt.
-        discriminate.
       (* sub *)
       - move => Hwf.
         rewrite /well_formed_fexpr in Hwf.
@@ -3221,9 +3230,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         simpl in Hid.
         simpl in Hwt.
         move : Hid => /andP [Hid1 Hid2].
-        case Ht1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case Ht2:(type_of_fexpr e3 te) => [n1|n1|||].
-        rewrite Ht1 Ht2 in Hwt.
+        destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: Ht1 ; try discriminate.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: Ht2 ; try discriminate.
         move : Hwt => /andP [Hwt1 Hwt2].
         simpl.
         rewrite Ht1 Ht2.
@@ -3239,18 +3247,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         rewrite addn1 //.
         rewrite /well_formed_fexpr Hwt2 Hid2 //.
         rewrite /well_formed_fexpr Hwt1 Hid1 //.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        case Ht2:(type_of_fexpr e3 te) => [n1|n1|||].
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: Ht2 ; try discriminate.
         move : Hwt => /andP [Hwt1 Hwt2].
         simpl.
         rewrite Ht1 Ht2.
@@ -3283,18 +3280,6 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         rewrite leq_maxl //.
         rewrite /well_formed_fexpr Hwt2 Hid2 //.
         rewrite /well_formed_fexpr Hwt1 Hid1 //.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 in Hwt.
-        discriminate.
-        rewrite Ht1 in Hwt.
-        discriminate.
-        rewrite Ht1 in Hwt.
-        discriminate.
       (* mul *)
       - move => Hwf.
         rewrite /well_formed_fexpr in Hwf.
@@ -3302,9 +3287,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         simpl in Hid.
         simpl in Hwt.
         move : Hid => /andP [Hid1 Hid2].
-        case Ht1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case Ht2:(type_of_fexpr e3 te) => [n1|n1|||].
-        rewrite Ht1 Ht2 in Hwt.
+        destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: Ht1 ; try discriminate.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: Ht2 ; try discriminate.
         move : Hwt => /andP [Hwt1 Hwt2].
         simpl.
         rewrite Ht1 Ht2.
@@ -3320,18 +3304,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         reflexivity.
         rewrite /well_formed_fexpr Hwt2 Hid2 //.
         rewrite /well_formed_fexpr Hwt1 Hid1 //.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        case Ht2:(type_of_fexpr e3 te) => [n1|n1|||].
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: Ht2 ; try discriminate.
         move : Hwt => /andP [Hwt1 Hwt2].
         simpl.
         rewrite Ht1 Ht2.
@@ -3348,18 +3321,6 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         reflexivity.
         rewrite /well_formed_fexpr Hwt2 Hid2 //.
         rewrite /well_formed_fexpr Hwt1 Hid1 //.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 in Hwt.
-        discriminate.
-        rewrite Ht1 in Hwt.
-        discriminate.
-        rewrite Ht1 in Hwt.
-        discriminate.
       (* div *)
       - move => Hwf.
         rewrite /well_formed_fexpr in Hwf.
@@ -3367,9 +3328,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         simpl in Hid.
         simpl in Hwt.
         move : Hid => /andP [Hid1 Hid2].
-        case Ht1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case Ht2:(type_of_fexpr e3 te) => [n1|n1|||].
-        rewrite Ht1 Ht2 in Hwt.
+        destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: Ht1 ; try discriminate.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: Ht2 ; try discriminate.
         move : Hwt => /andP [Hwt1 Hwt2].
         simpl.
         rewrite Ht1 Ht2.
@@ -3380,18 +3340,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         simpl.
         reflexivity.
         rewrite /well_formed_fexpr Hwt1 Hid1 //.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        case Ht2:(type_of_fexpr e3 te) => [n1|n1|||].
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: Ht2 ; try discriminate.
         move : Hwt => /andP [Hwt1 Hwt2].
         simpl.
         rewrite Ht1 Ht2.
@@ -3402,18 +3351,6 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         simpl.
         reflexivity.
         rewrite /well_formed_fexpr Hwt1 Hid1 //.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 in Hwt.
-        discriminate.
-        rewrite Ht1 in Hwt.
-        discriminate.
-        rewrite Ht1 in Hwt.
-        discriminate.
       (* rem *)
       - move => Hwf.
         rewrite /well_formed_fexpr in Hwf.
@@ -3421,43 +3358,19 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         simpl in Hid.
         simpl in Hwt.
         move : Hid => /andP [Hid1 Hid2].
-        case Ht1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case Ht2:(type_of_fexpr e3 te) => [n1|n1|||].
-        rewrite Ht1 Ht2 in Hwt.
+        destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: Ht1 ; try discriminate.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: Ht2 ; try discriminate.
         move : Hwt => /andP [Hwt1 Hwt2].
         simpl.
         rewrite Ht1 Ht2.
         simpl.
         rewrite size_low //.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        case Ht2:(type_of_fexpr e3 te) => [n1|n1|||].
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: Ht2 ; try discriminate.
         move : Hwt => /andP [Hwt1 Hwt2].
         simpl.
         rewrite Ht1 Ht2.
         simpl.
         rewrite size_low //.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 in Hwt.
-        discriminate.
-        rewrite Ht1 in Hwt.
-        discriminate.
-        rewrite Ht1 in Hwt.
-        discriminate.
       (* cmp *)
       - move => b Hwf.
         rewrite /well_formed_fexpr in Hwf.
@@ -3465,187 +3378,12 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         simpl in Hid.
         simpl in Hwt.
         move : Hid => /andP [Hid1 Hid2].
-        case b.
         simpl.
-        case Ht1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case Ht2:(type_of_fexpr e3 te) => [n1|n1|||].
-        simpl.
-        reflexivity.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        case Ht2:(type_of_fexpr e3 te) => [n1|n1|||].
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        simpl.
-        reflexivity.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 in Hwt.
-        discriminate.
-        rewrite Ht1 in Hwt.
-        discriminate.
-        rewrite Ht1 in Hwt.
-        discriminate.
-        simpl.
-        case Ht1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case Ht2:(type_of_fexpr e3 te) => [n1|n1|||].
-        simpl.
-        reflexivity.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        case Ht2:(type_of_fexpr e3 te) => [n1|n1|||].
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        simpl.
-        reflexivity.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 in Hwt.
-        discriminate.
-        rewrite Ht1 in Hwt.
-        discriminate.
-        rewrite Ht1 in Hwt.
-        discriminate.
-        simpl.
-        case Ht1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case Ht2:(type_of_fexpr e3 te) => [n1|n1|||].
-        simpl.
-        reflexivity.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        case Ht2:(type_of_fexpr e3 te) => [n1|n1|||].
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        simpl.
-        reflexivity.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 in Hwt.
-        discriminate.
-        rewrite Ht1 in Hwt.
-        discriminate.
-        rewrite Ht1 in Hwt.
-        discriminate.
-        simpl.
-        case Ht1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case Ht2:(type_of_fexpr e3 te) => [n1|n1|||].
-        simpl.
-        reflexivity.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        case Ht2:(type_of_fexpr e3 te) => [n1|n1|||].
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        simpl.
-        reflexivity.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 in Hwt.
-        discriminate.
-        rewrite Ht1 in Hwt.
-        discriminate.
-        rewrite Ht1 in Hwt.
-        discriminate.
-        simpl.
-        case Ht1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case Ht2:(type_of_fexpr e3 te) => [n1|n1|||].
-        simpl.
-        reflexivity.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        case Ht2:(type_of_fexpr e3 te) => [n1|n1|||].
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        simpl.
-        reflexivity.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 in Hwt.
-        discriminate.
-        rewrite Ht1 in Hwt.
-        discriminate.
-        rewrite Ht1 in Hwt.
-        discriminate.
-        simpl.
-        case Ht1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case Ht2:(type_of_fexpr e3 te) => [n1|n1|||].
-        simpl.
-        reflexivity.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        case Ht2:(type_of_fexpr e3 te) => [n1|n1|||].
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        simpl.
-        reflexivity.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 in Hwt.
-        discriminate.
-        rewrite Ht1 in Hwt.
-        discriminate.
-        rewrite Ht1 in Hwt.
-        discriminate.
+        destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: Ht1 ; try discriminate.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: Ht2 ; try discriminate.
+        case b ; simpl ; reflexivity.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: Ht2 ; try discriminate.
+        case b ; simpl ; reflexivity.
       (* dshl *)
       - move => Hwf.
         rewrite /well_formed_fexpr in Hwf.
@@ -3653,9 +3391,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         simpl in Hid.
         simpl in Hwt.
         move : Hid => /andP [Hid1 Hid2].
-        case Ht1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case Ht2:(type_of_fexpr e3 te) => [n1|n1|||].
-        rewrite Ht1 Ht2 in Hwt.
+        destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: Ht1 ; try discriminate.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: Ht2 ; try discriminate.
         move : Hwt => /andP [Hwt1 Hwt2].
         simpl.
         rewrite Ht1 Ht2.
@@ -3681,16 +3418,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         rewrite Nats.expn_pow.
         apply Nat.pow_nonzero.
         lia.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        case Ht2:(type_of_fexpr e3 te) => [n1|n1|||].
-        rewrite Ht1 Ht2 in Hwt.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: Ht2 ; try discriminate.
         move : Hwt => /andP [Hwt1 Hwt2].
         simpl.
         rewrite Ht1 Ht2.
@@ -3716,20 +3444,6 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         rewrite Nats.expn_pow.
         apply Nat.pow_nonzero.
         lia.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 in Hwt.
-        discriminate.
-        rewrite Ht1 in Hwt.
-        discriminate.
-        rewrite Ht1 in Hwt.
-        discriminate.
       (* dshr *)
       - move => Hwf.
         rewrite /well_formed_fexpr in Hwf.
@@ -3737,9 +3451,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         simpl in Hid.
         simpl in Hwt.
         move : Hid => /andP [Hid1 Hid2].
-        case Ht1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case Ht2:(type_of_fexpr e3 te) => [n1|n1|||].
-        rewrite Ht1 Ht2 in Hwt.
+        destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: Ht1 ; try discriminate.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: Ht2 ; try discriminate.
         move : Hwt => /andP [Hwt1 Hwt2].
         simpl.
         rewrite Ht1 Ht2.
@@ -3750,16 +3463,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         simpl.
         reflexivity.
         rewrite /well_formed_fexpr Hwt1 Hid1 //.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        case Ht2:(type_of_fexpr e3 te) => [n1|n1|||].
-        rewrite Ht1 Ht2 in Hwt.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: Ht2 ; try discriminate.
         move : Hwt => /andP [Hwt1 Hwt2].
         simpl.
         rewrite Ht1 Ht2.
@@ -3770,20 +3474,6 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         simpl.
         reflexivity.
         rewrite /well_formed_fexpr Hwt1 Hid1 //.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 in Hwt.
-        discriminate.
-        rewrite Ht1 in Hwt.
-        discriminate.
-        rewrite Ht1 in Hwt.
-        discriminate.
       (* and *)
       - move => Hwf.
         rewrite /well_formed_fexpr in Hwf.
@@ -3791,9 +3481,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         simpl in Hid.
         simpl in Hwt.
         move : Hid => /andP [Hid1 Hid2].
-        case Ht1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case Ht2:(type_of_fexpr e3 te) => [n1|n1|||].
-        rewrite Ht1 Ht2 in Hwt.
+        destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: Ht1 ; try discriminate.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: Ht2 ; try discriminate.
         move : Hwt => /andP [Hwt1 Hwt2].
         simpl.
         rewrite Ht1 Ht2.
@@ -3814,18 +3503,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         rewrite leq_maxl //.
         rewrite /well_formed_fexpr Hwt2 Hid2 //.
         rewrite /well_formed_fexpr Hwt1 Hid1 //.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        case Ht2:(type_of_fexpr e3 te) => [n1|n1|||].
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: Ht2 ; try discriminate.
         move : Hwt => /andP [Hwt1 Hwt2].
         simpl.
         rewrite Ht1 Ht2.
@@ -3846,18 +3524,6 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         rewrite leq_maxl //.
         rewrite /well_formed_fexpr Hwt2 Hid2 //.
         rewrite /well_formed_fexpr Hwt1 Hid1 //.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 in Hwt.
-        discriminate.
-        rewrite Ht1 in Hwt.
-        discriminate.
-        rewrite Ht1 in Hwt.
-        discriminate.
       (* or *)
       - move => Hwf.
         rewrite /well_formed_fexpr in Hwf.
@@ -3865,9 +3531,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         simpl in Hid.
         simpl in Hwt.
         move : Hid => /andP [Hid1 Hid2].
-        case Ht1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case Ht2:(type_of_fexpr e3 te) => [n1|n1|||].
-        rewrite Ht1 Ht2 in Hwt.
+        destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: Ht1 ; try discriminate.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: Ht2 ; try discriminate.
         move : Hwt => /andP [Hwt1 Hwt2].
         simpl.
         rewrite Ht1 Ht2.
@@ -3888,18 +3553,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         rewrite leq_maxl //.
         rewrite /well_formed_fexpr Hwt2 Hid2 //.
         rewrite /well_formed_fexpr Hwt1 Hid1 //.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        case Ht2:(type_of_fexpr e3 te) => [n1|n1|||].
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: Ht2 ; try discriminate.
         move : Hwt => /andP [Hwt1 Hwt2].
         simpl.
         rewrite Ht1 Ht2.
@@ -3920,18 +3574,6 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         rewrite leq_maxl //.
         rewrite /well_formed_fexpr Hwt2 Hid2 //.
         rewrite /well_formed_fexpr Hwt1 Hid1 //.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 in Hwt.
-        discriminate.
-        rewrite Ht1 in Hwt.
-        discriminate.
-        rewrite Ht1 in Hwt.
-        discriminate.
       (* xor *)
       - move => Hwf.
         rewrite /well_formed_fexpr in Hwf.
@@ -3939,9 +3581,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         simpl in Hid.
         simpl in Hwt.
         move : Hid => /andP [Hid1 Hid2].
-        case Ht1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case Ht2:(type_of_fexpr e3 te) => [n1|n1|||].
-        rewrite Ht1 Ht2 in Hwt.
+        destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: Ht1 ; try discriminate.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: Ht2 ; try discriminate.
         move : Hwt => /andP [Hwt1 Hwt2].
         simpl.
         rewrite Ht1 Ht2.
@@ -3962,18 +3603,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         rewrite leq_maxl //.
         rewrite /well_formed_fexpr Hwt2 Hid2 //.
         rewrite /well_formed_fexpr Hwt1 Hid1 //.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        case Ht2:(type_of_fexpr e3 te) => [n1|n1|||].
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: Ht2 ; try discriminate.
         move : Hwt => /andP [Hwt1 Hwt2].
         simpl.
         rewrite Ht1 Ht2.
@@ -3994,18 +3624,6 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         rewrite leq_maxl //.
         rewrite /well_formed_fexpr Hwt2 Hid2 //.
         rewrite /well_formed_fexpr Hwt1 Hid1 //.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 in Hwt.
-        discriminate.
-        rewrite Ht1 in Hwt.
-        discriminate.
-        rewrite Ht1 in Hwt.
-        discriminate.
       (* cat *)
       - move => Hwf.
         rewrite /well_formed_fexpr in Hwf.
@@ -4013,9 +3631,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         simpl in Hid.
         simpl in Hwt.
         move : Hid => /andP [Hid1 Hid2].
-        case Ht1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case Ht2:(type_of_fexpr e3 te) => [n1|n1|||].
-        rewrite Ht1 Ht2 in Hwt.
+        destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: Ht1 ; try discriminate.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: Ht2 ; try discriminate.
         move : Hwt => /andP [Hwt1 Hwt2].
         simpl.
         rewrite Ht1 Ht2.
@@ -4032,18 +3649,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         rewrite addnC //.
         rewrite /well_formed_fexpr Hwt2 Hid2 //.
         rewrite /well_formed_fexpr Hwt1 Hid1 //.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        case Ht2:(type_of_fexpr e3 te) => [n1|n1|||].
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: Ht2 ; try discriminate.
         move : Hwt => /andP [Hwt1 Hwt2].
         simpl.
         rewrite Ht1 Ht2.
@@ -4060,35 +3666,23 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         rewrite addnC //.
         rewrite /well_formed_fexpr Hwt2 Hid2 //.
         rewrite /well_formed_fexpr Hwt1 Hid1 //.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 Ht2 in Hwt.
-        discriminate.
-        rewrite Ht1 in Hwt.
-        discriminate.
-        rewrite Ht1 in Hwt.
-        discriminate.
-        rewrite Ht1 in Hwt.
-        discriminate.
         - (* mux *)
       move => s1 te Hcf Hwf.
       rewrite /well_formed_fexpr in Hwf.
-      move : Hwf => /andP [Hwt Hid].
+      move : Hwf => /andP [/andP [/eqP Hwt0 Hwt] Hid].
+      fold well_typed_fexpr in Hwt.
+      specialize IHe1 with (te := te) ; rewrite Hwt0 /sizeof_fgtyp in IHe1.
       simpl.
-      simpl in Hwt.
+      (*simpl in Hwt.*)
       simpl in Hid.
       move : Hid => /andP [Hid2 Hid3].
       move : Hid2 => /andP [Hid1 Hid2].
-      case H2:(type_of_fexpr e2 te) =>[n0|n0|||].
-      case H3:(type_of_fexpr e3 te) =>[n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H2 ; simpl in Hwt ; try discriminate.
+      destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3 ; simpl in Hwt ; try discriminate.
       case H1:(is_zero (no_mem_eval_fexpr e1 s1 te)).
       simpl.
       rewrite size_zext.
-      rewrite H2 H3 in Hwt.
-      move : Hwt => /andP [Hwt2 Hwt3].
-      move : Hwt2 => /andP [Hwt1 Hwt2].
+      move : Hwt => /andP [/andP [Hwt1 Hwt2] Hwt3].
       assert (Hwf2:well_formed_fexpr e2 te).
       rewrite /well_formed_fexpr.
       rewrite Hwt2 Hid2 //.
@@ -4096,16 +3690,14 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       rewrite /well_formed_fexpr.
       rewrite Hwt3 Hid3 //.
       apply IHe3 with (s1:=s1) in Hwf3.
-      rewrite Hwf3 H3.
+      rewrite Hwf3 H3 Hwt0.
       simpl.
       rewrite subnKC //.
       rewrite leq_maxr //.
       exact Hcf.
       simpl.
       rewrite size_zext.
-      rewrite H2 H3 in Hwt.
-      move : Hwt => /andP [Hwt2 Hwt3].
-      move : Hwt2 => /andP [Hwt1 Hwt2].
+      move : Hwt => /andP [/andP [Hwt1 Hwt2] Hwt3].
       assert (Hwf2:well_formed_fexpr e2 te).
       rewrite /well_formed_fexpr.
       rewrite Hwt2 Hid2 //.
@@ -4113,28 +3705,16 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       rewrite /well_formed_fexpr.
       rewrite Hwt3 Hid3 //.
       apply IHe2 with (s1:=s1) in Hwf2.
-      rewrite Hwf2 H2.
+      rewrite Hwf2 H2 Hwt0.
       simpl.
       rewrite subnKC //.
       rewrite leq_maxl //.
       exact Hcf.
-      rewrite H2 H3 in Hwt.
-      discriminate.
-      rewrite H2 H3 in Hwt.
-      discriminate.
-      rewrite H2 H3 in Hwt.
-      discriminate.
-      rewrite H2 H3 in Hwt.
-      discriminate.
-      case H3:(type_of_fexpr e3 te) =>[n1|n1|||].
-      rewrite H2 H3 in Hwt.
-      discriminate.
+      destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3 ; simpl in Hwt ; try discriminate.
       case H1:(is_zero (no_mem_eval_fexpr e1 s1 te)).
       simpl.
       rewrite size_sext.
-      rewrite H2 H3 in Hwt.
-      move : Hwt => /andP [Hwt2 Hwt3].
-      move : Hwt2 => /andP [Hwt1 Hwt2].
+      move : Hwt => /andP [/andP [Hwt1 Hwt2] Hwt3].
       assert (Hwf2:well_formed_fexpr e2 te).
       rewrite /well_formed_fexpr.
       rewrite Hwt2 Hid2 //.
@@ -4142,16 +3722,14 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       rewrite /well_formed_fexpr.
       rewrite Hwt3 Hid3 //.
       apply IHe3 with (s1:=s1) in Hwf3.
-      rewrite Hwf3 H3.
+      rewrite Hwf3 H3 Hwt0.
       simpl.
       rewrite subnKC //.
       rewrite leq_maxr //.
       exact Hcf.
       simpl.
       rewrite size_sext.
-      rewrite H2 H3 in Hwt.
-      move : Hwt => /andP [Hwt2 Hwt3].
-      move : Hwt2 => /andP [Hwt1 Hwt2].
+      move : Hwt => /andP [/andP [Hwt1 Hwt2] Hwt3].
       assert (Hwf2:well_formed_fexpr e2 te).
       rewrite /well_formed_fexpr.
       rewrite Hwt2 Hid2 //.
@@ -4159,23 +3737,59 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       rewrite /well_formed_fexpr.
       rewrite Hwt3 Hid3 //.
       apply IHe2 with (s1:=s1) in Hwf2.
-      rewrite Hwf2 H2.
+      rewrite Hwf2 H2 Hwt0.
       simpl.
       rewrite subnKC //.
       rewrite leq_maxl //.
       exact Hcf.
-      rewrite H2 H3 in Hwt.
-      discriminate.
-      rewrite H2 H3 in Hwt.
-      discriminate.
-      rewrite H2 H3 in Hwt.
-      discriminate.
-      rewrite H2 in Hwt.
-      discriminate.
-      rewrite H2 in Hwt.
-      discriminate.
-      rewrite H2 in Hwt.
-      discriminate.
+      (* Fclock *)
+      destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3 ; try discriminate.
+      rewrite Hwt0 /sizeof_fgtyp.
+      case H1:(is_zero (no_mem_eval_fexpr e1 s1 te)) ; simpl.
+      * specialize IHe3 with (s1 := s1) (te := te).
+        rewrite H3 /sizeof_fgtyp in IHe3.
+        apply IHe3 ; try exact Hcf.
+        rewrite /well_formed_fexpr.
+        move : Hwt => /andP [_ Hwt3].
+        rewrite Hwt3 Hid3 //.
+      * specialize IHe2 with (s1 := s1) (te := te).
+        rewrite H2 /sizeof_fgtyp in IHe2.
+        apply IHe2 ; try exact Hcf.
+        rewrite /well_formed_fexpr.
+        move : Hwt => /andP [/andP [_ Hwt2] _].
+        rewrite Hwt2 Hid2 //.
+      (* Freset *)
+      destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3 ; try discriminate.
+      rewrite Hwt0 /sizeof_fgtyp.
+      case H1:(is_zero (no_mem_eval_fexpr e1 s1 te)) ; simpl.
+      * specialize IHe3 with (s1 := s1) (te := te).
+        rewrite H3 /sizeof_fgtyp in IHe3.
+        apply IHe3 ; try exact Hcf.
+        rewrite /well_formed_fexpr.
+        move : Hwt => /andP [_ Hwt3].
+        rewrite Hwt3 Hid3 //.
+      * specialize IHe2 with (s1 := s1) (te := te).
+        rewrite H2 /sizeof_fgtyp in IHe2.
+        apply IHe2 ; try exact Hcf.
+        rewrite /well_formed_fexpr.
+        move : Hwt => /andP [/andP [_ Hwt2] _].
+        rewrite Hwt2 Hid2 //.
+      (* Fasyncreset *)
+      destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3 ; try discriminate.
+      rewrite Hwt0 /sizeof_fgtyp.
+      case H1:(is_zero (no_mem_eval_fexpr e1 s1 te)) ; simpl.
+      * specialize IHe3 with (s1 := s1) (te := te).
+        rewrite H3 /sizeof_fgtyp in IHe3.
+        apply IHe3 ; try exact Hcf.
+        rewrite /well_formed_fexpr.
+        move : Hwt => /andP [_ Hwt3].
+        rewrite Hwt3 Hid3 //.
+      * specialize IHe2 with (s1 := s1) (te := te).
+        rewrite H2 /sizeof_fgtyp in IHe2.
+        apply IHe2 ; try exact Hcf.
+        rewrite /well_formed_fexpr.
+        move : Hwt => /andP [/andP [_ Hwt2] _].
+        rewrite Hwt2 Hid2 //.
     - (* validif *)
       move => s1 te Hcf Hwf.
       simpl.
@@ -4184,8 +3798,9 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hid.
       move : Hid => /andP [Hid1 Hid2].
-      move : Hwt => /andP [Hwt1 Hwt2].
-      apply IHe2 in Hcf.
+      move : Hwt => /andP [/andP [/eqP Hwt0 Hwt1] Hwt2].
+      rewrite Hwt0.
+      apply IHe2.
       exact Hcf.
       rewrite /well_formed_fexpr Hwt2 Hid2 //.
     - (* ref *)
@@ -4198,7 +3813,10 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       rewrite /is_defined in Hid.
       apply SV.conform_mem with (v:=s) in Hcf.
       rewrite -Hcf.
-      rewrite (TE.vtyp_vsize (eqP(eqxx (TE.vtyp s te))))//.
+      case (TE.vtyp s te) eqn: Hvtyp.
+      3: replace (sizeof_fgtyp (Fuint n)) with (sizeof_fgtyp (Fuint_implicit n)) by (rewrite /sizeof_fgtyp ; reflexivity).
+      4: replace (sizeof_fgtyp (Fsint n)) with (sizeof_fgtyp (Fsint_implicit n)) by (rewrite /sizeof_fgtyp ; reflexivity).
+      1,2,3,4,5,6,7: apply TE.vtyp_vsize ; exact Hvtyp.
       exact Hid.
   Qed.
 
@@ -4224,7 +3842,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
     rewrite acyclic_eval_stmt_node.
     move : rs1 s1 te v Hcf Hwf.
     induction e.
-    (* cosnt *)
+    (* const *)
     - rewrite /upd_typenv_fstmt.
     move => rs1 s1 te v Hcf Hwf.
     apply SV.conform_upd.
@@ -4232,7 +3850,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
     move : Hwf => /andP [/eqP H _].
     simpl.
     rewrite H subnn zext0 sext0.
-    case f ;done.
+    case f eqn: Hf ; simpl ; simpl in H ; exact H.
     exact Hcf.
     (* cast *)
     - case u; try by done.
@@ -4252,11 +3870,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in IHe.
       apply IHe in Hcf.
       apply SV.conform_mem with (v:=v) in Hcf.
-      rewrite TE.vsize_add_eq in Hcf.
-      rewrite SV.acc_upd_eq in Hcf.
-      exact Hcf.
-      try reflexivity.
-      reflexivity.
+      rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf.
       apply SV.Lemmas.mem_add_eq.
       apply TE.SE.eq_refl.
       exact Hwf.
@@ -4277,11 +3891,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in IHe.
       apply IHe in Hcf.
       apply SV.conform_mem with (v:=v) in Hcf.
-      rewrite TE.vsize_add_eq in Hcf.
-      rewrite SV.acc_upd_eq in Hcf.
-      exact Hcf.
-      try reflexivity.
-      reflexivity.
+      rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf.
       apply SV.Lemmas.mem_add_eq.
       apply TE.SE.eq_refl.
       exact Hwf.
@@ -4301,7 +3911,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl.
       reflexivity.
       exact Hcf.
-    (* enoup *)
+    (* eunop *)
     - case e; try by done.
     (* upad *)
       - move => n rs1 s1 te v Hcf Hwf.
@@ -4312,9 +3922,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hid.
       case Hn:(n < sizeof_fgtyp (type_of_fexpr e0 te)).
-        - case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
-          - rewrite Htyp in Hwt.
-            assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
+        - destruct (type_of_fexpr e0 te) as [n0|n0|n0|n0| | |] eqn: Htyp ; try discriminate.
+          - assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
             rewrite /well_formed_fstmt_inline.
             simpl.
             rewrite Hwt Hid //.
@@ -4322,19 +3931,14 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
             simpl in IHe.
             apply IHe in Hcf.
             apply SV.conform_mem with (v:=v) in Hcf.
-            rewrite TE.vsize_add_eq in Hcf.
-            rewrite SV.acc_upd_eq in Hcf.
+            rewrite TE.vsize_add_eq // SV.acc_upd_eq // Htyp in Hcf.
             rewrite Hcf in Hn.
             rewrite Hn.
-            rewrite Htyp in Hcf.
             exact Hcf.
-            reflexivity.
-            reflexivity.
             apply SV.Lemmas.mem_add_eq.
             apply TE.SE.eq_refl.
             exact Hwf.
-          - rewrite Htyp in Hwt.
-            assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
+          - assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
             rewrite /well_formed_fstmt_inline.
             simpl.
             rewrite Hwt Hid //.
@@ -4342,26 +3946,15 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
             simpl in IHe.
             apply IHe in Hcf.
             apply SV.conform_mem with (v:=v) in Hcf.
-            rewrite TE.vsize_add_eq in Hcf.
-            rewrite SV.acc_upd_eq in Hcf.
+            rewrite TE.vsize_add_eq // SV.acc_upd_eq // Htyp in Hcf.
             rewrite Hcf in Hn.
             rewrite Hn.
-            rewrite Htyp in Hcf.
             exact Hcf.
-            reflexivity.
-            reflexivity.
             apply SV.Lemmas.mem_add_eq.
             apply TE.SE.eq_refl.
             exact Hwf.
-          - rewrite Htyp in Hwt.
-            discriminate.
-          - rewrite Htyp in Hwt.
-            discriminate.
-          - rewrite Htyp in Hwt.
-            discriminate.
-        - case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
-          - rewrite Htyp in Hwt.
-            assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
+        - destruct (type_of_fexpr e0 te) as [n0|n0|n0|n0| | |] eqn: Htyp ; try discriminate.
+          - assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
             rewrite /well_formed_fstmt_inline.
             simpl.
             rewrite Hwt Hid //.
@@ -4369,11 +3962,9 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
             simpl in IHe.
             apply IHe in Hcf.
             apply SV.conform_mem with (v:=v) in Hcf.
-            rewrite TE.vsize_add_eq in Hcf.
-            rewrite SV.acc_upd_eq in Hcf.
+            rewrite TE.vsize_add_eq // SV.acc_upd_eq // Htyp in Hcf.
             rewrite Hcf in Hn.
             rewrite Hn.
-            rewrite Htyp in Hcf.
             rewrite size_zext -Hcf.
             simpl.
             rewrite subnKC //.
@@ -4382,13 +3973,10 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
             apply contraFleq with (b:=(n < n0)).
             trivial.
             exact Hn.
-            reflexivity.
-            reflexivity.
             apply SV.Lemmas.mem_add_eq.
             apply TE.SE.eq_refl.
             exact Hwf.
-          - rewrite Htyp in Hwt.
-            assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
+          - assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
             rewrite /well_formed_fstmt_inline.
             simpl.
             rewrite Hwt Hid //.
@@ -4396,11 +3984,9 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
             simpl in IHe.
             apply IHe in Hcf.
             apply SV.conform_mem with (v:=v) in Hcf.
-            rewrite TE.vsize_add_eq in Hcf.
-            rewrite SV.acc_upd_eq in Hcf.
+            rewrite TE.vsize_add_eq // SV.acc_upd_eq // Htyp in Hcf.
             rewrite Hcf in Hn.
             rewrite Hn.
-            rewrite Htyp in Hcf.
             rewrite size_sext -Hcf.
             simpl.
             rewrite subnKC //.
@@ -4409,17 +3995,9 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
             apply contraFleq with (b:=(n < n0)).
             trivial.
             exact Hn.
-            reflexivity.
-            reflexivity.
             apply SV.Lemmas.mem_add_eq.
             apply TE.SE.eq_refl.
             exact Hwf.
-          - rewrite Htyp in Hwt.
-            discriminate.
-          - rewrite Htyp in Hwt.
-            discriminate.
-          - rewrite Htyp in Hwt.
-            discriminate.
           exact Hcf.
       - (* shl *)
       move => n rs1 s1 te v Hcf Hwf.
@@ -4429,9 +4007,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       move : Hwf => /andP [Hwt Hid].
       simpl in Hwt.
       simpl in Hid.
-      case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
-        - rewrite Htyp in Hwt.
-        assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
+      destruct (type_of_fexpr e0 te) as [n0|n0|n0|n0| | |] eqn: Htyp ; try discriminate.
+      - assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
         rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt Hid //.
@@ -4439,18 +4016,14 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         simpl in IHe.
         apply IHe in Hcf.
         apply SV.conform_mem with (v:=v) in Hcf.
-        rewrite TE.vsize_add_eq in Hcf.
-        rewrite SV.acc_upd_eq in Hcf.
-        rewrite size_cat -Hcf Htyp size_zeros.
+        rewrite TE.vsize_add_eq // SV.acc_upd_eq // Htyp in Hcf.
+        rewrite size_cat -Hcf size_zeros.
         simpl.
         rewrite addnC //.
-        reflexivity.
-        reflexivity.
         apply SV.Lemmas.mem_add_eq.
         apply TE.SE.eq_refl.
         exact Hwf.
-        - rewrite Htyp in Hwt.
-        assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
+      - assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
         rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt Hid //.
@@ -4458,23 +4031,14 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         simpl in IHe.
         apply IHe in Hcf.
         apply SV.conform_mem with (v:=v) in Hcf.
-        rewrite TE.vsize_add_eq in Hcf.
-        rewrite SV.acc_upd_eq in Hcf.
-        rewrite size_cat -Hcf Htyp size_zeros.
+        rewrite TE.vsize_add_eq // SV.acc_upd_eq // Htyp in Hcf.
+        rewrite size_cat -Hcf size_zeros.
         simpl.
         rewrite addnC //.
-        reflexivity.
-        reflexivity.
         apply SV.Lemmas.mem_add_eq.
         apply TE.SE.eq_refl.
         exact Hwf.
-        - rewrite Htyp in Hwt.
-        discriminate.
-        - rewrite Htyp in Hwt.
-        discriminate.
-        - rewrite Htyp in Hwt.
-        discriminate.
-        exact Hcf.
+      exact Hcf.
       - (* shr *)
       move => n rs1 s1 te v Hcf Hwf.
       simpl.
@@ -4484,9 +4048,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hid.
       case Hn:(n < sizeof_fgtyp (type_of_fexpr e0 te)).
-        - case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
-          - rewrite Htyp in Hwt.
-            assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
+        - destruct (type_of_fexpr e0 te) as [n0|n0|n0|n0| | |] eqn: Htyp ; try discriminate.
+          - assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
             rewrite /well_formed_fstmt_inline.
             simpl.
             rewrite Hwt Hid //.
@@ -4494,23 +4057,12 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
             simpl in IHe.
             apply IHe in Hcf.
             apply SV.conform_mem with (v:=v) in Hcf.
-            rewrite TE.vsize_add_eq in Hcf.
-            rewrite SV.acc_upd_eq in Hcf.
-            rewrite Hcf in Hn.
-            rewrite Hn.
-            rewrite Htyp in Hcf.
-            simpl in Hcf.
-            rewrite -Hcf in Hn.
-            rewrite Hn -Hcf size_high.
-            simpl.
-            reflexivity.
-            reflexivity.
-            reflexivity.
+            rewrite TE.vsize_add_eq // SV.acc_upd_eq // Htyp /sizeof_fgtyp in Hcf.
+            rewrite -Hcf Hn size_high //.
             apply SV.Lemmas.mem_add_eq.
             apply TE.SE.eq_refl.
             exact Hwf.
-          - rewrite Htyp in Hwt.
-            assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
+          - assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
             rewrite /well_formed_fstmt_inline.
             simpl.
             rewrite Hwt Hid //.
@@ -4518,30 +4070,13 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
             simpl in IHe.
             apply IHe in Hcf.
             apply SV.conform_mem with (v:=v) in Hcf.
-            rewrite TE.vsize_add_eq in Hcf.
-            rewrite SV.acc_upd_eq in Hcf.
-            rewrite Hcf in Hn.
-            rewrite Hn.
-            rewrite Htyp in Hcf.
-            simpl in Hcf.
-            rewrite -Hcf in Hn.
-            rewrite Hn -Hcf size_high.
-            simpl.
-            reflexivity.
-            reflexivity.
-            reflexivity.
+            rewrite TE.vsize_add_eq // SV.acc_upd_eq // Htyp /sizeof_fgtyp in Hcf.
+            rewrite -Hcf Hn size_high //.
             apply SV.Lemmas.mem_add_eq.
             apply TE.SE.eq_refl.
             exact Hwf.
-          - rewrite Htyp in Hwt.
-            discriminate.
-          - rewrite Htyp in Hwt.
-            discriminate.
-          - rewrite Htyp in Hwt.
-            discriminate.
-        - case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
-          - rewrite Htyp in Hwt.
-            assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
+        - destruct (type_of_fexpr e0 te) as [n0|n0|n0|n0| | |] eqn: Htyp ; try discriminate.
+          - assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
             rewrite /well_formed_fstmt_inline.
             simpl.
             rewrite Hwt Hid //.
@@ -4549,23 +4084,12 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
             simpl in IHe.
             apply IHe in Hcf.
             apply SV.conform_mem with (v:=v) in Hcf.
-            rewrite TE.vsize_add_eq in Hcf.
-            rewrite SV.acc_upd_eq in Hcf.
-            rewrite Hcf in Hn.
-            rewrite Hn.
-            rewrite Htyp in Hcf.
-            simpl in Hcf.
-            rewrite -Hcf in Hn.
-            rewrite Hn.
-            simpl.
-            reflexivity.
-            reflexivity.
-            reflexivity.
+            rewrite TE.vsize_add_eq // SV.acc_upd_eq // Htyp /sizeof_fgtyp in Hcf.
+            rewrite -Hcf Hn //.
             apply SV.Lemmas.mem_add_eq.
             apply TE.SE.eq_refl.
             exact Hwf.
-          - rewrite Htyp in Hwt.
-            assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
+          - assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
             rewrite /well_formed_fstmt_inline.
             simpl.
             rewrite Hwt Hid //.
@@ -4573,27 +4097,11 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
             simpl in IHe.
             apply IHe in Hcf.
             apply SV.conform_mem with (v:=v) in Hcf.
-            rewrite TE.vsize_add_eq in Hcf.
-            rewrite SV.acc_upd_eq in Hcf.
-            rewrite Hcf in Hn.
-            rewrite Hn.
-            rewrite Htyp in Hcf.
-            simpl in Hcf.
-            rewrite -Hcf in Hn.
-            rewrite Hn.
-            simpl.
-            reflexivity.
-            reflexivity.
-            reflexivity.
+            rewrite TE.vsize_add_eq // SV.acc_upd_eq // Htyp /sizeof_fgtyp in Hcf.
+            rewrite -Hcf Hn //.
             apply SV.Lemmas.mem_add_eq.
             apply TE.SE.eq_refl.
             exact Hwf.
-          - rewrite Htyp in Hwt.
-            discriminate.
-          - rewrite Htyp in Hwt.
-            discriminate.
-          - rewrite Htyp in Hwt.
-            discriminate.
           exact Hcf.
       - (* cvt *)
       move => rs1 s1 te v Hcf Hwf.
@@ -4603,9 +4111,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       move : Hwf => /andP [Hwt Hid].
       simpl in Hwt.
       simpl in Hid.
-      case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
-        - rewrite Htyp in Hwt.
-        assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
+      destruct (type_of_fexpr e0 te) as [n0|n0|n0|n0| | |] eqn: Htyp ; try discriminate.
+      - assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
         rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt Hid //.
@@ -4613,18 +4120,12 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         simpl in IHe.
         apply IHe in Hcf.
         apply SV.conform_mem with (v:=v) in Hcf.
-        rewrite TE.vsize_add_eq in Hcf.
-        rewrite SV.acc_upd_eq in Hcf.
-        rewrite size_sext -Hcf Htyp.
-        simpl. 
-        reflexivity.
-        reflexivity.
-        reflexivity.
+        rewrite TE.vsize_add_eq // SV.acc_upd_eq // Htyp /sizeof_fgtyp in Hcf.
+        rewrite size_zext -Hcf //.
         apply SV.Lemmas.mem_add_eq.
         apply TE.SE.eq_refl.
         exact Hwf.
-        - rewrite Htyp in Hwt.
-        assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
+      - assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
         rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt Hid //.
@@ -4632,21 +4133,11 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         simpl in IHe.
         apply IHe in Hcf.
         apply SV.conform_mem with (v:=v) in Hcf.
-        rewrite TE.vsize_add_eq in Hcf.
-        rewrite SV.acc_upd_eq in Hcf.
-        rewrite Htyp in Hcf.
+        rewrite TE.vsize_add_eq // SV.acc_upd_eq // Htyp in Hcf.
         exact Hcf.
-        reflexivity.
-        reflexivity.
         apply SV.Lemmas.mem_add_eq.
         apply TE.SE.eq_refl.
         exact Hwf.
-        - rewrite Htyp in Hwt.
-        discriminate.
-        - rewrite Htyp in Hwt.
-        discriminate.
-        - rewrite Htyp in Hwt.
-        discriminate.
         exact Hcf.
       - (* neg *)
       move => rs1 s1 te v Hcf Hwf.
@@ -4656,9 +4147,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       move : Hwf => /andP [Hwt Hid].
       simpl in Hwt.
       simpl in Hid.
-      case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
-        - rewrite Htyp in Hwt.
-        assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
+      destruct (type_of_fexpr e0 te) as [n0|n0|n0|n0| | |] eqn: Htyp ; try discriminate.
+      - assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
         rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt Hid //.
@@ -4666,18 +4156,12 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         simpl in IHe.
         apply IHe in Hcf.
         apply SV.conform_mem with (v:=v) in Hcf.
-        rewrite TE.vsize_add_eq in Hcf.
-        rewrite SV.acc_upd_eq in Hcf.
-        rewrite size_negB size_zext -Hcf Htyp.
-        simpl. 
-        reflexivity.
-        reflexivity.
-        reflexivity.
+        rewrite TE.vsize_add_eq // SV.acc_upd_eq // Htyp /sizeof_fgtyp in Hcf.
+        rewrite size_negB size_zext -Hcf //.
         apply SV.Lemmas.mem_add_eq.
         apply TE.SE.eq_refl.
         exact Hwf.
-        - rewrite Htyp in Hwt.
-        assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
+      - assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
         rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt Hid //.
@@ -4685,23 +4169,12 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         simpl in IHe.
         apply IHe in Hcf.
         apply SV.conform_mem with (v:=v) in Hcf.
-        rewrite TE.vsize_add_eq in Hcf.
-        rewrite SV.acc_upd_eq in Hcf.
-        rewrite size_negB size_sext -Hcf Htyp.
-        simpl. 
-        reflexivity.
-        reflexivity.
-        reflexivity.
+        rewrite TE.vsize_add_eq // SV.acc_upd_eq // Htyp /sizeof_fgtyp in Hcf.
+        rewrite size_negB size_sext -Hcf //.
         apply SV.Lemmas.mem_add_eq.
         apply TE.SE.eq_refl.
         exact Hwf.
-        - rewrite Htyp in Hwt.
-        discriminate.
-        - rewrite Htyp in Hwt.
-        discriminate.
-        - rewrite Htyp in Hwt.
-        discriminate.
-        exact Hcf.
+      exact Hcf.
       - (* not *)
       move => rs1 s1 te v Hcf Hwf.
       simpl.
@@ -4710,9 +4183,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       move : Hwf => /andP [Hwt Hid].
       simpl in Hwt.
       simpl in Hid.
-      case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
-        - rewrite Htyp in Hwt.
-        assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
+      destruct (type_of_fexpr e0 te) as [n0|n0|n0|n0| | |] eqn: Htyp ; try discriminate.
+      - assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
         rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt Hid //.
@@ -4720,18 +4192,13 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         simpl in IHe.
         apply IHe in Hcf.
         apply SV.conform_mem with (v:=v) in Hcf.
-        rewrite TE.vsize_add_eq in Hcf.
-        rewrite SV.acc_upd_eq in Hcf.
+        rewrite TE.vsize_add_eq // SV.acc_upd_eq // Htyp in Hcf.
         rewrite size_invB.
-        rewrite Htyp in Hcf.
         exact Hcf.
-        reflexivity.
-        reflexivity.
         apply SV.Lemmas.mem_add_eq.
         apply TE.SE.eq_refl.
         exact Hwf.
-        - rewrite Htyp in Hwt.
-        assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
+      - assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
         rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt Hid //.
@@ -4739,44 +4206,19 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         simpl in IHe.
         apply IHe in Hcf.
         apply SV.conform_mem with (v:=v) in Hcf.
-        rewrite TE.vsize_add_eq in Hcf.
-        rewrite SV.acc_upd_eq in Hcf.
+        rewrite TE.vsize_add_eq // SV.acc_upd_eq // Htyp in Hcf.
         rewrite size_invB.
-        rewrite Htyp in Hcf.
         exact Hcf.
-        reflexivity.
-        reflexivity.
         apply SV.Lemmas.mem_add_eq.
         apply TE.SE.eq_refl.
         exact Hwf.
-        - rewrite Htyp in Hwt.
-        discriminate.
-        - rewrite Htyp in Hwt.
-        discriminate.
-        - rewrite Htyp in Hwt.
-        discriminate.
         exact Hcf.
-      - (* and *)
-      move => rs1 s1 te v Hcf Hwf.
-      simpl.
-      apply SV.conform_upd.
-      simpl.
-      reflexivity.
-      exact Hcf.
-      - (* orr *)
-      move => rs1 s1 te v Hcf Hwf.
-      simpl.
-      apply SV.conform_upd.
-      simpl.
-      reflexivity.
-      exact Hcf.
-      - (* xorr *)
-      move => rs1 s1 te v Hcf Hwf.
-      simpl.
-      apply SV.conform_upd.
-      simpl.
-      reflexivity.
-      exact Hcf.
+      - (* andr, orr, xorr *)
+      1,2,3: move => rs1 s1 te v Hcf Hwf ;
+      simpl ;
+      apply SV.conform_upd ;
+            try (exact Hcf) ;
+            simpl ; reflexivity.
       - (* extr *)
       move => n n0 rs1 s1 te v Hcf Hwf.
       simpl.
@@ -4811,11 +4253,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in IHe.
       apply IHe in Hcf.
       apply SV.conform_mem with (v:=v) in Hcf.
-      rewrite TE.vsize_add_eq in Hcf.
-      rewrite SV.acc_upd_eq in Hcf.
+      rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf.
       rewrite Hcf //.
-      reflexivity.
-      reflexivity.
       apply SV.Lemmas.mem_add_eq.
       apply TE.SE.eq_refl.
       exact Hwf.
@@ -4831,9 +4270,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
     simpl in Hwt.
     simpl in Hid.
     move : Hid => /andP [Hid2 Hid3].
-    case H2:(type_of_fexpr e2 te) => [n0|n0|||].
-      - case H3:(type_of_fexpr e3 te) => [n1|n1|||].
-      rewrite H2 H3 in Hwt.
+    destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H2 ; try discriminate.
+    - destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3 ; try discriminate.
       move : Hwt => /andP [Hwt2 Hwt3].
       simpl.
       rewrite size_addB_ext.
@@ -4852,41 +4290,24 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       generalize Hcf.
       apply IHe1 in Hcf.
       apply SV.conform_mem with (v:=v) in Hcf.
-      rewrite TE.vsize_add_eq in Hcf.
-      rewrite SV.acc_upd_eq in Hcf.
+      rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf.
       rewrite -Hcf H2.
       move => Hcf0.
       apply IHe2 in Hcf0.
       apply SV.conform_mem with (v:=v) in Hcf0.
-      rewrite TE.vsize_add_eq in Hcf0.
-      rewrite SV.acc_upd_eq in Hcf0.
+      rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf0.
       rewrite -Hcf0 H3.
       simpl.
       rewrite addn1 //.
-      reflexivity.
-      reflexivity.
       apply SV.Lemmas.mem_add_eq.
       apply TE.SE.eq_refl.
       rewrite /well_formed_fstmt_inline.
       simpl.
       rewrite Hwt3 Hid3 //.
-      reflexivity.
-      reflexivity.
       apply SV.Lemmas.mem_add_eq.
       apply TE.SE.eq_refl.
       exact Hwf2.
-      rewrite H2 H3 in Hwt.
-      discriminate.
-      rewrite H2 H3 in Hwt.
-      discriminate.
-      rewrite H2 H3 in Hwt.
-      discriminate.
-      rewrite H2 H3 in Hwt.
-      discriminate.
-      - case H3:(type_of_fexpr e3 te) => [n1|n1|||].
-      rewrite H2 H3 in Hwt.
-      discriminate.
-      rewrite H2 H3 in Hwt.
+    - destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3 ; try discriminate.
       move : Hwt => /andP [Hwt2 Hwt3].
       simpl.
       rewrite size_SadcB_ext.
@@ -4905,14 +4326,12 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       generalize Hcf.
       apply IHe1 in Hcf.
       apply SV.conform_mem with (v:=v) in Hcf.
-      rewrite TE.vsize_add_eq in Hcf.
-      rewrite SV.acc_upd_eq in Hcf.
+      rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf.
       rewrite 2!size_sext -Hcf H2.
       move => Hcf0.
       apply IHe2 in Hcf0.
       apply SV.conform_mem with (v:=v) in Hcf0.
-      rewrite TE.vsize_add_eq in Hcf0.
-      rewrite SV.acc_upd_eq in Hcf0.
+      rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf0.
       rewrite -Hcf0 H3.
       simpl.
       rewrite subnKC.
@@ -4920,13 +4339,9 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       rewrite maxnn //.
       rewrite leq_maxr //.
       rewrite leq_maxl //.
-      reflexivity.
-      reflexivity.
       apply SV.Lemmas.mem_add_eq.
       apply TE.SE.eq_refl.
       exact Hwf3.
-      reflexivity.
-      reflexivity.
       apply SV.Lemmas.mem_add_eq.
       apply TE.SE.eq_refl.
       rewrite /well_formed_fstmt_inline.
@@ -4947,14 +4362,12 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       generalize Hcf.
       apply IHe1 in Hcf.
       apply SV.conform_mem with (v:=v) in Hcf.
-      rewrite TE.vsize_add_eq in Hcf.
-      rewrite SV.acc_upd_eq in Hcf.
+      rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf.
       rewrite 2!size_sext -Hcf H2.
       move => Hcf0.
       apply IHe2 in Hcf0.
       apply SV.conform_mem with (v:=v) in Hcf0.
-      rewrite TE.vsize_add_eq in Hcf0.
-      rewrite SV.acc_upd_eq in Hcf0.
+      rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf0.
       rewrite -Hcf0 H3.
       simpl.
       rewrite subnKC.
@@ -4962,30 +4375,14 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       reflexivity.
       rewrite leq_maxr //.
       rewrite leq_maxl //.
-      reflexivity.
-      reflexivity.
       apply SV.Lemmas.mem_add_eq.
       apply TE.SE.eq_refl.
       exact Hwf3.
-      reflexivity.
-      reflexivity.
       apply SV.Lemmas.mem_add_eq.
       apply TE.SE.eq_refl.
       rewrite /well_formed_fstmt_inline.
       simpl.
       rewrite Hwt2 Hid2 //.
-      rewrite H2 H3 in Hwt.
-      discriminate.
-      rewrite H2 H3 in Hwt.
-      discriminate.
-      rewrite H2 H3 in Hwt.
-      discriminate.
-      rewrite H2 in Hwt.
-      discriminate.
-      rewrite H2 in Hwt.
-      discriminate.
-      rewrite H2 in Hwt.
-      discriminate.
       exact Hcf. 
       - (* sub *)
       move => rs1 s1 te v Hcf Hwf.
@@ -4996,9 +4393,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hid.
       move : Hid => /andP [Hid2 Hid3].
-      case H2:(type_of_fexpr e2 te) => [n0|n0|||].
-        - case H3:(type_of_fexpr e3 te) => [n1|n1|||].
-        rewrite H2 H3 in Hwt.
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H2 ; try discriminate.
+      - destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3 ; try discriminate.
         move : Hwt => /andP [Hwt2 Hwt3].
         simpl.
         rewrite size_subB_ext.
@@ -5017,41 +4413,24 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         generalize Hcf.
         apply IHe1 in Hcf.
         apply SV.conform_mem with (v:=v) in Hcf.
-        rewrite TE.vsize_add_eq in Hcf.
-        rewrite SV.acc_upd_eq in Hcf.
+        rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf.
         rewrite -Hcf H2.
         move => Hcf0.
         apply IHe2 in Hcf0.
         apply SV.conform_mem with (v:=v) in Hcf0.
-        rewrite TE.vsize_add_eq in Hcf0.
-        rewrite SV.acc_upd_eq in Hcf0.
+        rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf0.
         rewrite -Hcf0 H3.
         simpl.
         rewrite addn1 //.
-        reflexivity.
-        reflexivity.
         apply SV.Lemmas.mem_add_eq.
         apply TE.SE.eq_refl.
         rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt3 Hid3 //.
-        reflexivity.
-        reflexivity.
         apply SV.Lemmas.mem_add_eq.
         apply TE.SE.eq_refl.
         exact Hwf2.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        - case H3:(type_of_fexpr e3 te) => [n1|n1|||].
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
+      - destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3 ; try discriminate.
         move : Hwt => /andP [Hwt2 Hwt3].
         simpl.
         rewrite size_SsbbB_ext.
@@ -5070,14 +4449,12 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         generalize Hcf.
         apply IHe1 in Hcf.
         apply SV.conform_mem with (v:=v) in Hcf.
-        rewrite TE.vsize_add_eq in Hcf.
-        rewrite SV.acc_upd_eq in Hcf.
+        rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf.
         rewrite 2!size_sext -Hcf H2.
         move => Hcf0.
         apply IHe2 in Hcf0.
         apply SV.conform_mem with (v:=v) in Hcf0.
-        rewrite TE.vsize_add_eq in Hcf0.
-        rewrite SV.acc_upd_eq in Hcf0.
+        rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf0.
         rewrite -Hcf0 H3.
         simpl.
         rewrite subnKC.
@@ -5085,13 +4462,9 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         rewrite maxnn //.
         rewrite leq_maxr //.
         rewrite leq_maxl //.
-        reflexivity.
-        reflexivity.
         apply SV.Lemmas.mem_add_eq.
         apply TE.SE.eq_refl.
         exact Hwf3.
-        reflexivity.
-        reflexivity.
         apply SV.Lemmas.mem_add_eq.
         apply TE.SE.eq_refl.
         rewrite /well_formed_fstmt_inline.
@@ -5112,14 +4485,12 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         generalize Hcf.
         apply IHe1 in Hcf.
         apply SV.conform_mem with (v:=v) in Hcf.
-        rewrite TE.vsize_add_eq in Hcf.
-        rewrite SV.acc_upd_eq in Hcf.
+        rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf.
         rewrite 2!size_sext -Hcf H2.
         move => Hcf0.
         apply IHe2 in Hcf0.
         apply SV.conform_mem with (v:=v) in Hcf0.
-        rewrite TE.vsize_add_eq in Hcf0.
-        rewrite SV.acc_upd_eq in Hcf0.
+        rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf0.
         rewrite -Hcf0 H3.
         simpl.
         rewrite subnKC.
@@ -5127,30 +4498,14 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         reflexivity.
         rewrite leq_maxr //.
         rewrite leq_maxl //.
-        reflexivity.
-        reflexivity.
         apply SV.Lemmas.mem_add_eq.
         apply TE.SE.eq_refl.
         exact Hwf3.
-        reflexivity.
-        reflexivity.
         apply SV.Lemmas.mem_add_eq.
         apply TE.SE.eq_refl.
         rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt2 Hid2 //.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 in Hwt.
-        discriminate.
-        rewrite H2 in Hwt.
-        discriminate.
-        rewrite H2 in Hwt.
-        discriminate.
         exact Hcf. 
       - (* mul *)
         move => rs1 s1 te v Hcf Hwf.
@@ -5161,9 +4516,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         simpl in Hwt.
         simpl in Hid.
         move : Hid => /andP [Hid2 Hid3].
-        case H2:(type_of_fexpr e2 te) => [n0|n0|||].
-          - case H3:(type_of_fexpr e3 te) => [n1|n1|||].
-          rewrite H2 H3 in Hwt.
+        destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H2 ; try discriminate.
+        - destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3 ; try discriminate.
           move : Hwt => /andP [Hwt2 Hwt3].
           simpl.
           rewrite size_full_mul.
@@ -5182,41 +4536,24 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
           generalize Hcf.
           apply IHe1 in Hcf.
           apply SV.conform_mem with (v:=v) in Hcf.
-          rewrite TE.vsize_add_eq in Hcf.
-          rewrite SV.acc_upd_eq in Hcf.
+          rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf.
           rewrite -Hcf H2.
           move => Hcf0.
           apply IHe2 in Hcf0.
           apply SV.conform_mem with (v:=v) in Hcf0.
-          rewrite TE.vsize_add_eq in Hcf0.
-          rewrite SV.acc_upd_eq in Hcf0.
+          rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf0.
           rewrite -Hcf0 H3.
           simpl.
-          reflexivity.
-          reflexivity.
           reflexivity.
           apply SV.Lemmas.mem_add_eq.
           apply TE.SE.eq_refl.
           rewrite /well_formed_fstmt_inline.
           simpl.
           rewrite Hwt3 Hid3 //.
-          reflexivity.
-          reflexivity.
           apply SV.Lemmas.mem_add_eq.
           apply TE.SE.eq_refl.
           exact Hwf2.
-          rewrite H2 H3 in Hwt.
-          discriminate.
-          rewrite H2 H3 in Hwt.
-          discriminate.
-          rewrite H2 H3 in Hwt.
-          discriminate.
-          rewrite H2 H3 in Hwt.
-          discriminate.
-          - case H3:(type_of_fexpr e3 te) => [n1|n1|||].
-          rewrite H2 H3 in Hwt.
-          discriminate.
-          rewrite H2 H3 in Hwt.
+        - destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3 ; try discriminate.
           move : Hwt => /andP [Hwt2 Hwt3].
           simpl.
           rewrite size_Sfull_mul.
@@ -5235,40 +4572,22 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
           generalize Hcf.
           apply IHe1 in Hcf.
           apply SV.conform_mem with (v:=v) in Hcf.
-          rewrite TE.vsize_add_eq in Hcf.
-          rewrite SV.acc_upd_eq in Hcf.
+          rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf.
           move => Hcf0.
           apply IHe2 in Hcf0.
           apply SV.conform_mem with (v:=v) in Hcf0.
-          rewrite TE.vsize_add_eq in Hcf0.
-          rewrite SV.acc_upd_eq in Hcf0.
+          rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf0.
           rewrite -Hcf H2 -Hcf0 H3.
           simpl.
-          reflexivity.
-          reflexivity.
           reflexivity.
           apply SV.Lemmas.mem_add_eq.
           apply TE.SE.eq_refl.
           exact Hwf3.
-          reflexivity.
-          reflexivity.
           apply SV.Lemmas.mem_add_eq.
           apply TE.SE.eq_refl.
           rewrite /well_formed_fstmt_inline.
           simpl.
           rewrite Hwt2 Hid2 //.
-          rewrite H2 H3 in Hwt.
-          discriminate.
-          rewrite H2 H3 in Hwt.
-          discriminate.
-          rewrite H2 H3 in Hwt.
-          discriminate.
-          rewrite H2 in Hwt.
-          discriminate.
-          rewrite H2 in Hwt.
-          discriminate.
-          rewrite H2 in Hwt.
-          discriminate.
         exact Hcf. 
       - (* div *)
       move => rs1 s1 te v Hcf Hwf.
@@ -5279,9 +4598,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hid.
       move : Hid => /andP [Hid2 Hid3].
-      case H2:(type_of_fexpr e2 te) => [n0|n0|||].
-        - case H3:(type_of_fexpr e3 te) => [n1|n1|||].
-        rewrite H2 H3 in Hwt.
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H2 ; try discriminate.
+      - destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3 ; try discriminate.
         move : Hwt => /andP [Hwt2 Hwt3].
         simpl.
         rewrite size_udivB.
@@ -5293,30 +4611,16 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         simpl in IHe1.
         apply IHe1 in Hcf.
         apply SV.conform_mem with (v:=v) in Hcf.
-        rewrite TE.vsize_add_eq in Hcf.
-        rewrite SV.acc_upd_eq in Hcf.
+        rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf.
         rewrite -Hcf H2.
         simpl.
-        reflexivity.
-        reflexivity.
         reflexivity.
         apply SV.Lemmas.mem_add_eq.
         apply TE.SE.eq_refl.
         rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt2 Hid2 //.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        - case H3:(type_of_fexpr e3 te) => [n1|n1|||].
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
+      - destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3 ; try discriminate.
         move : Hwt => /andP [Hwt2 Hwt3].
         simpl.
         rewrite size_sext size_sdivB.
@@ -5328,30 +4632,15 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         simpl in IHe1.
         apply IHe1 in Hcf.
         apply SV.conform_mem with (v:=v) in Hcf.
-        rewrite TE.vsize_add_eq in Hcf.
-        rewrite SV.acc_upd_eq in Hcf.
+        rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf.
         rewrite -Hcf H2.
         simpl.
-        reflexivity.
-        reflexivity.
         reflexivity.
         apply SV.Lemmas.mem_add_eq.
         apply TE.SE.eq_refl.
         rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt2 Hid2 //.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 in Hwt.
-        discriminate.
-        rewrite H2 in Hwt.
-        discriminate.
-        rewrite H2 in Hwt.
-        discriminate.
       exact Hcf. 
       - (* rem *)
       move => rs1 s1 te v Hcf Hwf.
@@ -5362,252 +4651,28 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hid.
       move : Hid => /andP [Hid2 Hid3].
-      case H2:(type_of_fexpr e2 te) => [n0|n0|||].
-        - case H3:(type_of_fexpr e3 te) => [n1|n1|||].
-        rewrite H2 H3 in Hwt.
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H2 ; try discriminate.
+      - destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3 ; try discriminate.
         move : Hwt => /andP [Hwt2 Hwt3].
         simpl.
         rewrite size_low //.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        - case H3:(type_of_fexpr e3 te) => [n1|n1|||].
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
+      - destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3 ; try discriminate.
         move : Hwt => /andP [Hwt2 Hwt3].
         simpl.
         rewrite size_low //.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 in Hwt.
-        discriminate.
-        rewrite H2 in Hwt.
-        discriminate.
-        rewrite H2 in Hwt.
-        discriminate.
-      exact Hcf. 
+      exact Hcf.
       - (* cmp *)
       move => b rs1 s1 te v Hcf Hwf.
-      case b.
       simpl.
       apply SV.conform_upd.
       rewrite /well_formed_fstmt_inline in Hwf.
       move : Hwf => /andP [Hwt _].
       simpl in Hwt.
-      case H2:(type_of_fexpr e2 te) => [n0|n0|||].
-        - case H3:(type_of_fexpr e3 te) => [n1|n1|||].
-        simpl.
-        reflexivity.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        - case H3:(type_of_fexpr e3 te) => [n1|n1|||].
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        simpl.
-        reflexivity.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 in Hwt.
-        discriminate.
-        rewrite H2 in Hwt.
-        discriminate.
-        rewrite H2 in Hwt.
-        discriminate.
-      exact Hcf.
-      simpl.
-      apply SV.conform_upd.
-      rewrite /well_formed_fstmt_inline in Hwf.
-      move : Hwf => /andP [Hwt _].
-      simpl in Hwt.
-      case H2:(type_of_fexpr e2 te) => [n0|n0|||].
-        - case H3:(type_of_fexpr e3 te) => [n1|n1|||].
-        simpl.
-        reflexivity.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        - case H3:(type_of_fexpr e3 te) => [n1|n1|||].
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        simpl.
-        reflexivity.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 in Hwt.
-        discriminate.
-        rewrite H2 in Hwt.
-        discriminate.
-        rewrite H2 in Hwt.
-        discriminate.
-      exact Hcf.
-      simpl.
-      apply SV.conform_upd.
-      rewrite /well_formed_fstmt_inline in Hwf.
-      move : Hwf => /andP [Hwt _].
-      simpl in Hwt.
-      case H2:(type_of_fexpr e2 te) => [n0|n0|||].
-        - case H3:(type_of_fexpr e3 te) => [n1|n1|||].
-        simpl.
-        reflexivity.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        - case H3:(type_of_fexpr e3 te) => [n1|n1|||].
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        simpl.
-        reflexivity.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 in Hwt.
-        discriminate.
-        rewrite H2 in Hwt.
-        discriminate.
-        rewrite H2 in Hwt.
-        discriminate.
-      exact Hcf.
-      simpl.
-      apply SV.conform_upd.
-      rewrite /well_formed_fstmt_inline in Hwf.
-      move : Hwf => /andP [Hwt _].
-      simpl in Hwt.
-      case H2:(type_of_fexpr e2 te) => [n0|n0|||].
-        - case H3:(type_of_fexpr e3 te) => [n1|n1|||].
-        simpl.
-        reflexivity.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        - case H3:(type_of_fexpr e3 te) => [n1|n1|||].
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        simpl.
-        reflexivity.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 in Hwt.
-        discriminate.
-        rewrite H2 in Hwt.
-        discriminate.
-        rewrite H2 in Hwt.
-        discriminate.
-      exact Hcf.
-      simpl.
-      apply SV.conform_upd.
-      rewrite /well_formed_fstmt_inline in Hwf.
-      move : Hwf => /andP [Hwt _].
-      simpl in Hwt.
-      case H2:(type_of_fexpr e2 te) => [n0|n0|||].
-        - case H3:(type_of_fexpr e3 te) => [n1|n1|||].
-        simpl.
-        reflexivity.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        - case H3:(type_of_fexpr e3 te) => [n1|n1|||].
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        simpl.
-        reflexivity.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 in Hwt.
-        discriminate.
-        rewrite H2 in Hwt.
-        discriminate.
-        rewrite H2 in Hwt.
-        discriminate.
-      exact Hcf.
-      simpl.
-      apply SV.conform_upd.
-      rewrite /well_formed_fstmt_inline in Hwf.
-      move : Hwf => /andP [Hwt _].
-      simpl in Hwt.
-      case H2:(type_of_fexpr e2 te) => [n0|n0|||].
-        - case H3:(type_of_fexpr e3 te) => [n1|n1|||].
-        simpl.
-        reflexivity.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        - case H3:(type_of_fexpr e3 te) => [n1|n1|||].
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        simpl.
-        reflexivity.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 in Hwt.
-        discriminate.
-        rewrite H2 in Hwt.
-        discriminate.
-        rewrite H2 in Hwt.
-        discriminate.
+      destruct (type_of_fexpr e2 te) ; try discriminate.
+      - destruct (type_of_fexpr e3 te) ; try discriminate.
+        case b ; simpl ; reflexivity.
+      - destruct (type_of_fexpr e3 te) ; try discriminate.
+        case b ; simpl ; reflexivity.
       exact Hcf.
       - (* dshl *)
       move => rs1 s1 te v Hcf Hwf.
@@ -5618,9 +4683,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hid.
       move : Hid => /andP [Hid2 Hid3].
-      case H2:(type_of_fexpr e2 te) => [n0|n0|||].
-        - case H3:(type_of_fexpr e3 te) => [n1|n1|||].
-        rewrite H2 H3 in Hwt.
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H2 ; try discriminate.
+      - destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3 ; try discriminate.
         move : Hwt => /andP [Hwt2 Hwt3].
         simpl.
         rewrite size_zext size_cat size_zeros.
@@ -5639,14 +4703,12 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         generalize Hcf.
         apply IHe1 in Hcf.
         apply SV.conform_mem with (v:=v) in Hcf.
-        rewrite TE.vsize_add_eq in Hcf.
-        rewrite SV.acc_upd_eq in Hcf.
+        rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf.
         rewrite -Hcf H2.
         move => Hcf0.
         apply IHe2 in Hcf0.
         apply SV.conform_mem with (v:=v) in Hcf0.
-        rewrite TE.vsize_add_eq in Hcf0.
-        rewrite SV.acc_upd_eq in Hcf0.
+        rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf0.
         simpl.
         rewrite addnBA.
         rewrite (addnC (to_nat (no_mem_eval_fexpr e3 s1 te)) n0).
@@ -5665,28 +4727,15 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         rewrite Nats.expn_pow.
         apply Nat.pow_nonzero.
         lia.
-        reflexivity.
-        reflexivity.
         apply SV.Lemmas.mem_add_eq.
         apply TE.SE.eq_refl.
         rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt3 Hid3 //.
-        reflexivity.
-        reflexivity.
         apply SV.Lemmas.mem_add_eq.
         apply TE.SE.eq_refl.
         exact Hwf2.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        - case H3:(type_of_fexpr e3 te) => [n1|n1|||].
-        rewrite H2 H3 in Hwt.
+      - destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3 ; try discriminate.
         move : Hwt => /andP [Hwt2 Hwt3].
         simpl.
         rewrite size_sext size_cat size_zeros.
@@ -5705,14 +4754,12 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         generalize Hcf.
         apply IHe1 in Hcf.
         apply SV.conform_mem with (v:=v) in Hcf.
-        rewrite TE.vsize_add_eq in Hcf.
-        rewrite SV.acc_upd_eq in Hcf.
+        rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf.
         rewrite -Hcf H2.
         move => Hcf0.
         apply IHe2 in Hcf0.
         apply SV.conform_mem with (v:=v) in Hcf0.
-        rewrite TE.vsize_add_eq in Hcf0.
-        rewrite SV.acc_upd_eq in Hcf0.
+        rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf0.
         simpl.
         rewrite addnBA.
         rewrite (addnC (to_nat (no_mem_eval_fexpr e3 s1 te)) n0).
@@ -5731,32 +4778,14 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         rewrite Nats.expn_pow.
         apply Nat.pow_nonzero.
         lia.
-        reflexivity.
-        reflexivity.
         apply SV.Lemmas.mem_add_eq.
         apply TE.SE.eq_refl.
         rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt3 Hid3 //.
-        reflexivity.
-        reflexivity.
         apply SV.Lemmas.mem_add_eq.
         apply TE.SE.eq_refl.
         exact Hwf2.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 in Hwt.
-        discriminate.
-        rewrite H2 in Hwt.
-        discriminate.
-        rewrite H2 in Hwt.
-        discriminate.
       exact Hcf.
       - (* dshr *)
       move => rs1 s1 te v Hcf Hwf.
@@ -5767,9 +4796,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hid.
       move : Hid => /andP [Hid2 Hid3].
-      case H2:(type_of_fexpr e2 te) => [n0|n0|||].
-        - case H3:(type_of_fexpr e3 te) => [n1|n1|||].
-        rewrite H2 H3 in Hwt.
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H2 ; try discriminate.
+      - destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3 ; try discriminate.
         move : Hwt => /andP [Hwt2 Hwt3].
         simpl.
         rewrite size_shrB.
@@ -5781,28 +4809,16 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         simpl in IHe1.
         apply IHe1 in Hcf.
         apply SV.conform_mem with (v:=v) in Hcf.
-        rewrite TE.vsize_add_eq in Hcf.
-        rewrite SV.acc_upd_eq in Hcf.
+        rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf.
         rewrite -Hcf H2.
         simpl.
-        reflexivity.
-        reflexivity.
         reflexivity.
         apply SV.Lemmas.mem_add_eq.
         apply TE.SE.eq_refl.
         rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt2 Hid2 //.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        - case H3:(type_of_fexpr e3 te) => [n1|n1|||].
-        rewrite H2 H3 in Hwt.
+      - destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3 ; try discriminate.
         move : Hwt => /andP [Hwt2 Hwt3].
         simpl.
         rewrite size_sarB.
@@ -5814,32 +4830,15 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         simpl in IHe1.
         apply IHe1 in Hcf.
         apply SV.conform_mem with (v:=v) in Hcf.
-        rewrite TE.vsize_add_eq in Hcf.
-        rewrite SV.acc_upd_eq in Hcf.
+        rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf.
         rewrite -Hcf H2.
         simpl.
-        reflexivity.
-        reflexivity.
         reflexivity.
         apply SV.Lemmas.mem_add_eq.
         apply TE.SE.eq_refl.
         rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt2 Hid2 //.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 in Hwt.
-        discriminate.
-        rewrite H2 in Hwt.
-        discriminate.
-        rewrite H2 in Hwt.
-        discriminate.
       exact Hcf.
       - (* and *)
       move => rs1 s1 te v Hcf Hwf.
@@ -5850,9 +4849,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hid.
       move : Hid => /andP [Hid2 Hid3].
-      case H2:(type_of_fexpr e2 te) => [n0|n0|||].
-        - case H3:(type_of_fexpr e3 te) => [n1|n1|||].
-        rewrite H2 H3 in Hwt.
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H2 ; try discriminate.
+      - destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3 ; try discriminate.
         move : Hwt => /andP [Hwt2 Hwt3].
         simpl.
         rewrite size_andB 2!size_zext.
@@ -5871,13 +4869,11 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         generalize Hcf.
         apply IHe1 in Hcf.
         apply SV.conform_mem with (v:=v) in Hcf.
-        rewrite TE.vsize_add_eq in Hcf.
-        rewrite SV.acc_upd_eq in Hcf.
+        rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf.
         move => Hcf0.
         apply IHe2 in Hcf0.
         apply SV.conform_mem with (v:=v) in Hcf0.
-        rewrite TE.vsize_add_eq in Hcf0.
-        rewrite SV.acc_upd_eq in Hcf0.
+        rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf0.
         rewrite -Hcf H2 -Hcf0 H3.
         simpl.
         rewrite subnKC.
@@ -5885,30 +4881,15 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         rewrite maxnn //.
         rewrite leq_maxr //.
         rewrite leq_maxl //.
-        reflexivity.
-        reflexivity.
         apply SV.Lemmas.mem_add_eq.
         apply TE.SE.eq_refl.
         rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt3 Hid3 //.
-        reflexivity.
-        reflexivity.
         apply SV.Lemmas.mem_add_eq.
         apply TE.SE.eq_refl.
         exact Hwf2.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        - case H3:(type_of_fexpr e3 te) => [n1|n1|||].
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
+      - destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3 ; try discriminate.
         move : Hwt => /andP [Hwt2 Hwt3].
         simpl.
         rewrite size_andB 2!size_sext.
@@ -5927,13 +4908,11 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         generalize Hcf.
         apply IHe1 in Hcf.
         apply SV.conform_mem with (v:=v) in Hcf.
-        rewrite TE.vsize_add_eq in Hcf.
-        rewrite SV.acc_upd_eq in Hcf.
+        rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf.
         move => Hcf0.
         apply IHe2 in Hcf0.
         apply SV.conform_mem with (v:=v) in Hcf0.
-        rewrite TE.vsize_add_eq in Hcf0.
-        rewrite SV.acc_upd_eq in Hcf0.
+        rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf0.
         rewrite -Hcf H2 -Hcf0 H3.
         simpl.
         rewrite subnKC.
@@ -5941,30 +4920,14 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         rewrite maxnn //.
         rewrite leq_maxr //.
         rewrite leq_maxl //.
-        reflexivity.
-        reflexivity.
         apply SV.Lemmas.mem_add_eq.
         apply TE.SE.eq_refl.
         rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt3 Hid3 //.
-        reflexivity.
-        reflexivity.
         apply SV.Lemmas.mem_add_eq.
         apply TE.SE.eq_refl.
         exact Hwf2.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 in Hwt.
-        discriminate.
-        rewrite H2 in Hwt.
-        discriminate.
-        rewrite H2 in Hwt.
-        discriminate.
       exact Hcf.
       - (* or *)
       move => rs1 s1 te v Hcf Hwf.
@@ -5975,9 +4938,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hid.
       move : Hid => /andP [Hid2 Hid3].
-      case H2:(type_of_fexpr e2 te) => [n0|n0|||].
-        - case H3:(type_of_fexpr e3 te) => [n1|n1|||].
-        rewrite H2 H3 in Hwt.
+       destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H2 ; try discriminate.
+        - destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3 ; try discriminate.
         move : Hwt => /andP [Hwt2 Hwt3].
         simpl.
         rewrite size_orB 2!size_zext.
@@ -5996,13 +4958,11 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         generalize Hcf.
         apply IHe1 in Hcf.
         apply SV.conform_mem with (v:=v) in Hcf.
-        rewrite TE.vsize_add_eq in Hcf.
-        rewrite SV.acc_upd_eq in Hcf.
+        rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf.
         move => Hcf0.
         apply IHe2 in Hcf0.
         apply SV.conform_mem with (v:=v) in Hcf0.
-        rewrite TE.vsize_add_eq in Hcf0.
-        rewrite SV.acc_upd_eq in Hcf0.
+        rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf0.
         rewrite -Hcf H2 -Hcf0 H3.
         simpl.
         rewrite subnKC.
@@ -6010,30 +4970,15 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         rewrite maxnn //.
         rewrite leq_maxr //.
         rewrite leq_maxl //.
-        reflexivity.
-        reflexivity.
         apply SV.Lemmas.mem_add_eq.
         apply TE.SE.eq_refl.
         rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt3 Hid3 //.
-        reflexivity.
-        reflexivity.
         apply SV.Lemmas.mem_add_eq.
         apply TE.SE.eq_refl.
         exact Hwf2.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        - case H3:(type_of_fexpr e3 te) => [n1|n1|||].
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
+      - destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3 ; try discriminate.
         move : Hwt => /andP [Hwt2 Hwt3].
         simpl.
         rewrite size_orB 2!size_sext.
@@ -6052,13 +4997,11 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         generalize Hcf.
         apply IHe1 in Hcf.
         apply SV.conform_mem with (v:=v) in Hcf.
-        rewrite TE.vsize_add_eq in Hcf.
-        rewrite SV.acc_upd_eq in Hcf.
+        rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf.
         move => Hcf0.
         apply IHe2 in Hcf0.
         apply SV.conform_mem with (v:=v) in Hcf0.
-        rewrite TE.vsize_add_eq in Hcf0.
-        rewrite SV.acc_upd_eq in Hcf0.
+        rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf0.
         rewrite -Hcf H2 -Hcf0 H3.
         simpl.
         rewrite subnKC.
@@ -6066,30 +5009,14 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         rewrite maxnn //.
         rewrite leq_maxr //.
         rewrite leq_maxl //.
-        reflexivity.
-        reflexivity.
         apply SV.Lemmas.mem_add_eq.
         apply TE.SE.eq_refl.
         rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt3 Hid3 //.
-        reflexivity.
-        reflexivity.
         apply SV.Lemmas.mem_add_eq.
         apply TE.SE.eq_refl.
         exact Hwf2.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 in Hwt.
-        discriminate.
-        rewrite H2 in Hwt.
-        discriminate.
-        rewrite H2 in Hwt.
-        discriminate.
       exact Hcf.
       - (* xor *)
       move => rs1 s1 te v Hcf Hwf.
@@ -6100,9 +5027,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hid.
       move : Hid => /andP [Hid2 Hid3].
-      case H2:(type_of_fexpr e2 te) => [n0|n0|||].
-        - case H3:(type_of_fexpr e3 te) => [n1|n1|||].
-        rewrite H2 H3 in Hwt.
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H2 ; try discriminate.
+        - destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3 ; try discriminate.
         move : Hwt => /andP [Hwt2 Hwt3].
         simpl.
         rewrite size_xorB 2!size_zext.
@@ -6121,13 +5047,11 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         generalize Hcf.
         apply IHe1 in Hcf.
         apply SV.conform_mem with (v:=v) in Hcf.
-        rewrite TE.vsize_add_eq in Hcf.
-        rewrite SV.acc_upd_eq in Hcf.
+        rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf.
         move => Hcf0.
         apply IHe2 in Hcf0.
         apply SV.conform_mem with (v:=v) in Hcf0.
-        rewrite TE.vsize_add_eq in Hcf0.
-        rewrite SV.acc_upd_eq in Hcf0.
+        rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf0.
         rewrite -Hcf H2 -Hcf0 H3.
         simpl.
         rewrite subnKC.
@@ -6135,30 +5059,15 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         rewrite maxnn //.
         rewrite leq_maxr //.
         rewrite leq_maxl //.
-        reflexivity.
-        reflexivity.
         apply SV.Lemmas.mem_add_eq.
         apply TE.SE.eq_refl.
         rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt3 Hid3 //.
-        reflexivity.
-        reflexivity.
         apply SV.Lemmas.mem_add_eq.
         apply TE.SE.eq_refl.
         exact Hwf2.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        - case H3:(type_of_fexpr e3 te) => [n1|n1|||].
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
+        - destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3 ; try discriminate.
         move : Hwt => /andP [Hwt2 Hwt3].
         simpl.
         rewrite size_xorB 2!size_sext.
@@ -6177,13 +5086,11 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         generalize Hcf.
         apply IHe1 in Hcf.
         apply SV.conform_mem with (v:=v) in Hcf.
-        rewrite TE.vsize_add_eq in Hcf.
-        rewrite SV.acc_upd_eq in Hcf.
+        rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf.
         move => Hcf0.
         apply IHe2 in Hcf0.
         apply SV.conform_mem with (v:=v) in Hcf0.
-        rewrite TE.vsize_add_eq in Hcf0.
-        rewrite SV.acc_upd_eq in Hcf0.
+        rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf0.
         rewrite -Hcf H2 -Hcf0 H3.
         simpl.
         rewrite subnKC.
@@ -6191,30 +5098,14 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         rewrite maxnn //.
         rewrite leq_maxr //.
         rewrite leq_maxl //.
-        reflexivity.
-        reflexivity.
         apply SV.Lemmas.mem_add_eq.
         apply TE.SE.eq_refl.
         rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt3 Hid3 //.
-        reflexivity.
-        reflexivity.
         apply SV.Lemmas.mem_add_eq.
         apply TE.SE.eq_refl.
         exact Hwf2.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 in Hwt.
-        discriminate.
-        rewrite H2 in Hwt.
-        discriminate.
-        rewrite H2 in Hwt.
-        discriminate.
       exact Hcf.
       - (* cat *)
       move => rs1 s1 te v Hcf Hwf.
@@ -6225,9 +5116,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hid.
       move : Hid => /andP [Hid2 Hid3].
-      case H2:(type_of_fexpr e2 te) => [n0|n0|||].
-        - case H3:(type_of_fexpr e3 te) => [n1|n1|||].
-        rewrite H2 H3 in Hwt.
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H2 ; try discriminate.
+        - destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3 ; try discriminate.
         move : Hwt => /andP [Hwt2 Hwt3].
         simpl.
         rewrite size_cat.
@@ -6246,40 +5136,23 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         generalize Hcf.
         apply IHe1 in Hcf.
         apply SV.conform_mem with (v:=v) in Hcf.
-        rewrite TE.vsize_add_eq in Hcf.
-        rewrite SV.acc_upd_eq in Hcf.
+        rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf.
         move => Hcf0.
         apply IHe2 in Hcf0.
         apply SV.conform_mem with (v:=v) in Hcf0.
-        rewrite TE.vsize_add_eq in Hcf0.
-        rewrite SV.acc_upd_eq in Hcf0.
+        rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf0.
         rewrite -Hcf H2 -Hcf0 H3.
         simpl.
         rewrite addnC //.
-        reflexivity.
-        reflexivity.
         apply SV.Lemmas.mem_add_eq.
         apply TE.SE.eq_refl.
         rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt3 Hid3 //.
-        reflexivity.
-        reflexivity.
         apply SV.Lemmas.mem_add_eq.
         apply TE.SE.eq_refl.
         exact Hwf2.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        - case H3:(type_of_fexpr e3 te) => [n1|n1|||].
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
+        - destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3 ; try discriminate.
         move : Hwt => /andP [Hwt2 Hwt3].
         simpl.
         rewrite size_cat.
@@ -6298,70 +5171,44 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         generalize Hcf.
         apply IHe1 in Hcf.
         apply SV.conform_mem with (v:=v) in Hcf.
-        rewrite TE.vsize_add_eq in Hcf.
-        rewrite SV.acc_upd_eq in Hcf.
+        rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf.
         move => Hcf0.
         apply IHe2 in Hcf0.
         apply SV.conform_mem with (v:=v) in Hcf0.
-        rewrite TE.vsize_add_eq in Hcf0.
-        rewrite SV.acc_upd_eq in Hcf0.
+        rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf0.
         rewrite -Hcf H2 -Hcf0 H3.
         simpl.
         rewrite addnC //.
-        reflexivity.
-        reflexivity.
         apply SV.Lemmas.mem_add_eq.
         apply TE.SE.eq_refl.
         rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt3 Hid3 //.
-        reflexivity.
-        reflexivity.
         apply SV.Lemmas.mem_add_eq.
         apply TE.SE.eq_refl.
         exact Hwf2.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 in Hwt.
-        discriminate.
-        rewrite H2 in Hwt.
-        discriminate.
-        rewrite H2 in Hwt.
-        discriminate.
       exact Hcf.
     - (* case emux *)
     move => rs1 s1 te v Hcf Hwf.
       apply SV.conform_upd.
       simpl.
       rewrite /well_formed_fstmt_inline in Hwf.
-      move : Hwf => /andP [Hwt Hid].
-      simpl in Hwt.
+      move : Hwf => /andP [/andP [/eqP Hwt0 Hwt] Hid].
       simpl in Hid.
       move : Hid => /andP [Hid2 Hid3].
       move : Hid2 => /andP [_ Hid2].
-      case H2:(type_of_fexpr e2 te) => [n0|n0|||].
-      - case H3:(type_of_fexpr e3 te) => [n1|n1|||].
-        rewrite H2 H3 in Hwt.
-        move : Hwt => /andP [Hwt2 Hwt3].
-        move : Hwt2 => /andP [_ Hwt2].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H2 ; simpl in Hwt ; try discriminate.
+      - destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3 ; simpl in Hwt ; try discriminate.
+        fold well_typed_fexpr in Hwt.
+        move : Hwt => /andP [/andP [_ Hwt2] Hwt3].
         case (is_zero (no_mem_eval_fexpr e1 s1 te)).
         simpl.
         rewrite size_zext.
         apply IHe3 with (rs1:=rs1) (v:=v) in Hcf.
         simpl in Hcf.
         apply SV.conform_mem with (v:=v) in Hcf.
-        rewrite TE.vsize_add_eq in Hcf.
-        rewrite SV.acc_upd_eq in Hcf.
-        rewrite H3 in Hcf.
-        simpl in Hcf.
-        rewrite -Hcf subnKC //.
-        rewrite leq_maxr //.
-        reflexivity.
-        reflexivity.
+        rewrite TE.vsize_add_eq // SV.acc_upd_eq // H3 /sizeof_fgtyp in Hcf.
+        rewrite Hwt0 -Hcf subnKC // leq_maxr //.
         apply SV.Lemmas.mem_add_eq.
         apply TE.SE.eq_refl.
         rewrite /well_formed_fstmt_inline.
@@ -6372,47 +5219,24 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         apply IHe2 with (rs1:=rs1) (v:=v) in Hcf.
         simpl in Hcf.
         apply SV.conform_mem with (v:=v) in Hcf.
-        rewrite TE.vsize_add_eq in Hcf.
-        rewrite SV.acc_upd_eq in Hcf.
-        rewrite H2 in Hcf.
-        simpl in Hcf.
-        rewrite -Hcf subnKC //.
-        rewrite leq_maxl //.
-        reflexivity.
-        reflexivity.
+        rewrite TE.vsize_add_eq // SV.acc_upd_eq // H2 /sizeof_fgtyp in Hcf.
+        rewrite Hwt0 -Hcf subnKC // leq_maxl //.
         apply SV.Lemmas.mem_add_eq.
         apply TE.SE.eq_refl.
         rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt2 Hid2 //.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-      - case H3:(type_of_fexpr e3 te) => [n1|n1|||].
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        move : Hwt => /andP [Hwt2 Hwt3].
-        move : Hwt2 => /andP [_ Hwt2].
+      - destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3 ; try discriminate.
+        fold well_typed_fexpr in Hwt.
+        move : Hwt => /andP [/andP [_ Hwt2] Hwt3].
         case (is_zero (no_mem_eval_fexpr e1 s1 te)).
         simpl.
         rewrite size_sext.
         apply IHe3 with (rs1:=rs1) (v:=v) in Hcf.
         simpl in Hcf.
         apply SV.conform_mem with (v:=v) in Hcf.
-        rewrite TE.vsize_add_eq in Hcf.
-        rewrite SV.acc_upd_eq in Hcf.
-        rewrite H3 in Hcf.
-        simpl in Hcf.
-        rewrite -Hcf subnKC //.
-        rewrite leq_maxr //.
-        reflexivity.
-        reflexivity.
+        rewrite TE.vsize_add_eq // SV.acc_upd_eq // H3 /sizeof_fgtyp in Hcf.
+        rewrite Hwt0 -Hcf subnKC // leq_maxr //.
         apply SV.Lemmas.mem_add_eq.
         apply TE.SE.eq_refl.
         rewrite /well_formed_fstmt_inline.
@@ -6423,31 +5247,100 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         apply IHe2 with (rs1:=rs1) (v:=v) in Hcf.
         simpl in Hcf.
         apply SV.conform_mem with (v:=v) in Hcf.
-        rewrite TE.vsize_add_eq in Hcf.
-        rewrite SV.acc_upd_eq in Hcf.
-        rewrite H2 in Hcf.
-        simpl in Hcf.
-        rewrite -Hcf subnKC //.
-        rewrite leq_maxl //.
-        reflexivity.
-        reflexivity.
+        rewrite TE.vsize_add_eq // SV.acc_upd_eq // H2 /sizeof_fgtyp in Hcf.
+        rewrite Hwt0 -Hcf subnKC // leq_maxl //.
         apply SV.Lemmas.mem_add_eq.
         apply TE.SE.eq_refl.
         rewrite /well_formed_fstmt_inline.
         simpl.
         rewrite Hwt2 Hid2 //.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-        rewrite H2 H3 in Hwt.
-        discriminate.
-      rewrite H2 in Hwt.
-      discriminate.
-      rewrite H2 in Hwt.
-      discriminate.
-      rewrite H2 in Hwt.
-      discriminate.
+      - (* Fclock *)
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3 ; try discriminate.
+        fold well_typed_fexpr in Hwt.
+        move : Hwt => /andP [/andP [_ Hwt2] Hwt3].
+        case (is_zero (no_mem_eval_fexpr e1 s1 te)).
+        - simpl.
+          rewrite Hwt0 /sizeof_fgtyp.
+          apply IHe3 with (rs1:=rs1) (v:=v) in Hcf.
+          simpl in Hcf.
+          apply SV.conform_mem with (v:=v) in Hcf.
+          rewrite TE.vsize_add_eq // SV.acc_upd_eq // H3 /sizeof_fgtyp in Hcf.
+          exact Hcf.
+          apply SV.Lemmas.mem_add_eq.
+          apply TE.SE.eq_refl.
+          rewrite /well_formed_fstmt_inline.
+          simpl.
+          rewrite Hwt3 Hid3 //.
+        - simpl.
+          rewrite Hwt0 /sizeof_fgtyp.
+          apply IHe2 with (rs1:=rs1) (v:=v) in Hcf.
+          simpl in Hcf.
+          apply SV.conform_mem with (v:=v) in Hcf.
+          rewrite TE.vsize_add_eq // SV.acc_upd_eq // H2 /sizeof_fgtyp in Hcf.
+          exact Hcf.
+          apply SV.Lemmas.mem_add_eq.
+          apply TE.SE.eq_refl.
+          rewrite /well_formed_fstmt_inline.
+          simpl.
+          rewrite Hwt2 Hid2 //.
+      - (* Freset *)
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3 ; try discriminate.
+        fold well_typed_fexpr in Hwt.
+        move : Hwt => /andP [/andP [_ Hwt2] Hwt3].
+        case (is_zero (no_mem_eval_fexpr e1 s1 te)).
+        - simpl.
+          rewrite Hwt0 /sizeof_fgtyp.
+          apply IHe3 with (rs1:=rs1) (v:=v) in Hcf.
+          simpl in Hcf.
+          apply SV.conform_mem with (v:=v) in Hcf.
+          rewrite TE.vsize_add_eq // SV.acc_upd_eq // H3 /sizeof_fgtyp in Hcf.
+          exact Hcf.
+          apply SV.Lemmas.mem_add_eq.
+          apply TE.SE.eq_refl.
+          rewrite /well_formed_fstmt_inline.
+          simpl.
+          rewrite Hwt3 Hid3 //.
+        - simpl.
+          rewrite Hwt0 /sizeof_fgtyp.
+          apply IHe2 with (rs1:=rs1) (v:=v) in Hcf.
+          simpl in Hcf.
+          apply SV.conform_mem with (v:=v) in Hcf.
+          rewrite TE.vsize_add_eq // SV.acc_upd_eq // H2 /sizeof_fgtyp in Hcf.
+          exact Hcf.
+          apply SV.Lemmas.mem_add_eq.
+          apply TE.SE.eq_refl.
+          rewrite /well_formed_fstmt_inline.
+          simpl.
+          rewrite Hwt2 Hid2 //.
+      - (* Fasyncreset *)
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3 ; try discriminate.
+        fold well_typed_fexpr in Hwt.
+        move : Hwt => /andP [/andP [_ Hwt2] Hwt3].
+        case (is_zero (no_mem_eval_fexpr e1 s1 te)).
+        - simpl.
+          rewrite Hwt0 /sizeof_fgtyp.
+          apply IHe3 with (rs1:=rs1) (v:=v) in Hcf.
+          simpl in Hcf.
+          apply SV.conform_mem with (v:=v) in Hcf.
+          rewrite TE.vsize_add_eq // SV.acc_upd_eq // H3 /sizeof_fgtyp in Hcf.
+          exact Hcf.
+          apply SV.Lemmas.mem_add_eq.
+          apply TE.SE.eq_refl.
+          rewrite /well_formed_fstmt_inline.
+          simpl.
+          rewrite Hwt3 Hid3 //.
+        - simpl.
+          rewrite Hwt0 /sizeof_fgtyp.
+          apply IHe2 with (rs1:=rs1) (v:=v) in Hcf.
+          simpl in Hcf.
+          apply SV.conform_mem with (v:=v) in Hcf.
+          rewrite TE.vsize_add_eq // SV.acc_upd_eq // H2 /sizeof_fgtyp in Hcf.
+          exact Hcf.
+          apply SV.Lemmas.mem_add_eq.
+          apply TE.SE.eq_refl.
+          rewrite /well_formed_fstmt_inline.
+          simpl.
+          rewrite Hwt2 Hid2 //.
       exact Hcf.
     - (* case evalidif *)
     move => rs1 s1 te v Hcf Hwf.
@@ -6457,16 +5350,13 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       move : Hwf => /andP [Hwt Hid].
       simpl in Hwt.
       simpl in Hid.
-      move : Hwt => /andP [_ Hwf].
+      move : Hwt => /andP [/andP [/eqP Hwt0 _] Hwf].
       move : Hid => /andP [_ Hid].
       apply IHe2 with (rs1:=rs1) (v:=v) in Hcf.
       simpl in Hcf.
       apply SV.conform_mem with (v:=v) in Hcf.
-      rewrite TE.vsize_add_eq in Hcf.
-      rewrite SV.acc_upd_eq in Hcf.
-      exact Hcf.
-      reflexivity.
-      reflexivity.
+      rewrite Hwt0.
+      rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf.
       apply SV.Lemmas.mem_add_eq.
       apply TE.SE.eq_refl.
       rewrite /well_formed_fstmt_inline.
@@ -6484,7 +5374,11 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
     simpl.
     apply SV.conform_mem with (v:=s) in Hcf.
     rewrite -Hcf.
-    rewrite (TE.vtyp_vsize (eqP(eqxx (TE.vtyp s te))))//.
+    symmetry.
+    case (TE.vtyp s te) eqn: Hvtyp.
+    3: replace (sizeof_fgtyp (Fuint n)) with (sizeof_fgtyp (Fuint_implicit n)) by (rewrite /sizeof_fgtyp ; reflexivity).
+    4: replace (sizeof_fgtyp (Fsint n)) with (sizeof_fgtyp (Fsint_implicit n)) by (rewrite /sizeof_fgtyp ; reflexivity).
+    1,2,3,4,5,6,7: apply TE.vtyp_vsize ; exact Hvtyp.
     exact Hid.
     exact Hcf.
   Qed.
@@ -6611,19 +5505,12 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       (* sfcnct *)
       case Hr : (SV.acc v rs == [::]).
       simpl.
-      case : (TE.vtyp v te) => [n0|n0|||].
-      rewrite Hr.
-      simpl.
-      exact Hcfr.
-      rewrite Hr.
-      simpl.
-      exact Hcfr.
-      simpl.
-      exact Hcfr.
-      simpl.
-      exact Hcfr.
-      simpl.
-      exact Hcfr.
+      destruct (TE.vtyp v te) as [n0|n0|n0|n0| | |].
+      1,2,3,4: rewrite Hr ;
+               simpl ;
+               exact Hcfr.
+      1,2,3: simpl ;
+             exact Hcfr.
       apply conform_eval_sfcnct_upd_envr0_inline.
       exact Hcf.
       exact Hcfr.
@@ -6736,7 +5623,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
     rewrite Hid in H.
     discriminate.
 
-    case Ht : (TE.vtyp r te) => [n|n|||].
+    destruct (TE.vtyp r te) as [n|n|n|n| | |] eqn: Ht.
     (* uint not reg *)
     rewrite Ht in Hwt.
     move : Hwt => /andP [Hwt Hsf].
@@ -6882,7 +5769,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       case Hn:(pn < size (no_mem_eval_fexpr e0 s1 te)).
-        case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
+        destruct (type_of_fexpr e0 te) as [n0|n0|n0|n0| | |] eqn: Htyp .
         - assert (Htcf : SV.conform
               (SV.upd r
                 (zext (n - size (no_mem_eval_fexpr e0 s1 te)) (no_mem_eval_fexpr e0 s1 te))
@@ -6931,7 +5818,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         - rewrite Htyp in Hwt.
         discriminate.
-        case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
+        destruct (type_of_fexpr e0 te) as [n0|n0|n0|n0| | |] eqn: Htyp.
         - assert (Htcf : SV.conform
         (SV.upd r
         (zext (n - size (zext (pn - n0) (no_mem_eval_fexpr e0 s1 te)))
@@ -7019,7 +5906,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       rewrite Ht.
       simpl.
       reflexivity.
-      case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
+      destruct (type_of_fexpr e0 te) as [n0|n0|n0|n0| | |] eqn: Htyp.
       rewrite typeof_eval_fexpr.
       rewrite Htyp.
       rewrite Htyp in Hsf.
@@ -7070,7 +5957,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       rewrite Ht.
       simpl.
       reflexivity.
-      case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
+      destruct (type_of_fexpr e0 te) as [n0|n0|n0|n0| | |] eqn: Htyp.
       rewrite typeof_eval_fexpr.
       rewrite Htyp.
       rewrite typeof_eval_fexpr in Hsn.
@@ -7110,7 +5997,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       exact Hcf.
       move : Hte Htcf.
       apply SV.conform_equal.
-      case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
+      destruct (type_of_fexpr e0 te) as [n0|n0|n0|n0| | |] eqn: Htyp.
       assert (Htcf : SV.conform
       (SV.upd r
      (zext (n - size [:: msb (no_mem_eval_fexpr e0 s1 te)])
@@ -7169,7 +6056,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hsf.
       simpl in Hwt.
       simpl in Hide.
-      case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
+      destruct (type_of_fexpr e0 te) as [n0|n0|n0|n0| | |] eqn: Htyp.
       assert (Htcf : SV.conform
       (SV.upd r
       (zext (n - size (sext 1 (no_mem_eval_fexpr e0 s1 te)))
@@ -7224,7 +6111,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hsf.
       simpl in Hwt.
       simpl in Hide.
-      case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
+      destruct (type_of_fexpr e0 te) as [n0|n0|n0|n0| | |] eqn: Htyp.
       assert (Htcf : SV.conform
       (SV.upd r
       (zext (n - size (-# zext 1 (no_mem_eval_fexpr e0 s1 te)))
@@ -7281,7 +6168,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hsf.
       simpl in Hwt.
       simpl in Hide.
-      case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
+      destruct (type_of_fexpr e0 te) as [n0|n0|n0|n0| | |] eqn: Htyp.
       assert (Htcf : SV.conform
       (SV.upd r
      (zext (n - size (~~# no_mem_eval_fexpr e0 s1 te))
@@ -7472,8 +6359,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       move : Hide => /andP [Hide1 Hide2].
-      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H1.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         - assert (Htcf : SV.conform
               (SV.upd r
               (zext
@@ -7518,7 +6405,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         rewrite H2 H1 in Hwt.
         discriminate.
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         rewrite H2 H1 in Hwt.
         discriminate.
         - assert (Htcf : SV.conform
@@ -7594,8 +6481,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       move : Hide => /andP [Hide1 Hide2].
-      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H1.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         - assert (Htcf : SV.conform
               (SV.upd r
               (zext
@@ -7636,7 +6523,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         rewrite H2 H1 in Hwt.
         discriminate.
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         rewrite H2 H1 in Hwt.
         discriminate.
         - assert (Htcf : SV.conform
@@ -7712,8 +6599,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       move : Hide => /andP [Hide1 Hide2].
-      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H1.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         - assert (Htcf : SV.conform
               (SV.upd r
               (zext
@@ -7754,7 +6641,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         rewrite H2 H1 in Hwt.
         discriminate.
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         rewrite H2 H1 in Hwt.
         discriminate.
         - assert (Htcf : SV.conform
@@ -7810,8 +6697,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       move : Hide => /andP [Hide1 Hide2].
-      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H1.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         - assert (Htcf : SV.conform
               (SV.upd r
               (zext
@@ -7847,7 +6734,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         rewrite H2 H1 in Hwt.
         discriminate.
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         rewrite H2 H1 in Hwt.
         discriminate.
         - assert (Htcf : SV.conform
@@ -7898,8 +6785,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       move : Hide => /andP [Hide1 Hide2].
-      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H1.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         - assert (Htcf : SV.conform
               (SV.upd r
               (zext
@@ -7929,7 +6816,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         rewrite H2 H1 in Hwt.
         discriminate.
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         rewrite H2 H1 in Hwt.
         discriminate.
         - assert (Htcf : SV.conform
@@ -7976,8 +6863,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       move : Hide => /andP [Hide1 Hide2].
-      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H1.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         - assert (Htcf : SV.conform
               (SV.upd r
               (zext
@@ -8004,7 +6891,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         rewrite H2 H1 in Hwt.
         discriminate.
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         rewrite H2 H1 in Hwt.
         discriminate.
         - assert (Htcf : SV.conform
@@ -8045,8 +6932,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       move : Hide => /andP [Hide1 Hide2].
-      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H1.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         - assert (Htcf : SV.conform
               (SV.upd r
               (zext
@@ -8073,7 +6960,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         rewrite H2 H1 in Hwt.
         discriminate.
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         rewrite H2 H1 in Hwt.
         discriminate.
         - assert (Htcf : SV.conform
@@ -8114,8 +7001,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       move : Hide => /andP [Hide1 Hide2].
-      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H1.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         - assert (Htcf : SV.conform
               (SV.upd r
               (zext
@@ -8142,7 +7029,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         rewrite H2 H1 in Hwt.
         discriminate.
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         rewrite H2 H1 in Hwt.
         discriminate.
         - assert (Htcf : SV.conform
@@ -8183,8 +7070,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       move : Hide => /andP [Hide1 Hide2].
-      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H1.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         - assert (Htcf : SV.conform
               (SV.upd r
               (zext
@@ -8211,7 +7098,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         rewrite H2 H1 in Hwt.
         discriminate.
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         rewrite H2 H1 in Hwt.
         discriminate.
         - assert (Htcf : SV.conform
@@ -8252,8 +7139,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       move : Hide => /andP [Hide1 Hide2].
-      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H1.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         - assert (Htcf : SV.conform
               (SV.upd r
               (zext
@@ -8280,7 +7167,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         rewrite H2 H1 in Hwt.
         discriminate.
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         rewrite H2 H1 in Hwt.
         discriminate.
         - assert (Htcf : SV.conform
@@ -8321,8 +7208,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       move : Hide => /andP [Hide1 Hide2].
-      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H1.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         - assert (Htcf : SV.conform
               (SV.upd r
               (zext
@@ -8349,7 +7236,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         rewrite H2 H1 in Hwt.
         discriminate.
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         rewrite H2 H1 in Hwt.
         discriminate.
         - assert (Htcf : SV.conform
@@ -8391,8 +7278,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       move : Hide => /andP [Hide1 Hide2].
-      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H1.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         - assert (Htcf : SV.conform
               (SV.upd r
               (zext
@@ -8443,7 +7330,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         rewrite H2 H1 in Hwt.
         discriminate.
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         rewrite H2 H1 in Hwt.
         - assert (Htcf : SV.conform
               (SV.upd r
@@ -8508,8 +7395,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       move : Hide => /andP [Hide1 Hide2].
-      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H1.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         - assert (Htcf : SV.conform
               (SV.upd r
               (zext
@@ -8546,7 +7433,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         rewrite H2 H1 in Hwt.
         discriminate.
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         rewrite H2 H1 in Hwt.
         - assert (Htcf : SV.conform
               (SV.upd r
@@ -8598,8 +7485,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       move : Hide => /andP [Hide1 Hide2].
-      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H1.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         - assert (Htcf : SV.conform
               (SV.upd r
               (zext
@@ -8646,7 +7533,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         rewrite H2 H1 in Hwt.
         discriminate.
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         rewrite H2 H1 in Hwt.
         discriminate.
         - assert (Htcf : SV.conform
@@ -8708,8 +7595,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       move : Hide => /andP [Hide1 Hide2].
-      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H1.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         - assert (Htcf : SV.conform
               (SV.upd r
               (zext
@@ -8756,7 +7643,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         rewrite H2 H1 in Hwt.
         discriminate.
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         rewrite H2 H1 in Hwt.
         discriminate.
         - assert (Htcf : SV.conform
@@ -8818,8 +7705,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       move : Hide => /andP [Hide1 Hide2].
-      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H1.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         - assert (Htcf : SV.conform
               (SV.upd r
               (zext
@@ -8866,7 +7753,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         rewrite H2 H1 in Hwt.
         discriminate.
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         rewrite H2 H1 in Hwt.
         discriminate.
         - assert (Htcf : SV.conform
@@ -8928,8 +7815,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       move : Hide => /andP [Hide1 Hide2].
-      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H1.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         - assert (Htcf : SV.conform
               (SV.upd r
               (zext
@@ -8971,7 +7858,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         rewrite H2 H1 in Hwt.
         discriminate.
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         rewrite H2 H1 in Hwt.
         discriminate.
         - assert (Htcf : SV.conform
@@ -9029,8 +7916,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
     simpl in Hide.
     move : Hide => /andP [Hid2 Hid3].
     move : Hid2 => /andP [Hid1 Hid2].
-    case H2:(type_of_fexpr e2 te) => [n0|n0|||].
-    - case H3:(type_of_fexpr e3 te) => [n1|n1|||].
+    destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H2.
+    - destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3.
       rewrite H2 H3 in Hwt.
       move : Hwt => /andP [Hwt2 Hwt3].
       move : Hwt2 => /andP [_ Hwt2].
@@ -9085,7 +7972,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       discriminate.
       rewrite H2 H3 in Hwt.
       discriminate.
-      - case H3:(type_of_fexpr e3 te) => [n1|n1|||].
+      - destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3.
       rewrite H2 H3 in Hwt.
       discriminate.
       rewrite H2 H3 in Hwt.
@@ -9327,7 +8214,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       case Hn:(pn < size (no_mem_eval_fexpr e0 s1 te)).
-        case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
+        destruct (type_of_fexpr e0 te) as [n0|n0|n0|n0| | |] eqn: Htyp.
         - assert (Htcf : SV.conform
               (SV.upd r
                 (sext (n - size (no_mem_eval_fexpr e0 s1 te)) (no_mem_eval_fexpr e0 s1 te))
@@ -9376,7 +8263,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         - rewrite Htyp in Hwt.
         discriminate.
-        case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
+        destruct (type_of_fexpr e0 te) as [n0|n0|n0|n0| | |] eqn: Htyp.
         - assert (Htcf : SV.conform
         (SV.upd r
         (sext (n - size (zext (pn - n0) (no_mem_eval_fexpr e0 s1 te)))
@@ -9464,7 +8351,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       rewrite Ht.
       simpl.
       reflexivity.
-      case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
+      destruct (type_of_fexpr e0 te) as [n0|n0|n0|n0| | |] eqn: Htyp.
       rewrite typeof_eval_fexpr.
       rewrite Htyp.
       rewrite Htyp in Hsf.
@@ -9515,7 +8402,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       rewrite Ht.
       simpl.
       reflexivity.
-      case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
+      destruct (type_of_fexpr e0 te) as [n0|n0|n0|n0| | |] eqn: Htyp.
       rewrite typeof_eval_fexpr.
       rewrite Htyp.
       rewrite typeof_eval_fexpr in Hsn.
@@ -9555,7 +8442,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       exact Hcf.
       move : Hte Htcf.
       apply SV.conform_equal.
-      case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
+      destruct (type_of_fexpr e0 te) as [n0|n0|n0|n0| | |] eqn: Htyp.
       assert (Htcf : SV.conform
       (SV.upd r
      (sext (n - size [:: msb (no_mem_eval_fexpr e0 s1 te)])
@@ -9614,7 +8501,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hsf.
       simpl in Hwt.
       simpl in Hide.
-      case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
+      destruct (type_of_fexpr e0 te) as [n0|n0|n0|n0| | |] eqn: Htyp.
       assert (Htcf : SV.conform
       (SV.upd r
       (sext (n - size (sext 1 (no_mem_eval_fexpr e0 s1 te)))
@@ -9669,7 +8556,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hsf.
       simpl in Hwt.
       simpl in Hide.
-      case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
+      destruct (type_of_fexpr e0 te) as [n0|n0|n0|n0| | |] eqn: Htyp.
       assert (Htcf : SV.conform
       (SV.upd r
       (sext (n - size (-# zext 1 (no_mem_eval_fexpr e0 s1 te)))
@@ -9726,7 +8613,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hsf.
       simpl in Hwt.
       simpl in Hide.
-      case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
+      destruct (type_of_fexpr e0 te) as [n0|n0|n0|n0| | |] eqn: Htyp.
       assert (Htcf : SV.conform
       (SV.upd r
      (sext (n - size (~~# no_mem_eval_fexpr e0 s1 te))
@@ -9917,8 +8804,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       move : Hide => /andP [Hide1 Hide2].
-      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H1.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         - assert (Htcf : SV.conform
               (SV.upd r
               (sext
@@ -9963,7 +8850,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         rewrite H2 H1 in Hwt.
         discriminate.
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         rewrite H2 H1 in Hwt.
         discriminate.
         - assert (Htcf : SV.conform
@@ -10039,8 +8926,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       move : Hide => /andP [Hide1 Hide2].
-      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H1.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         - assert (Htcf : SV.conform
               (SV.upd r
               (sext
@@ -10086,7 +8973,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         rewrite H2 H1 in Hwt.
         discriminate.
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         rewrite H2 H1 in Hwt.
         discriminate.
         - assert (Htcf : SV.conform
@@ -10162,8 +9049,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       move : Hide => /andP [Hide1 Hide2].
-      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H1.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         - assert (Htcf : SV.conform
               (SV.upd r
               (sext
@@ -10204,7 +9091,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         rewrite H2 H1 in Hwt.
         discriminate.
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         rewrite H2 H1 in Hwt.
         discriminate.
         - assert (Htcf : SV.conform
@@ -10260,8 +9147,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       move : Hide => /andP [Hide1 Hide2].
-      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H1.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         - assert (Htcf : SV.conform
               (SV.upd r
               (sext
@@ -10297,7 +9184,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         rewrite H2 H1 in Hwt.
         discriminate.
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         rewrite H2 H1 in Hwt.
         discriminate.
         - assert (Htcf : SV.conform
@@ -10348,8 +9235,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       move : Hide => /andP [Hide1 Hide2].
-      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H1.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         - assert (Htcf : SV.conform
               (SV.upd r
               (sext
@@ -10379,7 +9266,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         rewrite H2 H1 in Hwt.
         discriminate.
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         rewrite H2 H1 in Hwt.
         discriminate.
         - assert (Htcf : SV.conform
@@ -10426,8 +9313,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       move : Hide => /andP [Hide1 Hide2].
-      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H1.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         - assert (Htcf : SV.conform
               (SV.upd r
               (sext
@@ -10454,7 +9341,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         rewrite H2 H1 in Hwt.
         discriminate.
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         rewrite H2 H1 in Hwt.
         discriminate.
         - assert (Htcf : SV.conform
@@ -10495,8 +9382,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       move : Hide => /andP [Hide1 Hide2].
-      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H1.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         - assert (Htcf : SV.conform
               (SV.upd r
               (sext
@@ -10523,7 +9410,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         rewrite H2 H1 in Hwt.
         discriminate.
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         rewrite H2 H1 in Hwt.
         discriminate.
         - assert (Htcf : SV.conform
@@ -10564,8 +9451,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       move : Hide => /andP [Hide1 Hide2].
-      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H1.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         - assert (Htcf : SV.conform
               (SV.upd r
               (sext
@@ -10592,7 +9479,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         rewrite H2 H1 in Hwt.
         discriminate.
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         rewrite H2 H1 in Hwt.
         discriminate.
         - assert (Htcf : SV.conform
@@ -10633,8 +9520,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       move : Hide => /andP [Hide1 Hide2].
-      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H1.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         - assert (Htcf : SV.conform
               (SV.upd r
               (sext
@@ -10661,7 +9548,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         rewrite H2 H1 in Hwt.
         discriminate.
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         rewrite H2 H1 in Hwt.
         discriminate.
         - assert (Htcf : SV.conform
@@ -10702,8 +9589,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       move : Hide => /andP [Hide1 Hide2].
-      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H1.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         - assert (Htcf : SV.conform
               (SV.upd r
               (sext
@@ -10730,7 +9617,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         rewrite H2 H1 in Hwt.
         discriminate.
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         rewrite H2 H1 in Hwt.
         discriminate.
         - assert (Htcf : SV.conform
@@ -10771,8 +9658,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       move : Hide => /andP [Hide1 Hide2].
-      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H1.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         - assert (Htcf : SV.conform
               (SV.upd r
               (sext
@@ -10799,7 +9686,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         rewrite H2 H1 in Hwt.
         discriminate.
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         rewrite H2 H1 in Hwt.
         discriminate.
         - assert (Htcf : SV.conform
@@ -10841,8 +9728,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       move : Hide => /andP [Hide1 Hide2].
-      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H1.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         - assert (Htcf : SV.conform
               (SV.upd r
               (sext
@@ -10893,7 +9780,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         rewrite H2 H1 in Hwt.
         discriminate.
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         rewrite H2 H1 in Hwt.
         - assert (Htcf : SV.conform
               (SV.upd r
@@ -10958,8 +9845,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       move : Hide => /andP [Hide1 Hide2].
-      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H1.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         - assert (Htcf : SV.conform
               (SV.upd r
               (sext
@@ -10996,7 +9883,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         rewrite H2 H1 in Hwt.
         discriminate.
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         rewrite H2 H1 in Hwt.
         - assert (Htcf : SV.conform
               (SV.upd r
@@ -11048,8 +9935,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       move : Hide => /andP [Hide1 Hide2].
-      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H1.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         - assert (Htcf : SV.conform
               (SV.upd r
               (sext
@@ -11096,7 +9983,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         rewrite H2 H1 in Hwt.
         discriminate.
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         rewrite H2 H1 in Hwt.
         discriminate.
         - assert (Htcf : SV.conform
@@ -11158,8 +10045,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       move : Hide => /andP [Hide1 Hide2].
-      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H1.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         - assert (Htcf : SV.conform
               (SV.upd r
               (sext
@@ -11206,7 +10093,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         rewrite H2 H1 in Hwt.
         discriminate.
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         rewrite H2 H1 in Hwt.
         discriminate.
         - assert (Htcf : SV.conform
@@ -11268,8 +10155,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       move : Hide => /andP [Hide1 Hide2].
-      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H1.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         - assert (Htcf : SV.conform
               (SV.upd r
               (sext
@@ -11316,7 +10203,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         rewrite H2 H1 in Hwt.
         discriminate.
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         rewrite H2 H1 in Hwt.
         discriminate.
         - assert (Htcf : SV.conform
@@ -11378,8 +10265,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       move : Hide => /andP [Hide1 Hide2].
-      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H1.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         - assert (Htcf : SV.conform
               (SV.upd r
               (sext
@@ -11421,7 +10308,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         rewrite H2 H1 in Hwt.
         discriminate.
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         rewrite H2 H1 in Hwt.
         discriminate.
         - assert (Htcf : SV.conform
@@ -11479,8 +10366,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
     simpl in Hide.
     move : Hide => /andP [Hid2 Hid3].
     move : Hid2 => /andP [Hid1 Hid2].
-    case H2:(type_of_fexpr e2 te) => [n0|n0|||].
-    - case H3:(type_of_fexpr e3 te) => [n1|n1|||].
+    destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H2.
+    - destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3.
       rewrite H2 H3 in Hwt.
       move : Hwt => /andP [Hwt2 Hwt3].
       move : Hwt2 => /andP [_ Hwt2].
@@ -11535,7 +10422,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       discriminate.
       rewrite H2 H3 in Hwt.
       discriminate.
-      - case H3:(type_of_fexpr e3 te) => [n1|n1|||].
+      - destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3.
       rewrite H2 H3 in Hwt.
       discriminate.
       rewrite H2 H3 in Hwt.
@@ -11665,7 +10552,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
     rewrite Hid in H.
     discriminate.
 
-    case Ht : (TE.vtyp r te) => [n|n|||].
+    destruct (TE.vtyp r te) as [n|n|n|n| | |] eqn: Ht.
     (* uint not reg *)
     rewrite Ht in Hwt.
     move : Hwt => /andP [Hwt Hsf].
@@ -11824,7 +10711,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       case Hn:(pn < size (no_mem_eval_fexpr e0 s1 te)).
-        case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
+        destruct (type_of_fexpr e0 te) as [n0|n0|n0|n0| | |] eqn: Htyp.
         - assert (Htcf : SV.conform
               (SV.upd r
                 (zext (n - size (no_mem_eval_fexpr e0 s1 te)) (no_mem_eval_fexpr e0 s1 te))
@@ -11873,7 +10760,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         - rewrite Htyp in Hwt.
         discriminate.
-        case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
+        destruct (type_of_fexpr e0 te) as [n0|n0|n0|n0| | |] eqn: Htyp.
         - assert (Htcf : SV.conform
         (SV.upd r
         (zext (n - size (zext (pn - n0) (no_mem_eval_fexpr e0 s1 te)))
@@ -11963,7 +10850,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       rewrite Ht.
       simpl.
       reflexivity.
-      case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
+      destruct (type_of_fexpr e0 te) as [n0|n0|n0|n0| | |] eqn: Htyp.
       rewrite typeof_eval_fexpr.
       rewrite Htyp.
       rewrite Htyp in Hsf.
@@ -12016,7 +10903,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       rewrite Ht.
       simpl.
       reflexivity.
-      case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
+      destruct (type_of_fexpr e0 te) as [n0|n0|n0|n0| | |] eqn: Htyp.
       rewrite typeof_eval_fexpr.
       rewrite Htyp.
       rewrite typeof_eval_fexpr in Hsn.
@@ -12056,7 +10943,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       exact Hcfr.
       move : Hte Htcf.
       apply SV.conform_equal.
-      case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
+      destruct (type_of_fexpr e0 te) as [n0|n0|n0|n0| | |] eqn: Htyp.
       assert (Htcf : SV.conform
       (SV.upd r
       (zext (n - size [:: msb (no_mem_eval_fexpr e0 s1 te)])
@@ -12117,7 +11004,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hsf.
       simpl in Hwt.
       simpl in Hide.
-      case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
+      destruct (type_of_fexpr e0 te) as [n0|n0|n0|n0| | |] eqn: Htyp.
       assert (Htcf : SV.conform
       (SV.upd r
       (zext (n - size (sext 1 (no_mem_eval_fexpr e0 s1 te)))
@@ -12174,7 +11061,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hsf.
       simpl in Hwt.
       simpl in Hide.
-      case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
+      destruct (type_of_fexpr e0 te) as [n0|n0|n0|n0| | |] eqn: Htyp.
       assert (Htcf : SV.conform
       (SV.upd r
       (zext (n - size (-# zext 1 (no_mem_eval_fexpr e0 s1 te)))
@@ -12233,7 +11120,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hsf.
       simpl in Hwt.
       simpl in Hide.
-      case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
+      destruct (type_of_fexpr e0 te) as [n0|n0|n0|n0| | |] eqn: Htyp.
       assert (Htcf : SV.conform
       (SV.upd r
       (zext (n - size (~~# no_mem_eval_fexpr e0 s1 te))
@@ -12438,8 +11325,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       move : Hide => /andP [Hide1 Hide2].
-      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H1.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         - assert (Htcf : SV.conform
               (SV.upd r
               (zext
@@ -12484,7 +11371,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         rewrite H2 H1 in Hwt.
         discriminate.
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         rewrite H2 H1 in Hwt.
         discriminate.
         - assert (Htcf : SV.conform
@@ -12562,8 +11449,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       move : Hide => /andP [Hide1 Hide2].
-      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H1.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         - assert (Htcf : SV.conform
               (SV.upd r
               (zext
@@ -12604,7 +11491,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         rewrite H2 H1 in Hwt.
         discriminate.
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         rewrite H2 H1 in Hwt.
         discriminate.
         - assert (Htcf : SV.conform
@@ -12682,8 +11569,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       move : Hide => /andP [Hide1 Hide2].
-      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H1.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         - assert (Htcf : SV.conform
               (SV.upd r
               (zext
@@ -12724,7 +11611,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         rewrite H2 H1 in Hwt.
         discriminate.
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         rewrite H2 H1 in Hwt.
         discriminate.
         - assert (Htcf : SV.conform
@@ -12782,8 +11669,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       move : Hide => /andP [Hide1 Hide2].
-      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H1.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         - assert (Htcf : SV.conform
               (SV.upd r
               (zext
@@ -12819,7 +11706,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         rewrite H2 H1 in Hwt.
         discriminate.
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         rewrite H2 H1 in Hwt.
         discriminate.
         - assert (Htcf : SV.conform
@@ -12872,8 +11759,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       move : Hide => /andP [Hide1 Hide2].
-      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H1.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         - assert (Htcf : SV.conform
               (SV.upd r
               (zext
@@ -12903,7 +11790,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         rewrite H2 H1 in Hwt.
         discriminate.
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         rewrite H2 H1 in Hwt.
         discriminate.
         - assert (Htcf : SV.conform
@@ -12952,8 +11839,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       move : Hide => /andP [Hide1 Hide2].
-      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H1.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         - assert (Htcf : SV.conform
               (SV.upd r
               (zext
@@ -12980,7 +11867,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         rewrite H2 H1 in Hwt.
         discriminate.
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         rewrite H2 H1 in Hwt.
         discriminate.
         - assert (Htcf : SV.conform
@@ -13023,8 +11910,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       move : Hide => /andP [Hide1 Hide2].
-      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H1.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         - assert (Htcf : SV.conform
               (SV.upd r
               (zext
@@ -13051,7 +11938,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         rewrite H2 H1 in Hwt.
         discriminate.
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         rewrite H2 H1 in Hwt.
         discriminate.
         - assert (Htcf : SV.conform
@@ -13094,8 +11981,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       move : Hide => /andP [Hide1 Hide2].
-      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H1.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         - assert (Htcf : SV.conform
               (SV.upd r
               (zext
@@ -13122,7 +12009,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         rewrite H2 H1 in Hwt.
         discriminate.
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         rewrite H2 H1 in Hwt.
         discriminate.
         - assert (Htcf : SV.conform
@@ -13165,8 +12052,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       move : Hide => /andP [Hide1 Hide2].
-      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H1.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         - assert (Htcf : SV.conform
               (SV.upd r
               (zext
@@ -13193,7 +12080,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         rewrite H2 H1 in Hwt.
         discriminate.
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         rewrite H2 H1 in Hwt.
         discriminate.
         - assert (Htcf : SV.conform
@@ -13236,8 +12123,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       move : Hide => /andP [Hide1 Hide2].
-      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H1.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         - assert (Htcf : SV.conform
               (SV.upd r
               (zext
@@ -13264,7 +12151,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         rewrite H2 H1 in Hwt.
         discriminate.
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         rewrite H2 H1 in Hwt.
         discriminate.
         - assert (Htcf : SV.conform
@@ -13307,8 +12194,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       move : Hide => /andP [Hide1 Hide2].
-      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H1.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         - assert (Htcf : SV.conform
               (SV.upd r
               (zext
@@ -13335,7 +12222,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         rewrite H2 H1 in Hwt.
         discriminate.
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         rewrite H2 H1 in Hwt.
         discriminate.
         - assert (Htcf : SV.conform
@@ -13379,8 +12266,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       move : Hide => /andP [Hide1 Hide2].
-      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H1.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         - assert (Htcf : SV.conform
               (SV.upd r
               (zext
@@ -13431,7 +12318,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         rewrite H2 H1 in Hwt.
         discriminate.
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         rewrite H2 H1 in Hwt.
         - assert (Htcf : SV.conform
               (SV.upd r
@@ -13498,8 +12385,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       move : Hide => /andP [Hide1 Hide2].
-      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H1.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         - assert (Htcf : SV.conform
               (SV.upd r
               (zext
@@ -13536,7 +12423,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         rewrite H2 H1 in Hwt.
         discriminate.
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         rewrite H2 H1 in Hwt.
         - assert (Htcf : SV.conform
               (SV.upd r
@@ -13590,8 +12477,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       move : Hide => /andP [Hide1 Hide2].
-      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H1.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         - assert (Htcf : SV.conform
               (SV.upd r
               (zext
@@ -13638,7 +12525,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         rewrite H2 H1 in Hwt.
         discriminate.
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         rewrite H2 H1 in Hwt.
         discriminate.
         - assert (Htcf : SV.conform
@@ -13702,8 +12589,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       move : Hide => /andP [Hide1 Hide2].
-      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H1.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         - assert (Htcf : SV.conform
               (SV.upd r
               (zext
@@ -13750,7 +12637,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         rewrite H2 H1 in Hwt.
         discriminate.
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         rewrite H2 H1 in Hwt.
         discriminate.
         - assert (Htcf : SV.conform
@@ -13814,8 +12701,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       move : Hide => /andP [Hide1 Hide2].
-      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H1.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         - assert (Htcf : SV.conform
               (SV.upd r
               (zext
@@ -13862,7 +12749,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         rewrite H2 H1 in Hwt.
         discriminate.
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         rewrite H2 H1 in Hwt.
         discriminate.
         - assert (Htcf : SV.conform
@@ -13926,8 +12813,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       move : Hide => /andP [Hide1 Hide2].
-      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H1.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         - assert (Htcf : SV.conform
               (SV.upd r
               (zext
@@ -13969,7 +12856,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         rewrite H2 H1 in Hwt.
         discriminate.
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         rewrite H2 H1 in Hwt.
         discriminate.
         - assert (Htcf : SV.conform
@@ -14029,8 +12916,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hide.
       move : Hide => /andP [Hid2 Hid3].
       move : Hid2 => /andP [Hid1 Hid2].
-      case H2:(type_of_fexpr e2 te) => [n0|n0|||].
-      - case H3:(type_of_fexpr e3 te) => [n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H2.
+      - destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3.
       rewrite H2 H3 in Hwt.
       move : Hwt => /andP [Hwt2 Hwt3].
       move : Hwt2 => /andP [_ Hwt2].
@@ -14085,7 +12972,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       discriminate.
       rewrite H2 H3 in Hwt.
       discriminate.
-      - case H3:(type_of_fexpr e3 te) => [n1|n1|||].
+      - destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3.
       rewrite H2 H3 in Hwt.
       discriminate.
       rewrite H2 H3 in Hwt.
@@ -14342,7 +13229,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       case Hn:(pn < size (no_mem_eval_fexpr e0 s1 te)).
-        case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
+        destruct (type_of_fexpr e0 te) as [n0|n0|n0|n0| | |] eqn: Htyp.
         - assert (Htcf : SV.conform
               (SV.upd r
                 (sext (n - size (no_mem_eval_fexpr e0 s1 te)) (no_mem_eval_fexpr e0 s1 te))
@@ -14391,7 +13278,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         - rewrite Htyp in Hwt.
         discriminate.
-        case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
+        destruct (type_of_fexpr e0 te) as [n0|n0|n0|n0| | |] eqn: Htyp.
         - assert (Htcf : SV.conform
         (SV.upd r
         (sext (n - size (zext (pn - n0) (no_mem_eval_fexpr e0 s1 te)))
@@ -14481,7 +13368,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       rewrite Ht.
       simpl.
       reflexivity.
-      case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
+      destruct (type_of_fexpr e0 te) as [n0|n0|n0|n0| | |] eqn: Htyp.
       rewrite typeof_eval_fexpr.
       rewrite Htyp.
       rewrite Htyp in Hsf.
@@ -14534,7 +13421,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       rewrite Ht.
       simpl.
       reflexivity.
-      case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
+      destruct (type_of_fexpr e0 te) as [n0|n0|n0|n0| | |] eqn: Htyp.
       rewrite typeof_eval_fexpr.
       rewrite Htyp.
       rewrite typeof_eval_fexpr in Hsn.
@@ -14574,7 +13461,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       exact Hcfr.
       move : Hte Htcf.
       apply SV.conform_equal.
-      case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
+      destruct (type_of_fexpr e0 te) as [n0|n0|n0|n0| | |] eqn: Htyp.
       assert (Htcf : SV.conform
       (SV.upd r
       (sext (n - size [:: msb (no_mem_eval_fexpr e0 s1 te)])
@@ -14635,7 +13522,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hsf.
       simpl in Hwt.
       simpl in Hide.
-      case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
+      destruct (type_of_fexpr e0 te) as [n0|n0|n0|n0| | |] eqn: Htyp.
       assert (Htcf : SV.conform
       (SV.upd r
       (sext (n - size (sext 1 (no_mem_eval_fexpr e0 s1 te)))
@@ -14692,7 +13579,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hsf.
       simpl in Hwt.
       simpl in Hide.
-      case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
+      destruct (type_of_fexpr e0 te) as [n0|n0|n0|n0| | |] eqn: Htyp.
       assert (Htcf : SV.conform
       (SV.upd r
       (sext (n - size (-# zext 1 (no_mem_eval_fexpr e0 s1 te)))
@@ -14751,7 +13638,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hsf.
       simpl in Hwt.
       simpl in Hide.
-      case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
+      destruct (type_of_fexpr e0 te) as [n0|n0|n0|n0| | |] eqn: Htyp.
       assert (Htcf : SV.conform
       (SV.upd r
       (sext (n - size (~~# no_mem_eval_fexpr e0 s1 te))
@@ -14956,8 +13843,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       move : Hide => /andP [Hide1 Hide2].
-      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H1.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         - assert (Htcf : SV.conform
               (SV.upd r
               (sext
@@ -15002,7 +13889,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         rewrite H2 H1 in Hwt.
         discriminate.
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         rewrite H2 H1 in Hwt.
         discriminate.
         - assert (Htcf : SV.conform
@@ -15080,8 +13967,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       move : Hide => /andP [Hide1 Hide2].
-      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H1.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         - assert (Htcf : SV.conform
               (SV.upd r
               (sext
@@ -15126,7 +14013,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         rewrite H2 H1 in Hwt.
         discriminate.
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         rewrite H2 H1 in Hwt.
         discriminate.
         - assert (Htcf : SV.conform
@@ -15204,8 +14091,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       move : Hide => /andP [Hide1 Hide2].
-      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H1.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         - assert (Htcf : SV.conform
               (SV.upd r
               (sext
@@ -15246,7 +14133,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         rewrite H2 H1 in Hwt.
         discriminate.
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         rewrite H2 H1 in Hwt.
         discriminate.
         - assert (Htcf : SV.conform
@@ -15304,8 +14191,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       move : Hide => /andP [Hide1 Hide2].
-      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H1.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         - assert (Htcf : SV.conform
               (SV.upd r
               (sext
@@ -15341,7 +14228,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         rewrite H2 H1 in Hwt.
         discriminate.
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         rewrite H2 H1 in Hwt.
         discriminate.
         - assert (Htcf : SV.conform
@@ -15394,8 +14281,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       move : Hide => /andP [Hide1 Hide2].
-      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H1.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         - assert (Htcf : SV.conform
               (SV.upd r
               (sext
@@ -15425,7 +14312,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         rewrite H2 H1 in Hwt.
         discriminate.
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         rewrite H2 H1 in Hwt.
         discriminate.
         - assert (Htcf : SV.conform
@@ -15474,8 +14361,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       move : Hide => /andP [Hide1 Hide2].
-      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H1.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         - assert (Htcf : SV.conform
               (SV.upd r
               (sext
@@ -15502,7 +14389,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         rewrite H2 H1 in Hwt.
         discriminate.
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         rewrite H2 H1 in Hwt.
         discriminate.
         - assert (Htcf : SV.conform
@@ -15545,8 +14432,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       move : Hide => /andP [Hide1 Hide2].
-      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H1.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         - assert (Htcf : SV.conform
               (SV.upd r
               (sext
@@ -15573,7 +14460,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         rewrite H2 H1 in Hwt.
         discriminate.
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         rewrite H2 H1 in Hwt.
         discriminate.
         - assert (Htcf : SV.conform
@@ -15616,8 +14503,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       move : Hide => /andP [Hide1 Hide2].
-      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H1.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         - assert (Htcf : SV.conform
               (SV.upd r
               (sext
@@ -15644,7 +14531,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         rewrite H2 H1 in Hwt.
         discriminate.
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         rewrite H2 H1 in Hwt.
         discriminate.
         - assert (Htcf : SV.conform
@@ -15687,8 +14574,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       move : Hide => /andP [Hide1 Hide2].
-      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H1.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         - assert (Htcf : SV.conform
               (SV.upd r
               (sext
@@ -15715,7 +14602,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         rewrite H2 H1 in Hwt.
         discriminate.
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         rewrite H2 H1 in Hwt.
         discriminate.
         - assert (Htcf : SV.conform
@@ -15758,8 +14645,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       move : Hide => /andP [Hide1 Hide2].
-      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H1.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         - assert (Htcf : SV.conform
               (SV.upd r
               (sext
@@ -15786,7 +14673,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         rewrite H2 H1 in Hwt.
         discriminate.
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         rewrite H2 H1 in Hwt.
         discriminate.
         - assert (Htcf : SV.conform
@@ -15829,8 +14716,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       move : Hide => /andP [Hide1 Hide2].
-      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H1.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         - assert (Htcf : SV.conform
               (SV.upd r
               (sext
@@ -15857,7 +14744,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         rewrite H2 H1 in Hwt.
         discriminate.
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         rewrite H2 H1 in Hwt.
         discriminate.
         - assert (Htcf : SV.conform
@@ -15901,8 +14788,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       move : Hide => /andP [Hide1 Hide2].
-      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H1.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         - assert (Htcf : SV.conform
               (SV.upd r
               (sext
@@ -15953,7 +14840,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         rewrite H2 H1 in Hwt.
         discriminate.
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         rewrite H2 H1 in Hwt.
         - assert (Htcf : SV.conform
               (SV.upd r
@@ -16020,8 +14907,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       move : Hide => /andP [Hide1 Hide2].
-      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H1.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         - assert (Htcf : SV.conform
               (SV.upd r
               (sext
@@ -16058,7 +14945,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         rewrite H2 H1 in Hwt.
         discriminate.
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         rewrite H2 H1 in Hwt.
         - assert (Htcf : SV.conform
               (SV.upd r
@@ -16112,8 +14999,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       move : Hide => /andP [Hide1 Hide2].
-      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H1.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         - assert (Htcf : SV.conform
               (SV.upd r
               (sext
@@ -16160,7 +15047,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         rewrite H2 H1 in Hwt.
         discriminate.
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         rewrite H2 H1 in Hwt.
         discriminate.
         - assert (Htcf : SV.conform
@@ -16224,8 +15111,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       move : Hide => /andP [Hide1 Hide2].
-      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H1.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         - assert (Htcf : SV.conform
               (SV.upd r
               (sext
@@ -16272,7 +15159,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         rewrite H2 H1 in Hwt.
         discriminate.
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         rewrite H2 H1 in Hwt.
         discriminate.
         - assert (Htcf : SV.conform
@@ -16336,8 +15223,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       move : Hide => /andP [Hide1 Hide2].
-      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H1.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         - assert (Htcf : SV.conform
               (SV.upd r
               (sext
@@ -16384,7 +15271,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         rewrite H2 H1 in Hwt.
         discriminate.
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         rewrite H2 H1 in Hwt.
         discriminate.
         - assert (Htcf : SV.conform
@@ -16448,8 +15335,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hide.
       move : Hide => /andP [Hide1 Hide2].
-      case H1:(type_of_fexpr e2 te) => [n0|n0|||].
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H1.
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         - assert (Htcf : SV.conform
               (SV.upd r
               (sext
@@ -16491,7 +15378,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         discriminate.
         rewrite H2 H1 in Hwt.
         discriminate.
-        case H2:(type_of_fexpr e3 te) => [n1|n1|||].
+        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H2.
         rewrite H2 H1 in Hwt.
         discriminate.
         - assert (Htcf : SV.conform
@@ -16551,8 +15438,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hide.
       move : Hide => /andP [Hid2 Hid3].
       move : Hid2 => /andP [Hid1 Hid2].
-      case H2:(type_of_fexpr e2 te) => [n0|n0|||].
-      - case H3:(type_of_fexpr e3 te) => [n1|n1|||].
+      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H2.
+      - destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3.
       rewrite H2 H3 in Hwt.
       move : Hwt => /andP [Hwt2 Hwt3].
       move : Hwt2 => /andP [_ Hwt2].
@@ -16607,7 +15494,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       discriminate.
       rewrite H2 H3 in Hwt.
       discriminate.
-      - case H3:(type_of_fexpr e3 te) => [n1|n1|||].
+      - destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3.
       rewrite H2 H3 in Hwt.
       discriminate.
       rewrite H2 H3 in Hwt.
@@ -16946,10 +15833,10 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       (* sfcnct *)
       case Hr : (SV.acc v rs == [::]).
       simpl.
-      case : (TE.vtyp v te) => [n0|n0|||].
-      1,2: rewrite Hr.
-      1,2,3,4,5: simpl.
-      1,2,3,4,5: exact Hcfr.
+      destruct (TE.vtyp v te) as [n0|n0|n0|n0| | |].
+      1,2,3,4: rewrite Hr.
+      1,2,3,4,5,6,7: simpl ;
+                     exact Hcfr.
       apply conform_eval_sfcnct_upd_envr0_inline.
       exact Hcf.
       exact Hcfr.
