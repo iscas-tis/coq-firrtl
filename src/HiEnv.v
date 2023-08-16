@@ -117,6 +117,74 @@ Definition ffield_eqMixin := EqMixin ffield_eqP.
 Canonical ftype_eqType := Eval hnf in EqType ftype ftype_eqMixin.
 Canonical ffield_eqType := Eval hnf in EqType ffield ffield_eqMixin.
 
+
+Fixpoint ftype_not_implicit_width (ft : ftype) : Prop :=
+   match ft with
+   | Gtyp (Fsint_implicit _) | Gtyp (Fuint_implicit _) => False
+   | Gtyp _ => True
+   | Atyp ft' _ => ftype_not_implicit_width ft'
+   | Btyp fs => ffield_not_implicit_width fs
+   end
+with ffield_not_implicit_width (fs : ffield) : Prop :=
+   match fs with
+   | Fnil => True
+   | Fflips _ _ ft fs' => ftype_not_implicit_width ft /\ ffield_not_implicit_width fs'
+   end.
+
+Definition ftype_explicit : Type :=
+   (* disallow implicit widths *)
+   { ft : ftype | ftype_not_implicit_width ft }.
+
+Definition ffield_explicit : Type :=
+   { fs : ffield | ffield_not_implicit_width fs }.
+
+Fixpoint make_ftype_explicit (ft : ftype) : ftype_explicit :=
+   match ft with
+   | Gtyp (Fsint_implicit w) => exist ftype_not_implicit_width (Gtyp (Fsint w)) I
+   | Gtyp (Fuint_implicit w) => exist ftype_not_implicit_width (Gtyp (Fuint w)) I
+   | Gtyp ft' => exist ftype_not_implicit_width (Gtyp ft') I
+   | Atyp ft' n => match make_ftype_explicit ft' with
+                   exist fte p => exist ftype_not_implicit_width (Atyp fte n) p
+                   end
+   | Btyp fs => match make_ffield_explicit fs with
+                exist fse p => exist ftype_not_implicit_width (Btyp fse) p
+                end
+   end
+with make_ffield_explicit (fs: ffield) : ffield_explicit :=
+   match fs with
+   | Fnil => exist ffield_not_implicit_width Fnil I
+   | Fflips v ff ft fs' => match make_ftype_explicit ft, make_ffield_explicit fs' with
+                           exist fte pt, exist fse ps => exist ffield_not_implicit_width (Fflips v ff fte fse) (conj pt ps)
+                           end
+   end.
+
+(* Equality of ftype_explicit is decidable *)
+Lemma ftype_explicit_eq_dec : forall {x y : ftype_explicit}, {x = y} + {x <> y}
+with ffield_explicit_eq_dec : forall {x y : ffield_explicit}, {x = y} + {x <> y}.
+Proof.
+Admitted.
+Definition ftype_explicit_eqn (x y : ftype_explicit) : bool :=
+match x, y with
+exist x' _, exist y' _ => ftype_eqn x' y'
+end.
+Definition ffield_explicit_eqn (x y : ffield_explicit) : bool :=
+match x, y with
+exist x' _, exist y' _ => ffield_eqn x' y'
+end.
+Lemma ftype_explicit_eqP : Equality.axiom ftype_explicit_eqn.
+Proof.
+rewrite /Equality.axiom /ftype_explicit_eqn.
+Admitted.
+Lemma ffield_explicit_eqP : Equality.axiom ffield_explicit_eqn.
+Proof.
+rewrite /Equality.axiom /ffield_explicit_eqn.
+Admitted.
+
+Canonical ftype_explicit_eqMixin := EqMixin ftype_explicit_eqP.
+Canonical ftype_explicit_eqType := Eval hnf in EqType ftype_explicit ftype_explicit_eqMixin.
+Canonical ffield_explicit_eqMixin := EqMixin ffield_explicit_eqP.
+Canonical ffield_explicit_eqType := Eval hnf in EqType ffield_explicit ffield_explicit_eqMixin.
+
 End Ftype.
 
 Inductive fcomponent : Set :=
@@ -145,7 +213,4 @@ all : (apply ReflectT ; reflexivity).
 Qed.
 Canonical component_eqMixin := EqMixin component_eqP.
 Canonical component_eqType := Eval hnf in EqType fcomponent component_eqMixin.
-
-
-
 
