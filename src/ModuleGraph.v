@@ -7,138 +7,50 @@ From mathcomp Require Import ssreflect ssrbool ssrnat eqtype seq.
 (* This file contains first ideas on how to define a module graph as a semantic structure for FIRRTL modules.
    Many definitions are not yet complete but include only a few constructs so as to illustrate what the structure is. *)
 
-Inductive input_data_type :=
-   (* data type of the data that can be transmitted through a connection
-      This data type allows two constructors SInt_implicit and UInt_implicit that should be used
-      if the width of some explicitly typed input connector is implicit.
-      For input connectors of primitive operations, which are never explicitly typed,
-      it is not needed. *)
-   SInt : nat (* number of bits in the signed integer *) -> input_data_type |
-   UInt : nat -> input_data_type |
-   SInt_implicit : nat (* number of bits that is assumed, but it is implicit *) -> input_data_type |
-   UInt_implicit : nat -> input_data_type |
-   Reset |
-   AsyncReset |
-   Clock.
 
-(* equality of input_data_type is decidable *)
-Lemma input_data_type_eq_dec : forall {x y : input_data_type}, {x = y} + {x <> y}.
-Proof.  decide equality ; apply Nat.eq_dec.  Qed.
-Definition input_data_type_eqn (x y : input_data_type) : bool :=
-match x, y with
-| SInt n, SInt m
-| UInt n, UInt m
-| SInt_implicit n, SInt_implicit m
-| UInt_implicit n, UInt_implicit m => n == m
-| Reset, Reset
-| AsyncReset, AsyncReset
-| Clock, Clock => true
-| _, _ => false
-end.
-Lemma input_data_type_eqP : Equality.axiom input_data_type_eqn.
-Proof.
-rewrite /Equality.axiom ; intros.
-case: (@input_data_type_eq_dec x y) => H.
-* rewrite H /input_data_type_eqn ; clear -y.
-  destruct y ; try rewrite eq_refl ; apply ReflectT ; reflexivity.
-* rewrite /input_data_type_eqn.
-  destruct x, y ; try contradiction ; try (apply ReflectF ; exact H) ;
-        assert (n <> n0) by (contradict H ; rewrite H ; reflexivity) ;
-        move /eqP : H0 => H0 ;
-        apply negbTE in H0 ;
-        rewrite H0 ; apply ReflectF ; exact H.
-Qed.
-Canonical input_data_type_eqMixin := EqMixin input_data_type_eqP.
-Canonical input_data_type_eqType := Eval hnf in EqType input_data_type input_data_type_eqMixin.
+Definition Fsint_exp (w : nat) : fgtyp_explicit :=
+   (* convert Fsint w to an fgtyp_explicit *)
+   exist not_implicit_width (Fsint w) I.
 
-Definition not_implicit_width (x : input_data_type) : Prop :=
-   match x with SInt_implicit _ | UInt_implicit _ => False
-              | _ => True end.
+Definition Fuint_exp (w : nat) : fgtyp_explicit :=
+   (* convert Fuint w to an output data type *)
+   exist not_implicit_width (Fuint w) I.
 
-Definition output_data_type : Type :=
-   (* output connectors do not need to store that widths are implicit *)
-   { x : input_data_type | not_implicit_width x }.
+Definition Freset_exp : fgtyp_explicit :=
+   (* convert Freset to an output data type *)
+   exist not_implicit_width Freset I.
 
-(* equality of output_data_type is decidable *)
-Lemma output_data_type_eq_dec : forall {x y : output_data_type}, {x = y} + {x <> y}.
-Proof.
-intros.
-destruct x, y.
-case: (@input_data_type_eq_dec x x0) => H.
-* left.
-  destruct x, x0 ; try done ; destruct n, n0 ;
-        try reflexivity ;
-        injection H ; intro ; rewrite H0 ; reflexivity.
-* right.
-  destruct x, x0 ; try done ;
-        injection ; destruct n, n0 ;
-        contradict H ; rewrite H ; reflexivity.
-Qed.
-Definition output_data_type_eqn (x y : output_data_type) : bool :=
-match x, y with
-exist x' _, exist y' _ => input_data_type_eqn x' y'
-end.
-Lemma output_data_type_eqP : Equality.axiom output_data_type_eqn.
-Proof.
-rewrite /Equality.axiom /output_data_type_eqn.
-intros.
-destruct x, y.
-destruct x, x0 ; destruct n, n0 ; simpl input_data_type_eqn ;
-     try (apply ReflectF ; discriminate) ;
-     try (apply ReflectT ; reflexivity) ;
-     destruct (n1 == n2) eqn: Hn1n2.
-1, 3: apply ReflectT ;
-      move /eqP : Hn1n2 => Hn1n2 ; rewrite Hn1n2 ; reflexivity.
-all: apply ReflectF ;
-     move /eqP : Hn1n2 => Hn1n2 ; contradict Hn1n2 ;
-     injection Hn1n2 ; intro ; done.
-Qed.
-Canonical output_data_type_eqMixin := EqMixin output_data_type_eqP.
-Canonical output_data_type_eqType := Eval hnf in EqType output_data_type output_data_type_eqMixin.
+Definition Fclock_exp : fgtyp_explicit :=
+   (* convert Fclock to an output data type *)
+   exist not_implicit_width Fclock I.
 
-Definition SInt_o (w : nat) : output_data_type :=
-   (* convert SInt w to an output_data_type *)
-   exist not_implicit_width (SInt w) I.
+Definition Fasyncreset_exp : fgtyp_explicit :=
+   (* convert Fasyncreset to an output data type *)
+   exist not_implicit_width Fasyncreset I.
 
-Definition UInt_o (w : nat) : output_data_type :=
-   (* convert UInt w to an output data type *)
-   exist not_implicit_width (UInt w) I.
-
-Definition Reset_o : output_data_type :=
-   (* convert Reset to an output data type *)
-   exist not_implicit_width Reset I.
-
-Definition Clock_o : output_data_type :=
-   (* convert Clock to an output data type *)
-   exist not_implicit_width Clock I.
-
-Definition AsyncReset_o : output_data_type :=
-   (* convert AsyncReset to an output data type *)
-   exist not_implicit_width AsyncReset I.
-
-Definition is_arithmetic (x : input_data_type) : Prop :=
-   match x with SInt _ | UInt _ => True
+Definition is_arithmetic (x : fgtyp) : Prop :=
+   match x with Fsint _ | Fuint _ => True
               | _ => False end.
 
 Definition arithmetic_data_type : Type :=
    (* data type for arithmetic operations (mainly primitive operations):
-      only SInt and UInt are allowed *)
-   { x : input_data_type | is_arithmetic x }.
+      only Fsint and Fuint are allowed *)
+   { x : fgtyp | is_arithmetic x }.
 
-Definition SInt_a (w : nat) : arithmetic_data_type :=
-   (* convert SInt w to an arithmetic_data_type *)
-   exist is_arithmetic (SInt w) I.
+Definition Fsint_a (w : nat) : arithmetic_data_type :=
+   (* convert Fsint w to an arithmetic_data_type *)
+   exist is_arithmetic (Fsint w) I.
 
-Definition UInt_a (w : nat) : arithmetic_data_type :=
-   (* convert UInt w to an arithmetic_data_type *)
-   exist is_arithmetic (UInt w) I.
+Definition Fuint_a (w : nat) : arithmetic_data_type :=
+   (* convert Fuint w to an arithmetic_data_type *)
+   exist is_arithmetic (Fuint w) I.
 
 (* equality of arithmetic_data_type is decidable *)
 Lemma arithmetic_data_type_eq_dec : forall {x y : arithmetic_data_type}, {x = y} + {x <> y}.
 Proof.
 intros.
 destruct x, y.
-case: (@input_data_type_eq_dec x x0) => H.
+case: (@fgtyp_eq_dec x x0) => H.
 * left.
   destruct x, x0 ; try done ; destruct i, i0 ;
         injection H ; intro ; rewrite H0 ; reflexivity.
@@ -149,11 +61,11 @@ case: (@input_data_type_eq_dec x x0) => H.
 Qed.
 Definition arithmetic_data_type_eqn (x y : arithmetic_data_type) : bool :=
 match x, y with
-exist x' _, exist y' _ => input_data_type_eqn x' y'
+exist x' _, exist y' _ => fgtyp_eqn x' y'
 end.
 Lemma arithmetic_data_type_eqP : Equality.axiom arithmetic_data_type_eqn.
 Proof.
-rewrite /Equality.axiom /output_data_type_eqn.
+rewrite /Equality.axiom /fgtyp_explicit_eqn.
 intros.
 destruct x, y.
 destruct x, x0 ; destruct i, i0 ; simpl arithmetic_data_type_eqn ;
@@ -171,17 +83,17 @@ Canonical arithmetic_data_type_eqType := Eval hnf in EqType arithmetic_data_type
 
 Inductive vertex_type :=
    (* what kind of vertices can be in the module graph *)
-   OutPort : input_data_type (* within the module there is only an input
+   OutPort : fgtyp (* within the module there is only an input
                                 (the output goes to some place outside the module) *) -> vertex_type |
-   InPort : output_data_type -> vertex_type | (* main module only at present *)
+   InPort : fgtyp_explicit -> vertex_type | (* main module only at present *)
    Constant : arithmetic_data_type -> bits (* value of the constant *) -> vertex_type |
    (* register, wire etc. *)
 
-   Cast_UInt : output_data_type -> vertex_type |
-   Cast_SInt : output_data_type -> vertex_type |
-   Cast_Clock : output_data_type (* must be a 1-bit data type *) -> vertex_type |
-   (*Cast_Reset : output_data_type -> vertex_type |*)
-   Cast_Async : output_data_type (* must be a 1-bit data type *) -> vertex_type |
+   Cast_UInt : fgtyp_explicit -> vertex_type |
+   Cast_SInt : fgtyp_explicit -> vertex_type |
+   Cast_Clock : fgtyp_explicit (* must be a 1-bit data type *) -> vertex_type |
+   (*Cast_Reset : fgtyp_explicit -> vertex_type |*)
+   Cast_Async : fgtyp_explicit (* must be a 1-bit data type *) -> vertex_type |
 
    Unop_pad : nat -> arithmetic_data_type -> vertex_type |
    Unop_shl : nat -> arithmetic_data_type -> vertex_type |
@@ -212,21 +124,21 @@ Inductive vertex_type :=
    Binop_or : arithmetic_data_type -> vertex_type |
    Binop_xor : arithmetic_data_type -> vertex_type |
    Binop_cat : arithmetic_data_type -> nat -> vertex_type |
-   Invalid : output_data_type(* unknow *) -> vertex_type |
-   (*Reference : input_data_type -> vertex_type |*)
+   Invalid : fgtyp_explicit(* unknow *) -> vertex_type |
+   (*Reference : fgtyp -> vertex_type |*)
    
-   Register : input_data_type -> vertex_type |
-   Wire : input_data_type -> vertex_type |
+   Register : fgtyp -> vertex_type |
+   Wire : fgtyp -> vertex_type |
    (*memory : ?
    inst : ?*)
-   Node : input_data_type -> vertex_type |
+   Node : fgtyp -> vertex_type |
 
-   Mux : output_data_type (* data type of the input connectors *) -> vertex_type
+   Mux : fgtyp_explicit (* data type of the input connectors *) -> vertex_type
    (* actually, more vertex types for every primitive operation *).
 
 (* equality of vertex_type is decidable *)
 Lemma vertex_type_eq_dec : forall {x y : vertex_type}, {x = y} + {x <> y}.
-Proof.  decide equality ; try apply input_data_type_eq_dec ; try apply output_data_type_eq_dec ; try apply arithmetic_data_type_eq_dec ; apply Nat.eq_dec.  Qed.
+Proof.  decide equality ; try apply fgtyp_eq_dec ; try apply fgtyp_explicit_eq_dec ; try apply arithmetic_data_type_eq_dec ; apply Nat.eq_dec.  Qed.
 Definition vertex_type_eqn (x y : vertex_type) : bool :=
 match x, y with
 | OutPort i, OutPort j
@@ -312,7 +224,7 @@ Qed.
 Canonical vertex_type_eqMixin := EqMixin vertex_type_eqP.
 Canonical vertex_type_eqType := Eval hnf in EqType vertex_type vertex_type_eqMixin.
 
-Definition  input_connectors (v : vertex_type) : seq input_data_type :=
+Definition  input_connectors (v : vertex_type) : seq fgtyp :=
    (* calculates the list of data types of input connectors of a vertex.
       It should be a list because the function of different input connectors can be different
       (for example with the multiplexer). *)
@@ -359,148 +271,148 @@ Definition  input_connectors (v : vertex_type) : seq input_data_type :=
    | Binop_and (exist it _)
    | Binop_or (exist it _)
    | Binop_xor (exist it _) => [:: it; it]
-   | Binop_mul (exist (UInt n1) _) n2 
-   | Binop_cat (exist (UInt n1) _) n2 
-   | Binop_rem (exist (UInt n1) _) n2 => [:: (UInt n1); (UInt n2)]
-   | Binop_mul (exist (SInt n1) _) n2 
-   | Binop_cat (exist (SInt n1) _) n2 
-   | Binop_rem (exist (SInt n1) _) n2 => [:: (SInt n1); (SInt n2)]
-   (*| Multiplier (exist (SInt w) _) n => [:: SInt w ; SInt n]
-   | Multiplier (exist (UInt w) _) n => [:: UInt w ; UInt n]
-   | Multiplier (exist _ p) _ => False_rect (seq input_data_type) p *)
+   | Binop_mul (exist (Fuint n1) _) n2 
+   | Binop_cat (exist (Fuint n1) _) n2 
+   | Binop_rem (exist (Fuint n1) _) n2 => [:: (Fuint n1); (Fuint n2)]
+   | Binop_mul (exist (Fsint n1) _) n2 
+   | Binop_cat (exist (Fsint n1) _) n2 
+   | Binop_rem (exist (Fsint n1) _) n2 => [:: (Fsint n1); (Fsint n2)]
+   (*| Multiplier (exist (Fsint w) _) n => [:: Fsint w ; Fsint n]
+   | Multiplier (exist (Fuint w) _) n => [:: Fuint w ; Fuint n]
+   | Multiplier (exist _ p) _ => False_rect (seq fgtyp) p *)
    | Binop_dshl (exist it _) n2
-   | Binop_dshr (exist it _) n2 => [:: it; (UInt n2)]
+   | Binop_dshr (exist it _) n2 => [:: it; (Fuint n2)]
 
-   | Mux (exist it _) => [:: UInt 1 ; it ; it]
+   | Mux (exist it _) => [:: Fuint 1 ; it ; it]
    | _ => [::]
    end.
 
-Definition output_connectors (v : vertex_type) : seq output_data_type :=
+Definition output_connectors (v : vertex_type) : seq fgtyp_explicit :=
 (* a list of types of the output connectors of a vertex of type v *)
    match v with
    | OutPort _ => [::] (* An OutPort has no output connector because the data is sent to somewhere outside the module *)
-   (*| InPort (SInt_implicit w) => [:: SInt_o w]
-   | InPort (UInt_implicit w) => [:: UInt_o w]
-   | InPort it => [:: exist not_implicit_width it I] (* convert to output_data_type *)
+   (*| InPort (Fsint_implicit w) => [:: Fsint_exp w]
+   | InPort (Fuint_implicit w) => [:: Fuint_exp w]
+   | InPort it => [:: exist not_implicit_width it I] (* convert to fgtyp_explicit *)
    *)
    | InPort it => [:: it]
-   | Constant (exist (SInt w) _) => [:: SInt_o w]
-   | Constant (exist (UInt w) _) => [:: UInt_o w]
-   | Constant (exist _ p) => False_rect (seq output_data_type) p (* p is a proof of False, so this cannot happen in reality *)
+   | Constant (exist (Fsint w) _) => [:: Fsint_exp w]
+   | Constant (exist (Fuint w) _) => [:: Fuint_exp w]
+   | Constant (exist _ p) => False_rect (seq fgtyp_explicit) p (* p is a proof of False, so this cannot happen in reality *)
 
-   | Cast_UInt (exist (UInt w) _)
-   | Cast_UInt (exist (SInt w) _) => [:: UInt_o w]
-   | Cast_UInt (exist Clock _)
-   | Cast_UInt (exist Reset _)
-   | Cast_UInt (exist AsyncReset _) => [:: UInt_o 1]
-   | Cast_UInt (exist _ p) => False_rect (seq output_data_type) p
-   | Cast_SInt (exist (UInt w) _)
-   | Cast_SInt (exist (SInt w) _) => [:: SInt_o w]
-   | Cast_SInt (exist Clock _)
-   | Cast_SInt (exist Reset _)
-   | Cast_SInt (exist AsyncReset _) => [:: SInt_o 1]
-   | Cast_SInt (exist _ p) => False_rect (seq output_data_type) p
-   | Cast_Clock _ => [:: Clock_o]
-   | Cast_Async _ => [:: AsyncReset_o]
-   | Unop_cvt (exist (UInt w) _) => [:: SInt_o (w+1)]
-   | Unop_cvt (exist (SInt w) _) => [:: SInt_o w]
-   | Unop_cvt (exist _ p) => False_rect (seq output_data_type) p
-   | Unop_neg (exist (UInt w) _) => [:: SInt_o (w+1)]
-   | Unop_neg (exist (SInt w) _) => [:: SInt_o (w+1)]
-   | Unop_neg (exist _ p) => False_rect (seq output_data_type) p
-   | Unop_not (exist (UInt w) _)
-   | Unop_not (exist (SInt w) _) => [:: UInt_o w]
-   | Unop_not (exist _ p) => False_rect (seq output_data_type) p
-   | Binop_and (exist (UInt w) _) 
-   | Binop_or (exist (UInt w) _) 
-   | Binop_xor (exist (UInt w) _)
-   | Binop_and (exist (SInt w) _) 
-   | Binop_or (exist (SInt w) _) 
-   | Binop_xor (exist (SInt w) _) => [:: UInt_o w]
+   | Cast_UInt (exist (Fuint w) _)
+   | Cast_UInt (exist (Fsint w) _) => [:: Fuint_exp w]
+   | Cast_UInt (exist Fclock _)
+   | Cast_UInt (exist Freset _)
+   | Cast_UInt (exist Fasyncreset _) => [:: Fuint_exp 1]
+   | Cast_UInt (exist _ p) => False_rect (seq fgtyp_explicit) p
+   | Cast_SInt (exist (Fuint w) _)
+   | Cast_SInt (exist (Fsint w) _) => [:: Fsint_exp w]
+   | Cast_SInt (exist Fclock _)
+   | Cast_SInt (exist Freset _)
+   | Cast_SInt (exist Fasyncreset _) => [:: Fsint_exp 1]
+   | Cast_SInt (exist _ p) => False_rect (seq fgtyp_explicit) p
+   | Cast_Clock _ => [:: Fclock_exp]
+   | Cast_Async _ => [:: Fasyncreset_exp]
+   | Unop_cvt (exist (Fuint w) _) => [:: Fsint_exp (w+1)]
+   | Unop_cvt (exist (Fsint w) _) => [:: Fsint_exp w]
+   | Unop_cvt (exist _ p) => False_rect (seq fgtyp_explicit) p
+   | Unop_neg (exist (Fuint w) _) => [:: Fsint_exp (w+1)]
+   | Unop_neg (exist (Fsint w) _) => [:: Fsint_exp (w+1)]
+   | Unop_neg (exist _ p) => False_rect (seq fgtyp_explicit) p
+   | Unop_not (exist (Fuint w) _)
+   | Unop_not (exist (Fsint w) _) => [:: Fuint_exp w]
+   | Unop_not (exist _ p) => False_rect (seq fgtyp_explicit) p
+   | Binop_and (exist (Fuint w) _) 
+   | Binop_or (exist (Fuint w) _) 
+   | Binop_xor (exist (Fuint w) _)
+   | Binop_and (exist (Fsint w) _) 
+   | Binop_or (exist (Fsint w) _) 
+   | Binop_xor (exist (Fsint w) _) => [:: Fuint_exp w]
    | Binop_or (exist _ p)
    | Binop_xor (exist _ p)
-   | Binop_and (exist _ p) => False_rect (seq output_data_type) p
+   | Binop_and (exist _ p) => False_rect (seq fgtyp_explicit) p
    | Unop_andr _
    | Unop_orr _
-   | Unop_xorr _ => [:: UInt_o 1]
-   | Binop_add (exist (SInt w) _)
-   | Binop_sub (exist (SInt w) _) => [:: SInt_o (w+1)]
-   | Binop_add (exist (UInt w) _)
-   | Binop_sub (exist (UInt w) _) => [:: UInt_o (w+1)]
+   | Unop_xorr _ => [:: Fuint_exp 1]
+   | Binop_add (exist (Fsint w) _)
+   | Binop_sub (exist (Fsint w) _) => [:: Fsint_exp (w+1)]
+   | Binop_add (exist (Fuint w) _)
+   | Binop_sub (exist (Fuint w) _) => [:: Fuint_exp (w+1)]
    | Binop_add (exist _ p)
-   | Binop_sub (exist _ p) => False_rect (seq output_data_type) p (* p is a proof of False, so this cannot happen in reality *)
-   | Binop_div (exist (SInt w) _) => [:: SInt_o (w+1)]
-   | Binop_div (exist (UInt w) _) => [:: UInt_o (w)]
-   | Binop_div (exist _ p) => False_rect (seq output_data_type) p
-   | Binop_lt (exist (UInt _) _)
-   | Binop_lt (exist (SInt _) _)
-   | Binop_leq (exist (UInt _) _)
-   | Binop_leq (exist (SInt _) _)
-   | Binop_gt (exist (UInt _) _)
-   | Binop_gt (exist (SInt _) _)
-   | Binop_geq (exist (UInt _) _)
-   | Binop_geq (exist (SInt _) _)
-   | Binop_eq (exist (UInt _) _)
-   | Binop_eq (exist (SInt _) _)
-   | Binop_neq (exist (UInt _) _)
-   | Binop_neq (exist (SInt _) _) => [:: UInt_o 1]
+   | Binop_sub (exist _ p) => False_rect (seq fgtyp_explicit) p (* p is a proof of False, so this cannot happen in reality *)
+   | Binop_div (exist (Fsint w) _) => [:: Fsint_exp (w+1)]
+   | Binop_div (exist (Fuint w) _) => [:: Fuint_exp (w)]
+   | Binop_div (exist _ p) => False_rect (seq fgtyp_explicit) p
+   | Binop_lt (exist (Fuint _) _)
+   | Binop_lt (exist (Fsint _) _)
+   | Binop_leq (exist (Fuint _) _)
+   | Binop_leq (exist (Fsint _) _)
+   | Binop_gt (exist (Fuint _) _)
+   | Binop_gt (exist (Fsint _) _)
+   | Binop_geq (exist (Fuint _) _)
+   | Binop_geq (exist (Fsint _) _)
+   | Binop_eq (exist (Fuint _) _)
+   | Binop_eq (exist (Fsint _) _)
+   | Binop_neq (exist (Fuint _) _)
+   | Binop_neq (exist (Fsint _) _) => [:: Fuint_exp 1]
    | Binop_lt (exist _ p)
    | Binop_leq (exist _ p)
    | Binop_gt (exist _ p)
    | Binop_geq (exist _ p)
    | Binop_eq (exist _ p)
-   | Binop_neq (exist _ p) => False_rect (seq output_data_type) p
+   | Binop_neq (exist _ p) => False_rect (seq fgtyp_explicit) p
 
    | Invalid ot => [:: ot]
-   | Register (UInt w) | Register (UInt_implicit w) => [:: UInt_o w]
-   | Register (SInt w) | Register (SInt_implicit w) => [:: SInt_o w]
-   | Register Clock => [:: Clock_o]
-   | Register Reset => [:: Reset_o]
-   | Register AsyncReset => [:: AsyncReset_o]
-   | Wire (UInt w) | Wire (UInt_implicit w) => [:: UInt_o w]
-   | Wire (SInt w) | Wire (SInt_implicit w) => [:: SInt_o w]
-   | Wire Clock => [:: Clock_o]
-   | Wire Reset => [:: Reset_o]
-   | Wire AsyncReset => [:: AsyncReset_o]
-   | Node (UInt w) | Node (UInt_implicit w) => [:: UInt_o w]
-   | Node (SInt w) | Node (SInt_implicit w) => [:: SInt_o w]
-   | Node Clock => [:: Clock_o]
-   | Node Reset => [:: Reset_o]
-   | Node AsyncReset => [:: AsyncReset_o]
+   | Register (Fuint w) | Register (Fuint_implicit w) => [:: Fuint_exp w]
+   | Register (Fsint w) | Register (Fsint_implicit w) => [:: Fsint_exp w]
+   | Register Fclock => [:: Fclock_exp]
+   | Register Freset => [:: Freset_exp]
+   | Register Fasyncreset => [:: Fasyncreset_exp]
+   | Wire (Fuint w) | Wire (Fuint_implicit w) => [:: Fuint_exp w]
+   | Wire (Fsint w) | Wire (Fsint_implicit w) => [:: Fsint_exp w]
+   | Wire Fclock => [:: Fclock_exp]
+   | Wire Freset => [:: Freset_exp]
+   | Wire Fasyncreset => [:: Fasyncreset_exp]
+   | Node (Fuint w) | Node (Fuint_implicit w) => [:: Fuint_exp w]
+   | Node (Fsint w) | Node (Fsint_implicit w) => [:: Fsint_exp w]
+   | Node Fclock => [:: Fclock_exp]
+   | Node Freset => [:: Freset_exp]
+   | Node Fasyncreset => [:: Fasyncreset_exp]
    (* 
    reference it
    memory : ?
    inst : ? *)
 
-   | Binop_mul (exist (UInt n1) _) n2 => [:: UInt_o (n1 + n2)]   
-   | Binop_mul (exist (SInt n1) _) n2 => [:: SInt_o (n1 + n2)]
-   | Binop_cat (exist (UInt n1) _) n2 => [:: UInt_o (n1 + n2)]   
-   | Binop_cat (exist (SInt n1) _) n2 => [:: SInt_o (n1 + n2)]   
-   | Binop_rem (exist (UInt n1) _) n2 => [:: UInt_o (Nat.min n1 n2)]
-   | Binop_rem (exist (SInt n1) _) n2 => [:: SInt_o (Nat.min n1 n2)]
-   | Binop_rem (exist _ p) _ => False_rect (seq output_data_type) p
-   | Binop_dshl (exist (UInt n1) _) n2 => [:: UInt_o (n1 + (Nat.pow 2 n2) -1)] 
-   | Binop_dshl (exist (SInt n1) _) n2 => [:: SInt_o (n1 + (Nat.pow 2 n2) -1)]   
-   | Binop_dshr (exist (UInt n1) _) n2 => [:: UInt_o n1]
-   | Binop_dshr (exist (SInt n1) _) n2 => [:: SInt_o n1]
+   | Binop_mul (exist (Fuint n1) _) n2 => [:: Fuint_exp (n1 + n2)]   
+   | Binop_mul (exist (Fsint n1) _) n2 => [:: Fsint_exp (n1 + n2)]
+   | Binop_cat (exist (Fuint n1) _) n2 => [:: Fuint_exp (n1 + n2)]   
+   | Binop_cat (exist (Fsint n1) _) n2 => [:: Fsint_exp (n1 + n2)]   
+   | Binop_rem (exist (Fuint n1) _) n2 => [:: Fuint_exp (Nat.min n1 n2)]
+   | Binop_rem (exist (Fsint n1) _) n2 => [:: Fsint_exp (Nat.min n1 n2)]
+   | Binop_rem (exist _ p) _ => False_rect (seq fgtyp_explicit) p
+   | Binop_dshl (exist (Fuint n1) _) n2 => [:: Fuint_exp (n1 + (Nat.pow 2 n2) -1)] 
+   | Binop_dshl (exist (Fsint n1) _) n2 => [:: Fsint_exp (n1 + (Nat.pow 2 n2) -1)]   
+   | Binop_dshr (exist (Fuint n1) _) n2 => [:: Fuint_exp n1]
+   | Binop_dshr (exist (Fsint n1) _) n2 => [:: Fsint_exp n1]
    | Binop_cat (exist _ p) _
    | Binop_dshl (exist _ p) _
    | Binop_dshr (exist _ p) _
-   | Binop_mul (exist _ p) _ => False_rect (seq output_data_type) p
-   | Unop_pad n (exist (UInt n1) _) => [:: UInt_o (Nat.max n n1)]   
-   | Unop_pad n (exist (SInt n1) _) => [:: SInt_o (Nat.max n n1)]   
-   | Unop_pad _ (exist _ p) => False_rect (seq output_data_type) p
-   | Unop_shl n (exist (UInt n1) _) => [:: UInt_o (n + n1)] 
-   | Unop_shl n (exist (SInt n1) _) => [:: SInt_o (n + n1)]   
-   | Unop_shl _ (exist _ p) => False_rect (seq output_data_type) p
-   | Unop_shr n (exist (UInt n1) _) => [:: UInt_o (Nat.max (n1 - n) 1)] 
-   | Unop_shr n (exist (SInt n1) _) => [:: SInt_o (Nat.max (n1 - n) 1)] 
-   | Unop_shr _ (exist _ p) => False_rect (seq output_data_type) p
-   | Unop_bits hi lo (exist it _) => [:: UInt_o (hi - lo + 1)]
-   | Unop_head n (exist it _) => [:: UInt_o n] 
-   | Unop_tail n (exist (UInt n1) _) => [:: UInt_o (n1 - n)]
-   | Unop_tail n (exist (SInt n1) _) => [:: UInt_o (n1 - n)]
-   | Unop_tail _ (exist _ p) => False_rect (seq output_data_type) p
+   | Binop_mul (exist _ p) _ => False_rect (seq fgtyp_explicit) p
+   | Unop_pad n (exist (Fuint n1) _) => [:: Fuint_exp (Nat.max n n1)]   
+   | Unop_pad n (exist (Fsint n1) _) => [:: Fsint_exp (Nat.max n n1)]   
+   | Unop_pad _ (exist _ p) => False_rect (seq fgtyp_explicit) p
+   | Unop_shl n (exist (Fuint n1) _) => [:: Fuint_exp (n + n1)] 
+   | Unop_shl n (exist (Fsint n1) _) => [:: Fsint_exp (n + n1)]   
+   | Unop_shl _ (exist _ p) => False_rect (seq fgtyp_explicit) p
+   | Unop_shr n (exist (Fuint n1) _) => [:: Fuint_exp (Nat.max (n1 - n) 1)] 
+   | Unop_shr n (exist (Fsint n1) _) => [:: Fsint_exp (Nat.max (n1 - n) 1)] 
+   | Unop_shr _ (exist _ p) => False_rect (seq fgtyp_explicit) p
+   | Unop_bits hi lo (exist it _) => [:: Fuint_exp (hi - lo + 1)]
+   | Unop_head n (exist it _) => [:: Fuint_exp n] 
+   | Unop_tail n (exist (Fuint n1) _) => [:: Fuint_exp (n1 - n)]
+   | Unop_tail n (exist (Fsint n1) _) => [:: Fuint_exp (n1 - n)]
+   | Unop_tail _ (exist _ p) => False_rect (seq fgtyp_explicit) p
 
    | Mux ot => [:: ot]
    end.
@@ -615,19 +527,19 @@ Definition output_connectors_of_module_graph (V : module_graph_vertex_set_p.env)
    (* This is a type of pairs, where the first is an element of a module_graph_vertices set,
       and the second of the pair is a natural number that is < than the number of output connectors of that element. *)
 
-Definition output_connector_type (V : module_graph_vertex_set_p.env) (oc : output_connectors_of_module_graph V) : output_data_type.
+Definition output_connector_type (V : module_graph_vertex_set_p.env) (oc : output_connectors_of_module_graph V) : fgtyp_explicit.
 destruct oc as [x p].
 destruct (module_graph_vertex_set_p.find (fst x) V) as [elt|].
-clear -x elt ; exact (nth Reset_o (output_connectors elt) (snd x)).
-clear -p ; exact (False_rect output_data_type p).
+clear -x elt ; exact (nth Freset_exp (output_connectors elt) (snd x)).
+clear -p ; exact (False_rect fgtyp_explicit p).
 Defined.
 
 Inductive connection_tree (V: module_graph_vertex_set_p.env) :=
    Invalidated | Not_connected |
    Leaf : (output_connectors_of_module_graph V) -> connection_tree V |
    Choice : {cond : output_connectors_of_module_graph V |
-                    output_connector_type V cond = UInt_o 1 }
-                    (* the type of cond needs to be UInt_o 1 *)
+                    output_connector_type V cond = Fuint_exp 1 }
+                    (* the type of cond needs to be Fuint_exp 1 *)
             -> connection_tree V -> connection_tree V -> connection_tree V.
 
 Definition input_connectors_of_module_graph (V : module_graph_vertex_set_p.env) : Type :=
@@ -637,11 +549,11 @@ Definition input_connectors_of_module_graph (V : module_graph_vertex_set_p.env) 
    (* This is a set containing pairs, where the first is an element of a module_graph_vertices set,
       and the second of the pair is a natural number that is < than the number of input connectors of that element. *)
 
-Definition input_connector_type (V : module_graph_vertex_set_p.env) (ic : input_connectors_of_module_graph V) : input_data_type.
+Definition input_connector_type (V : module_graph_vertex_set_p.env) (ic : input_connectors_of_module_graph V) : fgtyp.
 destruct ic as [x p].
 destruct (module_graph_vertex_set_p.find (fst x) V) as [elt|].
-clear -x elt ; exact (nth Reset (input_connectors elt) (snd x)).
-clear -p ; exact (False_rect input_data_type p).
+clear -x elt ; exact (nth Freset (input_connectors elt) (snd x)).
+clear -p ; exact (False_rect fgtyp p).
 Defined.
 
 Definition module_graph_connection_trees (V: module_graph_vertex_set_p.env): Type :=
@@ -653,23 +565,7 @@ for every input connector of every module_graph_vertex. *)
    { V : module_graph_vertex_set_p.env & module_graph_connection_trees V }.
 
 (* module_graph_vertex_set_p : pair identifier -> vertex_type *)
-(* 
-  Inductive fgtyp : Set :=
-    Fuint : nat -> fgtyp
-  | Fsint : nat -> fgtyp
-  | Fclock
-  | Freset (* HiFIRRTL only *)
-  | Fasyncreset.
-
-  Inductive ftype : Type :=
-   | Gtyp : fgtyp -> ftype
-   | Atyp : ftype -> nat -> ftype
-   | Btyp : ffield -> ftype
-
-   with ffield : Type :=
-   | Fnil : ffield
-   | Fflips : var -> fflip -> ftype -> ffield -> ffield.
-
+(*
 Definition type_of_cmpnttyp ct :=
     match ct with
     | Aggr_typ t => t
@@ -678,42 +574,34 @@ Definition type_of_cmpnttyp ct :=
     | Unknown_typ => Gtyp (Fuint 0)
     end. *)
 
-Inductive vtype : Type :=
-   | vGtyp : input_data_type -> vtype
-   | vAtyp : vtype -> nat -> vtype
-   | vBtyp : vfield -> vtype 
-   with vfield : Type :=
-   | vFnil : vfield
-   | vFflips : pvar -> fflip -> vtype -> vfield -> vfield.
-
-(*Definition ftype2output_data_type (ft : ftype) : output_data_type :=
+(*Definition ftype2fgtyp_explicit (ft : ftype) : fgtyp_explicit :=
    match ft with
-   | Gtyp (Fuint n) => UInt_o n 
-   | Gtyp (Fsint n) => SInt_o n 
-   | Gtyp Fclock => Clock_o
-   | Gtyp Freset => Reset_o
-   | Gtyp Fasyncreset => AsyncReset_o
-   | _ => UInt_o 0
+   | Gtyp (Fuint n) => Fuint_exp n 
+   | Gtyp (Fsint n) => Fsint_exp n 
+   | Gtyp Fclock => Fclock_exp
+   | Gtyp Freset => Freset_exp
+   | Gtyp Fasyncreset => Fasyncreset_exp
+   | _ => Fuint_exp 0
    end.
 
-Definition ftype2input_data_type (ft : ftype) : input_data_type :=
+Definition ftype2fgtyp (ft : ftype) : fgtyp :=
    match ft with
-   | Gtyp (Fuint 0) => UInt_implicit ?
-   | Gtyp (Fuint n) => UInt n 
-   | Gtyp (Fsint n) => SInt n 
-   | Gtyp Fclock => Clock
-   | Gtyp Freset => Reset
-   | Gtyp Fasyncreset => AsyncReset
-   | _ => UInt 0
+   | Gtyp (Fuint 0) => Fuint_implicit ?
+   | Gtyp (Fuint n) => Fuint n 
+   | Gtyp (Fsint n) => Fsint n 
+   | Gtyp Fclock => Fclock
+   | Gtyp Freset => Freset
+   | Gtyp Fasyncreset => Fasyncreset
+   | _ => Fuint 0
    end.
 *)
 (*
 Inductive hfport : Type :=
-| Finput : pvar -> vtype -> hfport
-| Foutput : pvar -> vtype -> hfport.
+| Finput : pvar -> ftype -> hfport
+| Foutput : pvar -> ftype -> hfport.
 
 Inductive hfexpr : Type :=
-| Econst : input_data_type -> bits -> hfexpr
+| Econst : fgtyp -> bits -> hfexpr
 | Ecast : ucast -> hfexpr -> hfexpr
 | Eprim_unop : eunop -> hfexpr -> hfexpr
 | Eprim_binop : ebinop -> hfexpr -> hfexpr -> hfexpr
@@ -726,28 +614,28 @@ with href : Type :=
 | Esubaccess : href -> hfexpr -> href (* HiFirrtl *)
 .*)
 
-Fixpoint list_repeat_fn (f : list input_data_type -> list input_data_type) (n : nat) (l : list input_data_type) : list input_data_type :=
+Fixpoint list_repeat_fn (f : list fgtyp -> list fgtyp) (n : nat) (l : list fgtyp) : list fgtyp :=
    (* Applies function f n times to list l *)
    match n with
    | 0 => l
    | S m => list_repeat_fn f m (f l)
    end.
 
-Fixpoint vtype_list (ft : vtype) (l : list input_data_type) : list input_data_type :=
+Fixpoint vtype_list (ft : ftype) (l : list fgtyp) : list fgtyp :=
    (* appends to list l the ground type elements of type ft *)
    match ft with
-   | vGtyp t => rcons l t
-   | vAtyp t n => list_repeat_fn (vtype_list t) n l
-   | vBtyp b => vtype_list_btyp b l
+   | Gtyp t => rcons l t
+   | Atyp t n => list_repeat_fn (vtype_list t) n l
+   | Btyp b => vtype_list_btyp b l
    end
-   with vtype_list_btyp (b : vfield) (l : list input_data_type) : list input_data_type :=
+   with vtype_list_btyp (b : ffield) (l : list fgtyp) : list fgtyp :=
    match b with
-   | vFnil => l
-   | vFflips v fl t fs => vtype_list_btyp fs (vtype_list t l)
+   | Fnil => l
+   | Fflips v fl t fs => vtype_list_btyp fs (vtype_list t l)
    end.
 
-Lemma vtype_list_cat : forall (ft : vtype) (l : list input_data_type), vtype_list ft l = l ++ vtype_list ft [::]
-with vtype_list_btyp_cat : forall (b : vfield) (l : list input_data_type), vtype_list_btyp b l = l ++ vtype_list_btyp b [::].
+Lemma vtype_list_cat : forall (ft : ftype) (l : list fgtyp), vtype_list ft l = l ++ vtype_list ft [::]
+with vtype_list_btyp_cat : forall (b : ffield) (l : list fgtyp), vtype_list_btyp b l = l ++ vtype_list_btyp b [::].
 Proof.
 * clear vtype_list_cat.
   induction ft.
@@ -768,8 +656,8 @@ Proof.
 Qed.
 
 (*
-Lemma vtype_list_size : forall ft : vtype, size (vtype_list ft [::]) = size_of_ftype ft
-with vtype_list_btyp_size : forall ff : vfield, size (vtype_list_btyp ff) = size_of_fields ff.
+Lemma vtype_list_size : forall ft : ftype, size (vtype_list ft [::]) = size_of_ftype ft
+with vtype_list_btyp_size : forall ff : ffield, size (vtype_list_btyp ff) = size_of_fields ff.
 Proof.
 * clear vtype_list_size.
   induction t.
@@ -787,34 +675,34 @@ Proof.
 Qed.
 *)
 
-Definition data_type_in2out (dt : input_data_type) : output_data_type :=
+Definition data_type_in2out (dt : fgtyp) : fgtyp_explicit :=
    match dt with
-   | SInt n => SInt_o n 
-   | UInt n => UInt_o n 
-   | Reset => Reset_o
-   | AsyncReset => AsyncReset_o
-   | Clock => Clock_o
-   | SInt_implicit _ 
-   | UInt_implicit _ => UInt_o 0
+   | Fsint n => Fsint_exp n 
+   | Fuint n => Fuint_exp n 
+   | Freset => Freset_exp
+   | Fasyncreset => Fasyncreset_exp
+   | Fclock => Fclock_exp
+   | Fsint_implicit _ 
+   | Fuint_implicit _ => Fuint_exp 0
    end.
 
-Definition data_type_out2in (dt : output_data_type) : input_data_type :=
+Definition data_type_out2in (dt : fgtyp_explicit) : fgtyp :=
    match dt with
-   | exist (UInt w) _ => UInt 0
-   | _ => UInt 0
+   | exist (Fuint w) _ => Fuint 0
+   | _ => Fuint 0
    end.
 
-Definition data_type_out2arith (dt : output_data_type) : arithmetic_data_type :=
+Definition data_type_out2arith (dt : fgtyp_explicit) : arithmetic_data_type :=
    match dt with
-   | exist (SInt w) _ => SInt_a w
-   | exist (UInt w) _ => UInt_a w
-   | exist (Reset) _
-   | exist (AsyncReset) _
-   | exist (Clock) _ 
-   | _ => UInt_a 0
+   | exist (Fsint w) _ => Fsint_a w
+   | exist (Fuint w) _ => Fuint_a w
+   | exist (Freset) _
+   | exist (Fasyncreset) _
+   | exist (Fclock) _ 
+   | _ => Fuint_a 0
    end.
 
-Fixpoint add_vertex_input (v : N (*pvar match(_,0)从(_,1)开始添加*)) (n : N (*index*)) (l: list input_data_type) (vmap : module_graph_vertex_set_p.env) :=
+Fixpoint add_vertex_input (v : N (*pvar match(_,0)从(_,1)开始添加*)) (n : N (*index*)) (l: list fgtyp) (vmap : module_graph_vertex_set_p.env) :=
    match l with
    | nil => vmap
    | hd :: tl => let ohd := data_type_in2out hd in
@@ -823,7 +711,7 @@ Fixpoint add_vertex_input (v : N (*pvar match(_,0)从(_,1)开始添加*)) (n : N
                  (* 添加 Not_connected *)
    end.
 
-Fixpoint add_vertex_output (v : N) (N : N) (l: list input_data_type) (vmap : module_graph_vertex_set_p.env) :=
+Fixpoint add_vertex_output (v : N) (N : N) (l: list fgtyp) (vmap : module_graph_vertex_set_p.env) :=
    match l with
    | nil => vmap
    | hd :: tl => let nvmap := module_graph_vertex_set_p.add (v, N) (OutPort hd) vmap in
@@ -838,35 +726,35 @@ Definition add_vertex_port (p : hfport) (vmap : module_graph_vertex_set_p.env) :
                         add_vertex_output v 1 vtl vmap 
    end.
 
-(*Fixpoint add_vertex_asuint (v : N) (N : N) (l: list output_data_type) (vmap : module_graph_vertex_set_p.env) :=
+(*Fixpoint add_vertex_asuint (v : N) (N : N) (l: list fgtyp_explicit) (vmap : module_graph_vertex_set_p.env) :=
    match l with
    | nil => vmap
    | hd :: tl => let nvmap := module_graph_vertex_set_p.add (v, N) (Cast_UInt hd) vmap in
                  add_vertex_asuint v (N.add N 1) tl nvmap
    end.
 
-Fixpoint add_vertex_assint (v : N) (N : N) (l: list output_data_type) (vmap : module_graph_vertex_set_p.env) :=
+Fixpoint add_vertex_assint (v : N) (N : N) (l: list fgtyp_explicit) (vmap : module_graph_vertex_set_p.env) :=
    match l with
    | nil => vmap
    | hd :: tl => let nvmap := module_graph_vertex_set_p.add (v, N) (Cast_SInt hd) vmap in
                  add_vertex_assint v (N.add N 1) tl nvmap
    end.
 
-Fixpoint add_vertex_asclock (v : N) (N : N) (l: list output_data_type) (vmap : module_graph_vertex_set_p.env) :=
+Fixpoint add_vertex_asclock (v : N) (N : N) (l: list fgtyp_explicit) (vmap : module_graph_vertex_set_p.env) :=
    match l with
    | nil => vmap
    | hd :: tl => let nvmap := module_graph_vertex_set_p.add (v, N) (Cast_Clock hd) vmap in
                  add_vertex_asclock v (N.add N 1) tl nvmap
    end.
 
-Fixpoint add_vertex_asasync (v : N) (N : N) (l: list output_data_type) (vmap : module_graph_vertex_set_p.env) :=
+Fixpoint add_vertex_asasync (v : N) (N : N) (l: list fgtyp_explicit) (vmap : module_graph_vertex_set_p.env) :=
    match l with
    | nil => vmap
    | hd :: tl => let nvmap := module_graph_vertex_set_p.add (v, N) (Cast_Async hd) vmap in
                  add_vertex_asasync v (N.add N 1) tl nvmap
    end.*)
 
-Fixpoint list_inputs (p : N) (n : N) (counts : nat) (l : list input_data_type) (vmap : module_graph_vertex_set_p.env) : list input_data_type :=
+Fixpoint list_inputs (p : N) (n : N) (counts : nat) (l : list fgtyp) (vmap : module_graph_vertex_set_p.env) : list fgtyp :=
    match counts with 
    | 0 => l
    | S m => match (module_graph_vertex_set_p.find (p, N.of_nat (n - m)) vmap) with
@@ -875,7 +763,7 @@ Fixpoint list_inputs (p : N) (n : N) (counts : nat) (l : list input_data_type) (
             end
    end. (* return 从(p,1)到(p,n)的input_connectors *)
 
-Fixpoint list_outputs (p : N) (n : N) (counts : nat) (l : list output_data_type) (vmap : module_graph_vertex_set_p.env) : list output_data_type :=
+Fixpoint list_outputs (p : N) (n : N) (counts : nat) (l : list fgtyp_explicit) (vmap : module_graph_vertex_set_p.env) : list fgtyp_explicit :=
    match counts with 
    | 0 => l
    | S m => match (module_graph_vertex_set_p.find (p, N.of_nat (n - m)) vmap) with
@@ -884,40 +772,40 @@ Fixpoint list_outputs (p : N) (n : N) (counts : nat) (l : list output_data_type)
             end
    end. (* return 从(p,1)到(p,n)的output_connectors *)
 
-Definition add_vertex_cast (c : ucast) (l: list output_data_type) (vmap : module_graph_vertex_set_p.env) : vertex_type :=
+Definition add_vertex_cast (c : ucast) (l: list fgtyp_explicit) (vmap : module_graph_vertex_set_p.env) : vertex_type :=
    match c with
-   | AsUInt => Cast_UInt (List.hd (UInt_o 0) l)
-   | AsSInt => Cast_SInt (List.hd (SInt_o 0) l)
-   | AsClock => Cast_Clock (List.hd Clock_o l)
-   | AsAsync => Cast_Async (List.hd AsyncReset_o l)
-   | AsReset => Cast_Async (List.hd AsyncReset_o l)(*? spec 中没有了*)
+   | AsUInt => Cast_UInt (List.hd (Fuint_exp 0) l)
+   | AsSInt => Cast_SInt (List.hd (Fsint_exp 0) l)
+   | AsClock => Cast_Clock (List.hd Fclock_exp l)
+   | AsAsync => Cast_Async (List.hd Fasyncreset_exp l)
+   | AsReset => Cast_Async (List.hd Fasyncreset_exp l)(*? spec 中没有了*)
    end.
 
-Definition add_vertex_unop (u : eunop) (l: list output_data_type) (vmap : module_graph_vertex_set_p.env) :=
+Definition add_vertex_unop (u : eunop) (l: list fgtyp_explicit) (vmap : module_graph_vertex_set_p.env) :=
    match u with
-  | Upad n => Unop_pad n (data_type_out2arith (List.hd (UInt_o 0) l))
-  | Ushl n => Unop_shl n (data_type_out2arith (List.hd (UInt_o 0) l))
-  | Ushr n => Unop_shr n (data_type_out2arith (List.hd (UInt_o 0) l))
-  | Ucvt => Unop_cvt (data_type_out2arith (List.hd (UInt_o 0) l))
-  | Uneg => Unop_neg (data_type_out2arith (List.hd (UInt_o 0) l))
-  | Unot => Unop_not (data_type_out2arith (List.hd (UInt_o 0) l))
-  | Uandr => Unop_andr (data_type_out2arith (List.hd (UInt_o 0) l))
-  | Uorr => Unop_orr (data_type_out2arith (List.hd (UInt_o 0) l))
-  | Uxorr => Unop_xorr (data_type_out2arith (List.hd (UInt_o 0) l))
-  | Uextr hi lo => Unop_bits hi lo (data_type_out2arith (List.hd (UInt_o 0) l))
-  | Uhead n => Unop_head n (data_type_out2arith (List.hd (UInt_o 0) l))
-  | Utail n => Unop_tail n (data_type_out2arith (List.hd (UInt_o 0) l))
+  | Upad n => Unop_pad n (data_type_out2arith (List.hd (Fuint_exp 0) l))
+  | Ushl n => Unop_shl n (data_type_out2arith (List.hd (Fuint_exp 0) l))
+  | Ushr n => Unop_shr n (data_type_out2arith (List.hd (Fuint_exp 0) l))
+  | Ucvt => Unop_cvt (data_type_out2arith (List.hd (Fuint_exp 0) l))
+  | Uneg => Unop_neg (data_type_out2arith (List.hd (Fuint_exp 0) l))
+  | Unot => Unop_not (data_type_out2arith (List.hd (Fuint_exp 0) l))
+  | Uandr => Unop_andr (data_type_out2arith (List.hd (Fuint_exp 0) l))
+  | Uorr => Unop_orr (data_type_out2arith (List.hd (Fuint_exp 0) l))
+  | Uxorr => Unop_xorr (data_type_out2arith (List.hd (Fuint_exp 0) l))
+  | Uextr hi lo => Unop_bits hi lo (data_type_out2arith (List.hd (Fuint_exp 0) l))
+  | Uhead n => Unop_head n (data_type_out2arith (List.hd (Fuint_exp 0) l))
+  | Utail n => Unop_tail n (data_type_out2arith (List.hd (Fuint_exp 0) l))
    end.
 
-Definition add_vertex_binop (b : ebinop) (l1: list output_data_type) (l2: list output_data_type) (vmap : module_graph_vertex_set_p.env) :=
+Definition add_vertex_binop (b : ebinop) (l1: list fgtyp_explicit) (l2: list fgtyp_explicit) (vmap : module_graph_vertex_set_p.env) :=
    match b with
-   | Badd => match (data_type_out2arith (List.hd (UInt_o 0) l1)), (data_type_out2arith (List.hd (UInt_o 0) l2)) with
-             | exist (SInt w1) _, exist (SInt w2) _ =>
-             | exist (UInt w1) _, exist (UInt w2) _ =>
+   | Badd => match (data_type_out2arith (List.hd (Fuint_exp 0) l1)), (data_type_out2arith (List.hd (Fuint_exp 0) l2)) with
+             | exist (Fsint w1) _, exist (Fsint w2) _ =>
+             | exist (Fuint w1) _, exist (Fuint w2) _ =>
              | =>
              end
    
-   Binop_add ( (List.hd (UInt_o 0) l1))
+   Binop_add ( (List.hd (Fuint_exp 0) l1))
    | Bsub => 
    | Bdiv => 
    | Brem => 
@@ -931,7 +819,7 @@ Definition add_vertex_binop (b : ebinop) (l1: list output_data_type) (l2: list o
    | Bdshr => 
    end.
 
-Fixpoint list_lhs_expr (e : hfexpr) (vmap : module_graph_vertex_set_p.env) (cs : list input_connectors) (ts : list input_data_type) : list input_connectors * list input_data_type :=
+Fixpoint list_lhs_expr (e : hfexpr) (vmap : module_graph_vertex_set_p.env) (cs : list input_connectors) (ts : list fgtyp) : list input_connectors * list fgtyp :=
    match e with
    | Eref (Eid (p, 0)) => let (keys, _) := List.split (elements vmap) (* list (key*value) *) in
                           let n := List.length (fst (List.split keys)) in
@@ -943,16 +831,16 @@ Fixpoint list_lhs_expr (e : hfexpr) (vmap : module_graph_vertex_set_p.env) (cs :
    | _ => [::]
    end.
 
-Fixpoint list_rhs_expr (e : hfexpr) (vmap : module_graph_vertex_set_p.env) (cs : list output_connectors) (ts : list output_data_type) (n : N) : list output_connectors * list output_data_type * G * N :=
+Fixpoint list_rhs_expr (e : hfexpr) (vmap : module_graph_vertex_set_p.env) (cs : list output_connectors) (ts : list fgtyp_explicit) (n : N) : list output_connectors * list fgtyp_explicit * G * N :=
    match e with
    | Econst t bs => let arith_typ := match t with
-                                    | SInt n => SInt_a n 
-                                    | UInt n => UInt_a n 
-                                    | Reset 
-                                    | AsyncReset 
-                                    | Clock => UInt_a 1
-                                    | SInt_implicit _ => SInt_a (size bs)
-                                    | UInt_implicit _ => UInt_a (size bs)
+                                    | Fsint n => Fsint_a n 
+                                    | Fuint n => Fuint_a n 
+                                    | Freset 
+                                    | Fasyncreset 
+                                    | Fclock => Fuint_a 1
+                                    | Fsint_implicit _ => Fsint_a (size bs)
+                                    | Fuint_implicit _ => Fuint_a (size bs)
                                     end in
                     let nv := Constant arith_typ in 
                     let nvmap := module_graph_vertex_set_p.add (n,N0) nv vmap in
@@ -1044,28 +932,6 @@ Fixpoint remove_t (V : module_graph_vertex_set_p.env) (var : nat) (cnt : nat) : 
    | S cnt' => remove_t (module_graph_vertex_set_p.remove (N.of_nat var, N.of_nat cnt') V) var cnt'
    end.
 
-Definition input_type_conforms_to_ground_type (it : input_data_type) (t : fgtyp) : bool :=
-match it, t with
-| SInt n, Fsint m
-| UInt n, Fuint m => n == m
-| SInt_implicit _, Fsint 0
-| UInt_implicit _, Fuint 0 => true (* not sure whether the width is actually 0 *)
-| Reset, Freset
-| AsyncReset, Fasyncreset
-| Clock, Fclock => true
-| _, _ => false
-end.
-
-Definition output_type_conforms_to_ground_type (ot : output_data_type) (t : fgtyp) : bool :=
-match ot, t with
-| exist (SInt n) _, Fsint m
-| exist (UInt n) _, Fuint m => n == m
-| exist Reset _, Freset
-| exist AsyncReset _, Fasyncreset
-| exist Clock _, Fclock => true
-| _, _ => false
-end.
-
 Fixpoint multi_conjunction_check (n : nat) (f : nat -> bool) : bool :=
    (* returns true if f 0 && f 1 && ... && f (n-1) holds *)
    match n with
@@ -1079,7 +945,7 @@ Fixpoint Sem_inport (t : ftype) (var : nat) (offset : nat) (V : module_graph_ver
       (Non-flipped fields are in-ports, flipped fields are out-ports). *)
    match t with
    | Gtyp t' => match module_graph_vertex_set_p.find (N.of_nat var, N.of_nat offset) V with
-                | Some (InPort it) => input_type_conforms_to_ground_type it t'
+                | Some (InPort it) => it == t'
                 | _ => false
                 end
    | Atyp t' n => multi_conjunction_check n (fun i : nat => Sem_inport t' var (offset + (i * size_of_ftype t')) V)
@@ -1099,7 +965,7 @@ with Sem_outport (t : ftype) (var : nat) (offset : nat) (V : module_graph_vertex
       (Non-flipped fields are out-ports, flipped fields are in-ports). *)
    match t with
    | Gtyp t' => match module_graph_vertex_set_p.find (N.of_nat var, N.of_nat offset) V with
-                | Some (OutPort it) => input_type_conforms_to_ground_type it t'
+                | Some (OutPort it) => it == t'
                 | _ => false
                 end
    | Atyp t' n => multi_conjunction_check n (fun i : nat => Sem_outport t' var (offset + (i * size_of_ftype t')) V)
@@ -1118,7 +984,9 @@ Fixpoint Sem_port (pp : list (hfport VarOrder.T)) (V : module_graph_vertex_set_p
 (* The predicate returns true if the vertex set V conforms to the sequence of ports pp. *)
    match pp with
    | [::] => module_graph_vertex_set_p.is_empty V
-   | (Finput  var t) :: pp' =>    Sem_port pp' (remove_t V var (size_of_ftype t))
+   | (Finput  var t) :: pp' => (* exists V' : module_graph_vertex_set_p.env,
+                                              Sem_port pp' V' && some condition on the difference between V' and V *)
+                                  Sem_port pp' (remove_t V var (size_of_ftype t))
                                && Sem_inport t var 0 V
    | (Foutput var t) :: pp' =>    Sem_port pp' (remove_t V var (size_of_ftype t))
                                && Sem_outport t var 0 V
@@ -1146,7 +1014,7 @@ with Sem_frag_stmt (G_old : module_graph) (s : hfstmt VarOrder.T) (G_new : modul
                         (* The vertices of G_new extend the vertices of G_old by components needed by expr.
                            The connection trees extend the connection trees of G_old as needed by expr, except that
                            G_new contains a connection tree that flows from the output connector of expr to the input connector of ref.
-                           If the types do not match, then the relation is False. (ResetWire <= ClockWire)
+                           If the types do not match, then the relation is False. (FresetWire <= FclockWire)
                            If ref has an implicit width, then the relation only holds if width(ref) >= width(expr). *)
    | Sinvalid ref => (* The vertices are the same;
                         the connection trees are almost the same, except that

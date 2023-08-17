@@ -189,8 +189,8 @@ Module Type TypEnv <: SsrFMap.
   Axiom vtyp_vsize :
     forall {x : SE.t} {e : env} {ty : fgtyp},
       vtyp x e = ty -> vsize x e = sizeof_fgtyp ty.
-  Axiom deftyp_not_implicit :
-    forall (w : nat), deftyp != Fuint_implicit w /\ deftyp != Fsint_implicit w.
+  Axiom deftyp_not_implicit_width :
+    not_implicit_width deftyp.
 End TypEnv.
 
 Module MakeTypEnv (V : SsrOrder) (VM : SsrFMap with Module SE := V) <:
@@ -254,9 +254,9 @@ Module MakeTypEnv (V : SsrOrder) (VM : SsrFMap with Module SE := V) <:
   Lemma vtyp_vsize x e ty : vtyp x e = ty -> vsize x e = sizeof_fgtyp ty.
   Proof. rewrite /vsize /vtyp. move=> ->. reflexivity. Qed.
 
-  Lemma deftyp_not_implicit :
-    forall (n : nat), deftyp != Fuint_implicit n /\ deftyp != Fsint_implicit n.
-  Proof. rewrite /deftyp //. Qed.
+  Lemma deftyp_not_implicit_width :
+    not_implicit_width deftyp.
+  Proof. rewrite /not_implicit_width /deftyp //. Qed.
 
 End MakeTypEnv.
 
