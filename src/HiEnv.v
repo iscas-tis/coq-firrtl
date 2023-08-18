@@ -158,6 +158,9 @@ with make_ffield_explicit (fs: ffield) : ffield_explicit :=
                            end
    end.
 
+Definition explicit_to_ftype (fte : ftype_explicit) : ftype :=
+let (ft, _) := fte in ft.
+
 (* Equality of ftype_explicit is decidable *)
 Lemma ftype_explicit_eq_dec : forall {x y : ftype_explicit}, {x = y} + {x <> y}
 with ffield_explicit_eq_dec : forall {x y : ffield_explicit}, {x = y} + {x <> y}.

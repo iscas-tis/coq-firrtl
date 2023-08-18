@@ -206,7 +206,7 @@ End HiFirrtl.
          | _, _ => false
          end.
 
-  (* type weak equivalence *)
+  (* type weak equivalence -- seems to be removed from the FIRRTL specification
   Fixpoint have_field bs f : bool :=
     match bs with
     | Fflips v fp t bs' => if v == f then true else have_field bs' f
@@ -272,7 +272,7 @@ End HiFirrtl.
     | Atyp t1 n1, Atyp t2 n2 => ftype_weak_equiv t1 t2
     | Btyp bt1, Btyp bt2 => fbtyp_weak_equiv bt1 bt2
     | _, _ => false
-    end. *)
+    end. *) *)
 
 (********************************************************************************)
 
@@ -1237,39 +1237,46 @@ Proof.
   Definition def_ftype := Gtyp (Fuint 0).
 
   (* type of mux expression *)
-  Fixpoint mux_types t1 t2 : ftype :=
-      match t1, t2 with
-      | Gtyp (Fuint w1), Gtyp (Fuint w2) => (Gtyp (Fuint (maxn w1 w2)))
-      | Gtyp (Fsint w1), Gtyp (Fsint w2) => (Gtyp (Fsint (maxn w1 w2)))
-      | Gtyp Fclock, Gtyp Fclock => (Gtyp Fclock)
-      | Gtyp Freset, Gtyp Freset => Gtyp Freset
-      | Gtyp Fasyncreset, Gtyp Fasyncreset => Gtyp Fasyncreset
-      | Atyp t1 n1, Atyp t2 n2 => if ftype_equiv (Atyp t1 n1) (Atyp t2 n2)
-                                  then (Atyp (mux_types t1 t2) n1)
-                                  else def_ftype
-      | Btyp bs1, Btyp bs2 => 
-          if ~~ (fbtyp_equiv bs1 bs2)
-          then def_ftype
-          else
-            match mux_btyps bs1 bs2 with
-                              | Fnil => Btyp Fnil
-                              | t => Btyp t
-                              end
-      | _, _ => def_ftype
+  Fixpoint mux_types' (t1 : ftype) (p1 : ftype_not_implicit_width t1) (t2 : ftype) (p2 : ftype_not_implicit_width t2) : option ftype_explicit :=
+      match t1, p1, t2, p2 with
+      | Gtyp (Fuint w1), _, Gtyp (Fuint w2), _ => Some (exist ftype_not_implicit_width (Gtyp (Fuint (maxn w1 w2))) I)
+      | Gtyp (Fsint w1), _, Gtyp (Fsint w2), _ => Some (exist ftype_not_implicit_width (Gtyp (Fsint (maxn w1 w2))) I)
+      | Gtyp Fclock, _, Gtyp Fclock, _ => Some (exist ftype_not_implicit_width (Gtyp Fclock) I)
+      | Gtyp Freset, _, Gtyp Freset, _ => Some (exist ftype_not_implicit_width (Gtyp Freset) I)
+      | Gtyp Fasyncreset, _, Gtyp Fasyncreset, _ => Some (exist ftype_not_implicit_width (Gtyp Fasyncreset) I)
+      | Atyp t1' n1, p1', Atyp t2' n2, p2' => match @mux_types' t1' p1' t2' p2' with
+                                  | Some (exist t p) => Some (exist ftype_not_implicit_width (Atyp t n1) p)
+                                  | None => None
+                                  end
+      | Btyp bs1, p1', Btyp bs2, p2' =>
+          match @mux_btyps' bs1 p1' bs2 p2' with
+          | Some (exist ff p) => Some (exist ftype_not_implicit_width (Btyp ff) p)
+          | None => None
+          end
+      | _, _, _, _ => None
       end
-  with mux_btyps bs1 bs2 : ffield :=
-         match bs1, bs2 with
-         | Fnil, Fnil => (Fnil)
-         | Fflips v1 Nflip t1 fs1, Fflips v2 Nflip t2 fs2 =>
-           if v1 == v2 then
-             (Fflips v1 Nflip (mux_types t1 t2) (mux_btyps fs1 fs2))
-           else Fnil
-         | Fflips v1 Flipped t1 fs1, Fflips v2 Flipped t2 fs2 =>
-             if v1 == v2 then
-             (Fflips v1 Flipped (mux_types t1 t2) (mux_btyps fs1 fs2))
-           else Fnil
-         | _, _ => Fnil
+  with mux_btyps' (bs1 : ffield) (p1 : ffield_not_implicit_width bs1) (bs2 : ffield) (p2 : ffield_not_implicit_width bs2) : option ffield_explicit :=
+         match bs1, p1, bs2, p2 with
+         | Fnil, _, Fnil, _ => Some (exist ffield_not_implicit_width Fnil I)
+         | Fflips v1 Nflip t1 fs1, p1', Fflips v2 Nflip t2 fs2, p2' =>
+           if v1 == v2 then match @mux_types' t1 (proj1 p1') t2 (proj1 p2'),
+                                  @mux_btyps' fs1 (proj2 p1') fs2 (proj2 p2') with
+                            | Some (exist t p1), Some (exist fs p2) => Some (exist ffield_not_implicit_width (Fflips v1 Nflip t fs) (conj p1 p2))
+                            | _, _ => None
+                            end
+           else None
+         (* mux types must be passive, so Flipped is not allowed *)
+         | _, _, _, _ => None
     end.
+
+  Definition mux_types (t1 : ftype_explicit) (t2 : ftype_explicit) : option ftype_explicit :=
+  match t1, t2 with
+  exist t1' p1', exist t2' p2' => @mux_types' t1' p1' t2' p2'
+  end.
+  Definition mux_btyps (bs1 : ffield_explicit) (bs2 : ffield_explicit) : option ffield_explicit :=
+  match bs1, bs2 with
+  exist ff1 p1, exist ff2 p2 => @mux_btyps' ff1 p1 ff2 p2
+  end.
 
   (* type of ref expressions *)
   Fixpoint type_of_ref r ce : ftype :=
@@ -1316,172 +1323,147 @@ Proof.
     end.
 
   (* type of expression *)
-  Fixpoint type_of_hfexpr (e : hfexpr) (ce : cenv) : ftype :=
+  Fixpoint type_of_hfexpr (e : hfexpr) (ce : cenv) : ftype_explicit :=
     match e with
-    | Econst t bs => Gtyp t
-    | Eref r => type_of_ref r ce
-    | Ecast AsUInt e1 => let t := type_of_hfexpr e1 ce in
-                         match t with
-                         | Gtyp (Fsint w) | Gtyp (Fuint w) => Gtyp (Fuint w)
-                         | Gtyp Fclock => Gtyp (Fuint 1)
-                         | Gtyp Freset => Gtyp (Fuint 1)
-                         | Gtyp Fasyncreset => Gtyp (Fuint 1)
-                         | _ => def_ftype
+    | Econst t bs => match t with
+                     | Fuint_implicit w => exist ftype_not_implicit_width (Gtyp (Fuint w)) I
+                     | Fsint_implicit w => exist ftype_not_implicit_width (Gtyp (Fsint w)) I
+                     | t => exist ftype_not_implicit_width (Gtyp t) I
+                     end
+    | Eref r => make_ftype_explicit (type_of_ref r ce)
+    | Ecast AsUInt e1 => match type_of_hfexpr e1 ce with
+                         | exist (Gtyp (Fsint w)) _ | exist (Gtyp (Fuint w)) _ => exist ftype_not_implicit_width (Gtyp (Fuint w)) I
+                         | exist (Gtyp Fclock) _
+                         | exist (Gtyp Freset) _
+                         | exist (Gtyp Fasyncreset) _ => exist ftype_not_implicit_width (Gtyp (Fuint 1)) I
+                         | _ => exist ftype_not_implicit_width def_ftype I
                          end
-    | Ecast AsSInt e1 => let t := type_of_hfexpr e1 ce in
-                         match t with
-                         | Gtyp (Fsint w) | Gtyp (Fuint w) => Gtyp (Fsint w)
-                         | Gtyp Fclock => Gtyp (Fsint 1)
-                         | Gtyp Freset => Gtyp (Fuint 1)
-                         | Gtyp Fasyncreset => Gtyp (Fuint 1)
-                         | _ => def_ftype
+    | Ecast AsSInt e1 => match type_of_hfexpr e1 ce with
+                         | exist (Gtyp (Fsint w)) _ | exist (Gtyp (Fuint w)) _ => exist ftype_not_implicit_width (Gtyp (Fsint w)) I
+                         | exist (Gtyp Fclock) _
+                         | exist (Gtyp Freset) _
+                         | exist (Gtyp Fasyncreset) _ => exist ftype_not_implicit_width (Gtyp (Fuint 1)) I
+                         | _ => exist ftype_not_implicit_width def_ftype I
                          end
-    | Ecast AsClock e1 => let t := type_of_hfexpr e1 ce in
-                          match t with
-                          | Gtyp _ =>  Gtyp Fclock
-                          | _ => def_ftype
+    | Ecast AsClock e1 => match type_of_hfexpr e1 ce with
+                          | exist (Gtyp _) _ => exist ftype_not_implicit_width (Gtyp Fclock) I
+                          | _ => exist ftype_not_implicit_width def_ftype I
                           end
-    | Ecast AsReset e1 => let t := type_of_hfexpr e1 ce in
-                          match t with
-                          | Gtyp _ =>  Gtyp Freset
-                          | _ => def_ftype
+    | Ecast AsReset e1 => match type_of_hfexpr e1 ce with
+                          | exist (Gtyp _) _ => exist ftype_not_implicit_width (Gtyp Freset) I
+                          | _ => exist ftype_not_implicit_width def_ftype I
                           end
-    | Ecast AsAsync e1 => let t := type_of_hfexpr e1 ce in
-                          match t with
-                          | Gtyp _ =>  Gtyp Fasyncreset
-                          | _ => def_ftype
+    | Ecast AsAsync e1 => match type_of_hfexpr e1 ce  with
+                          | exist (Gtyp _) _ => exist ftype_not_implicit_width (Gtyp Fasyncreset) I
+                          | _ => exist ftype_not_implicit_width def_ftype I
                           end
-    | Eprim_unop (Upad n) e1 => let t := type_of_hfexpr e1 ce in
-                                match t with
-                                | Gtyp (Fsint w) => Gtyp (Fsint (maxn w n))
-                                | Gtyp (Fuint w) => Gtyp (Fuint (maxn w n))
-                                | _ => def_ftype
+    | Eprim_unop (Upad n) e1 => match type_of_hfexpr e1 ce with
+                                | exist (Gtyp (Fsint w)) _ => exist ftype_not_implicit_width (Gtyp (Fsint (maxn w n))) I
+                                | exist (Gtyp (Fuint w)) _ => exist ftype_not_implicit_width (Gtyp (Fuint (maxn w n))) I
+                                | _ => exist ftype_not_implicit_width def_ftype I
                                 end
-    | Eprim_unop (Ushl n) e1 => let t := type_of_hfexpr e1 ce in
-                                match t with
-                                | Gtyp (Fsint w) => Gtyp (Fsint (w + n))
-                                | Gtyp (Fuint w) => Gtyp (Fuint (w + n))
-                                | _ => def_ftype
+    | Eprim_unop (Ushl n) e1 => match type_of_hfexpr e1 ce with
+                                | exist (Gtyp (Fsint w)) _ => exist ftype_not_implicit_width (Gtyp (Fsint (w + n))) I
+                                | exist (Gtyp (Fuint w)) _ => exist ftype_not_implicit_width (Gtyp (Fuint (w + n))) I
+                                | _ => exist ftype_not_implicit_width def_ftype I
                                 end
-    | Eprim_unop (Ushr n) e1 => let t := type_of_hfexpr e1 ce in
-                                match t with
-                                | Gtyp (Fsint w) => if n < w then Gtyp (Fsint (maxn (w - n) 1))
-                                                    else Gtyp (Fuint 1)
-                                | Gtyp (Fuint w) => if n < w then Gtyp (Fuint (maxn (w - n) 1))
-                                                    else Gtyp (Fuint 1)
-                                | _ => def_ftype
+    | Eprim_unop (Ushr n) e1 => match type_of_hfexpr e1 ce with
+                                | exist (Gtyp (Fsint w)) _ => if n < w then exist ftype_not_implicit_width (Gtyp (Fsint (maxn (w - n) 1))) I
+                                                    else exist ftype_not_implicit_width (Gtyp (Fsint 1)) I
+                                | exist (Gtyp (Fuint w)) _ => if n < w then exist ftype_not_implicit_width (Gtyp (Fuint (maxn (w - n) 1))) I
+                                                    else exist ftype_not_implicit_width (Gtyp (Fuint 1)) I
+                                | _ => exist ftype_not_implicit_width def_ftype I
                                 end
-    | Eprim_unop Ucvt e1 => let t := type_of_hfexpr e1 ce in
-                                match t with
-                                | Gtyp (Fsint w) => Gtyp (Fsint w)
-                                | Gtyp (Fuint w) => Gtyp (Fsint (w + 1))
-                                | _ => def_ftype
-                                end
-    | Eprim_unop Uneg e1 => let t := type_of_hfexpr e1 ce in
-                                match t with
-                                | Gtyp (Fsint w) | Gtyp (Fuint w) => Gtyp (Fsint (w + 1))
-                                | _ => def_ftype
-                                end
-    | Eprim_unop Unot e1 => let t := type_of_hfexpr e1 ce in
-                                match t with
-                                | Gtyp (Fsint w) | Gtyp (Fuint w) => Gtyp (Fuint w)
-                                | _ => def_ftype
-                                end
-    | Eprim_unop (Uextr n1 n2) e1 => let t := type_of_hfexpr e1 ce in
-                                     match t with
-                                     | Gtyp (Fsint w) | Gtyp (Fuint w) =>
-                                                        if (n2 <= n1) && (n1 < w) then Gtyp (Fuint (n1 - n2 + 1))
-                                                        else def_ftype
-                                     | _ => def_ftype
+    | Eprim_unop Ucvt e1 => match type_of_hfexpr e1 ce with
+                            | exist (Gtyp (Fsint w)) _ => exist ftype_not_implicit_width (Gtyp (Fsint w)) I
+                            | exist (Gtyp (Fuint w)) _ => exist ftype_not_implicit_width (Gtyp (Fsint (w + 1))) I
+                            | _ => exist ftype_not_implicit_width def_ftype I
+                            end
+    | Eprim_unop Uneg e1 => match type_of_hfexpr e1 ce with
+                            | exist (Gtyp (Fsint w)) _ | exist (Gtyp (Fuint w)) _ => exist ftype_not_implicit_width (Gtyp (Fsint (w + 1))) I
+                            | _ => exist ftype_not_implicit_width def_ftype I
+                            end
+    | Eprim_unop Unot e1 => match type_of_hfexpr e1 ce with
+                            | exist (Gtyp (Fsint w)) _ | exist (Gtyp (Fuint w)) _ => exist ftype_not_implicit_width (Gtyp (Fuint w)) I
+                            | _ => exist ftype_not_implicit_width def_ftype I
+                            end
+    | Eprim_unop (Uextr n1 n2) e1 => match type_of_hfexpr e1 ce with
+                                     | exist (Gtyp (Fsint w)) _ | exist (Gtyp (Fuint w)) _ =>
+                                                        if (n2 <= n1) && (n1 < w) then exist ftype_not_implicit_width (Gtyp (Fuint (n1 - n2 + 1))) I
+                                                        else exist ftype_not_implicit_width def_ftype I
+                                     | _ => exist ftype_not_implicit_width def_ftype I
                                      end
-    | Eprim_unop (Uhead n) e1 => let t := type_of_hfexpr e1 ce in
-                                 match t with
-                                 | Gtyp (Fsint w) | Gtyp (Fuint w) =>
-                                                    if n <= w then Gtyp (Fuint n)
-                                                    else def_ftype
-                                 | _ => def_ftype
+    | Eprim_unop (Uhead n) e1 => match type_of_hfexpr e1 ce with
+                                 | exist (Gtyp (Fsint w)) _ | exist (Gtyp (Fuint w)) _ =>
+                                                    if n <= w then exist ftype_not_implicit_width (Gtyp (Fuint n)) I
+                                                    else exist ftype_not_implicit_width def_ftype I
+                                 | _ => exist ftype_not_implicit_width def_ftype I
                                  end
-    | Eprim_unop (Utail n) e1 => let t := type_of_hfexpr e1 ce in
-                                 match t with
-                                 | Gtyp (Fsint w) | Gtyp (Fuint w) =>
-                                                    if n <= w then Gtyp (Fuint (w - n))
-                                                    else def_ftype
-                                 | _ => def_ftype
+    | Eprim_unop (Utail n) e1 => match type_of_hfexpr e1 ce with
+                                 | exist (Gtyp (Fsint w)) _ | exist (Gtyp (Fuint w)) _ =>
+                                                    if n <= w then exist ftype_not_implicit_width (Gtyp (Fuint (w - n))) I
+                                                    else exist ftype_not_implicit_width def_ftype I
+                                 | _ => exist ftype_not_implicit_width def_ftype I
                                  end
-    | Eprim_unop _ e1 => let t := type_of_hfexpr e1 ce in
-                         match t with
-                         | Gtyp (Fsint _) | Gtyp (Fuint _) => Gtyp (Fuint 1)
-                         | _ => def_ftype
+    | Eprim_unop _ e1 => match type_of_hfexpr e1 ce with
+                         | exist (Gtyp (Fsint _)) _ | exist (Gtyp (Fuint _)) _ => exist ftype_not_implicit_width (Gtyp (Fuint 1)) I
+                         | _ => exist ftype_not_implicit_width def_ftype I
                          end
-    | Eprim_binop (Bcomp _) e1 e2 => let t1 := type_of_hfexpr e1 ce in
-                                     let t2 := type_of_hfexpr e2 ce in
-                                     match t1, t2 with
-                                     | Gtyp (Fsint _), Gtyp (Fsint _)
-                                     | Gtyp (Fuint _), Gtyp (Fuint _) => Gtyp (Fuint 1)
-                                     | _, _ => def_ftype
+    | Eprim_binop (Bcomp _) e1 e2 => match type_of_hfexpr e1 ce, type_of_hfexpr e2 ce with
+                                     | exist (Gtyp (Fsint _)) _, exist (Gtyp (Fsint _)) _
+                                     | exist (Gtyp (Fuint _)) _, exist (Gtyp (Fuint _)) _ => exist ftype_not_implicit_width (Gtyp (Fuint 1)) I
+                                     | _, _ => exist ftype_not_implicit_width def_ftype I
                                      end
     | Eprim_binop Badd e1 e2
-    | Eprim_binop Bsub e1 e2 => let t1 := type_of_hfexpr e1 ce in
-                                let t2 := type_of_hfexpr e2 ce in
-                                match t1, t2 with
-                                | Gtyp (Fuint w1) , Gtyp (Fuint w2) => Gtyp (Fuint (maxn w1 w2 + 1))
-                                | Gtyp (Fsint w1) , Gtyp (Fsint w2) => Gtyp (Fsint (maxn w1 w2 + 1))
-                                | _, _ => def_ftype
+    | Eprim_binop Bsub e1 e2 => match type_of_hfexpr e1 ce, type_of_hfexpr e2 ce with
+                                | exist (Gtyp (Fuint w1)) _, exist (Gtyp (Fuint w2)) _ => exist ftype_not_implicit_width (Gtyp (Fuint (maxn w1 w2 + 1))) I
+                                | exist (Gtyp (Fsint w1)) _, exist (Gtyp (Fsint w2)) _ => exist ftype_not_implicit_width (Gtyp (Fsint (maxn w1 w2 + 1))) I
+                                | _, _ => exist ftype_not_implicit_width def_ftype I
                                 end
-    | Eprim_binop Bmul e1 e2 => let t1 := type_of_hfexpr e1 ce in
-                                let t2 := type_of_hfexpr e2 ce in
-                                match t1, t2 with
-                                | Gtyp (Fuint w1) , Gtyp (Fuint w2) => Gtyp (Fuint (w1 + w2))
-                                | Gtyp (Fsint w1) , Gtyp (Fsint w2) => Gtyp (Fsint (w1 + w2))
-                                | _, _ => def_ftype
+    | Eprim_binop Bmul e1 e2 => match type_of_hfexpr e1 ce, type_of_hfexpr e2 ce with
+                                | exist (Gtyp (Fuint w1)) _, exist (Gtyp (Fuint w2)) _ => exist ftype_not_implicit_width (Gtyp (Fuint (w1 + w2))) I
+                                | exist (Gtyp (Fsint w1)) _, exist (Gtyp (Fsint w2)) _ => exist ftype_not_implicit_width (Gtyp (Fsint (w1 + w2))) I
+                                | _, _ => exist ftype_not_implicit_width def_ftype I
                                 end
-    | Eprim_binop Bdiv e1 e2  => let t1 := type_of_hfexpr e1 ce in
-                                 let t2 := type_of_hfexpr e2 ce in
-                                 match t1, t2 with
-                                 | Gtyp (Fuint w1), Gtyp (Fuint w2) => Gtyp (Fuint w1)
-                                 | Gtyp (Fsint w1), Gtyp (Fsint w2) => Gtyp (Fsint (w1 + 1))
-                                 | _, _ => def_ftype
+    | Eprim_binop Bdiv e1 e2  => match type_of_hfexpr e1 ce, type_of_hfexpr e2 ce with
+                                 | exist (Gtyp (Fuint w1)) _, exist (Gtyp (Fuint w2)) _ => exist ftype_not_implicit_width (Gtyp (Fuint w1)) I
+                                 | exist (Gtyp (Fsint w1)) _, exist (Gtyp (Fsint w2)) _ => exist ftype_not_implicit_width (Gtyp (Fsint (w1 + 1))) I
+                                 | _, _ => exist ftype_not_implicit_width def_ftype I
                                  end
-    | Eprim_binop Brem e1 e2 => let t1 := type_of_hfexpr e1 ce in
-                                 let t2 := type_of_hfexpr e2 ce in
-                                 match t1, t2 with
-                                 | Gtyp (Fuint w1), Gtyp (Fuint w2) => Gtyp (Fuint (minn w1 w2))
-                                 | Gtyp (Fsint w1), Gtyp (Fsint w2) => Gtyp (Fsint (minn w1 w2))
-                                 | _, _ => def_ftype
+    | Eprim_binop Brem e1 e2 => match type_of_hfexpr e1 ce, type_of_hfexpr e2 ce with
+                                 | exist (Gtyp (Fuint w1)) _, exist (Gtyp (Fuint w2)) _ => exist ftype_not_implicit_width (Gtyp (Fuint (minn w1 w2))) I
+                                 | exist (Gtyp (Fsint w1)) _, exist (Gtyp (Fsint w2)) _ => exist ftype_not_implicit_width (Gtyp (Fsint (minn w1 w2))) I
+                                 | _, _ => exist ftype_not_implicit_width def_ftype I
                                  end
-    | Eprim_binop Bdshl e1 e2 => let t1 := type_of_hfexpr e1 ce in
-                                 let t2 := type_of_hfexpr e2 ce in
-                                 match t1, t2 with
-                                 | Gtyp (Fuint w1), Gtyp (Fuint w2) => Gtyp (Fuint (w1 + 2 ^ w2 - 1))
-                                 | Gtyp (Fsint w1), Gtyp (Fuint w2) => Gtyp (Fsint (w1 + 2 ^ w2 - 1))
-                                 | _, _ => def_ftype
+    | Eprim_binop Bdshl e1 e2 => match type_of_hfexpr e1 ce, type_of_hfexpr e2 ce with
+                                 | exist (Gtyp (Fuint w1)) _, exist (Gtyp (Fuint w2)) _ => exist ftype_not_implicit_width (Gtyp (Fuint (w1 + 2 ^ w2 - 1))) I
+                                 | exist (Gtyp (Fsint w1)) _, exist (Gtyp (Fuint w2)) _ => exist ftype_not_implicit_width (Gtyp (Fsint (w1 + 2 ^ w2 - 1))) I
+                                 | _, _ => exist ftype_not_implicit_width def_ftype I
                                  end
-    | Eprim_binop Bdshr e1 e2 => let t1 := type_of_hfexpr e1 ce in
-                                 let t2 := type_of_hfexpr e2 ce in
-                                 match t1, t2 with
-                                 | Gtyp (Fuint w1), Gtyp (Fuint w2) => Gtyp (Fuint w1)
-                                 | Gtyp (Fsint w1), Gtyp (Fuint w2) => Gtyp (Fsint w1)
-                                 | _, _ => def_ftype
+    | Eprim_binop Bdshr e1 e2 => match type_of_hfexpr e1 ce, type_of_hfexpr e2 ce with
+                                 | exist (Gtyp (Fuint w1)) _, exist (Gtyp (Fuint w2)) _ => exist ftype_not_implicit_width (Gtyp (Fuint w1)) I
+                                 | exist (Gtyp (Fsint w1)) _, exist (Gtyp (Fuint w2)) _ => exist ftype_not_implicit_width (Gtyp (Fsint w1)) I
+                                 | _, _ => exist ftype_not_implicit_width def_ftype I
                                  end
-    | Eprim_binop Bcat e1 e2 => let t1 := type_of_hfexpr e1 ce in
-                                let t2 := type_of_hfexpr e2 ce in
-                                match t1, t2 with
-                                | Gtyp (Fuint w1), Gtyp (Fuint w2) => Gtyp (Fuint (w1 + w2))
-                                | Gtyp (Fsint w1), Gtyp (Fsint w2) => Gtyp (Fuint (w1 + w2))
-                                | _, _ => def_ftype
+    | Eprim_binop Bcat e1 e2 => match type_of_hfexpr e1 ce, type_of_hfexpr e2 ce with
+                                | exist (Gtyp (Fuint w1)) _, exist (Gtyp (Fuint w2)) _ => exist ftype_not_implicit_width (Gtyp (Fuint (w1 + w2))) I
+                                | exist (Gtyp (Fsint w1)) _, exist (Gtyp (Fsint w2)) _ => exist ftype_not_implicit_width (Gtyp (Fuint (w1 + w2))) I
+                                | _, _ => exist ftype_not_implicit_width def_ftype I
                                 end
     | Eprim_binop Band e1 e2
     | Eprim_binop Bor e1 e2
-    | Eprim_binop Bxor e1 e2 => let t1 := type_of_hfexpr e1 ce in
-                                let t2 := type_of_hfexpr e2 ce in
-                                match t1, t2 with
-                                | Gtyp (Fuint w1), Gtyp (Fuint w2) => Gtyp (Fuint (maxn w1 w2))
-                                | Gtyp (Fsint w1), Gtyp (Fsint w2) => Gtyp (Fuint (maxn w1 w2))
-                                | _, _ => def_ftype
+    | Eprim_binop Bxor e1 e2 => match type_of_hfexpr e1 ce, type_of_hfexpr e2 ce with
+                                | exist (Gtyp (Fuint w1)) _, exist (Gtyp (Fuint w2)) _ => exist ftype_not_implicit_width (Gtyp (Fuint (maxn w1 w2))) I
+                                | exist (Gtyp (Fsint w1)) _, exist (Gtyp (Fsint w2)) _ => exist ftype_not_implicit_width (Gtyp (Fuint (maxn w1 w2))) I
+                                | _, _ => exist ftype_not_implicit_width def_ftype I
                                 end
-    | Emux c e1 e2 => let t1 := type_of_hfexpr e1 ce in
-                      let t2 := type_of_hfexpr e2 ce in
-                      mux_types t1 t2
+    | Emux c e1 e2 => match type_of_hfexpr c ce with
+                      | exist (Gtyp (Fuint 1)) _ => match mux_types (type_of_hfexpr e1 ce) (type_of_hfexpr e2 ce) with
+                                                    | Some t => t
+                                                    | None => exist ftype_not_implicit_width def_ftype I
+                                                    end
+                      | _ => exist ftype_not_implicit_width def_ftype I
+                      end
     (* | Evalidif c e1 => type_of_hfexpr e1 ce *)
     end.
 
@@ -1620,8 +1602,8 @@ Proof.
          end.
 
   Lemma upd_type_equiv :
-    forall t r v ce, ~~ is_deftyp (type_of_hfexpr (eref (esubfield r v)) ce) ->
-                     ftype_equiv (type_of_hfexpr (eref (esubfield r v)) ce) t ->
+    forall t r v ce, ~~ is_deftyp (explicit_to_ftype (type_of_hfexpr (eref (esubfield r v)) ce)) ->
+                     ftype_equiv (explicit_to_ftype (type_of_hfexpr (eref (esubfield r v)) ce)) t ->
                      ftype_equiv (base_type_of_ref r ce)
                                  (upd_name_ftype (base_type_of_ref r ce) (v2var v) t).
   Proof.
@@ -1635,7 +1617,7 @@ Proof.
     end.
 
   Lemma upd_vectyp_equiv :
-    forall t r n ce, ftype_equiv (type_of_hfexpr (eref (esubaccess r n)) ce) t ->
+    forall t r n ce, ftype_equiv (explicit_to_ftype (type_of_hfexpr (eref (esubaccess r n)) ce)) t ->
                      ftype_equiv (base_type_of_ref r ce)
                                  (upd_vectyp (base_type_of_ref r ce) t).
   Proof.
@@ -1780,217 +1762,199 @@ Module MakeHiFirrtlP
   Definition def_ftype := Gtyp (Fuint 0).
 
   (* type of mux expression *)
-  Fixpoint mux_types t1 t2 : ftype :=
-      match t1, t2 with
-      | Gtyp (Fuint w1), Gtyp (Fuint w2) => (Gtyp (Fuint (maxn w1 w2)))
-      | Gtyp (Fsint w1), Gtyp (Fsint w2) => (Gtyp (Fsint (maxn w1 w2)))
-      | Gtyp Fclock, Gtyp Fclock => (Gtyp Fclock)
-      | Gtyp Freset, Gtyp Freset => Gtyp Freset
-      | Gtyp Fasyncreset, Gtyp Fasyncreset => Gtyp Fasyncreset
-      | Atyp t1 n1, Atyp t2 n2 => if ftype_equiv (Atyp t1 n1) (Atyp t2 n2)
-                                  then (Atyp (mux_types t1 t2) n1)
-                                  else def_ftype
-      | Btyp bs1, Btyp bs2 =>
-          if ~~ (fbtyp_equiv bs1 bs2)
-          then def_ftype
-          else
-            match mux_btyps bs1 bs2 with
-            | Fnil => Btyp Fnil
-            | t => Btyp t
-            end
-      | _, _ => def_ftype
+  Fixpoint mux_types' (t1 : ftype) (p1 : ftype_not_implicit_width t1) (t2 : ftype) (p2 : ftype_not_implicit_width t2) : option ftype_explicit :=
+      match t1, p1, t2, p2 with
+      | Gtyp (Fuint w1), _, Gtyp (Fuint w2), _ => Some (exist ftype_not_implicit_width (Gtyp (Fuint (maxn w1 w2))) I)
+      | Gtyp (Fsint w1), _, Gtyp (Fsint w2), _ => Some (exist ftype_not_implicit_width (Gtyp (Fsint (maxn w1 w2))) I)
+      | Gtyp Fclock, _, Gtyp Fclock, _ => Some (exist ftype_not_implicit_width (Gtyp Fclock) I)
+      | Gtyp Freset, _, Gtyp Freset, _ => Some (exist ftype_not_implicit_width (Gtyp Freset) I)
+      | Gtyp Fasyncreset, _, Gtyp Fasyncreset, _ => Some (exist ftype_not_implicit_width (Gtyp Fasyncreset) I)
+      | Atyp t1' n1, p1', Atyp t2' n2, p2' => match @mux_types' t1' p1' t2' p2' with
+                                  | Some (exist t p) => Some (exist ftype_not_implicit_width (Atyp t n1) p)
+                                  | None => None
+                                  end
+      | Btyp bs1, p1', Btyp bs2, p2' =>
+          match @mux_btyps' bs1 p1' bs2 p2' with
+          | Some (exist ff p) => Some (exist ftype_not_implicit_width (Btyp ff) p)
+          | None => None
+          end
+      | _, _, _, _ => None
       end
-  with mux_btyps bs1 bs2 : ffield :=
-         match bs1, bs2 with
-         | Fnil, Fnil => (Fnil)
-         | Fflips v1 Nflip t1 fs1, Fflips v2 Nflip t2 fs2 =>
-           if v1 == v2 then
-             (Fflips v1 Nflip (mux_types t1 t2) (mux_btyps fs1 fs2))
-           else Fnil
-         | Fflips v1 Flipped t1 fs1, Fflips v2 Flipped t2 fs2 =>
-             if v1 == v2 then
-             (Fflips v1 Flipped (mux_types t1 t2) (mux_btyps fs1 fs2))
-           else Fnil
-         | _, _ => Fnil
+  with mux_btyps' (bs1 : ffield) (p1 : ffield_not_implicit_width bs1) (bs2 : ffield) (p2 : ffield_not_implicit_width bs2) : option ffield_explicit :=
+         match bs1, p1, bs2, p2 with
+         | Fnil, _, Fnil, _ => Some (exist ffield_not_implicit_width Fnil I)
+         | Fflips v1 Nflip t1 fs1, p1', Fflips v2 Nflip t2 fs2, p2' =>
+           if v1 == v2 then match @mux_types' t1 (proj1 p1') t2 (proj1 p2'),
+                                  @mux_btyps' fs1 (proj2 p1') fs2 (proj2 p2') with
+                            | Some (exist t p1), Some (exist fs p2) => Some (exist ffield_not_implicit_width (Fflips v1 Nflip t fs) (conj p1 p2))
+                            | _, _ => None
+                            end
+           else None
+         (* mux types must be passive, so Flipped is not allowed *)
+         | _, _, _, _ => None
     end.
 
+  Definition mux_types (t1 : ftype_explicit) (t2 : ftype_explicit) : option ftype_explicit :=
+  match t1, t2 with
+  exist t1' p1', exist t2' p2' => @mux_types' t1' p1' t2' p2'
+  end.
+  Definition mux_btyps (bs1 : ffield_explicit) (bs2 : ffield_explicit) : option ffield_explicit :=
+  match bs1, bs2 with
+  exist ff1 p1, exist ff2 p2 => @mux_btyps' ff1 p1 ff2 p2
+  end.
+
   (* type of ref expressions *) 
-  Fixpoint type_of_ref (r : href) ce : ftype :=
+  Definition type_of_ref (r : href) ce : ftype :=
     match r with
     | Eid v => type_of_cmpnttyp (fst (PCE.vtyp v ce))
     | _ => def_ftype
     end.
 
   (* type of expression *)
-  Fixpoint type_of_hfexpr (e : hfexpr) (ce : pcenv) : ftype :=
+  Fixpoint type_of_hfexpr (e : hfexpr) (ce : pcenv) : ftype_explicit :=
     match e with
-    | Econst t bs => Gtyp t
-    | Eref r => type_of_ref r ce
-    | Ecast AsUInt e1 => let t := type_of_hfexpr e1 ce in
-                         match t with
-                         | Gtyp (Fsint w) | Gtyp (Fuint w) => Gtyp (Fuint w)
-                         | Gtyp Fclock => Gtyp (Fuint 1)
-                         | Gtyp Freset => Gtyp (Fuint 1)
-                         | Gtyp Fasyncreset => Gtyp (Fuint 1)
-                         | _ => def_ftype
+    | Econst t bs => match t with
+                     | Fuint_implicit w => exist ftype_not_implicit_width (Gtyp (Fuint w)) I
+                     | Fsint_implicit w => exist ftype_not_implicit_width (Gtyp (Fsint w)) I
+                     | t => exist ftype_not_implicit_width (Gtyp t) I
+                     end
+    | Eref r => make_ftype_explicit (type_of_ref r ce)
+    | Ecast AsUInt e1 => match type_of_hfexpr e1 ce with
+                         | exist (Gtyp (Fsint w)) _ | exist (Gtyp (Fuint w)) _ => exist ftype_not_implicit_width (Gtyp (Fuint w)) I
+                         | exist (Gtyp Fclock) _
+                         | exist (Gtyp Freset) _
+                         | exist (Gtyp Fasyncreset) _ => exist ftype_not_implicit_width (Gtyp (Fuint 1)) I
+                         | _ => exist ftype_not_implicit_width def_ftype I
                          end
-    | Ecast AsSInt e1 => let t := type_of_hfexpr e1 ce in
-                         match t with
-                         | Gtyp (Fsint w) | Gtyp (Fuint w) => Gtyp (Fsint w)
-                         | Gtyp Fclock => Gtyp (Fsint 1)
-                         | Gtyp Freset => Gtyp (Fuint 1)
-                         | Gtyp Fasyncreset => Gtyp (Fuint 1)
-                         | _ => def_ftype
+    | Ecast AsSInt e1 => match type_of_hfexpr e1 ce with
+                         | exist (Gtyp (Fsint w)) _ | exist (Gtyp (Fuint w)) _ => exist ftype_not_implicit_width (Gtyp (Fsint w)) I
+                         | exist (Gtyp Fclock) _
+                         | exist (Gtyp Freset) _
+                         | exist (Gtyp Fasyncreset) _ => exist ftype_not_implicit_width (Gtyp (Fuint 1)) I
+                         | _ => exist ftype_not_implicit_width def_ftype I
                          end
-    | Ecast AsClock e1 => let t := type_of_hfexpr e1 ce in
-                          match t with
-                          | Gtyp _ =>  Gtyp Fclock
-                          | _ => def_ftype
+    | Ecast AsClock e1 => match type_of_hfexpr e1 ce with
+                          | exist (Gtyp _) _ => exist ftype_not_implicit_width (Gtyp Fclock) I
+                          | _ => exist ftype_not_implicit_width def_ftype I
                           end
-    | Ecast AsReset e1 => let t := type_of_hfexpr e1 ce in
-                          match t with
-                          | Gtyp _ =>  Gtyp Freset
-                          | _ => def_ftype
+    | Ecast AsReset e1 => match type_of_hfexpr e1 ce with
+                          | exist (Gtyp _) _ => exist ftype_not_implicit_width (Gtyp Freset) I
+                          | _ => exist ftype_not_implicit_width def_ftype I
                           end
-    | Ecast AsAsync e1 => let t := type_of_hfexpr e1 ce in
-                          match t with
-                          | Gtyp _ =>  Gtyp Fasyncreset
-                          | _ => def_ftype
+    | Ecast AsAsync e1 => match type_of_hfexpr e1 ce  with
+                          | exist (Gtyp _) _ => exist ftype_not_implicit_width (Gtyp Fasyncreset) I
+                          | _ => exist ftype_not_implicit_width def_ftype I
                           end
-    | Eprim_unop (Upad n) e1 => let t := type_of_hfexpr e1 ce in
-                                match t with
-                                | Gtyp (Fsint w) => Gtyp (Fsint (maxn w n))
-                                | Gtyp (Fuint w) => Gtyp (Fuint (maxn w n))
-                                | _ => def_ftype
+    | Eprim_unop (Upad n) e1 => match type_of_hfexpr e1 ce with
+                                | exist (Gtyp (Fsint w)) _ => exist ftype_not_implicit_width (Gtyp (Fsint (maxn w n))) I
+                                | exist (Gtyp (Fuint w)) _ => exist ftype_not_implicit_width (Gtyp (Fuint (maxn w n))) I
+                                | _ => exist ftype_not_implicit_width def_ftype I
                                 end
-    | Eprim_unop (Ushl n) e1 => let t := type_of_hfexpr e1 ce in
-                                match t with
-                                | Gtyp (Fsint w) => Gtyp (Fsint (w + n))
-                                | Gtyp (Fuint w) => Gtyp (Fuint (w + n))
-                                | _ => def_ftype
+    | Eprim_unop (Ushl n) e1 => match type_of_hfexpr e1 ce with
+                                | exist (Gtyp (Fsint w)) _ => exist ftype_not_implicit_width (Gtyp (Fsint (w + n))) I
+                                | exist (Gtyp (Fuint w)) _ => exist ftype_not_implicit_width (Gtyp (Fuint (w + n))) I
+                                | _ => exist ftype_not_implicit_width def_ftype I
                                 end
-    | Eprim_unop (Ushr n) e1 => let t := type_of_hfexpr e1 ce in
-                                match t with
-                                | Gtyp (Fsint w) => if n < w then Gtyp (Fsint (maxn (w - n) 1))
-                                                    else Gtyp (Fuint 1)
-                                | Gtyp (Fuint w) => if n < w then Gtyp (Fuint (maxn (w - n) 1))
-                                                    else Gtyp (Fuint 1)
-                                | _ => def_ftype
+    | Eprim_unop (Ushr n) e1 => match type_of_hfexpr e1 ce with
+                                | exist (Gtyp (Fsint w)) _ => if n < w then exist ftype_not_implicit_width (Gtyp (Fsint (maxn (w - n) 1))) I
+                                                    else exist ftype_not_implicit_width (Gtyp (Fsint 1)) I
+                                | exist (Gtyp (Fuint w)) _ => if n < w then exist ftype_not_implicit_width (Gtyp (Fuint (maxn (w - n) 1))) I
+                                                    else exist ftype_not_implicit_width (Gtyp (Fuint 1)) I
+                                | _ => exist ftype_not_implicit_width def_ftype I
                                 end
-    | Eprim_unop Ucvt e1 => let t := type_of_hfexpr e1 ce in
-                                match t with
-                                | Gtyp (Fsint w) => Gtyp (Fsint w)
-                                | Gtyp (Fuint w) => Gtyp (Fsint (w + 1))
-                                | _ => def_ftype
-                                end
-    | Eprim_unop Uneg e1 => let t := type_of_hfexpr e1 ce in
-                                match t with
-                                | Gtyp (Fsint w) | Gtyp (Fuint w) => Gtyp (Fsint (w + 1))
-                                | _ => def_ftype
-                                end
-    | Eprim_unop Unot e1 => let t := type_of_hfexpr e1 ce in
-                                match t with
-                                | Gtyp (Fsint w) | Gtyp (Fuint w) => Gtyp (Fuint w)
-                                | _ => def_ftype
-                                end
-    | Eprim_unop (Uextr n1 n2) e1 => let t := type_of_hfexpr e1 ce in
-                                     match t with
-                                     | Gtyp (Fsint w) | Gtyp (Fuint w) =>
-                                                        if (n2 <= n1) && (n1 < w) then Gtyp (Fuint (n1 - n2 + 1))
-                                                        else def_ftype
-                                     | _ => def_ftype
+    | Eprim_unop Ucvt e1 => match type_of_hfexpr e1 ce with
+                            | exist (Gtyp (Fsint w)) _ => exist ftype_not_implicit_width (Gtyp (Fsint w)) I
+                            | exist (Gtyp (Fuint w)) _ => exist ftype_not_implicit_width (Gtyp (Fsint (w + 1))) I
+                            | _ => exist ftype_not_implicit_width def_ftype I
+                            end
+    | Eprim_unop Uneg e1 => match type_of_hfexpr e1 ce with
+                            | exist (Gtyp (Fsint w)) _ | exist (Gtyp (Fuint w)) _ => exist ftype_not_implicit_width (Gtyp (Fsint (w + 1))) I
+                            | _ => exist ftype_not_implicit_width def_ftype I
+                            end
+    | Eprim_unop Unot e1 => match type_of_hfexpr e1 ce with
+                            | exist (Gtyp (Fsint w)) _ | exist (Gtyp (Fuint w)) _ => exist ftype_not_implicit_width (Gtyp (Fuint w)) I
+                            | _ => exist ftype_not_implicit_width def_ftype I
+                            end
+    | Eprim_unop (Uextr n1 n2) e1 => match type_of_hfexpr e1 ce with
+                                     | exist (Gtyp (Fsint w)) _ | exist (Gtyp (Fuint w)) _ =>
+                                                        if (n2 <= n1) && (n1 < w) then exist ftype_not_implicit_width (Gtyp (Fuint (n1 - n2 + 1))) I
+                                                        else exist ftype_not_implicit_width def_ftype I
+                                     | _ => exist ftype_not_implicit_width def_ftype I
                                      end
-    | Eprim_unop (Uhead n) e1 => let t := type_of_hfexpr e1 ce in
-                                 match t with
-                                 | Gtyp (Fsint w) | Gtyp (Fuint w) =>
-                                                    if n <= w then Gtyp (Fuint n)
-                                                    else def_ftype
-                                 | _ => def_ftype
+    | Eprim_unop (Uhead n) e1 => match type_of_hfexpr e1 ce with
+                                 | exist (Gtyp (Fsint w)) _ | exist (Gtyp (Fuint w)) _ =>
+                                                    if n <= w then exist ftype_not_implicit_width (Gtyp (Fuint n)) I
+                                                    else exist ftype_not_implicit_width def_ftype I
+                                 | _ => exist ftype_not_implicit_width def_ftype I
                                  end
-    | Eprim_unop (Utail n) e1 => let t := type_of_hfexpr e1 ce in
-                                 match t with
-                                 | Gtyp (Fsint w) | Gtyp (Fuint w) =>
-                                                    if n <= w then Gtyp (Fuint (w - n))
-                                                    else def_ftype
-                                 | _ => def_ftype
+    | Eprim_unop (Utail n) e1 => match type_of_hfexpr e1 ce with
+                                 | exist (Gtyp (Fsint w)) _ | exist (Gtyp (Fuint w)) _ =>
+                                                    if n <= w then exist ftype_not_implicit_width (Gtyp (Fuint (w - n))) I
+                                                    else exist ftype_not_implicit_width def_ftype I
+                                 | _ => exist ftype_not_implicit_width def_ftype I
                                  end
-    | Eprim_unop _ e1 => let t := type_of_hfexpr e1 ce in
-                         match t with
-                         | Gtyp (Fsint _) | Gtyp (Fuint _) => Gtyp (Fuint 1)
-                         | _ => def_ftype
+    | Eprim_unop _ e1 => match type_of_hfexpr e1 ce with
+                         | exist (Gtyp (Fsint _)) _ | exist (Gtyp (Fuint _)) _ => exist ftype_not_implicit_width (Gtyp (Fuint 1)) I
+                         | _ => exist ftype_not_implicit_width def_ftype I
                          end
-    | Eprim_binop (Bcomp _) e1 e2 => let t1 := type_of_hfexpr e1 ce in
-                                     let t2 := type_of_hfexpr e2 ce in
-                                     match t1, t2 with
-                                     | Gtyp (Fsint _), Gtyp (Fsint _)
-                                     | Gtyp (Fuint _), Gtyp (Fuint _) => Gtyp (Fuint 1)
-                                     | _, _ => def_ftype
+    | Eprim_binop (Bcomp _) e1 e2 => match type_of_hfexpr e1 ce, type_of_hfexpr e2 ce with
+                                     | exist (Gtyp (Fsint _)) _, exist (Gtyp (Fsint _)) _
+                                     | exist (Gtyp (Fuint _)) _, exist (Gtyp (Fuint _)) _ => exist ftype_not_implicit_width (Gtyp (Fuint 1)) I
+                                     | _, _ => exist ftype_not_implicit_width def_ftype I
                                      end
     | Eprim_binop Badd e1 e2
-    | Eprim_binop Bsub e1 e2 => let t1 := type_of_hfexpr e1 ce in
-                                let t2 := type_of_hfexpr e2 ce in
-                                match t1, t2 with
-                                | Gtyp (Fuint w1) , Gtyp (Fuint w2) => Gtyp (Fuint (maxn w1 w2 + 1))
-                                | Gtyp (Fsint w1) , Gtyp (Fsint w2) => Gtyp (Fsint (maxn w1 w2 + 1))
-                                | _, _ => def_ftype
+    | Eprim_binop Bsub e1 e2 => match type_of_hfexpr e1 ce, type_of_hfexpr e2 ce with
+                                | exist (Gtyp (Fuint w1)) _, exist (Gtyp (Fuint w2)) _ => exist ftype_not_implicit_width (Gtyp (Fuint (maxn w1 w2 + 1))) I
+                                | exist (Gtyp (Fsint w1)) _, exist (Gtyp (Fsint w2)) _ => exist ftype_not_implicit_width (Gtyp (Fsint (maxn w1 w2 + 1))) I
+                                | _, _ => exist ftype_not_implicit_width def_ftype I
                                 end
-    | Eprim_binop Bmul e1 e2 => let t1 := type_of_hfexpr e1 ce in
-                                let t2 := type_of_hfexpr e2 ce in
-                                match t1, t2 with
-                                | Gtyp (Fuint w1) , Gtyp (Fuint w2) => Gtyp (Fuint (w1 + w2))
-                                | Gtyp (Fsint w1) , Gtyp (Fsint w2) => Gtyp (Fsint (w1 + w2))
-                                | _, _ => def_ftype
+    | Eprim_binop Bmul e1 e2 => match type_of_hfexpr e1 ce, type_of_hfexpr e2 ce with
+                                | exist (Gtyp (Fuint w1)) _, exist (Gtyp (Fuint w2)) _ => exist ftype_not_implicit_width (Gtyp (Fuint (w1 + w2))) I
+                                | exist (Gtyp (Fsint w1)) _, exist (Gtyp (Fsint w2)) _ => exist ftype_not_implicit_width (Gtyp (Fsint (w1 + w2))) I
+                                | _, _ => exist ftype_not_implicit_width def_ftype I
                                 end
-    | Eprim_binop Bdiv e1 e2  => let t1 := type_of_hfexpr e1 ce in
-                                 let t2 := type_of_hfexpr e2 ce in
-                                 match t1, t2 with
-                                 | Gtyp (Fuint w1), Gtyp (Fuint w2) => Gtyp (Fuint w1)
-                                 | Gtyp (Fsint w1), Gtyp (Fsint w2) => Gtyp (Fsint (w1 + 1))
-                                 | _, _ => def_ftype
+    | Eprim_binop Bdiv e1 e2  => match type_of_hfexpr e1 ce, type_of_hfexpr e2 ce with
+                                 | exist (Gtyp (Fuint w1)) _, exist (Gtyp (Fuint w2)) _ => exist ftype_not_implicit_width (Gtyp (Fuint w1)) I
+                                 | exist (Gtyp (Fsint w1)) _, exist (Gtyp (Fsint w2)) _ => exist ftype_not_implicit_width (Gtyp (Fsint (w1 + 1))) I
+                                 | _, _ => exist ftype_not_implicit_width def_ftype I
                                  end
-    | Eprim_binop Brem e1 e2 => let t1 := type_of_hfexpr e1 ce in
-                                 let t2 := type_of_hfexpr e2 ce in
-                                 match t1, t2 with
-                                 | Gtyp (Fuint w1), Gtyp (Fuint w2) => Gtyp (Fuint (minn w1 w2))
-                                 | Gtyp (Fsint w1), Gtyp (Fsint w2) => Gtyp (Fsint (minn w1 w2))
-                                 | _, _ => def_ftype
+    | Eprim_binop Brem e1 e2 => match type_of_hfexpr e1 ce, type_of_hfexpr e2 ce with
+                                 | exist (Gtyp (Fuint w1)) _, exist (Gtyp (Fuint w2)) _ => exist ftype_not_implicit_width (Gtyp (Fuint (minn w1 w2))) I
+                                 | exist (Gtyp (Fsint w1)) _, exist (Gtyp (Fsint w2)) _ => exist ftype_not_implicit_width (Gtyp (Fsint (minn w1 w2))) I
+                                 | _, _ => exist ftype_not_implicit_width def_ftype I
                                  end
-    | Eprim_binop Bdshl e1 e2 => let t1 := type_of_hfexpr e1 ce in
-                                 let t2 := type_of_hfexpr e2 ce in
-                                 match t1, t2 with
-                                 | Gtyp (Fuint w1), Gtyp (Fuint w2) => Gtyp (Fuint (w1 + 2 ^ w2 - 1))
-                                 | Gtyp (Fsint w1), Gtyp (Fuint w2) => Gtyp (Fsint (w1 + 2 ^ w2 - 1))
-                                 | _, _ => def_ftype
+    | Eprim_binop Bdshl e1 e2 => match type_of_hfexpr e1 ce, type_of_hfexpr e2 ce with
+                                 | exist (Gtyp (Fuint w1)) _, exist (Gtyp (Fuint w2)) _ => exist ftype_not_implicit_width (Gtyp (Fuint (w1 + 2 ^ w2 - 1))) I
+                                 | exist (Gtyp (Fsint w1)) _, exist (Gtyp (Fuint w2)) _ => exist ftype_not_implicit_width (Gtyp (Fsint (w1 + 2 ^ w2 - 1))) I
+                                 | _, _ => exist ftype_not_implicit_width def_ftype I
                                  end
-    | Eprim_binop Bdshr e1 e2 => let t1 := type_of_hfexpr e1 ce in
-                                 let t2 := type_of_hfexpr e2 ce in
-                                 match t1, t2 with
-                                 | Gtyp (Fuint w1), Gtyp (Fuint w2) => Gtyp (Fuint w1)
-                                 | Gtyp (Fsint w1), Gtyp (Fuint w2) => Gtyp (Fsint w1)
-                                 | _, _ => def_ftype
+    | Eprim_binop Bdshr e1 e2 => match type_of_hfexpr e1 ce, type_of_hfexpr e2 ce with
+                                 | exist (Gtyp (Fuint w1)) _, exist (Gtyp (Fuint w2)) _ => exist ftype_not_implicit_width (Gtyp (Fuint w1)) I
+                                 | exist (Gtyp (Fsint w1)) _, exist (Gtyp (Fuint w2)) _ => exist ftype_not_implicit_width (Gtyp (Fsint w1)) I
+                                 | _, _ => exist ftype_not_implicit_width def_ftype I
                                  end
-    | Eprim_binop Bcat e1 e2 => let t1 := type_of_hfexpr e1 ce in
-                                let t2 := type_of_hfexpr e2 ce in
-                                match t1, t2 with
-                                | Gtyp (Fuint w1), Gtyp (Fuint w2) => Gtyp (Fuint (w1 + w2))
-                                | Gtyp (Fsint w1), Gtyp (Fsint w2) => Gtyp (Fuint (w1 + w2))
-                                | _, _ => def_ftype
+    | Eprim_binop Bcat e1 e2 => match type_of_hfexpr e1 ce, type_of_hfexpr e2 ce with
+                                | exist (Gtyp (Fuint w1)) _, exist (Gtyp (Fuint w2)) _ => exist ftype_not_implicit_width (Gtyp (Fuint (w1 + w2))) I
+                                | exist (Gtyp (Fsint w1)) _, exist (Gtyp (Fsint w2)) _ => exist ftype_not_implicit_width (Gtyp (Fuint (w1 + w2))) I
+                                | _, _ => exist ftype_not_implicit_width def_ftype I
                                 end
     | Eprim_binop Band e1 e2
     | Eprim_binop Bor e1 e2
-    | Eprim_binop Bxor e1 e2 => let t1 := type_of_hfexpr e1 ce in
-                                let t2 := type_of_hfexpr e2 ce in
-                                match t1, t2 with
-                                | Gtyp (Fuint w1), Gtyp (Fuint w2) => Gtyp (Fuint (maxn w1 w2))
-                                | Gtyp (Fsint w1), Gtyp (Fsint w2) => Gtyp (Fuint (maxn w1 w2))
-                                | _, _ => def_ftype
+    | Eprim_binop Bxor e1 e2 => match type_of_hfexpr e1 ce, type_of_hfexpr e2 ce with
+                                | exist (Gtyp (Fuint w1)) _, exist (Gtyp (Fuint w2)) _ => exist ftype_not_implicit_width (Gtyp (Fuint (maxn w1 w2))) I
+                                | exist (Gtyp (Fsint w1)) _, exist (Gtyp (Fsint w2)) _ => exist ftype_not_implicit_width (Gtyp (Fuint (maxn w1 w2))) I
+                                | _, _ => exist ftype_not_implicit_width def_ftype I
                                 end
-    | Emux c e1 e2 => let t1 := type_of_hfexpr e1 ce in
-                      let t2 := type_of_hfexpr e2 ce in
-                      mux_types t1 t2
+    | Emux c e1 e2 => match type_of_hfexpr c ce with
+                      | exist (Gtyp (Fuint 1)) _ => match mux_types (type_of_hfexpr e1 ce) (type_of_hfexpr e2 ce) with
+                                                    | Some t => t
+                                                    | None => exist ftype_not_implicit_width def_ftype I
+                                                    end
+                      | _ => exist ftype_not_implicit_width def_ftype I
+                      end
     (* | Evalidif c e1 => type_of_hfexpr e1 ce *)
     end.
-  
+
   Fixpoint is_deftyp t :=
     match t with
     | Gtyp (Fsint 0)
@@ -2198,7 +2162,7 @@ Section Preprocess.
         let '(em', ms') := hfmem_pvar em ce m in
         (PVM.add (v, initial_index) (HiF.eid v) em', CE.add v (HiF.mem_typ m, Memory) ce, HiFP.smem (v, initial_index) ms')
     | Sinst v1 v2 => ( PVM.add (v1, initial_index) (HiF.eid v1) em, CE.add v1 ((fst (CE.vtyp v2 ce)), Instanceof) ce, HiFP.sinst (v1, initial_index) (v2, initial_index))
-    | Snode v e => ( PVM.add (v, initial_index) (HiF.eid v) em, CE.add v (HiF.aggr_typ (HiF.type_of_hfexpr e ce), Node) ce, HiFP.snode (v, initial_index) (expr_pvar em ce e))
+    | Snode v e => ( PVM.add (v, initial_index) (HiF.eid v) em, CE.add v (HiF.aggr_typ (explicit_to_ftype (HiF.type_of_hfexpr e ce)), Node) ce, HiFP.snode (v, initial_index) (expr_pvar em ce e))
     | Sfcnct r e => (PVM.add (HiF.base_ref r, offset_ref r ce 0) (r) em, ce, HiFP.sfcnct ( (HiFP.eid (HiF.base_ref r, (offset_ref r ce 0)))) (expr_pvar em ce e))
     (* | Spcnct r e => (PVM.add (HiF.base_ref r, offset_ref r ce 0) (r) em, ce, HiFP.spcnct ( (HiFP.eid (HiF.base_ref r, (offset_ref r ce 0)))) (expr_pvar em ce e)) *)
     | Sinvalid r => (PVM.add (HiF.base_ref r, offset_ref r ce 0) (r) em, ce, HiFP.sinvalid ( (HiFP.eid (HiF.base_ref r, (offset_ref r ce 0)))))
