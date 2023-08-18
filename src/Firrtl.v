@@ -1280,181 +1280,123 @@ Qed.
     | _, _ => fun a b => a
     end.
     
-  Fixpoint type_of_fexpr (e : fexpr) (te : TE.env) : fgtyp :=
+  Fixpoint type_of_fexpr (e : fexpr) (te : TE.env) : fgtyp_explicit :=
     (* type_of_fexpr should never return ..._implicit *)
     match e with
     | Econst t c => match t with
-                    | Fuint_implicit w => Fuint w
-                    | Fsint_implicit w => Fsint w
-                    | _ => t
+                    | Fuint_implicit w => exist not_implicit_width (Fuint w) I
+                    | Fsint_implicit w => exist not_implicit_width (Fsint w) I
+                    | t => exist not_implicit_width t I
                     end
     | Eref v => match TE.vtyp v te with
-                | Fuint_implicit w => Fuint w
-                | Fsint_implicit w => Fsint w
-                | t => t
+                | Fuint_implicit w => exist not_implicit_width (Fuint w) I
+                | Fsint_implicit w => exist not_implicit_width (Fsint w) I
+                | t => exist not_implicit_width t I
                 end
-    | Ecast AsUInt e => Fuint (sizeof_fgtyp (type_of_fexpr e te))
-    | Ecast AsSInt e => Fsint (sizeof_fgtyp (type_of_fexpr e te))
-    | Ecast AsClock e => Fuint 1
-    | Ecast AsReset e => Fuint 1
-    | Ecast AsAsync e => Fuint 1
-    | Eprim_unop u e => match u with
-                        | Upad n => if (n < (sizeof_fgtyp (type_of_fexpr e te))) then (type_of_fexpr e te)
-                                    else match (type_of_fexpr e te) with
-                                    | Fuint _ => Fuint n
-                                    | Fsint _ => Fsint n
-                                    | _ => TE.deftyp
+    | Ecast AsUInt e
+    | Ecast AsSInt e => exist not_implicit_width (Fsint (sizeof_fgtyp (explicit_to_fgtyp (type_of_fexpr e te)))) I
+    | Ecast AsClock e
+    | Ecast AsReset e
+    | Ecast AsAsync e => exist not_implicit_width (Fuint 1) I
+    | Eprim_unop u e => let (t1, p1) := type_of_fexpr e te in
+                        match u with
+                        | Upad n => if n < sizeof_fgtyp t1 then exist not_implicit_width t1 p1
+                                    else match t1 with
+                                    | Fuint _ => exist not_implicit_width (Fuint n) I
+                                    | Fsint _ => exist not_implicit_width (Fsint n) I
+                                    | _ => exist not_implicit_width TE.deftyp TE.deftyp_not_implicit_width
                                     end
-                        | Uandr | Uorr | Uxorr => Fuint 1
-                        | Uextr n1 n2 => Fuint (n1 - n2 + 1)
-                        | Uhead n => Fuint n
-                        | Utail n => Fuint ((sizeof_fgtyp (type_of_fexpr e te)) - n)
-                        | Ushl n => match (type_of_fexpr e te) with
-                                    | Fuint w => Fuint (w + n)
-                                    | Fsint w => Fsint (w + n)
-                                    | _ => TE.deftyp
+                        | Uandr | Uorr | Uxorr => exist not_implicit_width (Fuint 1) I
+                        | Uextr n1 n2 => exist not_implicit_width (Fuint (n1 - n2 + 1)) I
+                        | Uhead n => exist not_implicit_width (Fuint n) I
+                        | Utail n => let (t1, _) := type_of_fexpr e te in
+                                     exist not_implicit_width (Fuint (sizeof_fgtyp t1 - n)) I
+                        | Ushl n => match type_of_fexpr e te with
+                                    | exist (Fuint w) _ => exist not_implicit_width (Fuint (w + n)) I
+                                    | exist (Fsint w) _ => exist not_implicit_width (Fsint (w + n)) I
+                                    | _ => exist not_implicit_width TE.deftyp TE.deftyp_not_implicit_width
                                     end
-                        | Ushr n => match (type_of_fexpr e te) with
-                                    | Fuint w => if n < w then Fuint (w - n) else Fuint 1
-                                    | Fsint w => if n < w then Fsint (w - n) else Fsint 1
-                                    | _ => TE.deftyp
+                        | Ushr n => match type_of_fexpr e te with
+                                    | exist (Fuint w) _ => if n < w then exist not_implicit_width (Fuint (w - n)) I else exist not_implicit_width (Fuint 1) I
+                                    | exist (Fsint w) _ => if n < w then exist not_implicit_width (Fsint (w - n)) I else exist not_implicit_width (Fsint 1) I
+                                    | _ => exist not_implicit_width TE.deftyp TE.deftyp_not_implicit_width
                                     end
-                        | Ucvt => match (type_of_fexpr e te) with
-                                  | Fuint w => Fsint (w + 1)
-                                  | Fsint w => Fsint w
-                                  | _ => TE.deftyp
+                        | Ucvt => match type_of_fexpr e te with
+                                  | exist (Fuint w) _ => exist not_implicit_width (Fsint (w + 1)) I
+                                  | exist (Fsint w) _ => exist not_implicit_width (Fsint w) I
+                                  | _ => exist not_implicit_width TE.deftyp TE.deftyp_not_implicit_width
                                   end
-                        | Uneg => match (type_of_fexpr e te) with
-                                  | Fuint w
-                                  | Fsint w => Fsint (w + 1)
-                                  | _ => TE.deftyp
+                        | Uneg => match type_of_fexpr e te with
+                                  | exist (Fuint w) _
+                                  | exist (Fsint w) _ => exist not_implicit_width (Fsint (w + 1)) I
+                                  | _ => exist not_implicit_width TE.deftyp TE.deftyp_not_implicit_width
                                   end
-                        | Unot => match (type_of_fexpr e te) with
-                                  | Fuint w
-                                  | Fsint w => Fuint w
-                                  | _ => TE.deftyp
+                        | Unot => match type_of_fexpr e te with
+                                  | exist (Fuint w) _
+                                  | exist (Fsint w) _ => exist not_implicit_width (Fuint w) I
+                                  | _ => exist not_implicit_width TE.deftyp TE.deftyp_not_implicit_width
                                   end
                         end
     | Eprim_binop b e1 e2 => match b with
-                             | Bdshl => match (type_of_fexpr e1 te) with
-                                                | Fuint n => Fuint (n + (Nat.pow 2 (sizeof_fgtyp (type_of_fexpr e2 te))) - 1)
-                                                | Fsint n => Fsint (n + (Nat.pow 2 (sizeof_fgtyp (type_of_fexpr e2 te))) - 1)
-                                                | _ => TE.deftyp
-                                                end
-                             | Bdshr => match (type_of_fexpr e1 te) with
-                                                | Fuint n => Fuint n
-                                                | Fsint n => Fsint n
-                                                | _ => TE.deftyp
-                                                end
+                             | Bdshl => match type_of_fexpr e1 te, type_of_fexpr e2 te with
+                                        | exist (Fuint n) _, exist (Fuint d) _ => exist not_implicit_width (Fuint (n + (Nat.pow 2 d) - 1)) I
+                                        | exist (Fsint n) _, exist (Fuint d) _ => exist not_implicit_width (Fsint (n + (Nat.pow 2 d) - 1)) I
+                                        | _, _ => exist not_implicit_width TE.deftyp TE.deftyp_not_implicit_width
+                                        end
+                             | Bdshr => match type_of_fexpr e1 te with
+                                        | exist (Fuint n) p => exist not_implicit_width (Fuint n) p
+                                        | exist (Fsint n) p => exist not_implicit_width (Fsint n) p
+                                        | _ => exist not_implicit_width TE.deftyp TE.deftyp_not_implicit_width
+                                        end
                              | Badd | Bsub => match type_of_fexpr e1 te, type_of_fexpr e2 te with
-                                              | Fuint s1, Fuint s2 => Fuint ((maxn s1 s2)+1)
-                                              | Fsint s1, Fsint s2 => Fsint ((maxn s1 s2)+1)
-                                              | _, _ => TE.deftyp
+                                              | exist (Fuint s1) _, exist (Fuint s2) _ => exist not_implicit_width (Fuint ((maxn s1 s2)+1)) I
+                                              | exist (Fsint s1) _, exist (Fsint s2) _ => exist not_implicit_width (Fsint ((maxn s1 s2)+1)) I
+                                              | _, _ => exist not_implicit_width TE.deftyp TE.deftyp_not_implicit_width
                                               end
                              | Bmul => match type_of_fexpr e1 te, type_of_fexpr e2 te with
-                                              | Fuint s1, Fuint s2 => Fuint (s1 + s2)
-                                              | Fsint s1, Fsint s2 => Fsint (s1 + s2)
-                                              | _, _ => TE.deftyp
+                                              | exist (Fuint s1) _, exist (Fuint s2) _ => exist not_implicit_width (Fuint (s1 + s2)) I
+                                              | exist (Fsint s1) _, exist (Fsint s2) _ => exist not_implicit_width (Fsint (s1 + s2)) I
+                                              | _, _ => exist not_implicit_width TE.deftyp TE.deftyp_not_implicit_width
                                        end
-                             | Bcomp c => Fuint 1
+                             | Bcomp c => exist not_implicit_width (Fuint 1) I
                              | Band | Bor | Bxor => match type_of_fexpr e1 te, type_of_fexpr e2 te with
-                                                    | Fuint s1, Fuint s2
-                                                    | Fsint s1, Fsint s2 => Fuint (maxn s1 s2)
-                                                    | _, _ => TE.deftyp
+                                                    | exist (Fuint s1) _, exist (Fuint s2) _
+                                                    | exist (Fsint s1) _, exist (Fsint s2) _ => exist not_implicit_width (Fuint (maxn s1 s2)) I
+                                                    | _, _ => exist not_implicit_width TE.deftyp TE.deftyp_not_implicit_width
                                                     end
                              | Bdiv => match type_of_fexpr e1 te with
-                                       | Fuint n => Fuint n
-                                       | Fsint n => Fsint (n+1)
-                                       | _ => TE.deftyp
+                                       | exist (Fuint n) p => exist not_implicit_width (Fuint n) p
+                                       | exist (Fsint n) p => exist not_implicit_width (Fsint (n+1)) p
+                                       | _ => exist not_implicit_width TE.deftyp TE.deftyp_not_implicit_width
                                        end
                              | Brem => match type_of_fexpr e1 te, type_of_fexpr e2 te with
-                                       | Fuint s1, Fuint s2 => Fuint (minn s1 s2)
-                                       | Fsint s1, Fsint s2 => Fsint (minn s1 s2)
-                                       | _, _ => TE.deftyp
+                                       | exist (Fuint s1) _, exist (Fuint s2) _ => exist not_implicit_width (Fuint (minn s1 s2)) I
+                                       | exist (Fsint s1) _, exist (Fsint s2) _ => exist not_implicit_width (Fsint (minn s1 s2)) I
+                                       | _, _ => exist not_implicit_width TE.deftyp TE.deftyp_not_implicit_width
                                        end
                              | Bcat => match type_of_fexpr e1 te, type_of_fexpr e2 te with
-                                      | Fuint s1, Fuint s2
-                                      | Fsint s1, Fsint s2 => Fuint (s1 + s2)
-                                      | _, _ => TE.deftyp
+                                      | exist (Fuint s1) _, exist (Fuint s2) _
+                                      | exist (Fsint s1) _, exist (Fsint s2) _ => exist not_implicit_width (Fuint (s1 + s2)) I
+                                      | _, _ => exist not_implicit_width TE.deftyp TE.deftyp_not_implicit_width
                                       end
                              end
-    | Emux c e1 e2 => if type_of_fexpr c te is Fuint 1
-                      then let t1 := (type_of_fexpr e1 te) in
-                           let t2 := (type_of_fexpr e2 te) in
+    | Emux c e1 e2 => if type_of_fexpr c te is exist (Fuint 1) _
+                      then let t1 := type_of_fexpr e1 te in
+                           let t2 := type_of_fexpr e2 te in
                            match t1, t2 with
-                           | Fuint w1, Fuint w2 => Fuint (maxn w1 w2)
-                           | Fsint w1, Fsint w2 => Fsint (maxn w1 w2)
-                           | Fclock, Fclock
-                           | Freset, Freset
-                           | Fasyncreset, Fasyncreset => t1
-                           | _, _ => TE.deftyp
+                           | exist (Fuint w1) _, exist (Fuint w2) _ => exist not_implicit_width (Fuint (maxn w1 w2)) I
+                           | exist (Fsint w1) _, exist (Fsint w2) _ => exist not_implicit_width (Fsint (maxn w1 w2)) I
+                           | exist Fclock _, exist Fclock _
+                           | exist Freset _, exist Freset _
+                           | exist Fasyncreset _, exist Fasyncreset _ => t1
+                           | _, _ => exist not_implicit_width TE.deftyp TE.deftyp_not_implicit_width
                            end
-                      else TE.deftyp
+                      else exist not_implicit_width TE.deftyp TE.deftyp_not_implicit_width
     | Evalidif c e => (* if (Z.ltb 0 (to_Z (eval_fexpr c s))) then *)
-                      if type_of_fexpr c te is Fuint 1
+                      if type_of_fexpr c te is exist (Fuint 1) _
                       then type_of_fexpr e te
-                      else TE.deftyp
+                      else exist not_implicit_width TE.deftyp TE.deftyp_not_implicit_width
     end.
-
-Lemma type_of_fexpr_is_not_implicit:
-   forall (e : fexpr) (te : TE.env) (w : nat),
-         type_of_fexpr e te != Fuint_implicit w
-      /\ type_of_fexpr e te != Fsint_implicit w.
-Proof.
-induction e.
-* (* Econst *)
-  simpl type_of_fexpr.
-  destruct f ; done.
-* (* Ecast *)
-  simpl type_of_fexpr.
-  destruct u ; done.
-* (* Eprim_unop *)
-  simpl type_of_fexpr.
-  destruct e ; try done.
-  + (* Ushl, Ucvt, Uneg, Unot *)
-     2,4,5,6: intro ;
-              destruct (type_of_fexpr e0 te) ;
-              try apply TE.deftyp_not_implicit ;
-              done.
-  + (* Upad *)
-    intro.
-    destruct (n < sizeof_fgtyp (type_of_fexpr e0 te)) ; try done.
-    destruct (type_of_fexpr e0 te) ; try apply TE.deftyp_not_implicit ; done.
-  + (* Ushr *)
-    intro.
-    destruct (type_of_fexpr e0 te) ; try apply TE.deftyp_not_implicit ;
-    destruct (n < n0) ; done.
-* (* Eprim_binop *)
-  simpl type_of_fexpr.
-  destruct e1 eqn: He1 ; try done.
-  + (* Badd, Bsub, Bmul, Brem, Bdshl, Band, Bor, Bxor, Bcat *)
-    1,2,3,5,6,8,9,10,11: intro ;
-         destruct (type_of_fexpr e2 te), (type_of_fexpr e3 te) ;
-         try apply TE.deftyp_not_implicit ; done.
-  + (* Bdiv, Bdshr *)
-    1,2: intro ;
-         destruct (type_of_fexpr e2 te) ;
-         try apply TE.deftyp_not_implicit ; done.
-* (* Emux *)
-  simpl type_of_fexpr.
-  intro.
-  destruct (type_of_fexpr e1 te) ; try apply TE.deftyp_not_implicit.
-  destruct n ; try apply TE.deftyp_not_implicit.
-  destruct n ; try apply TE.deftyp_not_implicit.
-  destruct (type_of_fexpr e2 te), (type_of_fexpr e3 te) ;
-  try apply TE.deftyp_not_implicit ; done.
-* (* Evalidif *)
-  simpl type_of_fexpr.
-  intro.
-  destruct (type_of_fexpr e1 te) ; try apply TE.deftyp_not_implicit.
-  destruct n ; try apply TE.deftyp_not_implicit.
-  destruct n ; try apply TE.deftyp_not_implicit.
-  apply IHe2.
-* (* Eref *)
-  simpl type_of_fexpr.
-  intro.
-  destruct (TE.vtyp s te) ; done.
-Qed.
 
   (* Expression evaluation, value *)
   Fixpoint eval_fexpr (e : fexpr) (rs : vstate) (s : vstate) (te : TE.env) (readerls : seq var) (writerls : seq var) (data2etc : mapdata2etc) (memmap : mapmem) (read_la : boolmap) : vstate * bits :=
@@ -1498,18 +1440,18 @@ Qed.
     | Eprim_binop b e1 e2 =>
       let (rs0, ve1) := (eval_fexpr e1 rs s te readerls writerls data2etc memmap read_la) in
       let (rs1, ve2) := (eval_fexpr e2 rs0 s te readerls writerls data2etc memmap read_la) in
-      let te1 := type_of_fexpr e1 te in
-      let te2 := type_of_fexpr e2 te in
+      let (te1, _) := type_of_fexpr e1 te in
+      let (te2, _) := type_of_fexpr e2 te in
       let val := (ebinop_op b te1 te2) ve1 ve2 in
       (rs1, val)
     | Eprim_unop u e =>
-      let t := type_of_fexpr e te in
+      let (t, _) := type_of_fexpr e te in
       let (rs0, val1) := (eval_fexpr e rs s te readerls writerls data2etc memmap read_la) in
       let val := (eunop_op u t) val1 in
       (rs0, val)
     | Emux c e1 e2 =>
-      let t1 := (type_of_fexpr e1 te) in
-      let t2 := (type_of_fexpr e2 te) in
+      let (t1, _) := type_of_fexpr e1 te in
+      let (t2, _) := type_of_fexpr e2 te in
       let (rs0, valc) := (eval_fexpr c rs s te readerls writerls data2etc memmap read_la) in
       let (rs1, val1) := (eval_fexpr e1 rs0 s te readerls writerls data2etc memmap read_la) in
       let (rs2, val2) := (eval_fexpr e2 rs1 s te readerls writerls data2etc memmap read_la) in
@@ -1562,7 +1504,7 @@ Qed.
     match s with
     | Swire v t  => TE.add v t te
     | Sreg r => TE.add (rid r) (type r) te
-    | Snode v e => TE.add v (type_of_fexpr e te) te
+    | Snode v e => TE.add v (explicit_to_fgtyp (type_of_fexpr e te)) te
     | Smem m => let te1 := List.fold_left (fun tt tr => let tt0 := TE.add (addr tr) (Fuint ((Nat.log2 (depth m)) )) tt in
                                              let tt1 := TE.add (data tr) (data_type m) tt0 in
                                              let tt2 := TE.add (en tr) (Fuint 1) tt1 in
@@ -1575,7 +1517,7 @@ Qed.
                                TE.add (mask tr) (Fuint 1) tt3
                                ) (writer m) (TE.add (mid m) Fclock te1) (* mid不代表任何值 *)
     | Sinst inst => upd_typenv_fports (iports inst) te
-    | Sfcnct v e2 => TE.add v (type_of_fexpr e2 te) te
+    | Sfcnct v e2 => TE.add v (explicit_to_fgtyp (type_of_fexpr e2 te)) te
     | Sinvalid v => TE.add v (TE.vtyp v te) te
     | _ => te
     end.
@@ -1599,7 +1541,7 @@ Qed.
                     match reset r with
                     | NRst => (rs0, s0, memmap)
                     | Rst e1 e2 =>
-                        let te1 := type_of_fexpr e1 te in
+                        let (te1, _) := type_of_fexpr e1 te in
                         let (_, ve1) := eval_fexpr e1 rs s0 te readerls writerls data2etc memmap read_la in
                         let (_, ve2) := eval_fexpr e2 rs s0 te readerls writerls data2etc memmap read_la in
                         if (is_zero ve1) then (rs0, s0, memmap)
@@ -2182,98 +2124,40 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
     | Eref v => 0 < sizeof_fgtyp (TE.vtyp v te)
     (* | Edeclare v t => 0 < sizeof_fgtyp t *)
     | Ecast _ e1 => well_typed_fexpr e1 te
-    | Eprim_unop o e1 => match o with 
-                        | Upad _ => match (type_of_fexpr e1 te) with
-                                    | Fuint _
-                                    | Fsint _ => well_typed_fexpr e1 te
-                                    | _ => false
-                                    end
-                        | Ushl _ => match (type_of_fexpr e1 te) with
-                                    | Fuint _
-                                    | Fsint _ => well_typed_fexpr e1 te
-                                    | _ => false
-                                    end
-                        | Ushr _ => match (type_of_fexpr e1 te) with
-                                    | Fuint _
-                                    | Fsint _ => well_typed_fexpr e1 te
-                                    | _ => false
-                                    end
-                        | Ucvt => match (type_of_fexpr e1 te) with
-                                    | Fuint _
-                                    | Fsint _ => well_typed_fexpr e1 te
-                                    | _ => false
-                                    end
-                        | Uneg => match (type_of_fexpr e1 te) with
-                                    | Fuint _
-                                    | Fsint _ => well_typed_fexpr e1 te
-                                    | _ => false
-                                    end
-                        | Unot => match (type_of_fexpr e1 te) with
-                                    | Fuint _
-                                    | Fsint _ => well_typed_fexpr e1 te
-                                    | _ => false
-                                    end
-                        | _ => well_typed_fexpr e1 te
+    | Eprim_unop o e1 => match type_of_fexpr e1 te with
+                                  | exist (Fuint _) _
+                                  | exist (Fsint _) _ => well_typed_fexpr e1 te
+                                  | _ => false
                         end
     | Eprim_binop b e1 e2 => match b with
-                        | Bdshl => match type_of_fexpr e1 te, type_of_fexpr e2 te with
-                                  | Fuint _, Fuint _
-                                  | Fsint _, Fuint _ => well_typed_fexpr e1 te && (well_typed_fexpr e2 te)
-                                  | _, _ => false
-                                  end
+                        | Bdshl
                         | Bdshr => match type_of_fexpr e1 te, type_of_fexpr e2 te with
-                                  | Fuint _, Fuint _
-                                  | Fsint _, Fuint _ => well_typed_fexpr e1 te && (well_typed_fexpr e2 te)
-                                  | _, _ => false
-                                  end
-                        | Badd | Bsub => match type_of_fexpr e1 te, type_of_fexpr e2 te with
-                                  | Fuint _, Fuint _
-                                  | Fsint _, Fsint _ => well_typed_fexpr e1 te && (well_typed_fexpr e2 te)
-                                  | _, _ => false
-                                  end
-                        | Bmul => match type_of_fexpr e1 te, type_of_fexpr e2 te with
-                                  | Fuint _, Fuint _
-                                  | Fsint _, Fsint _ => well_typed_fexpr e1 te && (well_typed_fexpr e2 te)
-                                  | _, _ => false
-                                  end
-                        | Band | Bor | Bxor => match type_of_fexpr e1 te, type_of_fexpr e2 te with
-                                  | Fuint _, Fuint _
-                                  | Fsint _, Fsint _ => well_typed_fexpr e1 te && (well_typed_fexpr e2 te)
-                                  | _, _ => false
-                                  end
-                        | Bdiv => match type_of_fexpr e1 te, type_of_fexpr e2 te with
-                                  | Fuint _, Fuint _
-                                  | Fsint _, Fsint _ => well_typed_fexpr e1 te && (well_typed_fexpr e2 te)
-                                  | _, _ => false
-                                  end
-                        | Brem => match type_of_fexpr e1 te, type_of_fexpr e2 te with
-                                  | Fuint _, Fuint _
-                                  | Fsint _, Fsint _ => well_typed_fexpr e1 te && (well_typed_fexpr e2 te)
-                                  | _, _ => false
-                                  end
-                        | Bcat => match type_of_fexpr e1 te, type_of_fexpr e2 te with
-                                  | Fuint _, Fuint _
-                                  | Fsint _, Fsint _ => well_typed_fexpr e1 te && (well_typed_fexpr e2 te)
-                                  | _, _ => false
-                                end
+                                   | exist (Fuint _) _, exist (Fuint _) _
+                                   | exist (Fsint _) _, exist (Fuint _) _ => well_typed_fexpr e1 te && well_typed_fexpr e2 te
+                                   | _, _ => false
+                                   end
+                        | Badd | Bsub
+                        | Bmul
+                        | Band | Bor | Bxor
+                        | Bdiv
+                        | Brem
+                        | Bcat
                         | Bcomp _ => match type_of_fexpr e1 te, type_of_fexpr e2 te with
-                                  | Fuint _, Fuint _
-                                  | Fsint _, Fsint _ => well_typed_fexpr e1 te && (well_typed_fexpr e2 te)
+                                  | exist (Fuint _) _, exist (Fuint _) _
+                                  | exist (Fsint _) _, exist (Fsint _) _ => well_typed_fexpr e1 te && well_typed_fexpr e2 te
                                   | _, _ => false
                                   end
                         end
-    | Emux c e1 e2 => (type_of_fexpr c te == Fuint 1) &&
-                      let t1 := (type_of_fexpr e1 te) in
-                      let t2 := (type_of_fexpr e2 te) in
-                      match t1, t2 with
-                      | Fuint _, Fuint _
-                      | Fsint _, Fsint _
-                      | Fclock, Fclock
-                      | Freset, Freset
-                      | Fasyncreset, Fasyncreset => (well_typed_fexpr c te) && (well_typed_fexpr e1 te) && (well_typed_fexpr e2 te)
+    | Emux c e1 e2 => (type_of_fexpr c te == exist not_implicit_width (Fuint 1) I) &&
+                      match type_of_fexpr e1 te, type_of_fexpr e2 te with
+                      | exist (Fuint _) _, exist (Fuint _) _
+                      | exist (Fsint _) _, exist (Fsint _) _
+                      | exist (Fclock) _, exist (Fclock) _
+                      | exist (Freset) _, exist (Freset) _
+                      | exist (Fasyncreset) _, exist (Fasyncreset) _ => well_typed_fexpr c te && well_typed_fexpr e1 te && well_typed_fexpr e2 te
                       | _, _ => false
                       end
-    | Evalidif c e1 => (type_of_fexpr c te == Fuint 1) && (well_typed_fexpr c te) && (well_typed_fexpr e1 te)
+    | Evalidif c e1 => (type_of_fexpr c te == exist not_implicit_width (Fuint 1) I) && well_typed_fexpr c te && well_typed_fexpr e1 te
     end.
 
   (* no mem evaluation *)
@@ -2291,23 +2175,18 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
     | Eprim_binop b e1 e2 =>
       let ve1 := (no_mem_eval_fexpr e1 s te) in
       let ve2 := (no_mem_eval_fexpr e2 s te) in
-      let te1 := type_of_fexpr e1 te in
-      let te2 := type_of_fexpr e2 te in
-      (ebinop_op b te1 te2) ve1 ve2
+      (ebinop_op b (explicit_to_fgtyp (type_of_fexpr e1 te)) (explicit_to_fgtyp (type_of_fexpr e2 te ))) ve1 ve2
     | Eprim_unop u e =>
-      let t := type_of_fexpr e te in
-      (eunop_op u t) (no_mem_eval_fexpr e s te)
+      (eunop_op u (explicit_to_fgtyp (type_of_fexpr e te))) (no_mem_eval_fexpr e s te)
     | Emux c e1 e2 =>
-      let t1 := (type_of_fexpr e1 te) in
-      let t2 := (type_of_fexpr e2 te) in
-      match t1, t2 with
-      | Fuint w1, Fuint w2 => if ~~ (is_zero (no_mem_eval_fexpr c s te)) 
+      match type_of_fexpr e1 te, type_of_fexpr e2 te with
+      | exist (Fuint w1) _, exist (Fuint w2) _ => if ~~ (is_zero (no_mem_eval_fexpr c s te)) 
       then (zext ((maxn w1 w2) - w1) (no_mem_eval_fexpr e1 s te)) else(zext ((maxn w1 w2) - w2) (no_mem_eval_fexpr e2 s te))
-      | Fsint w1, Fsint w2 => if ~~ (is_zero (no_mem_eval_fexpr c s te)) 
+      | exist (Fsint w1) _, exist (Fsint w2) _ => if ~~ (is_zero (no_mem_eval_fexpr c s te)) 
       then (sext ((maxn w1 w2) - w1) (no_mem_eval_fexpr e1 s te)) else(sext ((maxn w1 w2) - w2) (no_mem_eval_fexpr e2 s te))
-      | Fclock, Fclock
-      | Freset, Freset
-      | Fasyncreset, Fasyncreset => if ~~ (is_zero (no_mem_eval_fexpr c s te))
+      | exist (Fclock) _, exist (Fclock) _
+      | exist (Freset) _, exist (Freset) _
+      | exist (Fasyncreset) _, exist (Fasyncreset) _ => if ~~ (is_zero (no_mem_eval_fexpr c s te))
       then no_mem_eval_fexpr e1 s te else no_mem_eval_fexpr e2 s te
       | _, _ => [::]
       end       
@@ -2332,14 +2211,13 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
                 match reset r with
                 | NRst => (rs0, s0)
                 | Rst e1 e2 =>
-                    let te1 := type_of_fexpr e1 te in
                     let ve1 := no_mem_eval_fexpr e1 s0 te in
                     let ve2 := no_mem_eval_fexpr e2 s0 te in
                     if (is_zero ve1) then (rs0, s0)
                     else
-                      match te1 with
-                      | Fuint 1 => (SV.upd (rid r) ve2 rs0, s0)
-                      | Fasyncreset => (SV.upd (rid r) ve2 rs0, SV.upd (rid r) ve2 s0)
+                      match type_of_fexpr e1 te with
+                      | exist (Fuint 1) _ => (SV.upd (rid r) ve2 rs0, s0)
+                      | exist (Fasyncreset) _ => (SV.upd (rid r) ve2 rs0, SV.upd (rid r) ve2 s0)
                       | _ => (rs0, s0)
                       end
                 end
@@ -2370,7 +2248,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
     match s with
     | Swire v t  => TE.add v t te
     | Sreg r => TE.add (rid r) (type r) te
-    | Snode v e => TE.add v (type_of_fexpr e te) te
+    | Snode v e => TE.add v (explicit_to_fgtyp (type_of_fexpr e te)) te
     | Sinst inst => upd_typenv_fports (iports inst) te
     | Sinvalid v => TE.add v (TE.vtyp v te) te
     | _ => te
@@ -2622,8 +2500,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
                  end)
     | Snode v e => well_typed_fexpr e te
     | Sfcnct v e => match (TE.vtyp v te) with
-                                | Fuint w | Fuint_implicit w => well_typed_fexpr e te && (w >= (sizeof_fgtyp (type_of_fexpr e te)))
-                                | Fsint w | Fsint_implicit w => well_typed_fexpr e te && (w >= (sizeof_fgtyp (type_of_fexpr e te)))
+                                | Fuint w | Fuint_implicit w => well_typed_fexpr e te && (w >= (sizeof_fgtyp (explicit_to_fgtyp (type_of_fexpr e te))))
+                                | Fsint w | Fsint_implicit w => well_typed_fexpr e te && (w >= (sizeof_fgtyp (explicit_to_fgtyp (type_of_fexpr e te))))
                                 | _ => false
                                 end
     | Sinst _ => false
@@ -2728,13 +2606,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       rewrite size_zeros//.
       apply SV.Upd_upd.
       done.
-       destruct (type_of_fexpr e1 (TE.add (rid r) (type r) te)) as [n|n|n|n| | |] eqn: Htypee1.
-      4: (* Fsint_implicit *)
-         assert (type_of_fexpr e1 (TE.add (rid r) (type r) te) != Fsint_implicit n) by (apply type_of_fexpr_is_not_implicit) ;
-         rewrite Htypee1 eq_refl // in H.
-      3: (* Fuint_implicit *)
-         assert (type_of_fexpr e1 (TE.add (rid r) (type r) te) != Fuint_implicit n) by (apply type_of_fexpr_is_not_implicit) ;
-         rewrite Htypee1 eq_refl /negb // in H.
+      destruct (type_of_fexpr e1 (TE.add (rid r) (type r) te)) as [[n|n|n|n| | |] niw] eqn: Htypee1.
+      3,4: clear Htypee1 ; rewrite /not_implicit_width // in niw.
       - (* Fuint n *)
         case Hn : n => [|n'].
           - split.
@@ -2814,13 +2687,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       move : Hcfr1.
       apply SV.conform_equal.
       exact Haddsame.
-      destruct (type_of_fexpr e1 (TE.add (rid r) (type r) te)) as [n|n|n|n| | |] eqn: Htypee1.
-      4: (* Fsint_implicit *)
-         assert (type_of_fexpr e1 (TE.add (rid r) (type r) te) != Fsint_implicit n) by (apply type_of_fexpr_is_not_implicit) ;
-         rewrite Htypee1 eq_refl // in H.
-      3: (* Fuint_implicit *)
-         assert (type_of_fexpr e1 (TE.add (rid r) (type r) te) != Fuint_implicit n) by (apply type_of_fexpr_is_not_implicit) ;
-         rewrite Htypee1 eq_refl /negb // in H.
+      destruct (type_of_fexpr e1 (TE.add (rid r) (type r) te)) as [[n|n|n|n| | |] niw] eqn: Htypee1.
+      3,4: clear Htypee1 ; rewrite /not_implicit_width // in niw.
       - (* Fuint n *)
         case Hn : n => [|n'].
           - split.
@@ -2924,7 +2792,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
   Lemma typeof_eval_fexpr e : forall s1 te,
     SV.conform s1 te ->
     well_formed_fexpr e te ->
-    size (no_mem_eval_fexpr e s1 te) = sizeof_fgtyp (type_of_fexpr e te) .
+    size (no_mem_eval_fexpr e s1 te) = sizeof_fgtyp (explicit_to_fgtyp (type_of_fexpr e te)).
   Proof.
     induction e.
     - (* const *)
@@ -2960,15 +2828,13 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         exact Hcf.
       - 1,2,3: reflexivity.
     - (* unop *)
-      move => s1 te Hcf.
-      case e.
+      move => s1 te Hcf Hwf.
+      rewrite /well_formed_fexpr in Hwf.
+      simpl in Hwf.
+      move : Hwf => /andP [Hwt Hid].
+      destruct e.
         (* pad *)
-      - move => n Hwf.
-        rewrite /well_formed_fexpr in Hwf.
-        move : Hwf => /andP [Hwt Hid].
-        simpl in Hid.
-        simpl in Hwt.
-        destruct (type_of_fexpr e0 te) as [n0|n0|n0|n0| | |] eqn:Ht ; try discriminate.
+      - destruct (type_of_fexpr e0 te) as [[n0|n0|n0|n0| | |] niw] eqn:Ht ; try discriminate.
         simpl.
         case Hn:(n < size (no_mem_eval_fexpr e0 s1 te)).
         rewrite Ht.
@@ -3004,12 +2870,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         exact Hn.
         rewrite /well_formed_fexpr Hwt Hid //.
       - (* shl *)
-        move => n Hwf.
-        rewrite /well_formed_fexpr in Hwf.
-        move : Hwf => /andP [Hwt Hid].
-        simpl in Hid.
-        simpl in Hwt.
-        destruct (type_of_fexpr e0 te) as [n0|n0|n0|n0| | |] eqn:Ht ; try discriminate.
+        destruct (type_of_fexpr e0 te) as [[n0|n0|n0|n0| | |] niw] eqn:Ht ; try discriminate.
         simpl.
         rewrite Ht size_cat size_zeros.
         apply IHe in Hcf.
@@ -3025,12 +2886,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         rewrite addnC //.
         rewrite /well_formed_fexpr Hwt Hid //.
       - (* shr *)
-        move => n Hwf.
-        rewrite /well_formed_fexpr in Hwf.
-        move : Hwf => /andP [Hwt Hid].
-        simpl in Hid.
-        simpl in Hwt.
-        destruct (type_of_fexpr e0 te) as [n0|n0|n0|n0| | |] eqn:Ht ; try discriminate.
+        destruct (type_of_fexpr e0 te) as [[n0|n0|n0|n0| | |] niw] eqn:Ht ; try discriminate.
         simpl.
         rewrite Ht.
         case Hn : (n < size (no_mem_eval_fexpr e0 s1 te)).
@@ -3070,12 +2926,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         reflexivity.
         rewrite /well_formed_fexpr Hwt Hid //.
       - (* cvt *)
-        move => Hwf.
-        rewrite /well_formed_fexpr in Hwf.
-        move : Hwf => /andP [Hwt Hid].
-        simpl in Hid.
-        simpl in Hwt.
-        destruct (type_of_fexpr e0 te) as [n0|n0|n0|n0| | |] eqn:Ht ; try discriminate.
+        destruct (type_of_fexpr e0 te) as [[n0|n0|n0|n0| | |] niw] eqn:Ht ; try discriminate.
         simpl.
         rewrite Ht.
         rewrite size_zext.
@@ -3092,12 +2943,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         reflexivity.
         rewrite /well_formed_fexpr Hwt Hid //.
       - (* neg *)
-        move => Hwf.
-        rewrite /well_formed_fexpr in Hwf.
-        move : Hwf => /andP [Hwt Hid].
-        simpl in Hid.
-        simpl in Hwt.
-        destruct (type_of_fexpr e0 te) as [n0|n0|n0|n0| | |] eqn:Ht ; try discriminate.
+        destruct (type_of_fexpr e0 te) as [[n0|n0|n0|n0| | |] niw] eqn:Ht ; try discriminate.
         simpl.
         rewrite Ht.
         rewrite size_negB size_zext.
@@ -3115,12 +2961,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         reflexivity.
         rewrite /well_formed_fexpr Hwt Hid //.
       - (* not *)
-        move => Hwf.
-        rewrite /well_formed_fexpr in Hwf.
-        move : Hwf => /andP [Hwt Hid].
-        simpl in Hid.
-        simpl in Hwt.
-        destruct (type_of_fexpr e0 te) as [n0|n0|n0|n0| | |] eqn:Ht ; try discriminate.
+        destruct (type_of_fexpr e0 te) as [[n0|n0|n0|n0| | |] niw] eqn:Ht ; try discriminate.
         simpl.
         rewrite Ht.
         rewrite size_invB.
@@ -3138,43 +2979,33 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         reflexivity.
         rewrite /well_formed_fexpr Hwt Hid //.
       - (* andr, orr, xorr *)
-        1,2,3: move => Hwf ;
-               simpl ;
+        1,2,3: simpl ;
+               destruct (type_of_fexpr e0 te) ;
                reflexivity.
       - (* extr *)
-        move => n n0 Hwf.
         simpl.
-        rewrite size_extract.
-        reflexivity.
+        destruct (type_of_fexpr e0 te).
+        rewrite size_extract //.
       - (* head *)
-        move => n Hwf.
         simpl.
-        rewrite size_high.
-        reflexivity.
+        destruct (type_of_fexpr e0 te).
+        rewrite size_high //.
       - (* tail *)
-        move => n Hwf.
         simpl.
-        rewrite size_low.
-        rewrite /well_formed_fexpr in Hwf.
-        move : Hwf => /andP [Hwt Hid].
-        simpl in Hid.
-        simpl in Hwt.
-        apply IHe in Hcf.
-        rewrite Hcf.
-        reflexivity.
-        rewrite /well_formed_fexpr Hwt Hid //.
+        destruct (type_of_fexpr e0 te) as [[n0|n0|n0|n0| | |] niw] eqn:Ht ; try discriminate.
+        1,2: rewrite size_low.
+        1,2: apply IHe in Hcf ;
+             try (rewrite /well_formed_fexpr Hwt Hid //).
+        1,2: rewrite Hcf Ht //.
     - (* binop *)
-    move => s1 te Hcf.
-      case e1.
+      move => s1 te Hcf Hwf.
+      rewrite /well_formed_fexpr in Hwf.
+      simpl in Hwf.
+      move : Hwf => /andP [Hwt /andP [Hid1 Hid2]].
+      destruct e1.
         (* add *)
-      - move => Hwf.
-        rewrite /well_formed_fexpr in Hwf.
-        move : Hwf => /andP [Hwt Hid].
-        simpl in Hid.
-        simpl in Hwt.
-        move : Hid => /andP [Hid1 Hid2].
-        destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: Ht1 ; try discriminate.
-        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: Ht2 ; try discriminate.
+      - destruct (type_of_fexpr e2 te) as [[n0|n0|n0|n0| | |] niw0] eqn: Ht1 ; try discriminate.
+        destruct (type_of_fexpr e3 te) as [[n1|n1|n1|n1| | |] niw1] eqn: Ht2 ; try discriminate.
         move : Hwt => /andP [Hwt1 Hwt2].
         simpl.
         rewrite Ht1 Ht2.
@@ -3190,7 +3021,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         rewrite addn1 //.
         rewrite /well_formed_fexpr Hwt2 Hid2 //.
         rewrite /well_formed_fexpr Hwt1 Hid1 //.
-        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: Ht2 ; try discriminate.
+        destruct (type_of_fexpr e3 te) as [[n1|n1|n1|n1| | |] niw1] eqn: Ht2 ; try discriminate.
         move : Hwt => /andP [Hwt1 Hwt2].
         simpl.
         rewrite Ht1 Ht2.
@@ -3224,14 +3055,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         rewrite /well_formed_fexpr Hwt2 Hid2 //.
         rewrite /well_formed_fexpr Hwt1 Hid1 //.
       (* sub *)
-      - move => Hwf.
-        rewrite /well_formed_fexpr in Hwf.
-        move : Hwf => /andP [Hwt Hid].
-        simpl in Hid.
-        simpl in Hwt.
-        move : Hid => /andP [Hid1 Hid2].
-        destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: Ht1 ; try discriminate.
-        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: Ht2 ; try discriminate.
+      - destruct (type_of_fexpr e2 te) as [[n0|n0|n0|n0| | |] niw0] eqn: Ht1 ; try discriminate.
+        destruct (type_of_fexpr e3 te) as [[n1|n1|n1|n1| | |] niw1] eqn: Ht2 ; try discriminate.
         move : Hwt => /andP [Hwt1 Hwt2].
         simpl.
         rewrite Ht1 Ht2.
@@ -3247,7 +3072,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         rewrite addn1 //.
         rewrite /well_formed_fexpr Hwt2 Hid2 //.
         rewrite /well_formed_fexpr Hwt1 Hid1 //.
-        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: Ht2 ; try discriminate.
+        destruct (type_of_fexpr e3 te) as [[n1|n1|n1|n1| | |] niw1] eqn: Ht2 ; try discriminate.
         move : Hwt => /andP [Hwt1 Hwt2].
         simpl.
         rewrite Ht1 Ht2.
@@ -3281,14 +3106,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         rewrite /well_formed_fexpr Hwt2 Hid2 //.
         rewrite /well_formed_fexpr Hwt1 Hid1 //.
       (* mul *)
-      - move => Hwf.
-        rewrite /well_formed_fexpr in Hwf.
-        move : Hwf => /andP [Hwt Hid].
-        simpl in Hid.
-        simpl in Hwt.
-        move : Hid => /andP [Hid1 Hid2].
-        destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: Ht1 ; try discriminate.
-        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: Ht2 ; try discriminate.
+      - destruct (type_of_fexpr e2 te) as [[n0|n0|n0|n0| | |] niw0] eqn: Ht1 ; try discriminate.
+        destruct (type_of_fexpr e3 te) as [[n1|n1|n1|n1| | |] niw1] eqn: Ht2 ; try discriminate.
         move : Hwt => /andP [Hwt1 Hwt2].
         simpl.
         rewrite Ht1 Ht2.
@@ -3304,7 +3123,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         reflexivity.
         rewrite /well_formed_fexpr Hwt2 Hid2 //.
         rewrite /well_formed_fexpr Hwt1 Hid1 //.
-        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: Ht2 ; try discriminate.
+        destruct (type_of_fexpr e3 te) as [[n1|n1|n1|n1| | |] niw1] eqn: Ht2 ; try discriminate.
         move : Hwt => /andP [Hwt1 Hwt2].
         simpl.
         rewrite Ht1 Ht2.
@@ -3322,14 +3141,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         rewrite /well_formed_fexpr Hwt2 Hid2 //.
         rewrite /well_formed_fexpr Hwt1 Hid1 //.
       (* div *)
-      - move => Hwf.
-        rewrite /well_formed_fexpr in Hwf.
-        move : Hwf => /andP [Hwt Hid].
-        simpl in Hid.
-        simpl in Hwt.
-        move : Hid => /andP [Hid1 Hid2].
-        destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: Ht1 ; try discriminate.
-        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: Ht2 ; try discriminate.
+      - destruct (type_of_fexpr e2 te) as [[n0|n0|n0|n0| | |] niw0] eqn: Ht1 ; try discriminate.
+        destruct (type_of_fexpr e3 te) as [[n1|n1|n1|n1| | |] niw1] eqn: Ht2 ; try discriminate.
         move : Hwt => /andP [Hwt1 Hwt2].
         simpl.
         rewrite Ht1 Ht2.
@@ -3340,7 +3153,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         simpl.
         reflexivity.
         rewrite /well_formed_fexpr Hwt1 Hid1 //.
-        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: Ht2 ; try discriminate.
+        destruct (type_of_fexpr e3 te) as [[n1|n1|n1|n1| | |] niw1] eqn: Ht2 ; try discriminate.
         move : Hwt => /andP [Hwt1 Hwt2].
         simpl.
         rewrite Ht1 Ht2.
@@ -3352,47 +3165,29 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         reflexivity.
         rewrite /well_formed_fexpr Hwt1 Hid1 //.
       (* rem *)
-      - move => Hwf.
-        rewrite /well_formed_fexpr in Hwf.
-        move : Hwf => /andP [Hwt Hid].
-        simpl in Hid.
-        simpl in Hwt.
-        move : Hid => /andP [Hid1 Hid2].
-        destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: Ht1 ; try discriminate.
-        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: Ht2 ; try discriminate.
+      - destruct (type_of_fexpr e2 te) as [[n0|n0|n0|n0| | |] niw0] eqn: Ht1 ; try discriminate.
+        destruct (type_of_fexpr e3 te) as [[n1|n1|n1|n1| | |] niw1] eqn: Ht2 ; try discriminate.
         move : Hwt => /andP [Hwt1 Hwt2].
         simpl.
         rewrite Ht1 Ht2.
         simpl.
         rewrite size_low //.
-        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: Ht2 ; try discriminate.
+        destruct (type_of_fexpr e3 te) as [[n1|n1|n1|n1| | |] niw1] eqn: Ht2 ; try discriminate.
         move : Hwt => /andP [Hwt1 Hwt2].
         simpl.
         rewrite Ht1 Ht2.
         simpl.
         rewrite size_low //.
       (* cmp *)
-      - move => b Hwf.
-        rewrite /well_formed_fexpr in Hwf.
-        move : Hwf => /andP [Hwt Hid].
-        simpl in Hid.
-        simpl in Hwt.
-        move : Hid => /andP [Hid1 Hid2].
-        simpl.
-        destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: Ht1 ; try discriminate.
-        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: Ht2 ; try discriminate.
+      - simpl.
+        destruct (type_of_fexpr e2 te) as [[n0|n0|n0|n0| | |] niw0] eqn: Ht1 ; try discriminate.
+        destruct (type_of_fexpr e3 te) as [[n1|n1|n1|n1| | |] niw1] eqn: Ht2 ; try discriminate.
         case b ; simpl ; reflexivity.
-        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: Ht2 ; try discriminate.
+        destruct (type_of_fexpr e3 te) as [[n1|n1|n1|n1| | |] niw1] eqn: Ht2 ; try discriminate.
         case b ; simpl ; reflexivity.
       (* dshl *)
-      - move => Hwf.
-        rewrite /well_formed_fexpr in Hwf.
-        move : Hwf => /andP [Hwt Hid].
-        simpl in Hid.
-        simpl in Hwt.
-        move : Hid => /andP [Hid1 Hid2].
-        destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: Ht1 ; try discriminate.
-        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: Ht2 ; try discriminate.
+      - destruct (type_of_fexpr e2 te) as [[n0|n0|n0|n0| | |] niw0] eqn: Ht1 ; try discriminate.
+        destruct (type_of_fexpr e3 te) as [[n1|n1|n1|n1| | |] niw1] eqn: Ht2 ; try discriminate.
         move : Hwt => /andP [Hwt1 Hwt2].
         simpl.
         rewrite Ht1 Ht2.
@@ -3418,7 +3213,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         rewrite Nats.expn_pow.
         apply Nat.pow_nonzero.
         lia.
-        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: Ht2 ; try discriminate.
+        destruct (type_of_fexpr e3 te) as [[n1|n1|n1|n1| | |] niw1] eqn: Ht2 ; try discriminate.
         move : Hwt => /andP [Hwt1 Hwt2].
         simpl.
         rewrite Ht1 Ht2.
@@ -3445,14 +3240,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         apply Nat.pow_nonzero.
         lia.
       (* dshr *)
-      - move => Hwf.
-        rewrite /well_formed_fexpr in Hwf.
-        move : Hwf => /andP [Hwt Hid].
-        simpl in Hid.
-        simpl in Hwt.
-        move : Hid => /andP [Hid1 Hid2].
-        destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: Ht1 ; try discriminate.
-        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: Ht2 ; try discriminate.
+      - destruct (type_of_fexpr e2 te) as [[n0|n0|n0|n0| | |] niw0] eqn: Ht1 ; try discriminate.
+        destruct (type_of_fexpr e3 te) as [[n1|n1|n1|n1| | |] niw1] eqn: Ht2 ; try discriminate.
         move : Hwt => /andP [Hwt1 Hwt2].
         simpl.
         rewrite Ht1 Ht2.
@@ -3463,7 +3252,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         simpl.
         reflexivity.
         rewrite /well_formed_fexpr Hwt1 Hid1 //.
-        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: Ht2 ; try discriminate.
+        destruct (type_of_fexpr e3 te) as [[n1|n1|n1|n1| | |] niw1] eqn: Ht2 ; try discriminate.
         move : Hwt => /andP [Hwt1 Hwt2].
         simpl.
         rewrite Ht1 Ht2.
@@ -3475,14 +3264,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         reflexivity.
         rewrite /well_formed_fexpr Hwt1 Hid1 //.
       (* and *)
-      - move => Hwf.
-        rewrite /well_formed_fexpr in Hwf.
-        move : Hwf => /andP [Hwt Hid].
-        simpl in Hid.
-        simpl in Hwt.
-        move : Hid => /andP [Hid1 Hid2].
-        destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: Ht1 ; try discriminate.
-        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: Ht2 ; try discriminate.
+      - destruct (type_of_fexpr e2 te) as [[n0|n0|n0|n0| | |] niw0] eqn: Ht1 ; try discriminate.
+        destruct (type_of_fexpr e3 te) as [[n1|n1|n1|n1| | |] niw1] eqn: Ht2 ; try discriminate.
         move : Hwt => /andP [Hwt1 Hwt2].
         simpl.
         rewrite Ht1 Ht2.
@@ -3503,7 +3286,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         rewrite leq_maxl //.
         rewrite /well_formed_fexpr Hwt2 Hid2 //.
         rewrite /well_formed_fexpr Hwt1 Hid1 //.
-        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: Ht2 ; try discriminate.
+        destruct (type_of_fexpr e3 te) as [[n1|n1|n1|n1| | |] niw1] eqn: Ht2 ; try discriminate.
         move : Hwt => /andP [Hwt1 Hwt2].
         simpl.
         rewrite Ht1 Ht2.
@@ -3525,14 +3308,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         rewrite /well_formed_fexpr Hwt2 Hid2 //.
         rewrite /well_formed_fexpr Hwt1 Hid1 //.
       (* or *)
-      - move => Hwf.
-        rewrite /well_formed_fexpr in Hwf.
-        move : Hwf => /andP [Hwt Hid].
-        simpl in Hid.
-        simpl in Hwt.
-        move : Hid => /andP [Hid1 Hid2].
-        destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: Ht1 ; try discriminate.
-        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: Ht2 ; try discriminate.
+      - destruct (type_of_fexpr e2 te) as [[n0|n0|n0|n0| | |] niw0] eqn: Ht1 ; try discriminate.
+        destruct (type_of_fexpr e3 te) as [[n1|n1|n1|n1| | |] niw1] eqn: Ht2 ; try discriminate.
         move : Hwt => /andP [Hwt1 Hwt2].
         simpl.
         rewrite Ht1 Ht2.
@@ -3553,7 +3330,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         rewrite leq_maxl //.
         rewrite /well_formed_fexpr Hwt2 Hid2 //.
         rewrite /well_formed_fexpr Hwt1 Hid1 //.
-        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: Ht2 ; try discriminate.
+        destruct (type_of_fexpr e3 te) as [[n1|n1|n1|n1| | |] niw1] eqn: Ht2 ; try discriminate.
         move : Hwt => /andP [Hwt1 Hwt2].
         simpl.
         rewrite Ht1 Ht2.
@@ -3575,14 +3352,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         rewrite /well_formed_fexpr Hwt2 Hid2 //.
         rewrite /well_formed_fexpr Hwt1 Hid1 //.
       (* xor *)
-      - move => Hwf.
-        rewrite /well_formed_fexpr in Hwf.
-        move : Hwf => /andP [Hwt Hid].
-        simpl in Hid.
-        simpl in Hwt.
-        move : Hid => /andP [Hid1 Hid2].
-        destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: Ht1 ; try discriminate.
-        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: Ht2 ; try discriminate.
+      - destruct (type_of_fexpr e2 te) as [[n0|n0|n0|n0| | |] niw0] eqn: Ht1 ; try discriminate.
+        destruct (type_of_fexpr e3 te) as [[n1|n1|n1|n1| | |] niw1] eqn: Ht2 ; try discriminate.
         move : Hwt => /andP [Hwt1 Hwt2].
         simpl.
         rewrite Ht1 Ht2.
@@ -3603,7 +3374,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         rewrite leq_maxl //.
         rewrite /well_formed_fexpr Hwt2 Hid2 //.
         rewrite /well_formed_fexpr Hwt1 Hid1 //.
-        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: Ht2 ; try discriminate.
+        destruct (type_of_fexpr e3 te) as [[n1|n1|n1|n1| | |] niw1] eqn: Ht2 ; try discriminate.
         move : Hwt => /andP [Hwt1 Hwt2].
         simpl.
         rewrite Ht1 Ht2.
@@ -3625,14 +3396,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         rewrite /well_formed_fexpr Hwt2 Hid2 //.
         rewrite /well_formed_fexpr Hwt1 Hid1 //.
       (* cat *)
-      - move => Hwf.
-        rewrite /well_formed_fexpr in Hwf.
-        move : Hwf => /andP [Hwt Hid].
-        simpl in Hid.
-        simpl in Hwt.
-        move : Hid => /andP [Hid1 Hid2].
-        destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: Ht1 ; try discriminate.
-        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: Ht2 ; try discriminate.
+      - destruct (type_of_fexpr e2 te) as [[n0|n0|n0|n0| | |] niw0] eqn: Ht1 ; try discriminate.
+        destruct (type_of_fexpr e3 te) as [[n1|n1|n1|n1| | |] niw1] eqn: Ht2 ; try discriminate.
         move : Hwt => /andP [Hwt1 Hwt2].
         simpl.
         rewrite Ht1 Ht2.
@@ -3649,7 +3414,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         rewrite addnC //.
         rewrite /well_formed_fexpr Hwt2 Hid2 //.
         rewrite /well_formed_fexpr Hwt1 Hid1 //.
-        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: Ht2 ; try discriminate.
+        destruct (type_of_fexpr e3 te) as [[n1|n1|n1|n1| | |] niw1] eqn: Ht2 ; try discriminate.
         move : Hwt => /andP [Hwt1 Hwt2].
         simpl.
         rewrite Ht1 Ht2.
@@ -3677,8 +3442,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hid.
       move : Hid => /andP [Hid2 Hid3].
       move : Hid2 => /andP [Hid1 Hid2].
-      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H2 ; simpl in Hwt ; try discriminate.
-      destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3 ; simpl in Hwt ; try discriminate.
+      destruct (type_of_fexpr e2 te) as [[n0|n0|n0|n0| | |] niw0] eqn: H2 ; simpl in Hwt ; try discriminate.
+      destruct (type_of_fexpr e3 te) as [[n1|n1|n1|n1| | |] niw1] eqn: H3 ; simpl in Hwt ; try discriminate.
       case H1:(is_zero (no_mem_eval_fexpr e1 s1 te)).
       simpl.
       rewrite size_zext.
@@ -3710,7 +3475,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       rewrite subnKC //.
       rewrite leq_maxl //.
       exact Hcf.
-      destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3 ; simpl in Hwt ; try discriminate.
+      destruct (type_of_fexpr e3 te) as [[n1|n1|n1|n1| | |] niw1] eqn: H3 ; simpl in Hwt ; try discriminate.
       case H1:(is_zero (no_mem_eval_fexpr e1 s1 te)).
       simpl.
       rewrite size_sext.
@@ -3743,7 +3508,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       rewrite leq_maxl //.
       exact Hcf.
       (* Fclock *)
-      destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3 ; try discriminate.
+      destruct (type_of_fexpr e3 te) as [[n1|n1|n1|n1| | |] niw1] eqn: H3 ; try discriminate.
       rewrite Hwt0 /sizeof_fgtyp.
       case H1:(is_zero (no_mem_eval_fexpr e1 s1 te)) ; simpl.
       * specialize IHe3 with (s1 := s1) (te := te).
@@ -3759,7 +3524,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         move : Hwt => /andP [/andP [_ Hwt2] _].
         rewrite Hwt2 Hid2 //.
       (* Freset *)
-      destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3 ; try discriminate.
+      destruct (type_of_fexpr e3 te) as [[n1|n1|n1|n1| | |] niw1] eqn: H3 ; try discriminate.
       rewrite Hwt0 /sizeof_fgtyp.
       case H1:(is_zero (no_mem_eval_fexpr e1 s1 te)) ; simpl.
       * specialize IHe3 with (s1 := s1) (te := te).
@@ -3775,7 +3540,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         move : Hwt => /andP [/andP [_ Hwt2] _].
         rewrite Hwt2 Hid2 //.
       (* Fasyncreset *)
-      destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3 ; try discriminate.
+      destruct (type_of_fexpr e3 te) as [[n1|n1|n1|n1| | |] niw1] eqn: H3 ; try discriminate.
       rewrite Hwt0 /sizeof_fgtyp.
       case H1:(is_zero (no_mem_eval_fexpr e1 s1 te)) ; simpl.
       * specialize IHe3 with (s1 := s1) (te := te).
@@ -3813,7 +3578,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       rewrite /is_defined in Hid.
       apply SV.conform_mem with (v:=s) in Hcf.
       rewrite -Hcf.
-      case (TE.vtyp s te) eqn: Hvtyp.
+      case (TE.vtyp s te) eqn: Hvtyp ; rewrite /explicit_to_fgtyp.
       3: replace (sizeof_fgtyp (Fuint n)) with (sizeof_fgtyp (Fuint_implicit n)) by (rewrite /sizeof_fgtyp ; reflexivity).
       4: replace (sizeof_fgtyp (Fsint n)) with (sizeof_fgtyp (Fsint_implicit n)) by (rewrite /sizeof_fgtyp ; reflexivity).
       1,2,3,4,5,6,7: apply TE.vtyp_vsize ; exact Hvtyp.
@@ -3825,7 +3590,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
   Admitted.
 
   Lemma acyclic_eval_stmt_node : forall v e te s1 rs1,
-  no_mem_eval_noninst_fstmt (Snode v e) rs1 s1 (TE.add v (type_of_fexpr e te) te) = no_mem_eval_noninst_fstmt (Snode v e) rs1 s1 te.
+  no_mem_eval_noninst_fstmt (Snode v e) rs1 s1 (TE.add v (explicit_to_fgtyp (type_of_fexpr e te)) te) = no_mem_eval_noninst_fstmt (Snode v e) rs1 s1 te.
   Admitted.
 
   Lemma acyclic_typ_expr_node : forall v e te s1 rs1 ty,
@@ -3912,1475 +3677,217 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       reflexivity.
       exact Hcf.
     (* eunop *)
-    - case e; try by done.
-    (* upad *)
-      - move => n rs1 s1 te v Hcf Hwf.
-      simpl.
-      apply SV.conform_upd.
+    - move => rs1 s1 te v Hcf Hwf.
       rewrite /well_formed_fstmt_inline in Hwf.
+      simpl in Hwf.
       move : Hwf => /andP [Hwt Hid].
-      simpl in Hwt.
-      simpl in Hid.
-      case Hn:(n < sizeof_fgtyp (type_of_fexpr e0 te)).
-        - destruct (type_of_fexpr e0 te) as [n0|n0|n0|n0| | |] eqn: Htyp ; try discriminate.
-          - assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
-            rewrite /well_formed_fstmt_inline.
-            simpl.
-            rewrite Hwt Hid //.
-            specialize IHe with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-            simpl in IHe.
-            apply IHe in Hcf.
-            apply SV.conform_mem with (v:=v) in Hcf.
-            rewrite TE.vsize_add_eq // SV.acc_upd_eq // Htyp in Hcf.
-            rewrite Hcf in Hn.
-            rewrite Hn.
-            exact Hcf.
-            apply SV.Lemmas.mem_add_eq.
-            apply TE.SE.eq_refl.
-            exact Hwf.
-          - assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
-            rewrite /well_formed_fstmt_inline.
-            simpl.
-            rewrite Hwt Hid //.
-            specialize IHe with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-            simpl in IHe.
-            apply IHe in Hcf.
-            apply SV.conform_mem with (v:=v) in Hcf.
-            rewrite TE.vsize_add_eq // SV.acc_upd_eq // Htyp in Hcf.
-            rewrite Hcf in Hn.
-            rewrite Hn.
-            exact Hcf.
-            apply SV.Lemmas.mem_add_eq.
-            apply TE.SE.eq_refl.
-            exact Hwf.
-        - destruct (type_of_fexpr e0 te) as [n0|n0|n0|n0| | |] eqn: Htyp ; try discriminate.
-          - assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
-            rewrite /well_formed_fstmt_inline.
-            simpl.
-            rewrite Hwt Hid //.
-            specialize IHe with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-            simpl in IHe.
-            apply IHe in Hcf.
-            apply SV.conform_mem with (v:=v) in Hcf.
-            rewrite TE.vsize_add_eq // SV.acc_upd_eq // Htyp in Hcf.
-            rewrite Hcf in Hn.
-            rewrite Hn.
-            rewrite size_zext -Hcf.
-            simpl.
-            rewrite subnKC //.
-            simpl in Hcf.
-            rewrite -Hcf in Hn.
-            apply contraFleq with (b:=(n < n0)).
-            trivial.
-            exact Hn.
-            apply SV.Lemmas.mem_add_eq.
-            apply TE.SE.eq_refl.
-            exact Hwf.
-          - assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
-            rewrite /well_formed_fstmt_inline.
-            simpl.
-            rewrite Hwt Hid //.
-            specialize IHe with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-            simpl in IHe.
-            apply IHe in Hcf.
-            apply SV.conform_mem with (v:=v) in Hcf.
-            rewrite TE.vsize_add_eq // SV.acc_upd_eq // Htyp in Hcf.
-            rewrite Hcf in Hn.
-            rewrite Hn.
-            rewrite size_sext -Hcf.
-            simpl.
-            rewrite subnKC //.
-            simpl in Hcf.
-            rewrite -Hcf in Hn.
-            apply contraFleq with (b:=(n < n0)).
-            trivial.
-            exact Hn.
-            apply SV.Lemmas.mem_add_eq.
-            apply TE.SE.eq_refl.
-            exact Hwf.
-          exact Hcf.
+      destruct e.
+      1-12: simpl.
+      1-12: apply SV.conform_upd ; try exact Hcf.
+      1-12: destruct (type_of_fexpr e0 te) as [[n'|n'|n'|n'| | |] niw] eqn: Htyp ; try discriminate.
+      1-24: assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1)
+                   by (rewrite /well_formed_fstmt_inline ;
+                       simpl ;
+                       rewrite Hwt Hid //).
+      1-24: specialize IHe with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
+      1-24: simpl in IHe.
+      1-24: apply IHe in Hcf ; try exact Hwf.
+      1-24: apply SV.conform_mem with (v:=v) in Hcf ;
+                   try (apply SV.Lemmas.mem_add_eq, TE.SE.eq_refl).
+      1-24: rewrite TE.vsize_add_eq // SV.acc_upd_eq // Htyp /explicit_to_fgtyp in Hcf.
+      - (* upad *)
+        1,2: rewrite -Hcf ; simpl sizeof_fgtyp.
+        1,2: case Hn:(n < n').
+        1,3: rewrite /explicit_to_fgtyp Hcf //.
+        rewrite /explicit_to_fgtyp size_zext -Hcf /sizeof_fgtyp subnKC // leqNgt Hn //.
+        rewrite /explicit_to_fgtyp size_sext -Hcf /sizeof_fgtyp subnKC // leqNgt Hn //.
       - (* shl *)
-      move => n rs1 s1 te v Hcf Hwf.
-      simpl.
-      apply SV.conform_upd.
-      rewrite /well_formed_fstmt_inline in Hwf.
-      move : Hwf => /andP [Hwt Hid].
-      simpl in Hwt.
-      simpl in Hid.
-      destruct (type_of_fexpr e0 te) as [n0|n0|n0|n0| | |] eqn: Htyp ; try discriminate.
-      - assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
-        rewrite /well_formed_fstmt_inline.
-        simpl.
-        rewrite Hwt Hid //.
-        specialize IHe with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-        simpl in IHe.
-        apply IHe in Hcf.
-        apply SV.conform_mem with (v:=v) in Hcf.
-        rewrite TE.vsize_add_eq // SV.acc_upd_eq // Htyp in Hcf.
-        rewrite size_cat -Hcf size_zeros.
-        simpl.
-        rewrite addnC //.
-        apply SV.Lemmas.mem_add_eq.
-        apply TE.SE.eq_refl.
-        exact Hwf.
-      - assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
-        rewrite /well_formed_fstmt_inline.
-        simpl.
-        rewrite Hwt Hid //.
-        specialize IHe with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-        simpl in IHe.
-        apply IHe in Hcf.
-        apply SV.conform_mem with (v:=v) in Hcf.
-        rewrite TE.vsize_add_eq // SV.acc_upd_eq // Htyp in Hcf.
-        rewrite size_cat -Hcf size_zeros.
-        simpl.
-        rewrite addnC //.
-        apply SV.Lemmas.mem_add_eq.
-        apply TE.SE.eq_refl.
-        exact Hwf.
-      exact Hcf.
+        1,2: rewrite size_cat -Hcf size_zeros /explicit_to_fgtyp /sizeof_fgtyp.
+        1,2: rewrite addnC //.
       - (* shr *)
-      move => n rs1 s1 te v Hcf Hwf.
-      simpl.
-      apply SV.conform_upd.
-      rewrite /well_formed_fstmt_inline in Hwf.
-      move : Hwf => /andP [Hwt Hid].
-      simpl in Hwt.
-      simpl in Hid.
-      case Hn:(n < sizeof_fgtyp (type_of_fexpr e0 te)).
-        - destruct (type_of_fexpr e0 te) as [n0|n0|n0|n0| | |] eqn: Htyp ; try discriminate.
-          - assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
-            rewrite /well_formed_fstmt_inline.
-            simpl.
-            rewrite Hwt Hid //.
-            specialize IHe with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-            simpl in IHe.
-            apply IHe in Hcf.
-            apply SV.conform_mem with (v:=v) in Hcf.
-            rewrite TE.vsize_add_eq // SV.acc_upd_eq // Htyp /sizeof_fgtyp in Hcf.
-            rewrite -Hcf Hn size_high //.
-            apply SV.Lemmas.mem_add_eq.
-            apply TE.SE.eq_refl.
-            exact Hwf.
-          - assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
-            rewrite /well_formed_fstmt_inline.
-            simpl.
-            rewrite Hwt Hid //.
-            specialize IHe with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-            simpl in IHe.
-            apply IHe in Hcf.
-            apply SV.conform_mem with (v:=v) in Hcf.
-            rewrite TE.vsize_add_eq // SV.acc_upd_eq // Htyp /sizeof_fgtyp in Hcf.
-            rewrite -Hcf Hn size_high //.
-            apply SV.Lemmas.mem_add_eq.
-            apply TE.SE.eq_refl.
-            exact Hwf.
-        - destruct (type_of_fexpr e0 te) as [n0|n0|n0|n0| | |] eqn: Htyp ; try discriminate.
-          - assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
-            rewrite /well_formed_fstmt_inline.
-            simpl.
-            rewrite Hwt Hid //.
-            specialize IHe with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-            simpl in IHe.
-            apply IHe in Hcf.
-            apply SV.conform_mem with (v:=v) in Hcf.
-            rewrite TE.vsize_add_eq // SV.acc_upd_eq // Htyp /sizeof_fgtyp in Hcf.
-            rewrite -Hcf Hn //.
-            apply SV.Lemmas.mem_add_eq.
-            apply TE.SE.eq_refl.
-            exact Hwf.
-          - assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
-            rewrite /well_formed_fstmt_inline.
-            simpl.
-            rewrite Hwt Hid //.
-            specialize IHe with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-            simpl in IHe.
-            apply IHe in Hcf.
-            apply SV.conform_mem with (v:=v) in Hcf.
-            rewrite TE.vsize_add_eq // SV.acc_upd_eq // Htyp /sizeof_fgtyp in Hcf.
-            rewrite -Hcf Hn //.
-            apply SV.Lemmas.mem_add_eq.
-            apply TE.SE.eq_refl.
-            exact Hwf.
-          exact Hcf.
+        1,2: rewrite -Hcf ; simpl sizeof_fgtyp.
+        1,2: case Hn:(n < n').
+        1,3: rewrite size_high //.
+        1,2: rewrite /size //.
       - (* cvt *)
-      move => rs1 s1 te v Hcf Hwf.
-      simpl.
-      apply SV.conform_upd.
-      rewrite /well_formed_fstmt_inline in Hwf.
-      move : Hwf => /andP [Hwt Hid].
-      simpl in Hwt.
-      simpl in Hid.
-      destruct (type_of_fexpr e0 te) as [n0|n0|n0|n0| | |] eqn: Htyp ; try discriminate.
-      - assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
-        rewrite /well_formed_fstmt_inline.
-        simpl.
-        rewrite Hwt Hid //.
-        specialize IHe with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-        simpl in IHe.
-        apply IHe in Hcf.
-        apply SV.conform_mem with (v:=v) in Hcf.
-        rewrite TE.vsize_add_eq // SV.acc_upd_eq // Htyp /sizeof_fgtyp in Hcf.
         rewrite size_zext -Hcf //.
-        apply SV.Lemmas.mem_add_eq.
-        apply TE.SE.eq_refl.
-        exact Hwf.
-      - assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
-        rewrite /well_formed_fstmt_inline.
-        simpl.
-        rewrite Hwt Hid //.
-        specialize IHe with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-        simpl in IHe.
-        apply IHe in Hcf.
-        apply SV.conform_mem with (v:=v) in Hcf.
-        rewrite TE.vsize_add_eq // SV.acc_upd_eq // Htyp in Hcf.
-        exact Hcf.
-        apply SV.Lemmas.mem_add_eq.
-        apply TE.SE.eq_refl.
-        exact Hwf.
-        exact Hcf.
+        rewrite Hcf //.
       - (* neg *)
-      move => rs1 s1 te v Hcf Hwf.
-      simpl.
-      apply SV.conform_upd.
-      rewrite /well_formed_fstmt_inline in Hwf.
-      move : Hwf => /andP [Hwt Hid].
-      simpl in Hwt.
-      simpl in Hid.
-      destruct (type_of_fexpr e0 te) as [n0|n0|n0|n0| | |] eqn: Htyp ; try discriminate.
-      - assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
-        rewrite /well_formed_fstmt_inline.
-        simpl.
-        rewrite Hwt Hid //.
-        specialize IHe with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-        simpl in IHe.
-        apply IHe in Hcf.
-        apply SV.conform_mem with (v:=v) in Hcf.
-        rewrite TE.vsize_add_eq // SV.acc_upd_eq // Htyp /sizeof_fgtyp in Hcf.
         rewrite size_negB size_zext -Hcf //.
-        apply SV.Lemmas.mem_add_eq.
-        apply TE.SE.eq_refl.
-        exact Hwf.
-      - assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
-        rewrite /well_formed_fstmt_inline.
-        simpl.
-        rewrite Hwt Hid //.
-        specialize IHe with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-        simpl in IHe.
-        apply IHe in Hcf.
-        apply SV.conform_mem with (v:=v) in Hcf.
-        rewrite TE.vsize_add_eq // SV.acc_upd_eq // Htyp /sizeof_fgtyp in Hcf.
         rewrite size_negB size_sext -Hcf //.
-        apply SV.Lemmas.mem_add_eq.
-        apply TE.SE.eq_refl.
-        exact Hwf.
-      exact Hcf.
       - (* not *)
-      move => rs1 s1 te v Hcf Hwf.
-      simpl.
-      apply SV.conform_upd.
-      rewrite /well_formed_fstmt_inline in Hwf.
-      move : Hwf => /andP [Hwt Hid].
-      simpl in Hwt.
-      simpl in Hid.
-      destruct (type_of_fexpr e0 te) as [n0|n0|n0|n0| | |] eqn: Htyp ; try discriminate.
-      - assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
-        rewrite /well_formed_fstmt_inline.
-        simpl.
-        rewrite Hwt Hid //.
-        specialize IHe with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-        simpl in IHe.
-        apply IHe in Hcf.
-        apply SV.conform_mem with (v:=v) in Hcf.
-        rewrite TE.vsize_add_eq // SV.acc_upd_eq // Htyp in Hcf.
-        rewrite size_invB.
-        exact Hcf.
-        apply SV.Lemmas.mem_add_eq.
-        apply TE.SE.eq_refl.
-        exact Hwf.
-      - assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
-        rewrite /well_formed_fstmt_inline.
-        simpl.
-        rewrite Hwt Hid //.
-        specialize IHe with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-        simpl in IHe.
-        apply IHe in Hcf.
-        apply SV.conform_mem with (v:=v) in Hcf.
-        rewrite TE.vsize_add_eq // SV.acc_upd_eq // Htyp in Hcf.
-        rewrite size_invB.
-        exact Hcf.
-        apply SV.Lemmas.mem_add_eq.
-        apply TE.SE.eq_refl.
-        exact Hwf.
-        exact Hcf.
-      - (* andr, orr, xorr *)
-      1,2,3: move => rs1 s1 te v Hcf Hwf ;
-      simpl ;
-      apply SV.conform_upd ;
-            try (exact Hcf) ;
-            simpl ; reflexivity.
+        1,2: rewrite size_invB -Hcf //.
       - (* extr *)
-      move => n n0 rs1 s1 te v Hcf Hwf.
-      simpl.
-      apply SV.conform_upd. 
-      rewrite size_extract.
-      simpl.
-      reflexivity.
-      exact Hcf.
+        1,2: rewrite size_extract //.
       - (* head *)
-      move => n rs1 s1 te v Hcf Hwf.
-      simpl.
-      apply SV.conform_upd. 
-      rewrite size_high.
-      simpl.
-      reflexivity.
-      exact Hcf.
+        1,2: rewrite size_high //.
       - (* tail *)
-      move => n rs1 s1 te v Hcf Hwf.
-      simpl.
-      apply SV.conform_upd. 
-      rewrite size_low.
+        1,2: rewrite size_low -Hcf //.
+    - (* case ebinop *)
+      move => rs1 s1 te v Hcf Hwf.
       simpl.
       rewrite /well_formed_fstmt_inline in Hwf.
-      move : Hwf => /andP [Hwt Hid].
-      simpl in Hwt.
-      simpl in Hid.
-      assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
-      rewrite /well_formed_fstmt_inline.
-      simpl.
-      rewrite Hwt Hid //.
-      specialize IHe with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-      simpl in IHe.
-      apply IHe in Hcf.
-      apply SV.conform_mem with (v:=v) in Hcf.
-      rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf.
-      rewrite Hcf //.
-      apply SV.Lemmas.mem_add_eq.
-      apply TE.SE.eq_refl.
-      exact Hwf.
-      exact Hcf.
-    - (* case ebinop *)  
-    case e1; try by done.
-    - (* add *)
-    move => rs1 s1 te v Hcf Hwf.
-    simpl.
-    apply SV.conform_upd.
-    rewrite /well_formed_fstmt_inline in Hwf.
-    move : Hwf => /andP [Hwt Hid].
-    simpl in Hwt.
-    simpl in Hid.
-    move : Hid => /andP [Hid2 Hid3].
-    destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H2 ; try discriminate.
-    - destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3 ; try discriminate.
-      move : Hwt => /andP [Hwt2 Hwt3].
-      simpl.
-      rewrite size_addB_ext.
-      assert (Hwf2 : well_formed_fstmt_inline (Snode v e2) te s1 rs1).
-      rewrite /well_formed_fstmt_inline.
-      simpl.
-      rewrite Hwt2 Hid2 //.
-      assert (Hwf3 : well_formed_fstmt_inline (Snode v e3) te s1 rs1).
-      rewrite /well_formed_fstmt_inline.
-      simpl.
-      rewrite Hwt3 Hid3 //.
-      specialize IHe1 with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-      simpl in IHe1.
-      specialize IHe2 with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-      simpl in IHe2.
-      generalize Hcf.
-      apply IHe1 in Hcf.
-      apply SV.conform_mem with (v:=v) in Hcf.
-      rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf.
-      rewrite -Hcf H2.
-      move => Hcf0.
-      apply IHe2 in Hcf0.
-      apply SV.conform_mem with (v:=v) in Hcf0.
-      rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf0.
-      rewrite -Hcf0 H3.
-      simpl.
-      rewrite addn1 //.
-      apply SV.Lemmas.mem_add_eq.
-      apply TE.SE.eq_refl.
-      rewrite /well_formed_fstmt_inline.
-      simpl.
-      rewrite Hwt3 Hid3 //.
-      apply SV.Lemmas.mem_add_eq.
-      apply TE.SE.eq_refl.
-      exact Hwf2.
-    - destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3 ; try discriminate.
-      move : Hwt => /andP [Hwt2 Hwt3].
-      simpl.
-      rewrite size_SadcB_ext.
-      assert (Hwf2 : well_formed_fstmt_inline (Snode v e2) te s1 rs1).
-      rewrite /well_formed_fstmt_inline.
-      simpl.
-      rewrite Hwt2 Hid2 //.
-      assert (Hwf3 : well_formed_fstmt_inline (Snode v e3) te s1 rs1).
-      rewrite /well_formed_fstmt_inline.
-      simpl.
-      rewrite Hwt3 Hid3 //.
-      specialize IHe1 with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-      simpl in IHe1.
-      specialize IHe2 with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-      simpl in IHe2.
-      generalize Hcf.
-      apply IHe1 in Hcf.
-      apply SV.conform_mem with (v:=v) in Hcf.
-      rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf.
-      rewrite 2!size_sext -Hcf H2.
-      move => Hcf0.
-      apply IHe2 in Hcf0.
-      apply SV.conform_mem with (v:=v) in Hcf0.
-      rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf0.
-      rewrite -Hcf0 H3.
-      simpl.
-      rewrite subnKC.
-      rewrite subnKC.
-      rewrite maxnn //.
-      rewrite leq_maxr //.
-      rewrite leq_maxl //.
-      apply SV.Lemmas.mem_add_eq.
-      apply TE.SE.eq_refl.
-      exact Hwf3.
-      apply SV.Lemmas.mem_add_eq.
-      apply TE.SE.eq_refl.
-      rewrite /well_formed_fstmt_inline.
-      simpl.
-      rewrite Hwt2 Hid2 //.
-      assert (Hwf2 : well_formed_fstmt_inline (Snode v e2) te s1 rs1).
-      rewrite /well_formed_fstmt_inline.
-      simpl.
-      rewrite Hwt2 Hid2 //.
-      assert (Hwf3 : well_formed_fstmt_inline (Snode v e3) te s1 rs1).
-      rewrite /well_formed_fstmt_inline.
-      simpl.
-      rewrite Hwt3 Hid3 //.
-      specialize IHe1 with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-      simpl in IHe1.
-      specialize IHe2 with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-      simpl in IHe2.
-      generalize Hcf.
-      apply IHe1 in Hcf.
-      apply SV.conform_mem with (v:=v) in Hcf.
-      rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf.
-      rewrite 2!size_sext -Hcf H2.
-      move => Hcf0.
-      apply IHe2 in Hcf0.
-      apply SV.conform_mem with (v:=v) in Hcf0.
-      rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf0.
-      rewrite -Hcf0 H3.
-      simpl.
-      rewrite subnKC.
-      rewrite subnKC.
-      reflexivity.
-      rewrite leq_maxr //.
-      rewrite leq_maxl //.
-      apply SV.Lemmas.mem_add_eq.
-      apply TE.SE.eq_refl.
-      exact Hwf3.
-      apply SV.Lemmas.mem_add_eq.
-      apply TE.SE.eq_refl.
-      rewrite /well_formed_fstmt_inline.
-      simpl.
-      rewrite Hwt2 Hid2 //.
-      exact Hcf. 
+      simpl in Hwf.
+      move : Hwf => /andP [Hwt /andP [Hid2 Hid3]].
+      destruct e1.
+      1-12: apply SV.conform_upd ; try exact Hcf.
+      1-12: specialize IHe1 with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v) ;
+            simpl in IHe1.
+      1-12: specialize IHe2 with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v) ;
+            simpl in IHe2.
+      1-12: destruct (type_of_fexpr e2 te) as [[n0|n0|n0|n0| | |] niw0] eqn: H2 ; try discriminate.
+      1-24: destruct (type_of_fexpr e3 te) as [[n1|n1|n1|n1| | |] niw1] eqn: H3 ; try discriminate.
+      1-24: move : Hwt => /andP [Hwt2 Hwt3].
+      1-24: simpl.
+      1-24: assert (Hwf2 : well_formed_fstmt_inline (Snode v e2) te s1 rs1)
+                  by (rewrite /well_formed_fstmt_inline ;
+                      simpl ;
+                      rewrite Hwt2 Hid2 //).
+      1-24: assert (Hwf3 : well_formed_fstmt_inline (Snode v e3) te s1 rs1)
+                  by (rewrite /well_formed_fstmt_inline ;
+                      simpl ;
+                      rewrite Hwt3 Hid3 //).
+      1-24: generalize Hcf ; move => Hcf0.
+      1-24: apply IHe1 in Hcf ; try exact Hwf2.
+      1-24: apply SV.conform_mem with (v:=v) in Hcf ;
+                  try (apply SV.Lemmas.mem_add_eq, TE.SE.eq_refl).
+      1-24: rewrite /explicit_to_fgtyp TE.vsize_add_eq // SV.acc_upd_eq // in Hcf.
+      1-24: apply IHe2 in Hcf0 ; try exact Hwf3.
+      1-24: apply SV.conform_mem with (v:=v) in Hcf0 ;
+                  try (apply SV.Lemmas.mem_add_eq, TE.SE.eq_refl).
+      1-24: rewrite /explicit_to_fgtyp TE.vsize_add_eq // SV.acc_upd_eq // in Hcf0.
+      - (* add *)
+        rewrite size_addB_ext -Hcf -Hcf0 /sizeof_fgtyp addn1 //.
+        rewrite size_SadcB_ext 2!size_sext -Hcf -Hcf0 /sizeof_fgtyp.
+        1,2: rewrite subnKC ; try rewrite leq_maxl //.
+        1,2: rewrite subnKC // ; try rewrite leq_maxr //.
+        rewrite maxnn //.
       - (* sub *)
-      move => rs1 s1 te v Hcf Hwf.
-      simpl.
-      apply SV.conform_upd.
-      rewrite /well_formed_fstmt_inline in Hwf.
-      move : Hwf => /andP [Hwt Hid].
-      simpl in Hwt.
-      simpl in Hid.
-      move : Hid => /andP [Hid2 Hid3].
-      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H2 ; try discriminate.
-      - destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3 ; try discriminate.
-        move : Hwt => /andP [Hwt2 Hwt3].
-        simpl.
-        rewrite size_subB_ext.
-        assert (Hwf2 : well_formed_fstmt_inline (Snode v e2) te s1 rs1).
-        rewrite /well_formed_fstmt_inline.
-        simpl.
-        rewrite Hwt2 Hid2 //.
-        assert (Hwf3 : well_formed_fstmt_inline (Snode v e3) te s1 rs1).
-        rewrite /well_formed_fstmt_inline.
-        simpl.
-        rewrite Hwt3 Hid3 //.
-        specialize IHe1 with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-        simpl in IHe1.
-        specialize IHe2 with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-        simpl in IHe2.
-        generalize Hcf.
-        apply IHe1 in Hcf.
-        apply SV.conform_mem with (v:=v) in Hcf.
-        rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf.
-        rewrite -Hcf H2.
-        move => Hcf0.
-        apply IHe2 in Hcf0.
-        apply SV.conform_mem with (v:=v) in Hcf0.
-        rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf0.
-        rewrite -Hcf0 H3.
-        simpl.
-        rewrite addn1 //.
-        apply SV.Lemmas.mem_add_eq.
-        apply TE.SE.eq_refl.
-        rewrite /well_formed_fstmt_inline.
-        simpl.
-        rewrite Hwt3 Hid3 //.
-        apply SV.Lemmas.mem_add_eq.
-        apply TE.SE.eq_refl.
-        exact Hwf2.
-      - destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3 ; try discriminate.
-        move : Hwt => /andP [Hwt2 Hwt3].
-        simpl.
-        rewrite size_SsbbB_ext.
-        assert (Hwf2 : well_formed_fstmt_inline (Snode v e2) te s1 rs1).
-        rewrite /well_formed_fstmt_inline.
-        simpl.
-        rewrite Hwt2 Hid2 //.
-        assert (Hwf3 : well_formed_fstmt_inline (Snode v e3) te s1 rs1).
-        rewrite /well_formed_fstmt_inline.
-        simpl.
-        rewrite Hwt3 Hid3 //.
-        specialize IHe1 with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-        simpl in IHe1.
-        specialize IHe2 with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-        simpl in IHe2.
-        generalize Hcf.
-        apply IHe1 in Hcf.
-        apply SV.conform_mem with (v:=v) in Hcf.
-        rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf.
-        rewrite 2!size_sext -Hcf H2.
-        move => Hcf0.
-        apply IHe2 in Hcf0.
-        apply SV.conform_mem with (v:=v) in Hcf0.
-        rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf0.
-        rewrite -Hcf0 H3.
-        simpl.
-        rewrite subnKC.
-        rewrite subnKC.
+        rewrite size_subB_ext -Hcf -Hcf0 /sizeof_fgtyp addn1 //.
+        rewrite size_SsbbB_ext 2!size_sext -Hcf -Hcf0 /sizeof_fgtyp.
+        1,2: rewrite subnKC ; try rewrite leq_maxl //.
+        1,2: rewrite subnKC // ; try rewrite leq_maxr //.
         rewrite maxnn //.
-        rewrite leq_maxr //.
-        rewrite leq_maxl //.
-        apply SV.Lemmas.mem_add_eq.
-        apply TE.SE.eq_refl.
-        exact Hwf3.
-        apply SV.Lemmas.mem_add_eq.
-        apply TE.SE.eq_refl.
-        rewrite /well_formed_fstmt_inline.
-        simpl.
-        rewrite Hwt2 Hid2 //.
-        assert (Hwf2 : well_formed_fstmt_inline (Snode v e2) te s1 rs1).
-        rewrite /well_formed_fstmt_inline.
-        simpl.
-        rewrite Hwt2 Hid2 //.
-        assert (Hwf3 : well_formed_fstmt_inline (Snode v e3) te s1 rs1).
-        rewrite /well_formed_fstmt_inline.
-        simpl.
-        rewrite Hwt3 Hid3 //.
-        specialize IHe1 with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-        simpl in IHe1.
-        specialize IHe2 with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-        simpl in IHe2.
-        generalize Hcf.
-        apply IHe1 in Hcf.
-        apply SV.conform_mem with (v:=v) in Hcf.
-        rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf.
-        rewrite 2!size_sext -Hcf H2.
-        move => Hcf0.
-        apply IHe2 in Hcf0.
-        apply SV.conform_mem with (v:=v) in Hcf0.
-        rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf0.
-        rewrite -Hcf0 H3.
-        simpl.
-        rewrite subnKC.
-        rewrite subnKC.
-        reflexivity.
-        rewrite leq_maxr //.
-        rewrite leq_maxl //.
-        apply SV.Lemmas.mem_add_eq.
-        apply TE.SE.eq_refl.
-        exact Hwf3.
-        apply SV.Lemmas.mem_add_eq.
-        apply TE.SE.eq_refl.
-        rewrite /well_formed_fstmt_inline.
-        simpl.
-        rewrite Hwt2 Hid2 //.
-        exact Hcf. 
       - (* mul *)
-        move => rs1 s1 te v Hcf Hwf.
-        simpl.
-        apply SV.conform_upd.
-        rewrite /well_formed_fstmt_inline in Hwf.
-        move : Hwf => /andP [Hwt Hid].
-        simpl in Hwt.
-        simpl in Hid.
-        move : Hid => /andP [Hid2 Hid3].
-        destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H2 ; try discriminate.
-        - destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3 ; try discriminate.
-          move : Hwt => /andP [Hwt2 Hwt3].
-          simpl.
-          rewrite size_full_mul.
-          assert (Hwf2 : well_formed_fstmt_inline (Snode v e2) te s1 rs1).
-          rewrite /well_formed_fstmt_inline.
-          simpl.
-          rewrite Hwt2 Hid2 //.
-          assert (Hwf3 : well_formed_fstmt_inline (Snode v e3) te s1 rs1).
-          rewrite /well_formed_fstmt_inline.
-          simpl.
-          rewrite Hwt3 Hid3 //.
-          specialize IHe1 with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-          simpl in IHe1.
-          specialize IHe2 with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-          simpl in IHe2.
-          generalize Hcf.
-          apply IHe1 in Hcf.
-          apply SV.conform_mem with (v:=v) in Hcf.
-          rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf.
-          rewrite -Hcf H2.
-          move => Hcf0.
-          apply IHe2 in Hcf0.
-          apply SV.conform_mem with (v:=v) in Hcf0.
-          rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf0.
-          rewrite -Hcf0 H3.
-          simpl.
-          reflexivity.
-          apply SV.Lemmas.mem_add_eq.
-          apply TE.SE.eq_refl.
-          rewrite /well_formed_fstmt_inline.
-          simpl.
-          rewrite Hwt3 Hid3 //.
-          apply SV.Lemmas.mem_add_eq.
-          apply TE.SE.eq_refl.
-          exact Hwf2.
-        - destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3 ; try discriminate.
-          move : Hwt => /andP [Hwt2 Hwt3].
-          simpl.
-          rewrite size_Sfull_mul.
-          assert (Hwf2 : well_formed_fstmt_inline (Snode v e2) te s1 rs1).
-          rewrite /well_formed_fstmt_inline.
-          simpl.
-          rewrite Hwt2 Hid2 //.
-          assert (Hwf3 : well_formed_fstmt_inline (Snode v e3) te s1 rs1).
-          rewrite /well_formed_fstmt_inline.
-          simpl.
-          rewrite Hwt3 Hid3 //.
-          specialize IHe1 with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-          simpl in IHe1.
-          specialize IHe2 with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-          simpl in IHe2.
-          generalize Hcf.
-          apply IHe1 in Hcf.
-          apply SV.conform_mem with (v:=v) in Hcf.
-          rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf.
-          move => Hcf0.
-          apply IHe2 in Hcf0.
-          apply SV.conform_mem with (v:=v) in Hcf0.
-          rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf0.
-          rewrite -Hcf H2 -Hcf0 H3.
-          simpl.
-          reflexivity.
-          apply SV.Lemmas.mem_add_eq.
-          apply TE.SE.eq_refl.
-          exact Hwf3.
-          apply SV.Lemmas.mem_add_eq.
-          apply TE.SE.eq_refl.
-          rewrite /well_formed_fstmt_inline.
-          simpl.
-          rewrite Hwt2 Hid2 //.
-        exact Hcf. 
+        rewrite size_full_mul -Hcf -Hcf0 //.
+        rewrite size_Sfull_mul -Hcf -Hcf0 //.
       - (* div *)
-      move => rs1 s1 te v Hcf Hwf.
-      simpl.
-      apply SV.conform_upd.
-      rewrite /well_formed_fstmt_inline in Hwf.
-      move : Hwf => /andP [Hwt Hid].
-      simpl in Hwt.
-      simpl in Hid.
-      move : Hid => /andP [Hid2 Hid3].
-      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H2 ; try discriminate.
-      - destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3 ; try discriminate.
-        move : Hwt => /andP [Hwt2 Hwt3].
-        simpl.
-        rewrite size_udivB.
-        assert (Hwf2 : well_formed_fstmt_inline (Snode v e2) te s1 rs1).
-        rewrite /well_formed_fstmt_inline.
-        simpl.
-        rewrite Hwt2 Hid2 //.
-        specialize IHe1 with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-        simpl in IHe1.
-        apply IHe1 in Hcf.
-        apply SV.conform_mem with (v:=v) in Hcf.
-        rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf.
-        rewrite -Hcf H2.
-        simpl.
-        reflexivity.
-        apply SV.Lemmas.mem_add_eq.
-        apply TE.SE.eq_refl.
-        rewrite /well_formed_fstmt_inline.
-        simpl.
-        rewrite Hwt2 Hid2 //.
-      - destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3 ; try discriminate.
-        move : Hwt => /andP [Hwt2 Hwt3].
-        simpl.
-        rewrite size_sext size_sdivB.
-        assert (Hwf2 : well_formed_fstmt_inline (Snode v e2) te s1 rs1).
-        rewrite /well_formed_fstmt_inline.
-        simpl.
-        rewrite Hwt2 Hid2 //.
-        specialize IHe1 with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-        simpl in IHe1.
-        apply IHe1 in Hcf.
-        apply SV.conform_mem with (v:=v) in Hcf.
-        rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf.
-        rewrite -Hcf H2.
-        simpl.
-        reflexivity.
-        apply SV.Lemmas.mem_add_eq.
-        apply TE.SE.eq_refl.
-        rewrite /well_formed_fstmt_inline.
-        simpl.
-        rewrite Hwt2 Hid2 //.
-      exact Hcf. 
+        rewrite size_udivB -Hcf //.
+        rewrite size_sext size_sdivB -Hcf //.
       - (* rem *)
-      move => rs1 s1 te v Hcf Hwf.
-      simpl.
-      apply SV.conform_upd.
-      rewrite /well_formed_fstmt_inline in Hwf.
-      move : Hwf => /andP [Hwt Hid].
-      simpl in Hwt.
-      simpl in Hid.
-      move : Hid => /andP [Hid2 Hid3].
-      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H2 ; try discriminate.
-      - destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3 ; try discriminate.
-        move : Hwt => /andP [Hwt2 Hwt3].
-        simpl.
-        rewrite size_low //.
-      - destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3 ; try discriminate.
-        move : Hwt => /andP [Hwt2 Hwt3].
-        simpl.
-        rewrite size_low //.
-      exact Hcf.
+        1,2: rewrite size_low //.
       - (* cmp *)
-      move => b rs1 s1 te v Hcf Hwf.
-      simpl.
-      apply SV.conform_upd.
-      rewrite /well_formed_fstmt_inline in Hwf.
-      move : Hwf => /andP [Hwt _].
-      simpl in Hwt.
-      destruct (type_of_fexpr e2 te) ; try discriminate.
-      - destruct (type_of_fexpr e3 te) ; try discriminate.
-        case b ; simpl ; reflexivity.
-      - destruct (type_of_fexpr e3 te) ; try discriminate.
-        case b ; simpl ; reflexivity.
-      exact Hcf.
+        1,2: destruct b ; reflexivity.
       - (* dshl *)
-      move => rs1 s1 te v Hcf Hwf.
-      simpl.
-      apply SV.conform_upd.
-      rewrite /well_formed_fstmt_inline in Hwf.
-      move : Hwf => /andP [Hwt Hid].
-      simpl in Hwt.
-      simpl in Hid.
-      move : Hid => /andP [Hid2 Hid3].
-      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H2 ; try discriminate.
-      - destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3 ; try discriminate.
-        move : Hwt => /andP [Hwt2 Hwt3].
-        simpl.
-        rewrite size_zext size_cat size_zeros.
-        assert (Hwf2 : well_formed_fstmt_inline (Snode v e2) te s1 rs1).
-        rewrite /well_formed_fstmt_inline.
-        simpl.
-        rewrite Hwt2 Hid2 //.
-        assert (Hwf3 : well_formed_fstmt_inline (Snode v e3) te s1 rs1).
-        rewrite /well_formed_fstmt_inline.
-        simpl.
-        rewrite Hwt3 Hid3 //.
-        specialize IHe1 with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-        simpl in IHe1.
-        specialize IHe2 with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-        simpl in IHe2.
-        generalize Hcf.
-        apply IHe1 in Hcf.
-        apply SV.conform_mem with (v:=v) in Hcf.
-        rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf.
-        rewrite -Hcf H2.
-        move => Hcf0.
-        apply IHe2 in Hcf0.
-        apply SV.conform_mem with (v:=v) in Hcf0.
-        rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf0.
-        simpl.
-        rewrite addnBA.
-        rewrite (addnC (to_nat (no_mem_eval_fexpr e3 s1 te)) n0).
-        rewrite addnACl -addnBA.
-        rewrite -addnBAC.
-        rewrite subnn add0n addnC //.
-        rewrite -Hcf0 H3.
-        simpl.
-        reflexivity.
-        rewrite leqnn //.
-        rewrite -Nats.expn_pow Nats.expn2_gt0 //.
-        rewrite -Nats.expn_pow.
-        apply ltnSE.
-        rewrite subn1 Nat.succ_pred.
-        rewrite to_nat_bounded //.
-        rewrite Nats.expn_pow.
-        apply Nat.pow_nonzero.
-        lia.
-        apply SV.Lemmas.mem_add_eq.
-        apply TE.SE.eq_refl.
-        rewrite /well_formed_fstmt_inline.
-        simpl.
-        rewrite Hwt3 Hid3 //.
-        apply SV.Lemmas.mem_add_eq.
-        apply TE.SE.eq_refl.
-        exact Hwf2.
-      - destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3 ; try discriminate.
-        move : Hwt => /andP [Hwt2 Hwt3].
-        simpl.
-        rewrite size_sext size_cat size_zeros.
-        assert (Hwf2 : well_formed_fstmt_inline (Snode v e2) te s1 rs1).
-        rewrite /well_formed_fstmt_inline.
-        simpl.
-        rewrite Hwt2 Hid2 //.
-        assert (Hwf3 : well_formed_fstmt_inline (Snode v e3) te s1 rs1).
-        rewrite /well_formed_fstmt_inline.
-        simpl.
-        rewrite Hwt3 Hid3 //.
-        specialize IHe1 with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-        simpl in IHe1.
-        specialize IHe2 with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-        simpl in IHe2.
-        generalize Hcf.
-        apply IHe1 in Hcf.
-        apply SV.conform_mem with (v:=v) in Hcf.
-        rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf.
-        rewrite -Hcf H2.
-        move => Hcf0.
-        apply IHe2 in Hcf0.
-        apply SV.conform_mem with (v:=v) in Hcf0.
-        rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf0.
-        simpl.
-        rewrite addnBA.
-        rewrite (addnC (to_nat (no_mem_eval_fexpr e3 s1 te)) n0).
-        rewrite addnACl -addnBA.
-        rewrite -addnBAC.
-        rewrite subnn add0n addnC //.
-        rewrite -Hcf0 H3.
-        simpl.
-        reflexivity.
-        rewrite leqnn //.
-        rewrite -Nats.expn_pow Nats.expn2_gt0 //.
-        rewrite -Nats.expn_pow.
-        apply ltnSE.
-        rewrite subn1 Nat.succ_pred.
-        rewrite to_nat_bounded //.
-        rewrite Nats.expn_pow.
-        apply Nat.pow_nonzero.
-        lia.
-        apply SV.Lemmas.mem_add_eq.
-        apply TE.SE.eq_refl.
-        rewrite /well_formed_fstmt_inline.
-        simpl.
-        rewrite Hwt3 Hid3 //.
-        apply SV.Lemmas.mem_add_eq.
-        apply TE.SE.eq_refl.
-        exact Hwf2.
-      exact Hcf.
+        rewrite size_zext.   2: rewrite size_sext.
+        1,2: rewrite size_cat size_zeros -Hcf.
+        1,2: rewrite addnBA ;
+                   try (apply ltnSE ;
+                        rewrite subn1 Nat.succ_pred ;
+                        try rewrite -Nats.expn_pow to_nat_bounded // ;
+                        apply Nat.pow_nonzero ;
+                        lia).
+        1,2: rewrite (addnC (to_nat (no_mem_eval_fexpr e3 s1 te)) n0).
+        1,2: rewrite addnACl -addnBA ;
+                   try (rewrite -Nats.expn_pow Nats.expn2_gt0 //).
+        1,2: rewrite -addnBAC // subnn add0n addnC -Hcf0 //.
       - (* dshr *)
-      move => rs1 s1 te v Hcf Hwf.
-      simpl.
-      apply SV.conform_upd.
-      rewrite /well_formed_fstmt_inline in Hwf.
-      move : Hwf => /andP [Hwt Hid].
-      simpl in Hwt.
-      simpl in Hid.
-      move : Hid => /andP [Hid2 Hid3].
-      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H2 ; try discriminate.
-      - destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3 ; try discriminate.
-        move : Hwt => /andP [Hwt2 Hwt3].
-        simpl.
-        rewrite size_shrB.
-        assert (Hwf2 : well_formed_fstmt_inline (Snode v e2) te s1 rs1).
-        rewrite /well_formed_fstmt_inline.
-        simpl.
-        rewrite Hwt2 Hid2 //.
-        specialize IHe1 with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-        simpl in IHe1.
-        apply IHe1 in Hcf.
-        apply SV.conform_mem with (v:=v) in Hcf.
-        rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf.
-        rewrite -Hcf H2.
-        simpl.
-        reflexivity.
-        apply SV.Lemmas.mem_add_eq.
-        apply TE.SE.eq_refl.
-        rewrite /well_formed_fstmt_inline.
-        simpl.
-        rewrite Hwt2 Hid2 //.
-      - destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3 ; try discriminate.
-        move : Hwt => /andP [Hwt2 Hwt3].
-        simpl.
-        rewrite size_sarB.
-        assert (Hwf2 : well_formed_fstmt_inline (Snode v e2) te s1 rs1).
-        rewrite /well_formed_fstmt_inline.
-        simpl.
-        rewrite Hwt2 Hid2 //.
-        specialize IHe1 with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-        simpl in IHe1.
-        apply IHe1 in Hcf.
-        apply SV.conform_mem with (v:=v) in Hcf.
-        rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf.
-        rewrite -Hcf H2.
-        simpl.
-        reflexivity.
-        apply SV.Lemmas.mem_add_eq.
-        apply TE.SE.eq_refl.
-        rewrite /well_formed_fstmt_inline.
-        simpl.
-        rewrite Hwt2 Hid2 //.
-      exact Hcf.
+        rewrite size_shrB -Hcf //.
+        rewrite size_sarB -Hcf //.
       - (* and *)
-      move => rs1 s1 te v Hcf Hwf.
-      simpl.
-      apply SV.conform_upd.
-      rewrite /well_formed_fstmt_inline in Hwf.
-      move : Hwf => /andP [Hwt Hid].
-      simpl in Hwt.
-      simpl in Hid.
-      move : Hid => /andP [Hid2 Hid3].
-      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H2 ; try discriminate.
-      - destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3 ; try discriminate.
-        move : Hwt => /andP [Hwt2 Hwt3].
-        simpl.
         rewrite size_andB 2!size_zext.
-        assert (Hwf2 : well_formed_fstmt_inline (Snode v e2) te s1 rs1).
-        rewrite /well_formed_fstmt_inline.
-        simpl.
-        rewrite Hwt2 Hid2 //.
-        assert (Hwf3 : well_formed_fstmt_inline (Snode v e3) te s1 rs1).
-        rewrite /well_formed_fstmt_inline.
-        simpl.
-        rewrite Hwt3 Hid3 //.
-        specialize IHe1 with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-        simpl in IHe1.
-        specialize IHe2 with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-        simpl in IHe2.
-        generalize Hcf.
-        apply IHe1 in Hcf.
-        apply SV.conform_mem with (v:=v) in Hcf.
-        rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf.
-        move => Hcf0.
-        apply IHe2 in Hcf0.
-        apply SV.conform_mem with (v:=v) in Hcf0.
-        rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf0.
-        rewrite -Hcf H2 -Hcf0 H3.
-        simpl.
-        rewrite subnKC.
-        rewrite subnKC.
-        rewrite maxnn //.
-        rewrite leq_maxr //.
-        rewrite leq_maxl //.
-        apply SV.Lemmas.mem_add_eq.
-        apply TE.SE.eq_refl.
-        rewrite /well_formed_fstmt_inline.
-        simpl.
-        rewrite Hwt3 Hid3 //.
-        apply SV.Lemmas.mem_add_eq.
-        apply TE.SE.eq_refl.
-        exact Hwf2.
-      - destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3 ; try discriminate.
-        move : Hwt => /andP [Hwt2 Hwt3].
-        simpl.
-        rewrite size_andB 2!size_sext.
-        assert (Hwf2 : well_formed_fstmt_inline (Snode v e2) te s1 rs1).
-        rewrite /well_formed_fstmt_inline.
-        simpl.
-        rewrite Hwt2 Hid2 //.
-        assert (Hwf3 : well_formed_fstmt_inline (Snode v e3) te s1 rs1).
-        rewrite /well_formed_fstmt_inline.
-        simpl.
-        rewrite Hwt3 Hid3 //.
-        specialize IHe1 with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-        simpl in IHe1.
-        specialize IHe2 with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-        simpl in IHe2.
-        generalize Hcf.
-        apply IHe1 in Hcf.
-        apply SV.conform_mem with (v:=v) in Hcf.
-        rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf.
-        move => Hcf0.
-        apply IHe2 in Hcf0.
-        apply SV.conform_mem with (v:=v) in Hcf0.
-        rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf0.
-        rewrite -Hcf H2 -Hcf0 H3.
-        simpl.
-        rewrite subnKC.
-        rewrite subnKC.
-        rewrite maxnn //.
-        rewrite leq_maxr //.
-        rewrite leq_maxl //.
-        apply SV.Lemmas.mem_add_eq.
-        apply TE.SE.eq_refl.
-        rewrite /well_formed_fstmt_inline.
-        simpl.
-        rewrite Hwt3 Hid3 //.
-        apply SV.Lemmas.mem_add_eq.
-        apply TE.SE.eq_refl.
-        exact Hwf2.
-      exact Hcf.
+        2: rewrite size_andB 2!size_sext.
+        1,2: rewrite -Hcf -Hcf0 /sizeof_fgtyp subnKC ; try rewrite leq_maxl //.
+        1,2: rewrite subnKC ; try rewrite leq_maxr //.
+        1,2: rewrite maxnn //.
       - (* or *)
-      move => rs1 s1 te v Hcf Hwf.
-      simpl.
-      apply SV.conform_upd.
-      rewrite /well_formed_fstmt_inline in Hwf.
-      move : Hwf => /andP [Hwt Hid].
-      simpl in Hwt.
-      simpl in Hid.
-      move : Hid => /andP [Hid2 Hid3].
-       destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H2 ; try discriminate.
-        - destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3 ; try discriminate.
-        move : Hwt => /andP [Hwt2 Hwt3].
-        simpl.
         rewrite size_orB 2!size_zext.
-        assert (Hwf2 : well_formed_fstmt_inline (Snode v e2) te s1 rs1).
-        rewrite /well_formed_fstmt_inline.
-        simpl.
-        rewrite Hwt2 Hid2 //.
-        assert (Hwf3 : well_formed_fstmt_inline (Snode v e3) te s1 rs1).
-        rewrite /well_formed_fstmt_inline.
-        simpl.
-        rewrite Hwt3 Hid3 //.
-        specialize IHe1 with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-        simpl in IHe1.
-        specialize IHe2 with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-        simpl in IHe2.
-        generalize Hcf.
-        apply IHe1 in Hcf.
-        apply SV.conform_mem with (v:=v) in Hcf.
-        rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf.
-        move => Hcf0.
-        apply IHe2 in Hcf0.
-        apply SV.conform_mem with (v:=v) in Hcf0.
-        rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf0.
-        rewrite -Hcf H2 -Hcf0 H3.
-        simpl.
-        rewrite subnKC.
-        rewrite subnKC.
-        rewrite maxnn //.
-        rewrite leq_maxr //.
-        rewrite leq_maxl //.
-        apply SV.Lemmas.mem_add_eq.
-        apply TE.SE.eq_refl.
-        rewrite /well_formed_fstmt_inline.
-        simpl.
-        rewrite Hwt3 Hid3 //.
-        apply SV.Lemmas.mem_add_eq.
-        apply TE.SE.eq_refl.
-        exact Hwf2.
-      - destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3 ; try discriminate.
-        move : Hwt => /andP [Hwt2 Hwt3].
-        simpl.
-        rewrite size_orB 2!size_sext.
-        assert (Hwf2 : well_formed_fstmt_inline (Snode v e2) te s1 rs1).
-        rewrite /well_formed_fstmt_inline.
-        simpl.
-        rewrite Hwt2 Hid2 //.
-        assert (Hwf3 : well_formed_fstmt_inline (Snode v e3) te s1 rs1).
-        rewrite /well_formed_fstmt_inline.
-        simpl.
-        rewrite Hwt3 Hid3 //.
-        specialize IHe1 with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-        simpl in IHe1.
-        specialize IHe2 with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-        simpl in IHe2.
-        generalize Hcf.
-        apply IHe1 in Hcf.
-        apply SV.conform_mem with (v:=v) in Hcf.
-        rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf.
-        move => Hcf0.
-        apply IHe2 in Hcf0.
-        apply SV.conform_mem with (v:=v) in Hcf0.
-        rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf0.
-        rewrite -Hcf H2 -Hcf0 H3.
-        simpl.
-        rewrite subnKC.
-        rewrite subnKC.
-        rewrite maxnn //.
-        rewrite leq_maxr //.
-        rewrite leq_maxl //.
-        apply SV.Lemmas.mem_add_eq.
-        apply TE.SE.eq_refl.
-        rewrite /well_formed_fstmt_inline.
-        simpl.
-        rewrite Hwt3 Hid3 //.
-        apply SV.Lemmas.mem_add_eq.
-        apply TE.SE.eq_refl.
-        exact Hwf2.
-      exact Hcf.
+        2: rewrite size_orB 2!size_sext.
+        1,2: rewrite -Hcf -Hcf0 /sizeof_fgtyp subnKC ; try rewrite leq_maxl //.
+        1,2: rewrite subnKC ; try rewrite leq_maxr //.
+        1,2: rewrite maxnn //.
       - (* xor *)
-      move => rs1 s1 te v Hcf Hwf.
-      simpl.
-      apply SV.conform_upd.
-      rewrite /well_formed_fstmt_inline in Hwf.
-      move : Hwf => /andP [Hwt Hid].
-      simpl in Hwt.
-      simpl in Hid.
-      move : Hid => /andP [Hid2 Hid3].
-      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H2 ; try discriminate.
-        - destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3 ; try discriminate.
-        move : Hwt => /andP [Hwt2 Hwt3].
-        simpl.
         rewrite size_xorB 2!size_zext.
-        assert (Hwf2 : well_formed_fstmt_inline (Snode v e2) te s1 rs1).
-        rewrite /well_formed_fstmt_inline.
-        simpl.
-        rewrite Hwt2 Hid2 //.
-        assert (Hwf3 : well_formed_fstmt_inline (Snode v e3) te s1 rs1).
-        rewrite /well_formed_fstmt_inline.
-        simpl.
-        rewrite Hwt3 Hid3 //.
-        specialize IHe1 with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-        simpl in IHe1.
-        specialize IHe2 with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-        simpl in IHe2.
-        generalize Hcf.
-        apply IHe1 in Hcf.
-        apply SV.conform_mem with (v:=v) in Hcf.
-        rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf.
-        move => Hcf0.
-        apply IHe2 in Hcf0.
-        apply SV.conform_mem with (v:=v) in Hcf0.
-        rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf0.
-        rewrite -Hcf H2 -Hcf0 H3.
-        simpl.
-        rewrite subnKC.
-        rewrite subnKC.
-        rewrite maxnn //.
-        rewrite leq_maxr //.
-        rewrite leq_maxl //.
-        apply SV.Lemmas.mem_add_eq.
-        apply TE.SE.eq_refl.
-        rewrite /well_formed_fstmt_inline.
-        simpl.
-        rewrite Hwt3 Hid3 //.
-        apply SV.Lemmas.mem_add_eq.
-        apply TE.SE.eq_refl.
-        exact Hwf2.
-        - destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3 ; try discriminate.
-        move : Hwt => /andP [Hwt2 Hwt3].
-        simpl.
-        rewrite size_xorB 2!size_sext.
-        assert (Hwf2 : well_formed_fstmt_inline (Snode v e2) te s1 rs1).
-        rewrite /well_formed_fstmt_inline.
-        simpl.
-        rewrite Hwt2 Hid2 //.
-        assert (Hwf3 : well_formed_fstmt_inline (Snode v e3) te s1 rs1).
-        rewrite /well_formed_fstmt_inline.
-        simpl.
-        rewrite Hwt3 Hid3 //.
-        specialize IHe1 with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-        simpl in IHe1.
-        specialize IHe2 with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-        simpl in IHe2.
-        generalize Hcf.
-        apply IHe1 in Hcf.
-        apply SV.conform_mem with (v:=v) in Hcf.
-        rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf.
-        move => Hcf0.
-        apply IHe2 in Hcf0.
-        apply SV.conform_mem with (v:=v) in Hcf0.
-        rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf0.
-        rewrite -Hcf H2 -Hcf0 H3.
-        simpl.
-        rewrite subnKC.
-        rewrite subnKC.
-        rewrite maxnn //.
-        rewrite leq_maxr //.
-        rewrite leq_maxl //.
-        apply SV.Lemmas.mem_add_eq.
-        apply TE.SE.eq_refl.
-        rewrite /well_formed_fstmt_inline.
-        simpl.
-        rewrite Hwt3 Hid3 //.
-        apply SV.Lemmas.mem_add_eq.
-        apply TE.SE.eq_refl.
-        exact Hwf2.
-      exact Hcf.
+        2: rewrite size_xorB 2!size_sext.
+        1,2: rewrite -Hcf -Hcf0 /sizeof_fgtyp subnKC ; try rewrite leq_maxl //.
+        1,2: rewrite subnKC ; try rewrite leq_maxr //.
+        1,2: rewrite maxnn //.
       - (* cat *)
+        1,2: rewrite size_cat -Hcf -Hcf0 /sizeof_fgtyp addnC //.
+    - (* case emux *)
       move => rs1 s1 te v Hcf Hwf.
       simpl.
-      apply SV.conform_upd.
       rewrite /well_formed_fstmt_inline in Hwf.
-      move : Hwf => /andP [Hwt Hid].
-      simpl in Hwt.
-      simpl in Hid.
-      move : Hid => /andP [Hid2 Hid3].
-      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H2 ; try discriminate.
-        - destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3 ; try discriminate.
-        move : Hwt => /andP [Hwt2 Hwt3].
-        simpl.
-        rewrite size_cat.
-        assert (Hwf2 : well_formed_fstmt_inline (Snode v e2) te s1 rs1).
-        rewrite /well_formed_fstmt_inline.
-        simpl.
-        rewrite Hwt2 Hid2 //.
-        assert (Hwf3 : well_formed_fstmt_inline (Snode v e3) te s1 rs1).
-        rewrite /well_formed_fstmt_inline.
-        simpl.
-        rewrite Hwt3 Hid3 //.
-        specialize IHe1 with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-        simpl in IHe1.
-        specialize IHe2 with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-        simpl in IHe2.
-        generalize Hcf.
-        apply IHe1 in Hcf.
-        apply SV.conform_mem with (v:=v) in Hcf.
-        rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf.
-        move => Hcf0.
-        apply IHe2 in Hcf0.
-        apply SV.conform_mem with (v:=v) in Hcf0.
-        rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf0.
-        rewrite -Hcf H2 -Hcf0 H3.
-        simpl.
-        rewrite addnC //.
-        apply SV.Lemmas.mem_add_eq.
-        apply TE.SE.eq_refl.
-        rewrite /well_formed_fstmt_inline.
-        simpl.
-        rewrite Hwt3 Hid3 //.
-        apply SV.Lemmas.mem_add_eq.
-        apply TE.SE.eq_refl.
-        exact Hwf2.
-        - destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3 ; try discriminate.
-        move : Hwt => /andP [Hwt2 Hwt3].
-        simpl.
-        rewrite size_cat.
-        assert (Hwf2 : well_formed_fstmt_inline (Snode v e2) te s1 rs1).
-        rewrite /well_formed_fstmt_inline.
-        simpl.
-        rewrite Hwt2 Hid2 //.
-        assert (Hwf3 : well_formed_fstmt_inline (Snode v e3) te s1 rs1).
-        rewrite /well_formed_fstmt_inline.
-        simpl.
-        rewrite Hwt3 Hid3 //.
-        specialize IHe1 with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-        simpl in IHe1.
-        specialize IHe2 with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
-        simpl in IHe2.
-        generalize Hcf.
-        apply IHe1 in Hcf.
-        apply SV.conform_mem with (v:=v) in Hcf.
-        rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf.
-        move => Hcf0.
-        apply IHe2 in Hcf0.
-        apply SV.conform_mem with (v:=v) in Hcf0.
-        rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf0.
-        rewrite -Hcf H2 -Hcf0 H3.
-        simpl.
-        rewrite addnC //.
-        apply SV.Lemmas.mem_add_eq.
-        apply TE.SE.eq_refl.
-        rewrite /well_formed_fstmt_inline.
-        simpl.
-        rewrite Hwt3 Hid3 //.
-        apply SV.Lemmas.mem_add_eq.
-        apply TE.SE.eq_refl.
-        exact Hwf2.
-      exact Hcf.
-    - (* case emux *)
-    move => rs1 s1 te v Hcf Hwf.
-      apply SV.conform_upd.
-      simpl.
-      rewrite /well_formed_fstmt_inline in Hwf.
-      move : Hwf => /andP [/andP [/eqP Hwt0 Hwt] Hid].
-      simpl in Hid.
-      move : Hid => /andP [Hid2 Hid3].
-      move : Hid2 => /andP [_ Hid2].
-      destruct (type_of_fexpr e2 te) as [n0|n0|n0|n0| | |] eqn: H2 ; simpl in Hwt ; try discriminate.
-      - destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3 ; simpl in Hwt ; try discriminate.
-        fold well_typed_fexpr in Hwt.
-        move : Hwt => /andP [/andP [_ Hwt2] Hwt3].
-        case (is_zero (no_mem_eval_fexpr e1 s1 te)).
-        simpl.
-        rewrite size_zext.
-        apply IHe3 with (rs1:=rs1) (v:=v) in Hcf.
-        simpl in Hcf.
-        apply SV.conform_mem with (v:=v) in Hcf.
-        rewrite TE.vsize_add_eq // SV.acc_upd_eq // H3 /sizeof_fgtyp in Hcf.
-        rewrite Hwt0 -Hcf subnKC // leq_maxr //.
-        apply SV.Lemmas.mem_add_eq.
-        apply TE.SE.eq_refl.
-        rewrite /well_formed_fstmt_inline.
-        simpl.
-        rewrite Hwt3 Hid3 //.
-        simpl.
-        rewrite size_zext.
-        apply IHe2 with (rs1:=rs1) (v:=v) in Hcf.
-        simpl in Hcf.
-        apply SV.conform_mem with (v:=v) in Hcf.
-        rewrite TE.vsize_add_eq // SV.acc_upd_eq // H2 /sizeof_fgtyp in Hcf.
-        rewrite Hwt0 -Hcf subnKC // leq_maxl //.
-        apply SV.Lemmas.mem_add_eq.
-        apply TE.SE.eq_refl.
-        rewrite /well_formed_fstmt_inline.
-        simpl.
-        rewrite Hwt2 Hid2 //.
-      - destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3 ; try discriminate.
-        fold well_typed_fexpr in Hwt.
-        move : Hwt => /andP [/andP [_ Hwt2] Hwt3].
-        case (is_zero (no_mem_eval_fexpr e1 s1 te)).
-        simpl.
-        rewrite size_sext.
-        apply IHe3 with (rs1:=rs1) (v:=v) in Hcf.
-        simpl in Hcf.
-        apply SV.conform_mem with (v:=v) in Hcf.
-        rewrite TE.vsize_add_eq // SV.acc_upd_eq // H3 /sizeof_fgtyp in Hcf.
-        rewrite Hwt0 -Hcf subnKC // leq_maxr //.
-        apply SV.Lemmas.mem_add_eq.
-        apply TE.SE.eq_refl.
-        rewrite /well_formed_fstmt_inline.
-        simpl.
-        rewrite Hwt3 Hid3 //.
-        simpl.
-        rewrite size_sext.
-        apply IHe2 with (rs1:=rs1) (v:=v) in Hcf.
-        simpl in Hcf.
-        apply SV.conform_mem with (v:=v) in Hcf.
-        rewrite TE.vsize_add_eq // SV.acc_upd_eq // H2 /sizeof_fgtyp in Hcf.
-        rewrite Hwt0 -Hcf subnKC // leq_maxl //.
-        apply SV.Lemmas.mem_add_eq.
-        apply TE.SE.eq_refl.
-        rewrite /well_formed_fstmt_inline.
-        simpl.
-        rewrite Hwt2 Hid2 //.
-      - (* Fclock *)
-        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3 ; try discriminate.
-        fold well_typed_fexpr in Hwt.
-        move : Hwt => /andP [/andP [_ Hwt2] Hwt3].
-        case (is_zero (no_mem_eval_fexpr e1 s1 te)).
-        - simpl.
-          rewrite Hwt0 /sizeof_fgtyp.
-          apply IHe3 with (rs1:=rs1) (v:=v) in Hcf.
-          simpl in Hcf.
-          apply SV.conform_mem with (v:=v) in Hcf.
-          rewrite TE.vsize_add_eq // SV.acc_upd_eq // H3 /sizeof_fgtyp in Hcf.
-          exact Hcf.
-          apply SV.Lemmas.mem_add_eq.
-          apply TE.SE.eq_refl.
-          rewrite /well_formed_fstmt_inline.
-          simpl.
-          rewrite Hwt3 Hid3 //.
-        - simpl.
-          rewrite Hwt0 /sizeof_fgtyp.
-          apply IHe2 with (rs1:=rs1) (v:=v) in Hcf.
-          simpl in Hcf.
-          apply SV.conform_mem with (v:=v) in Hcf.
-          rewrite TE.vsize_add_eq // SV.acc_upd_eq // H2 /sizeof_fgtyp in Hcf.
-          exact Hcf.
-          apply SV.Lemmas.mem_add_eq.
-          apply TE.SE.eq_refl.
-          rewrite /well_formed_fstmt_inline.
-          simpl.
-          rewrite Hwt2 Hid2 //.
-      - (* Freset *)
-        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3 ; try discriminate.
-        fold well_typed_fexpr in Hwt.
-        move : Hwt => /andP [/andP [_ Hwt2] Hwt3].
-        case (is_zero (no_mem_eval_fexpr e1 s1 te)).
-        - simpl.
-          rewrite Hwt0 /sizeof_fgtyp.
-          apply IHe3 with (rs1:=rs1) (v:=v) in Hcf.
-          simpl in Hcf.
-          apply SV.conform_mem with (v:=v) in Hcf.
-          rewrite TE.vsize_add_eq // SV.acc_upd_eq // H3 /sizeof_fgtyp in Hcf.
-          exact Hcf.
-          apply SV.Lemmas.mem_add_eq.
-          apply TE.SE.eq_refl.
-          rewrite /well_formed_fstmt_inline.
-          simpl.
-          rewrite Hwt3 Hid3 //.
-        - simpl.
-          rewrite Hwt0 /sizeof_fgtyp.
-          apply IHe2 with (rs1:=rs1) (v:=v) in Hcf.
-          simpl in Hcf.
-          apply SV.conform_mem with (v:=v) in Hcf.
-          rewrite TE.vsize_add_eq // SV.acc_upd_eq // H2 /sizeof_fgtyp in Hcf.
-          exact Hcf.
-          apply SV.Lemmas.mem_add_eq.
-          apply TE.SE.eq_refl.
-          rewrite /well_formed_fstmt_inline.
-          simpl.
-          rewrite Hwt2 Hid2 //.
-      - (* Fasyncreset *)
-        destruct (type_of_fexpr e3 te) as [n1|n1|n1|n1| | |] eqn: H3 ; try discriminate.
-        fold well_typed_fexpr in Hwt.
-        move : Hwt => /andP [/andP [_ Hwt2] Hwt3].
-        case (is_zero (no_mem_eval_fexpr e1 s1 te)).
-        - simpl.
-          rewrite Hwt0 /sizeof_fgtyp.
-          apply IHe3 with (rs1:=rs1) (v:=v) in Hcf.
-          simpl in Hcf.
-          apply SV.conform_mem with (v:=v) in Hcf.
-          rewrite TE.vsize_add_eq // SV.acc_upd_eq // H3 /sizeof_fgtyp in Hcf.
-          exact Hcf.
-          apply SV.Lemmas.mem_add_eq.
-          apply TE.SE.eq_refl.
-          rewrite /well_formed_fstmt_inline.
-          simpl.
-          rewrite Hwt3 Hid3 //.
-        - simpl.
-          rewrite Hwt0 /sizeof_fgtyp.
-          apply IHe2 with (rs1:=rs1) (v:=v) in Hcf.
-          simpl in Hcf.
-          apply SV.conform_mem with (v:=v) in Hcf.
-          rewrite TE.vsize_add_eq // SV.acc_upd_eq // H2 /sizeof_fgtyp in Hcf.
-          exact Hcf.
-          apply SV.Lemmas.mem_add_eq.
-          apply TE.SE.eq_refl.
-          rewrite /well_formed_fstmt_inline.
-          simpl.
-          rewrite Hwt2 Hid2 //.
-      exact Hcf.
-    - (* case evalidif *)
-    move => rs1 s1 te v Hcf Hwf.
-    apply SV.conform_upd.
-    simpl.
-      rewrite /well_formed_fstmt_inline in Hwf.
-      move : Hwf => /andP [Hwt Hid].
-      simpl in Hwt.
-      simpl in Hid.
-      move : Hwt => /andP [/andP [/eqP Hwt0 _] Hwf].
-      move : Hid => /andP [_ Hid].
-      apply IHe2 with (rs1:=rs1) (v:=v) in Hcf.
-      simpl in Hcf.
-      apply SV.conform_mem with (v:=v) in Hcf.
+      simpl in Hwf.
+      move : Hwf => /andP [/andP [/eqP Hwt0 Hwt] /andP [/andP [_ Hid2] Hid3]].
+      apply SV.conform_upd ; try exact Hcf.
+      specialize IHe2 with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v) ;
+            simpl in IHe2.
+      specialize IHe3 with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v) ;
+            simpl in IHe3.
       rewrite Hwt0.
-      rewrite TE.vsize_add_eq // SV.acc_upd_eq // in Hcf.
-      apply SV.Lemmas.mem_add_eq.
-      apply TE.SE.eq_refl.
-      rewrite /well_formed_fstmt_inline.
+      destruct (type_of_fexpr e2 te) as [[n0|n0|n0|n0| | |] niw0] eqn: H2 ; try discriminate.
+      1-5: destruct (type_of_fexpr e3 te) as [[n1|n1|n1|n1| | |] niw1] eqn: H3 ; try discriminate.
+      1-5: move : Hwt => /andP [/andP [_ Hwt2] Hwt3].
+      1-5: simpl.
+      1-5: assert (Hwf2 : well_formed_fstmt_inline (Snode v e2) te s1 rs1)
+                  by (rewrite /well_formed_fstmt_inline ;
+                      simpl ;
+                      rewrite Hwt2 Hid2 //).
+      1-5: assert (Hwf3 : well_formed_fstmt_inline (Snode v e3) te s1 rs1)
+                  by (rewrite /well_formed_fstmt_inline ;
+                      simpl ;
+                      rewrite Hwt3 Hid3 //).
+      1-5: generalize Hcf ; move => Hcf0.
+      1-5: apply IHe2 in Hcf ; try exact Hwf2.
+      1-5: apply SV.conform_mem with (v:=v) in Hcf ;
+                  try (apply SV.Lemmas.mem_add_eq, TE.SE.eq_refl).
+      1-5: rewrite /explicit_to_fgtyp TE.vsize_add_eq // SV.acc_upd_eq // in Hcf.
+      1-5: apply IHe3 in Hcf0 ; try exact Hwf3.
+      1-5: apply SV.conform_mem with (v:=v) in Hcf0 ;
+                  try (apply SV.Lemmas.mem_add_eq, TE.SE.eq_refl).
+      1-5: rewrite /explicit_to_fgtyp TE.vsize_add_eq // SV.acc_upd_eq // in Hcf0.
+      1-5: destruct (is_zero (no_mem_eval_fexpr e1 s1 te)) ; simpl.
+      1,2: rewrite size_zext.
+      3,4: rewrite size_sext.
+      1,3,5,7,9: rewrite -Hcf0 // subnKC // leq_maxr //.
+      1,2,3,4,5: rewrite -Hcf // subnKC // leq_maxl //.
+    - (* case evalidif *)
+    - move => rs1 s1 te v Hcf Hwf.
+      rewrite /well_formed_fstmt_inline in Hwf.
+      simpl in Hwf.
+      move : Hwf => /andP [/andP [/andP [/eqP Hwt0 _] Hwt] /andP [_ Hid]].
       simpl.
-      rewrite Hwf Hid //.
-      exact Hcf.
+      apply SV.conform_upd ; try exact Hcf.
+      rewrite Hwt0.
+      destruct (type_of_fexpr e2 te) as [[n'|n'|n'|n'| | |] niw] eqn: Htyp ; try discriminate.
+      3,4: simpl ; clear Htyp ; rewrite /not_implicit_width // in niw.
+      1-5: assert (Hwf : well_formed_fstmt_inline (Snode v e2) te s1 rs1)
+                   by (rewrite /well_formed_fstmt_inline ;
+                       simpl ;
+                       rewrite Hwt Hid //).
+      1-5: specialize IHe2 with (rs1:=rs1) (s1:=s1) (te:=te) (v:=v).
+      1-5: simpl in IHe2.
+      1-5: apply IHe2 in Hcf ; try exact Hwf.
+      1-5: apply SV.conform_mem with (v:=v) in Hcf ;
+                   try (apply SV.Lemmas.mem_add_eq, TE.SE.eq_refl).
+      1-5: rewrite TE.vsize_add_eq // SV.acc_upd_eq // Htyp /explicit_to_fgtyp in Hcf.
+      1-5: rewrite /explicit_to_fgtyp Hcf //.
     - (* case ref *)
     move => rs1 s1 te v Hcf Hwf.
     rewrite /well_formed_fstmt_inline in Hwf.
+    simpl in Hwf.
     move : Hwf => /andP [Hwt Hid].
-    simpl in Hwt.
-    simpl in Hid.
-    rewrite /is_defined in Hid.
-    apply SV.conform_upd.
+    apply SV.conform_upd ; try exact Hcf.
     simpl.
-    apply SV.conform_mem with (v:=s) in Hcf.
+    apply SV.conform_mem with (v:=s) in Hcf ; try exact Hid.
     rewrite -Hcf.
     symmetry.
     case (TE.vtyp s te) eqn: Hvtyp.
+    1-7: rewrite /explicit_to_fgtyp.
     3: replace (sizeof_fgtyp (Fuint n)) with (sizeof_fgtyp (Fuint_implicit n)) by (rewrite /sizeof_fgtyp ; reflexivity).
     4: replace (sizeof_fgtyp (Fsint n)) with (sizeof_fgtyp (Fsint_implicit n)) by (rewrite /sizeof_fgtyp ; reflexivity).
-    1,2,3,4,5,6,7: apply TE.vtyp_vsize ; exact Hvtyp.
-    exact Hid.
-    exact Hcf.
+    1-7: apply TE.vtyp_vsize, Hvtyp.
   Qed.
 
   Lemma conform_eval_sfcnct_upd_env0_inline e : forall rs1 s1 te r ,

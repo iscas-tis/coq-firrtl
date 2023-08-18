@@ -105,6 +105,7 @@ Import Prenex Implicits.
    (* disallow implicit widths *)
    { x : fgtyp | not_implicit_width x }.
 
+  Definition explicit_to_fgtyp (H: fgtyp_explicit) : fgtyp := let (x, _) := H in x. 
 
 (* equality of fgtyp_explicit is decidable *)
 Lemma fgtyp_explicit_eq_dec : forall {x y : fgtyp_explicit}, {x = y} + {x <> y}.
