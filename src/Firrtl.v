@@ -1298,9 +1298,9 @@ Qed.
     | Ecast AsClock e
     | Ecast AsReset e
     | Ecast AsAsync e => exist not_implicit_width (Fuint 1) I
-    | Eprim_unop u e => let (t1, p1) := type_of_fexpr e te in
-                        match u with
-                        | Upad n => if n < sizeof_fgtyp t1 then exist not_implicit_width t1 p1
+    | Eprim_unop u e => match u with
+                        | Upad n => let (t1, p1) := type_of_fexpr e te in
+                                    if n < sizeof_fgtyp t1 then exist not_implicit_width t1 p1
                                     else match t1 with
                                     | Fuint _ => exist not_implicit_width (Fuint n) I
                                     | Fsint _ => exist not_implicit_width (Fsint n) I
@@ -1309,8 +1309,7 @@ Qed.
                         | Uandr | Uorr | Uxorr => exist not_implicit_width (Fuint 1) I
                         | Uextr n1 n2 => exist not_implicit_width (Fuint (n1 - n2 + 1)) I
                         | Uhead n => exist not_implicit_width (Fuint n) I
-                        | Utail n => let (t1, _) := type_of_fexpr e te in
-                                     exist not_implicit_width (Fuint (sizeof_fgtyp t1 - n)) I
+                        | Utail n => exist not_implicit_width (Fuint (sizeof_fgtyp (explicit_to_fgtyp (type_of_fexpr e te)) - n)) I
                         | Ushl n => match type_of_fexpr e te with
                                     | exist (Fuint w) _ => exist not_implicit_width (Fuint (w + n)) I
                                     | exist (Fsint w) _ => exist not_implicit_width (Fsint (w + n)) I
@@ -1381,14 +1380,12 @@ Qed.
                                       end
                              end
     | Emux c e1 e2 => if type_of_fexpr c te is exist (Fuint 1) _
-                      then let t1 := type_of_fexpr e1 te in
-                           let t2 := type_of_fexpr e2 te in
-                           match t1, t2 with
+                      then match type_of_fexpr e1 te, type_of_fexpr e2 te with
                            | exist (Fuint w1) _, exist (Fuint w2) _ => exist not_implicit_width (Fuint (maxn w1 w2)) I
                            | exist (Fsint w1) _, exist (Fsint w2) _ => exist not_implicit_width (Fsint (maxn w1 w2)) I
-                           | exist Fclock _, exist Fclock _
-                           | exist Freset _, exist Freset _
-                           | exist Fasyncreset _, exist Fasyncreset _ => t1
+                           | exist Fclock _, exist Fclock _ => exist not_implicit_width Fclock I
+                           | exist Freset _, exist Freset _ => exist not_implicit_width Freset I
+                           | exist Fasyncreset _, exist Fasyncreset _ => exist not_implicit_width Fasyncreset I
                            | _, _ => exist not_implicit_width TE.deftyp TE.deftyp_not_implicit_width
                            end
                       else exist not_implicit_width TE.deftyp TE.deftyp_not_implicit_width
@@ -1440,31 +1437,26 @@ Qed.
     | Eprim_binop b e1 e2 =>
       let (rs0, ve1) := (eval_fexpr e1 rs s te readerls writerls data2etc memmap read_la) in
       let (rs1, ve2) := (eval_fexpr e2 rs0 s te readerls writerls data2etc memmap read_la) in
-      let (te1, _) := type_of_fexpr e1 te in
-      let (te2, _) := type_of_fexpr e2 te in
-      let val := (ebinop_op b te1 te2) ve1 ve2 in
+      let val := (ebinop_op b (explicit_to_fgtyp (type_of_fexpr e1 te)) (explicit_to_fgtyp (type_of_fexpr e2 te))) ve1 ve2 in
       (rs1, val)
     | Eprim_unop u e =>
-      let (t, _) := type_of_fexpr e te in
       let (rs0, val1) := (eval_fexpr e rs s te readerls writerls data2etc memmap read_la) in
-      let val := (eunop_op u t) val1 in
+      let val := (eunop_op u (explicit_to_fgtyp (type_of_fexpr e te))) val1 in
       (rs0, val)
     | Emux c e1 e2 =>
-      let (t1, _) := type_of_fexpr e1 te in
-      let (t2, _) := type_of_fexpr e2 te in
       let (rs0, valc) := (eval_fexpr c rs s te readerls writerls data2etc memmap read_la) in
       let (rs1, val1) := (eval_fexpr e1 rs0 s te readerls writerls data2etc memmap read_la) in
       let (rs2, val2) := (eval_fexpr e2 rs1 s te readerls writerls data2etc memmap read_la) in
-      let val := match t1, t2 with
-      | Fuint w1, Fuint w2 => if ~~ (is_zero valc) 
+      let val := match type_of_fexpr e1 te, type_of_fexpr e2 te with
+      | exist (Fuint w1) _, exist (Fuint w2) _ => if ~~ (is_zero valc) 
       then (zext ((max w1 w2) - w1) val1) 
       else (zext ((max w1 w2) - w2) val2)
-      | Fsint w1, Fsint w2 => if ~~ (is_zero valc) 
+      | exist (Fsint w1) _, exist (Fsint w2) _ => if ~~ (is_zero valc) 
       then (sext ((max w1 w2) - w1) val1)
       else (sext ((max w1 w2) - w2) val2)
-      | Fclock, Fclock
-      | Freset, Freset
-      | Fasyncreset, Fasyncreset => if ~~ (is_zero valc) then val1 else val2
+      | exist Fclock _, exist Fclock _
+      | exist Freset _, exist Freset _
+      | exist Fasyncreset _, exist Fasyncreset _ => if ~~ (is_zero valc) then val1 else val2
       | _, _ => [::]
       end in (rs2, val)
     | Evalidif c e => 
@@ -1517,8 +1509,17 @@ Qed.
                                TE.add (mask tr) (Fuint 1) tt3
                                ) (writer m) (TE.add (mid m) Fclock te1) (* mid不代表任何值 *)
     | Sinst inst => upd_typenv_fports (iports inst) te
-    | Sfcnct v e2 => TE.add v (explicit_to_fgtyp (type_of_fexpr e2 te)) te
-    | Sinvalid v => TE.add v (TE.vtyp v te) te
+    | Sfcnct v e2 => match TE.find v te, type_of_fexpr e2 te with
+                     | Some (Fuint_implicit w), exist (Fuint we) _ => if we > w then TE.add v (Fuint_implicit we) te else te
+                     | Some (Fsint_implicit w), exist (Fsint we) _ => if we > w then TE.add v (Fsint_implicit we) te else te
+                     | Some (Fuint _), exist (Fuint _) _
+                     | Some (Fsint _), exist (Fsint _) _
+                     | Some Fclock, exist Fclock _
+                     | Some Freset, exist Freset _
+                     | Some Fasyncreset, exist Fasyncreset _ => te
+                     | _, _ => TE.empty fgtyp (* error *)
+                     end
+    | Sinvalid v => te
     | _ => te
     end.
 
@@ -1541,14 +1542,13 @@ Qed.
                     match reset r with
                     | NRst => (rs0, s0, memmap)
                     | Rst e1 e2 =>
-                        let (te1, _) := type_of_fexpr e1 te in
                         let (_, ve1) := eval_fexpr e1 rs s0 te readerls writerls data2etc memmap read_la in
                         let (_, ve2) := eval_fexpr e2 rs s0 te readerls writerls data2etc memmap read_la in
                         if (is_zero ve1) then (rs0, s0, memmap)
                         else
-                          match te1 with
-                          | Fuint 1 => (SV.upd (rid r) ve2 rs0, s0, memmap)
-                          | Fasyncreset => (SV.upd (rid r) ve2 rs0, SV.upd (rid r) ve2 s0, memmap)
+                          match type_of_fexpr e1 te with
+                          | exist (Fuint 1) _ => (SV.upd (rid r) ve2 rs0, s0, memmap)
+                          | exist Fasyncreset _ => (SV.upd (rid r) ve2 rs0, SV.upd (rid r) ve2 s0, memmap)
                           | _ => (rs0, s0, memmap)
                           end
                     end
@@ -2227,11 +2227,15 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
     | Sfcnct v e2 => let newv := no_mem_eval_fexpr e2 s te in
                             let len0 := size newv in
                             match (TE.vtyp v te) with
-                            | Fuint w | Fuint_implicit w => 
+                            | Fuint w | Fuint_implicit w =>
                                       if SV.acc v rs == [::]
                                       then (rs, SV.upd v (zext (w - len0) newv) s)
                                       else (SV.upd v (zext (w - len0) newv) rs, s)
-                            | Fsint w | Fsint_implicit w => 
+                                 (* TODO: In case Fuint w and Fsint w,
+                                          if len > w, then cut off the result.
+                                          (In case Fuint_implicit w, it is an error
+                                          if len > w). *)
+                            | Fsint w | Fsint_implicit w =>
                                       if SV.acc v rs == [::]
                                       then (rs, SV.upd v (sext (w - len0) newv) s)
                                       else (SV.upd v (sext (w - len0) newv) rs, s)
@@ -2345,6 +2349,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
 
   Fixpoint no_mem_eval_fstmts st rs s te (finstoutl : seq var) (finstoutm : maptuple) (ffmodsmap : mapfstmt) (fterss : mapterss) (finstin : mapls) (finstinmap : mvar) (finstoutmap : mapvar) 
   (allfinstoutl : mapls) (allfinstoutm : mmaptuple) (allfinstportmap : mmapvar) iternum : vstate * vstate * mapterss :=
+  (* TODO: This function only works if the statements are already topologically ordered. *)
   match st with
   | [::] => (rs, s, fterss)
   | hd :: tl => let te0 := no_mem_upd_typenv_fstmt hd te in
@@ -2499,11 +2504,16 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
                  && (size (no_mem_eval_fexpr e2 (SV.upd (rid r) (SV.acc (rid r) rs1) s1) (TE.add (rid r) (type r) te)) == (sizeof_fgtyp (type r)))
                  end)
     | Snode v e => well_typed_fexpr e te
-    | Sfcnct v e => match (TE.vtyp v te) with
-                                | Fuint w | Fuint_implicit w => well_typed_fexpr e te && (w >= (sizeof_fgtyp (explicit_to_fgtyp (type_of_fexpr e te))))
-                                | Fsint w | Fsint_implicit w => well_typed_fexpr e te && (w >= (sizeof_fgtyp (explicit_to_fgtyp (type_of_fexpr e te))))
-                                | _ => false
-                                end
+    | Sfcnct v e => match TE.vtyp v te, type_of_fexpr e te with
+                    | Fuint_implicit w, exist (Fuint we) _
+                    | Fsint_implicit w, exist (Fsint we) _ => well_typed_fexpr e te && w >= we
+                    | Fuint _, exist (Fuint _) _
+                    | Fsint _, exist (Fsint _) _
+                    | Fclock, exist Fclock _
+                    | Freset, exist Freset _
+                    | Fasyncreset, exist Fasyncreset _ => well_typed_fexpr e te
+                    | _, _ => false
+                    end
     | Sinst _ => false
     | _ => true
     end.
