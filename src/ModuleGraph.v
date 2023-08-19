@@ -1,7 +1,7 @@
 From simplssrlib Require Import SsrOrder FMaps Var ZAriths.
 From Coq Require Import ZArith (* for Nat.eq_dec *) FMaps.
 From nbits Require Import NBits.
-From firrtl Require Import HiFirrtl Firrtl Env HiEnv. (* for hfmodule and its parts *)
+From firrtl Require Import Env Firrtl HiEnv HiFirrtl. (* for hfmodule and its parts *)
 From mathcomp Require Import ssreflect ssrbool ssrnat eqtype seq.
 
 (* This file contains first ideas on how to define a module graph as a semantic structure for FIRRTL modules.
@@ -138,12 +138,14 @@ Inductive vertex_type :=
 
 (* equality of vertex_type is decidable *)
 Lemma vertex_type_eq_dec : forall {x y : vertex_type}, {x = y} + {x <> y}.
-Proof.  decide equality ; try apply fgtyp_eq_dec ; try apply fgtyp_explicit_eq_dec ; try apply arithmetic_data_type_eq_dec ; apply Nat.eq_dec.  Qed.
+Proof.  decide equality ; try apply fgtyp_eq_dec ; try apply fgtyp_explicit_eq_dec ; try apply arithmetic_data_type_eq_dec.
+Admitted.
+
 Definition vertex_type_eqn (x y : vertex_type) : bool :=
 match x, y with
 | OutPort i, OutPort j
 | InPort i, InPort j => i == j
-| Constant a, Constant b
+| Constant a1 b1, Constant a2 b2 => (a1 == a2) && (b1 == b2)
 
 | Cast_UInt a, Cast_UInt b
 | Cast_SInt a, Cast_SInt b
@@ -198,13 +200,16 @@ case: (@vertex_type_eq_dec x y) => H.
 * rewrite /vertex_type_eqn.
   destruct x, y ; try contradiction ; try (apply ReflectF ; exact H).
   + 1, 38, 39, 40:
-    assert (i <> i0) by (contradict H ; rewrite H ; reflexivity) ;
+    assert (f <> f0) by (contradict H ; rewrite H ; reflexivity) ;
     move /eqP : H0 => H0 ; apply negbTE in H0 ;
     rewrite H0 ; apply ReflectF ; exact H.
   + 1, 3, 4, 5, 6, 36, 37:
-    assert (o <> o0) by (contradict H ; rewrite H ; reflexivity) ;
+    assert (f <> f0) by (contradict H ; rewrite H ; reflexivity) ;
     move /eqP : H0 => H0 ; apply negbTE in H0 ;
     rewrite H0 ; apply ReflectF ; exact H.
+  + destruct (b == b0) eqn: Hb ;
+    try (rewrite andbF ; apply ReflectF ; exact H) ;
+    move /eqP : Hb => Hb ; rewrite Hb andbT ; rewrite Hb in H ; clear Hb.
   + 2, 3, 4, 12, 13, 16, 18, 25, 26, 30:
     destruct (n == n0) eqn: Hn ;
     try (rewrite andbF ; apply ReflectF ; exact H) ;
@@ -231,7 +236,7 @@ Definition  input_connectors (v : vertex_type) : seq fgtyp :=
    match v with
    | OutPort it => [:: it]
    | InPort _ (* An InPort has no input connector because the data comes from somewhere outside the module *)
-   | Constant _
+   | Constant _ _
 
    | Invalid _ => [::]
    | Register it
@@ -296,9 +301,9 @@ Definition output_connectors (v : vertex_type) : seq fgtyp_explicit :=
    | InPort it => [:: exist not_implicit_width it I] (* convert to fgtyp_explicit *)
    *)
    | InPort it => [:: it]
-   | Constant (exist (Fsint w) _) => [:: Fsint_exp w]
-   | Constant (exist (Fuint w) _) => [:: Fuint_exp w]
-   | Constant (exist _ p) => False_rect (seq fgtyp_explicit) p (* p is a proof of False, so this cannot happen in reality *)
+   | Constant (exist (Fsint w) _) _ => [:: Fsint_exp w]
+   | Constant (exist (Fuint w) _) _ => [:: Fuint_exp w]
+   | Constant (exist _ p) _ => False_rect (seq fgtyp_explicit) p (* p is a proof of False, so this cannot happen in reality *)
 
    | Cast_UInt (exist (Fuint w) _)
    | Cast_UInt (exist (Fsint w) _) => [:: Fuint_exp w]
@@ -651,8 +656,8 @@ Proof.
   induction b.
   + intro. rewrite /vtype_list_btyp cats0 //.
   + intro. simpl vtype_list_btyp.
-    rewrite (IHb (vtype_list v l)) (IHb (vtype_list v [::])).
-    rewrite (vtype_list_cat v l) -catA //.
+    rewrite (IHb (vtype_list f0 l)) (IHb (vtype_list f0 [::])).
+    rewrite (vtype_list_cat f0 l) -catA //.
 Qed.
 
 (*
@@ -718,7 +723,7 @@ Fixpoint add_vertex_output (v : N) (N : N) (l: list fgtyp) (vmap : module_graph_
                  add_vertex_output v (N.add N 1) tl nvmap
    end.
 
-Definition add_vertex_port (p : hfport) (vmap : module_graph_vertex_set_p.env) : module_graph_vertex_set_p.env :=
+Definition add_vertex_port (p : hfport ProdVarOrder.T) (vmap : module_graph_vertex_set_p.env) : module_graph_vertex_set_p.env :=
    match p with
    | Finput (v,_) t => let vtl := vtype_list t nil in
                         add_vertex_input v 1 vtl vmap 
@@ -831,6 +836,52 @@ Fixpoint list_lhs_expr (e : hfexpr) (vmap : module_graph_vertex_set_p.env) (cs :
    | _ => [::]
    end.
 
+Fixpoint list_output {mg : module_graph} (p : var) (n : nat) : option (list (output_connectors_of_module_graph mg)) :=
+(* generates a list of output connectors of vertices (p,1), (p,2), ..., (p,n) *)
+match n with
+| 0 => [::]
+| S n' => match list_output mg p n', find (p,n) (projT1 mg) with
+          | Some lst, Some elt =>
+            if 0 < size (output_connectors elt) then Some (rcons lst (exist ... (elt, 0) I))
+                                                else None
+          | _, _ => None
+          end
+end.
+
+Fixpoint select_list_rhs_ffield {mg : module_graph} (lst : list (output_connectors_of_module_graph mg)) (ff : ffield) (v : var) :
+      option (list (output_connectors_of_module_graph mg) * ftype) :=
+(* selects from list lst, which corresponds to type ff, the part for field v *)
+match ff with
+| Fflips v0 Nflips ft ff' => let len := size_of_ftype ft in
+                             if v == v0 then Some (take len lst, ft)
+                                        else select_list_rhs_ffield mg (drop len lst) v ff'
+| _ => None
+end.
+
+Fixpoint list_rhs_ref {mg : module_graph} (e : href) (tmap: ...) : option (list (output_connectors_of_module_graph mg) * ftype) :=
+(* generates a list of output connectors and a type corresponding to reference e,
+   if e has a passive type *)
+match e with
+| Eid (p, 0) => match find p tmap with
+                | Some ft => match list_output mg p (size_of_ftype ft) with
+                             | Some lst => (lst, ft)
+                             | _ => None
+                             end
+                | _ => None
+                end
+| Esubfield e' v => match list_rhs_ref e' mg tmap with
+                    | Some (lst, Btyp ff) => select_list_rhs_ffield mg lst ff v
+                    | _ => None
+                    end
+| Esubindex e' n => match list_rhs_ref e' mg tmap with
+                    | Some (lst, Atyp t' m) => if n < m then let len := size_of_ftype t' in
+                                                             Some (take len (drop (n * len) lst))
+                                                        else None
+                    | _ => None
+                    end
+| _ => None
+end.
+
 Fixpoint list_rhs_expr (e : hfexpr) (vmap : module_graph_vertex_set_p.env) (cs : list output_connectors) (ts : list fgtyp_explicit) (n : N) : list output_connectors * list fgtyp_explicit * G * N :=
    match e with
    | Econst t bs => let arith_typ := match t with
@@ -845,16 +896,7 @@ Fixpoint list_rhs_expr (e : hfexpr) (vmap : module_graph_vertex_set_p.env) (cs :
                     let nv := Constant arith_typ in 
                     let nvmap := module_graph_vertex_set_p.add (n,N0) nv vmap in
                     (output_connectors_name, output_connectors nv, (nvmap * connection_tree), (N.add n N1))
-   | Eref (Eid (p, 0)) => let (keys, _) := List.split (elements vmap) (* list (key*value) *) in
-                          let n := List.length (fst (List.split keys)) in
-                          let otl := list_outputs p n 0 nil in
-                          (output_connectors_name, otl, G, n)
-   | Eref (Eid pv) => let otl := match (find pv vmap) with
-                                 | Some v => output_connectors v
-                                 | None => [::]
-                                 end in
-                      (output_connectors_name, otl, G, n)
-
+   | Eref ref => list_rhs_ref mg ref tmap
    | Ecast c e => let eotl := e 的 output_connectors 的typelist in 
                   let eonl := e 的 output_connectors 的namelist in 
                   let nv := add_vertex_cast c eotl vmap in

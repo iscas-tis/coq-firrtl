@@ -2506,7 +2506,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
     | Snode v e => well_typed_fexpr e te
     | Sfcnct v e => match TE.vtyp v te, type_of_fexpr e te with
                     | Fuint_implicit w, exist (Fuint we) _
-                    | Fsint_implicit w, exist (Fsint we) _ => well_typed_fexpr e te && w >= we
+                    | Fsint_implicit w, exist (Fsint we) _ => well_typed_fexpr e te && (w >= we)
                     | Fuint _, exist (Fuint _) _
                     | Fsint _, exist (Fsint _) _
                     | Fclock, exist Fclock _
