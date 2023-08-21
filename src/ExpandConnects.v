@@ -93,6 +93,7 @@ Section ExpandConnectsP.
   Definition ev1 := HiFP.eref (Eid p1).
   Definition ev2 := HiFP.eref (Eid p2).
   Definition ce1 := upd_aggr_elements_all p1 (HiFP.aggr_typ (Atyp (Gtyp (Fuint 1)) 3), Wire) cem.
+  Compute (CEP.find (1%num, 4%num) ce1).
   Definition ce2 := upd_aggr_elements_all p2 (HiFP.aggr_typ (Atyp (Gtyp (Fuint 2)) 5), Wire) ce1.
   Definition lstt := [::ec1].
   Definition es1 := expand_expr (HiFP.emux ec1 (HiFP.emux ec1 ev1 ev2) (HiFP.emux ec1 ev1 ev2)) ce2 lstt.

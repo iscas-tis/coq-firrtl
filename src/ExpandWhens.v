@@ -2005,12 +2005,6 @@ precondition:
 
 End ExpandWhens.
 
-(*
-From Coq Require Import FunInd FMaps FMapAVL OrderedType ZArith.
-From mathcomp Require Import ssreflect ssrbool ssrnat ssrint eqtype seq ssrfun.
-From simplssrlib Require Import Types SsrOrder FSets FMaps Tactics Var Store.
-From nbits Require Import NBits.
-From firrtl Require Import Firrtl Env HiEnv HiFirrtl InferTypes.
 
 (* translate a hifirrtl program to module graph *)
 (* mgnode : vertices in mg, maight be recorded like (its kind of component e.g. wire, its type e.g. UInt<4>)
@@ -2058,4 +2052,115 @@ Definition trans2mg (m : hfmodule) :=
                       let 
   | FExmod _ _ _ => (* empty set of mg *)
   end.
-*)
+
+(*list only the ground types*)
+  
+
+(*recursively add sub-elements accroding to the declared aggr_typ*)
+  Fixpoint upd_aggr_elements_aux (v:pvar) (ts: seq ftype) (c:fcomponent) (ce:CEP.env) (n:N) :CEP.env:=
+    match ts with
+    | nil => ce
+    | cons hd tl => upd_aggr_elements_aux v tl c (CEP.add (fst v, n) (HiFP.aggr_typ hd, c) ce) (N.add n 1%num)
+    end.
+  
+  Definition upd_aggr_elements (v:pvar) (t: cmpnt_init_typs ProdVarOrder.T * fcomponent) (ce:CEP.env) : CEP.env :=
+    let ts := ftype_list (type_of_cmpnttyp (fst t)) nil in
+    CEP.add v t (upd_aggr_elements_aux v ts (snd t) ce first_index).
+
+(* on declaration *)
+  Fixpoint inferType_stmt_funP (st : HiFP.hfstmt) (ce : CEP.env) : CEP.env :=
+    match st with
+    | Snode v e => upd_aggr_elements v (HiFP.aggr_typ (HiFP.type_of_hfexpr e ce), Node) ce
+    | Sinst v1 v2 => upd_aggr_elements v1 (fst (CEP.vtyp v2 ce), Instanceof) ce
+    | Sreg v r => upd_aggr_elements v (HiFP.reg_typ r, Register) ce
+    | Smem v m => upd_aggr_elements v (HiFP.mem_typ m, Memory) ce
+    | Swire v t => upd_aggr_elements v (HiFP.aggr_typ t, Wire) ce
+    | Swhen _ sts_true sts_false => inferType_stmts_funP sts_false (inferType_stmts_funP sts_true ce)
+    | Sfcnct _ _
+    (* | Spcnct _ _ *)
+    | Sinvalid _
+    | Sskip => ce
+    end
+
+  with inferType_stmts_funP (sts : HiFP.hfstmt_seq) (ce : CEP.env) : CEP.env :=
+    match sts with
+    | Qnil => ce
+    | Qcons s stl => inferType_stmts_funP stl (inferType_stmt_funP s ce)
+    end.
+
+
+(* on connection *)
+(* 定义一个rhs_expr的类型，把带aggr_type的rhs展开成list *)
+Definition is_gtyp t := match t with | Gtyp _ => true | _ => false end.
+  
+  (*recursively expand reference on rhs*) 
+  Fixpoint expand_eref_aux (r : pvar) (sz : nat) (cnt : nat) (ce : CEP.env) (rs : seq HiFP.hfexpr) : seq HiFP.hfexpr :=
+    match sz with
+    | 0 => rs
+    | S n => match (CEP.find (r.1, (r.2 + N.of_nat cnt)%num) ce) with
+             | Some (t, c) => if is_gtyp (type_of_cmpnttyp t)
+                              then expand_eref_aux r n (cnt.+1) ce (rcons rs (HiFP.eref (HiFP.eid (r.1, r.2 + N.of_nat cnt)%num)))
+                              else expand_eref_aux r n (cnt.+1) ce rs
+             | None => rs
+             end                                              
+    end.
+
+  Definition expand_eref (r : pvar) (ce : CEP.env) l : seq HiFP.hfexpr :=
+    match (CEP.find r ce) with
+    | Some (t, c) =>
+        let ts := ftype_list_all (type_of_cmpnttyp t) nil in
+        let sz := size ts in
+        expand_eref_aux r sz 0 ce l
+    | None => l
+    end.
+
+  (*recursively expand mux, output a sequence of expressions*) 
+  Fixpoint expand_emux (c : HiFP.hfexpr) (ze : seq (HiFP.hfexpr * HiFP.hfexpr)) (es : seq HiFP.hfexpr) : seq HiFP.hfexpr :=
+    match ze with
+    | nil => es
+    | (e1, e2) :: zes => expand_emux c zes (rcons es (HiFP.emux c e1 e2))
+    end.
+
+  (* recursively expand validif, output a sequence of expressions
+  Fixpoint expand_evalidif (c : HiFP.hfexpr) (e : seq HiFP.hfexpr) (es : seq HiFP.hfexpr) : seq HiFP.hfexpr := 
+    match e with 
+    | nil => es 
+    | e1 :: zes => expand_evalidif c zes (rcons es (HiFP.evalidif c e1)) 
+    end.  *)
+  
+  (*TODO?: Somewhere "Replaces constant [[firrtl.WSubAccess]] with [[firrtl.WSubIndex]]"*)
+  (*recursively expand expr on rhs*) 
+  Fixpoint expand_expr (e : HiFP.hfexpr) (ce : CEP.env) (es : seq HiFP.hfexpr) : seq HiFP.hfexpr :=
+    match e with
+    | Eref (Eid (r, o)) => expand_eref (r, o) ce es
+    | Emux c e1 e2 => expand_emux c (zip (* (HiFP.econst (Fuint 0) nil) (HiFP.econst (Fuint 0) nil) *) (expand_expr e1 ce nil) (expand_expr e2 ce nil)) es
+    (* | Evalidif c e => expand_evalidif c (expand_expr e ce nil) es *)
+    | Eref _ => rcons es (HiFP.econst (Fuint 0) [::])
+    | e => rcons es e
+    end.
+
+  Fixpoint expand_fcnct es1 es2 (l : seq HiFP.hfstmt) : seq HiFP.hfstmt :=
+    match es1, es2 with
+    | cons (Eref (Eid v)) ess1, cons ee2 ess2 => expand_fcnct ess1 ess2 (rcons l (Sfcnct (Eid v) ee2) )
+    | _, _ => l
+    end.
+
+  Fixpoint expandconnects_stmt (s : HiFP.hfstmt) (ce : CEP.env) (sts : seq HiFP.hfstmt) : seq HiFP.hfstmt :=
+    match s with
+    | Sskip
+    | Swire _ _
+    | Sreg _ _
+    | Smem _ _
+    | Sinvalid _
+    | Sinst _ _
+    | Snode _ _ => rcons sts s
+    | Sfcnct e1 e2 => expand_fcnct (expand_expr (Eref e1) ce nil) (expand_expr e2 ce nil) sts
+    (* | Spcnct (Eid v1) (Eref (Eid v2)) => Qcat (element_connection (upd_expand_pcnct_eref v1 v2 (type_of_cmpnttyp (CEP.vtyp v1 ce).1) (type_of_cmpnttyp (CEP.vtyp v2 ce).1) sv) sts) sts *)
+    | Swhen c s1 s2 => expandconnects_stmt_seq s2 ce (expandconnects_stmt_seq s1 ce sts)
+    end
+      with expandconnects_stmt_seq (ss : HiFP.hfstmt_seq) (ce : CEP.env) (sts : seq HiFP.hfstmt) : seq HiFP.hfstmt :=
+      match ss with
+      | Qnil => sts
+      | Qcons s ss => expandconnects_stmt_seq ss ce (expandconnects_stmt s ce sts)
+    end.
+  

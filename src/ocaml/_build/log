@@ -1,0 +1,670 @@
+# dune build
+# OCAMLPARAM: unset
+# Shared cache: disabled
+# Workspace root: /Users/wangkeyin/Desktop/coq-firrtl/src/ocaml
+# Auto-detected concurrency: 8
+$ /Users/wangkeyin/.opam/default/bin/ocamlc.opt -config > /var/folders/hx/fmrpnqy17_103m_dl2c02f_80000gn/T/dune_31ce43_output
+# Dune context:
+#  { name = "default"
+#  ; kind = "default"
+#  ; profile = Dev
+#  ; merlin = true
+#  ; for_host = None
+#  ; fdo_target_exe = None
+#  ; build_dir = "default"
+#  ; toplevel_path =
+#      Some External "/Users/wangkeyin/.opam/default/lib/toplevel"
+#  ; ocaml_bin = External "/Users/wangkeyin/.opam/default/bin"
+#  ; ocaml = Ok External "/Users/wangkeyin/.opam/default/bin/ocaml"
+#  ; ocamlc = External "/Users/wangkeyin/.opam/default/bin/ocamlc.opt"
+#  ; ocamlopt = Ok External "/Users/wangkeyin/.opam/default/bin/ocamlopt.opt"
+#  ; ocamldep = Ok External "/Users/wangkeyin/.opam/default/bin/ocamldep.opt"
+#  ; ocamlmklib =
+#      Ok External "/Users/wangkeyin/.opam/default/bin/ocamlmklib.opt"
+#  ; env =
+#      map
+#        { "DUNE_OCAML_HARDCODED" : "/Users/wangkeyin/.opam/default/lib"
+#        ; "DUNE_OCAML_STDLIB" : "/Users/wangkeyin/.opam/default/lib/ocaml"
+#        ; "DUNE_SOURCEROOT" : "/Users/wangkeyin/Desktop/coq-firrtl/src/ocaml"
+#        ; "INSIDE_DUNE" :
+#            "/Users/wangkeyin/Desktop/coq-firrtl/src/ocaml/_build/default"
+#        ; "OCAMLFIND_IGNORE_DUPS_IN" :
+#            "/Users/wangkeyin/Desktop/coq-firrtl/src/ocaml/_build/install/default/lib"
+#        ; "OCAMLPATH" :
+#            "/Users/wangkeyin/Desktop/coq-firrtl/src/ocaml/_build/install/default/lib"
+#        ; "OCAMLTOP_INCLUDE_PATH" :
+#            "/Users/wangkeyin/Desktop/coq-firrtl/src/ocaml/_build/install/default/lib/toplevel"
+#        ; "OCAML_COLOR" : "always"
+#        ; "OPAMCOLOR" : "always"
+#        }
+#  ; findlib_paths = [ External "/Users/wangkeyin/.opam/default/lib" ]
+#  ; arch_sixtyfour = true
+#  ; natdynlink_supported = true
+#  ; supports_shared_libraries = true
+#  ; ocaml_config =
+#      { version = "4.14.0"
+#      ; standard_library_default = "/Users/wangkeyin/.opam/default/lib/ocaml"
+#      ; standard_library = "/Users/wangkeyin/.opam/default/lib/ocaml"
+#      ; standard_runtime = "the_standard_runtime_variable_was_deleted"
+#      ; ccomp_type = "cc"
+#      ; c_compiler = "cc"
+#      ; ocamlc_cflags =
+#          [ "-O2"; "-fno-strict-aliasing"; "-fwrapv"; "-pthread" ]
+#      ; ocamlc_cppflags = [ "-D_FILE_OFFSET_BITS=64" ]
+#      ; ocamlopt_cflags =
+#          [ "-O2"; "-fno-strict-aliasing"; "-fwrapv"; "-pthread" ]
+#      ; ocamlopt_cppflags = [ "-D_FILE_OFFSET_BITS=64" ]
+#      ; bytecomp_c_compiler =
+#          [ "cc"
+#          ; "-O2"
+#          ; "-fno-strict-aliasing"
+#          ; "-fwrapv"
+#          ; "-pthread"
+#          ; "-D_FILE_OFFSET_BITS=64"
+#          ]
+#      ; bytecomp_c_libraries = [ "-lm"; "-lpthread" ]
+#      ; native_c_compiler =
+#          [ "cc"
+#          ; "-O2"
+#          ; "-fno-strict-aliasing"
+#          ; "-fwrapv"
+#          ; "-pthread"
+#          ; "-D_FILE_OFFSET_BITS=64"
+#          ]
+#      ; native_c_libraries = [ "-lm" ]
+#      ; native_pack_linker = [ "ld"; "-r"; "-o" ]
+#      ; cc_profile = []
+#      ; architecture = "arm64"
+#      ; model = "default"
+#      ; int_size = 63
+#      ; word_size = 64
+#      ; system = "macosx"
+#      ; asm = [ "cc"; "-c"; "-Wno-trigraphs" ]
+#      ; asm_cfi_supported = true
+#      ; with_frame_pointers = false
+#      ; ext_exe = ""
+#      ; ext_obj = ".o"
+#      ; ext_asm = ".s"
+#      ; ext_lib = ".a"
+#      ; ext_dll = ".so"
+#      ; os_type = "Unix"
+#      ; default_executable_name = "a.out"
+#      ; systhread_supported = true
+#      ; host = "aarch64-apple-darwin21.4.0"
+#      ; target = "aarch64-apple-darwin21.4.0"
+#      ; profiling = false
+#      ; flambda = false
+#      ; spacetime = false
+#      ; safe_string = true
+#      ; exec_magic_number = "Caml1999X031"
+#      ; cmi_magic_number = "Caml1999I031"
+#      ; cmo_magic_number = "Caml1999O031"
+#      ; cma_magic_number = "Caml1999A031"
+#      ; cmx_magic_number = "Caml1999Y031"
+#      ; cmxa_magic_number = "Caml1999Z031"
+#      ; ast_impl_magic_number = "Caml1999M031"
+#      ; ast_intf_magic_number = "Caml1999N031"
+#      ; cmxs_magic_number = "Caml1999D031"
+#      ; cmt_magic_number = "Caml1999T031"
+#      ; natdynlink_supported = true
+#      ; supports_shared_libraries = true
+#      ; windows_unicode = false
+#      }
+#  }
+$ (cd _build/default && /Users/wangkeyin/.opam/default/bin/ocamldep.opt -modules -impl inline.ml) > _build/default/.pparser.eobjs/inline.ml.d
+$ (cd _build/default && /Users/wangkeyin/.opam/default/bin/ocamldep.opt -modules -impl transast1.ml) > _build/default/.pparser.eobjs/transast1.ml.d
+$ (cd _build/default && /Users/wangkeyin/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -g -bin-annot -I .pparser.eobjs/byte -I /Users/wangkeyin/.opam/default/lib/ocamlgraph -I /Users/wangkeyin/.opam/default/lib/stdlib-shims -I /Users/wangkeyin/.opam/default/lib/zarith -I extraction/.extraction.objs/byte -I parser/.firrtl_lang.objs/byte -no-alias-deps -opaque -open Dune__exe -o .pparser.eobjs/byte/dune__exe__Transast1.cmo -c -impl transast1.ml)
+> File "transast1.ml", line 54, characters 36-39:
+> 54 |     let (a1,b1) = (StringMap.add (m.mid^"."^v^".data") b a,b + 1) in (* reader.data 为b*)
+>                                          ^^^
+> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 55, characters 36-39:
+> 55 |     let (a2,b2) = (StringMap.add (m.mid^"."^v^".addr") b1 a1,b1 + 1) in 
+>                                          ^^^
+> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 56, characters 36-39:
+> 56 |     let (a3,b3) = (StringMap.add (m.mid^"."^v^".en") b2 a2,b2 + 1) in 
+>                                          ^^^
+> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 57, characters 36-39:
+> 57 |     let (a4,b4) = (StringMap.add (m.mid^"."^v^".clk") b3 a3,b3 + 1) in 
+>                                          ^^^
+> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 62, characters 36-39:
+> 62 |     let (a1,b1) = (StringMap.add (m.mid^"."^v^".data") b a,b + 1) in 
+>                                          ^^^
+> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 63, characters 36-39:
+> 63 |     let (a2,b2) = (StringMap.add (m.mid^"."^v^".addr") b1 a1,b1 + 1) in 
+>                                          ^^^
+> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 64, characters 36-39:
+> 64 |     let (a3,b3) = (StringMap.add (m.mid^"."^v^".en") b2 a2,b2 + 1) in 
+>                                          ^^^
+> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 65, characters 36-39:
+> 65 |     let (a4,b4) = (StringMap.add (m.mid^"."^v^".mask") b3 a3,b3 + 1) in 
+>                                          ^^^
+> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 66, characters 36-39:
+> 66 |     let (a5,b5) = (StringMap.add (m.mid^"."^v^".clk") b4 a4,b4 + 1) in
+>                                          ^^^
+> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 69, characters 89-95:
+> 69 |   List.fold_left writer_str2N (List.fold_left reader_str2N (map,flag,rl,wl,datatoetc) (m.reader)) (m.writer)
+>                                                                                               ^^^^^^
+> Warning 42 [disambiguated-name]: this use of reader relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 69, characters 101-107:
+> 69 |   List.fold_left writer_str2N (List.fold_left reader_str2N (map,flag,rl,wl,datatoetc) (m.reader)) (m.writer)
+>                                                                                                           ^^^^^^
+> Warning 42 [disambiguated-name]: this use of writer relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 74, characters 55-58:
+> 74 |   | Ast.Sreg r -> let (map0, flag0) = (StringMap.add r.rid flag map,flag + 1) in
+>                                                             ^^^
+> Warning 42 [disambiguated-name]: this use of rid relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 75, characters 35-40:
+> 75 |                   (StringMap.add r.clock flag0 map0,flag0 + 1, rl, wl, datatoetc, memmap)
+>                                         ^^^^^
+> Warning 42 [disambiguated-name]: this use of clock relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 76, characters 45-48:
+> 76 |   | Ast.Smem m -> let map0 = StringMap.add m.mid flag map in
+>                                                   ^^^
+> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 233, characters 84-87:
+> 233 |   | Ast.Sreg r -> Firrtl.Sreg (Firrtl.LoFirrtl.mk_freg (Obj.magic (StringMap.find r.rid smap)) (trans_fgtyp r.rtype) (Obj.magic (StringMap.find r.clock smap)) (trans_rst r.reset smap))
+>                                                                                           ^^^
+> Warning 42 [disambiguated-name]: this use of rid relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 233, characters 110-115:
+> 233 |   | Ast.Sreg r -> Firrtl.Sreg (Firrtl.LoFirrtl.mk_freg (Obj.magic (StringMap.find r.rid smap)) (trans_fgtyp r.rtype) (Obj.magic (StringMap.find r.clock smap)) (trans_rst r.reset smap))
+>                                                                                                                     ^^^^^
+> Warning 42 [disambiguated-name]: this use of rtype relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 233, characters 146-151:
+> 233 |   | Ast.Sreg r -> Firrtl.Sreg (Firrtl.LoFirrtl.mk_freg (Obj.magic (StringMap.find r.rid smap)) (trans_fgtyp r.rtype) (Obj.magic (StringMap.find r.clock smap)) (trans_rst r.reset smap))
+>                                                                                                                                                         ^^^^^
+> Warning 42 [disambiguated-name]: this use of clock relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 233, characters 172-177:
+> 233 |   | Ast.Sreg r -> Firrtl.Sreg (Firrtl.LoFirrtl.mk_freg (Obj.magic (StringMap.find r.rid smap)) (trans_fgtyp r.rtype) (Obj.magic (StringMap.find r.clock smap)) (trans_rst r.reset smap))
+>                                                                                                                                                                                   ^^^^^
+> Warning 42 [disambiguated-name]: this use of reset relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 234, characters 84-87:
+> 234 |   | Ast.Smem m -> Firrtl.Smem (Firrtl.LoFirrtl.mk_fmem (Obj.magic (StringMap.find m.mid smap)) (trans_fgtyp m.data_type) (Z.to_int m.depth) 
+>                                                                                           ^^^
+> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 234, characters 110-119:
+> 234 |   | Ast.Smem m -> Firrtl.Smem (Firrtl.LoFirrtl.mk_fmem (Obj.magic (StringMap.find m.mid smap)) (trans_fgtyp m.data_type) (Z.to_int m.depth) 
+>                                                                                                                     ^^^^^^^^^
+> Warning 42 [disambiguated-name]: this use of data_type relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 234, characters 133-138:
+> 234 |   | Ast.Smem m -> Firrtl.Smem (Firrtl.LoFirrtl.mk_fmem (Obj.magic (StringMap.find m.mid smap)) (trans_fgtyp m.data_type) (Z.to_int m.depth) 
+>                                                                                                                                            ^^^^^
+> Warning 42 [disambiguated-name]: this use of depth relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 235, characters 120-123:
+> 235 |                   (List.fold_left (fun ls x -> List.cons (Firrtl.LoFirrtl.mk_freader_port (Obj.magic (StringMap.find (m.mid^"."^x^".addr") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".data") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".en") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".clk") smap))) ls) [] m.reader)
+>                                                                                                                               ^^^
+> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 235, characters 176-179:
+> 235 |                   (List.fold_left (fun ls x -> List.cons (Firrtl.LoFirrtl.mk_freader_port (Obj.magic (StringMap.find (m.mid^"."^x^".addr") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".data") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".en") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".clk") smap))) ls) [] m.reader)
+>                                                                                                                                                                                       ^^^
+> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 235, characters 232-235:
+> 235 |                   (List.fold_left (fun ls x -> List.cons (Firrtl.LoFirrtl.mk_freader_port (Obj.magic (StringMap.find (m.mid^"."^x^".addr") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".data") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".en") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".clk") smap))) ls) [] m.reader)
+>                                                                                                                                                                                                                                               ^^^
+> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 235, characters 286-289:
+> 235 |                   (List.fold_left (fun ls x -> List.cons (Firrtl.LoFirrtl.mk_freader_port (Obj.magic (StringMap.find (m.mid^"."^x^".addr") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".data") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".en") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".clk") smap))) ls) [] m.reader)
+>                                                                                                                                                                                                                                                                                                     ^^^
+> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 235, characters 321-327:
+> 235 |                   (List.fold_left (fun ls x -> List.cons (Firrtl.LoFirrtl.mk_freader_port (Obj.magic (StringMap.find (m.mid^"."^x^".addr") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".data") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".en") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".clk") smap))) ls) [] m.reader)
+>                                                                                                                                                                                                                                                                                                                                        ^^^^^^
+> Warning 42 [disambiguated-name]: this use of reader relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 236, characters 120-123:
+> 236 |                   (List.fold_left (fun ls x -> List.cons (Firrtl.LoFirrtl.mk_fwriter_port (Obj.magic (StringMap.find (m.mid^"."^x^".addr") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".data") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".en") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".clk") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".mask") smap))) ls) [] m.writer)
+>                                                                                                                               ^^^
+> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 236, characters 176-179:
+> 236 |                   (List.fold_left (fun ls x -> List.cons (Firrtl.LoFirrtl.mk_fwriter_port (Obj.magic (StringMap.find (m.mid^"."^x^".addr") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".data") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".en") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".clk") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".mask") smap))) ls) [] m.writer)
+>                                                                                                                                                                                       ^^^
+> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 236, characters 232-235:
+> 236 |                   (List.fold_left (fun ls x -> List.cons (Firrtl.LoFirrtl.mk_fwriter_port (Obj.magic (StringMap.find (m.mid^"."^x^".addr") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".data") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".en") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".clk") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".mask") smap))) ls) [] m.writer)
+>                                                                                                                                                                                                                                               ^^^
+> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 236, characters 286-289:
+> 236 |                   (List.fold_left (fun ls x -> List.cons (Firrtl.LoFirrtl.mk_fwriter_port (Obj.magic (StringMap.find (m.mid^"."^x^".addr") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".data") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".en") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".clk") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".mask") smap))) ls) [] m.writer)
+>                                                                                                                                                                                                                                                                                                     ^^^
+> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 236, characters 341-344:
+> 236 |                   (List.fold_left (fun ls x -> List.cons (Firrtl.LoFirrtl.mk_fwriter_port (Obj.magic (StringMap.find (m.mid^"."^x^".addr") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".data") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".en") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".clk") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".mask") smap))) ls) [] m.writer)
+>                                                                                                                                                                                                                                                                                                                                                            ^^^
+> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 236, characters 377-383:
+> 236 |                   (List.fold_left (fun ls x -> List.cons (Firrtl.LoFirrtl.mk_fwriter_port (Obj.magic (StringMap.find (m.mid^"."^x^".addr") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".data") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".en") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".clk") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".mask") smap))) ls) [] m.writer)
+>                                                                                                                                                                                                                                                                                                                                                                                                ^^^^^^
+> Warning 42 [disambiguated-name]: this use of writer relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 237, characters 30-42:
+> 237 |                   (Z.to_int m.read_latency) (Z.to_int m.write_latency) (trans_ruw m.read_write))
+>                                     ^^^^^^^^^^^^
+> Warning 42 [disambiguated-name]: this use of read_latency relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 237, characters 56-69:
+> 237 |                   (Z.to_int m.read_latency) (Z.to_int m.write_latency) (trans_ruw m.read_write))
+>                                                               ^^^^^^^^^^^^^
+> Warning 42 [disambiguated-name]: this use of write_latency relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 237, characters 84-94:
+> 237 |                   (Z.to_int m.read_latency) (Z.to_int m.write_latency) (trans_ruw m.read_write))
+>                                                                                           ^^^^^^^^^^
+> Warning 42 [disambiguated-name]: this use of read_write relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 270, characters 33-45:
+> 270 |   | Ast.Smem m -> if (Z.to_int m.read_latency) == 0 then IntMap.add (StringMap.find m.mid modsmap) false rlmap
+>                                        ^^^^^^^^^^^^
+> Warning 42 [disambiguated-name]: this use of read_latency relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 270, characters 86-89:
+> 270 |   | Ast.Smem m -> if (Z.to_int m.read_latency) == 0 then IntMap.add (StringMap.find m.mid modsmap) false rlmap
+>                                                                                             ^^^
+> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 271, characters 36-39:
+> 271 |   else IntMap.add (StringMap.find m.mid modsmap) true rlmap
+>                                           ^^^
+> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 453, characters 30-34:
+> 453 |                             | Eref v1 -> printf "%d cnct\n" (Obj.magic v1)
+>                                     ^^^^
+> Warning 42 [disambiguated-name]: this use of Eref relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 458, characters 52-55:
+> 458 |   | Firrtl.Sreg r -> printf "%d reg\n" (Obj.magic r.rid)
+>                                                           ^^^
+> Warning 42 [disambiguated-name]: this use of rid relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+$ (cd _build/default && /Users/wangkeyin/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -g -bin-annot -I .pparser.eobjs/byte -I /Users/wangkeyin/.opam/default/lib/ocamlgraph -I /Users/wangkeyin/.opam/default/lib/stdlib-shims -I /Users/wangkeyin/.opam/default/lib/zarith -I extraction/.extraction.objs/byte -I parser/.firrtl_lang.objs/byte -no-alias-deps -opaque -open Dune__exe -o .pparser.eobjs/byte/dune__exe__Inline.cmo -c -impl inline.ml)
+> File "inline.ml", line 35, characters 27-32:
+> 35 |   | Ast.Sreg r -> (match r.reset with
+>                                 ^^^^^
+> Warning 42 [disambiguated-name]: this use of reset relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "inline.ml", line 36, characters 18-22:
+> 36 |                 | NRst -> Ast.Sreg (Ast.mk_freg_non (v0^"."^r.rid) r.rtype r.clock)
+>                        ^^^^
+> Warning 42 [disambiguated-name]: this use of NRst relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "inline.ml", line 37, characters 18-21:
+> 37 |                 | Rst (e1, e2) -> Ast.Sreg (Ast.mk_freg (v0^"."^r.rid) r.rtype r.clock (addpre_e v0 e1) (addpre_e v0 e2)))
+>                        ^^^
+> Warning 42 [disambiguated-name]: this use of Rst relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "inline.ml", line 36, characters 62-65:
+> 36 |                 | NRst -> Ast.Sreg (Ast.mk_freg_non (v0^"."^r.rid) r.rtype r.clock)
+>                                                                    ^^^
+> Warning 42 [disambiguated-name]: this use of rid relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "inline.ml", line 36, characters 69-74:
+> 36 |                 | NRst -> Ast.Sreg (Ast.mk_freg_non (v0^"."^r.rid) r.rtype r.clock)
+>                                                                           ^^^^^
+> Warning 42 [disambiguated-name]: this use of rtype relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "inline.ml", line 36, characters 77-82:
+> 36 |                 | NRst -> Ast.Sreg (Ast.mk_freg_non (v0^"."^r.rid) r.rtype r.clock)
+>                                                                                   ^^^^^
+> Warning 42 [disambiguated-name]: this use of clock relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "inline.ml", line 37, characters 66-69:
+> 37 |                 | Rst (e1, e2) -> Ast.Sreg (Ast.mk_freg (v0^"."^r.rid) r.rtype r.clock (addpre_e v0 e1) (addpre_e v0 e2)))
+>                                                                        ^^^
+> Warning 42 [disambiguated-name]: this use of rid relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "inline.ml", line 37, characters 73-78:
+> 37 |                 | Rst (e1, e2) -> Ast.Sreg (Ast.mk_freg (v0^"."^r.rid) r.rtype r.clock (addpre_e v0 e1) (addpre_e v0 e2)))
+>                                                                               ^^^^^
+> Warning 42 [disambiguated-name]: this use of rtype relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "inline.ml", line 37, characters 81-86:
+> 37 |                 | Rst (e1, e2) -> Ast.Sreg (Ast.mk_freg (v0^"."^r.rid) r.rtype r.clock (addpre_e v0 e1) (addpre_e v0 e2)))
+>                                                                                       ^^^^^
+> Warning 42 [disambiguated-name]: this use of clock relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "inline.ml", line 75, characters 55-58:
+> 75 |   | Ast.Sreg r -> let (map0, flag0) = (StringMap.add r.rid flag map,flag + 1) in
+>                                                             ^^^
+> Warning 42 [disambiguated-name]: this use of rid relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "inline.ml", line 76, characters 35-40:
+> 76 |                   (StringMap.add r.clock flag0 map0,flag0 + 1)
+>                                         ^^^^^
+> Warning 42 [disambiguated-name]: this use of clock relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "inline.ml", line 94, characters 84-87:
+> 94 |   | Ast.Sreg r -> Firrtl.Sreg (Firrtl.LoFirrtl.mk_freg (Obj.magic (StringMap.find r.rid smap)) (Transast1.trans_fgtyp r.rtype) (Obj.magic (StringMap.find r.clock smap)) (Transast1.trans_rst r.reset smap))
+>                                                                                          ^^^
+> Warning 42 [disambiguated-name]: this use of rid relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "inline.ml", line 94, characters 120-125:
+> 94 |   | Ast.Sreg r -> Firrtl.Sreg (Firrtl.LoFirrtl.mk_freg (Obj.magic (StringMap.find r.rid smap)) (Transast1.trans_fgtyp r.rtype) (Obj.magic (StringMap.find r.clock smap)) (Transast1.trans_rst r.reset smap))
+>                                                                                                                              ^^^^^
+> Warning 42 [disambiguated-name]: this use of rtype relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "inline.ml", line 94, characters 156-161:
+> 94 |   | Ast.Sreg r -> Firrtl.Sreg (Firrtl.LoFirrtl.mk_freg (Obj.magic (StringMap.find r.rid smap)) (Transast1.trans_fgtyp r.rtype) (Obj.magic (StringMap.find r.clock smap)) (Transast1.trans_rst r.reset smap))
+>                                                                                                                                                                  ^^^^^
+> Warning 42 [disambiguated-name]: this use of clock relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "inline.ml", line 94, characters 192-197:
+> 94 |   | Ast.Sreg r -> Firrtl.Sreg (Firrtl.LoFirrtl.mk_freg (Obj.magic (StringMap.find r.rid smap)) (Transast1.trans_fgtyp r.rtype) (Obj.magic (StringMap.find r.clock smap)) (Transast1.trans_rst r.reset smap))
+>                                                                                                                                                                                                      ^^^^^
+> Warning 42 [disambiguated-name]: this use of reset relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+$ (cd _build/default && /Users/wangkeyin/.opam/default/bin/ocamlopt.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -g -I .pparser.eobjs/byte -I .pparser.eobjs/native -I /Users/wangkeyin/.opam/default/lib/ocamlgraph -I /Users/wangkeyin/.opam/default/lib/stdlib-shims -I /Users/wangkeyin/.opam/default/lib/zarith -I extraction/.extraction.objs/byte -I extraction/.extraction.objs/native -I parser/.firrtl_lang.objs/byte -I parser/.firrtl_lang.objs/native -intf-suffix .ml -no-alias-deps -opaque -open Dune__exe -o .pparser.eobjs/native/dune__exe__Inline.cmx -c -impl inline.ml)
+> File "inline.ml", line 35, characters 27-32:
+> 35 |   | Ast.Sreg r -> (match r.reset with
+>                                 ^^^^^
+> Warning 42 [disambiguated-name]: this use of reset relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "inline.ml", line 36, characters 18-22:
+> 36 |                 | NRst -> Ast.Sreg (Ast.mk_freg_non (v0^"."^r.rid) r.rtype r.clock)
+>                        ^^^^
+> Warning 42 [disambiguated-name]: this use of NRst relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "inline.ml", line 37, characters 18-21:
+> 37 |                 | Rst (e1, e2) -> Ast.Sreg (Ast.mk_freg (v0^"."^r.rid) r.rtype r.clock (addpre_e v0 e1) (addpre_e v0 e2)))
+>                        ^^^
+> Warning 42 [disambiguated-name]: this use of Rst relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "inline.ml", line 36, characters 62-65:
+> 36 |                 | NRst -> Ast.Sreg (Ast.mk_freg_non (v0^"."^r.rid) r.rtype r.clock)
+>                                                                    ^^^
+> Warning 42 [disambiguated-name]: this use of rid relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "inline.ml", line 36, characters 69-74:
+> 36 |                 | NRst -> Ast.Sreg (Ast.mk_freg_non (v0^"."^r.rid) r.rtype r.clock)
+>                                                                           ^^^^^
+> Warning 42 [disambiguated-name]: this use of rtype relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "inline.ml", line 36, characters 77-82:
+> 36 |                 | NRst -> Ast.Sreg (Ast.mk_freg_non (v0^"."^r.rid) r.rtype r.clock)
+>                                                                                   ^^^^^
+> Warning 42 [disambiguated-name]: this use of clock relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "inline.ml", line 37, characters 66-69:
+> 37 |                 | Rst (e1, e2) -> Ast.Sreg (Ast.mk_freg (v0^"."^r.rid) r.rtype r.clock (addpre_e v0 e1) (addpre_e v0 e2)))
+>                                                                        ^^^
+> Warning 42 [disambiguated-name]: this use of rid relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "inline.ml", line 37, characters 73-78:
+> 37 |                 | Rst (e1, e2) -> Ast.Sreg (Ast.mk_freg (v0^"."^r.rid) r.rtype r.clock (addpre_e v0 e1) (addpre_e v0 e2)))
+>                                                                               ^^^^^
+> Warning 42 [disambiguated-name]: this use of rtype relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "inline.ml", line 37, characters 81-86:
+> 37 |                 | Rst (e1, e2) -> Ast.Sreg (Ast.mk_freg (v0^"."^r.rid) r.rtype r.clock (addpre_e v0 e1) (addpre_e v0 e2)))
+>                                                                                       ^^^^^
+> Warning 42 [disambiguated-name]: this use of clock relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "inline.ml", line 75, characters 55-58:
+> 75 |   | Ast.Sreg r -> let (map0, flag0) = (StringMap.add r.rid flag map,flag + 1) in
+>                                                             ^^^
+> Warning 42 [disambiguated-name]: this use of rid relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "inline.ml", line 76, characters 35-40:
+> 76 |                   (StringMap.add r.clock flag0 map0,flag0 + 1)
+>                                         ^^^^^
+> Warning 42 [disambiguated-name]: this use of clock relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "inline.ml", line 94, characters 84-87:
+> 94 |   | Ast.Sreg r -> Firrtl.Sreg (Firrtl.LoFirrtl.mk_freg (Obj.magic (StringMap.find r.rid smap)) (Transast1.trans_fgtyp r.rtype) (Obj.magic (StringMap.find r.clock smap)) (Transast1.trans_rst r.reset smap))
+>                                                                                          ^^^
+> Warning 42 [disambiguated-name]: this use of rid relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "inline.ml", line 94, characters 120-125:
+> 94 |   | Ast.Sreg r -> Firrtl.Sreg (Firrtl.LoFirrtl.mk_freg (Obj.magic (StringMap.find r.rid smap)) (Transast1.trans_fgtyp r.rtype) (Obj.magic (StringMap.find r.clock smap)) (Transast1.trans_rst r.reset smap))
+>                                                                                                                              ^^^^^
+> Warning 42 [disambiguated-name]: this use of rtype relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "inline.ml", line 94, characters 156-161:
+> 94 |   | Ast.Sreg r -> Firrtl.Sreg (Firrtl.LoFirrtl.mk_freg (Obj.magic (StringMap.find r.rid smap)) (Transast1.trans_fgtyp r.rtype) (Obj.magic (StringMap.find r.clock smap)) (Transast1.trans_rst r.reset smap))
+>                                                                                                                                                                  ^^^^^
+> Warning 42 [disambiguated-name]: this use of clock relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "inline.ml", line 94, characters 192-197:
+> 94 |   | Ast.Sreg r -> Firrtl.Sreg (Firrtl.LoFirrtl.mk_freg (Obj.magic (StringMap.find r.rid smap)) (Transast1.trans_fgtyp r.rtype) (Obj.magic (StringMap.find r.clock smap)) (Transast1.trans_rst r.reset smap))
+>                                                                                                                                                                                                      ^^^^^
+> Warning 42 [disambiguated-name]: this use of reset relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+$ (cd _build/default && /Users/wangkeyin/.opam/default/bin/ocamlopt.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -g -I .pparser.eobjs/byte -I .pparser.eobjs/native -I /Users/wangkeyin/.opam/default/lib/ocamlgraph -I /Users/wangkeyin/.opam/default/lib/stdlib-shims -I /Users/wangkeyin/.opam/default/lib/zarith -I extraction/.extraction.objs/byte -I extraction/.extraction.objs/native -I parser/.firrtl_lang.objs/byte -I parser/.firrtl_lang.objs/native -intf-suffix .ml -no-alias-deps -opaque -open Dune__exe -o .pparser.eobjs/native/dune__exe__Transast1.cmx -c -impl transast1.ml)
+> File "transast1.ml", line 54, characters 36-39:
+> 54 |     let (a1,b1) = (StringMap.add (m.mid^"."^v^".data") b a,b + 1) in (* reader.data 为b*)
+>                                          ^^^
+> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 55, characters 36-39:
+> 55 |     let (a2,b2) = (StringMap.add (m.mid^"."^v^".addr") b1 a1,b1 + 1) in 
+>                                          ^^^
+> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 56, characters 36-39:
+> 56 |     let (a3,b3) = (StringMap.add (m.mid^"."^v^".en") b2 a2,b2 + 1) in 
+>                                          ^^^
+> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 57, characters 36-39:
+> 57 |     let (a4,b4) = (StringMap.add (m.mid^"."^v^".clk") b3 a3,b3 + 1) in 
+>                                          ^^^
+> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 62, characters 36-39:
+> 62 |     let (a1,b1) = (StringMap.add (m.mid^"."^v^".data") b a,b + 1) in 
+>                                          ^^^
+> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 63, characters 36-39:
+> 63 |     let (a2,b2) = (StringMap.add (m.mid^"."^v^".addr") b1 a1,b1 + 1) in 
+>                                          ^^^
+> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 64, characters 36-39:
+> 64 |     let (a3,b3) = (StringMap.add (m.mid^"."^v^".en") b2 a2,b2 + 1) in 
+>                                          ^^^
+> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 65, characters 36-39:
+> 65 |     let (a4,b4) = (StringMap.add (m.mid^"."^v^".mask") b3 a3,b3 + 1) in 
+>                                          ^^^
+> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 66, characters 36-39:
+> 66 |     let (a5,b5) = (StringMap.add (m.mid^"."^v^".clk") b4 a4,b4 + 1) in
+>                                          ^^^
+> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 69, characters 89-95:
+> 69 |   List.fold_left writer_str2N (List.fold_left reader_str2N (map,flag,rl,wl,datatoetc) (m.reader)) (m.writer)
+>                                                                                               ^^^^^^
+> Warning 42 [disambiguated-name]: this use of reader relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 69, characters 101-107:
+> 69 |   List.fold_left writer_str2N (List.fold_left reader_str2N (map,flag,rl,wl,datatoetc) (m.reader)) (m.writer)
+>                                                                                                           ^^^^^^
+> Warning 42 [disambiguated-name]: this use of writer relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 74, characters 55-58:
+> 74 |   | Ast.Sreg r -> let (map0, flag0) = (StringMap.add r.rid flag map,flag + 1) in
+>                                                             ^^^
+> Warning 42 [disambiguated-name]: this use of rid relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 75, characters 35-40:
+> 75 |                   (StringMap.add r.clock flag0 map0,flag0 + 1, rl, wl, datatoetc, memmap)
+>                                         ^^^^^
+> Warning 42 [disambiguated-name]: this use of clock relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 76, characters 45-48:
+> 76 |   | Ast.Smem m -> let map0 = StringMap.add m.mid flag map in
+>                                                   ^^^
+> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 233, characters 84-87:
+> 233 |   | Ast.Sreg r -> Firrtl.Sreg (Firrtl.LoFirrtl.mk_freg (Obj.magic (StringMap.find r.rid smap)) (trans_fgtyp r.rtype) (Obj.magic (StringMap.find r.clock smap)) (trans_rst r.reset smap))
+>                                                                                           ^^^
+> Warning 42 [disambiguated-name]: this use of rid relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 233, characters 110-115:
+> 233 |   | Ast.Sreg r -> Firrtl.Sreg (Firrtl.LoFirrtl.mk_freg (Obj.magic (StringMap.find r.rid smap)) (trans_fgtyp r.rtype) (Obj.magic (StringMap.find r.clock smap)) (trans_rst r.reset smap))
+>                                                                                                                     ^^^^^
+> Warning 42 [disambiguated-name]: this use of rtype relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 233, characters 146-151:
+> 233 |   | Ast.Sreg r -> Firrtl.Sreg (Firrtl.LoFirrtl.mk_freg (Obj.magic (StringMap.find r.rid smap)) (trans_fgtyp r.rtype) (Obj.magic (StringMap.find r.clock smap)) (trans_rst r.reset smap))
+>                                                                                                                                                         ^^^^^
+> Warning 42 [disambiguated-name]: this use of clock relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 233, characters 172-177:
+> 233 |   | Ast.Sreg r -> Firrtl.Sreg (Firrtl.LoFirrtl.mk_freg (Obj.magic (StringMap.find r.rid smap)) (trans_fgtyp r.rtype) (Obj.magic (StringMap.find r.clock smap)) (trans_rst r.reset smap))
+>                                                                                                                                                                                   ^^^^^
+> Warning 42 [disambiguated-name]: this use of reset relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 234, characters 84-87:
+> 234 |   | Ast.Smem m -> Firrtl.Smem (Firrtl.LoFirrtl.mk_fmem (Obj.magic (StringMap.find m.mid smap)) (trans_fgtyp m.data_type) (Z.to_int m.depth) 
+>                                                                                           ^^^
+> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 234, characters 110-119:
+> 234 |   | Ast.Smem m -> Firrtl.Smem (Firrtl.LoFirrtl.mk_fmem (Obj.magic (StringMap.find m.mid smap)) (trans_fgtyp m.data_type) (Z.to_int m.depth) 
+>                                                                                                                     ^^^^^^^^^
+> Warning 42 [disambiguated-name]: this use of data_type relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 234, characters 133-138:
+> 234 |   | Ast.Smem m -> Firrtl.Smem (Firrtl.LoFirrtl.mk_fmem (Obj.magic (StringMap.find m.mid smap)) (trans_fgtyp m.data_type) (Z.to_int m.depth) 
+>                                                                                                                                            ^^^^^
+> Warning 42 [disambiguated-name]: this use of depth relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 235, characters 120-123:
+> 235 |                   (List.fold_left (fun ls x -> List.cons (Firrtl.LoFirrtl.mk_freader_port (Obj.magic (StringMap.find (m.mid^"."^x^".addr") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".data") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".en") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".clk") smap))) ls) [] m.reader)
+>                                                                                                                               ^^^
+> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 235, characters 176-179:
+> 235 |                   (List.fold_left (fun ls x -> List.cons (Firrtl.LoFirrtl.mk_freader_port (Obj.magic (StringMap.find (m.mid^"."^x^".addr") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".data") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".en") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".clk") smap))) ls) [] m.reader)
+>                                                                                                                                                                                       ^^^
+> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 235, characters 232-235:
+> 235 |                   (List.fold_left (fun ls x -> List.cons (Firrtl.LoFirrtl.mk_freader_port (Obj.magic (StringMap.find (m.mid^"."^x^".addr") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".data") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".en") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".clk") smap))) ls) [] m.reader)
+>                                                                                                                                                                                                                                               ^^^
+> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 235, characters 286-289:
+> 235 |                   (List.fold_left (fun ls x -> List.cons (Firrtl.LoFirrtl.mk_freader_port (Obj.magic (StringMap.find (m.mid^"."^x^".addr") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".data") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".en") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".clk") smap))) ls) [] m.reader)
+>                                                                                                                                                                                                                                                                                                     ^^^
+> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 235, characters 321-327:
+> 235 |                   (List.fold_left (fun ls x -> List.cons (Firrtl.LoFirrtl.mk_freader_port (Obj.magic (StringMap.find (m.mid^"."^x^".addr") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".data") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".en") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".clk") smap))) ls) [] m.reader)
+>                                                                                                                                                                                                                                                                                                                                        ^^^^^^
+> Warning 42 [disambiguated-name]: this use of reader relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 236, characters 120-123:
+> 236 |                   (List.fold_left (fun ls x -> List.cons (Firrtl.LoFirrtl.mk_fwriter_port (Obj.magic (StringMap.find (m.mid^"."^x^".addr") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".data") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".en") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".clk") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".mask") smap))) ls) [] m.writer)
+>                                                                                                                               ^^^
+> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 236, characters 176-179:
+> 236 |                   (List.fold_left (fun ls x -> List.cons (Firrtl.LoFirrtl.mk_fwriter_port (Obj.magic (StringMap.find (m.mid^"."^x^".addr") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".data") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".en") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".clk") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".mask") smap))) ls) [] m.writer)
+>                                                                                                                                                                                       ^^^
+> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 236, characters 232-235:
+> 236 |                   (List.fold_left (fun ls x -> List.cons (Firrtl.LoFirrtl.mk_fwriter_port (Obj.magic (StringMap.find (m.mid^"."^x^".addr") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".data") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".en") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".clk") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".mask") smap))) ls) [] m.writer)
+>                                                                                                                                                                                                                                               ^^^
+> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 236, characters 286-289:
+> 236 |                   (List.fold_left (fun ls x -> List.cons (Firrtl.LoFirrtl.mk_fwriter_port (Obj.magic (StringMap.find (m.mid^"."^x^".addr") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".data") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".en") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".clk") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".mask") smap))) ls) [] m.writer)
+>                                                                                                                                                                                                                                                                                                     ^^^
+> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 236, characters 341-344:
+> 236 |                   (List.fold_left (fun ls x -> List.cons (Firrtl.LoFirrtl.mk_fwriter_port (Obj.magic (StringMap.find (m.mid^"."^x^".addr") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".data") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".en") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".clk") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".mask") smap))) ls) [] m.writer)
+>                                                                                                                                                                                                                                                                                                                                                            ^^^
+> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 236, characters 377-383:
+> 236 |                   (List.fold_left (fun ls x -> List.cons (Firrtl.LoFirrtl.mk_fwriter_port (Obj.magic (StringMap.find (m.mid^"."^x^".addr") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".data") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".en") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".clk") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".mask") smap))) ls) [] m.writer)
+>                                                                                                                                                                                                                                                                                                                                                                                                ^^^^^^
+> Warning 42 [disambiguated-name]: this use of writer relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 237, characters 30-42:
+> 237 |                   (Z.to_int m.read_latency) (Z.to_int m.write_latency) (trans_ruw m.read_write))
+>                                     ^^^^^^^^^^^^
+> Warning 42 [disambiguated-name]: this use of read_latency relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 237, characters 56-69:
+> 237 |                   (Z.to_int m.read_latency) (Z.to_int m.write_latency) (trans_ruw m.read_write))
+>                                                               ^^^^^^^^^^^^^
+> Warning 42 [disambiguated-name]: this use of write_latency relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 237, characters 84-94:
+> 237 |                   (Z.to_int m.read_latency) (Z.to_int m.write_latency) (trans_ruw m.read_write))
+>                                                                                           ^^^^^^^^^^
+> Warning 42 [disambiguated-name]: this use of read_write relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 270, characters 33-45:
+> 270 |   | Ast.Smem m -> if (Z.to_int m.read_latency) == 0 then IntMap.add (StringMap.find m.mid modsmap) false rlmap
+>                                        ^^^^^^^^^^^^
+> Warning 42 [disambiguated-name]: this use of read_latency relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 270, characters 86-89:
+> 270 |   | Ast.Smem m -> if (Z.to_int m.read_latency) == 0 then IntMap.add (StringMap.find m.mid modsmap) false rlmap
+>                                                                                             ^^^
+> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 271, characters 36-39:
+> 271 |   else IntMap.add (StringMap.find m.mid modsmap) true rlmap
+>                                           ^^^
+> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 453, characters 30-34:
+> 453 |                             | Eref v1 -> printf "%d cnct\n" (Obj.magic v1)
+>                                     ^^^^
+> Warning 42 [disambiguated-name]: this use of Eref relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+> File "transast1.ml", line 458, characters 52-55:
+> 458 |   | Firrtl.Sreg r -> printf "%d reg\n" (Obj.magic r.rid)
+>                                                           ^^^
+> Warning 42 [disambiguated-name]: this use of rid relies on type-directed disambiguation,
+> it will not compile with OCaml 4.00 or earlier.
+$ (cd _build/default && /Users/wangkeyin/.opam/default/bin/ocamlopt.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -g -o inline.exe /Users/wangkeyin/.opam/default/lib/ocaml/str.cmxa -I /Users/wangkeyin/.opam/default/lib/ocaml /Users/wangkeyin/.opam/default/lib/zarith/zarith.cmxa -I /Users/wangkeyin/.opam/default/lib/zarith extraction/extraction.cmxa parser/firrtl_lang.cmxa /Users/wangkeyin/.opam/default/lib/stdlib-shims/stdlib_shims.cmxa /Users/wangkeyin/.opam/default/lib/ocamlgraph/graph.cmxa /Users/wangkeyin/.opam/default/lib/ocaml/unix.cmxa -I /Users/wangkeyin/.opam/default/lib/ocaml .pparser.eobjs/native/dune__exe.cmx .pparser.eobjs/native/dune__exe__Helper.cmx .pparser.eobjs/native/dune__exe__Transast1.cmx .pparser.eobjs/native/dune__exe__Inline.cmx)

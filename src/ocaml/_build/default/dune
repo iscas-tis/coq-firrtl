@@ -1,0 +1,11 @@
+(env
+  (dev
+    (flags         (:standard -w +42)))
+  (release
+    (flags         (:standard -O3))))
+
+(executables
+; (names            main)
+ (names            pparser inline);transast1
+ (libraries        firrtl_lang ocamlgraph unix);interpreter
+)

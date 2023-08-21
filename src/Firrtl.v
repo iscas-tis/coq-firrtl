@@ -61,7 +61,7 @@ Section LoFirrtl.
   | Eprim_unop : eunop -> fexpr -> fexpr
   | Eprim_binop : ebinop -> fexpr -> fexpr -> fexpr
   | Emux : fexpr -> fexpr -> fexpr -> fexpr
-  | Evalidif : fexpr -> fexpr -> fexpr
+  (*| Evalidif : fexpr -> fexpr -> fexpr*)
   | Eref : var -> fexpr
   .
 
