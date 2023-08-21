@@ -525,15 +525,19 @@ Module module_graph_vertex_set_p <: VtypFMap := MakeVtypFMap ProdVarOrder PVM.
       I would like V to be a finite set but I don't know exactly how to specify that. *)
 
 Definition module_graph_vertex_set : Type := { V : Set & V -> vertex_type }.
+Definition output_connector_number_correct (V : module_graph_vertex_set_p.env) (x : module_graph_vertex_set_p.key * nat) : Prop :=
+    if module_graph_vertex_set_p.find (fst x) V is Some elt
+    then snd x < size (output_connectors elt)
+    else False.
+
 Definition output_connectors_of_module_graph (V : module_graph_vertex_set_p.env) : Type :=
-   { x : module_graph_vertex_set_p.key * nat | if module_graph_vertex_set_p.find (fst x) V is Some elt
-                                               then snd x < size (output_connectors elt)
-                                               else False }.
+   { x : module_graph_vertex_set_p.key * nat | output_connector_number_correct V x }.
    (* This is a type of pairs, where the first is an element of a module_graph_vertices set,
       and the second of the pair is a natural number that is < than the number of output connectors of that element. *)
 
 Definition output_connector_type (V : module_graph_vertex_set_p.env) (oc : output_connectors_of_module_graph V) : fgtyp_explicit.
 destruct oc as [x p].
+unfold output_connector_number_correct in p.
 destruct (module_graph_vertex_set_p.find (fst x) V) as [elt|].
 clear -x elt ; exact (nth Freset_exp (output_connectors elt) (snd x)).
 clear -p ; exact (False_rect fgtyp_explicit p).
@@ -802,6 +806,7 @@ Definition add_vertex_unop (u : eunop) (l: list fgtyp_explicit) (vmap : module_g
   | Utail n => Unop_tail n (data_type_out2arith (List.hd (Fuint_exp 0) l))
    end.
 
+(*
 Definition add_vertex_binop (b : ebinop) (l1: list fgtyp_explicit) (l2: list fgtyp_explicit) (vmap : module_graph_vertex_set_p.env) :=
    match b with
    | Badd => match (data_type_out2arith (List.hd (Fuint_exp 0) l1)), (data_type_out2arith (List.hd (Fuint_exp 0) l2)) with
@@ -824,7 +829,7 @@ Definition add_vertex_binop (b : ebinop) (l1: list fgtyp_explicit) (l2: list fgt
    | Bdshr => 
    end.
 
-Fixpoint list_lhs_expr (e : hfexpr) (vmap : module_graph_vertex_set_p.env) (cs : list input_connectors) (ts : list fgtyp) : list input_connectors * list fgtyp :=
+Fixpoint list_lhs_expr (e : hfexpr ProdVarOrder.T) (vmap : module_graph_vertex_set_p.env) (cs : list (input_connectors vmap)) (ts : list fgtyp) : list input_connectors * list fgtyp :=
    match e with
    | Eref (Eid (p, 0)) => let (keys, _) := List.split (elements vmap) (* list (key*value) *) in
                           let n := List.length (fst (List.split keys)) in
@@ -835,18 +840,55 @@ Fixpoint list_lhs_expr (e : hfexpr) (vmap : module_graph_vertex_set_p.env) (cs :
                      end
    | _ => [::]
    end.
+*)
 
-Fixpoint list_output {mg : module_graph} (p : var) (n : nat) : option (list (output_connectors_of_module_graph mg)) :=
-(* generates a list of output connectors of vertices (p,1), (p,2), ..., (p,n) *)
-match n with
-| 0 => [::]
-| S n' => match list_output mg p n', find (p,n) (projT1 mg) with
-          | Some lst, Some elt =>
-            if 0 < size (output_connectors elt) then Some (rcons lst (exist ... (elt, 0) I))
-                                                else None
-          | _, _ => None
-          end
-end.
+Fixpoint list_output' {mg : module_graph} (p : var) (n : nat) : option (seq (output_connectors_of_module_graph (projT1 mg))).
+(* generates a list of output connectors of vertices (p,1), (p,2), ..., (p,n).
+   If some of these output connectors doe not exist, the function returns None. *)
+destruct n as [|n'].
+exact (Some [::]).
+destruct (list_output' mg p n') as [lst|].
+destruct (module_graph_vertex_set_p.find (p,N.of_nat n'.+1) (projT1 mg)) as [elt|] eqn: Hfind.
+destruct (0 < size (output_connectors elt)) eqn: Hltn.
+assert (Hid: if module_graph_vertex_set_p.find (p, N.of_nat n'.+1) (projT1 mg) is Some elt
+             then is_true (0 < size (output_connectors elt))
+             else False) by (rewrite Hfind ; exact Hltn).
+exact (Some (rcons lst (exist (output_connector_number_correct (projT1 mg)) ((p,N.of_nat n'.+1),0) Hid))).
+exact None.
+exact None.
+exact None.
+Defined.
+
+Fixpoint list_output {mg : module_graph} (p : var) (n : nat) : option (seq (output_connectors_of_module_graph (projT1 mg))) :=
+(* generates a list of output connectors of vertices (p,1), (p,2), ..., (p,n)
+   If some of these output connectors doe not exist, the function returns None. *)
+  match n with
+  | 0 => Some [::]
+  | S n' =>
+      match list_output p n', module_graph_vertex_set_p.find (p, N.of_nat n) (projT1 mg) as o
+                   return (module_graph_vertex_set_p.find (p, N.of_nat n) (projT1 mg) = o ->
+                           option (seq (output_connectors_of_module_graph (projT1 mg)))) with
+      | Some lst, Some elt =>
+              fun Hfind : module_graph_vertex_set_p.find (p, N.of_nat n) (projT1 mg) = Some elt =>
+              (if 0 < size (output_connectors elt) as b
+                    return ((0 < size (output_connectors elt)) = b ->
+                            option (seq (output_connectors_of_module_graph (projT1 mg))))
+               then fun Hltn : 0 < size (output_connectors elt) =>
+                     let Hid : match module_graph_vertex_set_p.find (p, N.of_nat n) (projT1 mg) return Prop with
+                               | Some elt0 => 0 < size (output_connectors elt0)
+                               | None => False
+                               end :=
+                                @eq_ind_r (option vertex_type) (Some elt)
+                                  (fun pattern_value : option vertex_type =>
+                                   match pattern_value return Prop with
+                                   | Some elt0 => 0 < size (output_connectors elt0)
+                                   | None => False
+                                   end) Hltn (module_graph_vertex_set_p.find (p, N.of_nat n) (projT1 mg)) Hfind
+                     in Some (rcons lst (exist (output_connector_number_correct (projT1 mg)) (p, N.of_nat n, 0) Hid))
+               else fun _ => None) Logic.eq_refl
+      | _, _ => fun _ => None
+      end Logic.eq_refl
+  end.
 
 Fixpoint select_list_rhs_ffield {mg : module_graph} (lst : list (output_connectors_of_module_graph mg)) (ff : ffield) (v : var) :
       option (list (output_connectors_of_module_graph mg) * ftype) :=
