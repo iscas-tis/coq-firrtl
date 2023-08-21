@@ -861,7 +861,8 @@ Defined.
 
 Fixpoint list_output {mg : module_graph} (p : var) (n : nat) : option (seq (output_connectors_of_module_graph (projT1 mg))) :=
 (* generates a list of output connectors of vertices (p,1), (p,2), ..., (p,n)
-   If some of these output connectors doe not exist, the function returns None. *)
+   If some of these output connectors doe not exist, the function returns None.
+   This definition is based on "Print list_output'.", with a few simplifications. *)
   match n with
   | 0 => Some [::]
   | S n' =>
