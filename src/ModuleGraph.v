@@ -610,15 +610,20 @@ Module module_graph_vertex_set_p <: VtypFMap := MakeVtypFMap ProdVarOrder PVM.
       I would like V to be a finite set but I don't know exactly how to specify that. *)
 
 Definition module_graph_vertex_set : Type := { V : Set & V -> vertex_type }.
+
+Definition output_connector_number_correct (V : module_graph_vertex_set_p.env) (x : module_graph_vertex_set_p.key * nat) : Prop :=
+    if module_graph_vertex_set_p.find (fst x) V is Some elt
+    then snd x < size (output_connectors elt)
+    else False.
+
 Definition output_connectors_of_module_graph (V : module_graph_vertex_set_p.env) : Type :=
-   { x : module_graph_vertex_set_p.key * nat | if module_graph_vertex_set_p.find (fst x) V is Some elt
-                                               then snd x < size (output_connectors elt)
-                                               else False }.
+   { x : module_graph_vertex_set_p.key * nat | output_connector_number_correct V x}.
    (* This is a type of pairs, where the first is an element of a module_graph_vertices set,
       and the second of the pair is a natural number that is < than the number of output connectors of that element. *)
 
 Definition output_connector_type (V : module_graph_vertex_set_p.env) (oc : output_connectors_of_module_graph V) : output_data_type.
 destruct oc as [x p].
+unfold output_connector_number_correct in p.
 destruct (module_graph_vertex_set_p.find (fst x) V) as [elt|].
 clear -x elt; exact (nth Reset_o (output_connectors elt) (snd x)).
 clear -p ; exact (False_rect output_data_type p).
@@ -632,20 +637,19 @@ Inductive connection_tree (V: module_graph_vertex_set_p.env) :=
                     (* the type of cond needs to be UInt_o 1 *)
             -> connection_tree V -> connection_tree V -> connection_tree V.
 
+Definition input_connector_number_correct (V : module_graph_vertex_set_p.env) (x : module_graph_vertex_set_p.key * nat) : Prop :=
+    if module_graph_vertex_set_p.find (fst x) V is Some elt
+    then snd x < size (input_connectors elt)
+    else False.
+
 Definition input_connectors_of_module_graph (V : module_graph_vertex_set_p.env) : Type :=
-   { x : module_graph_vertex_set_p.key * nat | if module_graph_vertex_set_p.find (fst x) V is Some elt
-                                               then snd x < size (input_connectors elt)
-                                               else False }.
+   { x : module_graph_vertex_set_p.key * nat | input_connector_number_correct V x}.
    (* This is a set containing pairs, where the first is an element of a module_graph_vertices set,
       and the second of the pair is a natural number that is < than the number of input connectors of that element. *)
 
 Lemma input_connectors_eq_dec : forall {V : module_graph_vertex_set_p.env} {x y : input_connectors_of_module_graph V}, {x = y} + {x <> y}.
 Proof.
 Admitted.
-
-Definition input_connector_p (V : module_graph_vertex_set_p.env) x : Prop := if module_graph_vertex_set_p.find (fst x) V is Some elt
-then snd x < size (input_connectors elt)
-else False.
 
 Definition input_connectors_eqn (V : module_graph_vertex_set_p.env) (x y : input_connectors_of_module_graph V) : bool :=
 match x, y with
@@ -661,6 +665,7 @@ Canonical input_connectors_eqType {V : module_graph_vertex_set_p.env} := Eval hn
 
 Definition input_connector_type (V : module_graph_vertex_set_p.env) (ic : input_connectors_of_module_graph V) : input_data_type.
 destruct ic as [x p].
+unfold input_connector_number_correct in p.
 destruct (module_graph_vertex_set_p.find (fst x) V) as [elt|].
 clear -x elt ; exact (nth Reset (input_connectors elt) (snd x)).
 clear -p ; exact (False_rect input_data_type p).
@@ -915,7 +920,7 @@ Fixpoint list_inputs (p : N) (n : N) (counts : nat) (l : list input_data_type) (
             end
    end. (* return 从(p,1)到(p,n)的input_connectors *)
 
-Fixpoint list_outputs (p : N) (keys : list (N * N)) (vmap : module_graph_vertex_set_p.env) (ls : option (list (output_connectors_of_module_graph vmap))) : option (list (output_connectors_of_module_graph vmap)) :=
+(*Fixpoint list_outputs (p : N) (keys : list (N * N)) (vmap : module_graph_vertex_set_p.env) (ls : option (list (output_connectors_of_module_graph vmap))) : option (list (output_connectors_of_module_graph vmap)) :=
    match keys with 
    | nil => ls
    | (p, n) :: tl => match list_outputs p tl vmap ls with 
@@ -926,7 +931,7 @@ Fixpoint list_outputs (p : N) (keys : list (N * N)) (vmap : module_graph_vertex_
                | None => None
                end
    | _ => ls
-   end.
+   end.*)
    (* return 从(p,1)到(p,n)的output_connectors name *)
 
 Definition add_vertex_cast (c : ucast) (ft : ftype) : option (vertex_type * ftype) :=
@@ -1147,21 +1152,51 @@ Definition add_vertex_binop (b : ebinop) (ft0: ftype) (ft1: ftype) : option vert
    | _ => [::]
    end.
 *)
-Definition output_connector_p (V : module_graph_vertex_set_p.env) x : Prop := 
-if module_graph_vertex_set_p.find (fst x) V is Some elt
-   then snd x < size (output_connectors elt)
-else False.
+
+Fixpoint list_output' {V : module_graph_vertex_set_p.env} (p : var) (n : nat) : option (list (output_connectors_of_module_graph V)).
+(* generates a list of output connectors of vertices (p,1), (p,2), ..., (p,n).
+   If some of these output connectors doe not exist, the function returns None. *)
+destruct n as [|n'].
+exact (Some [::]).
+destruct (list_output' V p n') as [lst|].
+destruct (module_graph_vertex_set_p.find (p,N.of_nat n'.+1) V) as [elt|] eqn: Hfind.
+destruct (0 < size (output_connectors elt)) eqn: Hltn.
+assert (Hid: if module_graph_vertex_set_p.find (p, N.of_nat n'.+1) V is Some elt
+             then is_true (0 < size (output_connectors elt))
+             else False) by (rewrite Hfind ; exact Hltn).
+exact (Some (rcons lst (exist (output_connector_number_correct V) ((p,N.of_nat n'.+1),0) Hid))).
+exact None.
+exact None.
+exact None.
+Defined.
 
 Fixpoint list_output {V : module_graph_vertex_set_p.env} (p : N) (n : nat) : option (list (output_connectors_of_module_graph V)) :=
 (* generates a list of output connectors of vertices (p,1), (p,2), ..., (p,n) *)
 match n with
-| 0 => None
-| S n' => match list_output p n', module_graph_vertex_set_p.find (p,N.of_nat n) V with
-          | Some lst, Some elt =>
-            if 0 < size (output_connectors elt) then Some (rcons lst (exist (output_connector_p V) ((p,N.of_nat n), 0) I)) (* KY : have to give the proof instead of I *)
-                                                else None
-          | _, _ => None
-          end
+| 0 => Some nil
+| S n' => match list_output p n', module_graph_vertex_set_p.find (p,N.of_nat n) V as o 
+                  return (module_graph_vertex_set_p.find (p, N.of_nat n) V = o ->
+                     option (list (output_connectors_of_module_graph V))) with
+         | Some lst, Some elt =>
+            fun Hfind : module_graph_vertex_set_p.find (p, N.of_nat n) V = Some elt =>
+            (if 0 < size (output_connectors elt) as b
+                  return ((0 < size (output_connectors elt)) = b ->
+                          option (list (output_connectors_of_module_graph V)))
+             then fun Hltn : 0 < size (output_connectors elt) =>
+                   let Hid : match module_graph_vertex_set_p.find (p, N.of_nat n) V return Prop with
+                             | Some elt0 => 0 < size (output_connectors elt0)
+                             | None => False
+                             end :=
+                              @eq_ind_r (option vertex_type) (Some elt)
+                                (fun pattern_value : option vertex_type =>
+                                 match pattern_value return Prop with
+                                 | Some elt0 => 0 < size (output_connectors elt0)
+                                 | None => False
+                                 end) Hltn (module_graph_vertex_set_p.find (p, N.of_nat n) V) Hfind
+                   in Some (rcons lst (exist (output_connector_number_correct V) (p, N.of_nat n, 0) Hid))
+             else fun _ => None) Logic.eq_refl
+         | _, _ => fun _ => None
+         end Logic.eq_refl
 end.
 
 Fixpoint select_list_rhs_ffield {V : module_graph_vertex_set_p.env} (lst : list (output_connectors_of_module_graph V)) (ff : ffield) (v : var) :
@@ -1186,10 +1221,10 @@ option (list (output_connectors_of_module_graph V) * ftype) :=
    if e has a passive type *)
 match e with
 | Eid (p, N0) => match ft_find (p,N0) tmap with
-                (*| Some ft => match list_output V p (size_of_ftype ft) with
-                             | Some lst => (lst, ft)
+                | Some ft => match list_output p (size_of_ftype ft) with
+                             | Some lst => Some (lst, ft)
                              | _ => None
-                             end*)
+                             end
                 | _ => None
                 end
 | Esubfield e' v => match list_rhs_ref e' tmap with
@@ -1212,7 +1247,6 @@ Definition ct_add {V : module_graph_vertex_set_p.env} (ic : input_connectors_of_
    fun (y : input_connectors_of_module_graph V) => if (y == ic) then ct else (ct_find y m).
 Definition ct_empty {V : module_graph_vertex_set_p.env} : module_graph_connection_trees V := (fun _ => (Not_connected V)).
 
-
 Fixpoint add_vertex_mux' (mg : module_graph) (vl : list vertex_type) (on : (output_connectors_of_module_graph (projT1 mg))) 
    (onl1 : list (output_connectors_of_module_graph (projT1 mg))) (onl2 : list (output_connectors_of_module_graph (projT1 mg))) (n : N) : 
    option (list (output_connectors_of_module_graph (projT1 mg)) * module_graph * N) :=
@@ -1221,18 +1255,20 @@ Fixpoint add_vertex_mux' (mg : module_graph) (vl : list vertex_type) (on : (outp
    | v1 :: vtl, on1 :: ontl1, on2 :: ontl2 => match add_vertex_mux' mg vtl on ontl1 ontl2 n with
                   | Some (rls, nmg, n0) => 
                      let nvmap := module_graph_vertex_set_p.add (n0, N0) v1 (projT1 nmg) in
-                     let nct0 := ct_add (exist (output_connector_p (projT1 mg)) ((n0, N0), 0) I) ((Leaf on) (projT1 nmg)) in
+                     let nct0 := ct_add (exist (input_connector_number_correct nvmap) ((n0, N0), 0) I) ((Leaf on) (projT2 nmg)) (projT2 nmg) in
+                     let nct1 := ct_add (exist (input_connector_number_correct nvmap) ((n0, N0), 1) I) ((Leaf on1) nct0) nct0 in
+                     let nct2 := ct_add (exist (input_connector_number_correct nvmap) ((n0, N0), 2) I) ((Leaf on2) nct1) nct1 in
                      (*let (projT2 nmg) ((n0,N0),0)(* nv的input_connector1 *) := Leaf on in
                      let (projT2 nmg) ((n0,N0),1) := Leaf on1 in
                      let (projT2 nmg) ((n0,N0),2) := Leaf on2 in
                      ncncttree := eonl 连接到 (input_connectors nv)*)
-                     (((n0,N0), 0) :: rls, (nvmap, nct0), (N.add n0 1%num))
+                     Some ((exist (output_connector_number_correct nvmap) ((n0,N0), 0) I) :: rls, (nvmap, nct2), (N.add n0 1%num))
                   | None => None
                   end
    | _, _, _ => None
    end.
 
-Fixpoint list_rhs_expr (e : hfexpr) (mg : module_graph) (*cs : list output_connectors) (ts : list output_data_type*) (n : N) : option (list (output_connectors_of_module_graph V) * ftype * module_graph * N) :=
+Fixpoint list_rhs_expr (e : hfexpr) (mg : module_graph) (*cs : list output_connectors) (ts : list output_data_type*) (n : N) : option (list (output_connectors_of_module_graph (projT1 mg)) * ftype * module_graph * N) :=
    (* 
    1. list of output_connectors, which would be connected to the input_connectors of the vertices on the lhs
    2. ftype of the expr, which help produce constraints in the connection. --> should be an aggr type to distinguish UInt[10][2] and UInt[20].
@@ -1243,32 +1279,34 @@ Fixpoint list_rhs_expr (e : hfexpr) (mg : module_graph) (*cs : list output_conne
                     | Some arith_typ => 
                            let nv := Constant arith_typ in 
                            let nvmap := module_graph_vertex_set_p.add (n,N0) nv (projT1 mg) in
-                           Some ([::((n,N0), 0)], data_type_arith2ftype arith_typ, (nvmap, (projT2 mg)), (N.add n 1%num))
+                           Some ([::(exist (output_connector_number_correct nvmap) ((n,N0), 0) I)], data_type_arith2ftype arith_typ, (nvmap, (projT2 mg)), (N.add n 1%num))
                     | None => None
                      end
    | Ecast c e => match list_rhs_expr e mg n with
                   | Some ([:: eon], ft, nmg, n0) => 
                      match (add_vertex_cast c ft) with 
                      | Some (nv, rft) => 
-                        let nvmap := module_graph_vertex_set_p.add (v, N0) nv (projT1 mg) in
-                        let (projT2 mg) ((n,N0),0)(* nv的input_connector name *) := Leaf eon in
-                           ncncttree := eonl 连接到 (input_connectors nv)
-                        ([::((n,N0), 0)], rft, (nvmap, ncncttree(*?*)), (N.add n N1))
+                        let nvmap := module_graph_vertex_set_p.add (n, N0) nv (projT1 nmg) in
+                        let nct0 := ct_add (exist (input_connector_number_correct nvmap) ((n, N0), 0) I) ((Leaf eon) (projT2 nmg)) (projT2 nmg) in
+
+                        (*let (projT2 mg) ((n,N0),0)(* nv的input_connector name *) := Leaf eon in
+                           ncncttree := eonl 连接到 (input_connectors nv)*)
+                        Some ([::(exist (output_connector_number_correct nvmap) ((n,N0), 0) I)], rft, (nvmap, nct0), (N.add n 1%num))
                      | None => None
                      end
                   | _ => None
                   end
-
    | Eprim_unop u e => match list_rhs_expr e mg n with
                   | Some ([:: eon], ft, nmg, n0) => 
-                     match (add_vertex_unop c ft) with 
+                     match (add_vertex_unop u ft) with 
                      | Some nv => 
                         match data_type_out2ftype (output_connectors nv) with
                         | Some rft =>
-                           let nvmap := module_graph_vertex_set_p.add (v, N0) nv (projT1 mg) in
-                           let (projT2 mg) ((n,N0),0)(* nv的input_connector name *) := Leaf eon in
-                              ncncttree := eonl 连接到 (input_connectors nv)
-                           ([::((n,N0), 0)], rft, (nvmap, ncncttree(*?*)), (N.add n N1))
+                           let nvmap := module_graph_vertex_set_p.add (n, N0) nv (projT1 nmg) in
+                           let nct0 := ct_add (exist (input_connector_number_correct nvmap) ((n, N0), 0) I) ((Leaf eon) (projT2 nmg)) (projT2 nmg) in
+                           (*let (projT2 mg) ((n,N0),0)(* nv的input_connector name *) := Leaf eon in
+                              ncncttree := eonl 连接到 (input_connectors nv)*)
+                           Some ([::(exist (output_connector_number_correct nvmap) ((n,N0), 0) I)], rft, (nvmap, nct0), (N.add n 1%num))
                         | None => None
                         end
                      | None => None
@@ -1283,11 +1321,13 @@ Fixpoint list_rhs_expr (e : hfexpr) (mg : module_graph) (*cs : list output_conne
                                  | Some nv => 
                                     match data_type_out2ftype (output_connectors nv) with
                                     | Some rft => 
-                                       let nvmap := module_graph_vertex_set_p.add (v, N0) nv (projT1 mg) in
-                                       let (projT2 mg) ((n,N0),0)(* nv的input_connector name *) := Leaf eon0 in
+                                       let nvmap := module_graph_vertex_set_p.add (n1, N0) nv (projT1 mg1) in
+                                       let nct0 := ct_add (exist (input_connector_number_correct nvmap) ((n1, N0), 0) I) ((Leaf eon0) (projT2 mg1)) (projT2 mmg) in
+                                       let nct1 := ct_add (exist (input_connector_number_correct nvmap) ((n1, N0), 1) I) ((Leaf eon1) (projT2 mg1)) nct0 in
+                                       (*let (projT2 mg) ((n,N0),0)(* nv的input_connector name *) := Leaf eon0 in
                                        let (projT2 mg) ((n,N0),1)(* nv的input_connector name *) := Leaf eon1 in
-                                          ncncttree := eonl 连接到 (input_connectors nv)
-                                       ([::((n,N0), 0)], rft, (nvmap, ncncttree(*?*)), (N.add n N1))
+                                          ncncttree := eonl 连接到 (input_connectors nv)*)
+                                       Some ([::(exist (output_connector_number_correct nvmap) ((n1,N0), 0) I)], rft, (nvmap, nct1), (N.add n 1%num))
                                     | None => None
                                     end
                                  | None => None
