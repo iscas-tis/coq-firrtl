@@ -848,12 +848,11 @@ Fixpoint list_output' {mg : module_graph} (p : var) (n : nat) : option (seq (out
 destruct n as [|n'].
 exact (Some [::]).
 destruct (list_output' mg p n') as [lst|].
-destruct (module_graph_vertex_set_p.find (p,N.of_nat n'.+1) (projT1 mg)) as [elt|] eqn: Hfind.
-destruct (0 < size (output_connectors elt)) eqn: Hltn.
-assert (Hid: if module_graph_vertex_set_p.find (p, N.of_nat n'.+1) (projT1 mg) is Some elt
-             then is_true (0 < size (output_connectors elt))
-             else False) by (rewrite Hfind ; exact Hltn).
-exact (Some (rcons lst (exist (output_connector_number_correct (projT1 mg)) ((p,N.of_nat n'.+1),0) Hid))).
+destruct (module_graph_vertex_set_p.find (p,N.of_nat n'.+1) (projT1 mg)) as [elt|] eqn: vertex_found.
+destruct (0 < size (output_connectors elt)) eqn: has_connectors.
+assert (number_correct: output_connector_number_correct (projT1 mg) ((p, N.of_nat n'.+1), 0))
+       by (rewrite /output_connector_number_correct vertex_found ; exact has_connectors).
+exact (Some (rcons lst (exist (output_connector_number_correct (projT1 mg)) ((p,N.of_nat n'.+1),0) number_correct))).
 exact None.
 exact None.
 exact None.
@@ -861,32 +860,30 @@ Defined.
 
 Fixpoint list_output {mg : module_graph} (p : var) (n : nat) : option (seq (output_connectors_of_module_graph (projT1 mg))) :=
 (* generates a list of output connectors of vertices (p,1), (p,2), ..., (p,n)
-   If some of these output connectors doe not exist, the function returns None.
+   If some of these output connectors do not exist, the function returns None.
    This definition is based on "Print list_output'.", with a few simplifications. *)
   match n with
   | 0 => Some [::]
   | S n' =>
-      match list_output p n', module_graph_vertex_set_p.find (p, N.of_nat n) (projT1 mg) as o
-                   return (module_graph_vertex_set_p.find (p, N.of_nat n) (projT1 mg) = o ->
-                           option (seq (output_connectors_of_module_graph (projT1 mg)))) with
-      | Some lst, Some elt =>
-              fun Hfind : module_graph_vertex_set_p.find (p, N.of_nat n) (projT1 mg) = Some elt =>
-              (if 0 < size (output_connectors elt) as b
-                    return ((0 < size (output_connectors elt)) = b ->
-                            option (seq (output_connectors_of_module_graph (projT1 mg))))
-               then fun Hltn : 0 < size (output_connectors elt) =>
-                     let Hid : match module_graph_vertex_set_p.find (p, N.of_nat n) (projT1 mg) return Prop with
-                               | Some elt0 => 0 < size (output_connectors elt0)
-                               | None => False
-                               end :=
-                                @eq_ind_r (option vertex_type) (Some elt)
-                                  (fun pattern_value : option vertex_type =>
-                                   match pattern_value return Prop with
-                                   | Some elt0 => 0 < size (output_connectors elt0)
-                                   | None => False
-                                   end) Hltn (module_graph_vertex_set_p.find (p, N.of_nat n) (projT1 mg)) Hfind
-                     in Some (rcons lst (exist (output_connector_number_correct (projT1 mg)) (p, N.of_nat n, 0) Hid))
-               else fun _ => None) Logic.eq_refl
+      let V := projT1 mg in
+      let vx_id := (p, N.of_nat n) in
+      match list_output p n', module_graph_vertex_set_p.find vx_id V as o
+            return module_graph_vertex_set_p.find vx_id V = o ->
+                   option (seq (output_connectors_of_module_graph V)) with
+      | Some lst, Some vx_typ =>
+          fun vertex_found : module_graph_vertex_set_p.find vx_id V = Some vx_typ
+          => (if 0 < size (output_connectors vx_typ) as b
+                   return 0 < size (output_connectors vx_typ) = b ->
+                          option (seq (output_connectors_of_module_graph V))
+              then fun has_connectors : 0 < size (output_connectors vx_typ)
+                   => let number_correct: output_connector_number_correct V (vx_id, 0) :=
+                          eq_ind_r (x := Some vx_typ) (fun t : option vertex_type
+                                                       => if t is Some vx_typ then 0 < size (output_connectors vx_typ)
+                                                                              else False
+                                                      ) has_connectors vertex_found
+                      in Some (rcons lst (exist (output_connector_number_correct V) (vx_id, 0) number_correct))
+              else fun _ => None
+             ) Logic.eq_refl
       | _, _ => fun _ => None
       end Logic.eq_refl
   end.
