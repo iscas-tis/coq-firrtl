@@ -27,11 +27,11 @@ Section HiFirrtl.
   | Eprim_unop : eunop -> hfexpr -> hfexpr
   | Eprim_binop : ebinop -> hfexpr -> hfexpr -> hfexpr
   | Emux : hfexpr -> hfexpr -> hfexpr -> hfexpr
-  (* | Evalidif : hfexpr -> hfexpr -> hfexpr *)
+  | Evalidif : hfexpr -> hfexpr -> hfexpr
   | Eref : href -> hfexpr
   with href : Type :=
   | Eid : var -> href
-  | Esubfield : href -> var -> href (* HiFirrtl *)
+  | Esubfield : href -> Var.var -> href (* HiFirrtl *)
   | Esubindex : href -> nat -> href (* HiFirrtl *)
   | Esubaccess : href -> hfexpr -> href (* HiFirrtl *)
   .
@@ -843,12 +843,12 @@ Module MakeHiFirrtl
     match e with
     | Econst _ _ => true
     | Eref r => valid_rhs_ref r ce
-    | Ecast _ _ => true
+    | Ecast _ _ => true (* TODO: This looks incomplete *)
     | Eprim_binop _ _ _ => true
     | Eprim_unop _ _ => true
     (* DNJ: The arguments of a multiplexer or a validif need to be passive. *)
     | Emux _ e1 e2 => valid_rhs_fexpr e1 ce && (valid_rhs_fexpr e2 ce)
-    (* | Evalidif _ e => valid_rhs_fexpr e ce *)
+    | Evalidif _ e => valid_rhs_fexpr e ce
     end.
 
   Definition valid_rhs (re : rhs_expr) (ce : cenv) : bool :=
@@ -887,7 +887,7 @@ Module MakeHiFirrtl
     | Eprim_binop b e1 e2 => fexpr_has_v v e1 || fexpr_has_v v e2
     | Eprim_unop u e => fexpr_has_v v e
     | Emux c e1 e2 => fexpr_has_v v c || fexpr_has_v v e1 || fexpr_has_v v e2
-    (* | Evalidif c e => fexpr_has_v v c || fexpr_has_v v e *)
+    | Evalidif c e => fexpr_has_v v c || fexpr_has_v v e
     | Eref r => eref_has_v v r
     end.
 
@@ -1232,8 +1232,6 @@ Proof.
 
   (** decide the type and width of hifirrtl expressions *)
 
-  Parameter v2var : V.t -> Var.var.
-
   Definition def_ftype := Gtyp (Fuint 0).
 
   (* type of mux expression *)
@@ -1287,7 +1285,7 @@ Proof.
                        | Btyp fs => let fix aux fx := (
                                           match fx with
                                           | Fflips v' f t fxs =>
-                                            if (v2var v == v') then t
+                                            if (v == v') then t
                                             else aux fxs
                                           | Fnil => def_ftype
                                           end )
@@ -1464,7 +1462,10 @@ Proof.
                                                     end
                       | _ => exist ftype_not_implicit_width def_ftype I
                       end
-    (* | Evalidif c e1 => type_of_hfexpr e1 ce *)
+    | Evalidif c e1 => match type_of_hfexpr c ce with
+                      | exist (Gtyp (Fuint 1)) _ => type_of_hfexpr e1 ce
+                      | _ => exist ftype_not_implicit_width def_ftype I
+                      end
     end.
 
 
@@ -1605,7 +1606,7 @@ Proof.
     forall t r v ce, ~~ is_deftyp (explicit_to_ftype (type_of_hfexpr (eref (esubfield r v)) ce)) ->
                      ftype_equiv (explicit_to_ftype (type_of_hfexpr (eref (esubfield r v)) ce)) t ->
                      ftype_equiv (base_type_of_ref r ce)
-                                 (upd_name_ftype (base_type_of_ref r ce) (v2var v) t).
+                                 (upd_name_ftype (base_type_of_ref r ce) v t).
   Proof.
   Admitted.
 
@@ -1685,7 +1686,7 @@ Module HiF := MakeHiFirrtl VarOrder (* ProdVarOrder PVS *) VS VM CE StructState 
 
 
 
-Module MakeHiFirrtlP
+Module  MakeHiFirrtlP
   (V : SsrOrder) (* identifier names *)
   (PVS : SsrFSet with Module SE := V)
   (PVM : SsrFMap with Module SE := V)
@@ -1706,7 +1707,7 @@ Module MakeHiFirrtlP
   Definition eprim_unop u e := @Eprim_unop V.T u e.
   Definition eprim_binop b e1 e2 := @Eprim_binop V.T b e1 e2.
   Definition emux c e1 e2 := @Emux V.T c e1 e2.
-  (* Definition evalidif c e := @Evalidif V.T c e. *)
+  Definition evalidif c e := @Evalidif V.T c e.
   Definition hfexpr := hfexpr V.T.
   Definition eref r := @Eref V.T r.
   Definition eid v := @Eid V.T v.
@@ -1952,7 +1953,10 @@ Module MakeHiFirrtlP
                                                     end
                       | _ => exist ftype_not_implicit_width def_ftype I
                       end
-    (* | Evalidif c e1 => type_of_hfexpr e1 ce *)
+    | Evalidif c e1 => match type_of_hfexpr c ce with
+                      | exist (Gtyp (Fuint 1)) _ => type_of_hfexpr e1 ce
+                      | _ => exist ftype_not_implicit_width def_ftype I
+                      end
     end.
 
   Fixpoint is_deftyp t :=
@@ -2107,7 +2111,7 @@ Section Preprocess.
     | Eprim_unop u e => HiFP.eprim_unop u (expr_pvar em ce e)
     | Eprim_binop b e1 e2 => HiFP.eprim_binop b (expr_pvar em ce e1) (expr_pvar em ce e2)
     | Emux e1 e2 e3 => HiFP.emux (expr_pvar em ce e1) (expr_pvar em ce e2) (expr_pvar em ce e3)
-    (* | Evalidif e1 e2 => HiFP.evalidif (expr_pvar em ce e1) (expr_pvar em ce e2) *)
+    | Evalidif e1 e2 => HiFP.evalidif (expr_pvar em ce e1) (expr_pvar em ce e2)
     | Eref r => HiFP.eref (HiFP.eid (HiF.base_ref r, offset_ref r ce 0))
     end.
 
