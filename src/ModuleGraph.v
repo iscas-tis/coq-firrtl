@@ -1,5 +1,5 @@
+From Coq Require Import ZArith (* for Nat.eq_dec *).
 From simplssrlib Require Import SsrOrder FMaps Var ZAriths.
-From Coq Require Import ZArith (* for Nat.eq_dec *) FMaps.
 From nbits Require Import NBits.
 From firrtl Require Import Env Firrtl HiEnv HiFirrtl. (* for hfmodule and its parts *)
 From mathcomp Require Import ssreflect ssrbool ssrnat eqtype seq.
@@ -496,33 +496,23 @@ Fixpoint offset_of_ref (ref : HiFP.href) (env : CE.env) : option nat :=
 (* Definition module_graph_vertex_set : Type := FMap VarOrder vertex_type. *)
 (* keys: vertex identifiers, e.g. VarOrder; values : vertex_type *)
 
-Module Type SFMap <: FMapInterface.S.
-  Declare Module SE : OrderedType.OrderedType.
-  Module E : OrderedType.OrderedType
-  with Definition t := SE.t
-  with Definition eq := SE.eq
-  with Definition lt := SE.lt
-    := SE.
-  Include Sfun SE.
-End SFMap.
-
-Module Type VtypFMap <: SFMap.
-  Include SFMap.
-  Definition env : Type := t vertex_type.
+(* Module Type VtypFMap <: SsrFMapWithNew.
+  Include SsrFMapWithNew.
+  (*Definition env : Type := t vertex_type.*)
   (* Parameter def_vtyp : vertex_type. *)
-  
-End VtypFMap.
+End VtypFMap. *)
 
-Module MakeVtypFMap (V : SsrOrder) (VM : SFMap with Module SE := V)
-<: VtypFMap with Module SE := V.
+Module MakeVtypFMap (V : SsrOrder) (VM : SsrFMapWithNew with Module SE := V)
+<: SsrFMapWithNew with Module SE := V.
   Include VM.
+  Include FMapLemmas VM.
   Definition env : Type := t vertex_type.
 End MakeVtypFMap.
 
-Module module_graph_vertex_set_s <: VtypFMap := MakeVtypFMap VarOrder VM. 
+Module module_graph_vertex_set_s <: SsrFMapWithNew := MakeVtypFMap VarOrder VM. 
 Module ProdVarOrder := MakeProdOrderWithDefaultSucc VarOrder VarOrder.
 Module PVM <: SsrFMapWithNew := FMaps.MakeTreeMapWithNew ProdVarOrder.
-Module module_graph_vertex_set_p <: VtypFMap := MakeVtypFMap ProdVarOrder PVM.
+Module module_graph_vertex_set_p <: SsrFMapWithNew := MakeVtypFMap ProdVarOrder PVM.
 
 (* ... { V : Set & V -> vertex_type }. *)
    (* This is a type of pairs consisting of a set and a function from this set to vertex_type.
@@ -554,13 +544,13 @@ match module_graph_vertex_set_p.find vx_id V as o
 end number_correct
 end.
 
-Inductive connection_tree (V: module_graph_vertex_set_p.env) :=
+Inductive connection_tree {V: module_graph_vertex_set_p.env} :=
    Invalidated | Not_connected |
-   Leaf : (output_connectors_of_module_graph V) -> connection_tree V |
-   Choice : {cond : output_connectors_of_module_graph V |
-                    output_connector_type V cond = Fuint_exp 1 }
+   Leaf : (output_connectors_of_module_graph V) -> connection_tree |
+   Choice : forall cond : output_connectors_of_module_graph V,
+                    output_connector_type V cond = Fuint_exp 1
                     (* the type of cond needs to be Fuint_exp 1 *)
-            -> connection_tree V -> connection_tree V -> connection_tree V.
+            -> connection_tree -> connection_tree -> connection_tree.
 
 Definition input_connector_number_correct (V : module_graph_vertex_set_p.env) (x : module_graph_vertex_set_p.key * nat) : Prop :=
     if module_graph_vertex_set_p.find (fst x) V is Some elt
@@ -601,7 +591,7 @@ end number_correct
 end.
 
 Definition module_graph_connection_trees (V: module_graph_vertex_set_p.env): Type :=
-   input_connectors_of_module_graph V -> connection_tree V.
+   input_connectors_of_module_graph V -> @connection_tree V.
 
 Definition module_graph : Type :=
 (* a pair, namely a set of module_graph_vertices, together with a mapping that gives a connection tree
@@ -1101,29 +1091,236 @@ end.
 
 Definition ct_find {V : module_graph_vertex_set_p.env} (ic : input_connectors_of_module_graph V) 
    (m : module_graph_connection_trees V) := m ic.
-Definition ct_add {V : module_graph_vertex_set_p.env} (ic : input_connectors_of_module_graph V) (ct : connection_tree V) 
+Definition ct_add {V : module_graph_vertex_set_p.env} (ic : input_connectors_of_module_graph V) (ct : connection_tree) 
    (m : module_graph_connection_trees V) : module_graph_connection_trees V :=
    fun (y : input_connectors_of_module_graph V) => if (y == ic) then ct else (ct_find y m).
-Definition ct_empty {V : module_graph_vertex_set_p.env} : module_graph_connection_trees V := (fun _ => (Not_connected V)).
+Definition ct_empty {V : module_graph_vertex_set_p.env} : module_graph_connection_trees V := (fun _ => Not_connected).
+
+(* The following functions change parts / objects belonging to a vertex set V
+   to those belonging to (module_graph_vertex_set_p.add (module_graph_vertex_set_p.new_key V) new_vx_typ V). *)
+
+Lemma add_new_vx_new_key_is_new {V : module_graph_vertex_set_p.env} (vx_id : module_graph_vertex_set_p.key) :
+   (exists vx_typ : vertex_type, module_graph_vertex_set_p.find vx_id V = Some vx_typ) ->
+   ~ module_graph_vertex_set_p.SE.eq vx_id (module_graph_vertex_set_p.new_key V).
+Proof.
+intros.
+destruct H as [vx_typ].
+apply module_graph_vertex_set_p.find_2,
+      (ex_intro (fun t : vertex_type => module_graph_vertex_set_p.MapsTo vx_id t V) vx_typ),
+      module_graph_vertex_set_p.mem_1,
+      negbF in H.
+contradict H.
+move /eqP : H => H.
+rewrite H
+        module_graph_vertex_set_p.new_key_is_new.
+discriminate.
+Qed.
+
+Lemma add_new_vx_connector_helper {V : module_graph_vertex_set_p.env}
+{conn_id : module_graph_vertex_set_p.key * nat}
+(find_vx_typ_and_number_correct : exists vx_typ : vertex_type,
+                                        module_graph_vertex_set_p.MapsTo (fst conn_id) vx_typ V
+                                     /\ snd conn_id < size (output_connectors vx_typ))
+(new_vx_typ : vertex_type) :
+(* helper lemma to find a proof of the following in the definition of add_new_vx_connector: *)
+let nV := module_graph_vertex_set_p.add (module_graph_vertex_set_p.new_key V) new_vx_typ V in
+output_connector_number_correct nV conn_id.
+Proof.
+destruct find_vx_typ_and_number_correct as [vx_typ [find_vx_typ number_correct]].
+rewrite /output_connector_number_correct module_graph_vertex_set_p.find_add_neq.
+* apply module_graph_vertex_set_p.find_1 in find_vx_typ.
+  rewrite find_vx_typ.
+  exact number_correct.
+* apply (ex_intro (fun t : vertex_type => module_graph_vertex_set_p.MapsTo (fst conn_id) t V) vx_typ),
+        module_graph_vertex_set_p.mem_1,
+        negbF in find_vx_typ.
+  contradict find_vx_typ.
+  move /eqP : find_vx_typ => find_vx_typ.
+  rewrite find_vx_typ
+          module_graph_vertex_set_p.new_key_is_new.
+  discriminate.
+Qed.
+
+Lemma add_new_vx_connector_helper2 {V : module_graph_vertex_set_p.env} {conn_id : module_graph_vertex_set_p.key * nat} :
+output_connector_number_correct V conn_id
+->
+if module_graph_vertex_set_p.mem (fst conn_id) V
+then exists vx_typ : vertex_type,
+           module_graph_vertex_set_p.MapsTo (fst conn_id) vx_typ V
+        /\ snd conn_id < size (output_connectors vx_typ)
+else False.
+Proof.
+unfold output_connector_number_correct.
+destruct (module_graph_vertex_set_p.find (fst conn_id) V) as [vx_typ|] eqn: Hfind.
+* intro.
+  generalize Hfind ; intro.
+  apply module_graph_vertex_set_p.find_2,
+        (ex_intro (fun t : vertex_type => module_graph_vertex_set_p.MapsTo (fst conn_id) t V) vx_typ),
+        module_graph_vertex_set_p.mem_1
+        in Hfind0.
+  rewrite Hfind0.
+  exists vx_typ.
+  split.
+  + apply module_graph_vertex_set_p.find_2.
+    exact Hfind.
+  + exact H.
+* done.
+Qed.
+
+Definition add_new_vx_connector {V : module_graph_vertex_set_p.env} (new_vx_typ : vertex_type) (oc : output_connectors_of_module_graph V) :
+ output_connectors_of_module_graph (module_graph_vertex_set_p.add (module_graph_vertex_set_p.new_key V) new_vx_typ V) :=
+(* Transforms output connect oc into an output connector of the extended module graph *)
+let nV := module_graph_vertex_set_p.add (module_graph_vertex_set_p.new_key V) new_vx_typ V in
+let (conn_id, number_correct) := oc in
+(if module_graph_vertex_set_p.mem (fst conn_id) V as b
+    return (if b
+            then exists vx_typ : vertex_type,
+                       module_graph_vertex_set_p.MapsTo (fst conn_id) vx_typ V
+                    /\ snd conn_id < size (output_connectors vx_typ)
+            else False) -> output_connectors_of_module_graph nV
+ then fun (find_vx_typ_and_number_correct : exists vx_typ : vertex_type,
+                                                  module_graph_vertex_set_p.MapsTo (fst conn_id) vx_typ V
+                                               /\ snd conn_id < size (output_connectors vx_typ))
+       => exist (output_connector_number_correct nV)
+                conn_id
+                (add_new_vx_connector_helper find_vx_typ_and_number_correct new_vx_typ)
+ else fun impossible : False
+       => False_rect (output_connectors_of_module_graph nV) impossible
+) (add_new_vx_connector_helper2 number_correct).
+
+Lemma add_new_vx_output_connector_eq : forall {V : module_graph_vertex_set_p.env} (new_vx_typ : vertex_type) (oc : output_connectors_of_module_graph V),
+let (new_conn_id, _) := add_new_vx_connector new_vx_typ oc in
+let (conn_id, _) := oc in
+new_conn_id = conn_id.
+Proof.
+intros.
+rewrite /add_new_vx_connector.
+destruct oc as [conn_id number_correct].
+unfold output_connector_number_correct in number_correct.
+(* The following command always gives a type error.
+   I have tried several variants, using find / mem / MapsTo,
+   but I could not find a way that avoids the type error.
+destruct (module_graph_vertex_set_p.mem (fst conn_id) V).
+*)
+Admitted.
+
+Lemma add_new_vx_output_connector_type : forall {V : module_graph_vertex_set_p.env} (new_vx_typ: vertex_type) (oc : output_connectors_of_module_graph V),
+output_connector_type (module_graph_vertex_set_p.add (module_graph_vertex_set_p.new_key V) new_vx_typ V) (add_new_vx_connector new_vx_typ oc) = output_connector_type V oc.
+Proof.
+intros.
+rewrite /output_connector_type.
+destruct oc as [[vx_id conn_nr] number_correct].
+unfold output_connector_number_correct, fst in number_correct.
+destruct (add_new_vx_connector new_vx_typ
+     (exist (fun x : module_graph_vertex_set_p.key * nat => output_connector_number_correct V x)
+        (vx_id, conn_nr) number_correct)) as [[vx_id0 conn_nr0] new_number_correct] eqn: H1.
+(* Perhaps try one of the following.
+
+destruct (module_graph_vertex_set_p.find vx_id (module_graph_vertex_set_p.add (module_graph_vertex_set_p.new_key V) new_vx_typ V)) eqn: Hfind_new.
+destruct (module_graph_vertex_set_p.find vx_id V).
+
+
+assert (Hfind: exists vx_typ : vertex_type, module_graph_vertex_set_p.find vx_id V = Some vx_typ).
+      rewrite /output_connector_number_correct /fst in number_correct.
+      destruct (module_graph_vertex_set_p.find vx_id V) eqn: Hfind.
+      * exists v ; reflexivity.
+      * contradiction.
+destruct Hfind as [vx_typ Hfind].
+
+rewrite Hfind in number_correct.
+*)
+Admitted.
+
+(*
+Definition add_new_vx_output_connector_type (V : module_graph_vertex_set_p.env) (new_vx_typ : vertex_type) (oct : output_connector_type V) :
+         output_connector_type (module_graph_vertex_set_p.add (module_graph_vertex_set_p.new_key V) new_vx_typ V).
+(* The function changes an output_connector_type of V into an output_connector_type of
+   (module_graph_vertex_set_p.add (module_graph_vertex_set_p.new_key V) new_vx_typ V). *)
+*)
+
+Fixpoint add_new_vx_connection_tree {V: module_graph_vertex_set_p.env} (new_vx_typ : vertex_type) (ct : @connection_tree V) :
+         @connection_tree (module_graph_vertex_set_p.add (module_graph_vertex_set_p.new_key V) new_vx_typ V).
+(* The function changes a connection tree of V into a connection tree of
+   (module_graph_vertex_set_p.add (module_graph_vertex_set_p.new_key V) new_vx_typ V). *)
+pose (nV := module_graph_vertex_set_p.add (module_graph_vertex_set_p.new_key V) new_vx_typ V).
+destruct ct as [| | |cond cond_is_1bit c1 c2] eqn: Hct.
+* exact (@Invalidated nV).
+* exact (@Not_connected nV).
+* exact (@Leaf nV (add_new_vx_connector new_vx_typ o)).
+* pose (new_cond := add_new_vx_connector new_vx_typ cond).
+  assert (new_cond_is_1bit: output_connector_type nV new_cond = Fuint_exp 1).
+        rewrite /nV /output_connector_type.
+        destruct new_cond as [[vx_id conn_nr] number_correct].
+(* The following leads to a type error:
+        destruct (module_graph_vertex_set_p.find vx_id
+                  (module_graph_vertex_set_p.add (module_graph_vertex_set_p.new_key V) new_vx_typ V))
+        eqn: Hfind.
+*)
+Admitted.
+
+Definition module_graph_add (new_vx_id : module_graph_vertex_set_p.key) (new_vx_typ : vertex_type) (mg : module_graph) : module_graph.
+destruct mg as [V E].
+pose (nV := module_graph_vertex_set_p.add new_vx_id new_vx_typ V).
+assert (number_correct: forall ic : input_connectors_of_module_graph nV,
+                           match ic with
+                           exist (vx_id, conn_nr) _ =>
+                              if vx_id == new_vx_id then True else input_connector_number_correct V (vx_id, conn_nr)
+                           end).
+      intro ; destruct ic as [[vx_id conn_nr] new_number_correct].
+      destruct (vx_id == new_vx_id) eqn: vx_id_is_new ; try done.
+      rewrite /input_connector_number_correct /nV module_graph_vertex_set_p.find_add_neq in new_number_correct.
+      * exact new_number_correct.
+      * rewrite /PVM.SE.eq /fst vx_id_is_new //.
+(* The following term containing E should be corrected...
+
+pose (nE := fun ic : input_connectors_of_module_graph nV
+             => match ic
+                   return match ic with exist (vx_id, conn_nr) _
+                          => if vx_id == new_vx_id then True else input_connector_number_correct V (vx_id, conn_nr)
+                          end -> @connection_tree nV
+                with exist (vx_id, conn_nr) _ =>
+                   (if vx_id == new_vx_id as b
+                       return (if b then True else input_connector_number_correct V (vx_id, conn_nr))
+                              -> @connection_tree nV
+                    then fun _ => Not_connected
+                    else fun number_correct => E (exist (input_connector_number_correct V) (vx_id, conn_nr) number_correct)
+                   )
+              end (number_correct ic)).
+*)
+Admitted.
 
 Fixpoint add_vertex_mux' (mg : module_graph) (vl : list vertex_type) (on : (output_connectors_of_module_graph (projT1 mg))) 
-   (onl1 : list (output_connectors_of_module_graph (projT1 mg))) (onl2 : list (output_connectors_of_module_graph (projT1 mg))) (n : N) : 
-   option (list (output_connectors_of_module_graph (projT1 mg)) * module_graph * N) :=
+   (onl1 : list (output_connectors_of_module_graph (projT1 mg))) (onl2 : list (output_connectors_of_module_graph (projT1 mg))) : 
+   option { nmg : module_graph & seq (output_connectors_of_module_graph (projT1 nmg)) } :=
    match vl, onl1, onl2 with
-   | nil, nil, nil => Some (nil, mg, n)
-   | v1 :: vtl, on1 :: ontl1, on2 :: ontl2 => match add_vertex_mux' mg vtl on ontl1 ontl2 n with
-                  | Some (rls, nmg, n0) => 
-                     let nvmap := module_graph_vertex_set_p.add (n0, N0) v1 (projT1 nmg) in
-                     let nct0 := ct_add (exist (input_connector_number_correct nvmap) ((n0, N0), 0) I) ((Leaf on) (projT2 nmg)) (projT2 nmg) in
-                     let nct1 := ct_add (exist (input_connector_number_correct nvmap) ((n0, N0), 1) I) ((Leaf on1) nct0) nct0 in
-                     let nct2 := ct_add (exist (input_connector_number_correct nvmap) ((n0, N0), 2) I) ((Leaf on2) nct1) nct1 in
-                     (*let (projT2 nmg) ((n0,N0),0)(* nv的input_connector1 *) := Leaf on in
-                     let (projT2 nmg) ((n0,N0),1) := Leaf on1 in
-                     let (projT2 nmg) ((n0,N0),2) := Leaf on2 in
-                     ncncttree := eonl 连接到 (input_connectors nv)*)
-                     Some ((exist (output_connector_number_correct nvmap) ((n0,N0), 0) I) :: rls, (nvmap, nct2), (N.add n0 1%num))
-                  | None => None
-                  end
+   | nil, nil, nil => Some (existT (fun nmg : module_graph => seq (output_connectors_of_module_graph (projT1 nmg)))
+                                   mg nil)
+   | Mux ot :: vtl, on1 :: ontl1, on2 :: ontl2 =>
+        let V := projT1 mg in
+        let mux_id := module_graph_vertex_set_p.new_key V in
+        let nV := module_graph_vertex_set_p.add mux_id (Mux ot) V in
+        let nct0_number_correct : input_connector_number_correct nV (mux_id, 0) :=
+               eq_ind_r (x := Some (Mux ot)) (fun t : option vertex_type
+                                               => if t is Some vx_typ then 0 < size (input_connectors vx_typ)
+                                                                      else False
+                                             ) (let (_,_) as ot return 0 < size (input_connectors (Mux ot)) := ot in is_true_true)
+                                             (module_graph_vertex_set_p.find_add_eq (m := V) (x := mux_id) (y := mux_id) (e := Mux ot) (eqxx mux_id)) in
+        let nct0 := ct_add (exist (input_connector_number_correct nV) (mux_id, 0) nct0_number_correct) (Leaf (add_new_vx_connector (Mux ot) on)) (projT2 mg) in
+        let nct1_number_correct : input_connector_number_correct nV (mux_id, 1) :=
+               eq_ind_r (x := Some (Mux ot)) (fun t : option vertex_type
+                                               => if t is Some vx_typ then 1 < size (input_connectors vx_typ)
+                                                                      else False
+                                             ) (let (_,_) as ot return 1 < size (input_connectors (Mux ot)) := ot in is_true_true)
+                                             (module_graph_vertex_set_p.find_add_eq (m := V) (x := mux_id) (y := mux_id) (e := Mux ot) (eqxx mux_id)) in
+        let nct1 := ct_add (exist (input_connector_number_correct nV) (mux_id, 1) nct1_number_correct) (Leaf (add_new_vx_connector (Mux ot) on1)) nct0 in
+        let nct2_number_correct : input_connector_number_correct nV (mux_id, 2) :=
+               eq_ind_r (x := Some (Mux ot)) (fun t : option vertex_type
+                                               => if t is Some vx_typ then 2 < size (input_connectors vx_typ)
+                                                                      else False
+                                             ) (let (_,_) as ot return 2 < size (input_connectors (Mux ot)) := ot in is_true_true)
+                                             (module_graph_vertex_set_p.find_add_eq (m := V) (x := mux_id) (y := mux_id) (e := Mux ot) (eqxx mux_id)) in
+        let nct2 := ct_add (exist (input_connector_number_correct nV) (mux_id, 2) nct2_number_correct) (Leaf (add_new_vx_connector (Mux ot) on2)) nct1 in
+        Some (nct2, nil)
    | _, _, _ => None
    end.
 
