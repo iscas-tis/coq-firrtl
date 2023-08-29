@@ -136,8 +136,7 @@ Inductive vertex_type :=
    inst : ?*)
    Node : fgtyp -> vertex_type |
 
-   Mux : fgtyp_explicit (* data type of the input connectors *) -> vertex_type
-   (* actually, more vertex types for every primitive operation *).
+   Mux : fgtyp_explicit (* data type of the input connectors *) -> vertex_type.
 
 (* equality of vertex_type is decidable *)
 Lemma vertex_type_eq_dec : forall {x y : vertex_type}, {x = y} + {x <> y}.
@@ -427,6 +426,137 @@ Definition output_connectors (v : vertex_type) : seq fgtyp_explicit :=
    | Mux ot => [:: ot]
    end.
 
+(* type transform functions *)
+(* transform a explicit data type to a with_implicit data type *)
+Definition data_type_out2in (dt : fgtyp_explicit) : fgtyp :=
+   match dt with
+   | exist t _ => t
+   end.
+
+(* transform a explicit data type to a arithmetic data type, for arithmetic only operations *)
+Definition data_type_out2arith (dt : fgtyp_explicit) : option arithmetic_data_type :=
+   match dt with
+   | exist (Fsint w) _ => Some (Fsint_a w)
+   | exist (Fuint w) _ => Some (Fuint_a w)
+   | _ => None
+   end.
+
+(* transform a with_implicit data type to a arithmetic data type, for const *)
+Definition data_type_in2arith (dt : fgtyp) (bs : bits) : option arithmetic_data_type :=
+   match dt with
+   | Fsint w => Some (Fsint_a w)
+   | Fuint w => Some (Fuint_a w)
+   | Fsint_implicit _ => Some (Fsint_a (size bs))
+   | Fuint_implicit _ => Some (Fuint_a (size bs))
+   | _ => None
+   end.
+
+(* transform a arithmetic data type to a ftype *)
+Definition data_type_arith2ftype (dt : arithmetic_data_type) : ftype :=
+   match dt with
+   | exist (Fsint w) _ => Gtyp (Fsint w)
+   | exist (Fuint w) _ => Gtyp (Fuint w)
+   | exist _ p => False_rect ftype p
+   end.
+
+(* transform a explicit data type list to a ftype, for expr. output_connector of a vertex return with a list of fgtyp_explicit *)
+Definition data_type_out2ftype (dl : list fgtyp_explicit) : option ftype :=
+   match dl with
+   | [:: (exist t _)] => Some (Gtyp t)
+   | _ => None
+   end.
+
+(* length of a explicit data type, used for build a binop vertex. *)
+Definition len_output_data_type (dt : fgtyp_explicit) : nat :=
+   match dt with
+   | exist (Fsint w) _ => w
+   | exist (Fuint w) _ => w
+   | exist (Freset) _
+   | exist (Fasyncreset) _
+   | exist (Fclock) _ => 1
+   | exist _ p => False_rect nat p
+   end.
+
+(* length of an arithmetic data type, used for build a binop vertex. *)
+Definition len_arithmetic_data_type (dt : arithmetic_data_type) : nat :=
+   match dt with
+   | exist (Fsint w) _ => w
+   | exist (Fuint w) _ => w
+   | exist _ p => False_rect nat p
+   end.
+
+(* return true if two arithmetic type has the same ground type, used for type checking in binop operations *)
+Definition typeq_arithmetic_data_type (dt1 : arithmetic_data_type) (dt2 : arithmetic_data_type) : bool :=
+   match dt1, dt2 with
+   | exist (Fsint _) _, exist (Fsint _) _ 
+   | exist (Fuint _) _, exist (Fuint _) _ => true
+   | _, _ => false
+   end.
+
+(* unfold aggr_type functions *)
+Fixpoint list_repeat_fn (f : list fgtyp -> list fgtyp) (n : nat) (l : list fgtyp) : list fgtyp :=
+   (* Applies function f n times to list l *)
+   (* calculates f (f (...(f l)...)), i.e. n : nat applications of f : list ftype -> list ftype to l. *)
+   match n with
+   | 0 => l
+   | S m => list_repeat_fn f m (f l)
+   end.
+
+(*Lemma list_repeat_size :  *)
+Fixpoint vtype_list (ft : ftype) (l : list fgtyp) : list fgtyp :=
+   (* appends to list l the ground type elements of type ft *)
+   match ft with
+   | Gtyp t => rcons l t
+   | Atyp t n => list_repeat_fn (vtype_list t) n l
+   | Btyp b => vtype_list_btyp b l
+   end
+   with vtype_list_btyp (b : ffield) (l : list fgtyp) : list fgtyp :=
+   match b with
+   | Fnil => l
+   | Fflips v fl t fs => vtype_list_btyp fs (vtype_list t l)
+   end.
+
+Lemma vtype_list_cat : forall (ft : ftype) (l : list fgtyp), vtype_list ft l = l ++ vtype_list ft [::]
+with vtype_list_btyp_cat : forall (b : ffield) (l : list fgtyp), vtype_list_btyp b l = l ++ vtype_list_btyp b [::].
+Proof.
+* clear vtype_list_cat.
+  induction ft.
+  + intro. rewrite /vtype_list {2}/rcons cats1 //.
+  + simpl vtype_list.
+    induction n.
+    - intro. rewrite /list_repeat_fn cats0 //.
+    - intro. simpl list_repeat_fn.
+      rewrite (IHn (vtype_list ft l)) (IHn (vtype_list ft [::])).
+      rewrite IHft -catA //.
+  + intro. simpl vtype_list. apply vtype_list_btyp_cat.
+* clear vtype_list_btyp_cat.
+  induction b.
+  + intro. rewrite /vtype_list_btyp cats0 //.
+  + intro. simpl vtype_list_btyp.
+    rewrite (IHb (vtype_list f0 l)) (IHb (vtype_list f0 [::])).
+    rewrite (vtype_list_cat f0 l) -catA //.
+Qed.
+
+Lemma vtype_list_size : forall (ft : ftype) (lst : seq fgtyp), size (vtype_list ft lst) = size lst + size_of_ftype ft
+with vtype_list_btyp_size : forall (ff : ffield) (lst : seq fgtyp), size (vtype_list_btyp ff lst) = size lst + size_of_fields ff.
+Proof.
+* clear vtype_list_size.
+  induction ft.
+  + intro ; rewrite /vtype_list /size_of_ftype size_rcons addn1 //.
+  + simpl vtype_list ; simpl size_of_ftype.
+    induction n.
+    - intro ; rewrite /list_repeat_fn muln0 addn0 //.
+    - intro ; simpl list_repeat_fn.
+      rewrite IHn IHft mulnS addnA //.
+  + apply vtype_list_btyp_size.
+* clear vtype_list_btyp_size.
+  induction ff.
+  + intro ; rewrite /vtype_list_btyp /size_of_fields addn0 //.
+  + simpl vtype_list_btyp ; simpl size_of_fields.
+    intro ; rewrite IHff vtype_list_size addnA //.
+Qed.
+
+
 (*
 Fixpoint type_of_subfield (ff : ffield) (var : VarOrder.T) : option ftype :=
    match ff with
@@ -509,305 +639,59 @@ Module MakeVtypFMap (V : SsrOrder) (VM : SsrFMapWithNew with Module SE := V)
   Definition env : Type := t vertex_type.
 End MakeVtypFMap.
 
+(* vertices set with natural number be the key *)
 Module module_graph_vertex_set_s <: SsrFMapWithNew := MakeVtypFMap VarOrder VM. 
 Module ProdVarOrder := MakeProdOrderWithDefaultSucc VarOrder VarOrder.
 Module PVM <: SsrFMapWithNew := FMaps.MakeTreeMapWithNew ProdVarOrder.
+(* vertices set with pair of natural number (n1, n2) be the key *)
 Module module_graph_vertex_set_p <: SsrFMapWithNew := MakeVtypFMap ProdVarOrder PVM.
 
-(* ... { V : Set & V -> vertex_type }. *)
-   (* This is a type of pairs consisting of a set and a function from this set to vertex_type.
-      Given V : module_graph_vertices, the set is (projT1 V) and the function is (projT2 V).
-      I would like V to be a finite set but I don't know exactly how to specify that. *)
+(* type of a tmap, which records the aggr_type for each element *)
+Definition ft_pmap := (N*N) -> (option ftype).
+Definition ft_find (v : N*N) (m : ft_pmap)  := m v.
+Definition ft_add (v : N*N) (ft : ftype) (m : ft_pmap) : ft_pmap :=
+   fun (y : N*N) => if y == v then (Some ft) else (ft_find y m).
+Definition ft_empty : ft_pmap := (fun _ => None).
 
-Definition module_graph_vertex_set : Type := { V : Set & V -> vertex_type }.
+(* for connection_tree, whose key is (N_pair, N) as input_connector_id 
+   here this module produce ProdOrder like ((N,N),N) *)
+Module MakeProdOrderWithDefaultSucc2 (O1 O2 : SsrOrderWithDefaultSucc) <: SsrOrderWithDefaultSucc
+    with Definition T := prod_eqType O1.T O2.T.
+  Module M := MakeProdOrderMinimal O1 O2.
+  Module P := MakeSsrOrder M.
+  Include P.
+  Definition default : t := (O1.default, O2.default).
+  Definition succ (x : t) : t := (fst x, O2.succ (snd x)). (* succ of pair ((a,b),c) is ((a,b),c+1) *)
+  Lemma ltn_succ (x : t) : ltn x (succ x).
+  Proof.
+    case: x => x y. rewrite /ltn /succ /=. rewrite /M.ltn /=.
+    rewrite O2.ltn_succ.
+   Admitted.
+End MakeProdOrderWithDefaultSucc2.
 
-Definition output_connector_number_correct (V : module_graph_vertex_set_p.env) (connector : module_graph_vertex_set_p.key * nat) : Prop :=
-    if module_graph_vertex_set_p.find (fst connector) V is Some vx_typ
-    then snd connector < size (output_connectors vx_typ)
-    else False.
+(* can be identifier of a input/output_connector *)
+Module PProdVarOrder := MakeProdOrderWithDefaultSucc2 ProdVarOrder VarOrder.
 
-Definition output_connectors_of_module_graph (V : module_graph_vertex_set_p.env) : Type :=
-   { x : module_graph_vertex_set_p.key * nat | output_connector_number_correct V x }.
-   (* This is a type of pairs, where the first is an element of a module_graph_vertices set,
-      and the second of the pair is a natural number that is < than the number of output connectors of that element. *)
-
-Definition output_connector_type (V : module_graph_vertex_set_p.env) (oc : output_connectors_of_module_graph V) : fgtyp_explicit :=
-(* finds the data type of output connector oc *)
-match oc with
-exist (vx_id, conn_nr) number_correct =>
-match module_graph_vertex_set_p.find vx_id V as o
-      return (if o is Some vx_typ return Prop
-              then conn_nr < size (output_connectors vx_typ)
-              else False) -> fgtyp_explicit with
-| Some vx_typ => fun _ => nth Freset_exp (output_connectors vx_typ) conn_nr
-| None => fun impossible : False => False_rect fgtyp_explicit impossible
-end number_correct
-end.
-
-Inductive connection_tree {V: module_graph_vertex_set_p.env} :=
-   Invalidated | Not_connected |
-   Leaf : (output_connectors_of_module_graph V) -> connection_tree |
-   Choice : forall cond : output_connectors_of_module_graph V,
-                    output_connector_type V cond = Fuint_exp 1
-                    (* the type of cond needs to be Fuint_exp 1 *)
+Inductive connection_tree :=
+   Invalidated | 
+   Leaf : PProdVarOrder.t -> connection_tree |
+   Choice : PProdVarOrder.t
+                    (* the type of cond needs to be Fuint_exp 1 
+                       how to check this? *)
             -> connection_tree -> connection_tree -> connection_tree.
 
-Definition input_connector_number_correct (V : module_graph_vertex_set_p.env) (x : module_graph_vertex_set_p.key * nat) : Prop :=
-    if module_graph_vertex_set_p.find (fst x) V is Some elt
-    then snd x < size (input_connectors elt)
-    else False.
+Module MakeCnctFMap (V : SsrOrder) (VM : SsrFMapWithNew with Module SE := V)
+<: SsrFMapWithNew with Module SE := V.
+  Include VM.
+  Include FMapLemmas VM.
+  Definition env : Type := t connection_tree.
+End MakeCnctFMap.
 
-Definition input_connectors_of_module_graph (V : module_graph_vertex_set_p.env) : Type :=
-   { x : module_graph_vertex_set_p.key * nat | input_connector_number_correct V x}.
-   (* This is a set containing pairs, where the first is an element of a module_graph_vertices set,
-      and the second of the pair is a natural number that is < than the number of input connectors of that element. *)
+Module PPVM <: SsrFMapWithNew := FMaps.MakeTreeMapWithNew PProdVarOrder.
+Module module_graph_connection_trees_p <: SsrFMapWithNew := MakeCnctFMap PProdVarOrder PPVM.
 
-Lemma input_connectors_eq_dec : forall {V : module_graph_vertex_set_p.env} {x y : input_connectors_of_module_graph V}, {x = y} + {x <> y}.
-Proof.
-Admitted.
-
-Definition input_connectors_eqn (V : module_graph_vertex_set_p.env) (x y : input_connectors_of_module_graph V) : bool :=
-match x, y with
-| (exist ((a1,a2), a3) _), (exist ((b1,b2), b3) _) => (a1 == b1) && (a2 == b2) && (a3 == b3)
-end.
-
-Lemma input_connectors_eqP (V : module_graph_vertex_set_p.env) : Equality.axiom (input_connectors_eqn V).
-Proof.
-Admitted.
-
-Canonical input_connectors_eqMixin {V : module_graph_vertex_set_p.env} := EqMixin (input_connectors_eqP V).
-Canonical input_connectors_eqType {V : module_graph_vertex_set_p.env} := Eval hnf in EqType (input_connectors_of_module_graph V) input_connectors_eqMixin.
-
-Definition input_connector_type (V : module_graph_vertex_set_p.env) (ic : input_connectors_of_module_graph V) : fgtyp :=
-match ic with
-exist (vx_id, conn_nr) number_correct =>
-match module_graph_vertex_set_p.find vx_id V as i
-      return (if i is Some vx_typ return Prop
-              then conn_nr < size (input_connectors vx_typ)
-              else False) -> fgtyp with
-| Some vx_typ => fun _ => nth Freset (input_connectors vx_typ) conn_nr
-| None => fun impossible : False => False_rect fgtyp impossible
-end number_correct
-end.
-
-Definition module_graph_connection_trees (V: module_graph_vertex_set_p.env): Type :=
-   input_connectors_of_module_graph V -> @connection_tree V.
-
-Definition module_graph : Type :=
-(* a pair, namely a set of module_graph_vertices, together with a mapping that gives a connection tree
-for every input connector of every module_graph_vertex. *)
-   { V : module_graph_vertex_set_p.env & module_graph_connection_trees V }.
-
-(*Definition ftype2fgtyp_explicit (ft : ftype) : fgtyp_explicit :=
-   match ft with
-   | Gtyp (Fuint n) => Fuint_exp n 
-   | Gtyp (Fsint n) => Fsint_exp n 
-   | Gtyp Fclock => Fclock_exp
-   | Gtyp Freset => Freset_exp
-   | Gtyp Fasyncreset => Fasyncreset_exp
-   | _ => Fuint_exp 0
-   end.
-
-Definition ftype2fgtyp (ft : ftype) : fgtyp :=
-   match ft with
-   | Gtyp (Fuint 0) => Fuint_implicit ?
-   | Gtyp (Fuint n) => Fuint n 
-   | Gtyp (Fsint n) => Fsint n 
-   | Gtyp Fclock => Fclock
-   | Gtyp Freset => Freset
-   | Gtyp Fasyncreset => Fasyncreset
-   | _ => Fuint 0
-   end.
-*)
-
-Fixpoint list_repeat_fn (f : list fgtyp -> list fgtyp) (n : nat) (l : list fgtyp) : list fgtyp :=
-   (* Applies function f n times to list l *)
-   (* calculates f (f (...(f l)...)), i.e. n : nat applications of f : list ftype -> list ftype to l. *)
-   match n with
-   | 0 => l
-   | S m => list_repeat_fn f m (f l)
-   end.
-
-(*Lemma list_repeat_size :  *)
-Fixpoint vtype_list (ft : ftype) (l : list fgtyp) : list fgtyp :=
-   (* appends to list l the ground type elements of type ft *)
-   match ft with
-   | Gtyp t => rcons l t
-   | Atyp t n => list_repeat_fn (vtype_list t) n l
-   | Btyp b => vtype_list_btyp b l
-   end
-   with vtype_list_btyp (b : ffield) (l : list fgtyp) : list fgtyp :=
-   match b with
-   | Fnil => l
-   | Fflips v fl t fs => vtype_list_btyp fs (vtype_list t l)
-   end.
-
-Lemma vtype_list_cat : forall (ft : ftype) (l : list fgtyp), vtype_list ft l = l ++ vtype_list ft [::]
-with vtype_list_btyp_cat : forall (b : ffield) (l : list fgtyp), vtype_list_btyp b l = l ++ vtype_list_btyp b [::].
-Proof.
-* clear vtype_list_cat.
-  induction ft.
-  + intro. rewrite /vtype_list {2}/rcons cats1 //.
-  + simpl vtype_list.
-    induction n.
-    - intro. rewrite /list_repeat_fn cats0 //.
-    - intro. simpl list_repeat_fn.
-      rewrite (IHn (vtype_list ft l)) (IHn (vtype_list ft [::])).
-      rewrite IHft -catA //.
-  + intro. simpl vtype_list. apply vtype_list_btyp_cat.
-* clear vtype_list_btyp_cat.
-  induction b.
-  + intro. rewrite /vtype_list_btyp cats0 //.
-  + intro. simpl vtype_list_btyp.
-    rewrite (IHb (vtype_list f0 l)) (IHb (vtype_list f0 [::])).
-    rewrite (vtype_list_cat f0 l) -catA //.
-Qed.
-
-Lemma vtype_list_size : forall (ft : ftype) (lst : seq fgtyp), size (vtype_list ft lst) = size lst + size_of_ftype ft
-with vtype_list_btyp_size : forall (ff : ffield) (lst : seq fgtyp), size (vtype_list_btyp ff lst) = size lst + size_of_fields ff.
-Proof.
-* clear vtype_list_size.
-  induction ft.
-  + intro ; rewrite /vtype_list /size_of_ftype size_rcons addn1 //.
-  + simpl vtype_list ; simpl size_of_ftype.
-    induction n.
-    - intro ; rewrite /list_repeat_fn muln0 addn0 //.
-    - intro ; simpl list_repeat_fn.
-      rewrite IHn IHft mulnS addnA //.
-  + apply vtype_list_btyp_size.
-* clear vtype_list_btyp_size.
-  induction ff.
-  + intro ; rewrite /vtype_list_btyp /size_of_fields addn0 //.
-  + simpl vtype_list_btyp ; simpl size_of_fields.
-    intro ; rewrite IHff vtype_list_size addnA //.
-Qed.
-
-(*
-Definition data_type_in2out (dt : fgtyp) : fgtyp_explicit :=
-   match dt with
-   | Fsint n => Fsint_exp n 
-   | Fuint n => Fuint_exp n 
-   | Freset => Freset_exp
-   | Fasyncreset => Fasyncreset_exp
-   | Fclock => Fclock_exp
-   | Fsint_implicit _ 
-   | Fuint_implicit _ => Fuint_exp 0
-   end.
-*)
-
-Definition data_type_out2in (dt : fgtyp_explicit) : fgtyp :=
-   match dt with
-   | exist t _ => t
-   end.
-
-Definition data_type_out2arith (dt : fgtyp_explicit) : option arithmetic_data_type :=
-   match dt with
-   | exist (Fsint w) _ => Some (Fsint_a w)
-   | exist (Fuint w) _ => Some (Fuint_a w)
-   | _ => None
-   end.
-
-Definition data_type_in2arith (dt : fgtyp) (bs : bits) : option arithmetic_data_type :=
-   match dt with
-   | Fsint w => Some (Fsint_a w)
-   | Fuint w => Some (Fuint_a w)
-   | Fsint_implicit _ => Some (Fsint_a (size bs))
-   | Fuint_implicit _ => Some (Fuint_a (size bs))
-   | _ => None
-   end.
-
-Definition data_type_arith2ftype (dt : arithmetic_data_type) : ftype :=
-   match dt with
-   | exist (Fsint w) _ => Gtyp (Fsint w)
-   | exist (Fuint w) _ => Gtyp (Fuint w)
-   | exist _ p => False_rect ftype p
-   end.
-
-Definition data_type_out2ftype (dl : list fgtyp_explicit) : option ftype :=
-   match dl with
-   | [:: (exist t _)] => Some (Gtyp t)
-   | _ => None
-   end.
-
-Definition len_output_data_type (dt : fgtyp_explicit) : nat :=
-   match dt with
-   | exist (Fsint w) _ => w
-   | exist (Fuint w) _ => w
-   | exist (Freset) _
-   | exist (Fasyncreset) _
-   | exist (Fclock) _ => 1
-   | exist _ p => False_rect nat p
-   end.
-
-Definition len_arithmetic_data_type (dt : arithmetic_data_type) : nat :=
-   match dt with
-   | exist (Fsint w) _ => w
-   | exist (Fuint w) _ => w
-   | exist _ p => False_rect nat p
-   end.
-
-Definition typeq_arithmetic_data_type (dt1 : arithmetic_data_type) (dt2 : arithmetic_data_type) : bool :=
-   match dt1, dt2 with
-   | exist (Fsint _) _, exist (Fsint _) _ 
-   | exist (Fuint _) _, exist (Fuint _) _ => true
-   | _, _ => false
-   end.
-
-Fixpoint add_vertex_input (v : N (*pvar match(_,0)从(_,1)开始添加*)) (n : N (*index*)) (l: list fgtyp) (vmap : module_graph_vertex_set_p.env) :=
-   match l with
-   | nil => vmap
-   | hd :: tl => let nvmap := module_graph_vertex_set_p.add (v, n) (InPort hd) vmap in
-                 add_vertex_input v (N.add n 1) tl nvmap
-                 (* 添加 Not_connected *)
-   end.
-
-Fixpoint add_vertex_output (v : N) (N : N) (l: list fgtyp) (vmap : module_graph_vertex_set_p.env) :=
-   match l with
-   | nil => vmap
-   | hd :: tl => let nvmap := module_graph_vertex_set_p.add (v, N) (OutPort hd) vmap in
-                 add_vertex_output v (N.add N 1) tl nvmap
-   end.
-
-Definition add_vertex_port (p : hfport ProdVarOrder.T) (vmap : module_graph_vertex_set_p.env) : module_graph_vertex_set_p.env :=
-   match p with
-   | Finput (v,_) t => let vtl := vtype_list t nil in
-                        add_vertex_input v 1 vtl vmap 
-   | Foutput (v,_) t => let vtl := vtype_list t nil in
-                        add_vertex_output v 1 vtl vmap
-   end.
-
-Fixpoint list_inputs (p : N) (n : N) (counts : nat) (l : list fgtyp) (vmap : module_graph_vertex_set_p.env) : list fgtyp :=
-   match counts with 
-   | 0 => l
-   | S m => match (module_graph_vertex_set_p.find (p, N.of_nat (n - m)) vmap) with
-            | Some v => l ++ (input_connectors v) ++ list_inputs p n m l vmap
-            | None => l ++ list_inputs p n m l vmap
-            end
-   end. (* return 从(p,1)到(p,n)的input_connectors *)
-
-Fixpoint list_outputs (p : N) (n : N) (counts : nat) (l : list fgtyp_explicit) (vmap : module_graph_vertex_set_p.env) : list fgtyp_explicit :=
-   match counts with 
-   | 0 => l
-   | S m => match (module_graph_vertex_set_p.find (p, N.of_nat (n - m)) vmap) with
-            | Some v => l ++ (output_connectors v) ++ list_outputs p n m l vmap
-            | None => l ++ list_outputs p n m l vmap
-            end
-   end. (* return 从(p,1)到(p,n)的output_connectors *)
-
-(*Fixpoint list_outputs (p : N) (keys : list (N * N)) (vmap : module_graph_vertex_set_p.env) (ls : option (list (output_connectors_of_module_graph vmap))) : option (list (output_connectors_of_module_graph vmap)) :=
-   match keys with 
-   | nil => ls
-   | (p, n) :: tl => match list_outputs p tl vmap ls with 
-               | Some lst => match (module_graph_vertex_set_p.find (p, n) vmap) with
-                              | Some v => Some (cons ((p,n), 0) lst) (* 应该按1...n的顺序添加 *)
-                              | None => None
-                              end
-               | None => None
-               end
-   | _ => ls
-   end.*)
-   (* return 从(p,1)到(p,n)的output_connectors name *)
-
+(* helper functions for producing new vertices *)
+(* return the new vertex and type of the cast expression if a correct ftype is given *)
 Definition add_vertex_cast (c : ucast) (ft : ftype) : option (vertex_type * ftype) :=
    let vt := match ft with
             | Gtyp (Fuint n) => Some (Fuint_exp n, n)
@@ -828,70 +712,7 @@ Definition add_vertex_cast (c : ucast) (ft : ftype) : option (vertex_type * ftyp
    | None => None
    end.
 
-Fixpoint add_vertex_mux (ft1 : list ftype) (ft2 : list ftype) : option (list vertex_type) :=
-   match ft1, ft2 with
-   | (Gtyp t1) :: tl1, (Gtyp t2) :: tl2 => match add_vertex_mux tl1 tl2 with
-                                          | Some rl => 
-                                          let nv := match t1, t2 with
-                                                   | Fuint n1, Fuint n2 => Some (Mux (Fuint_exp (Nat.max n1 n2)))
-                                                   | Fsint n1, Fsint n2 => Some (Mux (Fsint_exp (Nat.max n1 n2)))
-                                                   | Fclock, Fclock => Some (Mux Fclock_exp)
-                                                   | Freset, Freset => Some (Mux Freset_exp)
-                                                   | Fasyncreset, Fasyncreset => Some (Mux Fasyncreset_exp)
-                                                   | _, _ => None
-                                                   end in match nv with
-                                                      | Some v => Some (cons v rl)
-                                                      | None => None
-                                                      end
-                                          | None => None
-                                          end
-   | nil, nil => Some nil
-   | _, _ => None
-   end.
-
-Definition fgtyp_mux (x y : fgtyp) : option fgtyp :=
-    match x, y with
-    | Fuint wx, Fuint wy => Some (Fuint (Nat.max wx wy))
-    | Fsint wx, Fsint wy => Some (Fsint (Nat.max wx wy))
-    | Fclock, Fclock => Some Fclock
-    | Freset, Freset => Some Freset
-    | Fasyncreset, Fasyncreset => Some Fasyncreset
-    | _, _ => None
-    end.
-
-Fixpoint ftype_mux (x y : ftype) : option ftype :=
-  match x, y with
-  | Gtyp tx, Gtyp ty => match fgtyp_mux tx ty with
-                        | Some fgt => Some (Gtyp fgt)
-                        | None => None
-                        end
-  | Atyp tx nx, Atyp ty ny => if (nx == ny)
-                              then match ftype_mux tx ty with
-                              | Some fat => Some (Atyp fat nx)
-                              | None => None
-                              end
-                              else None
-  | Btyp fx, Btyp fy => ffield_mux fx fy
-  | _, _ => None
-  end
-with ffield_mux (f1 f2 : ffield) : option ftype :=
-       match f1, f2 with
-       | Fnil, Fnil => Some (Btyp Fnil)
-       | Fflips v1 Nflip t1 fs1, Fflips v2 Nflip t2 fs2
-         => if v1 == v2 then
-               match ffield_mux fs1 fs2 with
-               | Some (Btyp bf) => match ftype_mux t1 t2 with
-                           | Some ft => Some (Btyp (Fflips v1 Nflip ft bf))
-                           | _ => None
-                           end
-               | _ => None
-               end
-            else None
-       | Fflips _ Flipped _ _, Fflips _ Flipped _ _
-         => None
-       | _, _ => None
-       end.
-
+(* return the new unop vertex if the ftype is given correctly *)
 Definition add_vertex_unop (u : eunop) (ft : ftype) : option vertex_type :=
    let vt := match ft with
             | Gtyp (Fuint n) => Some (Fuint_a n)
@@ -916,6 +737,7 @@ Definition add_vertex_unop (u : eunop) (ft : ftype) : option vertex_type :=
    | None => None 
    end.
 
+(* return the new binop vertex if the ftype is given correctly *)
 Definition add_vertex_binop (b : ebinop) (ft0: ftype) (ft1: ftype) : option vertex_type :=
    let vt0 := match ft0 with
             | Gtyp (Fuint n) => Some (Fuint_a n)
@@ -990,6 +812,413 @@ Definition add_vertex_binop (b : ebinop) (ft0: ftype) (ft1: ftype) : option vert
    | _, _ => None
    end.
 
+Fixpoint list_output_p (vmap : module_graph_vertex_set_p.env) (p : var) (n : nat) (ol : option (list PProdVarOrder.t)) : option (list PProdVarOrder.t) :=
+(* generates a list of output connector 0 of vertices (p,1), (p,2), ..., (p,n)
+   If some of these output connectors do not exist, the function returns None. *)
+  match ol, n with
+  | Some onl, 0 => ol
+  | Some onl, S n' =>let vx_id := (p, N.of_nat n) in
+                     match module_graph_vertex_set_p.find vx_id vmap with
+                     | Some _ => list_output_p vmap p n' (Some ((vx_id, N0) :: onl))
+                     | _ => None
+                     end 
+  | None, _ => None
+  end.
+
+Fixpoint select_list_rhs_ffield_p (lst : list PProdVarOrder.t) (ff : ffield) (v : var) :
+      option (list PProdVarOrder.t * ftype) :=
+(* selects from list lst, which corresponds to type ff, the part for field v *)
+match ff with
+| Fflips v0 Nflips ft ff' => let len := size_of_ftype ft in
+                             if v == v0 then Some (take len lst, ft)
+                                        else select_list_rhs_ffield_p (drop len lst) ff' v
+| _ => None
+end.
+
+Fixpoint list_rhs_ref_p (vmap : module_graph_vertex_set_p.env) (e : HiFP.href) (tmap: ft_pmap) : 
+option (list PProdVarOrder.t * ftype) :=
+(* generates a list of output connectors and a type corresponding to reference e,
+   if e has a passive type *)
+match e with
+| Eid (p, N0) => match ft_find (p,N0) tmap with
+                | Some ft => match list_output_p vmap p (size_of_ftype ft) (Some nil) with
+                             | Some lst => Some (lst, ft)
+                             | _ => None
+                             end
+                | _ => None
+                end
+| Esubfield e' v => match list_rhs_ref_p vmap e' tmap with
+                    | Some (lst, Btyp ff) => select_list_rhs_ffield_p lst ff v
+                    | _ => None
+                    end
+| Esubindex e' n => match list_rhs_ref_p vmap e' tmap with
+                    | Some (lst, Atyp t' m) => if n < m then let len := size_of_ftype t' in
+                                                             Some (take len (drop (n * len) lst), t')
+                                                        else None
+                    | _ => None
+                    end
+| _ => None
+end.
+
+(* return the list of new vertex if the ftypes matches *)
+Fixpoint add_vertex_mux (ft1 : list fgtyp) (ft2 : list fgtyp) : option (list vertex_type) :=
+   match ft1, ft2 with
+   | t1 :: tl1, t2 :: tl2 => match add_vertex_mux tl1 tl2 with
+                              | Some rl => 
+                              let nv := match t1, t2 with
+                                       | Fuint n1, Fuint n2 => Some (Mux (Fuint_exp (Nat.max n1 n2)))
+                                       | Fsint n1, Fsint n2 => Some (Mux (Fsint_exp (Nat.max n1 n2)))
+                                       | Fclock, Fclock => Some (Mux Fclock_exp)
+                                       | Freset, Freset => Some (Mux Freset_exp)
+                                       | Fasyncreset, Fasyncreset => Some (Mux Fasyncreset_exp)
+                                       | _, _ => None
+                                       end in match nv with
+                                             | Some v => Some (cons v rl)
+                                             | None => None
+                                             end
+                                 | None => None
+                                 end
+   | nil, nil => Some nil
+   | _, _ => None
+   end.
+
+(* retrun the type of mux expression on fgtyps *)
+Definition fgtyp_mux (x y : fgtyp) : option fgtyp :=
+    match x, y with
+    | Fuint wx, Fuint wy => Some (Fuint (Nat.max wx wy))
+    | Fsint wx, Fsint wy => Some (Fsint (Nat.max wx wy))
+    | Fclock, Fclock => Some Fclock
+    | Freset, Freset => Some Freset
+    | Fasyncreset, Fasyncreset => Some Fasyncreset
+    | _, _ => None
+    end.
+
+(* retrun the type of mux expression on ftypes *)
+(* HiFirrtl.mux_types' *)
+Fixpoint ftype_mux (x y : ftype) : option ftype :=
+  match x, y with
+  | Gtyp tx, Gtyp ty => match fgtyp_mux tx ty with
+                        | Some fgt => Some (Gtyp fgt)
+                        | None => None
+                        end
+  | Atyp tx nx, Atyp ty ny => if (nx == ny)
+                              then match ftype_mux tx ty with
+                              | Some fat => Some (Atyp fat nx)
+                              | None => None
+                              end
+                              else None
+  | Btyp fx, Btyp fy => ffield_mux fx fy
+  | _, _ => None
+  end
+with ffield_mux (f1 f2 : ffield) : option ftype :=
+       match f1, f2 with
+       | Fnil, Fnil => Some (Btyp Fnil)
+       | Fflips v1 Nflip t1 fs1, Fflips v2 Nflip t2 fs2
+         => if v1 == v2 then
+               match ffield_mux fs1 fs2 with
+               | Some (Btyp bf) => match ftype_mux t1 t2 with
+                           | Some ft => Some (Btyp (Fflips v1 Nflip ft bf))
+                           | _ => None
+                           end
+               | _ => None
+               end
+            else None
+       | Fflips _ Flipped _ _, Fflips _ Flipped _ _
+         => None
+       | _, _ => None
+       end.
+
+Fixpoint add_vertex_mux_p' (vmap : module_graph_vertex_set_p.env) (ctree : module_graph_connection_trees_p.env) (ol : list PProdVarOrder.t) (vl : list vertex_type) (on : PProdVarOrder.t) (onl1 : list PProdVarOrder.t) (onl2 : list PProdVarOrder.t) : 
+   option (module_graph_vertex_set_p.env * module_graph_connection_trees_p.env * list PProdVarOrder.t) :=
+   match vl, onl1, onl2 with
+   | nil, nil, nil => Some (vmap, ctree, ol)
+   | Mux ot :: vtl, on1 :: ontl1, on2 :: ontl2 =>
+      (* generate a new id for every mux vertex, and add it to vmap *)
+      let mux_id := module_graph_vertex_set_p.new_key vmap in
+      let nvmap := module_graph_vertex_set_p.add mux_id (Mux ot) vmap in
+      (* add connection_trees for 3 input_connectors of the mux vertex *)
+      let ctree0 := module_graph_connection_trees_p.add (mux_id, N0) (Leaf on) ctree in
+      let ctree1 := module_graph_connection_trees_p.add (mux_id, 1%num) (Leaf on1) ctree0 in
+      let ctree2 := module_graph_connection_trees_p.add (mux_id, 2%num) (Leaf on2) ctree1 in
+      add_vertex_mux_p' nvmap ctree2 (rcons ol (mux_id, N0)) vtl on ontl1 ontl2
+   | _,_,_ => None
+   end.
+
+Fixpoint list_rhs_expr_p (e : HiFP.hfexpr) (vmap : module_graph_vertex_set_p.env) (ctree : module_graph_connection_trees_p.env) (tmap : ft_pmap) : option (list PProdVarOrder.t * ftype * module_graph_vertex_set_p.env * module_graph_connection_trees_p.env) :=
+   (* 
+   1. list of output_connectors, which would be connected to the input_connectors of the vertices on the lhs
+   2. ftype of the expr, which help produce constraints in the connection. --> should be an aggr type to distinguish UInt[10][2] and UInt[20].
+   3. the expanded new module graph, the vertices set and connection tree can be edited.
+   4. next identifier for a new vertex. *)
+   match e with
+   | Econst t bs => match (data_type_in2arith t bs) with
+                    | Some arith_typ => 
+                           let nv := Constant arith_typ bs in 
+                           let nid := module_graph_vertex_set_p.new_key vmap in
+                           let nvmap := module_graph_vertex_set_p.add nid nv vmap in
+                           Some ([:: (nid, N0)], data_type_arith2ftype arith_typ, nvmap, ctree)
+                    | None => None
+                     end
+   | Eref ref => match list_rhs_ref_p vmap ref tmap with
+               | Some (rl, ft) => Some (rl, ft, vmap, ctree)
+               | None => None
+               end
+   | Ecast c e => match list_rhs_expr_p e vmap ctree tmap with
+                  (* have new vertex set 'nvmap' and connection tree 'ctree0' after first deal with the inner expr, the expr have a output_connector 'eon' *)
+                  | Some ([:: eon], ft, nvmap, ctree0) => 
+                     match (add_vertex_cast c ft) with 
+                     (* if the inner expr return with a ground type 'ft', a new vertex 'nv' is produced and the cast expr return with type 'rty' *)
+                     | Some (nv, rft) => 
+                        let nid := module_graph_vertex_set_p.new_key nvmap in
+                        let nvmap0 := module_graph_vertex_set_p.add nid nv nvmap in
+                        let nct0 := module_graph_connection_trees_p.add (nid, N0) (Leaf eon) ctree0 in
+                        Some ([:: (nid, N0)], rft, nvmap0, nct0)
+                     | None => None
+                     end
+                  | _ => None
+                  end
+   | Eprim_unop u e => match list_rhs_expr_p e vmap ctree tmap with
+                  | Some ([:: eon], ft, nvmap, ctree0) => 
+                     match (add_vertex_unop u ft) with 
+                     | Some nv => 
+                        match data_type_out2ftype (output_connectors nv) with
+                        | Some rft =>
+                           let nid := module_graph_vertex_set_p.new_key nvmap in
+                           let nvmap0 := module_graph_vertex_set_p.add nid nv nvmap in
+                           let nct0 := module_graph_connection_trees_p.add (nid, N0) (Leaf eon) ctree0 in
+                           Some ([:: (nid, N0)], rft, nvmap0, nct0)
+                        | None => None
+                        end
+                     | None => None
+                     end
+                  | _ => None
+                  end
+   | Eprim_binop b e1 e2 => match list_rhs_expr_p e1 vmap ctree tmap with
+                  | Some ([:: eon0], ft0, nvmap0, ctree0) => 
+                     match list_rhs_expr_p e2 nvmap0 ctree0 tmap with
+                     | Some ([:: eon1], ft1, nvmap1, ctree1) => 
+                        match (add_vertex_binop b ft0 ft1) with 
+                        | Some nv => 
+                           match data_type_out2ftype (output_connectors nv) with
+                           | Some rft => 
+                              let nid := module_graph_vertex_set_p.new_key nvmap1 in
+                              let nvmap := module_graph_vertex_set_p.add nid nv nvmap1 in
+                              let nct0 := module_graph_connection_trees_p.add (nid, N0) (Leaf eon0) ctree1 in
+                              let nct1 := module_graph_connection_trees_p.add (nid, 1%num) (Leaf eon1) nct0 in
+                              Some ([:: (nid, N0)], rft, nvmap, nct1)
+                           | None => None
+                           end
+                        | None => None
+                        end
+                     | _ => None
+                     end
+                  | _ => None 
+                  end
+   | Emux e1 e2 e3 => match list_rhs_expr_p e1 vmap ctree tmap with
+                     | Some ([:: eon1], Gtyp (Fuint 1), vmap0, ctree0) =>
+                        match list_rhs_expr_p e2 vmap0 ctree0 tmap with
+                        | Some (eonl2, ft2, vmap1, ctree1) =>
+                           match list_rhs_expr_p e3 vmap1 ctree1 tmap with
+                           | Some (eonl3, ft3, vmap2, ctree2) =>
+                              match ftype_mux ft2 ft3 with
+                              | Some rft => 
+                                 let tl1 := vtype_list ft2 nil in 
+                                 let tl2 := vtype_list ft3 nil in
+                                 match add_vertex_mux tl1 tl2 with
+                                 | Some nvl => match add_vertex_mux_p' vmap2 ctree2 nil nvl eon1 eonl2 eonl3 with
+                                             | Some (nvmap, nct, rl) => Some (rl, rft, nvmap, nct)
+                                             | None => None
+                                             end
+                                 | None => None
+                                 end
+                              | None => None
+                              end
+                           | None => None
+                           end
+                        | None => None
+                        end
+                     | _ => None
+                     end     
+   | Evalidif c e => None
+   end.
+
+(* ... { V : Set & V -> vertex_type }. *)
+   (* This is a type of pairs consisting of a set and a function from this set to vertex_type.
+      Given V : module_graph_vertices, the set is (projT1 V) and the function is (projT2 V).
+      I would like V to be a finite set but I don't know exactly how to specify that. *)
+
+Definition module_graph_vertex_set : Type := { V : Set & V -> vertex_type }.
+
+(* property of a correct output connetor identifier, which is the natural number is smaller then the amount of output connectors of the vertex *)
+Definition output_connector_number_correct (V : module_graph_vertex_set_p.env) (connector : module_graph_vertex_set_p.key * nat) : Prop :=
+    if module_graph_vertex_set_p.find (fst connector) V is Some vx_typ
+    then snd connector < size (output_connectors vx_typ)
+    else False.
+
+Definition output_connectors_of_module_graph (V : module_graph_vertex_set_p.env) : Type :=
+   { x : module_graph_vertex_set_p.key * nat | output_connector_number_correct V x }.
+   (* This is a type of pairs, where the first is an element of a module_graph_vertices set,
+      and the second of the pair is a natural number that is < than the number of output connectors of that element. *)
+
+Definition output_connector_type (V : module_graph_vertex_set_p.env) (oc : output_connectors_of_module_graph V) : fgtyp_explicit :=
+(* finds the data type of output connector oc *)
+match oc with
+exist (vx_id, conn_nr) number_correct =>
+match module_graph_vertex_set_p.find vx_id V as o
+      return (if o is Some vx_typ return Prop
+              then conn_nr < size (output_connectors vx_typ)
+              else False) -> fgtyp_explicit with
+| Some vx_typ => fun _ => nth Freset_exp (output_connectors vx_typ) conn_nr
+| None => fun impossible : False => False_rect fgtyp_explicit impossible
+end number_correct
+end.
+
+Inductive connection_tree {V: module_graph_vertex_set_p.env} :=
+   Invalidated | Not_connected |
+   Leaf : (output_connectors_of_module_graph V) -> connection_tree |
+   Choice : forall cond : output_connectors_of_module_graph V,
+                    output_connector_type V cond = Fuint_exp 1
+                    (* the type of cond needs to be Fuint_exp 1 *)
+            -> connection_tree -> connection_tree -> connection_tree.
+
+(* property of a correct input connetor identifier, which is the natural number is smaller then the amount of input connectors of the vertex *)
+Definition input_connector_number_correct (V : module_graph_vertex_set_p.env) (x : module_graph_vertex_set_p.key * nat) : Prop :=
+    if module_graph_vertex_set_p.find (fst x) V is Some elt
+    then snd x < size (input_connectors elt)
+    else False.
+
+Definition input_connectors_of_module_graph (V : module_graph_vertex_set_p.env) : Type :=
+   { x : module_graph_vertex_set_p.key * nat | input_connector_number_correct V x}.
+   (* This is a set containing pairs, where the first is an element of a module_graph_vertices set,
+      and the second of the pair is a natural number that is < than the number of input connectors of that element. *)
+
+Lemma input_connectors_eq_dec : forall {V : module_graph_vertex_set_p.env} {x y : input_connectors_of_module_graph V}, {x = y} + {x <> y}.
+Proof.
+Admitted.
+
+Definition input_connectors_eqn (V : module_graph_vertex_set_p.env) (x y : input_connectors_of_module_graph V) : bool :=
+match x, y with
+| (exist ((a1,a2), a3) _), (exist ((b1,b2), b3) _) => (a1 == b1) && (a2 == b2) && (a3 == b3)
+end.
+
+Lemma input_connectors_eqP (V : module_graph_vertex_set_p.env) : Equality.axiom (input_connectors_eqn V).
+Proof.
+Admitted.
+
+Canonical input_connectors_eqMixin {V : module_graph_vertex_set_p.env} := EqMixin (input_connectors_eqP V).
+Canonical input_connectors_eqType {V : module_graph_vertex_set_p.env} := Eval hnf in EqType (input_connectors_of_module_graph V) input_connectors_eqMixin.
+
+Definition input_connector_type (V : module_graph_vertex_set_p.env) (ic : input_connectors_of_module_graph V) : fgtyp :=
+(* finds the data type of input connector ic *)
+match ic with
+exist (vx_id, conn_nr) number_correct =>
+match module_graph_vertex_set_p.find vx_id V as i
+      return (if i is Some vx_typ return Prop
+              then conn_nr < size (input_connectors vx_typ)
+              else False) -> fgtyp with
+| Some vx_typ => fun _ => nth Freset (input_connectors vx_typ) conn_nr
+| None => fun impossible : False => False_rect fgtyp impossible
+end number_correct
+end.
+
+(* type of map of connection trees, a function from a input connector to a tree *)
+Definition module_graph_connection_trees (V: module_graph_vertex_set_p.env): Type :=
+   input_connectors_of_module_graph V -> @connection_tree V.
+
+Definition module_graph : Type :=
+(* a pair, namely a set of module_graph_vertices, together with a mapping that gives a connection tree
+for every input connector of every module_graph_vertex. *)
+   { V : module_graph_vertex_set_p.env & module_graph_connection_trees V }.
+
+(*Definition ftype2fgtyp_explicit (ft : ftype) : fgtyp_explicit :=
+   match ft with
+   | Gtyp (Fuint n) => Fuint_exp n 
+   | Gtyp (Fsint n) => Fsint_exp n 
+   | Gtyp Fclock => Fclock_exp
+   | Gtyp Freset => Freset_exp
+   | Gtyp Fasyncreset => Fasyncreset_exp
+   | _ => Fuint_exp 0
+   end.
+
+Definition ftype2fgtyp (ft : ftype) : fgtyp :=
+   match ft with
+   | Gtyp (Fuint 0) => Fuint_implicit ?
+   | Gtyp (Fuint n) => Fuint n 
+   | Gtyp (Fsint n) => Fsint n 
+   | Gtyp Fclock => Fclock
+   | Gtyp Freset => Freset
+   | Gtyp Fasyncreset => Fasyncreset
+   | _ => Fuint 0
+   end.
+
+Definition data_type_in2out (dt : fgtyp) : fgtyp_explicit :=
+   match dt with
+   | Fsint n => Fsint_exp n 
+   | Fuint n => Fuint_exp n 
+   | Freset => Freset_exp
+   | Fasyncreset => Fasyncreset_exp
+   | Fclock => Fclock_exp
+   | Fsint_implicit _ 
+   | Fuint_implicit _ => Fuint_exp 0
+   end.
+*)
+
+(*
+Fixpoint add_vertex_input (v : N (*pvar match(_,0)从(_,1)开始添加*)) (n : N (*index*)) (l: list fgtyp) (vmap : module_graph_vertex_set_p.env) :=
+   match l with
+   | nil => vmap
+   | hd :: tl => let nvmap := module_graph_vertex_set_p.add (v, n) (InPort hd) vmap in
+                 add_vertex_input v (N.add n 1) tl nvmap
+                 (* 添加 Not_connected *)
+   end.
+
+Fixpoint add_vertex_output (v : N) (N : N) (l: list fgtyp) (vmap : module_graph_vertex_set_p.env) :=
+   match l with
+   | nil => vmap
+   | hd :: tl => let nvmap := module_graph_vertex_set_p.add (v, N) (OutPort hd) vmap in
+                 add_vertex_output v (N.add N 1) tl nvmap
+   end.
+
+Definition add_vertex_port (p : hfport ProdVarOrder.T) (vmap : module_graph_vertex_set_p.env) : module_graph_vertex_set_p.env :=
+   match p with
+   | Finput (v,_) t => let vtl := vtype_list t nil in
+                        add_vertex_input v 1 vtl vmap 
+   | Foutput (v,_) t => let vtl := vtype_list t nil in
+                        add_vertex_output v 1 vtl vmap
+   end.
+
+Fixpoint list_inputs (p : N) (n : N) (counts : nat) (l : list fgtyp) (vmap : module_graph_vertex_set_p.env) : list fgtyp :=
+   match counts with 
+   | 0 => l
+   | S m => match (module_graph_vertex_set_p.find (p, N.of_nat (n - m)) vmap) with
+            | Some v => l ++ (input_connectors v) ++ list_inputs p n m l vmap
+            | None => l ++ list_inputs p n m l vmap
+            end
+   end. (* return 从(p,1)到(p,n)的input_connectors *)
+
+Fixpoint list_outputs (p : N) (n : N) (counts : nat) (l : list fgtyp_explicit) (vmap : module_graph_vertex_set_p.env) : list fgtyp_explicit :=
+   match counts with 
+   | 0 => l
+   | S m => match (module_graph_vertex_set_p.find (p, N.of_nat (n - m)) vmap) with
+            | Some v => l ++ (output_connectors v) ++ list_outputs p n m l vmap
+            | None => l ++ list_outputs p n m l vmap
+            end
+   end. (* return 从(p,1)到(p,n)的output_connectors *)
+
+Fixpoint list_outputs (p : N) (keys : list (N * N)) (vmap : module_graph_vertex_set_p.env) (ls : option (list (output_connectors_of_module_graph vmap))) : option (list (output_connectors_of_module_graph vmap)) :=
+   match keys with 
+   | nil => ls
+   | (p, n) :: tl => match list_outputs p tl vmap ls with 
+               | Some lst => match (module_graph_vertex_set_p.find (p, n) vmap) with
+                              | Some v => Some (cons ((p,n), 0) lst) (* 应该按1...n的顺序添加 *)
+                              | None => None
+                              end
+               | None => None
+               end
+   | _ => ls
+   end.*)
+   (* return 从(p,1)到(p,n)的output_connectors name *)
+
 (*Fixpoint list_lhs_expr (e : hfexpr) (vmap : module_graph_vertex_set_p.env) (cs : list input_connectors) (ts : seq fgtyp) : list input_connectors * seq fgtyp :=
    match e with
    | Eref (Eid (p, 0)) => let (keys, _) := List.split (elements vmap) (* list (key*value) *) in
@@ -1058,12 +1287,6 @@ match ff with
 | _ => None
 end.
 
-Definition ft_pmap := (N*N) -> (option ftype).
-Definition ft_find (v : N*N) (m : ft_pmap)  := m v.
-Definition ft_add (v : N*N) (ft : ftype) (m : ft_pmap) : ft_pmap :=
-   fun (y : N*N) => if y == v then (Some ft) else (ft_find y m).
-Definition ft_empty : ft_pmap := (fun _ => None).
-
 Fixpoint list_rhs_ref {V : module_graph_vertex_set_p.env} (e : HiFP.href) (tmap: ft_pmap) : 
 option (list (output_connectors_of_module_graph V) * ftype) :=
 (* generates a list of output connectors and a type corresponding to reference e,
@@ -1089,6 +1312,7 @@ match e with
 | _ => None
 end.
 
+(* functions for connection_tree to add or find in the map *)
 Definition ct_find {V : module_graph_vertex_set_p.env} (ic : input_connectors_of_module_graph V) 
    (m : module_graph_connection_trees V) := m ic.
 Definition ct_add {V : module_graph_vertex_set_p.env} (ic : input_connectors_of_module_graph V) (ct : connection_tree) 
@@ -1289,6 +1513,7 @@ pose (nE := fun ic : input_connectors_of_module_graph nV
 *)
 Admitted.
 
+(* add vertices and connection_trees to the module graph following the list of new mux vertices *)
 Fixpoint add_vertex_mux' (mg : module_graph) (vl : list vertex_type) (on : (output_connectors_of_module_graph (projT1 mg))) 
    (onl1 : list (output_connectors_of_module_graph (projT1 mg))) (onl2 : list (output_connectors_of_module_graph (projT1 mg))) : 
    option { nmg : module_graph & seq (output_connectors_of_module_graph (projT1 nmg)) } :=
