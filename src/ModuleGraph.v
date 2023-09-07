@@ -1294,7 +1294,8 @@ tmap_stmts (ss : HiFP.hfstmt_seq) (tmap : ft_pmap) : option ft_pmap :=
    end.
    
 Fixpoint Sem_frag_stmt (vm_old : module_graph_vertex_set_p.env) (ct_old : module_graph_connection_trees_p.env) (s : HiFP.hfstmt) (vm_new : module_graph_vertex_set_p.env) (ct_new : module_graph_connection_trees_p.env) (tmap : ft_pmap) : Prop :=
-   (* The predicate returns True if vm_new can be constructed from vm_old by applying s. *)
+   (* The predicate returns True if vm_new can be constructed from vm_old by applying s. 
+   type checking, constraints *)
    match s with
    | Sskip => vm_old = vm_new /\ ct_old = ct_new
    | Sfcnct ref expr => match list_rhs_expr_p expr vm_old ct_old tmap with
@@ -1305,6 +1306,8 @@ Fixpoint Sem_frag_stmt (vm_old : module_graph_vertex_set_p.env) (ct_old : module
                            forall n : nat,
                            if n <= length output_list then match (List.nth_error output_list n), (List.nth_error input_list n) with 
                                                          | Some oc, Some ic => module_graph_connection_trees_p.find ic ct_new = Some (Leaf oc)
+                                                         (* first type checking,
+                                                         then if ic has an implicit width, width of ic >= width of oc *)
                                                          | _, _ => False
                                                          end
                            else True
