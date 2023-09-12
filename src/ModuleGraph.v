@@ -526,6 +526,24 @@ Fixpoint vtype_list (ft : ftype) (l : list fgtyp) : list fgtyp :=
    | Fnil => l
    | Fflips v fl t fs => vtype_list_btyp fs (vtype_list t l)
    end.
+(*Fixpoint vtype_list (ft : ftype_explicit) (l : list fgtyp_explicit) : list fgtyp_explicit :=
+   (* appends to list l the ground type elements of type ft *)
+   match ft with
+   | exist (Gtyp (Fuint n)) _ => rcons l (Fuint_exp n)
+   | exist (Gtyp (Fsint n)) _ => rcons l (Fsint_exp n)
+   | exist (Gtyp (Fuint_implicit n)) _ => rcons l (Fuint_exp n)
+   | exist (Gtyp (Fsint_implicit n)) _ => rcons l (Fsint_exp n)
+   | exist (Gtyp Fclock) _ => rcons l Fclock_exp
+   | exist (Gtyp Freset) _ => rcons l Freset_exp
+   | exist (Gtyp Fasyncreset) _ => rcons l Fasyncreset_exp
+   | exist (Atyp t n) _ => list_repeat_fn (vtype_list (make_ftype_explicit t)) n l
+   | exist (Btyp b) _ => vtype_list_btyp b l
+   end
+   with vtype_list_btyp (b : ffield) (l : list fgtyp_explicit) : list fgtyp_explicit :=
+   match b with
+   | Fnil => l
+   | Fflips v fl t fs => vtype_list_btyp fs (vtype_list (make_ftype_explicit t) l)
+   end.*)
 
 Lemma vtype_list_cat : forall (ft : ftype) (l : list fgtyp), vtype_list ft l = l ++ vtype_list ft [::]
 with vtype_list_btyp_cat : forall (b : ffield) (l : list fgtyp), vtype_list_btyp b l = l ++ vtype_list_btyp b [::].
@@ -629,10 +647,28 @@ Module PProdVarOrder := MakeProdOrderWithDefaultSucc2 ProdVarOrder VarOrder.
 Inductive connection_tree :=
    Invalidated | 
    Leaf : PProdVarOrder.t -> connection_tree |
+   Not_connected |
    Choice : PProdVarOrder.t
                     (* the type of cond needs to be Fuint_exp 1 
                        how to check this? *)
             -> connection_tree -> connection_tree -> connection_tree.
+
+Lemma connection_tree_eq_dec : forall {x y : connection_tree}, {x = y} + {x <> y}.
+Proof.
+Admitted.
+Fixpoint connection_tree_eqn (x y : connection_tree) : bool :=
+match x, y with
+| Invalidated, Invalidated => true
+| Leaf p1, Leaf p2 => p1 == p2
+| Not_connected , Not_connected => true
+| Choice p1 t1 t2, Choice p2 t3 t4 => (p1 == p2) && (connection_tree_eqn t1 t3) && (connection_tree_eqn t2 t4)
+| _, _ => false
+end.
+Lemma connection_tree_eqP : Equality.axiom connection_tree_eqn.
+Proof.
+   Admitted.
+Canonical connection_tree_eqMixin := EqMixin connection_tree_eqP.
+Canonical connection_tree_eqType := Eval hnf in EqType connection_tree connection_tree_eqMixin.
 
 Module MakeCnctFMap (V : SsrOrder) (VM : SsrFMapWithNew with Module SE := V)
 <: SsrFMapWithNew with Module SE := V.
@@ -1289,6 +1325,7 @@ Definition connect_non_passive_fgtyp (ct_old : module_graph_connection_trees_p.e
       | [:: ic], [:: oc] =>    module_graph_connection_trees_p.find ic ct_new = Some (Leaf oc)
                             /\
                                module_graph_connection_trees_p.find oc ct_new = module_graph_connection_trees_p.find oc ct_old
+                               (* why this is compared? *)
       | _, _ => False
       end
    /\
@@ -1397,6 +1434,16 @@ with connect_non_passive_fields_flipped (ct_old : module_graph_connection_trees_
    | _, _ => False
    end.
 
+Definition map2_helper_ct (c : PProdVarOrder.t) (true_tree : option connection_tree) (false_tree : option connection_tree) : option connection_tree :=
+match true_tree, false_tree with
+| None, _ => None
+| _, None => None
+| Some Not_connected, _ => true_tree
+| _, Some Not_connected => false_tree
+| Some Invalidated, _ => false_tree
+| _, Some Invalidated => true_tree
+| Some a, Some b => if (a == b) then true_tree else Some (Choice c a b)
+end.
 
 Fixpoint Sem_frag_stmt (vm_old : module_graph_vertex_set_p.env) (ct_old : module_graph_connection_trees_p.env) (s : HiFP.hfstmt) (vm_new : module_graph_vertex_set_p.env) (ct_new : module_graph_connection_trees_p.env) (tmap : ft_pmap) : Prop :=
    (* The predicate returns True if vm_new/ct_new can be constructed from vm_old/ct_old by applying s. 
@@ -1450,11 +1497,14 @@ Fixpoint Sem_frag_stmt (vm_old : module_graph_vertex_set_p.env) (ct_old : module
    | Swire v t => let tlist := vtype_list t nil in
                         (forall (v0 : VarOrder.T) (n0 : N),
                            if v0 != (fst v) then module_graph_vertex_set_p.find (v0, n0) vm_old = module_graph_vertex_set_p.find (v0, n0) vm_new
+                        /\ module_graph_connection_trees_p.find ((v0, n0), 0%num) ct_new = module_graph_connection_trees_p.find ((v0, n0), 0%num) ct_old
                            else True)
                      /\ (forall n : nat,
                            match List.nth_error tlist n with
                            | Some nv => module_graph_vertex_set_p.find (fst v, N.of_nat n) vm_new = Some (Wire nv)
+                                     /\ module_graph_connection_trees_p.find ((fst v, N.of_nat n), 0%num) ct_new = Some Not_connected
                            | None => module_graph_vertex_set_p.find (fst v, N.of_nat n) vm_new = module_graph_vertex_set_p.find (fst v, N.of_nat n) vm_old
+                                     /\ module_graph_connection_trees_p.find ((fst v, N.of_nat n), 0%num) ct_new = module_graph_connection_trees_p.find ((fst v, N.of_nat n), 0%num) ct_old
                            end)
                      /\ (* ct *)
                         module_graph_connection_trees_p.Equal ct_old ct_new
@@ -1463,7 +1513,7 @@ Fixpoint Sem_frag_stmt (vm_old : module_graph_vertex_set_p.env) (ct_old : module
                    | Some ([:: clk_out], exist (Gtyp Fclock) _, nvmap0, nctree0) =>
                         exists (nvmap : module_graph_vertex_set_p.env) (nctree : module_graph_connection_trees_p.env)
                                (rst_sig_is_async : bool) (rst_sig_out : PProdVarOrder.t) (rst_val_out_list : list PProdVarOrder.t),
-                              (if reset reg is Rst rst_sig rst_val
+                              (if (reset reg) is (Rst rst_sig rst_val)
                                then match list_rhs_expr_p rst_sig nvmap0 nctree0 tmap with
                                     | Some ([:: rst_sig_out'], exist (Gtyp rst_sig_type) _, nvmap1, nctree1) =>
                                            rst_sig_out = rst_sig_out'
@@ -1525,7 +1575,7 @@ Fixpoint Sem_frag_stmt (vm_old : module_graph_vertex_set_p.env) (ct_old : module
                         /\ (forall (v0 : ProdVarOrder.T) (n0 : N),
                               if v0 != v then module_graph_connection_trees_p.find (v0, n0) nctree = module_graph_connection_trees_p.find (v0, n0) ct_new
                                    else True)
-                        /\ let tlist := vtype_list ft0 nil in
+                        /\ let tlist := vtype_list (explicit_to_ftype ft0) nil in
                            forall n : nat,
                               match List.nth_error tlist n, List.nth_error output_list n with
                               | Some nv, Some oc => module_graph_vertex_set_p.find ((fst v), N.of_nat n) vm_new = Some (Node nv)
@@ -1541,11 +1591,13 @@ Fixpoint Sem_frag_stmt (vm_old : module_graph_vertex_set_p.env) (ct_old : module
                      end
    | Smem var mem => False (* ? *)
    | Sinst var1 var2 => False (* ? *)
-   | Swhen cond ss_true ss_false => match tmap_stmts ss_true tmap with
-                                    | Some tmap0 => exists (vm' : module_graph_vertex_set_p.env) (ct_true ct_false : module_graph_connection_trees_p.env), 
-                                          Sem_frag_stmts vm_old ct_old ss_true vm' ct_true tmap
-                                       /\ Sem_frag_stmts vm' ct_old ss_false vm_new ct_false tmap0
-                                       /\ False 
+   | Swhen cond ss_true ss_false => match tmap_stmts ss_true tmap, list_rhs_expr_p cond vm_old ct_old tmap with
+                                    | Some tmap0, Some ([:: oc], exist (Gtyp (Fuint 1)) _, nvmap0, nctree0) => exists (vm' : module_graph_vertex_set_p.env) (ct_true ct_false : module_graph_connection_trees_p.env), 
+                                          Sem_frag_stmts nvmap0 nctree0 ss_true vm' ct_true tmap
+                                       /\ Sem_frag_stmts vm' nctree0 ss_false vm_new ct_false tmap0
+                                       /\ (*False*) 
+                                          let ct0 := module_graph_connection_trees_p.map2 (map2_helper_ct oc) ct_old ct_new in
+                                          module_graph_connection_trees_p.Equal ct_new ct0
                                         (*ct_new is a combination of ct_true and ct_false (probably using map2):
                                           * if a connection is defined in both and is equal, just copy it
                                           * if a connection is defined in both and is different, create a choice connection tree
@@ -1553,7 +1605,7 @@ Fixpoint Sem_frag_stmt (vm_old : module_graph_vertex_set_p.env) (ct_old : module
                                           * if a connection is only present in ct_true / ct_false and the vertex of the input connector was in vm_old, then the new connection should be unconnected.
                                           Problem with the last two cases: it is unclear how to decide whether the input connector was in vm_old,
                                           because map2 does not provide the key. *)
-                                    | None => False
+                                    | _, _ => False
                                     end
    end with
 Sem_frag_stmts (vm_old : module_graph_vertex_set_p.env) (ct_old : module_graph_connection_trees_p.env) (ss : HiFP.hfstmt_seq) (vm_new : module_graph_vertex_set_p.env) (ct_new : module_graph_connection_trees_p.env) (tmap : ft_pmap) : Prop :=
@@ -1564,39 +1616,6 @@ Sem_frag_stmts (vm_old : module_graph_vertex_set_p.env) (ct_old : module_graph_c
                         Sem_frag_stmt vm_old ct_old s vm' ct' tmap /\ Sem_frag_stmts vm' ct' ss' vm_new ct_new tmap0
                      | None => False
                      end
-   end.
-
-Fixpoint Sem_frag_stmt_ct (ct_old : module_graph_connection_trees_p.env) (s : hfstmt VarOrder.T) (vm_new : module_graph_connection_trees_p.env) (tmap : ft_pmap) : Prop :=
-   match s with
-   | Sskip => ct_old = ct_new
-   | Swire var t => ct_old = ct_new (* the connection trees are the same,
-                             input connectors of the new wire are None, which is the same as old. *)
-   | Sreg var reg => ct_old = ct_new
-   | Smem var mem => ct_old = ct_new
-   | Sinst var1 var2 => ct_old = ct_new
-   | Snode var expr => let ct0 := 
-   | Sfcnct ref expr => False
-                        (* The vertices of G_new extend the vertices of G_old by components needed by expr.
-                           The connection trees extend the connection trees of G_old as needed by expr, except that
-                           G_new contains a connection tree that flows from the output connector of expr to the input connector of ref.
-                           If the types do not match, then the relation is False. (FresetWire <= FclockWire)
-                           If ref has an implicit width, then the relation only holds if width(ref) >= width(expr). *)
-   | Sinvalid ref => (* The vertices are the same;
-                        the connection trees are almost the same, except that
-                        G_new contains a connection tree "Invalidated" for every ground element of ref. *)
-                     exists vertices_equal : module_graph_vertex_set_p.Equal (projT1 G_old) (projT1 G_new),
-                        forall ic : input_connectors_of_module_graph (projT1 G_old),
-                           match ic with
-                           exist (v, n) p => (projT2 G_old) ic =
-                                             (projT2 G_new) (exist (fun (x : input_connectors_of_module_graph (projT1 G_new) : if module_graph_vertex_set_p.find (fst x) (projT1 G_new) is Some elt
-                                                                                         then snd x < size (input_connectors elt)
-                                                                                         else False => ... p ... vertices_equal ...) (v, n) I))
-                           end
-                        forall ic : input_connectors_of_module_graph (projT1 G_new),
-                           match ic with
-                           exist (v, n) p => v is one of the vertices of ref, 
-                              module_graph_connection_tree.find ic (projT2 G_new) is Invalidated
-   | Swhen cond ss_true ss_false => False
    end.
    
 (* ... { V : Set & V -> vertex_type }. *)
