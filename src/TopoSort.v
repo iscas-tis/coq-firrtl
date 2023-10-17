@@ -505,5 +505,6 @@ rewrite -has_take.
   apply foldr_topo_sort_correct, subset_refl.
 Qed.
 Check topo_sort_correct.
-End TopoSort.
+End TopoSortS.
 Check topo_sort_correct.
+End TopoSort.
