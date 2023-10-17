@@ -448,6 +448,7 @@ Proof.
   rewrite /Sem.
   case Hm : F => [v pp ss|v' pp' ss'].
   (* Inmod case *)
+
   rewrite Hm in H. 
   rewrite /InferWidths_m in H.
   case Hprepro : (prepro_stmts ss
@@ -467,7 +468,42 @@ Proof.
   (fold_left (fun tempm : ft_pmap => prepro_p^~ tempm) nps
      ft_empty) (module_graph_vertex_set_p.empty (seq HiFP.hfexpr))
   [::]) => [prepron|]; rewrite Hprepron in Hn; try done.
-  move : Hn Hprepron Htranss Htransp Hinfer Htopo Hprepro Hm.
+
+  destruct Hn as [vm' [Hsemp Hsems]].
+  exists (List.fold_left make_p_implicit pp vm').
+
+  split.
+
+  move : Hsemp Hm Hprepro Htransp. 
+  move : pp F.
+  induction pp. 
+  - simpl.
+    intros.
+    inversion Htransp.
+    rewrite -H0 in Hsemp.
+    simpl in Hsemp; done.
+  - intros.
+    simpl.
+    admit.
+
+  move : Hm Hprepro Htranss.
+  move : ss F.
+  induction ss. 
+  - simpl.
+    intros.
+    inversion Htranss.
+    rewrite -H0 in Hsems.
+    simpl in Hsems. 
+    admit.
+  - intros.
+    simpl.
+    simpl in Hprepro.
+    case Hprepro0 : (prepro_stmt h (fold_left (fun tempm : ft_pmap => prepro_p^~ tempm) pp ft_empty)
+    (module_graph_vertex_set_p.empty (seq HiFP.hfexpr)) [::]) => [prepro0|]; rewrite Hprepro0 in Hprepro; try discriminate.
+    
+
+  (* version before previous version *)
+  move : Hn Hprepron Hinfer Htopo Hprepro Hm.
   move : vm ct F.
   (*move : Hn Hprepron Htranss Htransp Hinfer Htopo Hprepro Hm H vm ct.*)
 
@@ -492,7 +528,7 @@ Proof.
       inversion Htranss.
       clear Htranss.
 
-      rewrite -H2 in Hn.
+      rewrite -H0 -H2 in Hn.
       simpl in Hn.
       destruct Hn as [vm' [Hempty [Heq1 Heq2]]].
       split; try done.

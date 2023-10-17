@@ -1265,7 +1265,7 @@ Fixpoint type_of_e (e : HiFP.hfexpr) (tmap : ft_pmap) : option ftype_explicit :=
    | _ => None (* Some (exist ftype_not_implicit_width (Gtyp (Fuint 0)) I) *)
    end.
 
-Fixpoint tmap_stmt (s : HiFP.hfstmt) (tmap : ft_pmap) : option ft_pmap :=
+(*Fixpoint tmap_stmt (s : HiFP.hfstmt) (tmap : ft_pmap) : option ft_pmap :=
    match s with
    | Sskip => Some tmap
    | Sfcnct ref expr => Some tmap
@@ -1290,7 +1290,7 @@ tmap_stmts (ss : HiFP.hfstmt_seq) (tmap : ft_pmap) : option ft_pmap :=
                      | Some tmap0 => tmap_stmts ss' tmap0
                      | None => None
                      end
-   end.
+   end.*)
 
 Fixpoint connect_type_compatible (ft_ref : ftype) (ft_expr : ftype_explicit) : bool :=
    match ft_ref, ft_expr with
@@ -1591,10 +1591,10 @@ Fixpoint Sem_frag_stmt (vm_old : module_graph_vertex_set_p.env) (ct_old : module
                      end
    | Smem var mem => False (* ? *)
    | Sinst var1 var2 => False (* ? *)
-   | Swhen cond ss_true ss_false => match tmap_stmts ss_true tmap, list_rhs_expr_p cond vm_old ct_old tmap with
-                                    | Some tmap0, Some ([:: oc], exist (Gtyp (Fuint 1)) _, nvmap0, nctree0) => exists (vm' : module_graph_vertex_set_p.env) (ct_true ct_false : module_graph_connection_trees_p.env), 
+   | Swhen cond ss_true ss_false => match list_rhs_expr_p cond vm_old ct_old tmap with
+                                    | Some ([:: oc], exist (Gtyp (Fuint 1)) _, nvmap0, nctree0) => exists (vm' : module_graph_vertex_set_p.env) (ct_true ct_false : module_graph_connection_trees_p.env), 
                                           Sem_frag_stmts nvmap0 nctree0 ss_true vm' ct_true tmap
-                                       /\ Sem_frag_stmts vm' nctree0 ss_false vm_new ct_false tmap0
+                                       /\ Sem_frag_stmts vm' nctree0 ss_false vm_new ct_false tmap
                                        /\ (*False*) 
                                           let ct0 := module_graph_connection_trees_p.map2 (map2_helper_ct oc) ct_old ct_new in
                                           module_graph_connection_trees_p.Equal ct_new ct0
@@ -1605,17 +1605,14 @@ Fixpoint Sem_frag_stmt (vm_old : module_graph_vertex_set_p.env) (ct_old : module
                                           * if a connection is only present in ct_true / ct_false and the vertex of the input connector was in vm_old, then the new connection should be unconnected.
                                           Problem with the last two cases: it is unclear how to decide whether the input connector was in vm_old,
                                           because map2 does not provide the key. *)
-                                    | _, _ => False
+                                    | _ => False
                                     end
    end with
 Sem_frag_stmts (vm_old : module_graph_vertex_set_p.env) (ct_old : module_graph_connection_trees_p.env) (ss : HiFP.hfstmt_seq) (vm_new : module_graph_vertex_set_p.env) (ct_new : module_graph_connection_trees_p.env) (tmap : ft_pmap) : Prop :=
    match ss with
    | Qnil => module_graph_vertex_set_p.Equal vm_old vm_new /\ module_graph_connection_trees_p.Equal ct_old ct_new
-   | Qcons s ss' => match tmap_stmt s tmap with 
-                     | Some tmap0 => exists (vm' : module_graph_vertex_set_p.env) (ct' : module_graph_connection_trees_p.env), 
-                        Sem_frag_stmt vm_old ct_old s vm' ct' tmap /\ Sem_frag_stmts vm' ct' ss' vm_new ct_new tmap0
-                     | None => False
-                     end
+   | Qcons s ss' => exists (vm' : module_graph_vertex_set_p.env) (ct' : module_graph_connection_trees_p.env), 
+                     Sem_frag_stmt vm_old ct_old s vm' ct' tmap /\ Sem_frag_stmts vm' ct' ss' vm_new ct_new tmap
    end.
    
 (* ... { V : Set & V -> vertex_type }. *)
@@ -2393,14 +2390,14 @@ Fixpoint Sem_port (pp : list HiFP.hfport) (V : module_graph_vertex_set_p.env) : 
                                && Sem_outport t (fst var) 0 V
    end.
 
-(*Fixpoint Add_ports (pp : list HiFP.hfport) (V : module_graph_vertex_set_p.env) : module_graph_vertex_set_p.env :=
+Fixpoint Add_ports (pp : list HiFP.hfport) (V : module_graph_vertex_set_p.env) : module_graph_vertex_set_p.env :=
    match pp with
    | [::] => V
-   | (Finput var t) :: pp' => let nv := Add_inport (fst var) t V in 
+   | (Finput v t) :: pp' => let nv := Add_inport t (N.to_nat (fst v)) 0 V in 
                               Add_ports pp' nv
-   | (Foutput var t) :: pp' => let nv := Add_outport (fst var) t V in 
+   | (Foutput v t) :: pp' => let nv := Add_outport t (N.to_nat (fst v)) 0 V in 
                               Add_ports pp' nv
-   end.*)
+   end.
 
 (* Fixpoint Sem_frag (G_old : module_graph) (ss : hfstmt_seq VarOrder.T) (G_new : module_graph) : Prop :=
    (* ss is the final fragment of the statements of some module.
@@ -2500,7 +2497,7 @@ Fixpoint prepro_stmt (st : HiFP.hfstmt) (tmap : ft_pmap) (var2exprs : var2exprsm
                   end
   | Sinvalid _ => Some (tmap, var2exprs, expli_reg)
   | Swhen _ s1 s2 => match prepro_stmts s1 tmap var2exprs expli_reg with
-                    | Some (tmap', var2exprs', expli_reg') => prepro_stmts s2 tmap' var2exprs' expli_reg'
+                    | Some prepro => prepro_stmts s2 (fst (fst prepro)) (snd (fst prepro)) (snd prepro)
                     | None => None
                     end
   end
@@ -2508,7 +2505,7 @@ with prepro_stmts (sts : HiFP.hfstmt_seq) (tmap : ft_pmap) (var2exprs : var2expr
   match sts with
   | Qnil => Some (tmap, var2exprs, expli_reg)
   | Qcons s ss => match prepro_stmt s tmap var2exprs expli_reg with
-                  | Some (tmap', var2exprs', expli_reg') => prepro_stmts ss tmap' var2exprs' expli_reg'
+                  | Some prepro => prepro_stmts ss (fst (fst prepro)) (snd (fst prepro)) (snd prepro)
                   | _ => None
                   end
   end.
