@@ -101,11 +101,29 @@ Import Prenex Implicits.
   match x with Fuint_implicit _ | Fsint_implicit _ => False
                | _ => True end.
 
+  Definition not_implicit (x : fgtyp) : bool :=
+  match x with Fuint_implicit _ | Fsint_implicit _ => false
+               | _ => true end.
+
   Definition fgtyp_explicit : Type :=
    (* disallow implicit widths *)
    { x : fgtyp | not_implicit_width x }.
 
   Definition explicit_to_fgtyp (H: fgtyp_explicit) : fgtyp := let (x, _) := H in x.
+
+  Definition fgtyp_remove_implicit (gt : fgtyp) : fgtyp := 
+    match gt with
+    | Fuint_implicit n => Fuint n 
+    | Fsint_implicit n => Fsint n 
+    | _ => gt
+    end.
+
+  Definition fgtyp_add_implicit (gt : fgtyp) : fgtyp := 
+    match gt with
+    | Fuint n => Fuint_implicit n 
+    | Fsint n => Fsint_implicit n 
+    | _ => gt
+    end.
 
 (* equality of fgtyp_explicit is decidable *)
 Lemma fgtyp_explicit_eq_dec : forall {x y : fgtyp_explicit}, {x = y} + {x <> y}.

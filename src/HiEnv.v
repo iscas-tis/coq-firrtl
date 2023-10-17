@@ -131,6 +131,19 @@ with ffield_not_implicit_width (fs : ffield) : Prop :=
    | Fflips _ _ ft fs' => ftype_not_implicit_width ft /\ ffield_not_implicit_width fs'
    end.
 
+Fixpoint ftype_not_implicit (ft : ftype) : bool :=
+   match ft with
+   | Gtyp (Fsint_implicit _) | Gtyp (Fuint_implicit _) => false
+   | Gtyp _ => true
+   | Atyp ft' _ => ftype_not_implicit ft'
+   | Btyp fs => ffield_not_implicit fs
+   end
+with ffield_not_implicit (fs : ffield) : bool :=
+   match fs with
+   | Fnil => true
+   | Fflips _ _ ft fs' => ftype_not_implicit ft && ffield_not_implicit fs'
+   end.
+   
 Definition ftype_explicit : Type :=
    (* disallow implicit widths *)
    { ft : ftype | ftype_not_implicit_width ft }.

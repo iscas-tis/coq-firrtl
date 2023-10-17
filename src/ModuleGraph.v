@@ -505,7 +505,7 @@ Definition typeq_arithmetic_data_type (dt1 : arithmetic_data_type) (dt2 : arithm
    end.
 
 (* unfold aggr_type functions *)
-Fixpoint list_repeat_fn {T : Type} (f : list T -> list T) (n : nat) (l : list T) : list T :=
+Fixpoint list_repeat_fn {T : Type} (f : T -> T) (n : nat) (l : T) : T :=
    (* Applies function f n times to list l *)
    (* calculates f (f (...(f l)...)), i.e. n : nat applications of f : list ftype -> list ftype to l. *)
    match n with
@@ -819,7 +819,7 @@ Fixpoint select_list_lhs_ffield_p (lst : list PProdVarOrder.t) (ff : ffield) (v 
       option (list PProdVarOrder.t * ftype) :=
 (* selects from list lst, which corresponds to type ff, the part for field v *)
 match ff with
-| Fflips v0 Nflips ft ff' => let len := size_of_ftype ft in
+| Fflips v0 Nflip ft ff' => let len := size_of_ftype ft in
                              if v == v0 then Some (take len lst, ft)
                                         else select_list_lhs_ffield_p (drop len lst) ff' v
 | _ => None
@@ -1610,7 +1610,7 @@ Fixpoint Sem_frag_stmt (vm_old : module_graph_vertex_set_p.env) (ct_old : module
    end with
 Sem_frag_stmts (vm_old : module_graph_vertex_set_p.env) (ct_old : module_graph_connection_trees_p.env) (ss : HiFP.hfstmt_seq) (vm_new : module_graph_vertex_set_p.env) (ct_new : module_graph_connection_trees_p.env) (tmap : ft_pmap) : Prop :=
    match ss with
-   | Qnil => vm_old = vm_new
+   | Qnil => module_graph_vertex_set_p.Equal vm_old vm_new /\ module_graph_connection_trees_p.Equal ct_old ct_new
    | Qcons s ss' => match tmap_stmt s tmap with 
                      | Some tmap0 => exists (vm' : module_graph_vertex_set_p.env) (ct' : module_graph_connection_trees_p.env), 
                         Sem_frag_stmt vm_old ct_old s vm' ct' tmap /\ Sem_frag_stmts vm' ct' ss' vm_new ct_new tmap0
@@ -1622,7 +1622,7 @@ Sem_frag_stmts (vm_old : module_graph_vertex_set_p.env) (ct_old : module_graph_c
    (* This is a type of pairs consisting of a set and a function from this set to vertex_type.
       Given V : module_graph_vertices, the set is (projT1 V) and the function is (projT2 V).
       I would like V to be a finite set but I don't know exactly how to specify that. *)
-
+(*
 Definition module_graph_vertex_set : Type := { V : Set & V -> vertex_type }.
 
 (* property of a correct output connetor identifier, which is the natural number is smaller then the amount of output connectors of the vertex *)
@@ -1857,7 +1857,7 @@ Fixpoint select_list_rhs_ffield {V : module_graph_vertex_set_p.env} (lst : list 
       option (list (output_connectors_of_module_graph V) * ftype) :=
 (* selects from list lst, which corresponds to type ff, the part for field v *)
 match ff with
-| Fflips v0 Nflips ft ff' => let len := size_of_ftype ft in
+| Fflips v0 Nflip ft ff' => let len := size_of_ftype ft in
                              if v == v0 then Some (take len lst, ft)
                                         else select_list_rhs_ffield (drop len lst) ff' v
 | _ => None
@@ -2273,7 +2273,7 @@ then the module graph of P should be extended by a calculation of e
 and the connection (output of e) ---> (input of i). *)
 
 (* Keyin, please start with this... *)
-
+*)
 
 
 (* Idea for semantics relation: the final semantic relation, Sem (F : hfmodule) (G: module_graph),
@@ -2339,19 +2339,70 @@ with Sem_outport_fields (ff : ffield) (var : nat) (offset : nat) (V : module_gra
                                 && Sem_outport_fields ff' var (offset + size_of_ftype t') V
    end.
 
-Fixpoint Sem_port (pp : list (hfport VarOrder.T)) (V : module_graph_vertex_set_p.env) : bool :=
+(* fixpoint definition error *)
+
+Fixpoint Add_inport (t : ftype) (var : nat) (offset : nat) (V : module_graph_vertex_set_p.env) : module_graph_vertex_set_p.env :=
+   match t with
+   | Gtyp t' => module_graph_vertex_set_p.add (N.of_nat var, N.of_nat offset) (InPort t') V 
+   | Atyp t' n => (*Add_inport_a t' n var offset V*)    list_repeat_fn (Add_inport t' var offset) n V
+   | Btyp ff => Add_inport_fields ff var offset V
+   end
+(*with Add_inport_a (t : ftype) (n : nat) (var : nat) (offset : nat) (V : module_graph_vertex_set_p.env) : module_graph_vertex_set_p.env :=
+   match n with
+   | 0 => V
+   | S n' => Add_inport_a t n' var offset (Add_inport t var (offset + (n' * size_of_ftype t)) V)
+   end.*)
+
+
+with Add_inport_fields (ff : ffield) (var : nat) (offset : nat) (V : module_graph_vertex_set_p.env) : module_graph_vertex_set_p.env :=
+   match ff with
+   | Fnil => V
+   | Fflips _ Nflip   t' ff' => Add_inport_fields ff' var (offset + size_of_ftype t') (Add_inport t' var offset V)
+   | Fflips _ Flipped t' ff' => Add_inport_fields ff' var (offset + size_of_ftype t') (Add_outport t' var offset V)
+   end
+with Add_outport (t : ftype) (var : nat) (offset : nat) (V : module_graph_vertex_set_p.env) : module_graph_vertex_set_p.env :=
+   match t with
+   | Gtyp t' => module_graph_vertex_set_p.add (N.of_nat var, N.of_nat offset) (OutPort t') V 
+   | Atyp t' n => (*Add_outport_a t' n var offset V*) list_repeat_fn (Add_outport t' var offset) n V
+   | Btyp ff => Add_outport_fields ff var offset V
+   end
+(*with Add_outport_a (t : ftype) (n : nat) (var : nat) (offset : nat) (V : module_graph_vertex_set_p.env) : module_graph_vertex_set_p.env :=
+   match n with
+   | 0 => V
+   | S n' => Add_outport_a t n' var offset (Add_outport t var (offset + (n' * size_of_ftype t)) V)
+   end*)
+with Add_outport_fields (ff : ffield) (var : nat) (offset : nat) (V : module_graph_vertex_set_p.env) : module_graph_vertex_set_p.env :=
+   match ff with
+   | Fnil => V
+   | Fflips _ Nflip   t' ff' => Add_outport_fields ff' var (offset + size_of_ftype t') (Add_outport t' var offset V)
+   | Fflips _ Flipped t' ff' => Add_outport_fields ff' var (offset + size_of_ftype t') (Add_inport t' var offset V)
+   end.
+   
+(*Fixpoint Add_wire
+*)
+
+Fixpoint Sem_port (pp : list HiFP.hfport) (V : module_graph_vertex_set_p.env) : bool :=
 (* The predicate returns true if the vertex set V conforms to the sequence of ports pp. *)
    match pp with
    | [::] => module_graph_vertex_set_p.is_empty V
-   | (Finput  var t) :: pp' => (* exists V' : module_graph_vertex_set_p.env,
+   | (Finput var t) :: pp' => (* exists V' : module_graph_vertex_set_p.env,
                                               Sem_port pp' V' && some condition on the difference between V' and V *)
-                                  Sem_port pp' (remove_t V var (size_of_ftype t))
-                               && Sem_inport t var 0 V
-   | (Foutput var t) :: pp' =>    Sem_port pp' (remove_t V var (size_of_ftype t))
-                               && Sem_outport t var 0 V
+                                  Sem_port pp' (remove_t V (fst var) (size_of_ftype t))
+                               && Sem_inport t (fst var) 0 V
+   | (Foutput var t) :: pp' =>    Sem_port pp' (remove_t V (fst var) (size_of_ftype t))
+                               && Sem_outport t (fst var) 0 V
    end.
 
-Fixpoint Sem_frag (G_old : module_graph) (ss : hfstmt_seq VarOrder.T) (G_new : module_graph) : Prop :=
+(*Fixpoint Add_ports (pp : list HiFP.hfport) (V : module_graph_vertex_set_p.env) : module_graph_vertex_set_p.env :=
+   match pp with
+   | [::] => V
+   | (Finput var t) :: pp' => let nv := Add_inport (fst var) t V in 
+                              Add_ports pp' nv
+   | (Foutput var t) :: pp' => let nv := Add_outport (fst var) t V in 
+                              Add_ports pp' nv
+   end.*)
+
+(* Fixpoint Sem_frag (G_old : module_graph) (ss : hfstmt_seq VarOrder.T) (G_new : module_graph) : Prop :=
    (* ss is the final fragment of the statements of some module.
       The predicate returns True if G_new can be constructed from G_old by applying ss. *)
    match ss with
@@ -2391,31 +2442,155 @@ with Sem_frag_stmt (G_old : module_graph) (s : hfstmt VarOrder.T) (G_new : modul
                            exist (v, n) p => v is one of the vertices of ref, 
                               module_graph_connection_tree.find ic (projT2 G_new) is Invalidated
    | Swhen cond ss_true ss_false => False
-   end.
+   end.*)
 
-Fixpoint Sem (F : hfmodule) (G : module_graph) : Prop :=
+Definition var2exprsmap := module_graph_vertex_set_p.t (seq HiFP.hfexpr). (* key is pair *)  
+   
+Fixpoint ffield2pvar (pv : ProdVarOrder.t) (ff : ffield) (v : var) : option ProdVarOrder.t :=
+  (* number the field ff in pv, when a field have aggr_typ, number all grpund types in the previous field and then number the next field *)
+  match ff with
+  | Fflips v0 Nflip ft ff' => if v == v0 then Some (fst pv, N.add (snd pv) 1%num)
+                              else ffield2pvar (fst pv, N.add (N.of_nat (size_of_ftype ft)) (N.add (snd pv) 1%num)) ff' v
+  | _ => None
+  end.
+
+Fixpoint ref2pvar (e : HiFP.href) (tmap : ft_pmap) : option ProdVarOrder.t :=
+  match e with
+  | Eid p => Some p
+  | Esubfield e' v => match ref2pvar e' tmap with
+                      | Some pv' => match ft_find pv' tmap with
+                                    | Some (Btyp bft) => ffield2pvar pv' bft v 
+                                    | _ => None
+                                    end
+                      | None => None
+                      end
+  | Esubindex e' n => match ref2pvar e' tmap with
+                      | Some pv' => Some (fst pv', N.of_nat ((N.to_nat (snd pv')) + 1 + n))
+                      | _ => None
+                      end
+  | _ => None (* subaccess *)
+  end.
+
+Fixpoint prepro_stmt (st : HiFP.hfstmt) (tmap : ft_pmap) (var2exprs : var2exprsmap) (expli_reg : seq ProdVarOrder.t) : option (ft_pmap * var2exprsmap * seq ProdVarOrder.t) :=
+  match st with
+  | Sskip => Some (tmap, var2exprs, expli_reg) 
+  | Swire v t => let tmap' := ft_add v t tmap in 
+                 Some (tmap', var2exprs, expli_reg)
+  | Sreg v r => let tmap' := ft_add v (type r) tmap in 
+                let var2exprs' := if (reset r) is (Rst rst_sig rst_val) 
+                            then module_graph_vertex_set_p.add v (List.cons rst_val nil) var2exprs
+                            else var2exprs in
+                let expli_reg' := if ftype_not_implicit (type r) then (cons v expli_reg)
+                                  else expli_reg in
+                 Some (tmap', var2exprs', expli_reg') 
+  | Smem v m => (*TBD*) Some (tmap, var2exprs, expli_reg)
+  | Sinst v inst => (*TBD*) Some (tmap, var2exprs, expli_reg)
+  | Snode v e => let var2exprs' := match module_graph_vertex_set_p.find v var2exprs with
+                                | Some ls => module_graph_vertex_set_p.add v (List.cons e ls) var2exprs
+                                | None => module_graph_vertex_set_p.add v (List.cons e nil) var2exprs
+                                end in
+                                Some (tmap, var2exprs', expli_reg)
+  | Sfcnct v e => match ref2pvar v tmap with
+                  | Some vid => let var2exprs' := match module_graph_vertex_set_p.find vid var2exprs with
+                                | Some ls => module_graph_vertex_set_p.add vid (List.cons e ls) var2exprs
+                                | None => module_graph_vertex_set_p.add vid (List.cons e nil) var2exprs
+                                end in
+                                Some (tmap, var2exprs', expli_reg)
+                  | None => None
+                  end
+  | Sinvalid _ => Some (tmap, var2exprs, expli_reg)
+  | Swhen _ s1 s2 => match prepro_stmts s1 tmap var2exprs expli_reg with
+                    | Some (tmap', var2exprs', expli_reg') => prepro_stmts s2 tmap' var2exprs' expli_reg'
+                    | None => None
+                    end
+  end
+with prepro_stmts (sts : HiFP.hfstmt_seq) (tmap : ft_pmap) (var2exprs : var2exprsmap) (expli_reg : seq ProdVarOrder.t) :=
+  match sts with
+  | Qnil => Some (tmap, var2exprs, expli_reg)
+  | Qcons s ss => match prepro_stmt s tmap var2exprs expli_reg with
+                  | Some (tmap', var2exprs', expli_reg') => prepro_stmts ss tmap' var2exprs' expli_reg'
+                  | _ => None
+                  end
+  end.
+
+Definition prepro_p (p : HiFP.hfport) (tmap : ft_pmap) : ft_pmap :=
+  match p with
+  | Finput v t => ft_add v t tmap
+  | Foutput v t => ft_add v t tmap
+  end.
+
+Definition Sem (F : HiFP.hfmodule) (vm : module_graph_vertex_set_p.env) (ct : module_graph_connection_trees_p.env) : Prop :=
 (* The predicate returns True if G conforms to F.
    (If F has errors, there is no such G.)
    (If F has implicit width components, then there are many such Gs.) *)
    match F with
-   | FInMod n pp ss => exists V : module_graph_vertex_set_p.env,
-         Sem_port pp V /\ Sem_frag (existT module_graph_connection_trees V
-                                           (fun (v : input_connectors_of_module_graph V) => Not_connected V))
-                                   ss G
-   | FExMod _ _ _ => False
+   | FInmod n pp ss => let tmap := List.fold_left (fun tempm tempp => prepro_p tempp tempm) pp ft_empty in 
+                       match prepro_stmts ss tmap (module_graph_vertex_set_p.empty (seq HiFP.hfexpr)) nil with 
+                     | Some prepro => exists (vm' : module_graph_vertex_set_p.env),
+                        Sem_port pp vm' /\ Sem_frag_stmts vm' (module_graph_connection_trees_p.empty connection_tree) ss vm ct (fst (fst prepro))
+                     | _ => False
+                     end
+   | FExmod _ _ _ => False
+   end. 
+
+Definition make_vx_implicit (v : vertex_type) : vertex_type :=
+   match v with
+   | OutPort it => OutPort (fgtyp_add_implicit it)
+   | InPort it => InPort (fgtyp_add_implicit it)
+   | Register it => Register (fgtyp_add_implicit it)
+   | RegisterReset it true => RegisterReset (fgtyp_add_implicit it) true
+   | RegisterReset it false => RegisterReset (fgtyp_add_implicit it) false
+   | Wire it => Wire (fgtyp_add_implicit it)
+   | Node it => Node (fgtyp_add_implicit it)
+   | _ => v 
    end.
 
-Theorem InferWidths_correct :
-(* Proves that InferWidth_fun preserves the semantics *)
-   forall (F : hfmodule) (G : module_graph),
-      match InferWidths_fun F with
-      | OK F' => Sem F' G -> Sem F G (* implication is necessary because F may allow more graphs than F' *)
-                 (* Additionally, we might require:
-                    /\ ((exists G1, Sem F G1) -> exists G2, Sem F' G2)
-                    /\ F' does not contain unspecified widths *)
-      | Error _ => True
-      end.
+Fixpoint make_gtyp_implicit (vtl : seq fgtyp) (n : nat) (var : N) (vm : module_graph_vertex_set_p.env) : module_graph_vertex_set_p.env :=
+   match vtl with
+   | nil => vm
+   | v :: tl => if not_implicit v then make_gtyp_implicit tl (n + 1) var vm
+                else let vm' := module_graph_vertex_set_p.mapi (fun key value => if key == (var, N.of_nat n) then make_vx_implicit value else value) vm in 
+                     make_gtyp_implicit tl (n + 1) var vm'
+   end.
 
+Definition make_p_implicit (vm : module_graph_vertex_set_p.env) (p : HiFP.hfport) : module_graph_vertex_set_p.env :=
+   match p with
+   | Finput v t => let vtl := vtype_list t nil in
+                   make_gtyp_implicit vtl 0 (fst v) vm (* 0: check whether identifier of aggr_typ in module_graph start from 0 or 1 *)
+   | Foutput v t => let vtl := vtype_list t nil in
+                   make_gtyp_implicit vtl 0 (fst v) vm
+   end.
+
+Fixpoint make_s_implicit (vm : module_graph_vertex_set_p.env) (st : HiFP.hfstmt) : module_graph_vertex_set_p.env :=
+   match st with
+  | Sskip => vm
+  | Swire v t => let vtl := vtype_list t nil in
+                 make_gtyp_implicit vtl 0 (fst v) vm
+  | Sreg v r => let vtl := vtype_list (type r) nil in
+                make_gtyp_implicit vtl 0 (fst v) vm
+  | Smem v m => (*TBD*) vm
+  | Sinst v inst => (*TBD*) vm
+  | Swhen _ s1 s2 => make_ss_implicit (make_ss_implicit vm s1) s2
+  | _ => vm 
+  end
+with make_ss_implicit (vm : module_graph_vertex_set_p.env) (ss : HiFP.hfstmt_seq) : module_graph_vertex_set_p.env :=
+   match ss with
+  | Qnil => vm
+  | Qcons s st => make_ss_implicit (make_s_implicit vm s) st
+  end.
+
+Definition make_vm_implicit (F : HiFP.hfmodule) (vm : module_graph_vertex_set_p.env) : module_graph_vertex_set_p.env :=
+   (* in vm,, change the type of vertex (explicit to implicit) according to its declaration in F. *)
+   match F with
+   | FInmod _ pp ss => let vm' := List.fold_left make_p_implicit pp vm in
+                       make_ss_implicit vm' ss
+   | FExmod _ _ _ => vm
+   end.
+
+(* find_map_none/some
+   Empty_in/mem/find/some_none_neq *)
+
+(*
 Theorem ExpandConnect_correct :
 (* Proves that ExpandConnect_fun preserves the semantics *)
    forall (F : hfmodule) (G : module_graph),
@@ -2425,7 +2600,7 @@ Theorem ExpandConnect_correct :
                  (* Additionally, we might require:
                     /\ F' does not contain aggregate types/connections *)
       | Error _ => True
-      end.
+      end.*)
 
 (* If F allows multiple module graphs G, then it may happen that F' allows fewer module graphs.
    However, as the theorem requires that F does not contain unspecified widths, there should be only one conforming module graph,

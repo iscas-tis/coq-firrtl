@@ -2,6 +2,548 @@ From Coq Require Import FunInd FMaps FMapAVL OrderedType ZArith.
 From mathcomp Require Import ssreflect ssrbool ssrnat ssrint eqtype seq ssrfun.
 From simplssrlib Require Import Types SsrOrder FSets FMaps Tactics Var Store.
 From nbits Require Import NBits.
+From firrtl Require Import Firrtl Env HiEnv HiFirrtl ModuleGraph TopoSort. 
+
+Definition s1 := [::true].
+Definition s2 := [::true; false].
+Compute (TopoSort.subset s1 s2).
+
+Definition updg (key : ProdVarOrder.t) (v : seq ProdVarOrder.t) (map : ProdVarOrder.t -> seq ProdVarOrder.t) : ProdVarOrder.t -> seq ProdVarOrder.t :=
+    fun (y : ProdVarOrder.t) => if y == key then v else map y.
+
+Definition g0 := fun (y : N) => if y == N0 then [:: 1%num]
+                                else if y == 1%num then [:: 2%num]
+                                     else if y == 3%num then [:: 2%num]
+                                                        else nil.
+Compute (TopoSort.topo_sort [:: N0; 1%num; 2%num; 3%num] g0).
+
+(* search start from roots: const\input port\reg
+   update regs after all the other cncts, draw another depandency graph for regs. *)
+
+(* not last connection yet, so that one varaible map to a stmt set. 
+   one element is explored, once all the elements in its stmt set are explored. *)
+
+Fixpoint expr2varlist (expr : HiFP.hfexpr) (tmap : ft_pmap) (ls : seq ProdVarOrder.t) : option (seq ProdVarOrder.t) := 
+  match expr with
+  | Econst _ _ => Some ls
+  | Eref ref => match ref2pvar ref tmap with
+                | Some pv => Some (List.cons pv ls)
+                | None => None
+                end
+  | Eprim_unop _ e1 => expr2varlist e1 tmap ls
+  | Eprim_binop _ e1 e2 => match expr2varlist e1 tmap ls, expr2varlist e2 tmap ls with
+                          | Some ls', Some ls'' => Some (ls' ++ ls'')
+                          | _,_ => None
+                          end
+  | Emux e1 e2 e3 => match expr2varlist e1 tmap ls, expr2varlist e2 tmap ls, expr2varlist e3 tmap ls with
+                    | Some ls', Some ls'', Some ls''' => Some (ls' ++ ls'' ++ ls''')
+                    | _,_,_ => None
+                    end
+  | Evalidif e1 e2 => match expr2varlist e1 tmap ls, expr2varlist e2 tmap ls with
+                      | Some ls', Some ls'' => Some (ls' ++ ls'')
+                      | _,_ => None
+                      end
+  | Ecast _ e => expr2varlist e tmap ls
+  end.
+  
+Fixpoint infer_implicit (ft_ref : ftype) (ft_expr : ftype_explicit) : option ftype :=
+  match ft_ref, ft_expr with
+  | Gtyp (Fuint _), exist (Gtyp (Fuint _)) _
+  | Gtyp (Fsint _), exist (Gtyp (Fsint _)) _
+  | Gtyp Fclock, exist (Gtyp Fclock) _
+  | Gtyp Freset, exist (Gtyp Freset) _
+  | Gtyp Fasyncreset, exist (Gtyp Fasyncreset) _ => Some ft_ref (* if it's not an implicit type, don't change that. *)
+  | Gtyp (Fuint_implicit w_ref), exist (Gtyp (Fuint w_expr)) _ => Some (Gtyp (Fuint_implicit (max w_ref w_expr)))
+  | Gtyp (Fsint_implicit w_ref), exist (Gtyp (Fsint w_expr)) _ => Some (Gtyp (Fsint_implicit (max w_ref w_expr)))
+  | Atyp t_ref n_ref, exist (Atyp t_expr n_expr) p => match (n_expr == n_ref), infer_implicit t_ref (exist ftype_not_implicit_width t_expr p) with
+                                                      | true, Some nt => Some (Atyp nt n_expr)
+                                                      | _, _ => None
+                                                      end
+  | Btyp ff_ref, exist (Btyp ff_expr) p => match infer_implicit_fields ff_ref (exist ffield_not_implicit_width ff_expr p) with
+                                          | Some nf => Some (Btyp nf)
+                                          | None => None
+                                          end
+  | _, _ => None
+  end
+with infer_implicit_fields (ff_ref : ffield) (ff_expr : ffield_explicit) : option ffield :=
+   match ff_ref, ff_expr with
+   | Fnil, exist Fnil _ => Some Fnil
+   | Fflips v_ref Nflip t_ref ff_ref', exist (Fflips v_expr Nflip t_expr ff_expr') p =>
+          match (v_ref == v_expr), infer_implicit t_ref (exist ftype_not_implicit_width t_expr (proj1 p)), infer_implicit_fields ff_ref' (exist ffield_not_implicit_width ff_expr' (proj2 p)) with
+          | true, Some nt, Some nf => Some (Fflips v_ref Nflip nt nf)
+          | _,_,_ => None
+          end
+   | _, _ => None
+   end.
+
+Fixpoint InferWidth_ff (v : N) (ff : ffield) (num : N) (newt : ftype_explicit) : option ffield :=
+  match ff with
+  | Fflips v0 Nflip ft ff' => if v == (N.add num 1%num) (* 找到被更新的标号, 所对应的field *)
+                              then (* 比较Btyp现有对应位置上的ftype和待更新的newt是否match, 取较大的更新Btyp *)
+                                match infer_implicit ft newt with 
+                                | Some newt' => Some (Fflips v0 Nflip newt' ff') (* 修改当前field的type, ff'不变 *)
+                                | None => None
+                                end
+                              else if v > (N.add (N.add num (N.of_nat (size_of_ftype ft))) 1%num) (* 不在该field中, 找下一个field *)
+                                   then match InferWidth_ff v ff' (N.add (N.add num (N.of_nat (size_of_ftype ft))) 1%num) newt with
+                                      | Some newf => Some (Fflips v0 Nflip ft newf)
+                                      | None => None
+                                      end
+                                   else (* 在field v0中 *)
+                                   match ft with
+                                   | Gtyp _ => None (* gtyp case 应该满足 v == (N.add num 1%num) 不进入else *)
+                                   | Atyp atyp anum => match infer_implicit atyp newt with 
+                                                | Some newt' => Some (Fflips v0 Nflip (Atyp newt' anum) ff')
+                                                | None => None
+                                                end
+                                   | Btyp bff => match InferWidth_ff v bff (N.add num 1%num) newt with
+                                                | Some nf => Some (Fflips v0 Nflip (Btyp nf) ff')
+                                                | None => None
+                                                end
+                                   end
+  | _ => None
+  end.
+
+Fixpoint InferWidth_fun (v : ProdVarOrder.t) (el : seq HiFP.hfexpr) (tmap : ft_pmap) : option ft_pmap := 
+  match el with
+  | nil => Some tmap
+  | e :: etl => match type_of_e e tmap, ft_find v tmap with
+                (* 当v在tmap中有已存v, 是直接被声明的变量 *)
+                | Some newt, Some ft => match infer_implicit ft newt with
+                                        | Some nt => InferWidth_fun v etl (ft_add v nt tmap)
+                                        | None => None (* type不match，没有新的正确tmap *)
+                                        end
+                (* tmap 中没有v, 可能是subindex或subfield或node *)
+                | Some newt, None => if (snd v) == N0 (* node *)
+                                     then InferWidth_fun v etl (ft_add v (explicit_to_ftype newt) tmap)
+                                    else match ft_find (fst v, N0) tmap with
+                                    | Some (Atyp t_ref n_ref) => (* 比较t_ref与newt是否match, 取较大的更新Atyp *)
+                                                               match infer_implicit t_ref newt with
+                                                               | Some newt' => InferWidth_fun v etl (ft_add (fst v, N0) (Atyp newt' n_ref) tmap)
+                                                               | None => None
+                                                               end
+                                    | Some (Btyp ff_ref) => match InferWidth_ff (snd v) ff_ref N0 newt with
+                                                        | Some newf => InferWidth_fun v etl (ft_add (fst v, N0) (Btyp newf) tmap)
+                                                        | None => None
+                                                        end
+                                    | _ => None (* 若(fst v, N0)是Gtyp或None, v有错误 *)
+                                    end
+                | _, _ => None
+                end
+  end.
+
+Fixpoint InferWidths_fun (od : seq ProdVarOrder.t) (var2exprs : var2exprsmap) (tmap : ft_pmap) : option ft_pmap := 
+  match od with
+  | nil => Some tmap
+  | vhd :: vtl => match module_graph_vertex_set_p.find vhd var2exprs with (* infer the width of vhd according to its connections *)
+                | None => InferWidths_fun vtl var2exprs tmap (* vhd is not connected in the stmt_seq, go on inference on vtl *)
+                | Some el => match InferWidth_fun vhd el tmap with 
+                            (* vhd is connected to several exprs, compute the width of exprs sequentially, update the largest width for vhd in tmap. *)
+                            | Some tmap' => InferWidths_fun vtl var2exprs tmap'
+                            | None => None
+                            end
+                end
+  end.
+
+Fixpoint drawel (v : ProdVarOrder.t) (el : seq HiFP.hfexpr) (tmap : ft_pmap) (newg : ProdVarOrder.t -> seq ProdVarOrder.t) (vertices : seq ProdVarOrder.t) : option ((ProdVarOrder.t -> seq ProdVarOrder.t) * (seq ProdVarOrder.t)) :=
+  (* recursively draw dependencies in el for element v *)
+  match el with
+  | nil => Some (newg, vertices)
+  | e :: etl => let vl := expr2varlist e tmap nil in
+                match vl with (* all elements appears in e *)
+                | Some ls => let g' := List.fold_left (fun tempg tempv => updg tempv (cons v (tempg tempv)) tempg) ls newg in
+                             drawel v etl tmap g' (vertices ++ ls)
+                | None => None
+                end
+  end.
+
+Fixpoint drawg depandencyls (tmap : ft_pmap) (expli_reg : seq ProdVarOrder.t) (newg : ProdVarOrder.t -> seq ProdVarOrder.t) (vertices : seq ProdVarOrder.t) : option ((ProdVarOrder.t -> seq ProdVarOrder.t) * (seq ProdVarOrder.t)) :=
+  match depandencyls with
+  (* list of all pairs (element as key, its connections as value) *)
+  | nil => Some (newg, vertices)
+  | (v, el) :: vtl => if ((fst v, N0) \in expli_reg) then drawg vtl tmap expli_reg newg vertices
+                      else match drawel v el tmap newg vertices with (* for a certain element v, draw dependencies in the el to newg *)
+                      | Some (g', vertices') => drawg vtl tmap expli_reg g' vertices'
+                      | None => None
+                      end
+  end.
+
+Fixpoint expli_ftype (t : ftype) : ftype :=
+  match t with
+  | Gtyp (Fuint_implicit w) => Gtyp (Fuint w)
+  | Gtyp (Fsint_implicit w) => Gtyp (Fsint w)
+  | Gtyp _ => t
+  | Atyp t_ref n_ref => Atyp (expli_ftype t_ref) n_ref
+  | Btyp ff_ref => Btyp (expli_ftype_ff ff_ref)
+  end
+with expli_ftype_ff (ff_ref : ffield) : ffield :=
+  match ff_ref with
+  | Fflips v_ref Nflip t_ref ff_ref' => Fflips v_ref Nflip (expli_ftype t_ref) (expli_ftype_ff ff_ref') 
+  | Fflips v_ref Flipped t_ref ff_ref' => Fflips v_ref Flipped (expli_ftype t_ref) (expli_ftype_ff ff_ref') 
+  | Fnil => Fnil
+  end.
+
+Definition InferWidths_transp (p : HiFP.hfport) (tmap : ft_pmap) : option HiFP.hfport :=
+  match p with
+  | Finput v t => if (ftype_not_implicit t) then Some p
+                  else (match ft_find v tmap with
+                  | Some ft => (* if t has implicit width, update the hfport with ft and change it to explicit width *)
+                                Some (Finput v (expli_ftype ft))
+                  | _ => None
+                  end)
+  | Foutput v t => if (ftype_not_implicit t) then Some p
+                  else (match ft_find v tmap with
+                  | Some ft => (* if t has implicit width, update the hfport with ft and change it to explicit width *)
+                                Some (Foutput v (expli_ftype ft))
+                  | _ => None
+                  end)
+  end.
+
+Fixpoint InferWidths_transps (ps : seq HiFP.hfport) (tmap : ft_pmap) : option (seq HiFP.hfport) :=
+  match ps with
+  | nil => Some nil
+  | p :: tl => match InferWidths_transp p tmap, InferWidths_transps tl tmap with
+                  | Some n, Some nss => Some (n :: nss)
+                  | _, _ => None
+                  end
+  end.
+
+Fixpoint InferWidths_transs (s : HiFP.hfstmt) (tmap : ft_pmap) : option HiFP.hfstmt :=
+(* with infered tmap, transform the ports and declarations *)
+  match s with
+  | Sskip => Some s
+  | Swire v t => if (ftype_not_implicit t) then Some s
+                  else (match ft_find v tmap with
+                  | Some ft => (* if t has implicit width, update the hfstmt with ft and change it to explicit width *)
+                                Some (Swire v (expli_ftype ft))
+                  | _ => None
+                  end)
+  | Sreg v r => if (ftype_not_implicit (type r)) then Some s
+                else (match ft_find v tmap with
+                | Some ft => (* if t has implicit width, update the hfstmt with ft and change it to explicit width *)
+                              Some (Sreg v (mk_freg (expli_ftype ft) (clock r) (reset r)))
+                | _ => None
+                end)
+  | Smem v m => (*TBD*) Some s
+  | Sinst v inst => (*TBD*) Some s
+  | Snode v e => Some s
+  | Sfcnct v e => Some s
+  | Sinvalid _ => Some s
+  | Swhen c s1 s2 => match InferWidths_transss s1 tmap, InferWidths_transss s2 tmap with
+                    | Some n1, Some n2 => Some (Swhen c n1 n2)
+                    | _, _ => None
+                    end
+  end
+with InferWidths_transss (sts : HiFP.hfstmt_seq) (tmap : ft_pmap) : option HiFP.hfstmt_seq :=
+  match sts with
+  | Qnil => Some (Qnil ProdVarOrder.T)
+  | Qcons s ss => match InferWidths_transs s tmap, InferWidths_transss ss tmap with
+                  | Some n, Some nss => Some (Qcons n nss)
+                  | _, _ => None
+                  end
+  end.
+
+Definition emptyg : (ProdVarOrder.t -> seq ProdVarOrder.t) := (fun _ => [::]).
+
+Definition InferWidths_m (m : HiFP.hfmodule) : option HiFP.hfmodule :=
+  (* input : program, including ports and stmts *)
+  match m with
+  | FInmod v ps ss => let tmap := List.fold_left (fun tempm tempp => prepro_p tempp tempm) ps ft_empty in (* add variables in ports to ft_map *)
+                      match prepro_stmts ss tmap (module_graph_vertex_set_p.empty (seq HiFP.hfexpr)) nil with (* add variables in stmt_dclrs to ft_map *)
+                      | Some prepro => 
+                                                   (* tmap' : all the expli/uninfered impli aggr&gtyp are stroed here
+                                                      var2exprs : every connected elements are stored 
+                                                      expli_reg : regs with explicit width, to avoid cyclic denpendency, do not draw its connections in graph *)
+                                                   match drawg (module_graph_vertex_set_p.elements prepro.1.2) prepro.1.1 prepro.2 emptyg nil with
+                                                   | Some thedraw => (* theg : new drawn graph
+                                                                                 vertices : set for topo sort to start with *)
+                                                                    match (TopoSort.topo_sort thedraw.2 thedraw.1) with
+                                                                    | TopoSort.Sorted inferorder => match InferWidths_fun inferorder prepro.1.2 prepro.1.1 with
+                                                                                            | Some newtm => (* newtm : all width infered tmap *)
+                                                                                                            match InferWidths_transps ps newtm, InferWidths_transss ss newtm with
+                                                                                                            | Some nps, Some nss => Some (FInmod v nps nss)
+                                                                                                            | _, _ => None
+                                                                                                            end
+                                                                                            | None => None
+                                                                                            end
+                                                                    | _ => None
+                                                                    end
+                                                    | _ => None
+                                                    end
+                      | None => None
+                      end
+  | _ => None
+  end.
+(*
+  (* test InferWidths_transps *)
+  Definition p1 : pvar := (N.of_nat 1, N0).
+  Definition tmap0 := ft_add p1 (Gtyp (Fuint_implicit 2)) ft_empty.
+  Definition prt0 := Finput p1 (Gtyp (Fuint_implicit 0)).
+  Compute (InferWidths_transps [:: prt0] tmap0).
+
+  (* test InferWidths_transss *)
+  Definition s0 := Swire p1 (Gtyp (Fuint_implicit 0)). (* test reg? *)
+  Definition s01 := Sinvalid (Eid p1).
+  Compute (InferWidths_transss (Qcons s0 (Qcons s01 (Qnil ProdVarOrder.T))) tmap0).
+
+  (* test InferWidths_fun *)
+  Definition ec0 := (HiFP.econst (Fuint 2) [::b1; b0]).
+  Definition exprm0 := module_graph_vertex_set_p.add p1 [:: ec0] (module_graph_vertex_set_p.empty (seq HiFP.hfexpr)). 
+  Definition tmap1 := ft_add p1 (Gtyp (Fuint_implicit 0)) ft_empty.
+  Compute (match InferWidths_fun [:: p1] exprm0 tmap1 with 
+          | Some nm => ft_find p1 nm
+          | _ => None
+          end).
+
+  Definition p11 : pvar := (1%num, 1%num).
+  Definition exprm1 := module_graph_vertex_set_p.add p11 [:: ec0] (module_graph_vertex_set_p.empty (seq HiFP.hfexpr)). 
+  Definition tmap2 := ft_add p1 (Atyp (Gtyp (Fuint_implicit 0)) 2) ft_empty.
+  Compute (match InferWidths_fun [:: p1; p11] exprm1 tmap2 with 
+          | Some nm => ft_find p1 nm (* tmap中只存完整的aggr, 不存每个元素的ftype *)
+          | _ => None
+          end).
+
+  Definition p12 : pvar := (1%num, 2%num).
+  Definition exprm2 := module_graph_vertex_set_p.add p12 [:: ec0] (module_graph_vertex_set_p.empty (seq HiFP.hfexpr)). 
+  Definition tmap3 := ft_add p1 (Btyp (Fflips (1%num) Nflip (Atyp (Gtyp (Fuint_implicit 0)) 2) Fnil)) ft_empty.
+  Compute (match InferWidths_fun [::p1;p12] exprm2 tmap3 with 
+          | Some nm => ft_find p1 nm 
+          | _ => None
+          end).
+  Compute (match InferWidth_ff 2%num (Fflips (1%num) Nflip (Atyp (Gtyp (Fuint_implicit 0)) 2) Fnil) N0 (exist ftype_not_implicit_width (Gtyp (Fuint 2)) I) with 
+          | Some ff => ff
+          | _ => Fnil
+          end). (* 只能找到field, 如果field里有array？ *)
+
+  Definition tmap4 := ft_add p1 (Btyp (Fflips (2%num) Nflip (Btyp (Fflips (1%num) Nflip (Gtyp (Fuint_implicit 0)) Fnil)) Fnil)) ft_empty.
+  Compute (match InferWidths_fun [::p1;p12] exprm2 tmap4 with 
+          | Some nm => ft_find p1 nm 
+          | _ => Some (Gtyp (Fuint 0))
+          end).
+  Compute (match InferWidth_ff 2%num (Fflips (2%num) Nflip (Btyp (Fflips (1%num) Nflip (Gtyp (Fuint_implicit 0)) Fnil)) Fnil) N0 (exist ftype_not_implicit_width (Gtyp (Fuint 2)) I) with 
+          | Some ff => ff
+          | _ => Fnil
+          end).
+  Compute (size_of_ftype (Btyp (Fflips (2%num) Nflip (Btyp (Fflips (1%num) Nflip (Gtyp (Fuint_implicit 0)) Fnil)) Fnil))).
+  Compute (match InferWidth_ff 2%num (Fflips (2%num) Nflip (Btyp (Fflips (1%num) Nflip (Gtyp (Fuint_implicit 0)) Fnil)) Fnil) N0 (exist ftype_not_implicit_width (Gtyp (Fuint 2)) I) with 
+          | Some ff => ff
+          | _ => Fnil
+          end).
+
+  (* test prepro_p/prepro_stmts *)
+  Definition p2 : pvar := (N.of_nat 2, N0).
+  Definition p3 : pvar := (N.of_nat 3, N0).
+  Definition prt1 := Finput p2 (Gtyp (Fuint 2)).
+  Definition tmap5 := List.fold_left (fun tempm tempp => prepro_p tempp tempm) [:: prt1] ft_empty.
+  Compute (ft_find p2 tmap5).
+
+  Definition s3 := Sreg p1 (mk_freg (Gtyp (Fuint_implicit 0)) ((Econst ProdVarOrder.T) (Fuint 1) [:: b0]) (Rst ((Econst ProdVarOrder.T) (Fuint 1) [:: b1]) (Eprim_binop Badd (Eref (Eid p2)) ((Econst ProdVarOrder.T) (Fuint 1) [:: b1])))).
+  Definition s4 := Swire p2 (Gtyp (Fuint_implicit 0)).
+  Definition s5 := Sfcnct (Eid p2) ((Econst ProdVarOrder.T) (Fuint 2) [:: b1;b1]).
+  Definition ec2 := (HiFP.econst (Fuint 4) [::b0;b1;b0;b1]).
+  Definition s6 := Snode p3 ec2.
+  Definition s7 := Sfcnct (Eid p1) (Eref (Eid p3)).
+  Definition tmap6 := match prepro_stmts (Qcons s3 (Qcons s4 (Qcons s5 (Qcons s6 (Qcons s7 (Qnil ProdVarOrder.T)))))) ft_empty (module_graph_vertex_set_p.empty (seq HiFP.hfexpr)) nil with
+                    | Some r => fst (fst r)
+                    | _ => ft_empty
+                    end.
+  Compute (ft_find p3 tmap6).
+  Definition em0 := match prepro_stmts (Qcons s3 (Qcons s4 (Qcons s5 (Qcons s6 (Qcons s7 (Qnil ProdVarOrder.T)))))) ft_empty (module_graph_vertex_set_p.empty (seq HiFP.hfexpr)) nil with
+                    | Some r => snd (fst r)
+                    | _ => module_graph_vertex_set_p.empty (seq HiFP.hfexpr)
+                    end.
+  Compute (module_graph_vertex_set_p.find p3 em0).
+  Compute (module_graph_vertex_set_p.find p1 em0).
+  Compute (module_graph_vertex_set_p.find p2 em0).
+              
+  Definition expreg0 := match prepro_stmts (Qcons s3 (Qcons s4 (Qcons s5 (Qcons s6 (Qcons s7 (Qnil ProdVarOrder.T)))))) ft_empty (module_graph_vertex_set_p.empty (seq HiFP.hfexpr)) nil with
+                    | Some r => snd r
+                    | _ => nil 
+                    end.
+  Compute expreg0.
+
+  Definition s8 := Sreg p1 (mk_freg (Btyp (Fflips (1%num) Nflip (Atyp (Gtyp (Fuint_implicit 0)) 2) Fnil)) ((Econst ProdVarOrder.T) (Fuint 1) [:: b0]) (NRst ProdVarOrder.T)).
+  Definition s9 := Swire p2 (Btyp (Fflips (1%num) Nflip (Atyp (Gtyp (Fuint 2)) 2) Fnil)).
+  Definition ec3 := (HiFP.econst (Fuint 4) [::b0;b1;b0;b1]).
+  Definition s10 := Snode p3 ec3.
+  Definition s11 := Sfcnct (Esubindex (Esubfield (Eid p1) 1%num) 1) (Eref (Eid p3)).
+  Definition s12 := Sfcnct (Eid p1) (Eref (Eid p2)).
+  Definition tmap7 := match prepro_stmts (Qcons s8 (Qcons s9 (Qcons s10 (Qcons s11 (Qcons s12 (Qnil ProdVarOrder.T)))))) ft_empty (module_graph_vertex_set_p.empty (seq HiFP.hfexpr)) nil with
+                    | Some r => fst (fst r)
+                    | _ => ft_empty
+                    end.
+  Compute (ft_find p1 tmap7).
+  Definition em1 := match prepro_stmts (Qcons s8 (Qcons s9 (Qcons s10 (Qcons s11 (Qcons s12 (Qnil ProdVarOrder.T)))))) ft_empty (module_graph_vertex_set_p.empty (seq HiFP.hfexpr)) nil with
+                    | Some r => snd (fst r)
+                    | _ => module_graph_vertex_set_p.empty (seq HiFP.hfexpr)
+                    end.
+  Compute (module_graph_vertex_set_p.find p3 em1).
+  Compute (module_graph_vertex_set_p.find p1 em1).
+  Compute (module_graph_vertex_set_p.find p2 em1).
+  Compute (module_graph_vertex_set_p.find (1%num, 3%num) em1).
+              
+  Definition expreg1 := match prepro_stmts (Qcons s8 (Qcons s9 (Qcons s10 (Qcons s11 (Qcons s12 (Qnil ProdVarOrder.T)))))) ft_empty (module_graph_vertex_set_p.empty (seq HiFP.hfexpr)) nil with
+                    | Some r => snd r
+                    | _ => nil 
+                    end.
+  Compute expreg1.
+
+  (* test drawg *)
+  Definition g1 := match drawg (module_graph_vertex_set_p.elements em0) tmap6 expreg0 emptyg nil with
+                  | Some g' => fst g'
+                  | _ => emptyg
+                  end.
+  Definition vertices0 := match drawg (module_graph_vertex_set_p.elements em0) tmap6 expreg0 emptyg nil with
+                  | Some g' => snd g'
+                  | _ => nil
+                  end.
+
+  Definition g2 := match drawg (module_graph_vertex_set_p.elements em1) tmap7 expreg1 emptyg nil with
+                  | Some g' => fst g'
+                  | _ => emptyg
+                  end.
+  Definition vertices1 := match drawg (module_graph_vertex_set_p.elements em1) tmap7 expreg1 emptyg nil with
+                  | Some g' => snd g'
+                  | _ => nil
+                  end.
+  (* test topo_sort *)
+  Compute (g1 p3).
+  Compute (g1 p2).
+  Compute (g1 p1).
+  Compute vertices0.
+  Compute (TopoSort.topo_sort vertices0 g1).
+
+  Compute (g2 p3).
+  Compute (g2 p2).
+  Compute (g2 p1).
+  Compute vertices1.
+  Compute (TopoSort.topo_sort vertices1 g2).
+
+  Definition order0 := match (TopoSort.topo_sort vertices1 g2) with
+                      | TopoSort.Sorted or => or
+                      | _ => nil
+                      end.
+
+  Compute (match InferWidths_fun order0 em1 tmap7 with 
+  | Some nm => ft_find p1 nm 
+  | _ => None
+  end).
+*)
+
+Theorem InferWidths_correct :
+(* Proves that InferWidth_fun preserves the semantics *)
+   forall (F : HiFP.hfmodule) (vm' : module_graph_vertex_set_p.env) (ct : module_graph_connection_trees_p.env),
+      match InferWidths_m F with
+      | Some F' => Sem F' vm' ct -> Sem F (make_vm_implicit F vm') ct
+      
+      (*exists vm : module_graph_vertex_set_p.env, (* make_vm_implicit vm' F : 找所有implicit declaration, 改 vertex_type *)
+                                       Sem F vm ct /\ module_graph_vertex_set_p.Equal vm' (make_vm_explicit vm) *)
+      | _ => True
+      end.
+Proof.
+  (* KY previous version *)
+  intro F. 
+  case H : (InferWidths_m F) => [F'|]; try done.
+  move => vm ct.
+  rewrite /Sem.
+  case Hm : F => [v pp ss|v' pp' ss'].
+  (* Inmod case *)
+  rewrite Hm in H. 
+  rewrite /InferWidths_m in H.
+  case Hprepro : (prepro_stmts ss
+  (fold_left (fun tempm : ft_pmap => prepro_p^~ tempm) pp ft_empty)
+  (module_graph_vertex_set_p.empty (seq HiFP.hfexpr)) [::]) => [prepro|]; rewrite Hprepro in H; try discriminate.
+  case Hdrawg : (drawg (module_graph_vertex_set_p.elements (snd (fst prepro))) (fst (fst prepro)) (snd prepro) emptyg
+  [::]) => [drawg|]; rewrite Hdrawg in H; try discriminate.
+  case Htopo : (TopoSort.topo_sort drawg.2 drawg.1) => [inferorder||]; rewrite Htopo in H; try discriminate.
+  case Hinfer : (InferWidths_fun inferorder prepro.1.2 prepro.1.1) => [newtm|]; rewrite Hinfer in H; try discriminate.
+  case Htransp : (InferWidths_transps pp newtm) => [nps|]; rewrite Htransp in H; try discriminate.
+  case Htranss : (InferWidths_transss ss newtm) => [nss|]; rewrite Htranss in H; try discriminate.
+  inversion H.
+  clear H. 
+
+  move => Hn. 
+  case Hprepron : (prepro_stmts nss
+  (fold_left (fun tempm : ft_pmap => prepro_p^~ tempm) nps
+     ft_empty) (module_graph_vertex_set_p.empty (seq HiFP.hfexpr))
+  [::]) => [prepron|]; rewrite Hprepron in Hn; try done.
+  move : Hn Hprepron Htranss Htransp Hinfer Htopo Hprepro Hm.
+  move : vm ct F.
+  (*move : Hn Hprepron Htranss Htransp Hinfer Htopo Hprepro Hm H vm ct.*)
+
+  induction pp. 
+  (* FInmod v [::] ss *)
+  - 
+  (* move => vm ct F.
+    simpl.
+    exists (module_graph_vertex_set_p.empty vertex_type).
+    split.
+    apply module_graph_vertex_set_p.is_empty_1.
+    apply module_graph_vertex_set_p.empty_1.*)
+    induction ss. 
+    (* FInmod v [::] [::] *)
+    - simpl.
+      exists (module_graph_vertex_set_p.empty vertex_type).
+      simpl in Htransp.
+      inversion Htransp.
+      clear Htransp.
+
+      simpl in Htranss.
+      inversion Htranss.
+      clear Htranss.
+
+      rewrite -H2 in Hn.
+      simpl in Hn.
+      destruct Hn as [vm' [Hempty [Heq1 Heq2]]].
+      split; try done.
+      split; try done.
+
+      (*
+      apply module_graph_vertex_set_p.is_empty_2 in Hempty.
+      unfold make_mg_explicit in Heq1.
+      unfold module_graph_vertex_set_p.Empty in Hempty.
+
+
+      apply module_graph_vertex_set_p.F.Empty_m in Heq1.
+      apply Heq1 in Hempty.
+
+      
+      clear Heq1 Heq2.
+      rewrite module_graph_vertex_set_p.F.Empty_m.
+      *)
+      admit.
+
+    (* FInmod v [::] (Qcons h ss) *)
+    - exists (module_graph_vertex_set_p.empty vertex_type).
+      split; try done.
+      case Hsh : h => [|v0 t|v0 r|v0 m|v0 inst|v0 e|v0 e|v0|c s1 s2]; try simpl.
+      (* skip *)
+      - exists (module_graph_vertex_set_p.empty vertex_type).
+        exists (module_graph_connection_trees_p.empty connection_tree).
+        split; try done.
+        specialize IHss with (F := FInmod v [::] ss) (vm := vm) (ct := ct).
+        apply IHss in Hn; try done.
+        destruct Hn as [vm' [Hempty Hfrag]].
+        admit.
+        rewrite Hsh in Htranss.
+        simpl in Htranss.
+        case Ht : (InferWidths_transss ss newtm) => [nss'|]; rewrite Ht in Htranss; try discriminate.
+        (* 前提要去掉transss *)
+        admit.
+        rewrite Hsh in Hprepro.
+        simpl in Hprepro.
+        simpl; done.
+      (* wire *)
+      - exists (module_graph_connection_trees_p.empty connection_tree).
+
+  admit.
+  (* Exmod case *)
+  rewrite Hm in H. 
+  rewrite /InferWidths_m in H; discriminate.
+
+
+Admitted.
+(*
 From firrtl Require Import Firrtl Env HiEnv HiFirrtl InferTypes.
 
 
@@ -3445,3 +3987,4 @@ Section InferWidthP.
        (*   erewrite (find_same_ce_wmap2ce _ (Hce12 _)). done. *)
      (* -  rewrite -/(inferWidth_fun _). *)
    (* Admitted. *)
+*)
