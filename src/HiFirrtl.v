@@ -157,6 +157,34 @@ Section HiFirrtl.
   | Foutput : var -> ftype -> hfport
   .
 
+  Lemma hfport_eq_dec : forall {x y : hfport}, {x = y} + {x <> y}.
+  Proof.  decide equality ; try apply ftype_eq_dec.
+  1,2: destruct (s == s0) eqn: Hs.
+  2,4: move /eqP : Hs => Hs ; right ; exact Hs.
+  1,2: move /eqP : Hs => Hs ; left ; exact Hs.
+  Qed.
+  Definition hfport_eqn (x y : hfport) : bool :=
+  match x, y with
+  | Finput vx fx, Finput vy fy
+  | Foutput vx fx, Foutput vy fy => (vx == vy) && (fx == fy)
+  | _, _ => false
+  end.
+  Lemma hfport_eqP : Equality.axiom hfport_eqn.
+  Proof.
+  rewrite /Equality.axiom /hfport_eqn.
+  intros.
+  destruct x, y ; try (apply ReflectF ; discriminate).
+  1,2: destruct (s == s0) eqn: Hs.
+  2,4: move /eqP : Hs => Hs ; apply ReflectF ; injection ; done.
+  1,2: move /eqP : Hs => Hs ; rewrite -Hs andTb ; clear Hs s0 ;
+       destruct (f == f0) eqn: Hf.
+  2,4: move /eqP : Hf => Hf ; apply ReflectF ; injection ; done.
+  1,2: move /eqP : Hf => Hf ; rewrite -Hf ; clear Hf f0 ;
+       apply ReflectT ; reflexivity.
+  Qed.
+  Canonical hfport_eqMixin := EqMixin hfport_eqP.
+  Canonical hfport_eqType := Eval hnf in EqType hfport hfport_eqMixin.
+
   Inductive hfmodule : Type :=
   | FInmod : var -> seq hfport -> hfstmt_seq -> hfmodule
   | FExmod : var -> seq hfport -> hfstmt_seq -> hfmodule
@@ -177,26 +205,28 @@ End HiFirrtl.
 
 
   (* ground type equivalence *)
-  Definition fgtyp_equiv t1 t2 :=
-    match t1, t2 with
-    | Fuint _, Fuint _
-    | Fsint _, Fsint _
-    | Fclock, Fclock
-    | Freset, Freset
-    (* | Freset, Fuint 1 *)
-    | Fasyncreset, Fasyncreset => true
-    | _, _ => false
+  Definition fgtyp_equiv (t1 t2 : fgtyp) : bool :=
+    match t1 with
+    | Fuint _ | Fuint_implicit _ => match t2 with
+                                    | Fuint _ | Fuint_implicit _ => true
+                                    | _ => false
+                                    end
+    | Fsint _ | Fsint_implicit _ => match t2 with
+                                    | Fsint _ | Fsint_implicit _ => true
+                                    | _ => false
+                                    end
+    | _ => t1 == t2
     end.
 
   (* type equivalence *)
-  Fixpoint ftype_equiv t1 t2 :=
+  Fixpoint ftype_equiv (t1 t2 : ftype) : bool :=
     match t1, t2 with
     | Gtyp gt1, Gtyp gt2 => fgtyp_equiv gt1 gt2
     | Atyp t1 n1, Atyp t2 n2 => (n1 == n2) && ftype_equiv t1 t2
     | Btyp bt1, Btyp bt2 => fbtyp_equiv bt1 bt2
     | _, _ => false
     end
-  with fbtyp_equiv bt1 bt2 :=
+  with fbtyp_equiv (bt1 bt2 : ffield) : bool :=
          match bt1, bt2 with
          | Fnil, Fnil => true
          | Fflips v1 Flipped t1 fs1, Fflips v2 Flipped t2 fs2 =>

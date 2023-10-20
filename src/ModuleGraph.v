@@ -637,8 +637,8 @@ Module MakeProdOrderWithDefaultSucc2 (O1 O2 : SsrOrderWithDefaultSucc) <: SsrOrd
   Lemma ltn_succ (x : t) : ltn x (succ x).
   Proof.
     case: x => x y. rewrite /ltn /succ /=. rewrite /M.ltn /=.
-    rewrite O2.ltn_succ.
-   Admitted.
+    rewrite O2.ltn_succ andbT eqtype.eq_refl orbT //.
+  Qed.
 End MakeProdOrderWithDefaultSucc2.
 
 (* can be identifier of a input/output_connector *)
@@ -655,7 +655,23 @@ Inductive connection_tree :=
 
 Lemma connection_tree_eq_dec : forall {x y : connection_tree}, {x = y} + {x <> y}.
 Proof.
-Admitted.
+induction x.
+1,3: destruct y ; try (right ; discriminate) ; left ; reflexivity.
+* destruct y ; try (right ; discriminate).
+  destruct (t == t0) eqn: Ht.
+  1,2: move /eqP: Ht => Ht.
+  + rewrite -Ht ; clear Ht t0 ; left; reflexivity.
+  + right ; injection ; done.
+* destruct y ; try (right ; discriminate).
+  destruct (t == t0) eqn: Ht.
+  1,2: move /eqP: Ht => Ht.
+  + rewrite -Ht ; clear Ht t0.
+    specialize IHx1 with (y := y1).
+    specialize IHx2 with (y := y2).
+    destruct IHx1, IHx2 ; try (right ; injection ; done).
+    rewrite -e -e0 ; clear e e0 y1 y2 ; left ; reflexivity.
+  + right ; injection ; done.
+Qed.
 Fixpoint connection_tree_eqn (x y : connection_tree) : bool :=
 match x, y with
 | Invalidated, Invalidated => true
@@ -1325,7 +1341,10 @@ Definition connect_non_passive_fgtyp (ct_old : module_graph_connection_trees_p.e
       | [:: ic], [:: oc] =>    module_graph_connection_trees_p.find ic ct_new = Some (Leaf oc)
                             /\
                                module_graph_connection_trees_p.find oc ct_new = module_graph_connection_trees_p.find oc ct_old
-                               (* why this is compared? *)
+                               (* why this is compared?
+                                  In Sem_frag_stmt, it is ensured that connection trees NOT related to tgt or src are not changed.
+                                  Here, we need to ensure that the connection tree of tgt is changed
+                                  and the connection tree of src remains the same. *)
       | _, _ => False
       end
    /\
@@ -2444,7 +2463,7 @@ with Sem_frag_stmt (G_old : module_graph) (s : hfstmt VarOrder.T) (G_new : modul
 Definition var2exprsmap := module_graph_vertex_set_p.t (seq HiFP.hfexpr). (* key is pair *)  
    
 Fixpoint ffield2pvar (pv : ProdVarOrder.t) (ff : ffield) (v : var) : option ProdVarOrder.t :=
-  (* number the field ff in pv, when a field have aggr_typ, number all grpund types in the previous field and then number the next field *)
+  (* number the field ff in pv, when a field have aggr_typ, number all ground types in the previous field and then number the next field *)
   match ff with
   | Fflips v0 Nflip ft ff' => if v == v0 then Some (fst pv, N.add (snd pv) 1%num)
                               else ffield2pvar (fst pv, N.add (N.of_nat (size_of_ftype ft)) (N.add (snd pv) 1%num)) ff' v
@@ -2531,26 +2550,31 @@ Definition Sem (F : HiFP.hfmodule) (vm : module_graph_vertex_set_p.env) (ct : mo
    end. 
 
 Definition make_vx_implicit (v : vertex_type) : vertex_type :=
+(* change the type in the vertex to an implicit-width type *)
    match v with
    | OutPort it => OutPort (fgtyp_add_implicit it)
    | InPort it => InPort (fgtyp_add_implicit it)
    | Register it => Register (fgtyp_add_implicit it)
-   | RegisterReset it true => RegisterReset (fgtyp_add_implicit it) true
-   | RegisterReset it false => RegisterReset (fgtyp_add_implicit it) false
+   | RegisterReset it tf => RegisterReset (fgtyp_add_implicit it) tf
    | Wire it => Wire (fgtyp_add_implicit it)
    | Node it => Node (fgtyp_add_implicit it)
-   | _ => v 
+   | _ => v
    end.
 
 Fixpoint make_gtyp_implicit (vtl : seq fgtyp) (n : nat) (var : N) (vm : module_graph_vertex_set_p.env) : module_graph_vertex_set_p.env :=
+(* change the components of element (var, n), (var, n+1), ... (var, n+(size vtl)-1) to implicit-width
+   if the corresponding entry in vtl is implicit-width *)
    match vtl with
    | nil => vm
    | v :: tl => if not_implicit v then make_gtyp_implicit tl (n + 1) var vm
-                else let vm' := module_graph_vertex_set_p.mapi (fun key value => if key == (var, N.of_nat n) then make_vx_implicit value else value) vm in 
-                     make_gtyp_implicit tl (n + 1) var vm'
+                else if module_graph_vertex_set_p.find (var, N.of_nat n) vm is Some value
+                     then let vm' := module_graph_vertex_set_p.add (var, N.of_nat n) (make_vx_implicit value) vm in
+                          make_gtyp_implicit tl (n + 1) var vm'
+                     else make_gtyp_implicit tl (n + 1) var vm (* error *)
    end.
 
 Definition make_p_implicit (vm : module_graph_vertex_set_p.env) (p : HiFP.hfport) : module_graph_vertex_set_p.env :=
+(* change the vertices in vm to implicit-width if the corresponding port definition in p is implicit *)
    match p with
    | Finput v t => let vtl := vtype_list t nil in
                    make_gtyp_implicit vtl 0 (fst v) vm (* 0: check whether identifier of aggr_typ in module_graph start from 0 or 1 *)
@@ -2559,6 +2583,7 @@ Definition make_p_implicit (vm : module_graph_vertex_set_p.env) (p : HiFP.hfport
    end.
 
 Fixpoint make_s_implicit (vm : module_graph_vertex_set_p.env) (st : HiFP.hfstmt) : module_graph_vertex_set_p.env :=
+(* change the vertex of statement st in vm to implicit-width if st defines an implicit-width component *)
    match st with
   | Sskip => vm
   | Swire v t => let vtl := vtype_list t nil in
@@ -2571,6 +2596,7 @@ Fixpoint make_s_implicit (vm : module_graph_vertex_set_p.env) (st : HiFP.hfstmt)
   | _ => vm 
   end
 with make_ss_implicit (vm : module_graph_vertex_set_p.env) (ss : HiFP.hfstmt_seq) : module_graph_vertex_set_p.env :=
+(* change the vertices of statements ss in vm to implicit-width if ss defines implicit-width components *)
    match ss with
   | Qnil => vm
   | Qcons s st => make_ss_implicit (make_s_implicit vm s) st

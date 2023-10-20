@@ -20,10 +20,13 @@ Compute (TopoSort.topo_sort [:: N0; 1%num; 2%num; 3%num] g0).
 (* search start from roots: const\input port\reg
    update regs after all the other cncts, draw another depandency graph for regs. *)
 
-(* not last connection yet, so that one varaible map to a stmt set. 
+(* not last connection yet, so that one variable map to a stmt set.
    one element is explored, once all the elements in its stmt set are explored. *)
 
-Fixpoint expr2varlist (expr : HiFP.hfexpr) (tmap : ft_pmap) (ls : seq ProdVarOrder.t) : option (seq ProdVarOrder.t) := 
+Fixpoint expr2varlist (expr : HiFP.hfexpr) (tmap : ft_pmap) (ls : seq ProdVarOrder.t) : option (seq ProdVarOrder.t) :=
+  (* Prepends to ls the list of variable/component identifiers accessed by the expression expr.
+     tmap is used to look up the identifiers.
+     DNJ: I think parameter ls is superfluous, it seems to be never used.  It could be replaced by [::]. *)
   match expr with
   | Econst _ _ => Some ls
   | Eref ref => match ref2pvar ref tmap with
@@ -47,6 +50,10 @@ Fixpoint expr2varlist (expr : HiFP.hfexpr) (tmap : ft_pmap) (ls : seq ProdVarOrd
   end.
   
 Fixpoint infer_implicit (ft_ref : ftype) (ft_expr : ftype_explicit) : option ftype :=
+  (* If ft_ref is an implicit-width type and ft_expr a compatible explicit-width type,
+     return an expanded ft_ref whose width fits (at least) ft_expr.
+     If ft_ref is an explicit-width type and ft_expr is compatible, return ft_ref.
+     If the types are not compatible, return None. *)
   match ft_ref, ft_expr with
   | Gtyp (Fuint _), exist (Gtyp (Fuint _)) _
   | Gtyp (Fsint _), exist (Gtyp (Fsint _)) _
@@ -76,7 +83,20 @@ with infer_implicit_fields (ff_ref : ffield) (ff_expr : ffield_explicit) : optio
    | _, _ => None
    end.
 
+(* wire a : { b : { d : SInt, flipped e : UInt<7> }[5], c : UInt<3> }
+   wire y : { d : SInt<3>, flipped e : UInt }
+   a.b[2].d <= SInt<2>(-1).
+
+   a.b <= ... (array of 5 elements)
+   a.b[1] <= y (* should infer widths of a.b[...].d and of y.e *)
+   a.b[3].e <= y.e (* which direction does this connection go?  I am not sure; I think data flows from y to a. *)
+   I think you need mutual recursion with InferWidth_ff and InferWidth_fun. *)
+
 Fixpoint InferWidth_ff (v : N) (ff : ffield) (num : N) (newt : ftype_explicit) : option ffield :=
+  (* changes the (v-num)th field of ff.
+     If (v-num) == 1, then the first field is changed from implicit-width to explicit-width.
+     If (v-num) == 2, 3, ... 1+size_of_ftype (type of first fieldd), then some subfield of the first field is changed.
+     If (v-num) > 1+size_of_ftype (type of first field), then a subsequent field of ff is changed. *)
   match ff with
   | Fflips v0 Nflip ft ff' => if v == (N.add num 1%num) (* 找到被更新的标号, 所对应的field *)
                               then (* 比较Btyp现有对应位置上的ftype和待更新的newt是否match, 取较大的更新Btyp *)
@@ -104,7 +124,8 @@ Fixpoint InferWidth_ff (v : N) (ff : ffield) (num : N) (newt : ftype_explicit) :
   | _ => None
   end.
 
-Fixpoint InferWidth_fun (v : ProdVarOrder.t) (el : seq HiFP.hfexpr) (tmap : ft_pmap) : option ft_pmap := 
+Fixpoint InferWidth_fun (v : ProdVarOrder.t) (el : seq HiFP.hfexpr) (tmap : ft_pmap) : option ft_pmap :=
+(* updates the width of v in tmap so that it is at least the width of the expressions in list el. *)
   match el with
   | nil => Some tmap
   | e :: etl => match type_of_e e tmap, ft_find v tmap with
@@ -132,7 +153,20 @@ Fixpoint InferWidth_fun (v : ProdVarOrder.t) (el : seq HiFP.hfexpr) (tmap : ft_p
                 end
   end.
 
-Fixpoint InferWidths_fun (od : seq ProdVarOrder.t) (var2exprs : var2exprsmap) (tmap : ft_pmap) : option ft_pmap := 
+(* wire a : { b : UInt, c : SInt }
+   wire x : UInt
+   c <= SInt<3>(2)
+   x <= AsUInt(c)
+   b <= x + UInt(1).
+
+   This should be handled in the order: a.b, x, a.c. *)
+
+Fixpoint InferWidths_fun (od : seq ProdVarOrder.t) (var2exprs : var2exprsmap) (tmap : ft_pmap) : option ft_pmap :=
+(* od contains the (implicit-width) ground-type subcomponents in topological order.
+   (It is ok if od contains other components, but it is not necessary.)
+   var2exprs is a map that maps every ground-type subcomponent to a list of expressions (namely expressions that the (sub)component is connected from).
+   tmap is the map of types for every component that has been defined (but there are no separate entries for subcomponents);
+   the result is a modified tmap, which ensures that the width of every implicit-width component is large enough. *)
   match od with
   | nil => Some tmap
   | vhd :: vtl => match module_graph_vertex_set_p.find vhd var2exprs with (* infer the width of vhd according to its connections *)
@@ -145,19 +179,105 @@ Fixpoint InferWidths_fun (od : seq ProdVarOrder.t) (var2exprs : var2exprsmap) (t
                 end
   end.
 
+(* Correctness theorem for InferWidths_fun:
+   If od is topologically sorted (for var2exprs),
+   then the result of InferWidths_fun is a tmap
+   that ensures all width constraints for implicit-type connect statements (those in var2exprs) are met.
+
+   Corollary:
+   If a module graph has the widths indicated in the result of InferWidths_fun
+   (and the correct connection trees),
+   then it is a semantic of the corresponding module.
+
+Calculation process:
+
+F = FInmod name ports statements ---> calculate the topological order of dependencies ---> InferWidths_fun ---> result tmap
+           :                                                                                                     :
+           :                                                                                                     :
+           :                                                                                                     :
+   module graph set                                                                    contains an element vm with these widths
+
+
+
+
+FInmod name ports statements ---> use tmap to make widths explicit ---> FInmod name ports' statements' = F'
+                                                                                     :
+                                                                                     :
+                                                                                     :
+                                                                              module graph vm'
+
+module graph vm' is very similar to the element vm; the only difference is that vm' has explicit widths.
+
+vm = (make_vm_implicit F vm')
+
+ *)
+
 Fixpoint drawel (v : ProdVarOrder.t) (el : seq HiFP.hfexpr) (tmap : ft_pmap) (newg : ProdVarOrder.t -> seq ProdVarOrder.t) (vertices : seq ProdVarOrder.t) : option ((ProdVarOrder.t -> seq ProdVarOrder.t) * (seq ProdVarOrder.t)) :=
   (* recursively draw dependencies in el for element v *)
+  (* v: vertex in the dependency graph that is updated
+     el: list of expressions that need to be considered for adding dependency edges
+     tmap: map of (known) types of components
+     newg: current edges in the dependency graph
+     vertices: current vertices in the dependency graph
+     Return value: a pair (edges in the dependency graph, vertices in the dependency graph)
+     containing additionally the dependencies from el *)
   match el with
   | nil => Some (newg, vertices)
   | e :: etl => let vl := expr2varlist e tmap nil in
-                match vl with (* all elements appears in e *)
+                match vl with (* all elements appearing in e *)
                 | Some ls => let g' := List.fold_left (fun tempg tempv => updg tempv (cons v (tempg tempv)) tempg) ls newg in
                              drawel v etl tmap g' (vertices ++ ls)
                 | None => None
                 end
   end.
 
+Lemma InferWidths_fun_correct:
+forall (od : seq ProdVarOrder.t) (var2exprs : var2exprsmap) (tmap : ft_pmap),
+   TopoSort.respects_topological_order (fun o : ProdVarOrder.t =>
+                                        match module_graph_vertex_set_p.find o var2exprs with
+                                        | Some expr_seq => match drawel o expr_seq tmap (fun _ => [::]) [::] with
+                                                           | Some (new_edges, _) => new_edges o
+                                                           | None => [::]
+                                                           end
+                                        | None => [::]
+                                        end)
+                                       od ->
+   forall o : ProdVarOrder.t,
+      match ft_find o tmap, module_graph_vertex_set_p.find o var2exprs with
+      | Some otype, Some expr_seq => forall expr : HiFP.hfexpr, expr \in expr_seq ->
+                                        match type_of_e expr tmap with
+                                        | Some exprtype => ftype_equiv otype (explicit_to_ftype exprtype)
+                                        (* tmap assigns compatible types to o and expr (ignoring width constraints) *)
+                                        | None => true
+                                        end
+      | _, _ => True
+      end ->
+   match InferWidths_fun od var2exprs tmap with
+   | Some newtm => forall o : ProdVarOrder.t,
+                      match ft_find o newtm, module_graph_vertex_set_p.find o var2exprs with
+                      | Some newotype, Some expr_seq => forall expr : HiFP.hfexpr, expr \in expr_seq ->
+                                                           match type_of_e expr newtm with
+                                                           | Some newexprtype => connect_type_compatible newotype newexprtype
+                                                           (* newtm assigns compatible types to o and expr, including the width constraints *)
+                                                           | None => true
+                                                           end
+                      | _, _ => True
+                      end
+   | None => True
+   end.
+Proof.
+(* TBD!!! *)
+Admitted.
+
 Fixpoint drawg depandencyls (tmap : ft_pmap) (expli_reg : seq ProdVarOrder.t) (newg : ProdVarOrder.t -> seq ProdVarOrder.t) (vertices : seq ProdVarOrder.t) : option ((ProdVarOrder.t -> seq ProdVarOrder.t) * (seq ProdVarOrder.t)) :=
+  (* construct the dependency graph:
+     depandencyls: list of pairs (vertex in the module graph, list of expressions)
+     tmap: map of (known) types of components
+     expli_reg: list of completely explicit-width components; they can be ignored
+     newg: current edges in the dependency graph (will be extended by drawel)
+     vertices: current vertices in the dependency graph (will be extended by drawel)
+     Return value: a pair (edges in the dependency graph, vertices in the dependency graph)
+     *)
   match depandencyls with
   (* list of all pairs (element as key, its connections as value) *)
   | nil => Some (newg, vertices)
@@ -184,6 +304,7 @@ with expli_ftype_ff (ff_ref : ffield) : ffield :=
   end.
 
 Definition InferWidths_transp (p : HiFP.hfport) (tmap : ft_pmap) : option HiFP.hfport :=
+  (* changes the type in one port declaration, depending on the information in tmap, to an explicit-width type *)
   match p with
   | Finput v t => if (ftype_not_implicit t) then Some p
                   else (match ft_find v tmap with
@@ -200,6 +321,7 @@ Definition InferWidths_transp (p : HiFP.hfport) (tmap : ft_pmap) : option HiFP.h
   end.
 
 Fixpoint InferWidths_transps (ps : seq HiFP.hfport) (tmap : ft_pmap) : option (seq HiFP.hfport) :=
+  (* changes the types in a sequence of port declarations, depending on the information in tmap, to explicit-width types *)
   match ps with
   | nil => Some nil
   | p :: tl => match InferWidths_transp p tmap, InferWidths_transps tl tmap with
@@ -441,16 +563,18 @@ Theorem InferWidths_correct :
       | _ => True
       end.
 Proof.
-  (* KY previous version *)
+   (* The following initial fragment of a proof is based on Keyin's earlier work.
+      David has written it for an old version of the correctness theorem
+      (before considering how to split it up). *)
   intro F. 
   case H : (InferWidths_m F) => [F'|]; try done.
-  move => vm ct.
+  move => vm' ct.
   rewrite /Sem.
-  case Hm : F => [v pp ss|v' pp' ss'].
+  case Hm : F => [v pp ss|v' pp' ss'] ; try (rewrite Hm /InferWidths_m in H ; done).
   (* Inmod case *)
 
-  rewrite Hm in H. 
-  rewrite /InferWidths_m in H.
+  rewrite Hm /InferWidths_m in H.
+  clear Hm F.
   case Hprepro : (prepro_stmts ss
   (fold_left (fun tempm : ft_pmap => prepro_p^~ tempm) pp ft_empty)
   (module_graph_vertex_set_p.empty (seq HiFP.hfexpr)) [::]) => [prepro|]; rewrite Hprepro in H; try discriminate.
@@ -461,8 +585,70 @@ Proof.
   case Htransp : (InferWidths_transps pp newtm) => [nps|]; rewrite Htransp in H; try discriminate.
   case Htranss : (InferWidths_transss ss newtm) => [nss|]; rewrite Htranss in H; try discriminate.
   inversion H.
-  clear H. 
+  clear H H1 F'.
+  case Hprepron : (prepro_stmts nss
+    (fold_left (fun tempm : ft_pmap => prepro_p^~ tempm) nps ft_empty)
+    (module_graph_vertex_set_p.empty (seq HiFP.hfexpr)) [::]) => [prepron|] ; try done.
+  move => [nvm_port [Hport Hstmts]].
+  exists (make_vm_implicit (FInmod v pp (Qnil HiFirrtl.ProdVarOrder.T)) nvm_port).
+  split.
+  + (* prove that the old ports are the implicit version of the new ports *)
+    clear Hstmts Hprepron prepron Htranss nss.
+    (*clear Hinfer Htopo inferorder Hdrawg drawg Hprepro prepro ss ct vm'.*)
+    move : prepro drawg inferorder newtm nps nvm_port Hprepro Hdrawg Htopo Hinfer Htransp Hport.
+    induction pp.
+    - intros.
+      rewrite /InferWidths_transps in Htransp.
+      inversion Htransp as [Htransp'] ; clear Htransp.
+      rewrite -Htransp' /Sem_port in Hport.
+      rewrite /Sem_port /make_vm_implicit /make_ss_implicit /fold_left.
+      exact Hport.
+    - intros.
+      destruct a as [var t|var t].
+      * simpl Sem_port.
+        simpl make_vm_implicit in IHpp.
+        (* For the second part of this boolean conjunction (Sem_inport ...),
+           make_gtyp_implicit will adapt exactly the part corresponding to t in nvm_port
+           so as to ensure that these elements have the type prescribed by t.
+           So, we change the second part to ``true'' first,
+           probably by induction over t of a suitable inductive property. *)
 
+(* Now come a few ideas for what might be suitable assertions to help prove the result. *)
+
+        (* var is contained with type t in nps *)
+        assert (ft_find var newtm <> None).
+              unfold ft_find.
+              admit.
+        assert (Finput var t \in nps).
+              simpl InferWidths_transps in Htransp.
+              destruct (ftype_not_implicit t) eqn: Ht_not_implicit.
+              * admit.
+              * destruct (ft_find var newtm) as [ft|] eqn: Hft_find ; try done ; clear H.
+                destruct (InferWidths_transps pp newtm) as [nss|] eqn: Hiwnewtm ; try done.
+        (* var is defined with type t in nvm_port *)
+        assert (Sem_inport (make_ft_explicit t) var.1 0 nvm_port).
+        assert (forall n: nat,
+                Sem_inport t var.1 n
+                           (fold_left make_p_implicit pp
+                                      (make_gtyp_implicit (drop n (vtype_list t [::])) n var.1 nvm_port))).
+              induction t.
+              - (* Gtyp f *)
+                induction n.
+                * rewrite /vtype_list /rcons /drop /make_gtyp_implicit.
+        (* For the remaining part of the boolean conjunction (Sep_port pp ...),
+           remove_t will remove exactly those parts of nvm_port
+           that have been changed by make_gtyp_implicit.
+           If we can prove that, we can apply IHpp. *)
+        assert (remove_t (make_vm_implicit (FInmod v (Finput (var:=HiFirrtl.ProdVarOrder.T) var t :: pp)
+                                                   (Qnil HiFirrtl.ProdVarOrder.T))
+                                           nvm_port)
+                         var.1 (size_of_ftype t) =
+                make_vm_implicit (FInmod v pp (Qnil HiFirrtl.ProdVarOrder.T))
+                                 (remove_t nvm_port var.1 (size_of_ftype t))).
+              admit.
+        specialize IHpp with (nvm_port := remove_t nvm_port var.1 (size_of_ftype t)).
+
+  (* KY previous version *)
   move => Hn. 
   case Hprepron : (prepro_stmts nss
   (fold_left (fun tempm : ft_pmap => prepro_p^~ tempm) nps
