@@ -92,37 +92,51 @@ with infer_implicit_fields (ff_ref : ffield) (ff_expr : ffield_explicit) : optio
    a.b[3].e <= y.e (* which direction does this connection go?  I am not sure; I think data flows from y to a. *)
    I think you need mutual recursion with InferWidth_ff and InferWidth_fun. *)
 
-Fixpoint InferWidth_ff (v : N) (ff : ffield) (num : N) (newt : ftype_explicit) : option ffield :=
+Fixpoint InferWidth_ref (v : ProdVarOrder.t) (checkt : ftype) (newt : ftype_explicit) (num : N) : option ftype :=
+  match checkt with
+  | Gtyp _ => None
+  | Atyp atyp n => if (((N.to_nat (snd v)) - 1- (N.to_nat num)) mod (num_ref atyp)) == 0
+                   then (* 比较atyp与newt是否match, 取较大的更新Atyp *)
+                    match infer_implicit atyp newt with
+                    | Some newt' => Some (Atyp newt' n)
+                    | None => None
+                    end
+                   else (* 继续找atyp中的结构 *)
+                    let n' := ((N.to_nat (snd v)) - 1- (N.to_nat num)) / (num_ref atyp) in
+                    InferWidth_ref v atyp newt (N.add num (N.of_nat (n' * (num_ref atyp))))
+  | Btyp ff => match InferWidth_ff v ff newt num with
+              | Some newf => Some (Btyp newf)
+              | None => None
+              end
+  end
+with InferWidth_ff (v : ProdVarOrder.t) (ff : ffield) (newt : ftype_explicit) (num : N) : option ffield :=
   (* changes the (v-num)th field of ff.
      If (v-num) == 1, then the first field is changed from implicit-width to explicit-width.
      If (v-num) == 2, 3, ... 1+size_of_ftype (type of first fieldd), then some subfield of the first field is changed.
      If (v-num) > 1+size_of_ftype (type of first field), then a subsequent field of ff is changed. *)
   match ff with
-  | Fflips v0 Nflip ft ff' => if v == (N.add num 1%num) (* 找到被更新的标号, 所对应的field *)
+  | Fflips v0 Nflip ft ff' => if (snd v) == (N.add num 1%num) (* 找到被更新的标号, 所对应的field *)
                               then (* 比较Btyp现有对应位置上的ftype和待更新的newt是否match, 取较大的更新Btyp *)
                                 match infer_implicit ft newt with 
                                 | Some newt' => Some (Fflips v0 Nflip newt' ff') (* 修改当前field的type, ff'不变 *)
                                 | None => None
                                 end
-                              else if v > (N.add (N.add num (N.of_nat (size_of_ftype ft))) 1%num) (* 不在该field中, 找下一个field *)
-                                   then match InferWidth_ff v ff' (N.add (N.add num (N.of_nat (size_of_ftype ft))) 1%num) newt with
+                              else if (snd v) > (N.add num (N.of_nat (num_ref ft))) (* 不在该field中, 找下一个field *)
+                                   then match InferWidth_ff v ff' newt (N.add num (N.of_nat (num_ref ft))) with
                                       | Some newf => Some (Fflips v0 Nflip ft newf)
                                       | None => None
                                       end
                                    else (* 在field v0中 *)
-                                   match ft with
-                                   | Gtyp _ => None (* gtyp case 应该满足 v == (N.add num 1%num) 不进入else *)
-                                   | Atyp atyp anum => match infer_implicit atyp newt with 
-                                                | Some newt' => Some (Fflips v0 Nflip (Atyp newt' anum) ff')
-                                                | None => None
-                                                end
-                                   | Btyp bff => match InferWidth_ff v bff (N.add num 1%num) newt with
-                                                | Some nf => Some (Fflips v0 Nflip (Btyp nf) ff')
-                                                | None => None
-                                                end
+                                   match InferWidth_ref v ft newt num with
+                                   | Some newt' => Some (Fflips v0 Nflip newt' ff')
+                                   | None => None
                                    end
   | _ => None
   end.
+
+Definition testbty := (Btyp (Fflips (1%num) Nflip (Atyp (Gtyp (Fuint_implicit 0)) 2) (Fflips (1%num) Nflip (Atyp (Gtyp (Fuint_implicit 0)) 2) Fnil))).
+Compute (InferWidth_ref (N0, 4%num) testbty (exist ftype_not_implicit_width (Atyp (Gtyp (Fuint 2)) 2) I) N0).
+Compute (InferWidth_ref (N0, 3%num) testbty (exist ftype_not_implicit_width (Gtyp (Fuint 2)) I) N0).
 
 Fixpoint InferWidth_fun (v : ProdVarOrder.t) (el : seq HiFP.hfexpr) (tmap : ft_pmap) : option ft_pmap :=
 (* updates the width of v in tmap so that it is at least the width of the expressions in list el. *)
@@ -138,16 +152,12 @@ Fixpoint InferWidth_fun (v : ProdVarOrder.t) (el : seq HiFP.hfexpr) (tmap : ft_p
                 | Some newt, None => if (snd v) == N0 (* node *)
                                      then InferWidth_fun v etl (ft_add v (explicit_to_ftype newt) tmap)
                                     else match ft_find (fst v, N0) tmap with
-                                    | Some (Atyp t_ref n_ref) => (* 比较t_ref与newt是否match, 取较大的更新Atyp *)
-                                                               match infer_implicit t_ref newt with
-                                                               | Some newt' => InferWidth_fun v etl (ft_add (fst v, N0) (Atyp newt' n_ref) tmap)
-                                                               | None => None
-                                                               end
-                                    | Some (Btyp ff_ref) => match InferWidth_ff (snd v) ff_ref N0 newt with
-                                                        | Some newf => InferWidth_fun v etl (ft_add (fst v, N0) (Btyp newf) tmap)
-                                                        | None => None
-                                                        end
-                                    | _ => None (* 若(fst v, N0)是Gtyp或None, v有错误 *)
+                                    | Some (Gtyp _) => None (* 若(fst v, N0)是Gtyp或None, v有错误 *)
+                                    | Some aggtyp => match InferWidth_ref v aggtyp newt N0 with
+                                                    | Some nt => InferWidth_fun v etl (ft_add (fst v, N0) nt tmap)
+                                                    | None => None
+                                                    end
+                                    | None => None
                                     end
                 | _, _ => None
                 end
@@ -225,7 +235,8 @@ Fixpoint drawel (v : ProdVarOrder.t) (el : seq HiFP.hfexpr) (tmap : ft_pmap) (ne
   | nil => Some (newg, vertices)
   | e :: etl => let vl := expr2varlist e tmap nil in
                 match vl with (* all elements appearing in e *)
-                | Some ls => let g' := List.fold_left (fun tempg tempv => updg tempv (cons v (tempg tempv)) tempg) ls newg in
+                | Some ls => (* let g' := List.fold_left (fun tempg tempv => updg tempv (cons v (tempg tempv)) tempg) ls newg in *)
+                             let g' := updg v (ls ++ (newg v)) newg in
                              drawel v etl tmap g' (vertices ++ ls)
                 | None => None
                 end
@@ -626,15 +637,15 @@ Proof.
               * destruct (ft_find var newtm) as [ft|] eqn: Hft_find ; try done ; clear H.
                 destruct (InferWidths_transps pp newtm) as [nss|] eqn: Hiwnewtm ; try done.
         (* var is defined with type t in nvm_port *)
-        assert (Sem_inport (make_ft_explicit t) var.1 0 nvm_port).
+        assert (Sem_inport (expli_ftype t) var.1 0 nvm_port).
         assert (forall n: nat,
                 Sem_inport t var.1 n
                            (fold_left make_p_implicit pp
                                       (make_gtyp_implicit (drop n (vtype_list t [::])) n var.1 nvm_port))).
-              induction t.
+              (*induction t.
               - (* Gtyp f *)
                 induction n.
-                * rewrite /vtype_list /rcons /drop /make_gtyp_implicit.
+                * rewrite /vtype_list /rcons /drop /make_gtyp_implicit.*)
         (* For the remaining part of the boolean conjunction (Sep_port pp ...),
            remove_t will remove exactly those parts of nvm_port
            that have been changed by make_gtyp_implicit.

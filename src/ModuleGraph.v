@@ -526,6 +526,21 @@ Fixpoint vtype_list (ft : ftype) (l : list fgtyp) : list fgtyp :=
    | Fnil => l
    | Fflips v fl t fs => vtype_list_btyp fs (vtype_list t l)
    end.
+
+Fixpoint num_ref (ft : ftype) : nat :=
+   match ft with
+   | Gtyp _ => 1
+   | Atyp atyp n => (num_ref atyp) * n + 1
+   | Btyp ff => num_ff ff + 1
+   end
+with num_ff (ff : ffield) : nat :=
+   match ff with
+   | Fnil => 0
+   | Fflips _ _ ft ff' => (num_ref ft) + num_ff ff'
+end.
+
+Compute (num_ref (Btyp (Fflips (1%num) Nflip (Atyp (Gtyp (Fuint_implicit 0)) 2) (Fflips (1%num) Nflip (Atyp (Gtyp (Fuint_implicit 0)) 2) Fnil)))).
+
 (*Fixpoint vtype_list (ft : ftype_explicit) (l : list fgtyp_explicit) : list fgtyp_explicit :=
    (* appends to list l the ground type elements of type ft *)
    match ft with
