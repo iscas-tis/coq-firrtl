@@ -635,9 +635,10 @@ Module module_graph_vertex_set_p <: SsrFMapWithNew := MakeVtypFMap ProdVarOrder 
 
 (* type of a tmap, which records the aggr_type for each element *)
 Definition ft_pmap := (N*N) -> (option ftype).
-Definition ft_find (v : N*N) (m : ft_pmap)  := m v.
+Definition ft_find (v : N*N) (m : ft_pmap) := m v.
 Definition ft_add (v : N*N) (ft : ftype) (m : ft_pmap) : ft_pmap :=
    fun (y : N*N) => if y == v then (Some ft) else (ft_find y m).
+Definition ft_mem (v : N*N) (m : ft_pmap) : bool := if (m v == None) then false else true.
 Definition ft_empty : ft_pmap := (fun _ => None).
 
 (* for connection_tree, whose key is (N_pair, N) as input_connector_id 
@@ -1149,9 +1150,13 @@ Fixpoint type_of_ref r tmap : option ftype :=
 Fixpoint type_of_e (e : HiFP.hfexpr) (tmap : ft_pmap) : option ftype_explicit :=
    match e with
    | Econst t bs => match t with
-                    | Fuint_implicit w => Some (exist ftype_not_implicit_width (Gtyp (Fuint w)) I)
+                    (*| Fuint_implicit w => Some (exist ftype_not_implicit_width (Gtyp (Fuint w)) I)
                     | Fsint_implicit w => Some (exist ftype_not_implicit_width (Gtyp (Fsint w)) I)
                     | t => Some (exist ftype_not_implicit_width (Gtyp t) I)
+                    end*)
+                    | Fuint w => Some (exist ftype_not_implicit_width (Gtyp (Fuint w)) I)
+                    | Fsint w => Some (exist ftype_not_implicit_width (Gtyp (Fsint w)) I)
+                    | _ => None
                     end
    | Eref r => match type_of_ref r tmap with
                | Some t => Some (make_ftype_explicit t)
@@ -1496,7 +1501,7 @@ Fixpoint Sem_frag_stmt (vm_old : module_graph_vertex_set_p.env) (ct_old : module
                     else module_graph_connection_trees_p.find v0 ct_old = module_graph_connection_trees_p.find v0 ct_new
           | _, _ => False
           end
-   | Sfcnct ref expr => match list_lhs_ref_p vm_new ref tmap, list_rhs_expr_p expr vm_old ct_old tmap with
+   | Sfcnct ref expr => match list_lhs_ref_p vm_old ref tmap, list_rhs_expr_p expr vm_old ct_old tmap with
                      | Some (input_list, ft_ref), Some (output_list, ft_expr, nvmap, nctree) =>
                            module_graph_vertex_set_p.Equal nvmap vm_new
                         /\
@@ -2557,8 +2562,8 @@ Definition Sem (F : HiFP.hfmodule) (vm : module_graph_vertex_set_p.env) (ct : mo
    match F with
    | FInmod n pp ss => let tmap := List.fold_left (fun tempm tempp => prepro_p tempp tempm) pp ft_empty in 
                        match prepro_stmts ss tmap (module_graph_vertex_set_p.empty (seq HiFP.hfexpr)) nil with 
-                     | Some prepro => exists (vm' : module_graph_vertex_set_p.env),
-                        Sem_port pp vm' /\ Sem_frag_stmts vm' (module_graph_connection_trees_p.empty connection_tree) ss vm ct (fst (fst prepro))
+                     | Some prepro => exists (vm' : module_graph_vertex_set_p.env) (ct' : module_graph_connection_trees_p.env),
+                        Sem_port pp vm' /\ Sem_frag_stmts vm' ct' ss vm ct (fst (fst prepro))
                      | _ => False
                      end
    | FExmod _ _ _ => False

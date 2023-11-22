@@ -62,7 +62,7 @@ Fixpoint infer_implicit (ft_ref : ftype) (ft_expr : ftype_explicit) : option fty
   | Gtyp Fasyncreset, exist (Gtyp Fasyncreset) _ => Some ft_ref (* if it's not an implicit type, don't change that. *)
   | Gtyp (Fuint_implicit w_ref), exist (Gtyp (Fuint w_expr)) _ => Some (Gtyp (Fuint_implicit (max w_ref w_expr)))
   | Gtyp (Fsint_implicit w_ref), exist (Gtyp (Fsint w_expr)) _ => Some (Gtyp (Fsint_implicit (max w_ref w_expr)))
-  | Atyp t_ref n_ref, exist (Atyp t_expr n_expr) p => match (n_expr == n_ref), infer_implicit t_ref (exist ftype_not_implicit_width t_expr p) with
+  | Atyp t_ref n_ref, exist (Atyp t_expr n_expr) p => match (n_ref == n_expr), infer_implicit t_ref (exist ftype_not_implicit_width t_expr p) with
                                                       | true, Some nt => Some (Atyp nt n_expr)
                                                       | _, _ => None
                                                       end
@@ -138,11 +138,39 @@ Definition testbty := (Btyp (Fflips (1%num) Nflip (Atyp (Gtyp (Fuint_implicit 0)
 Compute (InferWidth_ref (N0, 4%num) testbty (exist ftype_not_implicit_width (Atyp (Gtyp (Fuint 2)) 2) I) N0).
 Compute (InferWidth_ref (N0, 3%num) testbty (exist ftype_not_implicit_width (Gtyp (Fuint 2)) I) N0).
 
+Definition InferWidth_fun' (v : ProdVarOrder.t) (e : HiFP.hfexpr) (tmap : ft_pmap) : option ft_pmap :=
+(* updates the width of v in tmap so that it is at least the width of the expression. *)
+  match type_of_e e tmap, ft_find v tmap with
+  (* 当v在tmap中有已存v, 是直接被声明的变量 *)
+  | Some newt, Some ft => match infer_implicit ft newt with
+                          | Some nt => Some (ft_add v nt tmap)
+                          | None => None (* type不match，没有新的正确tmap *)
+                          end
+  (* tmap 中没有v, 可能是subindex或subfield或node *)
+  | Some newt, None => if (snd v) == N0 (* node *)
+                        then Some (ft_add v (explicit_to_ftype newt) tmap)
+                        else match ft_find (fst v, N0) tmap with
+                            | Some (Gtyp _) => None (* 若(fst v, N0)是Gtyp或None, v有错误 *)
+                            | Some aggtyp => match InferWidth_ref v aggtyp newt N0 with
+                                            | Some nt => Some (ft_add (fst v, N0) nt tmap)
+                                            | None => None
+                                            end
+                            | None => None
+                            end
+  | _, _ => None
+  end.
+
 Fixpoint InferWidth_fun (v : ProdVarOrder.t) (el : seq HiFP.hfexpr) (tmap : ft_pmap) : option ft_pmap :=
 (* updates the width of v in tmap so that it is at least the width of the expressions in list el. *)
   match el with
   | nil => Some tmap
-  | e :: etl => match type_of_e e tmap, ft_find v tmap with
+  | e :: etl => match InferWidth_fun' v e tmap with
+                | Some newtm => InferWidth_fun v etl newtm
+                | None => None
+                end
+  end.
+  
+  (*type_of_e e tmap, ft_find v tmap with
                 (* 当v在tmap中有已存v, 是直接被声明的变量 *)
                 | Some newt, Some ft => match infer_implicit ft newt with
                                         | Some nt => InferWidth_fun v etl (ft_add v nt tmap)
@@ -161,7 +189,7 @@ Fixpoint InferWidth_fun (v : ProdVarOrder.t) (el : seq HiFP.hfexpr) (tmap : ft_p
                                     end
                 | _, _ => None
                 end
-  end.
+  end.*)
 
 (* wire a : { b : UInt, c : SInt }
    wire x : UInt
@@ -236,12 +264,21 @@ Fixpoint drawel (v : ProdVarOrder.t) (el : seq HiFP.hfexpr) (tmap : ft_pmap) (ne
   | e :: etl => let vl := expr2varlist e tmap nil in
                 match vl with (* all elements appearing in e *)
                 | Some ls => (* let g' := List.fold_left (fun tempg tempv => updg tempv (cons v (tempg tempv)) tempg) ls newg in *)
-                             let g' := updg v (ls ++ (newg v)) newg in
+                             
+                              (*let lfts := unfold_agg v tmap in*) (* 如果v是agg，展开依赖关系到ground type *)
+                              let g' := (*List.fold_left (fun tempg tempele => 
+                                                                  (let rghts := unfold_agg tempele tmap in
+                                                                   let cmblst := List.combine lfts rghts in
+                                                                   List.fold_left (fun tempg' (lft, rght) => updg lft (cons rght (tempg' lft)) tempg') cmblst tempg)
+                                                                   ) ls*) newg in
+                
+                (*let g' := updg v (ls ++ (newg v)) newg in*)
                              drawel v etl tmap g' (vertices ++ ls)
                 | None => None
                 end
   end.
 
+(*
 Lemma InferWidths_fun_correct:
 forall (od : seq ProdVarOrder.t) (var2exprs : var2exprsmap) (tmap : ft_pmap),
    TopoSort.respects_topological_order (fun o : ProdVarOrder.t =>
@@ -276,7 +313,497 @@ forall (od : seq ProdVarOrder.t) (var2exprs : var2exprsmap) (tmap : ft_pmap),
                       end
    | None => True
    end.
+*)
+
+Lemma ft_find_add : forall v ft tmap, ft_find v (ft_add v ft tmap) = Some ft.
 Proof.
+Admitted.
+
+Lemma type_of_e_dpdcy : forall v e tmap el nt, expr2varlist e tmap nil = Some el -> ~ v \in el -> type_of_e e (ft_add v nt tmap) = type_of_e e tmap.
+Proof.
+Admitted.
+
+Lemma infer_implicit_correct : forall te' otype te  p nt, te = (exist ftype_not_implicit_width te' p) -> infer_implicit otype te = Some nt -> 
+ftype_equiv otype te' -> connect_type_compatible nt te
+with infer_implicit_f_correct : forall (f0 : ffield) (f : ffield) (te : {x : ftype | ftype_not_implicit_width x}) (p : ftype_not_implicit_width (Btyp f)) (nt : ftype),
+te = exist ftype_not_implicit_width (Btyp f) p -> infer_implicit (Btyp f0) te = Some nt ->
+ftype_equiv (Btyp f0) (Btyp f) -> connect_type_compatible nt te.
+Proof.
+  clear infer_implicit_correct.
+  elim.
+  intro f. 
+  elim.
+  (* ground match ground *)
+  case Hgt : f => [w'|w'|w'|w'|||]; move => ogt te p nt Hte Hinfer Heq; simpl in p; try done.
+  (* te' = Gtyp (uint w') *)
+  - case Hogt : ogt => [ow'|ow'|ow'|ow'|||]; rewrite Hogt Hte in Hinfer; simpl in Hinfer; try discriminate.
+    (* otype = Gtyp (uint ow') *)
+    inversion Hinfer as [Hinfer']; clear Hinfer.
+    rewrite Hte. 
+    simpl; done.
+    (* otype = Gtyp (uint_implicit ow') *)
+    inversion Hinfer as [Hinfer']; clear Hinfer.
+    rewrite Hte.
+    simpl. 
+    rewrite Nat.max_comm.
+    specialize Nat.le_max_l with (n := w') (m := ow').
+    admit.
+  (* te' = Gtyp (sint w') *)
+  - case Hogt : ogt => [ow'|ow'|ow'|ow'|||]; rewrite Hogt Hte in Hinfer; simpl in Hinfer; try discriminate.
+    (* otype = Gtyp (sint ow') *)
+    inversion Hinfer as [Hinfer']; clear Hinfer.
+    rewrite Hte. 
+    simpl; done.
+    (* otype = Gtyp (sint_implicit ow') *)
+    inversion Hinfer as [Hinfer']; clear Hinfer.
+    rewrite Hte.
+    simpl. 
+    rewrite Nat.max_comm.
+    specialize Nat.le_max_l with (n := w') (m := ow').
+    admit.
+  (* te' = Gtyp Fclock *)
+  - case Hogt : ogt => [ow'|ow'|ow'|ow'|||]; rewrite Hogt Hte in Hinfer; simpl in Hinfer; try discriminate.
+    (* otype = Gtyp Fclock *)
+    inversion Hinfer as [Hinfer']; clear Hinfer.
+    rewrite Hte. 
+    simpl; done.
+  (* te' = Gtyp Freset *)
+  - case Hogt : ogt => [ow'|ow'|ow'|ow'|||]; rewrite Hogt Hte in Hinfer; simpl in Hinfer; try discriminate.
+    (* otype = Gtyp Freset *)
+    inversion Hinfer as [Hinfer']; clear Hinfer.
+    rewrite Hte. 
+    simpl; done.
+  (* te' = Gtyp Fasync *)
+  - case Hogt : ogt => [ow'|ow'|ow'|ow'|||]; rewrite Hogt Hte in Hinfer; simpl in Hinfer; try discriminate.
+    (* otype = Gtyp Fasync *)
+    inversion Hinfer as [Hinfer']; clear Hinfer.
+    rewrite Hte. 
+    simpl; done.
+  
+  (* array match ground *)
+  intros; simpl in H2; discriminate.
+  (* bundle match ground *)
+  intros; simpl in H1; discriminate.
+
+  intros f Ho n.
+  elim.
+  (* ground match array *)
+  intros. simpl in H1; discriminate.
+  (* array match array *)
+  intros; clear H.
+  simpl in H2.
+  rewrite H0 in H1; simpl in H1.
+  move /andP : H2 => [H2 H3].
+  rewrite H2 in H1; simpl in H1.
+  case Hinfer : (infer_implicit f0 (exist ftype_not_implicit_width f p)) => [nt0|]; rewrite Hinfer in H1; try discriminate.
+  inversion H1 as [H1']; clear H1.
+  rewrite H0.
+  simpl.
+  simpl in p.
+  specialize Ho with (otype := f0) (te := exist ftype_not_implicit_width f p) (p := p) (nt := nt0).
+  rewrite Ho; try done.
+  rewrite (eq_refl n); done.
+  (* bundle match array *)
+  intros. simpl in H1; discriminate.
+
+  
+  intro f. 
+  elim.
+  (* ground match bundle *)
+  intros. simpl in H1; discriminate.
+  (* array match bundle *)
+  intros. simpl in H2; discriminate.
+  (* bundle match bundle *)
+  intros.
+  apply infer_implicit_f_correct with (f0 := f0) (f := f) (p := p); try done.
+
+  clear infer_implicit_f_correct.
+  elim.
+  elim.
+  intros; rewrite H in H0; simpl in H0.
+  inversion H0 as [H0']; clear H0.
+  rewrite H; simpl; done.
+  intros. simpl in H2. discriminate.
+  intros v fl ft ff Hf.
+  elim.
+  intros. simpl in H1; case Hfl : fl; rewrite Hfl in H1; discriminate. 
+  intros; clear H.
+
+
+  simpl in H2.
+  case Hfl : fl; rewrite Hfl in H2; case Hf0 : f; rewrite Hf0 in H2; try discriminate.
+  rewrite H0 Hf0 Hfl in H1; simpl in H1; discriminate.
+  move /andP : H2 => [H3 H4].
+  move /andP : H3 => [H2 H3].
+  rewrite H0 Hf0 Hfl in H1; simpl in H1.
+  rewrite H2 in H1.
+  case Hinfer : (infer_implicit ft (exist ftype_not_implicit_width f0 (proj1 p))) => [nt0|]; rewrite Hinfer in H1; try discriminate.
+  case Hinfer' : (infer_implicit_fields ff (exist ffield_not_implicit_width f1 (proj2 p))) => [nf0|]; rewrite Hinfer' in H1; try discriminate.
+  inversion H1 as [H1']; clear H1.
+  rewrite H0.
+  simpl.
+  rewrite Hf0.
+  apply rwP with (P := (v == v0) &&
+    connect_type_compatible nt0
+      (exist ftype_not_implicit_width f0 (proj1 p)) /\
+    connect_type_compatible_fields nf0
+      (exist ffield_not_implicit_width f1 (proj2 p))).
+  apply andP.
+  split.
+  apply rwP with (P := (v == v0) /\
+    connect_type_compatible nt0
+      (exist ftype_not_implicit_width f0 (proj1 p))).
+  apply andP.
+  split; try done.
+  apply infer_implicit_correct with (te' := f0) (otype := ft) (te := exist ftype_not_implicit_width f0 (proj1 p)) (p := (proj1 p)) (nt := nt0); try done.
+
+  simpl in p.
+  assert (connect_type_compatible_fields nf0 (exist ffield_not_implicit_width f1 (proj2 p)) = 
+  connect_type_compatible (Btyp nf0) (exist ftype_not_implicit_width (Btyp f1) (proj2 p))).
+  simpl; done.
+  rewrite H.
+  specialize Hf with (f := f1) (te := exist ftype_not_implicit_width (Btyp f1) (proj2 p)) (p := proj2 p) (nt := Btyp nf0).
+  apply Hf; try done.
+  simpl.
+  rewrite Hinfer'; done.
+  Admitted.
+
+
+Lemma InferWidth_fun_correct':
+forall (v : ProdVarOrder.t) (expr : HiFP.hfexpr) (tmap : ft_pmap),
+  match InferWidth_fun' v expr tmap with
+  | Some newtm => match ft_find v tmap, ft_find v newtm with
+                  | Some otype, Some newotype => 
+                      match type_of_e expr tmap, type_of_e expr newtm with
+                      | Some exprtype, Some newexprtype => ftype_equiv otype (explicit_to_ftype exprtype) -> connect_type_compatible newotype newexprtype
+                      | _, _ => True
+                      end
+                  | _,_ => True
+                  end
+  | None => True
+  end.
+Proof.
+  intros.
+  case Hinfer : (InferWidth_fun' v expr tmap) => [newtm|]; try done.
+  case Hdcl : (ft_find v tmap) => [otype|]; try done.
+  case Hdcl' : (ft_find v newtm) => [newotype|]; try done.
+  rewrite /InferWidth_fun' in Hinfer; simpl in Hinfer; rewrite Hdcl in Hinfer.
+  case He : (type_of_e expr tmap) => [te|]; rewrite He in Hinfer; try done.
+  case Hte : te => [te' p]; rewrite Hte in Hinfer.
+  (*move : p Hte Hinfer He Hdcl.
+  move : te' otype te.
+  elim.
+  move => f.
+  elim.
+  admit.
+  admit.
+  admit.
+  intros f Ho n.
+  elim.
+  admit.
+  intros.*)
+
+  case Hnt : (infer_implicit otype (exist [eta ftype_not_implicit_width] te' p)) => [nt|]; rewrite Hnt in Hinfer; try discriminate.
+  inversion Hinfer as [Hinfer']; clear Hinfer.
+  rewrite -Hinfer' in Hdcl'.
+  rewrite ft_find_add in Hdcl'.
+  inversion Hdcl' as [Hdcl'']; clear Hdcl'.
+  case He2varl : (expr2varlist expr tmap nil) => [el|].
+  specialize type_of_e_dpdcy with (v := v) (e := expr) (tmap := tmap) (el := el) (nt := newotype); intro.
+  rewrite H; try done. 
+  rewrite He Hte. 
+  simpl.
+  rewrite -Hdcl''.
+  apply infer_implicit_correct with (p := p); try done.
+  admit.
+  admit.
+  Admitted.
+
+Lemma infer_ftequiv : forall otype newt nt ft, infer_implicit otype newt = Some nt -> ftype_equiv otype ft -> ftype_equiv nt ft.
+Admitted. 
+
+Lemma compatible_keep : forall v expr_seq tmap newtm te nt newotype, InferWidth_fun v expr_seq tmap = Some newtm -> ft_find v tmap = Some nt -> connect_type_compatible nt te -> ft_find v newtm = Some newotype -> connect_type_compatible newotype te.
+Admitted.
+
+Lemma InferWidth_fun_correct:
+forall (v : ProdVarOrder.t) (expr_seq : seq HiFP.hfexpr) (tmap : ft_pmap),
+  (* all varaibles that v depends on should have been infered in tmap *)
+  (*forall v0 : ProdVarOrder.t, v0 /in (List.fold_left (fun tl te => expr2varlist te tmap tl) el nil) -> *)
+
+  match InferWidth_fun v expr_seq tmap with
+  | Some newtm => match ft_find v tmap, ft_find v newtm with
+                  | Some otype, Some newotype => 
+                    forall expr : HiFP.hfexpr, expr \in expr_seq ->
+                      match type_of_e expr tmap, type_of_e expr newtm with
+                      | Some exprtype, Some newexprtype => ftype_equiv otype (explicit_to_ftype exprtype) -> connect_type_compatible newotype newexprtype
+                      (* tmap assigns compatible types to o and expr (ignoring width constraints) *)
+                      (* newtm assigns compatible types to o and expr, including the width constraints *)
+                      | _, _ => True
+                      end
+                  | _,_ => True
+                  end
+  | None => True
+  end.
+Proof.
+  induction expr_seq.
+  move => tmap.
+  simpl.
+  case Hdcl : (ft_find v tmap) => [otype|]; try done.
+
+  move => tmap.
+  case Hinfer : (InferWidth_fun v (a :: expr_seq) tmap) => [newtm|]; try done.
+  simpl in Hinfer.
+  case Hinfer' : (InferWidth_fun' v a tmap) => [newtm'|]; rewrite Hinfer' in Hinfer; try discriminate.
+  case Hdcl : (ft_find v tmap) => [otype|]; try done.
+  specialize IHexpr_seq with (tmap := newtm'); rewrite Hinfer in IHexpr_seq.
+  generalize Hinfer'.
+  rewrite /InferWidth_fun' in Hinfer'.
+  intros Hinferv'.
+  case Hte : (type_of_e a tmap) => [newt|]; rewrite Hte in Hinfer'; try discriminate.
+  rewrite Hdcl in Hinfer'.
+  case Hinfert : (infer_implicit otype newt) => [nt|]; rewrite Hinfert in Hinfer'; try discriminate.
+  inversion Hinfer' as [Hinfer'']; clear Hinfer'.
+  rewrite -Hinfer'' in IHexpr_seq; rewrite ft_find_add in IHexpr_seq.
+  
+  case Hdcl' : (ft_find v newtm) => [newotype|]; rewrite Hdcl' in IHexpr_seq; try done.
+  intros expr Hexpr.
+  rewrite in_cons in Hexpr.
+  case Hin : (expr \in expr_seq).
+  specialize IHexpr_seq with (expr := expr).
+  rewrite Hin in IHexpr_seq.
+  case Hdpdcy : (expr2varlist expr tmap [::]) => [el|].
+  specialize type_of_e_dpdcy with (v := v) (e := expr) (tmap := tmap) (nt := nt) (el := el); intro.
+  rewrite H in IHexpr_seq; clear H.
+  case Hte' : (type_of_e expr tmap) => [exprtype|]; rewrite Hte' in IHexpr_seq; try done.
+  case Hte'' : (type_of_e expr newtm) => [newexprtype|]; rewrite Hte'' in IHexpr_seq; try done.
+  intro.
+  apply IHexpr_seq; try done.
+  specialize infer_ftequiv with (otype := otype) (newt := newt) (nt := nt) (ft := (explicit_to_ftype exprtype)); intro.
+  apply H0; try done.
+  done.
+  admit.
+  admit.
+
+  rewrite Hin in Hexpr.
+  case Ha : (expr == a); rewrite Ha in Hexpr; simpl in Hexpr; try discriminate.
+  clear IHexpr_seq Hexpr Hin.
+  specialize InferWidth_fun_correct' with (v := v) (expr := expr) (tmap := tmap); intro.
+  move : (eqP Ha).
+  clear Ha; intro Ha.
+  rewrite -Ha in Hinferv'; rewrite Hinferv' Hdcl -{1}Hinfer'' in H; rewrite ft_find_add in H.
+  case Hte' : (type_of_e expr tmap) => [exprtype|]; rewrite Hte' in H; try done.
+  assert (Hte'' : type_of_e expr newtm' = Some exprtype).
+  admit.
+  assert (Hte''' : type_of_e expr newtm = Some exprtype).
+  admit.
+  rewrite Hte'' in H; rewrite Hte'''; intro; apply H in H0; clear H.
+  apply compatible_keep with (v := v) (expr_seq := expr_seq) (tmap := newtm') (newtm := newtm) (nt := nt); try done.
+  rewrite -Hinfer''.
+  rewrite ft_find_add; done.
+
+Admitted.
+
+Lemma inferwidths_a : forall a v expr_seq tmap tmap', InferWidth_fun v expr_seq tmap = Some tmap' -> 
+  if (a == v) then (exists ft ft', ft_find a tmap = Some ft /\ ft_find a tmap' = Some ft' /\ ftype_equiv ft ft')
+    else ft_find a tmap' = ft_find a tmap.
+Proof.
+  intros.
+  case Heq : (a == v).
+  admit.
+  move : tmap tmap' H.
+  elim expr_seq.
+  - simpl; intros. 
+    inversion H; clear H; done.
+  - intros e0 el H tmap tmap' Hinfer.
+    simpl in Hinfer. 
+    case Hinfer' : (InferWidth_fun' v e0 tmap) => [newtm|]; rewrite Hinfer' in Hinfer; try discriminate.
+    specialize H with (tmap := newtm) (tmap' := tmap').
+    rewrite H; try done.
+    rewrite /InferWidth_fun' in Hinfer'.
+    case Hte : (type_of_e e0 tmap) => [nt|]; rewrite Hte in Hinfer'; try discriminate.
+    case Hfindv : (ft_find v tmap) => [ft|]; rewrite Hfindv in Hinfer'; try discriminate.
+    case Hinfer0 : (infer_implicit ft nt) => [nt0|]; rewrite Hinfer0 in Hinfer'; try discriminate.
+    inversion Hinfer'; clear Hinfer'.
+    admit.
+    case Heq0 : (v.2 == 0%num); rewrite Heq0 in Hinfer'.
+    inversion Hinfer'; clear Hinfer'.
+    admit.
+    case Hfindv1 : (ft_find (v.1, 0%num) tmap) => [aggtyp|]; rewrite Hfindv1 in Hinfer'; try discriminate.
+    case Hagg : (aggtyp) => [|ft n|bf]; rewrite Hagg in Hinfer'; try discriminate.
+    case Hinferref : (InferWidth_ref v (Atyp ft n) nt 0) => [nt1|]; rewrite Hinferref in Hinfer'; try discriminate.
+    inversion Hinfer'; clear Hinfer'.
+    admit.
+    case Hinferref : (InferWidth_ref v (Btyp bf) nt 0) => [nt1|]; rewrite Hinferref in Hinfer'; try discriminate.
+    inversion Hinfer'; clear Hinfer'.
+Admitted.
+
+Lemma inferwidths_ls : forall el a var2exprs tmap tmap', InferWidths_fun el var2exprs tmap = Some tmap' -> 
+  ~~(a \in el) -> ft_find a tmap' = ft_find a tmap.
+Proof.
+  elim.
+  
+Admitted.
+
+Lemma ftype_equiv_dlvr : forall t1 t2 t3, ftype_equiv t1 t2 -> ftype_equiv t2 t3 -> ftype_equiv t1 t3.
+Proof.
+
+Admitted.
+
+Lemma mkexpli_eq : forall t1 t2, make_ftype_explicit t1 = make_ftype_explicit t2 -> t1 = t2.
+Proof.
+
+Admitted.
+
+Lemma InferWidths_fun_correct:
+forall (od : seq ProdVarOrder.t) (var2exprs : var2exprsmap) (tmap : ft_pmap),
+  (* TopoSort.respects_topological_order (fun o : ProdVarOrder.t =>
+                                        match module_graph_vertex_set_p.find o var2exprs with
+                                        | Some expr_seq => match drawel o expr_seq tmap (fun _ => [::]) [::] with
+                                                           | Some (new_edges, _) => new_edges o
+                                                           | None => [::]
+                                                           end
+                                        | None => [::]
+                                        end)
+                                       od -> *)
+
+  (*forall o : ProdVarOrder.t,
+  match module_graph_vertex_set_p.find o var2exprs, ft_find o tmap with
+  | Some expr_seq, Some otype => forall expr : HiFP.hfexpr, expr \in expr_seq ->
+            match type_of_e expr tmap with
+            | Some exprtype => ftype_equiv otype (explicit_to_ftype exprtype)
+            | None => false
+            end
+  | _, _ => true
+  end) ->*)
+
+  match InferWidths_fun od var2exprs tmap with 
+  | Some newtm => forall o : ProdVarOrder.t, o \in od ->
+                  match module_graph_vertex_set_p.find o var2exprs, ft_find o tmap, ft_find o newtm with
+                  | Some expr_seq, Some otype, Some newotype => 
+                    forall expr : HiFP.hfexpr, expr \in expr_seq ->
+                      match type_of_e expr tmap, type_of_e expr newtm with
+                      | Some exprtype, Some newexprtype => ftype_equiv otype (explicit_to_ftype exprtype) -> connect_type_compatible newotype newexprtype
+                      (* tmap assigns compatible types to o and expr (ignoring width constraints) *)
+                      (* newtm assigns compatible types to o and expr, including the width constraints *)
+                      | _, _ => True
+                      end
+                  | _,_,_ => True
+                  end
+  | None => True
+  end.
+Proof.
+  induction od.
+  move => var2exprs tmap (*Hpre*).
+  simpl.
+  move => v Hin.
+  rewrite in_nil in Hin; discriminate.
+
+  intros var2exprs tmap (*Hpre*). 
+  simpl.
+  case Hel : (module_graph_vertex_set_p.find a var2exprs) => [el|]; try done.
+  case Hinfera : (InferWidth_fun a el tmap) => [tmap'|]; try done.
+  specialize IHod with (var2exprs := var2exprs) (tmap := tmap').
+
+  (*assert (forall o : ProdVarOrder.t,
+    match module_graph_vertex_set_p.find o var2exprs with
+    | Some expr_seq =>
+        match ft_find o tmap' with
+        | Some otype =>
+            forall expr : HiFP.hfexpr,
+            expr \in expr_seq ->
+            match type_of_e expr tmap' with
+            | Some exprtype =>
+                ftype_equiv otype (explicit_to_ftype exprtype)
+            | None => false
+            end
+        | None => true
+        end
+    | None => true
+    end).
+  admit.
+  apply IHod in H; clear IHod.*)
+
+  case Hinfers : (InferWidths_fun od var2exprs tmap') => [newtm|]; try done; rewrite Hinfers in IHod.
+  intros o Hin; specialize IHod with (o := o).
+  case Ho : (o == a).
+    move : (eqP Ho); clear Ho IHod Hin; intro Ho.
+    rewrite Ho Hel.
+    assert (ft_find a newtm = ft_find a tmap').
+    (* InferWidths_fun od var2exprs tmap' = Some newtm -> ~~(a \in od) -> (ft_find a newtm = ft_find a tmap'). *)
+    apply inferwidths_ls with (el := od) (var2exprs := var2exprs); try done.
+    admit.
+    rewrite H.
+    case Hte : (ft_find a tmap) => [otype|]; try done.
+    case Hte' : (ft_find a tmap') => [newotype|]; try done.
+    intros expr Hin.
+    assert (type_of_e expr newtm = type_of_e expr tmap').
+    (* 原因是 expr 仅依赖于 拓扑排序在a之前的变量，从tmap'到newtm仅改变拓扑排序在a之后的变量，故没有影响 *)
+    elim expr.
+    - simpl; done.
+    - intros c e1 He1.
+      case Hcast : c; simpl; try done.
+      1,2,3,4: rewrite He1; done.
+    - intros u e1 He1.
+      case Hunop : u; simpl; try done; rewrite He1; done.
+    - intros b e1 He1 e2 He2.
+      case Hbinop : b; simpl; try done; rewrite He1 He2; done.
+    - intros c Hc e1 He1 e2 He2.
+      simpl; rewrite Hc He1 He2; done.
+    - intros e1 He1 e2 He2.
+      simpl; try done; rewrite He1 He2; done.
+    - elim.
+      intro v.
+      simpl.
+      specialize inferwidths_ls with (a := v) (el := od) (var2exprs := var2exprs) (tmap := tmap') (tmap' := newtm); intro.
+      rewrite H0; try done.
+      admit.
+    - intros e1 He1 v.
+      simpl; simpl in He1.
+      case Href : (type_of_ref e1 newtm) => [arrt|]; rewrite Href in He1; case Href' : (type_of_ref e1 tmap') => [arrt'|]; rewrite Href' in He1; try discriminate; try done.
+      inversion He1 as [He1'] ; clear He1.
+      apply mkexpli_eq in He1'; rewrite He1'; done.
+    - intros e1 He1 n.
+      simpl.
+      simpl in He1.
+      case Href : (type_of_ref e1 newtm) => [arrt|]; rewrite Href in He1; case Href' : (type_of_ref e1 tmap') => [arrt'|]; rewrite Href' in He1; try discriminate; try done.
+      inversion He1 as [He1'] ; clear He1.
+      apply mkexpli_eq in He1'; rewrite He1'; done.
+    - intros e1 He1 e2.
+      simpl; simpl in He1; done.
+    rewrite H0.
+    specialize InferWidth_fun_correct with (v := a) (expr_seq := el) (tmap := tmap); intro Ha.
+    rewrite Hinfera Hte Hte' in Ha.
+    apply Ha; done.
+
+    rewrite in_cons in Hin; rewrite Ho in Hin; simpl in Hin.
+    apply IHod in Hin; clear IHod.
+    case Hfindo : (module_graph_vertex_set_p.find o var2exprs) => [expr_seq|]; rewrite Hfindo in Hin; try done.
+    assert (ft_find o tmap = ft_find o tmap').
+    specialize inferwidths_a with (a := o) (v := a) (expr_seq := el) (tmap := tmap) (tmap' := tmap'); intro.
+    apply H in Hinfera; clear H; rewrite Ho in Hinfera; rewrite Hinfera; done.
+    rewrite H.
+    case Hto : (ft_find o tmap') => [otype|]; rewrite Hto in Hin; try done.
+    case Hto' : (ft_find o newtm) => [newotype|]; rewrite Hto' in Hin; try done.
+    intros expr Hin'; apply Hin in Hin'; clear Hin.
+    case Hte : (type_of_e expr tmap) => [exprtype|]; try done.
+    case Hte' : (type_of_e expr tmap') => [exprtype'|]; rewrite Hte' in Hin'.
+    case Hte'' : (type_of_e expr newtm) => [newexprtype|]; rewrite Hte'' in Hin'; try done.
+    intro Heq; apply Hin'.
+    assert (ftype_equiv (explicit_to_ftype exprtype) (explicit_to_ftype exprtype')).
+    admit.
+    apply (ftype_equiv_dlvr otype (explicit_to_ftype exprtype) (explicit_to_ftype exprtype')); try done.
+    admit. (* 若type_of_e expr tmap = Some，则 type_of_e expr tmap' 不能为 None *)
+  
+  specialize IHod with (var2exprs := var2exprs) (tmap := tmap).
+  case Hinfers : (InferWidths_fun od var2exprs tmap) => [newtm|]; try done. rewrite Hinfers in IHod.
+  intros o Hin.
+  case Ho : (o == a).
+  move : (eqP Ho); clear Ho; intro Ho.
+  rewrite Ho Hel; done.
+  rewrite in_cons in Hin; rewrite Ho in Hin; simpl in Hin.
+  apply IHod; done.
+
+  
 (* TBD!!! *)
 Admitted.
 
@@ -563,12 +1090,29 @@ Definition InferWidths_m (m : HiFP.hfmodule) : option HiFP.hfmodule :=
   end).
 *)
 
+Lemma vm2newtm : forall newtm vm' F tmap nps nss ct, match F with
+                                    | FInmod v ps ss => InferWidths_transps ps newtm = Some nps -> 
+                                                        InferWidths_transss ss newtm = Some nss ->
+                                                        Sem (FInmod v nps nss) vm' ct -> 
+                                        (forall v0 p pv0 q, list_lhs_ref_p vm' v0 tmap = Some p -> ref2pvar v0 tmap = Some pv0 -> ft_find pv0 newtm = Some q -> p.2 = q)
+                                    | _ => True
+                                    end.
+Proof.
+  
+Admitted.
+
+
 Theorem InferWidths_correct :
 (* Proves that InferWidth_fun preserves the semantics *)
    forall (F : HiFP.hfmodule) (vm' : module_graph_vertex_set_p.env) (ct : module_graph_connection_trees_p.env),
       match InferWidths_m F with
       | Some F' => Sem F' vm' ct -> Sem F (make_vm_implicit F vm') ct
       
+      (*forall (F : HiFP.hfmodule),
+      match InferWidths_m F with
+      | Some F' => forall vm vm' ct, Sem F vm ct -> Sem F' vm' ct -> 
+                    vm' <= vm (* forall v, v in vm /\ v in vm', width v vm' <= width v vm *) *)
+
       (*exists vm : module_graph_vertex_set_p.env, (* make_vm_implicit vm' F : 找所有implicit declaration, 改 vertex_type *)
                                        Sem F vm ct /\ module_graph_vertex_set_p.Equal vm' (make_vm_explicit vm) *)
       | _ => True
@@ -600,9 +1144,311 @@ Proof.
   case Hprepron : (prepro_stmts nss
     (fold_left (fun tempm : ft_pmap => prepro_p^~ tempm) nps ft_empty)
     (module_graph_vertex_set_p.empty (seq HiFP.hfexpr)) [::]) => [prepron|] ; try done.
-  move => [nvm_port [Hport Hstmts]].
+  move => [nvm_port [ct' [Hport Hstmts]]].
   exists (make_vm_implicit (FInmod v pp (Qnil HiFirrtl.ProdVarOrder.T)) nvm_port).
+  exists ct'.
   split.
+  clear Hprepro Hstmts Hprepron Hinfer Htranss.
+  move : pp newtm nvm_port nps Htransp Hport.
+  induction pp.
+  - intros newtm nvm_port nps Htransp Hport.
+    simpl in Htransp.
+    simpl.
+    inversion Htransp as [Hnps]; clear Htransp.
+    rewrite -Hnps in Hport.
+    simpl in Hport; done.
+  - intros newtm nvm_port nps Htransp Hport.
+    simpl.
+    case Ha : a => [var t| var t].
+    (* input *)
+    apply rwP with (P := Sem_port pp
+        (remove_t
+          (fold_left make_p_implicit pp
+              (make_p_implicit nvm_port
+                (Finput (var:=HiFirrtl.ProdVarOrder.T) var t))) var.1
+          (size_of_ftype t)) /\
+      Sem_inport t var.1 0
+        (fold_left make_p_implicit pp
+          (make_p_implicit nvm_port
+              (Finput (var:=HiFirrtl.ProdVarOrder.T) var t)))).
+    apply andP.
+    simpl in Htransp.
+    case Htransa : (InferWidths_transp a newtm) => [ap|]; rewrite Htransa in Htransp; try discriminate.
+    case Htransp' : (InferWidths_transps pp newtm) => [nps'|]; rewrite Htransp' in Htransp; try discriminate.
+    inversion Htransp as [Hnps]; clear Htransp.
+    rewrite -Hnps in Hport.
+    simpl in Hport.
+    rewrite Ha in Htransa; simpl in Htransa.
+    case Hat : (ftype_not_implicit t); rewrite Hat in Htransa.
+      - inversion Htransa as [Hap]; clear Htransa; rewrite -Hap in Hport.
+      move /andP : Hport => [Hport Hinport].
+      split.
+      specialize IHpp with (newtm := newtm) (nvm_port := (remove_t nvm_port var.1 (size_of_ftype t))) (nps := nps').
+      assert ((make_vm_implicit
+        (FInmod v pp (Qnil HiFirrtl.ProdVarOrder.T))
+        (remove_t nvm_port var.1 (size_of_ftype t))) = (remove_t
+          (fold_left make_p_implicit pp
+            (make_p_implicit nvm_port
+                (Finput (var:=HiFirrtl.ProdVarOrder.T) var t))) var.1
+          (size_of_ftype t))).
+      admit.
+      rewrite -H.
+      apply IHpp; done.
+      admit.
+      - case Hfind : (ft_find var newtm) => [ft|]; rewrite Hfind in Htransa; try discriminate.
+      inversion Htransa as [Hap]; clear Htransa; rewrite -Hap in Hport.
+      move /andP : Hport => [Hport Hinport].
+      specialize IHpp with (newtm := newtm) (nvm_port := (remove_t nvm_port var.1 (size_of_ftype (expli_ftype ft)))) (nps := nps').
+      (* 基本同上 *)
+      admit.
+    (* output同上 *)
+    admit.
+  clear Hprepro Hprepron Hdrawg Htransp Hport.
+  move : ss nvm_port ct' ct nss Htranss Hstmts.
+  (*elim.*)
+  induction ss.
+  - simpl.
+    intros.
+    inversion Htranss as [Hnss]; clear Htranss.
+    rewrite -Hnss in Hstmts; simpl in Hstmts.
+    admit.
+  - intros.
+    simpl in Htranss.
+    case Htransh : (InferWidths_transs h newtm) => [hs|]; rewrite Htransh in Htranss; try discriminate.
+    case Htranss' : (InferWidths_transss ss newtm) => [nss'|]; rewrite Htranss' in Htranss; try discriminate.
+    inversion Htranss as [Hnss]; clear Htranss.
+    rewrite -Hnss in Hstmts.
+    case Hh : h => [|v0 t|v0 r|v0 m|v0 v1|v0 n|v0 e|v0|c s1 s2].
+    - simpl.
+      rewrite Hh in Htransh; simpl in Htransh.
+      inversion Htransh as [Hhs]; clear Htransh.
+      rewrite -Hhs in Hstmts; simpl in Hstmts.
+      destruct Hstmts as [nvm_port' Hstmts].
+      destruct Hstmts as [ct'0 [[Hnvm_port Hct'] Hstmts]].
+      exists (fold_left make_p_implicit pp nvm_port).
+      exists ct'.
+      split; try done.
+      rewrite -Hnvm_port -Hct' in Hstmts.
+      specialize IHss with (nvm_port := nvm_port) (ct := ct) (nss := nss').
+      simpl in IHss; apply IHss; try done.
+    - simpl.
+      rewrite Hh in Htransh; simpl in Htransh.
+      case Hth : (ftype_not_implicit t); rewrite Hth in Htransh.
+      inversion Htransh as [Hhs]; clear Htransh.
+      rewrite -Hhs in Hstmts; simpl in Hstmts.
+      destruct Hstmts as [nvm_port' Hstmts].
+      destruct Hstmts as [ct'0 [[Hnv0 Hv0] Hstmts]].
+      exists (fold_left make_p_implicit pp nvm_port'). (* make wire implicit *)
+      exists ct'.
+      split.
+      split.
+      (* part1 *)
+      clear Hv0 Hstmts.
+      intros.
+      case Ht : (v1 != v0.1); try done.
+      specialize Hnv0 with (v0 := v1) (n0 := n0); rewrite Ht in Hnv0.
+      destruct Hnv0 as [Hnv0 _].
+      split; try reflexivity.
+      admit.
+      (* part2 *)
+      clear Hnv0 Hstmts.
+      split; try reflexivity.
+      destruct Hv0 as [Hv0 Hct'0].
+      intro.
+      specialize Hv0 with (n := n).
+      case Hn : (nth_error (vtype_list t [::]) n) => [nv|]; rewrite Hn in Hv0.
+        destruct Hv0 as [Hv0vm Hv0ct].
+        admit.
+        destruct Hv0 as [Hv0vm Hv0ct].
+        split; try done.
+        admit.
+      (* part3 *)
+      destruct Hv0 as [_ Hct'0].
+      clear Hnv0.
+      specialize IHss with (nvm_port := nvm_port') (ct := ct) (ct' := ct'0) (nss := nss').
+      simpl in IHss.
+      apply IHss in Htranss'; try done.
+      admit. (* 由Hth, t没有implicit, 故从Htranss'推出相等 *)
+
+      case Hfindv0 : (ft_find v0 newtm) => [ft|]; rewrite Hfindv0 in Htransh; try discriminate.
+      inversion Htransh as [Hhs]; clear Htransh.
+      rewrite -Hhs in Hstmts; simpl in Hstmts.
+      destruct Hstmts as [nvm_port' Hstmts].
+      destruct Hstmts as [ct'0 [[Hnv0 Hv0] Hstmts]].
+      exists (fold_left make_p_implicit pp nvm_port'). (* make wire implicit *)
+      exists ct'.
+      split.
+      split.
+      (* part1 *)
+      clear Hv0 Hstmts.
+      intros.
+      case Ht : (v1 != v0.1); try done.
+      specialize Hnv0 with (v0 := v1) (n0 := n0); rewrite Ht in Hnv0.
+      destruct Hnv0 as [Hnv0 _].
+      split; try reflexivity.
+      admit.
+      (* part2 *)
+      clear Hnv0 Hstmts.
+      split; try reflexivity.
+      destruct Hv0 as [Hv0 Hct'0].
+      intro.
+      specialize Hv0 with (n := n).
+      assert ((vtype_list (expli_ftype ft) [::]) = (vtype_list t [::])).
+      admit.
+      rewrite H in Hv0; clear H.
+      case Hn : (nth_error (vtype_list t [::]) n) => [nv|]; rewrite Hn in Hv0.
+        destruct Hv0 as [Hv0vm Hv0ct].
+        admit.
+        destruct Hv0 as [Hv0vm Hv0ct].
+        split; try done.
+        admit.
+      (* part3 *)
+      destruct Hv0 as [_ Hct'0].
+      clear Hnv0.
+      specialize IHss with (nvm_port := nvm_port') (ct := ct) (ct' := ct'0) (nss := nss').
+      simpl in IHss.
+      apply IHss in Htranss'; try done.
+      admit. (* 由Hth, t没有implicit, 故从Htranss'推出相等 *)
+    - (* reg *)
+      admit.
+    - (* mem *)
+      admit.
+    - (* inst *)
+      admit.
+    - (* node *)
+      admit.
+    - (* fcnct *)
+      rewrite Hh in Htransh; simpl in Htransh.
+      inversion Htransh as [Hhs]; clear Htransh.
+      rewrite -Hhs in Hstmts; simpl in Hstmts.
+      destruct Hstmts as [nvm_port' Hstmts].
+      destruct Hstmts as [ct'0 [Hv0 Hstmts]].
+      simpl.
+      exists (fold_left make_p_implicit pp nvm_port). (* 要求这里的vm中这句用到的变量都为newtm中的位宽 *)
+      exists ct'0.
+      assert (Heq : module_graph_vertex_set_p.Equal nvm_port nvm_port').
+      admit. (* 可以从Hv0得到 *)
+      split.
+      case He : e => [t c| c e1 | u e1 | op e1 e2 | c e1 e2 | c e1 | r2 ]; rewrite He in Hv0.
+      - (* const *)
+        rewrite -He; rewrite -He in Hv0.
+        case Hlft0 : (list_lhs_ref_p nvm_port v0 prepron.1.1) => [p0|]; rewrite Hlft0 in Hv0; try done.
+        assert (list_lhs_ref_p nvm_port v0 prepron.1.1 = Some p0 -> exists p, list_lhs_ref_p (fold_left make_p_implicit pp nvm_port) v0 prepro.1.1 = Some p /\ p.1 = p0.1 (* /\  p0.2的位宽等于p.2的位宽 *)).
+        admit.
+        apply H in Hlft0; clear H.
+        destruct Hlft0 as [p [Hlft0 Hpeq']].
+        rewrite Hlft0.
+        case Hp0 : p0 => [input_list0 ft_ref0]; rewrite Hp0 in Hv0.
+        case Hrght0 : (list_rhs_expr_p e nvm_port ct' prepron.1.1) => [q0|]; rewrite Hrght0 in Hv0; try done.
+        case Hp : p => [input_list ft_ref].
+        assert (list_rhs_expr_p e nvm_port ct' prepron.1.1 = Some q0 -> 
+          exists q, list_rhs_expr_p e (fold_left make_p_implicit pp nvm_port) ct' prepro.1.1 = Some q /\ 
+          q.1.1.1 = q0.1.1.1 /\ q.2 = q0.2).
+        admit.
+        apply H in Hrght0; clear H.
+        destruct Hrght0 as [q [Hrght0 [Hqeq' Hqeq2]]].
+        rewrite Hrght0.
+        case Hq0 : q0 => [[[output_list0 ft_expr0] nvmap0] nctree0]; rewrite Hq0 in Hv0; destruct Hv0 as [Hvm0 [Hft0 [Hct0 Hct1]]].
+        case Hq : q => [[[output_list ft_expr] nvmap] nctree].
+        split.
+        (* subgoal1 *)
+        admit. (* nvmap0 nvmap 区别是nvmap0全为explicit, nvmap可能有implicit. 并且前有Heq: Equal nvm_port nvm_port' *)
+        split.
+        (* subgoal2 *)
+        clear Hct0 Hct1 Hvm0 Hft0 Hq0 nctree0 nvmap0 ft_expr0 output_list0 Hqeq' q0 Hp0 input_list0 ft_ref0 Hpeq' Hqeq2 p0.
+        (* ft_ref0总为explicit, 故前提中没有关于位宽的有效约束 *)
+        specialize InferWidths_fun_correct with (od := inferorder) (var2exprs := prepro.1.2) (tmap := prepro.1.1); intro.
+        rewrite Hinfer in H.
+        case Hv0ref : (ref2pvar v0 newtm) => [pv0|].
+        specialize H with (o := pv0).
+        assert (Hpv0in : pv0 \in inferorder).
+        admit.
+        apply H in Hpv0in; clear H.
+        assert (exists expr_seq, (module_graph_vertex_set_p.find pv0 prepro.1.2 = Some expr_seq /\ 
+                e \in expr_seq)).
+        (* 因为有Hh : h = Sfcnct v0 e, prepro.1.2 和 prepron.1.2 中一定有expr_seq, 且 e \in expr_seq *)
+        admit.
+        destruct H as [expr_seq [Hexpr_seq Hein]]; rewrite Hexpr_seq in Hpv0in.
+        assert (exists otype, ft_find pv0 prepro.1.1 = Some otype).
+        admit. (* pv0在电路中被连接时, 应该已经被声明 *)
+        destruct H as [otype Hfind]; rewrite Hfind in Hpv0in.
+        assert (exists newotype, ft_find pv0 newtm = Some newotype).
+        admit. (* pv0在电路中被连接时, 应该已经被声明 *)
+        destruct H as [newotype Hfind']; rewrite Hfind' in Hpv0in.
+        specialize Hpv0in with (expr := e).
+        apply Hpv0in in Hein; clear Hpv0in.
+        assert (exists exprtype, type_of_e e prepro.1.1 = Some exprtype).
+        (* type_of_e 有结果, 意味着电路没有类型错误 *)
+        admit.
+        destruct H as [exprtype Hte]; rewrite Hte in Hein.
+        assert (exists newexprtype, type_of_e e newtm = Some newexprtype).
+        admit.
+        destruct H as [newexprtype Hte']; rewrite Hte' in Hein.
+        assert (newotype = ft_ref).
+        move : Hv0ref Hinfer Hfind' Hlft0 Hp.
+        admit. (* newtm和nvm_port的关系 *) (* 重要！！ *)
+        assert (newexprtype = ft_expr).
+        move : Hinfer Hte' Hrght0 Hq.
+        admit. (* newtm和nvm_port的关系 *) (* 重要！！ *)
+        rewrite -H -H0; apply Hein.
+        admit. (* 意味着电路无误 *)
+        admit. (* 意味着电路无误 *)
+        split.
+        (* subgoal3 *)
+        clear Hct1 Hft0 Hvm0.
+        rewrite Hp Hp0 in Hpeq'; simpl in Hpeq'.
+        rewrite Hq Hq0 in Hqeq'; simpl in Hqeq'.
+        rewrite Hpeq' Hqeq'; done.
+        (* subgoal4 *)
+        rewrite Hp Hp0 in Hpeq'; simpl in Hpeq'.
+        rewrite Hq Hq0 in Hqeq2; simpl in Hqeq2.
+        rewrite Hpeq' Hqeq2; done.
+      - (* cast *) admit.
+      - (* unop *) admit.
+      - (* binop *) admit.
+      - (* mux *) admit.
+      - (* validif *) admit.
+      - (* Eref *)
+        split.
+        apply module_graph_vertex_set_p.F.Equal_refl.
+        destruct Hv0 as [Hnvm_port Hv0].
+        case Hlft0 : (list_lhs_ref_p nvm_port v0 prepron.1.1) => [p0|]; rewrite Hlft0 in Hv0; try done.
+        assert (list_lhs_ref_p nvm_port v0 prepron.1.1 = Some p0 -> exists p, list_lhs_ref_p (fold_left make_p_implicit pp nvm_port) v0 prepro.1.1 = Some p /\ p.1 = p0.1 (* /\  p0.2的位宽等于p.2的位宽 *)).
+        admit.
+        apply H in Hlft0; clear H.
+        destruct Hlft0 as [p [Hlft0 Hpeq']].
+        rewrite Hlft0.
+        case Hp0 : p0 => [lst_tgt0 ft_tgt0]; rewrite Hp0 in Hv0.
+        case Hrght0 : (list_lhs_ref_p nvm_port r2 prepron.1.1) => [q0|]; rewrite Hrght0 in Hv0; try done.
+        case Hp : p => [lst_tgt ft_tgt].
+        assert (list_lhs_ref_p nvm_port r2 prepron.1.1 = Some q0 -> 
+          exists q, list_lhs_ref_p (fold_left make_p_implicit pp nvm_port) r2 prepro.1.1 = Some q /\ 
+          q.1 = q0.1).
+        admit.
+        apply H in Hrght0; clear H.
+        destruct Hrght0 as [q [Hrght0 Hqeq']].
+        rewrite Hrght0.
+        case Hq0 : q0 => [lst_src0 ft_scr0]; rewrite Hq0 in Hv0.
+        destruct Hv0 as [Hcnct Hct].
+        case Hq : q => [lst_src ft_src].
+        split.
+        admit. (* 重要！！ *)
+        rewrite Hp Hp0 in Hpeq'; simpl in Hpeq'.
+        rewrite Hq Hq0 in Hqeq'; simpl in Hqeq'.
+        rewrite Hpeq' Hqeq'; done.
+      clear Hv0. 
+      specialize IHss with (nvm_port := nvm_port') (ct := ct) (ct' := ct'0) (nss := nss').
+      simpl in IHss.
+      apply IHss in Htranss'; try done. 
+      admit. (* 由Heq和Htranss' *)
+      
+    - (* invalid *)
+      admit.
+    - (* when *)
+      admit.
+      
+  Admitted.
+  (*
   + (* prove that the old ports are the implicit version of the new ports *)
     clear Hstmts Hprepron prepron Htranss nss.
     (*clear Hinfer Htopo inferorder Hdrawg drawg Hprepro prepro ss ct vm'.*)
@@ -658,6 +1504,15 @@ Proof.
                                  (remove_t nvm_port var.1 (size_of_ftype t))).
               admit.
         specialize IHpp with (nvm_port := remove_t nvm_port var.1 (size_of_ftype t)).
+  *)
+  simpl.
+  specialize InferWidths_fun_correct with (od := inferorder) (var2exprs := prepro.1.2) (tmap := prepro.1.1); intro.
+  rewrite Hinfer in H.
+
+  
+  elim ss.
+  simpl.
+  rewrite /Sem_frag_stmts.
 
   (* KY previous version *)
   move => Hn. 
