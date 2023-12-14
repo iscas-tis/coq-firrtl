@@ -92,12 +92,13 @@ Fixpoint ft_find_upper (v : ProdVarOrder.t) (checkt : ftype) (num : N) (ls : seq
   | Gtyp gt => if (snd v) == num then Some (v :: ls)
                 else None
   | Atyp atyp n => if (snd v) == num then Some (v :: ls) (* 是整个Atyp *)
-                    else if (((N.to_nat (snd v)) -1 - (N.to_nat num)) mod (num_ref atyp)) == 0 (* 是atyp *)
-                      then Some (v :: ls)
-                    else (* 是atyp中的结构 *)
+                      else if (((N.to_nat (snd v)) -1 - (N.to_nat num)) >= (num_ref atyp) * n) then None
+                      else if (((N.to_nat (snd v)) -1 - (N.to_nat num)) mod (num_ref atyp)) == 0 (* 是atyp *)
+                      then Some ((fst v, num) :: (v :: ls))
+                      else (* 是atyp中的结构 *)
                       let n' := ((N.to_nat (snd v)) - 1- (N.to_nat num)) / (num_ref atyp) in
-                      match ft_find_upper v atyp (N.add num (N.of_nat (n' * (num_ref atyp)))) ls with
-                      | Some ls' => Some (v :: ls')
+                      match ft_find_upper v atyp (N.add (N.add num (N.of_nat (n' * (num_ref atyp)))) 1%num) ls with
+                      | Some ls' => Some ((fst v, num) :: ls')
                       | None => None
                       end
   | Btyp ff => if (snd v) == num then Some (v :: ls)
@@ -113,24 +114,22 @@ with ft_find_upper_f (v : ProdVarOrder.t) (ff : ffield) (num : N) (ls : seq Prod
                           else if (snd v) > (N.add num (N.of_nat (num_ref ft))) (* 不在该field中, 找下一个field *)
                               then ft_find_upper_f v ff' (N.add num (N.of_nat (num_ref ft))) ls
                            else (* 在field v0中 *)
-                              match ft_find_upper v ft (N.add num 1%num) ls with
-                              | Some ls' => Some ((fst v, N.add num 1%num) :: ls')
-                              | None => None
-                              end
+                              ft_find_upper v ft (N.add num 1%num) ls
   | _ => None
   end.
-
-(* 有必要check这几个函数功能是否正确 *)
 
 Fixpoint ft_find_sub (v : ProdVarOrder.t) (checkt : ftype) (num : N) : option ftype :=
   match checkt with
   | Gtyp gt => if (snd v) == num then Some checkt else None
-  | Atyp atyp n => if (((N.to_nat (snd v)) - 1- (N.to_nat num)) mod (num_ref atyp)) == 0 (* 对应标号是atyp，可能agg *)
+  | Atyp atyp n => if (snd v) == num then Some checkt
+                   else if (((N.to_nat (snd v)) -1 - (N.to_nat num)) >= (num_ref atyp) * n) then None
+                   else if (((N.to_nat (snd v)) - 1- (N.to_nat num)) mod (num_ref atyp)) == 0 (* 对应标号是atyp，可能agg *)
                    then Some atyp
                    else (* 继续找atyp中的结构 *)
                     let n' := ((N.to_nat (snd v)) - 1- (N.to_nat num)) / (num_ref atyp) in
-                    ft_find_sub v atyp (N.add num (N.of_nat (n' * (num_ref atyp))))
-  | Btyp ff => match ft_find_ff v ff num with
+                    ft_find_sub v atyp (N.add (N.add num (N.of_nat (n' * (num_ref atyp)))) 1%num)
+  | Btyp ff => if (snd v) == num then Some checkt
+               else match ft_find_ff v ff num with
               | Some newf => Some newf
               | None => None
               end
@@ -142,7 +141,7 @@ with ft_find_ff (v : ProdVarOrder.t) (ff : ffield) (num : N) : option ftype :=
                           else if (snd v) > (N.add num (N.of_nat (num_ref ft))) (* 不在该field中, 找下一个field *)
                               then ft_find_ff v ff' (N.add num (N.of_nat (num_ref ft)))
                            else (* 在field v0中 *)
-                              ft_find_sub v ft num
+                              ft_find_sub v ft (N.add num 1%num)
   | _ => None
   end.
 
@@ -200,19 +199,22 @@ with InferWidth_ff (v : ProdVarOrder.t) (ff : ffield) (newt : ftype_explicit) (n
 Fixpoint ft_set_sub (v : ProdVarOrder.t) (checkt : ftype) (newt : ftype) (num : N) : option ftype :=
   match checkt with
   | Gtyp _ => if (snd v) == num then Some newt else None
-  | Atyp atyp n => if (((N.to_nat (snd v)) - 1- (N.to_nat num)) mod (num_ref atyp)) == 0
-                   then (* 比较atyp与newt是否match, 取较大的更新Atyp *)
-                    Some (Atyp newt n)
-                   else (* 继续找atyp中的结构 *)
-                    let n' := ((N.to_nat (snd v)) - 1- (N.to_nat num)) / (num_ref atyp) in
-                    match ft_set_sub v atyp newt (N.add num (N.of_nat (n' * (num_ref atyp)))) with
-                    | Some natyp => Some (Atyp natyp n)
-                    | None => None
-                    end
-  | Btyp ff => match ft_set_sub_f v ff newt num with
-              | Some newf => Some (Btyp newf)
-              | None => None
-              end
+  | Atyp atyp n => if (snd v) == num then Some newt
+                    else if (((N.to_nat (snd v)) -1 - (N.to_nat num)) >= (num_ref atyp) * n) then None
+                    else if (((N.to_nat (snd v)) - 1- (N.to_nat num)) mod (num_ref atyp)) == 0
+                      then (* 比较atyp与newt是否match, 取较大的更新Atyp *)
+                      Some (Atyp newt n)
+                    else (* 继续找atyp中的结构 *)
+                      let n' := ((N.to_nat (snd v)) - 1- (N.to_nat num)) / (num_ref atyp) in
+                      match ft_set_sub v atyp newt (N.add (N.add num (N.of_nat (n' * (num_ref atyp)))) 1%num) with
+                      | Some natyp => Some (Atyp natyp n)
+                      | None => None
+                      end
+  | Btyp ff => if (snd v) == num then Some newt
+                else match ft_set_sub_f v ff newt num with
+                | Some newf => Some (Btyp newf)
+                | None => None
+                end
   end
 with ft_set_sub_f (v : ProdVarOrder.t) (ff : ffield) (newt : ftype) (num : N) : option ffield :=
   (* changes the (v-num)th field of ff.
@@ -229,7 +231,7 @@ with ft_set_sub_f (v : ProdVarOrder.t) (ff : ffield) (newt : ftype) (num : N) : 
                                       | None => None
                                       end
                                    else (* 在field v0中 *)
-                                   match ft_set_sub v ft newt num with
+                                   match ft_set_sub v ft newt (N.add num 1%num) with
                                    | Some newt' => Some (Fflips v0 Nflip newt' ff')
                                    | None => None
                                    end
@@ -239,13 +241,24 @@ with ft_set_sub_f (v : ProdVarOrder.t) (ff : ffield) (newt : ftype) (num : N) : 
 Fixpoint list_gref (n : nat) (pv : ProdVarOrder.t) (checkt : ftype) : option (seq ProdVarOrder.t) := 
   match n with
   | 0 => Some nil
-  | S m => match list_gref m pv checkt, ft_find_sub (fst pv, N.add (snd pv) (N.of_nat n)) checkt N0 with
-          | Some ls, Some (Gtyp _) => Some ((fst pv, N.add (snd pv) (N.of_nat n)) :: ls)
+  | S m => match list_gref m pv checkt, ft_find_sub (fst pv, N.add (snd pv) (N.of_nat m)) checkt N0 with
+          | Some ls, Some (Gtyp _) => Some ((fst pv, N.add (snd pv) (N.of_nat m)) :: ls)
           | Some ls, Some _ => Some ls
           | _, None => None
           | None, _ => None
           end
   end.
+
+(* 有必要check这几个函数功能是否正确 *)
+Definition testaty0 := (Atyp (Gtyp (Fuint_implicit 0)) 2).
+Definition testaty := (Atyp (Atyp (Gtyp (Fuint 4)) 2) 2).
+Definition testbty0 := (Btyp (Fflips (1%num) Nflip (Atyp (Gtyp (Fuint_implicit 0)) 2) (Fflips (1%num) Nflip (Atyp (Gtyp (Fuint_implicit 0)) 2) Fnil))).
+Definition testbty := (Btyp (Fflips (1%num) Nflip (Btyp (Fflips (1%num) Nflip (Gtyp (Fuint_implicit 0)) (Fflips (1%num) Nflip (Atyp (Gtyp (Fuint_implicit 0)) 2) Fnil))) (Fflips (1%num) Nflip (Atyp (Gtyp (Fuint_implicit 0)) 2) Fnil))).
+(* Compute (ft_find_upper (N0, 9%num) testbty N0 nil). *)
+(* Compute (ft_find_sub (N0, 9%num) testbty N0). *)
+(* Compute (ft_set_sub (N0, 3%num) testbty testaty0 N0). *)
+(* Compute (list_gref (num_ref testbty) (N0,N0) testbty). *)
+
 
 Fixpoint expr2varlist (expr : HiFP.hfexpr) (tmap : ft_pmap) (ls : seq (seq ProdVarOrder.t)) : option (seq (seq ProdVarOrder.t)) :=
   (* Prepends to ls the list of variable/component identifiers accessed by the expression expr.
@@ -340,7 +353,6 @@ Definition InferWidth_ref (v : ProdVarOrder.t) (checkt : ftype) (newt : ftype) :
   | None => None
   end.
 
-Definition testbty := (Btyp (Fflips (1%num) Nflip (Atyp (Gtyp (Fuint_implicit 0)) 2) (Fflips (1%num) Nflip (Atyp (Gtyp (Fuint_implicit 0)) 2) Fnil))).
 (*Compute (InferWidth_ref (N0, 4%num) testbty (exist ftype_not_implicit_width (Atyp (Gtyp (Fuint 2)) 2) I) N0).
 Compute (InferWidth_ref (N0, 3%num) testbty (exist ftype_not_implicit_width (Gtyp (Fuint 2)) I) N0).*)
 
@@ -429,14 +441,23 @@ Fixpoint InferWidths_fun (od : seq ProdVarOrder.t) (var2exprs : var2exprsmap) (t
    the result is a modified tmap, which ensures that the width of every implicit-width component is large enough. *)
   match od with
   | nil => Some tmap
-  | vhd :: vtl => match module_graph_vertex_set_p.find vhd var2exprs with (* infer the width of vhd according to its connections *)
-                | None => InferWidths_fun vtl var2exprs tmap (* vhd is not connected in the stmt_seq, go on inference on vtl *)
-                | Some el => match InferWidth_fun vhd el tmap with 
-                            (* vhd is connected to several exprs, compute the width of exprs sequentially, update the largest width for vhd in tmap. *)
-                            | Some tmap' => InferWidths_fun vtl var2exprs tmap'
-                            | None => None
-                            end
-                end
+  | vhd :: vtl => match ft_find (fst vhd, N0) tmap with
+      | Some checkt => match ft_find_upper vhd checkt N0 nil with (* infer the width of vhd according to its connections *)
+                  | Some upper_ls => let tmap' := fold_left (fun tm hd => 
+                                  match tm, module_graph_vertex_set_p.find hd var2exprs with 
+                                  | None, _ => None
+                                  | Some tm', None => Some tm'
+                                  | Some tm', Some el => InferWidth_fun hd el tm'
+                                  (* vhd is connected to several exprs, compute the width of exprs sequentially, update the largest width for vhd in tmap. *)
+                                  end) upper_ls (Some tmap) in
+                          match tmap' with
+                          | Some tm => InferWidths_fun vtl var2exprs tm
+                          | None => None
+                          end
+                  | None => None
+                  end
+      | None => None
+      end
   end.
 
 (* Correctness theorem for InferWidths_fun:
