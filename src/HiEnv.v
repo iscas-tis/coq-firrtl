@@ -19,6 +19,15 @@ Section Ftype.
 
 Inductive fflip : Type := Flipped | Nflip.
 
+Definition fflip_eqn (x y : fflip) : bool :=
+  match x, y with
+  | Flipped, Flipped => true
+  | Nflip, Nflip => true
+  | _, _ => false
+  end.
+
+Notation "x =? y" := (fflip_eqn x y).
+
 Inductive ftype : Type :=
 | Gtyp : fgtyp -> ftype
 | Atyp : ftype -> nat -> ftype
@@ -144,6 +153,19 @@ with ffield_not_implicit (fs : ffield) : bool :=
    | Fflips _ _ ft fs' => ftype_not_implicit ft && ffield_not_implicit fs'
    end.
    
+Fixpoint ftype_init_implicit (ft : ftype) : bool :=
+  match ft with
+  | Gtyp (Fsint_implicit 0) | Gtyp (Fuint_implicit 0) => true
+  | Gtyp _ => false
+  | Atyp ft' _ => ftype_init_implicit ft'
+  | Btyp fs => ffield_init_implicit fs
+  end
+with ffield_init_implicit (fs : ffield) : bool :=
+  match fs with
+  | Fnil => true
+  | Fflips _ _ ft fs' => ftype_init_implicit ft && ffield_init_implicit fs'
+  end.
+
 Definition ftype_explicit : Type :=
    (* disallow implicit widths *)
    { ft : ftype | ftype_not_implicit_width ft }.

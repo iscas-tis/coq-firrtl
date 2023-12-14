@@ -44,6 +44,8 @@ Definition Fsint_a (w : nat) : arithmetic_data_type :=
 Definition Fuint_a (w : nat) : arithmetic_data_type :=
    (* convert Fuint w to an arithmetic_data_type *)
    exist is_arithmetic (Fuint w) I.
+   
+Definition arithmetic_to_fgtyp (H: arithmetic_data_type) : fgtyp := let (x, _) := H in x.
 
 (* equality of arithmetic_data_type is decidable *)
 Lemma arithmetic_data_type_eq_dec : forall {x y : arithmetic_data_type}, {x = y} + {x <> y}.
