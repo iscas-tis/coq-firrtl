@@ -171,8 +171,7 @@ with InferWidth_ff (v : ProdVarOrder.t) (ff : ffield) (newt : ftype_explicit) (n
 
 Fixpoint expr2varlist (expr : HiFP.hfexpr) (tmap : ft_pmap) (ls : seq (seq ProdVarOrder.t)) : option (seq (seq ProdVarOrder.t)) :=
   (* Prepends to ls the list of variable/component identifiers accessed by the expression expr.
-     tmap is used to look up the identifiers.
-     DNJ: I think parameter ls is superfluous, it seems to be never used.  It could be replaced by [::]. *)
+     tmap is used to look up the identifiers. *)
   match expr with
   | Econst _ _ => Some ls
   | Eref ref => match ref2pvar ref tmap with
