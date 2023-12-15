@@ -2,7 +2,7 @@ From Coq Require Import ZArith (* for Nat.eq_dec *).
 From simplssrlib Require Import SsrOrder FMaps Var ZAriths.
 From nbits Require Import NBits.
 From firrtl Require Import Env Firrtl HiEnv HiFirrtl. (* for hfmodule and its parts *)
-From mathcomp Require Import ssreflect ssrbool ssrnat eqtype seq.
+From mathcomp Require Import ssreflect ssrbool ssrnat eqtype seq fintype.
 
 (* This file contains first ideas on how to define a module graph as a semantic structure for FIRRTL modules.
    Many definitions are not yet complete but include only a few constructs so as to illustrate what the structure is. *)
@@ -1933,7 +1933,7 @@ Fixpoint Sem_frag_stmt (vm_old : module_graph_vertex_set_p.env) (ct_old : module
                         /\ (forall (v0 : ProdVarOrder.T) (n0 : N),
                               if v0 != v then module_graph_connection_trees_p.find (v0, n0) nctree = module_graph_connection_trees_p.find (v0, n0) ct_new
                                    else True)
-                        /\ let tlist := vtype_list (explicit_to_ftype ft0) nil in
+                        /\ let tlist := vtype_list (proj1_sig ft0) nil in
                            forall n : nat,
                               match List.nth_error tlist n, List.nth_error output_list n with
                               | Some nv, Some oc => module_graph_vertex_set_p.find ((fst v), N.of_nat n) vm_new = Some (Node nv)
@@ -2646,13 +2646,6 @@ Fixpoint remove_t (V : module_graph_vertex_set_p.env) (var : nat) (cnt : nat) : 
    | S cnt' => remove_t (module_graph_vertex_set_p.remove (N.of_nat var, N.of_nat cnt') V) var cnt'
    end.
 
-Fixpoint multi_conjunction_check (n : nat) (f : nat -> bool) : bool :=
-   (* returns true if f 0 && f 1 && ... && f (n-1) holds *)
-   match n with
-   | 0 => true
-   | S n' => f n' && multi_conjunction_check n' f
-   end.
-
 Fixpoint Sem_inport (t : ftype) (var : nat) (offset : nat) (V : module_graph_vertex_set_p.env) : bool :=
    (* The predicate returns true if the keys (var, offset), (var, offset + 1), (var, offset + 2), ...
       in map V contain type-correct inports or outports corresponding to type t
@@ -2662,7 +2655,7 @@ Fixpoint Sem_inport (t : ftype) (var : nat) (offset : nat) (V : module_graph_ver
                 | Some (InPort it) => it == t'
                 | _ => false
                 end
-   | Atyp t' n => multi_conjunction_check n (fun i : nat => Sem_inport t' var (offset + (i * size_of_ftype t')) V)
+   | Atyp t' n => [forall i : ordinal n, Sem_inport t' var (offset + (i * size_of_ftype t')) V]
    | Btyp ff => Sem_inport_fields ff var offset V
    end
 with Sem_inport_fields (ff : ffield) (var : nat) (offset : nat) (V : module_graph_vertex_set_p.env) : bool :=
@@ -2682,7 +2675,7 @@ with Sem_outport (t : ftype) (var : nat) (offset : nat) (V : module_graph_vertex
                 | Some (OutPort it) => it == t'
                 | _ => false
                 end
-   | Atyp t' n => multi_conjunction_check n (fun i : nat => Sem_outport t' var (offset + (i * size_of_ftype t')) V)
+   | Atyp t' n => [forall i : ordinal n, Sem_outport t' var (offset + (i * size_of_ftype t')) V]
    | Btyp ff => Sem_outport_fields ff var offset V
    end
 with Sem_outport_fields (ff : ffield) (var : nat) (offset : nat) (V : module_graph_vertex_set_p.env) : bool :=
@@ -2834,12 +2827,13 @@ Fixpoint prepro_stmt (st : HiFP.hfstmt) (tmap : ft_pmap) (var2exprs : var2exprsm
                     | None => None
                     end
   end
-with prepro_stmts (sts : HiFP.hfstmt_seq) (tmap : ft_pmap) (var2exprs : var2exprsmap) (expli_reg : seq ProdVarOrder.t) :=
+with prepro_stmts (sts : HiFP.hfstmt_seq) (tmap : ft_pmap) (var2exprs : var2exprsmap) (expli_reg : seq ProdVarOrder.t)
+: option (ft_pmap * var2exprsmap * seq ProdVarOrder.t) :=
   match sts with
   | Qnil => Some (tmap, var2exprs, expli_reg)
   | Qcons s ss => match prepro_stmt s tmap var2exprs expli_reg with
-                  | Some prepro => prepro_stmts ss (fst (fst prepro)) (snd (fst prepro)) (snd prepro)
-                  | _ => None
+                  | Some (tmap', var2exprs', expli_reg') => prepro_stmts ss tmap' var2exprs' expli_reg'
+                  | None => None
                   end
   end.
 

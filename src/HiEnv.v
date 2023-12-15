@@ -19,12 +19,23 @@ Section Ftype.
 
 Inductive fflip : Type := Flipped | Nflip.
 
+(* equality of fflip is decidable *)
+Lemma fflip_eq_dec (x y : fflip) : {x = y} + {x <> y}.
+Proof. decide equality. Qed.
 Definition fflip_eqn (x y : fflip) : bool :=
   match x, y with
   | Flipped, Flipped => true
   | Nflip, Nflip => true
   | _, _ => false
   end.
+Lemma fflip_eqP : Equality.axiom fflip_eqn.
+Proof.
+rewrite /Equality.axiom /fflip_eqn.
+destruct x, y ; try (apply ReflectT ; reflexivity) ;
+apply ReflectF ; discriminate.
+Qed.
+Definition fflip_eqMixin := EqMixin fflip_eqP.
+Canonical fflip_eqType := Eval hnf in EqType fflip fflip_eqMixin.
 
 Notation "x =? y" := (fflip_eqn x y).
 
@@ -193,8 +204,7 @@ with make_ffield_explicit (fs: ffield) : ffield_explicit :=
                            end
    end.
 
-Definition explicit_to_ftype (fte : ftype_explicit) : ftype :=
-let (ft, _) := fte in ft.
+(* Definition explicit_to_ftype (fte : ftype_explicit) : ftype := proj1_sig fte. *)
 
 (* Equality of ftype_explicit is decidable *)
 Lemma ftype_explicit_eq_dec : forall {x y : ftype_explicit}, {x = y} + {x <> y}
@@ -202,16 +212,23 @@ with ffield_explicit_eq_dec : forall {x y : ffield_explicit}, {x = y} + {x <> y}
 Proof.
 Admitted.
 Definition ftype_explicit_eqn (x y : ftype_explicit) : bool :=
-match x, y with
-exist x' _, exist y' _ => ftype_eqn x' y'
-end.
+proj1_sig x == proj1_sig y.
 Definition ffield_explicit_eqn (x y : ffield_explicit) : bool :=
-match x, y with
-exist x' _, exist y' _ => ffield_eqn x' y'
-end.
+proj1_sig x == proj1_sig y.
 Lemma ftype_explicit_eqP : Equality.axiom ftype_explicit_eqn.
 Proof.
 rewrite /Equality.axiom /ftype_explicit_eqn.
+intros.
+destruct (eqVneq (proj1_sig x) (proj1_sig y)).
+* apply ReflectT.
+  destruct x, y.
+  simpl proj1_sig in e.
+  (* Now need to argue with proof uniqueness that basically f = f0. *)
+  admit.
+* apply ReflectF.
+  destruct x, y.
+  move /eqP : i => i.
+  injection ; exact i.
 Admitted.
 Lemma ffield_explicit_eqP : Equality.axiom ffield_explicit_eqn.
 Proof.
