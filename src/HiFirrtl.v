@@ -862,7 +862,7 @@ Module MakeHiFirrtl
   (* rhs expr has right orient *)
   Fixpoint valid_rhs_ref (e : href) (ce : cenv) :=
     match e with
-    | Eid r => let (_,c) := CE.vtyp r ce in valid_rhs_orient (orient_of_comp c)
+    | Eid r => valid_rhs_orient (orient_of_comp (snd (CE.vtyp r ce)))
     | Esubfield r _ => valid_rhs_ref r ce
     (* DNJ: Subfields can be flipped. So one needs to check with the data type of r *)
     | Esubindex r _ => valid_rhs_ref r ce
@@ -1633,8 +1633,8 @@ Proof.
          end.
 
   Lemma upd_type_equiv :
-    forall t r v ce, ~~ is_deftyp (explicit_to_ftype (type_of_hfexpr (eref (esubfield r v)) ce)) ->
-                     ftype_equiv (explicit_to_ftype (type_of_hfexpr (eref (esubfield r v)) ce)) t ->
+    forall t r v ce, ~~ is_deftyp (proj1_sig (type_of_hfexpr (eref (esubfield r v)) ce)) ->
+                     ftype_equiv (proj1_sig (type_of_hfexpr (eref (esubfield r v)) ce)) t ->
                      ftype_equiv (base_type_of_ref r ce)
                                  (upd_name_ftype (base_type_of_ref r ce) v t).
   Proof.
@@ -1648,7 +1648,7 @@ Proof.
     end.
 
   Lemma upd_vectyp_equiv :
-    forall t r n ce, ftype_equiv (explicit_to_ftype (type_of_hfexpr (eref (esubaccess r n)) ce)) t ->
+    forall t r n ce, ftype_equiv (proj1_sig (type_of_hfexpr (eref (esubaccess r n)) ce)) t ->
                      ftype_equiv (base_type_of_ref r ce)
                                  (upd_vectyp (base_type_of_ref r ce) t).
   Proof.
@@ -2196,7 +2196,7 @@ Section Preprocess.
         let '(em', ms') := hfmem_pvar em ce m in
         (PVM.add (v, initial_index) (HiF.eid v) em', CE.add v (HiF.mem_typ m, Memory) ce, HiFP.smem (v, initial_index) ms')
     | Sinst v1 v2 => ( PVM.add (v1, initial_index) (HiF.eid v1) em, CE.add v1 ((fst (CE.vtyp v2 ce)), Instanceof) ce, HiFP.sinst (v1, initial_index) (v2, initial_index))
-    | Snode v e => ( PVM.add (v, initial_index) (HiF.eid v) em, CE.add v (HiF.aggr_typ (explicit_to_ftype (HiF.type_of_hfexpr e ce)), Node) ce, HiFP.snode (v, initial_index) (expr_pvar em ce e))
+    | Snode v e => ( PVM.add (v, initial_index) (HiF.eid v) em, CE.add v (HiF.aggr_typ (proj1_sig (HiF.type_of_hfexpr e ce)), Node) ce, HiFP.snode (v, initial_index) (expr_pvar em ce e))
     | Sfcnct r e => (PVM.add (HiF.base_ref r, offset_ref r ce 0) (r) em, ce, HiFP.sfcnct ( (HiFP.eid (HiF.base_ref r, (offset_ref r ce 0)))) (expr_pvar em ce e))
     (* | Spcnct r e => (PVM.add (HiF.base_ref r, offset_ref r ce 0) (r) em, ce, HiFP.spcnct ( (HiFP.eid (HiF.base_ref r, (offset_ref r ce 0)))) (expr_pvar em ce e)) *)
     | Sinvalid r => (PVM.add (HiF.base_ref r, offset_ref r ce 0) (r) em, ce, HiFP.sinvalid ( (HiFP.eid (HiF.base_ref r, (offset_ref r ce 0)))))

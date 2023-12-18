@@ -171,8 +171,7 @@ with InferWidth_ff (v : ProdVarOrder.t) (ff : ffield) (newt : ftype_explicit) (n
 
 Fixpoint expr2varlist (expr : HiFP.hfexpr) (tmap : ft_pmap) (ls : seq (seq ProdVarOrder.t)) : option (seq (seq ProdVarOrder.t)) :=
   (* Prepends to ls the list of variable/component identifiers accessed by the expression expr.
-     tmap is used to look up the identifiers.
-     DNJ: I think parameter ls is superfluous, it seems to be never used.  It could be replaced by [::]. *)
+     tmap is used to look up the identifiers. *)
   match expr with
   | Econst _ _ => Some ls
   | Eref ref => match ref2pvar ref tmap with
@@ -439,10 +438,59 @@ forall (od : seq ProdVarOrder.t) (var2exprs : var2exprsmap) (tmap : ft_pmap),
 
 Lemma ft_find_add : forall v ft tmap, ft_find v (ft_add v ft tmap) = Some ft.
 Proof.
-Admitted.
+intros.
+rewrite /ft_find /ft_add eq_refl //.
+Qed.
 
 (*Lemma type_of_e_dpdcy : forall v e tmap el nt, expr2varlist e tmap nil = Some el -> ~ v \in el -> type_of_e e (ft_add v nt tmap) = type_of_e e tmap.
 Proof.
+move => v e ; move : v.
+induction e ; try (intros ; simpl type_of_e ; reflexivity) ;
+              try (intros ; simpl type_of_e ; rewrite (IHe v tmap el) //).
+* (* Eprim_binop *)
+  intros.
+  simpl type_of_e.
+  simpl expr2varlist in H.
+  destruct (expr2varlist e2 tmap) eqn: He2v2 ; try done.
+  destruct (expr2varlist e3 tmap) eqn: He2v3 ; try done.
+  injection H ; intro.
+  rewrite (IHe1 v tmap l) //.
+  + rewrite (IHe2 v tmap l0) //.
+    contradict H0.
+    rewrite -H1 mem_cat H0 orbT //.
+  + contradict H0.
+    rewrite -H1 mem_cat H0 orTb //.
+* (* Emux *)
+  intros.
+  simpl type_of_e.
+  simpl expr2varlist in H.
+  destruct (expr2varlist e1 tmap) eqn: He2v1 ; try done.
+  destruct (expr2varlist e2 tmap) eqn: He2v2 ; try done.
+  destruct (expr2varlist e3 tmap) eqn: He2v3 ; try done.
+  injection H ; intro.
+  rewrite (IHe1 v tmap l) //.
+  + rewrite (IHe2 v tmap l0) //.
+    - rewrite (IHe3 v tmap l1) //.
+      contradict H0.
+      rewrite -H1 mem_cat mem_cat H0 orbT orbT //.
+    - contradict H0.
+      rewrite -H1 mem_cat mem_cat H0 orTb orbT //.
+  + contradict H0.
+    rewrite -H1 mem_cat H0 orTb //.
+* (* Evalidif *)
+  intros.
+  simpl type_of_e.
+  simpl expr2varlist in H.
+  destruct (expr2varlist e1 tmap) eqn: He2v1 ; try done.
+  destruct (expr2varlist e2 tmap) eqn: He2v2 ; try done.
+  injection H ; intro.
+  rewrite (IHe1 v tmap l) //.
+  + rewrite (IHe2 v tmap l0) //.
+    contradict H0.
+    rewrite -H1 mem_cat H0 orbT //.
+  + contradict H0.
+    rewrite -H1 mem_cat H0 orTb //.
+* (* Eref *)
 Admitted.*)
 
 Lemma num_ref_eq : forall checkt nt0, ftype_equiv checkt nt0 -> num_ref checkt = num_ref nt0
