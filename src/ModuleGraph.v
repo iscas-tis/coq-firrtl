@@ -1278,23 +1278,23 @@ Definition add_vertex_mux (ft : ftype_explicit) : list vertex_type :=
    exist ft p => add_vertex_mux' ft p nil
    end.
 
-Fixpoint add_vertex_mux_p' (vmap : module_graph_vertex_set_p.env) (ctree : module_graph_connection_trees_p.env) (ol : list PProdVarOrder.t) (vl : list vertex_type) (on : PProdVarOrder.t) (onl1 : list PProdVarOrder.t) (onl2 : list PProdVarOrder.t) (cnt : N) : 
-   option (module_graph_vertex_set_p.env * module_graph_connection_trees_p.env * list PProdVarOrder.t * N) :=
+Fixpoint add_vertex_mux_p' (vmap : module_graph_vertex_set_p.env) (ctree : module_graph_connection_trees_p.env) (ol : list PProdVarOrder.t) (vl : list vertex_type) (on : PProdVarOrder.t) (onl1 : list PProdVarOrder.t) (onl2 : list PProdVarOrder.t) : 
+   option (module_graph_vertex_set_p.env * module_graph_connection_trees_p.env * list PProdVarOrder.t) :=
    match vl, onl1, onl2 with
-   | nil, nil, nil => Some (vmap, ctree, ol, cnt)
+   | nil, nil, nil => Some (vmap, ctree, ol)
    | Mux ot :: vtl, on1 :: ontl1, on2 :: ontl2 =>
       (* generate a new id for every mux vertex, and add it to vmap *)
-      let mux_id := (cnt, N0) in
+      let mux_id := module_graph_vertex_set_p.new_key vmap in
       let nvmap := module_graph_vertex_set_p.add mux_id (Mux ot) vmap in
       (* add connection_trees for 3 input_connectors of the mux vertex *)
       let ctree0 := module_graph_connection_trees_p.add (mux_id, N0) (Leaf on) ctree in
       let ctree1 := module_graph_connection_trees_p.add (mux_id, 1%num) (Leaf on1) ctree0 in
       let ctree2 := module_graph_connection_trees_p.add (mux_id, 2%num) (Leaf on2) ctree1 in
-      add_vertex_mux_p' nvmap ctree2 (rcons ol (mux_id, N0)) vtl on ontl1 ontl2 (N.add cnt 1%num)
+      add_vertex_mux_p' nvmap ctree2 (rcons ol (mux_id, N0)) vtl on ontl1 ontl2
    | _,_,_ => None
    end.
 
-Fixpoint list_rhs_expr_p (e : HiFP.hfexpr) (vmap : module_graph_vertex_set_p.env) (ctree : module_graph_connection_trees_p.env) (tmap : ft_pmap) (cnt : N) : option (list PProdVarOrder.t * module_graph_vertex_set_p.env * module_graph_connection_trees_p.env * N) :=
+Fixpoint list_rhs_expr_p (e : HiFP.hfexpr) (vmap : module_graph_vertex_set_p.env) (ctree : module_graph_connection_trees_p.env) (tmap : ft_pmap) : option (list PProdVarOrder.t * module_graph_vertex_set_p.env * module_graph_connection_trees_p.env) :=
    (* 
    1. list of output_connectors, which would be connected to the input_connectors of the vertices on the lhs
    2. ftype of the expr, which help produce constraints in the connection. --> should be an aggr type to distinguish UInt[10][2] and UInt[20].
@@ -1304,58 +1304,58 @@ Fixpoint list_rhs_expr_p (e : HiFP.hfexpr) (vmap : module_graph_vertex_set_p.env
    | Econst t bs => match (data_type_in2arith t bs) with
                     | Some arith_typ => 
                            let nv := Constant arith_typ bs in 
-                           let nid := (cnt, N0) in
+                           let nid := module_graph_vertex_set_p.new_key vmap in
                            let nvmap := module_graph_vertex_set_p.add nid nv vmap in
-                           Some ([:: (nid, N0)], nvmap, ctree, N.add cnt 1%num)
+                           Some ([:: (nid, N0)], nvmap, ctree)
                     | None => None
                      end
    | Eref ref => match list_rhs_ref_p vmap ref tmap with
-               | Some (rl, _) => Some (rl, vmap, ctree, cnt)
+               | Some (rl, _) => Some (rl, vmap, ctree)
                | None => None
                end
-   | Ecast c e => match list_rhs_expr_p e vmap ctree tmap cnt, type_of_e_vm vmap e tmap with
+   | Ecast c e => match list_rhs_expr_p e vmap ctree tmap, type_of_e_vm vmap e tmap with
                   (* have new vertex set 'nvmap' and connection tree 'ctree0' after first deal with the inner expr, the expr have a output_connector 'eon' *)
-                  | Some ([:: eon], nvmap, ctree0, cnt0), Some ft => 
+                  | Some ([:: eon], nvmap, ctree0), Some ft => 
                      match add_vertex_cast c ft with 
                      (* if the inner expr return with a ground type 'ft', a new vertex 'nv' is produced and the cast expr return with type 'rty' *)
                      | Some nv => 
-                        let nid := (cnt0, N0) in
+                        let nid := module_graph_vertex_set_p.new_key vmap in
                         let nvmap0 := module_graph_vertex_set_p.add nid nv nvmap in
                         let nct0 := module_graph_connection_trees_p.add (nid, N0) (Leaf eon) ctree0 in
-                        Some ([:: (nid, N0)], nvmap0, nct0, N.add cnt 1%num)
+                        Some ([:: (nid, N0)], nvmap0, nct0)
                      | None => None
                      end
                   | _, _ => None
                   end
-   | Eprim_unop u e => match list_rhs_expr_p e vmap ctree tmap cnt, type_of_e_vm vmap e tmap with
-                  | Some ([:: eon], nvmap, ctree0, cnt0), Some ft => 
+   | Eprim_unop u e => match list_rhs_expr_p e vmap ctree tmap, type_of_e_vm vmap e tmap with
+                  | Some ([:: eon], nvmap, ctree0), Some ft => 
                      match add_vertex_unop u ft with 
                      | Some nv => 
                         match data_type_out2ftype (output_connectors nv) with
                         | Some rft =>
-                           let nid := (cnt0, N0) in
+                           let nid := module_graph_vertex_set_p.new_key vmap in
                            let nvmap0 := module_graph_vertex_set_p.add nid nv nvmap in
                            let nct0 := module_graph_connection_trees_p.add (nid, N0) (Leaf eon) ctree0 in
-                           Some ([:: (nid, N0)], nvmap0, nct0, N.add cnt0 1%num)
+                           Some ([:: (nid, N0)], nvmap0, nct0)
                         | None => None
                         end
                      | None => None
                      end
                   | _, _ => None
                   end
-   | Eprim_binop b e1 e2 => match list_rhs_expr_p e1 vmap ctree tmap cnt, type_of_e_vm vmap e1 tmap with
-                  | Some ([:: eon0], nvmap0, ctree0, cnt0), Some ft0 => 
-                     match list_rhs_expr_p e2 nvmap0 ctree0 tmap cnt0, type_of_e_vm vmap e2 tmap with
-                     | Some ([:: eon1], nvmap1, ctree1, cnt1), Some ft1 => 
+   | Eprim_binop b e1 e2 => match list_rhs_expr_p e1 vmap ctree tmap, type_of_e_vm vmap e1 tmap with
+                  | Some ([:: eon0], nvmap0, ctree0), Some ft0 => 
+                     match list_rhs_expr_p e2 nvmap0 ctree0 tmap, type_of_e_vm vmap e2 tmap with
+                     | Some ([:: eon1], nvmap1, ctree1), Some ft1 => 
                         match (add_vertex_binop b ft0 ft1) with 
                         | Some nv => 
                            match data_type_out2ftype (output_connectors nv) with
                            | Some rft => 
-                              let nid := (cnt1, N0) in
+                              let nid := module_graph_vertex_set_p.new_key vmap in
                               let nvmap := module_graph_vertex_set_p.add nid nv nvmap1 in
                               let nct0 := module_graph_connection_trees_p.add (nid, N0) (Leaf eon0) ctree1 in
                               let nct1 := module_graph_connection_trees_p.add (nid, 1%num) (Leaf eon1) nct0 in
-                              Some ([:: (nid, N0)], nvmap, nct1, N.add cnt1 1%num)
+                              Some ([:: (nid, N0)], nvmap, nct1)
                            | None => None
                            end
                         | None => None
@@ -1364,17 +1364,17 @@ Fixpoint list_rhs_expr_p (e : HiFP.hfexpr) (vmap : module_graph_vertex_set_p.env
                      end
                   | _, _ => None 
                   end
-   | Emux e1 e2 e3 => match list_rhs_expr_p e1 vmap ctree tmap cnt, type_of_e_vm vmap e1 tmap with
-                     | Some ([:: eon1], vmap0, ctree0, cnt0), Some (exist (Gtyp (Fuint 1)) _) =>
-                        match list_rhs_expr_p e2 vmap0 ctree0 tmap cnt0, type_of_e_vm vmap e2 tmap with
-                        | Some (eonl2, vmap1, ctree1, cnt1), Some ft2 =>
-                           match list_rhs_expr_p e3 vmap1 ctree1 tmap cnt1, type_of_e_vm vmap e3 tmap with
-                           | Some (eonl3, vmap2, ctree2, cnt2), Some ft3 =>
+   | Emux e1 e2 e3 => match list_rhs_expr_p e1 vmap ctree tmap, type_of_e_vm vmap e1 tmap with
+                     | Some ([:: eon1], vmap0, ctree0), Some (exist (Gtyp (Fuint 1)) _) =>
+                        match list_rhs_expr_p e2 vmap0 ctree0 tmap, type_of_e_vm vmap e2 tmap with
+                        | Some (eonl2, vmap1, ctree1), Some ft2 =>
+                           match list_rhs_expr_p e3 vmap1 ctree1 tmap, type_of_e_vm vmap e3 tmap with
+                           | Some (eonl3, vmap2, ctree2), Some ft3 =>
                               match ftype_mux ft2 ft3 with
                               | Some rft => 
                                  let nvl := add_vertex_mux rft in
-                                 match add_vertex_mux_p' vmap2 ctree2 nil nvl eon1 eonl2 eonl3 cnt2 with
-                                 | Some (nvmap, nct, rl, cnt3) => Some (rl, nvmap, nct, N.add cnt3 1%num)
+                                 match add_vertex_mux_p' vmap2 ctree2 nil nvl eon1 eonl2 eonl3 with
+                                 | Some (nvmap, nct, rl) => Some (rl, nvmap, nct)
                                  | None => None
                                  end
                               | None => None
@@ -1385,7 +1385,7 @@ Fixpoint list_rhs_expr_p (e : HiFP.hfexpr) (vmap : module_graph_vertex_set_p.env
                         end
                      | _, _ => None
                      end
-   | Evalidif c e => list_rhs_expr_p e vmap ctree tmap cnt
+   | Evalidif c e => list_rhs_expr_p e vmap ctree tmap
    end.
 
 Definition e0 := Eprim_binop Bcat (HiFP.econst (Fuint 4) [::true; true;true; true]) (HiFP.econst (Fuint 4) [:: true]).
@@ -1802,8 +1802,7 @@ match true_tree, false_tree with
 | Some a, Some b => if (a == b) then true_tree else Some (Choice c a b)
 end.
 
-(* cnt 如何计数的？重要！！ *)
-Fixpoint Sem_frag_stmt (vm_old : module_graph_vertex_set_p.env) (ct_old : module_graph_connection_trees_p.env) (s : HiFP.hfstmt) (vm_new : module_graph_vertex_set_p.env) (ct_new : module_graph_connection_trees_p.env) (tmap : ft_pmap) (cnt : N) : Prop :=
+Fixpoint Sem_frag_stmt (vm_old : module_graph_vertex_set_p.env) (ct_old : module_graph_connection_trees_p.env) (s : HiFP.hfstmt) (vm_new : module_graph_vertex_set_p.env) (ct_new : module_graph_connection_trees_p.env) (tmap : ft_pmap) : Prop :=
    (* The predicate returns True if vm_new/ct_new can be constructed from vm_old/ct_old by applying s. 
    type checking, constraints *)
    match s with
@@ -1820,8 +1819,8 @@ Fixpoint Sem_frag_stmt (vm_old : module_graph_vertex_set_p.env) (ct_old : module
                     else module_graph_connection_trees_p.find v0 ct_old = module_graph_connection_trees_p.find v0 ct_new
           | _, _ => False
           end
-   | Sfcnct ref expr => match list_lhs_ref_p vm_old ref tmap, list_rhs_expr_p expr vm_old ct_old tmap cnt, type_of_e_vm vm_old expr tmap with
-                     | Some (input_list, ft_ref), Some (output_list, nvmap, nctree, cnt0), Some ft_expr =>
+   | Sfcnct ref expr => match list_lhs_ref_p vm_old ref tmap, list_rhs_expr_p expr vm_old ct_old tmap, type_of_e_vm vm_old expr tmap with
+                     | Some (input_list, ft_ref), Some (output_list, nvmap, nctree), Some ft_expr =>
                            module_graph_vertex_set_p.Equal nvmap vm_new
                         /\
                            connect_type_compatible ft_ref ft_expr
@@ -1945,7 +1944,7 @@ Fixpoint Sem_frag_stmt (vm_old : module_graph_vertex_set_p.env) (ct_old : module
                                (* let add_list (v : VarOrder.T) (vm : module_graph_connection_trees_p.env) (p : nat * fgtyp) := module_graph_vertex_set_p.add (v, fst p) (Wire (snd p)) vm in
                                module_graph_vertex_set_p.Equal vm_new (foldl add_list nvmap (zip (iota 1 (length tlist)) tlist)) *)
                                end
-                     | None, _ => False
+                     | _, _ => False
                      end
    | Smem var mem => False (* ? *)
    | Sinst var1 var2 => False (* ? *)
