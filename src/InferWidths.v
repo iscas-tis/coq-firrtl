@@ -297,7 +297,7 @@ Fixpoint max_ftlist (l : seq ftype_explicit) (init : ftype): option ftype :=
               end
   end.
   
-Fixpoint fil_ftlist (l : seq (option ftype_explicit)) : option (seq ftype_explicit) :=
+Fixpoint fil_ftlist {T : Type} (l : seq (option T)) : option (seq T) :=
   match l with
   | nil => Some [::]
   | None :: tl => None
@@ -1185,9 +1185,7 @@ Proof.
   apply infer_compatible.
 Admitted.
 
-(*TBD!! Lemma InferWidths_fun_correct:
-forall (od : seq ProdVarOrder.t) (var2exprs : var2exprsmap) (tmap : ft_pmap),
-  (* TopoSort.respects_topological_order (fun o : ProdVarOrder.t =>
+(* TopoSort.respects_topological_order (fun o : ProdVarOrder.t =>
                                         match module_graph_vertex_set_p.find o var2exprs with
                                         | Some expr_seq => match drawel o expr_seq tmap (fun _ => [::]) [::] with
                                                            | Some (new_edges, _) => new_edges o
@@ -1195,38 +1193,30 @@ forall (od : seq ProdVarOrder.t) (var2exprs : var2exprsmap) (tmap : ft_pmap),
                                                            end
                                         | None => [::]
                                         end)
-                                       od -> *)
+                                       od -> 
+*)
 
-  (*forall o : ProdVarOrder.t,
-  match module_graph_vertex_set_p.find o var2exprs, ft_find o tmap with
-  | Some expr_seq, Some otype => forall expr : HiFP.hfexpr, expr \in expr_seq ->
-            match type_of_e expr tmap with
-            | Some exprtype => ftype_equiv otype (explicit_to_ftype exprtype)
-            | None => false
-            end
-  | _, _ => true
-  end) ->*)
-
-  match InferWidths_fun od var2exprs tmap with 
-  | Some newtm => forall o : ProdVarOrder.t, o \in od ->
-                  match module_graph_vertex_set_p.find o var2exprs, ft_find (fst o, N0) tmap, ft_find (fst o, N0) newtm with
-                  | Some expr_seq, Some checkt, Some newcheckt => match ft_find_sub o checkt N0, ft_find_sub o newcheckt N0 with                  
-                        | Some otype, Some newotype => 
-                          forall expr : HiFP.hfexpr, expr \in expr_seq ->
-                            match type_of_e expr tmap, type_of_e expr newtm with
-                            | Some exprtype, Some newexprtype => ftype_equiv otype (explicit_to_ftype exprtype) -> connect_type_compatible newotype newexprtype
-                            (* tmap assigns compatible types to o and expr (ignoring width constraints) *)
-                            (* newtm assigns compatible types to o and expr, including the width constraints *)
-                            | _, _ => True
-                            end
-                        | _, _ => True
+Lemma InferWidths_fun_correct : forall (od : seq ProdVarOrder.t) (var2exprs : var2exprsmap) (tmap newtm : ft_pmap), InferWidths_fun od var2exprs tmap = Some newtm ->
+ forall v, v \in od -> match ft_find (fst v, N0) tmap, ft_find (fst v, N0) newtm with
+          | Some checkt, Some newcheckt => match ft_find_upper v checkt N0 nil with
+                        | Some upper_ls => forall v0, v0 \in upper_ls -> match module_graph_vertex_set_p.find v0 var2exprs, ft_find_sub v0 checkt N0, ft_find_sub v0 newcheckt N0 with
+                                                      | Some expr_seq, Some otype, Some newotype => 
+                                                          forall expr : HiFP.hfexpr, expr \in expr_seq ->
+                                                            match type_of_e expr tmap, type_of_e expr newtm with
+                                                            | Some exprtype, Some newexprtype => ftype_equiv otype (explicit_to_ftype exprtype) -> connect_type_compatible newotype newexprtype
+                                                            (* tmap assigns compatible types to o and expr (ignoring width constraints) *)
+                                                            (* newtm assigns compatible types to o and expr, including the width constraints *)
+                                                            | _, _ => True
+                                                            end
+                                                      | None, Some _, Some _ => True
+                                                      | _, _, _ => False
+                                                      end
+                        | _ => False (* 电路有误 *)
                         end
-                  | _,_,_ => True
-                  end
-  | None => True
-  end.
+          | _ ,_ => False
+          end.
 Proof.
-  induction od.
+  (* induction od.
   move => var2exprs tmap (*Hpre*).
   simpl.
   move => v Hin.
@@ -1333,8 +1323,8 @@ Proof.
     admit. (* None *)
 
     (* find a var2expr 为 None 时，用(fst a, N0)的连接更新整个 *)
-
-Admitted.*)
+*)
+Admitted.
 
 Fixpoint drawg depandencyls (tmap : ft_pmap) (expli_reg : seq ProdVarOrder.t) (newg : ProdVarOrder.t -> seq ProdVarOrder.t) (vertices : seq ProdVarOrder.t) : option ((ProdVarOrder.t -> seq ProdVarOrder.t) * (seq ProdVarOrder.t)) :=
   (* construct the dependency graph:
@@ -1622,7 +1612,7 @@ Definition InferWidths_m (m : HiFP.hfmodule) : option HiFP.hfmodule :=
 Lemma vm2newtm : forall newtm vm'' ps tmap nps, InferWidths_transps ps newtm = Some nps -> Sem_port nps vm'' -> 
                 (forall ct' ct vm' ss nss, InferWidths_transss ss newtm = Some nss -> Sem_frag_stmts vm'' ct' nss vm' ct tmap -> 
                       (forall v0 p pv0 ft q, list_lhs_ref_p vm' v0 tmap = Some p -> ref2pvar v0 tmap = Some pv0 -> ft_find (fst pv0, N0) newtm = Some ft -> ft_find_sub pv0 ft N0 = Some q -> p.2 = q)
-                    /\(forall e p q, list_rhs_expr_p e vm' ct tmap = Some p -> type_of_e e newtm = Some q -> q = p.1.1.2)).
+                    /\(forall e, type_of_e_vm vm' e tmap = type_of_e e newtm)).
 Proof.
   
 Admitted.
@@ -1756,6 +1746,30 @@ Proof.
   simpl.
 Admitted. *)
 
+Lemma InferWidths_fun_correct' : forall inferorder tmap newtm var2exprs, InferWidths_fun inferorder var2exprs tmap = Some newtm ->
+ forall v, v \in inferorder -> match ft_find (fst v, N0) tmap, ft_find (fst v, N0) newtm with
+          | Some init, Some checkt => match ft_find_upper v init N0 nil, ft_find_sub v init N0, ft_find_sub v checkt N0 with
+                        | Some upper_ls, Some initt, Some nt => 
+                                            match fold_left (fun subl v0 => match subl, module_graph_vertex_set_p.find v0 var2exprs with
+                                                            | Some subl', Some el => match fil_ftlist (map (fun e => type_of_e e newtm) el) with
+                                                                                  | Some eftl => match fil_ftlist (map (fun ft => ft_find_sub v (explicit_to_ftype ft) (snd v0)) eftl) with
+                                                                                                | Some sub_ftl => Some (sub_ftl ++ subl')
+                                                                                                | None => None
+                                                                                                end
+                                                                                  | None => None
+                                                                                  end
+                                                            | None, _ => None
+                                                            | Some subl', None => subl
+                                                            end) upper_ls (Some nil) with
+                                            | Some subl => max_ftlist (map make_ftype_explicit subl) initt = Some nt
+                                            | None => False (* 说明没有被连接 *)
+                                            end
+                        | _, _, _ => True (* 电路有误 *)
+                        end
+          | _ ,_ => True
+          end.
+Proof.
+Admitted.
 
 Definition vm_le (vm : module_graph_vertex_set_p.env) (vm' : module_graph_vertex_set_p.env) : Prop := 
   forall v, match module_graph_vertex_set_p.find v vm', module_graph_vertex_set_p.find v vm with
@@ -1797,7 +1811,10 @@ Proof.
   move : Hsem => [nvm_port [ct'0 [Hport Hstmts]]].
   move : Hsem' => [nvm_port' [ct' [Hport' Hstmts']]].
 
-  assert (Hsem' : forall v, v \in inferorder -> match module_graph_vertex_set_p.find v prepro.1.2 with
+  assert (Hsem' : ).
+  
+  
+  match module_graph_vertex_set_p.find v prepro.1.2 with
                   | Some el => match ft_find (fst v, N0) newtm, ft_find (fst v, N0) prepro.1.1 with (* 若为implicit *)
                               | Some checkt, Some init => match ft_find_sub v checkt N0, ft_find_sub v init N0, (fil_ftlist (map (fun e => type_of_e e newtm) el)) with
                                           | Some ft, Some initt, Some eftl (* connection lhs的类型，可能subfield，可能agg/gtyp *) 
