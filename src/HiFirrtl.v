@@ -205,17 +205,21 @@ End HiFirrtl.
 
 
   (* ground type equivalence *)
-  Definition fgtyp_equiv (t1 t2 : fgtyp) : bool :=
-    match t1 with
-    | Fuint _ | Fuint_implicit _ => match t2 with
-                                    | Fuint _ | Fuint_implicit _ => true
-                                    | _ => false
-                                    end
-    | Fsint _ | Fsint_implicit _ => match t2 with
-                                    | Fsint _ | Fsint_implicit _ => true
-                                    | _ => false
-                                    end
-    | _ => t1 == t2
+  Definition fgtyp_equiv t1 t2 :=
+    match t1, t2 with
+    | Fuint _, Fuint _
+    | Fuint_implicit _, Fuint _
+    | Fuint _, Fuint_implicit _
+    | Fuint_implicit _, Fuint_implicit _
+    | Fsint _, Fsint _
+    | Fsint_implicit _, Fsint _
+    | Fsint _, Fsint_implicit _
+    | Fsint_implicit _, Fsint_implicit _
+    | Fclock, Fclock
+    | Freset, Freset
+    (* | Freset, Fuint 1 *)
+    | Fasyncreset, Fasyncreset => true
+    | _, _ => false
     end.
 
   (* type equivalence *)
