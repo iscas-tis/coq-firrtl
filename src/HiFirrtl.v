@@ -140,10 +140,16 @@ Section HiFirrtl.
 
    Definition Qrev (s : hfstmt_seq) : hfstmt_seq := Qcatrev s Qnil.
 
-   Fixpoint Qin (s : hfstmt) (ss : hfstmt_seq) :=
+   Fixpoint Qin (s : hfstmt) (ss : hfstmt_seq) : bool :=
     match ss with Qnil => false
                 | Qcons h tl => (hfstmt_eqn h s) || (Qin s tl)
     end.
+
+   Fixpoint Qrcons (ss : hfstmt_seq) (s : hfstmt) : hfstmt_seq :=
+   match ss with
+   | Qnil => Qcons s Qnil
+   | Qcons h tl => Qcons h (Qrcons tl s)
+   end.
 
   (* Fixpoint Qfoldl {R : Type} (f : R -> hfstmt -> R) (s : hfstmt_seq) (default : R) :=
    match s with Qnil => default
