@@ -1617,7 +1617,6 @@ Admitted.
 Definition vx_le (x y : vertex_type) : bool :=
   match x, y with
   | OutPort i, OutPort j
-  | InPort i, InPort j 
   | Node i, Node j
   | Register i, Register j
   | Wire i, Wire j => if (not_implicit j) then true else (sizeof_fgtyp i) <= (sizeof_fgtyp j)
