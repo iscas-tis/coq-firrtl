@@ -8,9 +8,6 @@ Definition s1 := [::true].
 Definition s2 := [::true; false].
 Compute (TopoSort.subset s1 s2).
 
-Definition updg (key : ProdVarOrder.t) (v : seq ProdVarOrder.t) (map : ProdVarOrder.t -> seq ProdVarOrder.t) : ProdVarOrder.t -> seq ProdVarOrder.t :=
-    fun (y : ProdVarOrder.t) => if y == key then v else map y.
-
 Definition g0 := fun (y : N) => if y == N0 then [:: 1%num]
                                 else if y == 1%num then [:: 2%num]
                                      else if y == 3%num then [:: 2%num]
@@ -349,23 +346,13 @@ Fixpoint InferWidths_fun (od : seq ProdVarOrder.t) (var2exprs : var2exprsmap) (t
    the result is a modified tmap, which ensures that the width of every implicit-width component is large enough. *)
   match od with
   | nil => Some tmap
-  | vhd :: vtl => match ft_find (fst vhd, N0) tmap with
-      | Some checkt => match ft_find_upper vhd checkt N0 nil with (* infer the width of vhd according to its connections *)
-                  | Some upper_ls => let tmap' := fold_left (fun tm hd => 
-                                  match tm, module_graph_vertex_set_p.find hd var2exprs with 
-                                  | None, _ => None
-                                  | Some tm', None => Some tm'
-                                  | Some tm', Some el => InferWidth_fun hd el tm'
-                                  (* vhd is connected to several exprs, compute the width of exprs sequentially, update the largest width for vhd in tmap. *)
-                                  end) upper_ls (Some tmap) in
-                          match tmap' with
+  | vhd :: vtl => match module_graph_vertex_set_p.find vhd var2exprs with 
+                  | Some el => match InferWidth_fun vhd el tmap with
                           | Some tm => InferWidths_fun vtl var2exprs tm
                           | None => None
                           end
                   | None => None
                   end
-      | None => None
-      end
   end.
 
 (* Correctness theorem for InferWidths_fun:
@@ -1668,7 +1655,6 @@ Admitted.
 Definition vx_le (x y : vertex_type) : bool :=
   match x, y with
   | OutPort i, OutPort j
-  | InPort i, InPort j 
   | Node i, Node j
   | Register i, Register j
   | Wire i, Wire j => if (not_implicit j) then true else (sizeof_fgtyp i) <= (sizeof_fgtyp j)
