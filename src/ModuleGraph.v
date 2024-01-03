@@ -3722,3 +3722,4 @@ Theorem ExpandConnect_correct :
 (* If F allows multiple module graphs G, then it may happen that F' allows fewer module graphs.
    However, as the theorem requires that F does not contain unspecified widths, there should be only one conforming module graph,
    and so the equivalence is ok. *)
+*)
