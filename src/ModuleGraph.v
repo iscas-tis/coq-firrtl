@@ -2546,7 +2546,8 @@ Fixpoint Sem_frag_stmt (vm_old : module_graph_vertex_set_p.env) (ct_old : module
                         /\ (forall (v0 : ProdVarOrder.T) (n0 : N),
                               if v0 != v then module_graph_connection_trees_p.find (v0, n0) nctree = module_graph_connection_trees_p.find (v0, n0) ct_new
                                    else True)
-                        /\ let tlist := vtype_list ft0 nil in
+                        /\ exists tlist : seq fgtyp,
+                           vtype_list ft0 nil tlist /\
                            forall n : nat,
                               match List.nth_error tlist n, List.nth_error output_list n with
                               | Some nv, Some oc => module_graph_vertex_set_p.find ((fst v), N.of_nat n) vm_new = Some (Node nv)
