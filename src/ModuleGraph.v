@@ -714,7 +714,7 @@ End MakeCnctFMap.
 Module PPVM <: SsrFMapWithNew := FMaps.MakeTreeMapWithNew PProdVarOrder.
 Module module_graph_connection_trees_p <: SsrFMapWithNew := MakeCnctFMap PProdVarOrder PPVM.
 
-Fixpoint ffield2pvar (pv : ProdVarOrder.t) (ff : ffield) (v : var) : option ProdVarOrder.t :=
+(*Fixpoint ffield2pvar (pv : ProdVarOrder.t) (ff : ffield) (v : var) : option ProdVarOrder.t :=
   (* number the field ff in pv, when a field have aggr_typ, number all ground types in the previous field and then number the next field *)
   match ff with
   | Fflips v0 Nflip ft ff' => if v == v0 then Some (fst pv, N.add (snd pv) 1%num)
@@ -828,7 +828,94 @@ Definition testbty := (Btyp (Fflips (1%num) Nflip (Btyp (Fflips (1%num) Nflip (G
 (* Compute (ft_find_sub (N0, 9%num) testbty N0). *)
 (* Compute (ft_set_sub (N0, 3%num) testbty testaty0 N0). *)
 (* Compute (list_gref (num_ref testbty) (N0,N0) testbty). *)
+*)
 
+Fixpoint tmap_type_size (t : ftype) : N :=
+(* calculates how many entries in tmap.env would be created/affected by a variable of type t *)
+   match t with
+   | Gtyp _ => 1
+   | Atyp t _ => tmap_type_size t (* only one entry is needed for the array *)
+   | Btyp ff => tmap_type_size_fields ff
+   end
+   with tmap_type_size_fields (ff : ffield) : N :=
+   match ff with
+   | Fnil => 0
+   | Fflips _ _ ft ff' => tmap_type_size ft + tmap_type_size_fields ff'
+   end.
+
+Fixpoint ft_set_sub (checkt : ftype) (newt : fgtyp) (num : N) : option ftype :=
+  match checkt with
+  | Gtyp _ => if num == N0 then Some (Gtyp newt) else None
+  | Atyp atyp n => match ft_set_sub atyp newt num with
+                      | Some natyp => Some (Atyp natyp n)
+                      | None => None
+                      end
+  | Btyp ff => if num >= (tmap_type_size_fields) ff then None else
+                match ft_set_sub_f ff newt num with
+                | Some newf => Some (Btyp newf)
+                | None => None
+                end
+  end
+with ft_set_sub_f (ff : ffield) (newt : fgtyp) (num : N) : option ffield :=
+  match ff with
+  | Fflips v0 fl ft ff' => if num >= N.of_nat (tmap_type_size ft) (* 不在该field中, 找下一个field *)
+                            then match ft_set_sub_f ff' newt (N.sub num (N.of_nat (tmap_type_size ft))) with
+                                | Some newf => Some (Fflips v0 fl ft newf)
+                                | None => None
+                                end
+                          else (* 在field v0中 *)
+                            match ft_set_sub ft newt num with
+                            | Some newt' => Some (Fflips v0 fl newt' ff')
+                            | None => None
+                            end
+  | _ => None
+  end.
+
+  (* 以下函数都是只考虑gtyp的版本，并且array只考虑一个元素 *)
+Fixpoint ft_find_sub (checkt : ftype) (num : N) : option fgtyp :=
+  match checkt with
+  | Gtyp gt => if num == N0 then Some gt else None
+  | Atyp atyp n => ft_find_sub atyp num
+  | Btyp ff => if num >= (tmap_type_size_fields) ff then None else ft_find_ff ff num 
+  end
+with ft_find_ff (ff : ffield) (num : N) : option fgtyp :=
+  match ff with
+  | Fflips v0 _ ft ff' => if num >= (N.of_nat (tmap_type_size ft)) (* 不在该field中, 找下一个field *)
+                              then ft_find_ff ff' (N.sub num (N.of_nat (tmap_type_size ft)))
+                           else (* 在field v0中 *)
+                              ft_find_sub ft num
+  | _ => None
+  end.
+
+Fixpoint ft_check_flip (checkt : ftype) (num : N) (fl : bool) : option bool :=
+  match checkt with
+  | Gtyp gt => if num == N0 then Some fl else None
+  | Atyp atyp n => ft_check_flip atyp num fl
+  | Btyp ff => if num >= (tmap_type_size_fields) ff then None else ft_check_flip_f ff num fl
+  end
+with ft_check_flip_f (ff : ffield) (num : N) (fl : bool) : option bool :=
+  match ff with
+  | Fflips v0 Flipped ft ff' => if num >= (N.of_nat (tmap_type_size ft)) (* 不在该field中, 找下一个field *)
+                                  then ft_check_flip_f ff' (N.sub num (N.of_nat (tmap_type_size ft))) fl
+                              else (* 在field v0中 *)
+                                  ft_check_flip ft num (~~fl)
+  | Fflips v0 Nflip ft ff' => if num >= (N.of_nat (tmap_type_size ft)) (* 不在该field中, 找下一个field *)
+                                  then ft_check_flip_f ff' (N.sub num (N.of_nat (tmap_type_size ft))) fl
+                              else (* 在field v0中 *)
+                                  ft_check_flip ft num fl
+  | _ => None
+  end.
+
+(* 有必要check这几个函数功能是否正确 *)
+Definition testaty0 := (Atyp (Gtyp (Fuint_implicit 0)) 2).
+Definition testaty := (Atyp (Atyp (Gtyp (Fuint 4)) 2) 2).
+Definition testbty0 := (Btyp (Fflips (1%num) Nflip (Atyp (Gtyp (Fuint_implicit 0)) 2) (Fflips (1%num) Nflip (Atyp (Gtyp (Fuint_implicit 1)) 2) Fnil))).
+Definition testbty := (Btyp (Fflips (1%num) Flipped (Btyp (Fflips (1%num) Nflip (Gtyp (Fuint_implicit 0)) (Fflips (1%num) Flipped (Atyp (Gtyp (Fuint_implicit 1)) 2) Fnil))) (Fflips (1%num) Nflip (Atyp (Gtyp (Fuint_implicit 2)) 2) Fnil))).
+Definition testgt := (Fuint 4).
+Compute (tmap_type_size testaty). 
+Compute (ft_set_sub testbty testgt 3%num).
+Compute (ft_find_sub testbty 2%num).
+Compute (ft_check_flip testbty 2%num false).
 
 (* helper functions for producing new vertices *)
 (* return the new vertex and type of the cast expression if a correct ftype is given *)
@@ -952,7 +1039,8 @@ Definition add_vertex_binop (b : ebinop) (ft0 ft1: ftype_explicit) : option vert
    | _, _ => None
    end.
 
-(*Fixpoint list_output_p (vmap : module_graph_vertex_set_p.env) (p : var) (n : nat) (ol : option (list PProdVarOrder.t)) : option (list PProdVarOrder.t) :=
+(*
+Fixpoint list_output_p (vmap : module_graph_vertex_set_p.env) (p : var) (n : nat) (ol : option (list PProdVarOrder.t)) : option (list PProdVarOrder.t) :=
 (* prepends a list of output connector 0 of vertices (p,1), (p,2), ..., (p,n) to ol
    If some of these output connectors do not exist, the function returns None. *)
   match ol, n with
@@ -973,7 +1061,7 @@ match ff with
                              if v == v0 then Some (take len lst, ft)
                                         else select_list_lhs_ffield_p (drop len lst) ff' v
 | _ => None
-end.*)
+end.
 
 Fixpoint fillft_vm (ft : ftype) (gl : seq ProdVarOrder.t) (vmap : module_graph_vertex_set_p.env) : option ftype :=
    match gl with
@@ -1024,9 +1112,63 @@ Definition list_lhs_ref_p (vmap : module_graph_vertex_set_p.env) (e : HiFP.href)
                | None => None
                end
    | None => None
+   end.*)
+
+Fixpoint base_ref_fields (base : VarOrder.t * N) (v : VarOrder.t) (ff : ffield) : option (VarOrder.t * N * ftype) :=
+(* find field v in ff. If found, return its type as an auxiliary to base_ref. *)
+match ff with
+| Fnil => None
+| Fflips v' _ t' ff' =>
+    if v == v' then Some (base, t')
+               else base_ref_fields ((fst base), ((snd base) + tmap_type_size t')%num) v ff'
+end.
+
+Fixpoint base_ref (ref : HiFP.href) (tmap : CEP.t ftype) : option (VarOrder.t * N * ftype) :=
+(* For reference ref, finds the pair (v, n) and the type that corresponds to it.
+(v,n) is the first item in the list of variables associated to ref that is affected by it.
+This function counts n for tmap, i.e. all arrays are treated as having only one element. *)
+match ref with
+| Eid v =>
+    match CEP.find v tmap with
+    | Some t => Some (v, t)
+    | None   => None
+    end
+| Esubfield ref' v' =>
+    match base_ref ref' tmap with
+    | Some (base, Btyp ff) => base_ref_fields base v' ff
+    | _ => None
+    end
+| Esubindex ref' _
+| Esubaccess ref' _ =>
+    match base_ref ref' tmap with
+    | Some (base, Atyp t' _) => Some (base, t')
+    | _ => None
+    end
+end.
+
+Fixpoint list_lhs_ref_p (pv : ProdVarOrder.t) (n : nat) : list PProdVarOrder.t :=
+   match n with 
+   | 0 => nil
+   | S m => cons (fst pv, N.add (snd pv) (N.of_nat n), N0) (list_lhs_ref_p pv m)
    end.
+
+Fixpoint fillft_vm (n : nat) (ft : ftype) (pv : ProdVarOrder.t) (vmap : module_graph_vertex_set_p.env) : option ftype :=
+   match n with
+   | 0 => Some ft
+   | S m => match module_graph_vertex_set_p.find (fst pv, (N.add (snd pv) (N.of_nat m))) vmap with
+            | Some nt => match List.hd_error (input_connectors nt) with
+                        | Some gt => match ft_set_sub ft gt (N.of_nat m) with
+                                   | Some nft => fillft_vm m nft pv vmap
+                                   | None => None
+                                   end
+                       | None => None
+                       end
+           | None => None
+           end
+   end.
+
 (* return the type of mux expression on fgtyps *)
-Definition fgtyp_mux (x y : fgtyp_explicit) : option fgtyp_explicit :=
+(*Definition fgtyp_mux (x y : fgtyp_explicit) : option fgtyp_explicit :=
     match x, y with
     | exist (Fuint wx) _, exist (Fuint wy) _ => Some (Fuint_exp (Nat.max wx wy))
     | exist (Fsint wx) _, exist (Fsint wy) _ => Some (Fsint_exp (Nat.max wx wy))
@@ -1074,7 +1216,56 @@ Definition ftype_mux (x : ftype_explicit) (y : ftype_explicit) : option ftype_ex
    match x, y with
    exist x px, exist y py => ftype_mux' x px y py
    end.
+*)
 
+(* type of mux expression *)
+Definition mux_gtyp (t1 : fgtyp) (t2 : fgtyp) : option fgtyp :=
+      match t1, t2 with
+      | Fuint w1, Fuint w2 => Some (Fuint (maxn w1 w2))
+      | Fuint w1, Fuint_implicit w2 => Some (Fuint (maxn w1 w2))
+      | Fuint_implicit w1, Fuint w2 => Some (Fuint (maxn w1 w2))
+      | Fuint_implicit w1, Fuint_implicit w2 => Some (Fuint (maxn w1 w2))
+      | Fsint w1, Fsint w2 => Some (Fsint (maxn w1 w2))
+      | Fsint w1, Fsint_implicit w2 => Some (Fsint (maxn w1 w2))
+      | Fsint_implicit w1, Fsint w2 => Some (Fsint (maxn w1 w2))
+      | Fsint_implicit w1, Fsint_implicit w2 => Some (Fsint (maxn w1 w2))
+      | Fclock, Fclock => Some (Fclock)
+      | Freset, Freset => Some (Freset)
+      | Fasyncreset, Fasyncreset => Some (Fasyncreset)
+      | _,_ => None
+      end.
+
+Fixpoint mux_types (t1 : ftype) (t2 : ftype) : option ftype :=
+      match t1, t2 with
+      | Gtyp gt1, Gtyp gt2 => match mux_gtyp gt1 gt2 with
+                              | Some gt => Some (Gtyp gt)
+                              | _ => None
+                              end
+      | Atyp t1' n1, Atyp t2' n2 => match n1 == n2, mux_types t1' t2' with
+                                    | true, Some t => Some (Atyp t n1)
+                                    | _, _ => None
+                                    end
+      | Btyp bs1, Btyp bs2 =>
+          match mux_btyps bs1 bs2 with
+          | Some ff => Some (Btyp ff)
+          | None => None
+          end
+      | _, _ => None
+      end
+with mux_btyps (bs1 : ffield) (bs2 : ffield) : option ffield :=
+      match bs1, bs2 with
+      | Fnil, Fnil => Some Fnil
+      | Fflips v1 Nflip t1 fs1, Fflips v2 Nflip t2 fs2 =>
+          if v1 == v2 then match mux_types t1 t2, mux_btyps fs1 fs2 with
+                           | Some t, Some fs => Some (Fflips v1 Nflip t fs)
+                           | _, _ => None
+                           end
+                      else None
+      (* mux types must be passive, so Flipped is not allowed *)
+      | _, _ => None
+    end.
+
+(*
 Fixpoint type_of_e_vm (vmap : module_graph_vertex_set_p.env) (e : HiFP.hfexpr) (tmap : ft_pmap) : option ftype_explicit :=
    match e with
    | Econst t bs => match t with
@@ -1224,7 +1415,8 @@ Fixpoint type_of_e_vm (vmap : module_graph_vertex_set_p.env) (e : HiFP.hfexpr) (
                       end
    | _ => None (* Some (exist ftype_not_implicit_width (Gtyp (Fuint 0)) I) *)
    end.
-(*Fixpoint list_lhs_ref_p (vmap : module_graph_vertex_set_p.env) (e : HiFP.href) (tmap: ft_pmap) : 
+
+Fixpoint list_lhs_ref_p (vmap : module_graph_vertex_set_p.env) (e : HiFP.href) (tmap: ft_pmap) : 
 option (list PProdVarOrder.t * ftype) :=
 (* generates a list of input connectors and a type corresponding to reference e,
    if e has a passive type *)
@@ -1249,7 +1441,158 @@ match e with
 | _ => None
 end.*)
 
-Definition list_rhs_ref_p (vmap : module_graph_vertex_set_p.env) (e : HiFP.href) (tmap: ft_pmap) : 
+
+Fixpoint type_of_hfexpr_vm (vmap : module_graph_vertex_set_p.env) (e : HiFP.hfexpr) (tmap : CEP.t ftype) : option ftype :=
+   match e with
+   | Econst t bs => match t with
+                    | Fuint_implicit w => Some (Gtyp (Fuint (size bs)))
+                    | Fsint_implicit w => Some (Gtyp (Fsint (size bs)))
+                    | t => Some (Gtyp t)
+                    end
+   | Eref r => match base_ref r tmap with
+              | Some (pv, checkt) => fillft_vm (tmap_type_size checkt) checkt pv vmap
+              | None => None
+              end
+   | Ecast AsUInt e1 => match type_of_hfexpr_vm vmap e1 tmap with
+                         | Some (Gtyp (Fsint w))
+                         | Some (Gtyp (Fuint w)) => Some (Gtyp (Fuint w))
+                         | Some (Gtyp Fclock)
+                         | Some (Gtyp Freset)
+                         | Some (Gtyp Fasyncreset) => Some (Gtyp (Fuint 1))
+                         | _ => None
+                         end
+   | Ecast AsSInt e1 => match type_of_hfexpr_vm vmap e1 tmap with
+                         | Some (Gtyp (Fsint w))
+                         | Some (Gtyp (Fuint w)) => Some (Gtyp (Fsint w))
+                         | Some (Gtyp Fclock)
+                         | Some (Gtyp Freset)
+                         | Some (Gtyp Fasyncreset) => Some (Gtyp (Fsint 1))
+                         | _ => None
+                         end
+   | Ecast AsClock e1 => match type_of_hfexpr_vm vmap e1 tmap with
+                         | Some (Gtyp _) => Some (Gtyp Fclock)
+                         | _ => None
+                         end
+   | Ecast AsAsync e1 => match type_of_hfexpr_vm vmap e1 tmap with
+                         | Some (Gtyp _) => Some (Gtyp Fasyncreset)
+                         | _ => None
+                         end
+   | Eprim_unop (Upad n) e1 => match type_of_hfexpr_vm vmap e1 tmap with
+                                | Some (Gtyp (Fsint w)) => Some (Gtyp (Fsint (maxn w n)))
+                                | Some (Gtyp (Fuint w)) => Some (Gtyp (Fuint (maxn w n)))
+                                | _ => None
+                                end
+   | Eprim_unop (Ushl n) e1 => match type_of_hfexpr_vm vmap e1 tmap with
+                                | Some (Gtyp (Fsint w)) => Some (Gtyp (Fsint (w + n)))
+                                | Some (Gtyp (Fuint w)) => Some (Gtyp (Fuint (w + n)))
+                                | _ => None
+                                end
+   | Eprim_unop (Ushr n) e1 => match type_of_hfexpr_vm vmap e1 tmap with
+                                | Some (Gtyp (Fsint w)) => Some (Gtyp (Fsint (maxn (w - n) 1)))
+                                | Some (Gtyp (Fuint w)) => Some (Gtyp (Fuint (maxn (w - n) 1)))
+                                | _ => None
+                                end
+   | Eprim_unop Ucvt e1 => match type_of_hfexpr_vm vmap e1 tmap with
+                            | Some (Gtyp (Fsint w)) => Some (Gtyp (Fsint w))
+                            | Some (Gtyp (Fuint w)) => Some (Gtyp (Fsint (w + 1)))
+                            | _ => None
+                            end
+   | Eprim_unop Uneg e1 => match type_of_hfexpr_vm vmap e1 tmap with
+                            | Some (Gtyp (Fsint w))
+                            | Some (Gtyp (Fuint w)) => Some (Gtyp (Fsint (w + 1)))
+                            | _ => None
+                            end
+   | Eprim_unop Unot e1 => match type_of_hfexpr_vm vmap e1 tmap with
+                            | Some (Gtyp (Fsint w))
+                            | Some (Gtyp (Fuint w)) => Some (Gtyp (Fuint w))
+                            | _ => None
+                            end
+   | Eprim_unop (Uextr n1 n2) e1 => match type_of_hfexpr_vm vmap e1 tmap with
+                                     | Some (Gtyp (Fsint w))
+                                     | Some (Gtyp (Fuint w)) =>
+                                          if (n2 <= n1) && (n1 < w) then Some (Gtyp (Fuint (n1 - n2 + 1)))
+                                                                    else None
+                                     | _ => None
+                                     end
+   | Eprim_unop (Uhead n) e1 => match type_of_hfexpr_vm vmap e1 tmap with
+                                 | Some (Gtyp (Fsint w))
+                                 | Some (Gtyp (Fuint w)) =>
+                                      if n <= w then Some (Gtyp (Fuint n))
+                                                else None
+                                 | _ => None
+                                 end
+   | Eprim_unop (Utail n) e1 => match type_of_hfexpr_vm vmap e1 tmap with
+                                 | Some (Gtyp (Fsint w))
+                                 | Some (Gtyp (Fuint w)) =>
+                                      if n <= w then Some (Gtyp (Fuint (w - n)))
+                                                else None
+                                 | _ => None
+                                 end
+   | Eprim_unop _ e1 => match type_of_hfexpr_vm vmap e1 tmap with
+                         | Some (Gtyp (Fsint _))
+                         | Some (Gtyp (Fuint _)) => Some (Gtyp (Fuint 1))
+                         | _ => None
+                         end
+   | Eprim_binop (Bcomp _) e1 e2 => match type_of_hfexpr_vm vmap e1 tmap, type_of_hfexpr_vm vmap e2 tmap with
+                                     | Some (Gtyp (Fsint _)), Some (Gtyp (Fsint _))
+                                     | Some (Gtyp (Fuint _)), Some (Gtyp (Fuint _)) => Some (Gtyp (Fuint 1))
+                                     | _, _ => None
+                                     end
+   | Eprim_binop Badd e1 e2
+   | Eprim_binop Bsub e1 e2 => match type_of_hfexpr_vm vmap e1 tmap, type_of_hfexpr_vm vmap e2 tmap with
+                                | Some (Gtyp (Fuint w1)), Some (Gtyp (Fuint w2)) => Some (Gtyp (Fuint (maxn w1 w2 + 1)))
+                                | Some (Gtyp (Fsint w1)), Some (Gtyp (Fsint w2)) => Some (Gtyp (Fsint (maxn w1 w2 + 1)))
+                                | _, _ => None
+                                end
+   | Eprim_binop Bmul e1 e2 => match type_of_hfexpr_vm vmap e1 tmap, type_of_hfexpr_vm vmap e2 tmap with
+                                | Some (Gtyp (Fuint w1)), Some (Gtyp (Fuint w2)) => Some (Gtyp (Fuint (w1 + w2)))
+                                | Some (Gtyp (Fsint w1)), Some (Gtyp (Fsint w2)) => Some (Gtyp (Fsint (w1 + w2)))
+                                | _, _ => None
+                                end
+   | Eprim_binop Bdiv e1 e2  => match type_of_hfexpr_vm vmap e1 tmap, type_of_hfexpr_vm vmap e2 tmap with
+                                 | Some (Gtyp (Fuint w1)), Some (Gtyp (Fuint w2)) => Some (Gtyp (Fuint w1))
+                                 | Some (Gtyp (Fsint w1)), Some (Gtyp (Fsint w2)) => Some (Gtyp (Fsint (w1 + 1)))
+                                 | _, _ => None
+                                 end
+   | Eprim_binop Brem e1 e2 => match type_of_hfexpr_vm vmap e1 tmap, type_of_hfexpr_vm vmap e2 tmap with
+                                 | Some (Gtyp (Fuint w1)), Some (Gtyp (Fuint w2)) => Some (Gtyp (Fuint (minn w1 w2)))
+                                 | Some (Gtyp (Fsint w1)), Some (Gtyp (Fsint w2)) => Some (Gtyp (Fsint (minn w1 w2)))
+                                 | _, _ => None
+                                 end
+   | Eprim_binop Bdshl e1 e2 => match type_of_hfexpr_vm vmap e1 tmap, type_of_hfexpr_vm vmap e2 tmap with
+                                 | Some (Gtyp (Fuint w1)), Some (Gtyp (Fuint w2)) => Some (Gtyp (Fuint (w1 + 2 ^ w2 - 1)))
+                                 | Some (Gtyp (Fsint w1)), Some (Gtyp (Fuint w2)) => Some (Gtyp (Fsint (w1 + 2 ^ w2 - 1)))
+                                 | _, _ => None
+                                 end
+   | Eprim_binop Bdshr e1 e2 => match type_of_hfexpr_vm vmap e1 tmap, type_of_hfexpr_vm vmap e2 tmap with
+                                 | Some (Gtyp (Fuint w1)), Some (Gtyp (Fuint w2)) => Some (Gtyp (Fuint w1))
+                                 | Some (Gtyp (Fsint w1)), Some (Gtyp (Fuint w2)) => Some (Gtyp (Fsint w1))
+                                 | _, _ => None
+                                 end
+   | Eprim_binop Bcat e1 e2 => match type_of_hfexpr_vm vmap e1 tmap, type_of_hfexpr_vm vmap e2 tmap with
+                                | Some (Gtyp (Fuint w1)), Some (Gtyp (Fuint w2))
+                                | Some (Gtyp (Fsint w1)), Some (Gtyp (Fsint w2)) => Some (Gtyp (Fuint (w1 + w2)))
+                                | _, _ => None
+                                end
+   | Eprim_binop Band e1 e2
+   | Eprim_binop Bor e1 e2
+   | Eprim_binop Bxor e1 e2 => match type_of_hfexpr_vm vmap e1 tmap, type_of_hfexpr_vm vmap e2 tmap with
+                                | Some (Gtyp (Fuint w1)), Some (Gtyp (Fuint w2))
+                                | Some (Gtyp (Fsint w1)), Some (Gtyp (Fsint w2)) => Some (Gtyp (Fuint (maxn w1 w2)))
+                                | _, _ => None
+                                end
+   | Emux c e1 e2 => match type_of_hfexpr_vm vmap c tmap, type_of_hfexpr_vm vmap e1 tmap, type_of_hfexpr_vm vmap e2 tmap with
+                      | Some (Gtyp (Fuint 1)), Some t1, Some t2 => mux_types t1 t2
+                      | _, _, _ => None
+                      end
+   | Evalidif c e1 => match type_of_hfexpr_vm vmap c tmap with
+                      | Some (Gtyp (Fuint 1)) => type_of_hfexpr_vm vmap e1 tmap
+                      | _ => None
+                      end
+   | _ => None (* Some (Gtyp (Fuint 0)) *)
+   end.
+
+(*Definition list_rhs_ref_p (vmap : module_graph_vertex_set_p.env) (e : HiFP.href) (tmap: ft_pmap) : 
 option (list PProdVarOrder.t * ftype_explicit) :=
 (* generates a list of output connectors and a type corresponding to reference e,
    if e has a passive type.
@@ -1257,7 +1600,7 @@ option (list PProdVarOrder.t * ftype_explicit) :=
 match list_lhs_ref_p vmap e tmap with
 | Some (v, t) => Some (v, make_ftype_explicit t)
 | _ => None
-end.
+end.*)
 
 Fixpoint add_vertex_mux' (ft : ftype) (p : ftype_not_implicit_width ft) (l : list vertex_type) : list vertex_type :=
 (* append to l a list of new Mux vertices corresponding to the ground type elements of ft *)
@@ -1294,7 +1637,7 @@ Fixpoint add_vertex_mux_p' (vmap : module_graph_vertex_set_p.env) (ctree : modul
    | _,_,_ => None
    end.
 
-Fixpoint list_rhs_expr_p (e : HiFP.hfexpr) (vmap : module_graph_vertex_set_p.env) (ctree : module_graph_connection_trees_p.env) (tmap : ft_pmap) : option (list PProdVarOrder.t * module_graph_vertex_set_p.env * module_graph_connection_trees_p.env) :=
+Fixpoint list_rhs_expr_p (e : HiFP.hfexpr) (vmap : module_graph_vertex_set_p.env) (ctree : module_graph_connection_trees_p.env) (tmap : CEP.t ftype) : option (list PProdVarOrder.t * module_graph_vertex_set_p.env * module_graph_connection_trees_p.env) :=
    (* 
    1. list of output_connectors, which would be connected to the input_connectors of the vertices on the lhs
    2. ftype of the expr, which help produce constraints in the connection. --> should be an aggr type to distinguish UInt[10][2] and UInt[20].
@@ -1309,14 +1652,14 @@ Fixpoint list_rhs_expr_p (e : HiFP.hfexpr) (vmap : module_graph_vertex_set_p.env
                            Some ([:: (nid, N0)], nvmap, ctree)
                     | None => None
                      end
-   | Eref ref => match list_rhs_ref_p vmap ref tmap with
-               | Some (rl, _) => Some (rl, vmap, ctree)
+   | Eref ref => match base_ref ref tmap with
+               | Some (v, t) => let rl := list_lhs_ref_p v (tmap_type_size t) in Some (rl, vmap, ctree)
                | None => None
                end
-   | Ecast c e => match list_rhs_expr_p e vmap ctree tmap, type_of_e_vm vmap e tmap with
+   | Ecast c e => match list_rhs_expr_p e vmap ctree tmap, type_of_hfexpr_vm vmap e tmap with
                   (* have new vertex set 'nvmap' and connection tree 'ctree0' after first deal with the inner expr, the expr have a output_connector 'eon' *)
                   | Some ([:: eon], nvmap, ctree0), Some ft => 
-                     match add_vertex_cast c ft with 
+                     match add_vertex_cast c (make_ftype_explicit ft) with 
                      (* if the inner expr return with a ground type 'ft', a new vertex 'nv' is produced and the cast expr return with type 'rty' *)
                      | Some nv => 
                         let nid := module_graph_vertex_set_p.new_key vmap in
@@ -1327,9 +1670,9 @@ Fixpoint list_rhs_expr_p (e : HiFP.hfexpr) (vmap : module_graph_vertex_set_p.env
                      end
                   | _, _ => None
                   end
-   | Eprim_unop u e => match list_rhs_expr_p e vmap ctree tmap, type_of_e_vm vmap e tmap with
+   | Eprim_unop u e => match list_rhs_expr_p e vmap ctree tmap, type_of_hfexpr_vm vmap e tmap with
                   | Some ([:: eon], nvmap, ctree0), Some ft => 
-                     match add_vertex_unop u ft with 
+                     match add_vertex_unop u (make_ftype_explicit ft) with 
                      | Some nv => 
                         match data_type_out2ftype (output_connectors nv) with
                         | Some rft =>
@@ -1343,11 +1686,11 @@ Fixpoint list_rhs_expr_p (e : HiFP.hfexpr) (vmap : module_graph_vertex_set_p.env
                      end
                   | _, _ => None
                   end
-   | Eprim_binop b e1 e2 => match list_rhs_expr_p e1 vmap ctree tmap, type_of_e_vm vmap e1 tmap with
+   | Eprim_binop b e1 e2 => match list_rhs_expr_p e1 vmap ctree tmap, type_of_hfexpr_vm vmap e1 tmap with
                   | Some ([:: eon0], nvmap0, ctree0), Some ft0 => 
-                     match list_rhs_expr_p e2 nvmap0 ctree0 tmap, type_of_e_vm vmap e2 tmap with
+                     match list_rhs_expr_p e2 nvmap0 ctree0 tmap, type_of_hfexpr_vm vmap e2 tmap with
                      | Some ([:: eon1], nvmap1, ctree1), Some ft1 => 
-                        match (add_vertex_binop b ft0 ft1) with 
+                        match (add_vertex_binop b (make_ftype_explicit ft0) (make_ftype_explicit ft1)) with 
                         | Some nv => 
                            match data_type_out2ftype (output_connectors nv) with
                            | Some rft => 
@@ -1364,15 +1707,15 @@ Fixpoint list_rhs_expr_p (e : HiFP.hfexpr) (vmap : module_graph_vertex_set_p.env
                      end
                   | _, _ => None 
                   end
-   | Emux e1 e2 e3 => match list_rhs_expr_p e1 vmap ctree tmap, type_of_e_vm vmap e1 tmap with
-                     | Some ([:: eon1], vmap0, ctree0), Some (exist (Gtyp (Fuint 1)) _) =>
-                        match list_rhs_expr_p e2 vmap0 ctree0 tmap, type_of_e_vm vmap e2 tmap with
+   | Emux e1 e2 e3 => match list_rhs_expr_p e1 vmap ctree tmap, type_of_hfexpr_vm vmap e1 tmap with
+                     | Some ([:: eon1], vmap0, ctree0), Some (Gtyp (Fuint 1)) =>
+                        match list_rhs_expr_p e2 vmap0 ctree0 tmap, type_of_hfexpr_vm vmap e2 tmap with
                         | Some (eonl2, vmap1, ctree1), Some ft2 =>
-                           match list_rhs_expr_p e3 vmap1 ctree1 tmap, type_of_e_vm vmap e3 tmap with
+                           match list_rhs_expr_p e3 vmap1 ctree1 tmap, type_of_hfexpr_vm vmap e3 tmap with
                            | Some (eonl3, vmap2, ctree2), Some ft3 =>
-                              match ftype_mux ft2 ft3 with
+                              match mux_types ft2 ft3 with
                               | Some rft => 
-                                 let nvl := add_vertex_mux rft in
+                                 let nvl := add_vertex_mux (make_ftype_explicit rft) in
                                  match add_vertex_mux_p' vmap2 ctree2 nil nvl eon1 eonl2 eonl3 with
                                  | Some (nvmap, nct, rl) => Some (rl, nvmap, nct)
                                  | None => None
@@ -1440,7 +1783,7 @@ Definition ct0 := match (list_rhs_expr_p e8 vmap4 (module_graph_connection_trees
 end.
 Compute (ct0).*)
 
-Definition type_of_ref r tmap : option ftype :=
+(*Definition type_of_ref r tmap : option ftype :=
    (*match r with
    | Eid v => ft_find v tmap
    | Esubfield r v => let t := type_of_ref r tmap in
@@ -1618,35 +1961,232 @@ Fixpoint type_of_e (e : HiFP.hfexpr) (tmap : ft_pmap) : option ftype_explicit :=
                       end
    | _ => None (* Some (exist ftype_not_implicit_width (Gtyp (Fuint 0)) I) *)
    end.
+*)
 
-(*Fixpoint tmap_stmt (s : HiFP.hfstmt) (tmap : ft_pmap) : option ft_pmap :=
-   match s with
-   | Sskip => Some tmap
-   | Sfcnct ref expr => Some tmap
-   | Sinvalid ref => Some tmap
-   | Swire v t => Some (ft_add v t tmap)
-   | Snode v e => match type_of_e e tmap with
-                  | Some (exist t _) => Some (ft_add v t tmap)
-                  | None => None 
-                  end
-   | Sreg v reg => Some (ft_add v (type reg) tmap) 
-   | Smem var mem => Some tmap (* ? *)
-   | Sinst var1 var2 => Some tmap (* ? *)
-   | Swhen cond ss_true ss_false => match tmap_stmts ss_true tmap with
-                                    | Some tmap0 => tmap_stmts ss_false tmap0
-                                    | None => None
-                                    end
-   end with
-tmap_stmts (ss : HiFP.hfstmt_seq) (tmap : ft_pmap) : option ft_pmap :=
-   match ss with
-   | Qnil => Some tmap
-   | Qcons s ss' => match tmap_stmt s tmap with
-                     | Some tmap0 => tmap_stmts ss' tmap0
-                     | None => None
+Fixpoint type_of_hfexpr (e : HiFP.hfexpr) (ce : CEP.t ftype) : option ftype :=
+(* calculates the type of the expression e.
+   In contrast to HiFP.type_of_hfexpr, this function only needs the map of types,
+   and it will preserve the information whether some ground type has an implicit width
+   (I am not sure yet whether that information needs to be preserved at all.)
+   Should the width of variables be preserved faithfully? Not sure at this moment;
+   perhaps we need two versions. *)
+match e with
+| Econst t _ => Some (Gtyp t)
+| Eref r => match base_ref r ce with
+            | Some (_, ft) => Some ft
+            | None => None
+            end
+| Ecast AsUInt e1 => match type_of_hfexpr e1 ce with
+                     | Some (Gtyp (Fsint w)) | Some (Gtyp (Fuint w)) => Some (Gtyp (Fuint w))
+                     | Some (Gtyp (Fsint_implicit w)) | Some (Gtyp (Fuint_implicit w)) => Some (Gtyp (Fuint_implicit w))
+                     | Some (Gtyp Fclock) | Some (Gtyp Freset) | Some (Gtyp Fasyncreset) => Some (Gtyp (Fuint 1))
+                     | _ => None
                      end
-   end.*)
+| Ecast AsSInt e1 => match type_of_hfexpr e1 ce with
+                     | Some (Gtyp (Fsint w)) | Some (Gtyp (Fuint w)) => Some (Gtyp (Fsint w))
+                     | Some (Gtyp (Fsint_implicit w)) | Some (Gtyp (Fuint_implicit w)) => Some (Gtyp (Fsint_implicit w))
+                     | Some (Gtyp Fclock) | Some (Gtyp Freset) | Some (Gtyp Fasyncreset) => Some (Gtyp (Fsint 1))
+                     | _ => None
+                     end
+| Ecast AsClock e1 => match type_of_hfexpr e1 ce with
+                      | Some (Gtyp _) => Some (Gtyp Fclock)
+                      | _ => None
+                      end
+| Ecast AsReset e1 => match type_of_hfexpr e1 ce with
+                      | Some (Gtyp _) => Some (Gtyp Freset)
+                      | _ => None
+                      end
+| Ecast AsAsync e1 => match type_of_hfexpr e1 ce  with
+                      | Some (Gtyp _) => Some (Gtyp Fasyncreset)
+                      | _ => None
+                      end
+| Eprim_unop (Upad n) e1 => match type_of_hfexpr e1 ce with
+                            | Some (Gtyp (Fsint w)) => Some (Gtyp (Fsint (maxn w n)))
+                            | Some (Gtyp (Fuint w)) => Some (Gtyp (Fuint (maxn w n)))
+                            | Some (Gtyp (Fsint_implicit w)) => Some (Gtyp (Fsint_implicit (maxn w n)))
+                            | Some (Gtyp (Fuint_implicit w)) => Some (Gtyp (Fuint_implicit (maxn w n)))
+                            | _ => None
+                            end
+| Eprim_unop (Ushl n) e1 => match type_of_hfexpr e1 ce with
+                            | Some (Gtyp (Fsint w)) => Some (Gtyp (Fsint (w + n)))
+                            | Some (Gtyp (Fuint w)) => Some (Gtyp (Fuint (w + n)))
+                            | Some (Gtyp (Fsint_implicit w)) => Some (Gtyp (Fsint_implicit (w + n)))
+                            | Some (Gtyp (Fuint_implicit w)) => Some (Gtyp (Fuint_implicit (w + n)))
+                            | _ => None
+                            end
+| Eprim_unop (Ushr n) e1 => match type_of_hfexpr e1 ce with
+                            | Some (Gtyp (Fsint w)) => Some (Gtyp (Fsint (maxn (w - n) 1)))
+                            | Some (Gtyp (Fuint w)) => Some (Gtyp (Fuint (maxn (w - n) 1)))
+                            | Some (Gtyp (Fsint_implicit w)) => Some (Gtyp (Fsint_implicit (maxn (w - n) 1)))
+                            | Some (Gtyp (Fuint_implicit w)) => Some (Gtyp (Fuint_implicit (maxn (w - n) 1)))
+                            | _ => None
+                            end
+| Eprim_unop Ucvt e1 => match type_of_hfexpr e1 ce with
+                        | Some (Gtyp (Fsint w)) => Some (Gtyp (Fsint w))
+                        | Some (Gtyp (Fuint w)) => Some (Gtyp (Fsint (w + 1)))
+                        | Some (Gtyp (Fsint_implicit w)) => Some (Gtyp (Fsint_implicit w))
+                        | Some (Gtyp (Fuint_implicit w)) => Some (Gtyp (Fsint_implicit (w + 1)))
+                        | _ => None
+                        end
+| Eprim_unop Uneg e1 => match type_of_hfexpr e1 ce with
+                        | Some (Gtyp (Fsint w)) | Some (Gtyp (Fuint w)) => Some (Gtyp (Fsint (w + 1)))
+                        | Some (Gtyp (Fsint_implicit w)) | Some (Gtyp (Fuint_implicit w)) => Some (Gtyp (Fsint_implicit (w + 1)))
+                        | _ => None
+                        end
+| Eprim_unop Unot e1 => match type_of_hfexpr e1 ce with
+                        | Some (Gtyp (Fsint w)) | Some (Gtyp (Fuint w)) => Some (Gtyp (Fuint w))
+                        | Some (Gtyp (Fsint_implicit w)) | Some (Gtyp (Fuint_implicit w)) => Some (Gtyp (Fuint_implicit w))
+                        | _ => None
+                        end
+| Eprim_unop (Uextr n1 n2) e1 => match type_of_hfexpr e1 ce with
+                                 | Some (Gtyp (Fsint w)) | Some (Gtyp (Fuint w))
+                                 | Some (Gtyp (Fsint_implicit w)) | Some (Gtyp (Fuint_implicit w)) =>
+                                      if (n2 <= n1) && (n1 < w) then Some (Gtyp (Fuint (n1 - n2 + 1)))
+                                                                else None
+                                 | _ => None
+                                 end
+| Eprim_unop (Uhead n) e1 => match type_of_hfexpr e1 ce with
+                             | Some (Gtyp (Fsint w)) | Some (Gtyp (Fuint w))
+                             | Some (Gtyp (Fsint_implicit w)) | Some (Gtyp (Fuint_implicit w)) =>
+                                 if n <= w then Some (Gtyp (Fuint n))
+                                           else None
+                             | _ => None
+                             end
+| Eprim_unop (Utail n) e1 => match type_of_hfexpr e1 ce with
+                             | Some (Gtyp (Fsint w)) | Some (Gtyp (Fuint w))
+                             | Some (Gtyp (Fsint_implicit w)) | Some (Gtyp (Fuint_implicit w)) =>
+                                 if n <= w then Some (Gtyp (Fuint (w - n)))
+                                           else None
+                             | _ => None
+                             end
+| Eprim_unop _ e1 => match type_of_hfexpr e1 ce with
+                     | Some (Gtyp (Fsint _)) | Some (Gtyp (Fuint _))
+                     | Some (Gtyp (Fsint_implicit _)) | Some (Gtyp (Fuint_implicit _)) => Some (Gtyp (Fuint 1))
+                     | _ => None
+                     end
+| Eprim_binop (Bcomp _) e1 e2 => match type_of_hfexpr e1 ce, type_of_hfexpr e2 ce with
+                                 | Some (Gtyp (Fsint _)), Some (Gtyp (Fsint _))
+                                 | Some (Gtyp (Fsint _)), Some (Gtyp (Fsint_implicit _))
+                                 | Some (Gtyp (Fsint_implicit _)), Some (Gtyp (Fsint _))
+                                 | Some (Gtyp (Fsint_implicit _)), Some (Gtyp (Fsint_implicit _))
+                                 | Some (Gtyp (Fuint _)), Some (Gtyp (Fuint _))
+                                 | Some (Gtyp (Fuint _)), Some (Gtyp (Fuint_implicit _))
+                                 | Some (Gtyp (Fuint_implicit _)), Some (Gtyp (Fuint _))
+                                 | Some (Gtyp (Fuint_implicit _)), Some (Gtyp (Fuint_implicit _)) =>
+                                     Some (Gtyp (Fuint 1))
+                                 | _, _ => None
+                                 end
+| Eprim_binop Badd e1 e2
+| Eprim_binop Bsub e1 e2 => match type_of_hfexpr e1 ce, type_of_hfexpr e2 ce with
+                            | Some (Gtyp (Fuint w1)), Some (Gtyp (Fuint w2)) => Some (Gtyp (Fuint (maxn w1 w2 + 1)))
+                            | Some (Gtyp (Fuint w1)), Some (Gtyp (Fuint_implicit w2))
+                            | Some (Gtyp (Fuint_implicit w1)), Some (Gtyp (Fuint w2))
+                            | Some (Gtyp (Fuint_implicit w1)), Some (Gtyp (Fuint_implicit w2)) =>
+                                Some (Gtyp (Fuint_implicit (maxn w1 w2 + 1)))
+                            | Some (Gtyp (Fsint w1)), Some (Gtyp (Fsint w2)) => Some (Gtyp (Fsint (maxn w1 w2 + 1)))
+                            | Some (Gtyp (Fsint w1)), Some (Gtyp (Fsint_implicit w2))
+                            | Some (Gtyp (Fsint_implicit w1)), Some (Gtyp (Fsint w2))
+                            | Some (Gtyp (Fsint_implicit w1)), Some (Gtyp (Fsint_implicit w2)) =>
+                                Some (Gtyp (Fsint_implicit (maxn w1 w2 + 1)))
+                            | _, _ => None
+                            end
+| Eprim_binop Bmul e1 e2 => match type_of_hfexpr e1 ce, type_of_hfexpr e2 ce with
+                            | Some (Gtyp (Fuint w1)), Some (Gtyp (Fuint w2)) => Some (Gtyp (Fuint (w1 + w2)))
+                            | Some (Gtyp (Fuint w1)), Some (Gtyp (Fuint_implicit w2))
+                            | Some (Gtyp (Fuint_implicit w1)), Some (Gtyp (Fuint w2))
+                            | Some (Gtyp (Fuint_implicit w1)), Some (Gtyp (Fuint_implicit w2)) =>
+                                Some (Gtyp (Fuint_implicit (w1 + w2)))
+                            | Some (Gtyp (Fsint w1)), Some (Gtyp (Fsint w2)) => Some (Gtyp (Fsint (w1 + w2)))
+                            | Some (Gtyp (Fsint w1)), Some (Gtyp (Fsint_implicit w2))
+                            | Some (Gtyp (Fsint_implicit w1)), Some (Gtyp (Fsint w2))
+                            | Some (Gtyp (Fsint_implicit w1)), Some (Gtyp (Fsint_implicit w2)) =>
+                                Some (Gtyp (Fsint_implicit (w1 + w2)))
+                            | _, _ => None
+                            end
+| Eprim_binop Bdiv e1 e2  => match type_of_hfexpr e1 ce, type_of_hfexpr e2 ce with
+                             | Some (Gtyp (Fuint w1)), Some (Gtyp (Fuint _))
+                             | Some (Gtyp (Fuint w1)), Some (Gtyp (Fuint_implicit _)) => Some (Gtyp (Fuint w1))
+                             | Some (Gtyp (Fuint_implicit w1)), Some (Gtyp (Fuint _))
+                             | Some (Gtyp (Fuint_implicit w1)), Some (Gtyp (Fuint_implicit _)) => Some (Gtyp (Fuint_implicit w1))
+                             | Some (Gtyp (Fsint w1)), Some (Gtyp (Fsint _))
+                             | Some (Gtyp (Fsint w1)), Some (Gtyp (Fsint_implicit _)) => Some (Gtyp (Fsint (w1 + 1)))
+                             | Some (Gtyp (Fsint_implicit w1)), Some (Gtyp (Fsint _))
+                             | Some (Gtyp (Fsint_implicit w1)), Some (Gtyp (Fsint_implicit _)) => Some (Gtyp (Fsint_implicit (w1 + 1)))
+                             | _, _ => None
+                             end
+| Eprim_binop Brem e1 e2 => match type_of_hfexpr e1 ce, type_of_hfexpr e2 ce with
+                            | Some (Gtyp (Fuint w1)), Some (Gtyp (Fuint w2)) => Some (Gtyp (Fuint (minn w1 w2)))
+                            | Some (Gtyp (Fuint w1)), Some (Gtyp (Fuint_implicit w2))
+                            | Some (Gtyp (Fuint_implicit w1)), Some (Gtyp (Fuint w2))
+                            | Some (Gtyp (Fuint_implicit w1)), Some (Gtyp (Fuint_implicit w2)) =>
+                                Some (Gtyp (Fuint_implicit (minn w1 w2)))
+                            | Some (Gtyp (Fsint w1)), Some (Gtyp (Fsint w2)) => Some (Gtyp (Fsint (minn w1 w2)))
+                            | Some (Gtyp (Fsint w1)), Some (Gtyp (Fsint_implicit w2))
+                            | Some (Gtyp (Fsint_implicit w1)), Some (Gtyp (Fsint w2))
+                            | Some (Gtyp (Fsint_implicit w1)), Some (Gtyp (Fsint_implicit w2)) =>
+                                Some (Gtyp (Fsint_implicit (minn w1 w2)))
+                            | _, _ => None
+                            end
+| Eprim_binop Bdshl e1 e2 => match type_of_hfexpr e1 ce, type_of_hfexpr e2 ce with
+                             | Some (Gtyp (Fuint w1)), Some (Gtyp (Fuint w2)) => Some (Gtyp (Fuint (w1 + 2 ^ w2 - 1)))
+                             | Some (Gtyp (Fuint w1)), Some (Gtyp (Fuint_implicit w2))
+                             | Some (Gtyp (Fuint_implicit w1)), Some (Gtyp (Fuint w2))
+                             | Some (Gtyp (Fuint_implicit w1)), Some (Gtyp (Fuint_implicit w2)) => Some (Gtyp (Fuint_implicit (w1 + 2 ^ w2 - 1)))
+                             | Some (Gtyp (Fsint w1)), Some (Gtyp (Fuint w2)) => Some (Gtyp (Fsint (w1 + 2 ^ w2 - 1)))
+                             | Some (Gtyp (Fsint w1)), Some (Gtyp (Fsint_implicit w2))
+                             | Some (Gtyp (Fsint_implicit w1)), Some (Gtyp (Fsint w2))
+                             | Some (Gtyp (Fsint_implicit w1)), Some (Gtyp (Fsint_implicit w2)) => Some (Gtyp (Fsint_implicit (w1 + 2 ^ w2 - 1)))
+                             | _, _ => None
+                             end
+| Eprim_binop Bdshr e1 e2 => match type_of_hfexpr e1 ce, type_of_hfexpr e2 ce with
+                             | Some (Gtyp (Fuint w1)), Some (Gtyp (Fuint _))
+                             | Some (Gtyp (Fuint w1)), Some (Gtyp (Fuint_implicit _)) => Some (Gtyp (Fuint w1))
+                             | Some (Gtyp (Fuint_implicit w1)), Some (Gtyp (Fuint _))
+                             | Some (Gtyp (Fuint_implicit w1)), Some (Gtyp (Fuint_implicit _)) => Some (Gtyp (Fuint_implicit w1))
+                             | Some (Gtyp (Fsint w1)), Some (Gtyp (Fuint _))
+                             | Some (Gtyp (Fsint w1)), Some (Gtyp (Fuint_implicit _)) => Some (Gtyp (Fsint w1))
+                             | Some (Gtyp (Fsint_implicit w1)), Some (Gtyp (Fuint _))
+                             | Some (Gtyp (Fsint_implicit w1)), Some (Gtyp (Fuint_implicit _)) => Some (Gtyp (Fsint_implicit w1))
+                             | _, _ => None
+                             end
+| Eprim_binop Bcat e1 e2 => match type_of_hfexpr e1 ce, type_of_hfexpr e2 ce with
+                            | Some (Gtyp (Fuint w1)), Some (Gtyp (Fuint w2))
+                            | Some (Gtyp (Fsint w1)), Some (Gtyp (Fsint w2)) => Some (Gtyp (Fuint (w1 + w2)))
+                            | Some (Gtyp (Fuint w1)), Some (Gtyp (Fuint_implicit w2))
+                            | Some (Gtyp (Fuint_implicit w1)), Some (Gtyp (Fuint w2))
+                            | Some (Gtyp (Fuint_implicit w1)), Some (Gtyp (Fuint_implicit w2))
+                            | Some (Gtyp (Fsint w1)), Some (Gtyp (Fsint_implicit w2))
+                            | Some (Gtyp (Fsint_implicit w1)), Some (Gtyp (Fsint w2))
+                            | Some (Gtyp (Fsint_implicit w1)), Some (Gtyp (Fsint_implicit w2)) =>
+                                Some (Gtyp (Fuint_implicit (w1 + w2)))
+                            | _, _ => None
+                            end
+| Eprim_binop Band e1 e2
+| Eprim_binop Bor e1 e2
+| Eprim_binop Bxor e1 e2 => match type_of_hfexpr e1 ce, type_of_hfexpr e2 ce with
+                            | Some (Gtyp (Fuint w1)), Some (Gtyp (Fuint w2))
+                            | Some (Gtyp (Fuint w1)), Some (Gtyp (Fuint_implicit w2))
+                            | Some (Gtyp (Fuint_implicit w1)), Some (Gtyp (Fuint w2))
+                            | Some (Gtyp (Fuint_implicit w1)), Some (Gtyp (Fuint_implicit w2))
+                            | Some (Gtyp (Fsint w1)), Some (Gtyp (Fsint w2))
+                            | Some (Gtyp (Fsint w1)), Some (Gtyp (Fsint_implicit w2))
+                            | Some (Gtyp (Fsint_implicit w1)), Some (Gtyp (Fsint w2))
+                            | Some (Gtyp (Fsint_implicit w1)), Some (Gtyp (Fsint_implicit w2)) => Some (Gtyp (Fuint (maxn w1 w2)))
+                            | _, _ => None
+                            end
+| Emux c e1 e2 => match type_of_hfexpr c ce, type_of_hfexpr e1 ce, type_of_hfexpr e2 ce with
+                  | Some (Gtyp (Fuint 1)), Some t1, Some t2 => mux_types t1 t2
+                  | Some (Gtyp (Fuint_implicit 1)), Some t1, Some t2 =>
+                      mux_types t1 t2
+                  | _, _, _ => None
+                  end
+| Evalidif c e1 => match type_of_hfexpr c ce with
+                   | Some (Gtyp (Fuint 1)) | Some (Gtyp (Fuint_implicit 1)) => type_of_hfexpr e1 ce
+                   | _ => None
+                   end
+end.
 
-Fixpoint connect_type_compatible (ft_ref : ftype) (ft_expr : ftype_explicit) : bool :=
+(*Fixpoint connect_type_compatible (ft_ref : ftype) (ft_expr : ftype_explicit) : bool :=
    match ft_ref, ft_expr with
    | Gtyp (Fuint _), exist (Gtyp (Fuint _)) _
    | Gtyp (Fsint _), exist (Gtyp (Fsint _)) _
@@ -1790,6 +2330,39 @@ with connect_non_passive_fields_flipped (ct_old : module_graph_connection_trees_
                connect_non_passive_fields_flipped ct_old (drop type_len lst_tgt) ft (drop type_len lst_src) fs ct_new
    | _, _ => False
    end.
+*)
+
+Definition connect_fgtyp_compatible (t_tgt t_src : fgtyp) : bool :=
+  if (not_implicit t_tgt) then true
+  else (sizeof_fgtyp t_tgt >= sizeof_fgtyp t_src) && fgtyp_equiv t_tgt t_src.
+
+Fixpoint check_connect_fgtyp_compatible (t_tgt t_src : ftype) (n : nat) : bool :=
+  match n with
+  | 0 => true
+  | S m => match ft_check_flip t_tgt (N.of_nat m) false, ft_find_sub t_tgt (N.of_nat m), ft_find_sub t_src (N.of_nat m) with
+          | Some false, Some gt_tgt, Some gt_src => connect_fgtyp_compatible gt_tgt gt_src && check_connect_fgtyp_compatible t_tgt t_src m
+          | _,None,None => true
+          | _,_,_ => false
+          end
+  end.
+
+Fixpoint check_connect_non_passive_fgtyp (t_tgt t_src : ftype) (n : nat) : bool :=
+  match n with
+  | 0 => true
+  | S m => match ft_check_flip t_tgt (N.of_nat m) false, ft_find_sub t_tgt (N.of_nat m), ft_find_sub t_src (N.of_nat m) with
+          | Some false, Some gt_tgt, Some gt_src => connect_fgtyp_compatible gt_tgt gt_src && check_connect_non_passive_fgtyp t_tgt t_src m
+          | Some true, Some gt_tgt, Some gt_src => connect_fgtyp_compatible gt_src gt_tgt && check_connect_non_passive_fgtyp t_tgt t_src m
+          | _,None,None => true
+          | _,_,_ => false
+          end
+  end.
+
+Definition connect_non_passive_type (t_tgt : ftype) (t_src : ftype) : Prop :=
+  ftype_equiv t_tgt t_src && check_connect_non_passive_fgtyp t_tgt t_src (tmap_type_size t_tgt).
+
+Definition connect_type_compatible (t_tgt t_src : ftype) : bool :=
+  ftype_equiv t_tgt t_src && check_connect_fgtyp_compatible t_tgt t_src (tmap_type_size t_tgt).
+
 
 Definition map2_helper_ct (c : PProdVarOrder.t) (true_tree : option connection_tree) (false_tree : option connection_tree) : option connection_tree :=
 match true_tree, false_tree with
@@ -1802,7 +2375,7 @@ match true_tree, false_tree with
 | Some a, Some b => if (a == b) then true_tree else Some (Choice c a b)
 end.
 
-Fixpoint Sem_frag_stmt (vm_old : module_graph_vertex_set_p.env) (ct_old : module_graph_connection_trees_p.env) (s : HiFP.hfstmt) (vm_new : module_graph_vertex_set_p.env) (ct_new : module_graph_connection_trees_p.env) (tmap : ft_pmap) : Prop :=
+Fixpoint Sem_frag_stmt (vm_old : module_graph_vertex_set_p.env) (ct_old : module_graph_connection_trees_p.env) (s : HiFP.hfstmt) (vm_new : module_graph_vertex_set_p.env) (ct_new : module_graph_connection_trees_p.env) (tmap : CEP.t ftype) : Prop :=
    (* The predicate returns True if vm_new/ct_new can be constructed from vm_old/ct_old by applying s. 
    type checking, constraints *)
    match s with
@@ -1810,17 +2383,25 @@ Fixpoint Sem_frag_stmt (vm_old : module_graph_vertex_set_p.env) (ct_old : module
    | Sfcnct ref_tgt (Eref ref_src) => (* allow non-passive types *)
           module_graph_vertex_set_p.Equal vm_old vm_new
        /\
-          match list_lhs_ref_p vm_old ref_tgt tmap, list_lhs_ref_p vm_old ref_src tmap with
-          | Some (lst_tgt, ft_tgt), Some (lst_src, ft_src) =>
-                 connect_non_passive ct_old lst_tgt ft_tgt lst_src ft_src ct_new
-              /\
+         match base_ref ref_tgt tmap, base_ref ref_src tmap with
+         | Some (v_tgt, t_tgt), Some (v_src, t_src) => 
+            let lst_tgt := list_lhs_ref_p v_tgt (tmap_type_size t_tgt) in
+            let lst_src := list_lhs_ref_p v_src (tmap_type_size t_src) in
+               match fillft_vm (tmap_type_size t_tgt) t_tgt v_tgt vm_old, fillft_vm (tmap_type_size t_src) t_src v_src vm_old with
+               | Some ft_tgt, Some ft_src => connect_non_passive_type ft_tgt ft_src
+               | _, _ => False
+               end
+             /\
                  forall v0 : PProdVarOrder.T,
                     if (v0 \in lst_tgt) || (v0 \in lst_src) then True (* already checked in connect_non_passive *)
                     else module_graph_connection_trees_p.find v0 ct_old = module_graph_connection_trees_p.find v0 ct_new
-          | _, _ => False
-          end
-   | Sfcnct ref expr => match list_lhs_ref_p vm_old ref tmap, list_rhs_expr_p expr vm_old ct_old tmap, type_of_e_vm vm_old expr tmap with
-                     | Some (input_list, ft_ref), Some (output_list, nvmap, nctree), Some ft_expr =>
+         | _, _ => False
+         end
+   | Sfcnct ref expr => match base_ref ref tmap with
+                        | Some (v_tgt, t_tgt) => let input_list := list_lhs_ref_p v_tgt (tmap_type_size t_tgt) in
+                           match fillft_vm (tmap_type_size t_tgt) t_tgt v_tgt vm_old with
+                           | Some ft_ref => match list_rhs_expr_p expr vm_old ct_old tmap, type_of_hfexpr_vm vm_old expr tmap with
+                              | Some (output_list, nvmap, nctree), Some ft_expr =>
                            module_graph_vertex_set_p.Equal nvmap vm_new
                         /\
                            connect_type_compatible ft_ref ft_expr
@@ -1834,12 +2415,16 @@ Fixpoint Sem_frag_stmt (vm_old : module_graph_vertex_set_p.env) (ct_old : module
                            forall v0 : PProdVarOrder.T,
                               if (v0 \in input_list) then True
                               else module_graph_connection_trees_p.find v0 nctree = module_graph_connection_trees_p.find v0 ct_new
-                     | _, _, _ => False
+                              | _, _ => False
+                              end
+                           | _ => False
+                           end
+                     | _ => False
                      end
    | Sinvalid ref =>    module_graph_vertex_set_p.Equal vm_old vm_new
                      /\ (* ct *)
-                        match list_rhs_ref_p vm_old ref tmap with
-                        | Some (input_list, _) =>
+                        match base_ref ref tmap with
+                        | Some (v_tgt, t_tgt) => let input_list := list_lhs_ref_p v_tgt (tmap_type_size t_tgt) in
                               (forall n : nat,
                                  match (List.nth_error input_list n) with 
                                  | Some ic => module_graph_connection_trees_p.find ic ct_new = Some Invalidated
@@ -1866,22 +2451,22 @@ Fixpoint Sem_frag_stmt (vm_old : module_graph_vertex_set_p.env) (ct_old : module
                      /\ (* ct *)
                         module_graph_connection_trees_p.Equal ct_old ct_new
    | Sreg v reg => let tlist := vtype_list (type reg) nil in
-                   match list_rhs_expr_p (clock reg) vm_old ct_old tmap, type_of_e_vm vm_old (clock reg) tmap with
-                   | Some ([:: clk_out], nvmap0, nctree0), Some (exist (Gtyp Fclock) _) =>
+                   match list_rhs_expr_p (clock reg) vm_old ct_old tmap, type_of_hfexpr_vm vm_old (clock reg) tmap with
+                   | Some ([:: clk_out], nvmap0, nctree0), Some (Gtyp Fclock) =>
                         exists (nvmap : module_graph_vertex_set_p.env) (nctree : module_graph_connection_trees_p.env)
                                (rst_sig_is_async : bool) (rst_sig_out : PProdVarOrder.t) (rst_val_out_list : list PProdVarOrder.t),
                               (if (reset reg) is (Rst rst_sig rst_val)
-                               then match list_rhs_expr_p rst_sig nvmap0 nctree0 tmap, type_of_e_vm vm_old rst_sig tmap with
-                                    | Some ([:: rst_sig_out'], nvmap1, nctree1), Some (exist (Gtyp rst_sig_type) _) =>
+                               then match list_rhs_expr_p rst_sig nvmap0 nctree0 tmap, type_of_hfexpr_vm vm_old rst_sig tmap with
+                                    | Some ([:: rst_sig_out'], nvmap1, nctree1), Some (Gtyp rst_sig_type) =>
                                            rst_sig_out = rst_sig_out'
                                         /\
                                            (rst_sig_type = if rst_sig_is_async then Fasyncreset else Fuint 1)
                                         /\
-                                           match list_rhs_expr_p rst_val nvmap1 nctree1 tmap, type_of_e_vm vm_old rst_val tmap with
+                                           match list_rhs_expr_p rst_val nvmap1 nctree1 tmap, type_of_hfexpr_vm vm_old rst_val tmap with
                                            | Some (rst_val_out_list', nvmap2, nctree2), Some rst_val_type =>
                                                    rst_val_out_list = rst_val_out_list'
                                                 /\
-                                                   rst_val_type = make_ftype_explicit (type reg)
+                                                   rst_val_type = type reg
                                                 /\
                                                    nvmap = nvmap2 /\ nctree = nctree2
                                            | _, _ => False
@@ -1924,7 +2509,7 @@ Fixpoint Sem_frag_stmt (vm_old : module_graph_vertex_set_p.env) (ct_old : module
                                   end)
                    | _, _ => False
                    end
-   | Snode v expr => match list_rhs_expr_p expr vm_old ct_old tmap, type_of_e_vm vm_old expr tmap with
+   | Snode v expr => match list_rhs_expr_p expr vm_old ct_old tmap, type_of_hfexpr_vm vm_old expr tmap with
                      | Some (output_list, nvmap, nctree), Some ft0 =>
                            (forall (v0 : VarOrder.T) (n0 : N),
                               if v0 != (fst v) then module_graph_vertex_set_p.find (v0, n0) nvmap = module_graph_vertex_set_p.find (v0, n0) vm_new
@@ -1932,7 +2517,7 @@ Fixpoint Sem_frag_stmt (vm_old : module_graph_vertex_set_p.env) (ct_old : module
                         /\ (forall (v0 : ProdVarOrder.T) (n0 : N),
                               if v0 != v then module_graph_connection_trees_p.find (v0, n0) nctree = module_graph_connection_trees_p.find (v0, n0) ct_new
                                    else True)
-                        /\ let tlist := vtype_list (proj1_sig ft0) nil in
+                        /\ let tlist := vtype_list ft0 nil in
                            forall n : nat,
                               match List.nth_error tlist n, List.nth_error output_list n with
                               | Some nv, Some oc => module_graph_vertex_set_p.find ((fst v), N.of_nat n) vm_new = Some (Node nv)
@@ -1948,8 +2533,8 @@ Fixpoint Sem_frag_stmt (vm_old : module_graph_vertex_set_p.env) (ct_old : module
                      end
    | Smem var mem => False (* ? *)
    | Sinst var1 var2 => False (* ? *)
-   | Swhen cond ss_true ss_false => match list_rhs_expr_p cond vm_old ct_old tmap, type_of_e_vm vm_old cond tmap with
-                                    | Some ([:: oc], nvmap0, nctree0), Some (exist (Gtyp (Fuint 1)) _) => exists (vm' : module_graph_vertex_set_p.env) (ct_true ct_false : module_graph_connection_trees_p.env), 
+   | Swhen cond ss_true ss_false => match list_rhs_expr_p cond vm_old ct_old tmap, type_of_hfexpr_vm vm_old cond tmap with
+                                    | Some ([:: oc], nvmap0, nctree0), Some (Gtyp (Fuint 1)) => exists (vm' : module_graph_vertex_set_p.env) (ct_true ct_false : module_graph_connection_trees_p.env), 
                                           Sem_frag_stmts nvmap0 nctree0 ss_true vm' ct_true tmap
                                        /\ Sem_frag_stmts vm' nctree0 ss_false vm_new ct_false tmap
                                        /\ (*False*) 
@@ -1965,7 +2550,7 @@ Fixpoint Sem_frag_stmt (vm_old : module_graph_vertex_set_p.env) (ct_old : module
                                     | _, _ => False
                                     end
    end with
-Sem_frag_stmts (vm_old : module_graph_vertex_set_p.env) (ct_old : module_graph_connection_trees_p.env) (ss : HiFP.hfstmt_seq) (vm_new : module_graph_vertex_set_p.env) (ct_new : module_graph_connection_trees_p.env) (tmap : ft_pmap) : Prop :=
+Sem_frag_stmts (vm_old : module_graph_vertex_set_p.env) (ct_old : module_graph_connection_trees_p.env) (ss : HiFP.hfstmt_seq) (vm_new : module_graph_vertex_set_p.env) (ct_new : module_graph_connection_trees_p.env) (tmap : CEP.t ftype) : Prop :=
    match ss with
    | Qnil => module_graph_vertex_set_p.Equal vm_old vm_new /\ module_graph_connection_trees_p.Equal ct_old ct_new
    | Qcons s ss' => exists (vm' : module_graph_vertex_set_p.env) (ct' : module_graph_connection_trees_p.env), 
@@ -2793,7 +3378,7 @@ with Sem_frag_stmt (G_old : module_graph) (s : hfstmt VarOrder.T) (G_new : modul
 
 Definition var2exprsmap := module_graph_vertex_set_p.t (seq HiFP.hfexpr). (* key is pair *)  
 
-Fixpoint prepro_stmt (st : HiFP.hfstmt) (tmap : ft_pmap) (var2exprs : var2exprsmap) (expli_reg : seq ProdVarOrder.t) : option (ft_pmap * var2exprsmap * seq ProdVarOrder.t) :=
+(*Fixpoint prepro_stmt (st : HiFP.hfstmt) (tmap : ft_pmap) (var2exprs : var2exprsmap) (expli_reg : seq ProdVarOrder.t) : option (ft_pmap * var2exprsmap * seq ProdVarOrder.t) :=
   match st with
   | Sskip => Some (tmap, var2exprs, expli_reg) 
   | Swire v t => let tmap' := ft_add v t tmap in 
@@ -2840,17 +3425,188 @@ Definition prepro_p (p : HiFP.hfport) (tmap : ft_pmap) : ft_pmap :=
   match p with
   | Finput v t => ft_add v t tmap
   | Foutput v t => ft_add v t tmap
+  end.*)
+
+Definition port_tmap (tmap : CEP.t ftype) (p : HiFP.hfport) : CEP.t ftype :=
+(* Extend a tmap with one port
+   tmap_expli: pair (tmap, names of fully-explicit ports)
+   p: port
+   output: a pair (tmap with the variables for p added, names of fully-explicit ports (possibly including p))
+   This function assumes implicitly that if there is a port identifier (v, n),
+   there is no other port with identifier (v, n') that clashes with it (i.e. the difference |n - n'|
+   is too small to accommodate the ground-type elements of one of them). *)
+match p with
+| Finput (v, n) t | Foutput (v, n) t =>
+    CEP.add (v, n) t tmap
+end.
+
+Definition ports_tmap (ps : seq HiFP.hfport) : CEP.t ftype :=
+(* create a tmap containing the variables for the ports in ps *)
+seq.foldl port_tmap (CEP.empty ftype) ps.
+
+Fixpoint split_expr (ref_src : HiFP.href) (t : ftype) : option (seq HiFP.href) :=
+  match t with
+  | Gtyp _ => Some [:: ref_src]
+  | Atyp atyp _ => split_expr (Esubindex ref_src 0) atyp
+  | Btyp ff => split_expr_f ref_src ff 
+  end
+with split_expr_f (ref_src : HiFP.href) (ff : ffield) : option (seq HiFP.href) :=
+  match ff with
+  | Fnil => Some nil
+  | Fflips v Nflip t ff' =>
+    match split_expr_f ref_src ff', split_expr (Esubfield ref_src v) t with
+    | Some ls, Some ls' => Some (ls' ++ ls)
+    | _,_ => None
+    end
+  | Fflips v Flipped t ff' => None
   end.
+
+Fixpoint split_expr_non_passive (ref_src : HiFP.href) (t : ftype) (fl : bool) : option (seq (HiFP.href * bool)) :=
+  match t with
+  | Gtyp _ => Some [:: (ref_src, fl)]
+  | Atyp atyp _ => split_expr_non_passive (Esubindex ref_src 0) atyp fl
+  | Btyp ff => split_expr_non_passive_f ref_src ff fl
+  end
+with split_expr_non_passive_f (ref_src : HiFP.href) (ff : ffield) (fl : bool) : option (seq (HiFP.href * bool)) :=
+  match ff with
+  | Fnil => Some nil
+  | Fflips v Nflip t ff' =>
+    match split_expr_non_passive_f ref_src ff' fl, split_expr_non_passive (Esubfield ref_src v) t fl with
+    | Some ls, Some ls' => Some (ls' ++ ls)
+    | _,_ => None
+    end
+  | Fflips v Flipped t ff' => 
+    match split_expr_non_passive_f ref_src ff' (~~fl), split_expr_non_passive (Esubfield ref_src v) t (~~fl) with
+    | Some ls, Some ls' => Some (ls' ++ ls)
+    | _,_ => None
+    end
+  end.
+
+Fixpoint combine_mux_expr (c : HiFP.hfexpr) (el1 el2 : seq HiFP.hfexpr) : option (seq HiFP.hfexpr) :=
+  match el1, el2 with
+  | nil, nil => Some nil
+  | hd1 :: tl1, hd2 :: tl2 => match combine_mux_expr c tl1 tl2 with
+                            | Some muxl => Some ((Emux c hd1 hd2) :: muxl)
+                            | None => None
+                            end
+  | _, _ => None
+  end.
+
+Fixpoint split_expr_connect (expr_src : HiFP.hfexpr) (t : ftype) : option (seq HiFP.hfexpr) :=
+  match expr_src with
+  | Eref ref => match split_expr ref t with
+                | Some refl => Some (map (fun tref => (Eref tref)) refl)
+                | None => None
+                end
+  | Emux c e1 e2 => match split_expr_connect e1 t, split_expr_connect e2 t with
+                  | Some el1, Some el2 => combine_mux_expr c el1 el2
+                  | _ ,_ => None
+                  end
+  | _ => Some [:: expr_src] 
+  end.
+
+Fixpoint add_expr_connect (v : ProdVarOrder.t) (el : seq HiFP.hfexpr) (var2exprs : var2exprsmap) : var2exprsmap :=
+  match el with
+  | nil => var2exprs
+  | hd :: tl => match module_graph_vertex_set_p.find v var2exprs with
+                | Some ls => add_expr_connect ((fst v), N.add (snd v) 1%num) tl (module_graph_vertex_set_p.add v (hd :: ls) var2exprs)
+                | None => add_expr_connect ((fst v), N.add (snd v) 1%num) tl (module_graph_vertex_set_p.add v [::hd] var2exprs)
+                end
+  end.
+
+Fixpoint add_expr_connect_non_passive (v_lhs v_rhs : ProdVarOrder.t) (el1 el2 : seq (HiFP.href * bool)) (var2exprs : var2exprsmap) : option var2exprsmap :=
+  match el1, el2 with
+  | nil, nil => Some var2exprs
+  | (ref1, false) :: tl1, (ref2, false) :: tl2 => 
+                match module_graph_vertex_set_p.find v_lhs var2exprs with
+                | Some ls => add_expr_connect_non_passive (fst v_lhs, N.add (snd v_lhs) 1%num) (fst v_rhs, N.add (snd v_rhs) 1%num) tl1 tl2 (module_graph_vertex_set_p.add v_lhs ((Eref ref1) :: ls) var2exprs)
+                | None => add_expr_connect_non_passive (fst v_lhs, N.add (snd v_lhs) 1%num) (fst v_rhs, N.add (snd v_rhs) 1%num) tl1 tl2 (module_graph_vertex_set_p.add v_lhs [::(Eref ref1)] var2exprs)
+                end
+  | (ref1, true) :: tl1, (ref2, true) :: tl2 => 
+                match module_graph_vertex_set_p.find v_rhs var2exprs with
+                | Some ls => add_expr_connect_non_passive (fst v_lhs, N.add (snd v_lhs) 1%num) (fst v_rhs, N.add (snd v_rhs) 1%num) tl1 tl2 (module_graph_vertex_set_p.add v_rhs ((Eref ref2) :: ls) var2exprs)
+                | None => add_expr_connect_non_passive (fst v_lhs, N.add (snd v_lhs) 1%num) (fst v_rhs, N.add (snd v_rhs) 1%num) tl1 tl2 (module_graph_vertex_set_p.add v_rhs [::(Eref ref2)] var2exprs)
+                end
+  | _, _ => None
+  end.
+
+Fixpoint stmt_tmap (t_v : CEP.t ftype * var2exprsmap) (s: HiFP.hfstmt) : option (CEP.t ftype * var2exprsmap) :=
+(* t_v is a pair: tmap of components defined before statement s;
+                  map that indicates all expressions assigned to a certain ground-type part of a component.
+   s is a statement.
+   the result is the pair t_v expanded with the information from s *)
+match s with
+| Sskip => Some t_v
+| Swire v t => if CEP.find v (fst t_v) is None
+               then Some (CEP.add v t (fst t_v), (snd t_v))
+               else None
+| Sreg v r => match CEP.find v (fst t_v), reset r with
+              | Some _, _ => None
+              | None, Rst _ rst_val => match split_expr_connect rst_val (type r) with
+                                      | Some rstl => Some (CEP.add v (type r) (fst t_v), add_expr_connect v rstl (snd t_v))
+                                      | None => None
+                                      end
+              | None, NRst => Some (CEP.add v (type r) (fst t_v), (snd t_v))
+              end
+| Smem v m => (* TBD *) None
+| Sinst v inst => (* TBD *) None
+| Snode v e =>
+    match CEP.find v (fst t_v), type_of_hfexpr e (fst t_v) with
+    | None, Some t => match split_expr_connect e t with
+                    | Some rstl => Some (CEP.add v t (fst t_v), add_expr_connect v rstl (snd t_v))
+                    | None => None
+                    end
+    | _, _ => None
+    end
+| Sfcnct ref_tgt (Eref ref_src) =>
+    match base_ref ref_tgt (fst t_v), base_ref ref_src (fst t_v) with
+    | Some (v_tgt, t_tgt), Some (v_src, t_src) =>
+      match split_expr_non_passive ref_tgt t_tgt false, split_expr_non_passive ref_src t_src false with
+      | Some lhsl, Some rhsl => match add_expr_connect_non_passive v_tgt v_src lhsl rhsl (snd t_v) with
+                                | Some newv2e => Some ((fst t_v), newv2e)
+                                | None => None
+                                end
+      | _, _ => None
+      end
+    | _, _ => None
+    end
+| Sfcnct ref_tgt expr_src =>
+    match base_ref ref_tgt (fst t_v), type_of_hfexpr expr_src (fst t_v) with
+    | Some (v, t_tgt), Some t_src =>
+        if connect_type_compatible t_tgt t_src
+          then match split_expr_connect expr_src t_src with
+          | Some rstl => Some ((fst t_v), add_expr_connect v rstl (snd t_v))
+          | None => None
+          end
+        else None
+    | _,_ => None
+    end
+| Sinvalid _ => Some t_v
+| Swhen c ss_t ss_f =>
+    match stmts_tmap t_v ss_t with
+    | Some t_v' => stmts_tmap t_v' ss_f
+    | None => None
+    end
+end
+with stmts_tmap (t_v : CEP.t ftype * var2exprsmap) (ss: HiFP.hfstmt_seq) : option (CEP.t ftype * var2exprsmap) :=
+match ss with
+| Qnil => Some t_v
+| Qcons s ss' =>
+    match stmt_tmap t_v s with
+    | Some t_v' => stmts_tmap t_v' ss'
+    | None => None
+    end
+end.
 
 Definition Sem (F : HiFP.hfmodule) (vm : module_graph_vertex_set_p.env) (ct : module_graph_connection_trees_p.env) : Prop :=
 (* The predicate returns True if G conforms to F.
    (If F has errors, there is no such G.)
    (If F has implicit width components, then there are many such Gs.) *)
    match F with
-   | FInmod n pp ss => let tmap := List.fold_left (fun tempm tempp => prepro_p tempp tempm) pp ft_empty in 
-                       match prepro_stmts ss tmap (module_graph_vertex_set_p.empty (seq HiFP.hfexpr)) nil with 
+   | FInmod n pp ss => let tmap := ports_tmap pp in 
+                       match stmts_tmap (tmap, module_graph_vertex_set_p.empty (seq HiFP.hfexpr)) ss with 
                      | Some prepro => exists (vm' : module_graph_vertex_set_p.env) (ct' : module_graph_connection_trees_p.env),
-                        Sem_port pp vm' /\ Sem_frag_stmts vm' ct' ss vm ct (fst (fst prepro))
+                        Sem_port pp vm' /\ Sem_frag_stmts vm' ct' ss vm ct (fst prepro)
                      | _ => False
                      end
    | FExmod _ _ _ => False
@@ -2916,9 +3672,6 @@ Definition make_vm_implicit (F : HiFP.hfmodule) (vm : module_graph_vertex_set_p.
                        make_ss_implicit vm' ss
    | FExmod _ _ _ => vm
    end.
-
-(* find_map_none/some
-   Empty_in/mem/find/some_none_neq *)
 
 (*
 Theorem ExpandConnect_correct :

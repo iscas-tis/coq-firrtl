@@ -1,4 +1,4 @@
-From Coq Require Import FunInd FMaps FMapAVL OrderedType ZArith.
+(*From Coq Require Import FunInd FMaps FMapAVL OrderedType ZArith.
 From mathcomp Require Import ssreflect ssrbool ssrnat ssrint eqtype seq ssrfun.
 From simplssrlib Require Import Types SsrOrder FSets FMaps Tactics Var Store.
 From nbits Require Import NBits.
@@ -5989,4 +5989,5 @@ Section InferWidthP.
        (*   erewrite (find_same_ce_wmap2ce _ (Hce12 _)). done. *)
      (* -  rewrite -/(inferWidth_fun _). *)
    (* Admitted. *)
+*)
 *)
