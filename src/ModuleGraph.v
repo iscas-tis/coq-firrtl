@@ -515,18 +515,45 @@ Fixpoint list_repeat_fn {T : Type} (f : T -> T) (n : nat) (l : T) : T :=
    | S m => list_repeat_fn f m (f l)
    end.
 
+Fixpoint list_repeat' {T : Type} (n : positive) (l : seq T) : seq T :=
+   (* creates a list that contains n copies of l *)
+   match n with
+   | xH => l
+   | xO n' => list_repeat' n' (l ++ l)
+   | xI n' => l ++ list_repeat' n' (l ++ l)
+   end.
+
+Definition list_repeat {T : Type} (n : nat) (l : seq T) : seq T :=
+   match N.of_nat n with
+   | N0 => [::]
+   | Npos p => list_repeat' p l
+   end.
+
 (*Lemma list_repeat_size :  *)
-Fixpoint vtype_list (ft : ftype) (l : list fgtyp) : list fgtyp :=
-   (* appends to list l the ground type elements of type ft *)
+Fixpoint vtype_list (ft : ftype) (l : list fgtyp) (tlist : list fgtyp) : Prop :=
+   (* is true iff tlist is the list l, with the ground type elements of type ft appended.
+      For ground-type elements that are uninferred resets or implicit-width components,
+      vtype_list also gives a possible guess. *)
    match ft with
-   | Gtyp t => rcons l t
-   | Atyp t n => list_repeat_fn (vtype_list t) n l
-   | Btyp b => vtype_list_btyp b l
+   | Gtyp Freset => (tlist == rcons l (Fuint 1)) || (tlist == rcons l Fasyncreset)
+   | Gtyp (Fuint_implicit _) =>
+        if last Fclock tlist is Fuint_implicit w then tlist == rcons l (Fuint_implicit w)
+                                                else false
+   | Gtyp (Fsint_implicit _) =>
+        if last Fclock tlist is Fsint_implicit w then tlist == rcons l (Fsint_implicit w)
+                                                else false
+   | Gtyp t => tlist == rcons l t
+   | Atyp t n =>
+        let difflist := drop (size l) tlist in
+        let size_t := (size difflist) / n in
+        let tlist' := take size_t difflist in
+        vtype_list t [::] tlist' /\ (tlist == l ++ list_repeat n tlist')
+   | Btyp b => vtype_list_btyp b l tlist
    end
-   with vtype_list_btyp (b : ffield) (l : list fgtyp) : list fgtyp :=
+with vtype_list_btyp (b : ffield) (l : list fgtyp) (tlist : list fgtyp) : Prop :=
    match b with
-   | Fnil => l
-   | Fflips v fl t fs => vtype_list_btyp fs (vtype_list t l)
+   | Fnil => tlist == l
+   | Fflips v fl t fs => (exists tlist' : list fgtyp, vtype_list t l tlist' /\ vtype_list_btyp fs tlist' tlist)
    end.
 
 Fixpoint num_ref (ft : ftype) : nat :=
@@ -560,7 +587,7 @@ Compute (num_ref (Btyp (Fflips (1%num) Nflip (Atyp (Gtyp (Fuint_implicit 0)) 2) 
    match b with
    | Fnil => l
    | Fflips v fl t fs => vtype_list_btyp fs (vtype_list (make_ftype_explicit t) l)
-   end.*)
+   end.
 
 Lemma vtype_list_cat : forall (ft : ftype) (l : list fgtyp), vtype_list ft l = l ++ vtype_list ft [::]
 with vtype_list_btyp_cat : forall (b : ffield) (l : list fgtyp), vtype_list_btyp b l = l ++ vtype_list_btyp b [::].
@@ -600,7 +627,7 @@ Proof.
   + intro ; rewrite /vtype_list_btyp /size_of_fields addn0 //.
   + simpl vtype_list_btyp ; simpl size_of_fields.
     intro ; rewrite IHff vtype_list_size addnA //.
-Qed.
+Qed.*)
 
 (* Perhaps module_graph_vertices could be the type of FMap from VarOrder
    (or any other set of identifiers)
@@ -2436,8 +2463,9 @@ Fixpoint Sem_frag_stmt (vm_old : module_graph_vertex_set_p.env) (ct_old : module
                                  else module_graph_connection_trees_p.find v0 ct_old = module_graph_connection_trees_p.find v0 ct_new
                         | None => False
                         end
-   | Swire v t => let tlist := vtype_list t nil in
-                        (forall (v0 : VarOrder.T) (n0 : N),
+   | Swire v t => exists tlist : seq fgtyp,
+                        vtype_list t nil tlist
+                     /\ (forall (v0 : VarOrder.T) (n0 : N),
                            if v0 != (fst v) then module_graph_vertex_set_p.find (v0, n0) vm_old = module_graph_vertex_set_p.find (v0, n0) vm_new
                         /\ module_graph_connection_trees_p.find ((v0, n0), 0%num) ct_new = module_graph_connection_trees_p.find ((v0, n0), 0%num) ct_old
                            else True)
@@ -2450,7 +2478,8 @@ Fixpoint Sem_frag_stmt (vm_old : module_graph_vertex_set_p.env) (ct_old : module
                            end)
                      /\ (* ct *)
                         module_graph_connection_trees_p.Equal ct_old ct_new
-   | Sreg v reg => let tlist := vtype_list (type reg) nil in
+   | Sreg v reg => exists tlist : seq fgtyp,
+                   vtype_list (type reg) nil tlist /\
                    match list_rhs_expr_p (clock reg) vm_old ct_old tmap, type_of_hfexpr_vm vm_old (clock reg) tmap with
                    | Some ([:: clk_out], nvmap0, nctree0), Some (Gtyp Fclock) =>
                         exists (nvmap : module_graph_vertex_set_p.env) (nctree : module_graph_connection_trees_p.env)
@@ -2697,7 +2726,7 @@ Fixpoint add_vertex_output (v : N) (N : N) (l: list fgtyp) (vmap : module_graph_
 Definition add_vertex_port (p : hfport ProdVarOrder.T) (vmap : module_graph_vertex_set_p.env) : module_graph_vertex_set_p.env :=
    match p with
    | Finput (v,_) t => let vtl := vtype_list t nil in
-                        add_vertex_input v 1 vtl vmap 
+                        add_vertex_input v 1 vtl vmap
    | Foutput (v,_) t => let vtl := vtype_list t nil in
                         add_vertex_output v 1 vtl vmap
    end.
@@ -3636,13 +3665,17 @@ Fixpoint make_gtyp_implicit (vtl : seq fgtyp) (n : nat) (var : N) (vm : module_g
                      else make_gtyp_implicit tl (n + 1) var vm (* error *)
    end.
 
+(* Because vtype_list has changed, the following functions do no longer work.
+
 Definition make_p_implicit (vm : module_graph_vertex_set_p.env) (p : HiFP.hfport) : module_graph_vertex_set_p.env :=
 (* change the vertices in vm to implicit-width if the corresponding port definition in p is implicit *)
    match p with
-   | Finput v t => let vtl := vtype_list t nil in
-                   make_gtyp_implicit vtl 0 (fst v) vm (* 0: check whether identifier of aggr_typ in module_graph start from 0 or 1 *)
-   | Foutput v t => let vtl := vtype_list t nil in
-                   make_gtyp_implicit vtl 0 (fst v) vm
+   | Finput v t => exists vtl : seq fgtyp,
+                         vtype_list t nil vtl
+                      /\ make_gtyp_implicit vtl 0 (fst v) vm (* 0: check whether identifier of aggr_typ in module_graph start from 0 or 1 *)
+   | Foutput v t => exists vtl : seq fgtyp,
+                          vtype_list t nil vtl
+                       /\ make_gtyp_implicit vtl 0 (fst v) vm
    end.
 
 Fixpoint make_s_implicit (vm : module_graph_vertex_set_p.env) (st : HiFP.hfstmt) : module_graph_vertex_set_p.env :=
@@ -3666,7 +3699,7 @@ with make_ss_implicit (vm : module_graph_vertex_set_p.env) (ss : HiFP.hfstmt_seq
   end.
 
 Definition make_vm_implicit (F : HiFP.hfmodule) (vm : module_graph_vertex_set_p.env) : module_graph_vertex_set_p.env :=
-   (* in vm,, change the type of vertex (explicit to implicit) according to its declaration in F. *)
+   (* in vm, change the type of vertex (explicit to implicit) according to its declaration in F. *)
    match F with
    | FInmod _ pp ss => let vm' := List.fold_left make_p_implicit pp vm in
                        make_ss_implicit vm' ss
