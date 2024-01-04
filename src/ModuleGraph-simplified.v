@@ -94,7 +94,7 @@ Definition  input_connectors (v : vertex_type) : seq fgtyp :=
    | RegisterReset it true => [:: it; Fclock; Fasyncreset; it]
    | RegisterReset it false => [:: it; Fclock; Fuint 1; it]
    | Wire it
-   (* 
+   (*
    reference it
    memory : ?
    inst : ? *)
@@ -102,9 +102,7 @@ Definition  input_connectors (v : vertex_type) : seq fgtyp :=
    end.
 
 Definition output_connectors (v : vertex_type) : seq fgtyp :=
-(* a list of types of the output connectors of a vertex of type v.
-   The information whether this type is implicit or explicit
-   should be preserved (it is needed by vtype_find_widths). *)
+(* a list of types of the output connectors of a vertex of type v. *)
    match v with
    | OutPort _ => [::] (* An OutPort has no output connector because the data is sent to somewhere outside the module *)
    | InPort it
@@ -112,7 +110,7 @@ Definition output_connectors (v : vertex_type) : seq fgtyp :=
    | RegisterReset it _
    | Wire it
    | Node it => [:: it]
-   (* 
+   (*
    reference it
    memory : ?
    inst : ? *)
@@ -175,7 +173,7 @@ Canonical def_expr_eqMixin := EqMixin def_expr_eqP.
 Canonical def_expr_eqType := Eval hnf in EqType def_expr def_expr_eqMixin.
 
 
-(* for connection_tree, whose key is (N_pair, N) as input_connector_id 
+(* for connection_tree, whose key is (N_pair, N) as input_connector_id
    here this module produce ProdOrder like ((N,N),N) *)
 Module MakeProdOrderWithDefaultSucc2 (O1 O2 : SsrOrderWithDefaultSucc) <: SsrOrderWithDefaultSucc
     with Definition T := prod_eqType O1.T O2.T.
@@ -486,17 +484,14 @@ end.
 (* Find the type of different kinds of expressions: *)
 
 Fixpoint type_of_ffield (v : VarOrder.t) (ff : ffield) : option ftype :=
-(* Find the type of field v in bundle type (Btyp ff).
-   The type must be passive. *)
+(* Find the type of field v in bundle type (Btyp ff). *)
 match ff with
 | Fnil => None
-| Fflips v0 Nflip t ff' => if v == v0 then Some t else type_of_ffield v ff'
-| Fflips _ Flipped _ _ => None
+| Fflips v0 _ t ff' => if v == v0 then Some t else type_of_ffield v ff'
 end.
 
 Fixpoint type_of_ref (ref : HiFP.href) (tmap : ft_pmap) : option ftype :=
-(* Find the type of reference ref, using the type information from tmap.
-   The type must be passive. *)
+(* Find the type of reference ref, using the type information from tmap. *)
 match ref with
 | Eid v => ft_find v tmap
 | Esubindex ref' n =>
@@ -713,7 +708,7 @@ Fixpoint type_of_expr (expr : HiFP.hfexpr) (tmap: ft_pmap) : option ftype_explic
 
 Definition vtype_equivalent (code_type : fgtyp) (graph_type : fgtyp) : bool :=
 (* check whether types code_type and graph_type are equivalent.
-   graph_type should be allowed in a module graph (i.e. it cannot be Freset). *) 
+   graph_type should be allowed in a module graph (i.e. it cannot be Freset). *)
 match code_type, graph_type with
 | Fuint w1, Fuint w2
 | Fsint w1, Fsint w2 => w1 == w2
@@ -734,14 +729,18 @@ Fixpoint vtype_find_widths (code_t : ftype) (v : VarOrder.T) (n : N) (vm : modul
    - the type with widths adapted
    - the new index for n (where the next subcomponent would be found after handling code_t)
    If there is some error, the result is None instead.
-   We allow non-passive types. *)
+   We allow non-passive types.
+   Note that in most cases, the type of the output of the component is used,
+   but for OutPorts we use the type of the input (because an out-port has no output connector). *)
 match code_t with
 | Gtyp oldgt =>
     match module_graph_vertex_set_p.find (v, n) vm with
-    | Some vertext =>
-        let newgt := head Freset (output_connectors vertext) in
-        (* we use Freset to indicate that there was no output connector;
-           in that case, vtype_equivalent will be false. *)
+    | Some (OutPort newgt)
+    | Some (InPort newgt)
+    | Some (Register newgt)
+    | Some (RegisterReset newgt _)
+    | Some (Wire newgt)
+    | Some (Node newgt) =>
         if vtype_equivalent oldgt newgt
         then Some (Gtyp newgt, N.of_nat (n + 1))
         else None
@@ -831,7 +830,7 @@ Fixpoint Sem_frag_stmt (vm_old : module_graph_vertex_set_p.env) (ct_old : module
                  match list_rhs_expr_p expr (proj1_sig ft_expr) with
                  | Some expr_list =>
                         (forall n : nat,
-                             match List.nth_error input_list n, List.nth_error expr_list n with 
+                             match List.nth_error input_list n, List.nth_error expr_list n with
                              | Some ic, Some ex => module_graph_connection_trees_p.find ic ct_new = Some (D_fexpr ex)
                              (* connect_type_compatible already checked that the lists have the same length.
                                 There is no need to add a check here:
@@ -852,7 +851,7 @@ Fixpoint Sem_frag_stmt (vm_old : module_graph_vertex_set_p.env) (ct_old : module
           match list_lhs_ref_p ref tmap with
           | Some (input_list, ft_ref) =>
                  (forall n : nat,
-                      match List.nth_error input_list n with 
+                      match List.nth_error input_list n with
                       | Some ic => module_graph_connection_trees_p.find ic ct_new = Some D_invalidated
                       | None => True
                       end)
@@ -977,7 +976,7 @@ Fixpoint Sem_frag_stmt (vm_old : module_graph_vertex_set_p.env) (ct_old : module
                           match list_rhs_expr_p rst_val newft with
                           | Some expr_list =>
                               forall n : nat,
-                                  match List.nth_error expr_list n with 
+                                  match List.nth_error expr_list n with
                                   | Some ex => module_graph_connection_trees_p.find (fst v, N.of_nat n, 3%num) ct_new = Some (D_fexpr ex)
                                   | None => True
                                   end
@@ -1010,7 +1009,7 @@ Fixpoint Sem_frag_stmt (vm_old : module_graph_vertex_set_p.env) (ct_old : module
                    match list_rhs_expr_p (Eref (Eid v)) newft with
                    | Some expr_list =>
                        forall n : nat,
-                           match List.nth_error expr_list n with 
+                           match List.nth_error expr_list n with
                            | Some ex => module_graph_connection_trees_p.find (fst v, N.of_nat n, N0) ct_new = Some (D_fexpr ex)
                            | None => True
                            end
@@ -1055,7 +1054,7 @@ Fixpoint Sem_frag_stmt (vm_old : module_graph_vertex_set_p.env) (ct_old : module
               match list_rhs_expr_p expr newft with
               | Some expr_list =>
                   forall n : nat,
-                      match List.nth_error expr_list n with 
+                      match List.nth_error expr_list n with
                       | Some ex => module_graph_connection_trees_p.find (fst v, N.of_nat n, N0) ct_new = Some (D_fexpr ex)
                       | None => True
                       end
@@ -1089,3 +1088,179 @@ match ss with
            Sem_frag_stmts vm' ct' ss' vm_new ct_new tmap
 end.
 
+Definition Sem_frag_port (vm_old : module_graph_vertex_set_p.env) (ct_old : module_graph_connection_trees_p.env) (p : HiFP.hfport) (vm_new : module_graph_vertex_set_p.env) (ct_new : module_graph_connection_trees_p.env) : Prop :=
+(* returns True if the port in p defines the components in vm *)
+match p with
+| Finput v t =>
+    match t with
+    | Gtyp ft =>
+           module_graph_vertex_set_p.Equal (module_graph_vertex_set_p.add v (InPort ft) vm_old) vm_new
+        /\
+           module_graph_connection_trees_p.Equal ct_old ct_new
+    | _ =>
+        if vtype_find_widths t (fst v) N0 vm_new is Some (newft, newft_size)
+        then    (* ground-type input ports are defined *)
+                (forall n : nat,
+                     match List.nth_error (list_rhs_type_p newft) n with
+                     | Some gt => module_graph_vertex_set_p.find (fst v, N.of_nat n) vm_new = Some (InPort gt)
+                     | None => True
+                     end)
+             /\ (* other vertices do not change *)
+                (forall (v0 : VarOrder.T) (n0 : N), v0 <> fst v \/ n0 >= newft_size ->
+                     module_graph_vertex_set_p.find (v0, n0) vm_old =
+                     module_graph_vertex_set_p.find (v0, n0) vm_new)
+             /\ (* connections do not change *)
+                module_graph_connection_trees_p.Equal ct_old ct_new
+        else False
+    end
+| Foutput v t =>
+    match t with
+    | Gtyp ft =>
+           module_graph_vertex_set_p.Equal (module_graph_vertex_set_p.add v (OutPort ft) vm_old) vm_new
+        /\
+           module_graph_connection_trees_p.Equal (module_graph_connection_trees_p.add (v, N0) D_undefined ct_old) ct_new
+    | _ =>
+        if vtype_find_widths t (fst v) N0 vm_new is Some (newft, newft_size)
+        then    (* ground-type input ports are defined *)
+                (forall n : nat,
+                     match List.nth_error (list_rhs_type_p newft) n with
+                     | Some gt => module_graph_vertex_set_p.find (fst v, N.of_nat n) vm_new = Some (OutPort gt)
+                     | None => True
+                     end)
+             /\ (* other vertices do not change *)
+                (forall (v0 : VarOrder.T) (n0 : N), v0 <> fst v \/ n0 >= newft_size ->
+                     module_graph_vertex_set_p.find (v0, n0) vm_old =
+                     module_graph_vertex_set_p.find (v0, n0) vm_new)
+             /\ (* other connections do not change *)
+                (forall (v0 : VarOrder.T) (n0 o0 : N), v0 <> fst v \/ n0 >= newft_size \/ o0 > 0 ->
+                     module_graph_connection_trees_p.find (v0, n0, o0) ct_old =
+                     module_graph_connection_trees_p.find (v0, n0, o0) ct_new)
+             /\ (* set wires to undefined *)
+                forall n0 : N, n0 < newft_size ->
+                    module_graph_connection_trees_p.find (fst v, n0, N0) ct_new = Some D_undefined
+        else False
+    end
+end.
+
+Fixpoint Sem_frag_ports (vm_old : module_graph_vertex_set_p.env) (ct_old : module_graph_connection_trees_p.env) (pp : seq HiFP.hfport) (vm_new : module_graph_vertex_set_p.env) (ct_new : module_graph_connection_trees_p.env) : Prop :=
+(* returns True if the ports in pp define the components in vm *)
+match pp with
+| [::] => vm_old = vm_new /\ ct_old = ct_new
+| p :: pp' =>
+    exists (vm' : module_graph_vertex_set_p.env) (ct' : module_graph_connection_trees_p.env),
+           Sem_frag_port vm_old ct_old p vm' ct'
+        /\
+           Sem_frag_ports vm' ct' pp' vm_new ct_new
+end.
+
+Fixpoint ports_tmap (pp : seq HiFP.hfport) : ft_pmap :=
+(* creates a tmap that contains exactly the types of the ports in pp. *)
+match pp with
+| [::] => ft_empty
+| Finput v t :: pp'
+| Foutput v t :: pp' => ft_add v t (ports_tmap pp')
+end.
+
+Definition no_name_clash (tmap : ft_pmap) (v : ProdVarOrder.t) (t : ftype) : bool :=
+(* returns true if component with identifier v and type t can be added to the tmap.
+   Concretely it checks:
+   - there is no component with the same identifier already defined in tmap
+   - if t is not a ground type, then v has the form (fst v, N0)
+   - if t is a ground type, then there is no aggregate-type component (fst v, N0). *)
+   (ft_find v tmap == None)
+&&
+   if t is Gtyp _
+   then match ft_find (fst v, N0) tmap with
+        | Some (Gtyp _)
+        | None => true
+        | _ => false
+        end
+   else snd v == N0.
+
+Fixpoint stmts_tmap (tmap_scope : ft_pmap * ft_pmap) (ss : HiFP.hfstmt_seq) : option (ft_pmap * ft_pmap) :=
+(* extends tmap_scope with the types of the defined components in ss.
+   The first part of tmap_scope contains all defined components
+   (used to check for name clashes, and will also be used later in Sem_frag_stmt);
+   the second part contains only the components in the current scope
+   (used to check whether a component defined within a Swhen statement
+   is illegally used outside it).
+   Produces None if some component is defined more than once,
+   if a component is accessed before it is defined,
+   or if it is accessed out of scope. *)
+match ss with
+| Qnil => Some tmap_scope
+| Qcons s ss' =>
+    match stmt_tmap tmap_scope s with
+    | Some tmap_scope' => stmts_tmap tmap_scope' ss'
+    | None => None
+    end
+end
+with stmt_tmap (tmap_scope : ft_pmap * ft_pmap) (s : HiFP.hfstmt) : option (ft_pmap * ft_pmap) :=
+(* extends tmap_scope with the type of the component defined in s.
+   Produces None if s contains a definition of a component that is already in tmap. *)
+match s with
+| Sskip => Some tmap_scope
+| Sfcnct ref expr =>
+    match type_of_ref ref (snd tmap_scope), type_of_expr expr (snd tmap_scope) with
+    | Some _, Some _ => Some tmap_scope
+    | _, _ => None (* something undefined or out-of-scope is accessed *)
+    end
+| Sinvalid ref =>
+    match type_of_ref ref (snd tmap_scope) with
+    | Some _ => Some tmap_scope
+    | None => None (* ref is undefined or out of scope *)
+    end
+| Swire v t =>
+    if no_name_clash (fst tmap_scope) v t
+    then Some (ft_add v t (fst tmap_scope), ft_add v t (snd tmap_scope))
+    else None
+| Sreg v reg =>
+    if no_name_clash (fst tmap_scope) v (type reg)
+    then if reset reg is Rst rst_sig rst_val
+         then match type_of_expr rst_sig (snd tmap_scope), type_of_expr rst_val (snd tmap_scope) with
+              | Some _, Some _ => Some (ft_add v (type reg) (fst tmap_scope), ft_add v (type reg) (snd tmap_scope))
+              | _, _ => None (* something undefined or out-of-scope is accessed *)
+              end
+         else Some (ft_add v (type reg) (fst tmap_scope), ft_add v (type reg) (snd tmap_scope))
+    else None
+| Snode v expr =>
+    match type_of_expr expr (snd tmap_scope) with
+    | Some (exist t _) =>
+        if no_name_clash (fst tmap_scope) v t
+        then Some (ft_add v t (fst tmap_scope), ft_add v t (snd tmap_scope))
+        else None
+    | None => None (* something undefined or out-of-scope is accessed *)
+    end
+| Smem _ _ => None
+| Sinst _ _ => None
+| Swhen _ ss_true ss_false =>
+    match stmts_tmap tmap_scope ss_true with
+    | Some (tmap_true, _) =>
+        match stmts_tmap (tmap_true, snd tmap_scope) ss_false with
+        | Some (tmap_false, _) =>
+            Some (tmap_false, snd tmap_scope)
+        | None => None
+        end
+    | None => None
+    end
+end.
+
+Definition Sem (F : HiFP.hfmodule) (vm : module_graph_vertex_set_p.env) (ct : module_graph_connection_trees_p.env) : Prop :=
+(* The predicate returns True if G = (vm, ct) conforms to F.
+   (If F has errors, there is no such G.)
+   (If F has implicit width components, then there are many such Gs.) *)
+match F with
+| FInmod n pp ss =>
+    let pmap := ports_tmap pp in
+    match stmts_tmap (pmap, pmap) ss with
+    | Some (tmap, _) =>
+        exists (vm' : module_graph_vertex_set_p.env) (ct' : module_graph_connection_trees_p.env),
+               Sem_frag_ports (module_graph_vertex_set_p.empty vertex_type)
+                              (module_graph_connection_trees_p.empty def_expr)
+                              pp vm' ct'
+            /\
+               Sem_frag_stmts vm' ct' ss vm ct tmap
+    | None => False
+    end
+| FExmod _ _ _ => False
+end.
