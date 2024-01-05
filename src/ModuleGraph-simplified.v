@@ -722,7 +722,7 @@ match code_type, graph_type with
 | _, _ => false
 end.
 
-Fixpoint vtype_find_widths (code_t : ftype) (v : VarOrder.T) (n : N) (vm : module_graph_vertex_set_p.env) : option (ftype * N) :=
+Fixpoint vtype_find_widths (code_t : ftype) (v n : N) (vm : module_graph_vertex_set_p.env) : option (ftype * N) :=
 (* find the widths of types used in vm for a component that was declared with type code_t in the code.
    That means, the module graph vertices should contain ground-type elements as given by vtype_equivalent.
    The result is a pair:
@@ -761,7 +761,7 @@ match code_t with
     end
 | Btyp code_ff => vfields_find_widths code_ff v n vm
 end
-with vfields_find_widths (code_ff : ffield) (v : VarOrder.T) (n : N) (vm : module_graph_vertex_set_p.env) : option (ftype * N) :=
+with vfields_find_widths (code_ff : ffield) (v n : N) (vm : module_graph_vertex_set_p.env) : option (ftype * N) :=
 match code_ff with
 | Fnil => Some (Btyp Fnil, n)
 | Fflips f flp code_t code_ff' =>
@@ -881,11 +881,11 @@ Fixpoint Sem_frag_stmt (vm_old : module_graph_vertex_set_p.env) (ct_old : module
                         | None => True
                         end)
                 /\ (* other vertices do not change *)
-                   (forall (v0 : VarOrder.T) (n0 : N), v0 <> fst v \/ n0 >= newft_size ->
+                   (forall (v0 n0 : N), v0 <> fst v \/ n0 >= newft_size ->
                         module_graph_vertex_set_p.find (v0, n0) vm_old =
                         module_graph_vertex_set_p.find (v0, n0) vm_new)
                 /\ (* other connections do not change *)
-                   (forall (v0 : VarOrder.T) (n0 o0 : N), v0 <> fst v \/ n0 >= newft_size \/ o0 > 0 ->
+                   (forall (v0 n0 o0 : N), v0 <> fst v \/ n0 >= newft_size \/ o0 > 0 ->
                         module_graph_connection_trees_p.find (v0, n0, o0) ct_old =
                         module_graph_connection_trees_p.find (v0, n0, o0) ct_new)
                 /\ (* set wires to undefined *)
@@ -1016,11 +1016,11 @@ Fixpoint Sem_frag_stmt (vm_old : module_graph_vertex_set_p.env) (ct_old : module
                    | None => False
                    end
                 /\ (* other vertices do not change *)
-                   (forall (v0 : VarOrder.T) (n0 : N), v0 <> fst v \/ n0 >= newft_size ->
+                   (forall (v0 n0 : N), v0 <> fst v \/ n0 >= newft_size ->
                        module_graph_vertex_set_p.find (v0, n0) vm_old =
                        module_graph_vertex_set_p.find (v0, n0) vm_new)
                 /\ (* other connections do not change *)
-                   (forall (v0 : VarOrder.T) (n0 o0 : N), v0 <> fst v \/ n0 >= newft_size \/ o0 > 3 ->
+                   (forall (v0 n0 o0 : N), v0 <> fst v \/ n0 >= newft_size \/ o0 > 3 ->
                        module_graph_connection_trees_p.find (v0, n0, o0) ct_old =
                        module_graph_connection_trees_p.find (v0, n0, o0) ct_new)
            else False
@@ -1043,11 +1043,11 @@ Fixpoint Sem_frag_stmt (vm_old : module_graph_vertex_set_p.env) (ct_old : module
                    | None => True
                    end)
            /\ (* other vertices do not change *)
-              (forall (v0 : VarOrder.T) (n0 : N), v0 <> fst v \/ n0 >= size_of_ftype newft ->
+              (forall (v0 n0 : N), v0 <> fst v \/ n0 >= size_of_ftype newft ->
                    module_graph_vertex_set_p.find (v0, n0) vm_old =
                    module_graph_vertex_set_p.find (v0, n0) vm_new)
            /\ (* other connections do not change *)
-              (forall (v0 : VarOrder.T) (n0 o0 : N), v0 <> fst v \/ n0 >= size_of_ftype newft \/ o0 > 0 ->
+              (forall (v0 n0 o0 : N), v0 <> fst v \/ n0 >= size_of_ftype newft \/ o0 > 0 ->
                    module_graph_connection_trees_p.find (v0, n0, o0) ct_old =
                    module_graph_connection_trees_p.find (v0, n0, o0) ct_new)
            /\ (* set nodes to the respective part of the expression *)
@@ -1106,7 +1106,7 @@ match p with
                      | None => True
                      end)
              /\ (* other vertices do not change *)
-                (forall (v0 : VarOrder.T) (n0 : N), v0 <> fst v \/ n0 >= newft_size ->
+                (forall (v0 n0 : N), v0 <> fst v \/ n0 >= newft_size ->
                      module_graph_vertex_set_p.find (v0, n0) vm_old =
                      module_graph_vertex_set_p.find (v0, n0) vm_new)
              /\ (* connections do not change *)
@@ -1128,11 +1128,11 @@ match p with
                      | None => True
                      end)
              /\ (* other vertices do not change *)
-                (forall (v0 : VarOrder.T) (n0 : N), v0 <> fst v \/ n0 >= newft_size ->
+                (forall (v0 n0 : N), v0 <> fst v \/ n0 >= newft_size ->
                      module_graph_vertex_set_p.find (v0, n0) vm_old =
                      module_graph_vertex_set_p.find (v0, n0) vm_new)
              /\ (* other connections do not change *)
-                (forall (v0 : VarOrder.T) (n0 o0 : N), v0 <> fst v \/ n0 >= newft_size \/ o0 > 0 ->
+                (forall (v0 n0 o0 : N), v0 <> fst v \/ n0 >= newft_size \/ o0 > 0 ->
                      module_graph_connection_trees_p.find (v0, n0, o0) ct_old =
                      module_graph_connection_trees_p.find (v0, n0, o0) ct_new)
              /\ (* set wires to undefined *)
@@ -1160,22 +1160,6 @@ match pp with
 | Finput v t :: pp'
 | Foutput v t :: pp' => ft_add v t (ports_tmap pp')
 end.
-
-Definition no_name_clash (tmap : ft_pmap) (v : ProdVarOrder.t) (t : ftype) : bool :=
-(* returns true if component with identifier v and type t can be added to the tmap.
-   Concretely it checks:
-   - there is no component with the same identifier already defined in tmap
-   - if t is not a ground type, then v has the form (fst v, N0)
-   - if t is a ground type, then there is no aggregate-type component (fst v, N0). *)
-   (ft_find v tmap == None)
-&&
-   if t is Gtyp _
-   then match ft_find (fst v, N0) tmap with
-        | Some (Gtyp _)
-        | None => true
-        | _ => false
-        end
-   else snd v == N0.
 
 Fixpoint stmts_tmap (tmap_scope : ft_pmap * ft_pmap) (ss : HiFP.hfstmt_seq) : option (ft_pmap * ft_pmap) :=
 (* extends tmap_scope with the types of the defined components in ss.
@@ -1211,11 +1195,11 @@ match s with
     | None => None (* ref is undefined or out of scope *)
     end
 | Swire v t =>
-    if no_name_clash (fst tmap_scope) v t
+    if ft_find v (fst tmap_scope) == None
     then Some (ft_add v t (fst tmap_scope), ft_add v t (snd tmap_scope))
     else None
 | Sreg v reg =>
-    if no_name_clash (fst tmap_scope) v (type reg)
+    if ft_find v (fst tmap_scope) == None
     then if reset reg is Rst rst_sig rst_val
          then match type_of_expr rst_sig (snd tmap_scope), type_of_expr rst_val (snd tmap_scope) with
               | Some _, Some _ => Some (ft_add v (type reg) (fst tmap_scope), ft_add v (type reg) (snd tmap_scope))
@@ -1226,7 +1210,7 @@ match s with
 | Snode v expr =>
     match type_of_expr expr (snd tmap_scope) with
     | Some (exist t _) =>
-        if no_name_clash (fst tmap_scope) v t
+        if ft_find v (fst tmap_scope) == None
         then Some (ft_add v t (fst tmap_scope), ft_add v t (snd tmap_scope))
         else None
     | None => None (* something undefined or out-of-scope is accessed *)
@@ -1254,12 +1238,21 @@ match F with
     let pmap := ports_tmap pp in
     match stmts_tmap (pmap, pmap) ss with
     | Some (tmap, _) =>
-        exists (vm' : module_graph_vertex_set_p.env) (ct' : module_graph_connection_trees_p.env),
-               Sem_frag_ports (module_graph_vertex_set_p.empty vertex_type)
-                              (module_graph_connection_trees_p.empty def_expr)
-                              pp vm' ct'
-            /\
-               Sem_frag_stmts vm' ct' ss vm ct tmap
+           (forall v1 : N,
+                match ft_find (v1, N0) tmap with
+                | Some (Gtyp _)
+                | None => True
+                | _ => (* (v1, N0) identifies an aggregate-type component;
+                          then there should not be any other component with the same v1 *)
+                    forall v2 : N, v2 <> N0 -> ft_find (v1, v2) tmap = None
+                end)
+        /\
+           exists (vm' : module_graph_vertex_set_p.env) (ct' : module_graph_connection_trees_p.env),
+                  Sem_frag_ports (module_graph_vertex_set_p.empty vertex_type)
+                                 (module_graph_connection_trees_p.empty def_expr)
+                                 pp vm' ct'
+               /\
+                  Sem_frag_stmts vm' ct' ss vm ct tmap
     | None => False
     end
 | FExmod _ _ _ => False
