@@ -463,7 +463,7 @@ Definition data_type_in2arith (dt : fgtyp) (bs : bits) : option arithmetic_data_
    | _ => None
    end.
 
-(* transform a arithmetic data type to a ftype *)
+(* transform an arithmetic data type to a ftype *)
 Definition data_type_arith2ftype (dt : arithmetic_data_type) : ftype :=
    match dt with
    | exist (Fsint w) _ => Gtyp (Fsint w)
@@ -471,14 +471,14 @@ Definition data_type_arith2ftype (dt : arithmetic_data_type) : ftype :=
    | exist _ p => False_rect ftype p
    end.
 
-(* transform a explicit data type list to a ftype, for expr. output_connector of a vertex return with a list of fgtyp_explicit *)
+(* transform an explicit data type list to a ftype, for expr. output_connector of a vertex return with a list of fgtyp_explicit *)
 Definition data_type_out2ftype (dl : list fgtyp_explicit) : option ftype_explicit :=
    match dl with
    | [:: (exist t p)] => Some (exist ftype_not_implicit_width (Gtyp t) p)
    | _ => None
    end.
 
-(* length of a explicit data type, used for build a binop vertex. *)
+(* length of an explicit data type, used to build a binop vertex. *)
 Definition len_output_data_type (dt : fgtyp_explicit) : nat :=
    match dt with
    | exist (Fsint w) _ => w
@@ -497,7 +497,7 @@ Definition len_arithmetic_data_type (dt : arithmetic_data_type) : nat :=
    | exist _ p => False_rect nat p
    end.
 
-(* return true if two arithmetic type has the same ground type, used for type checking in binop operations.
+(* return true if two arithmetic type have the same ground type, used for type checking in binop operations.
    Note that this function does not compare the width of the types. *)
 Definition typeq_arithmetic_data_type (dt1 : arithmetic_data_type) (dt2 : arithmetic_data_type) : bool :=
    match dt1, dt2 with
@@ -727,7 +727,37 @@ match x, y with
 end.
 Lemma connection_tree_eqP : Equality.axiom connection_tree_eqn.
 Proof.
-   Admitted.
+rewrite /Equality.axiom.
+induction x.
+1,3: destruct y ; try (apply ReflectF ; discriminate) ;
+     apply ReflectT ; reflexivity.
+* destruct y ; try (apply ReflectF ; discriminate).
+  destruct (t == t0) eqn: Ht.
+  + rewrite /connection_tree_eqn Ht ; apply ReflectT.
+    move /eqP : Ht => Ht ; rewrite -Ht //.
+  + rewrite /connection_tree_eqn Ht ; apply ReflectF ; injection.
+    move /eqP : Ht => Ht ; done.
+* destruct y ; try (apply ReflectF ; discriminate).
+  simpl connection_tree_eqn.
+  specialize IHx1 with (y := y1).
+  specialize IHx2 with (y := y2).
+  destruct (t == t0) eqn: Ht.
+  + move /eqP : Ht => Ht ; rewrite -Ht.
+    destruct (connection_tree_eqn x1 y1) eqn: Hx1.
+    - destruct (connection_tree_eqn x2 y2) eqn: Hx2.
+      * rewrite andTb ; apply ReflectT.
+        replace y1 with x1 by (apply Bool.reflect_iff in IHx1 ; apply IHx1 ; reflexivity).
+        replace y2 with x2 by (apply Bool.reflect_iff in IHx2 ; apply IHx2 ; reflexivity).
+        reflexivity.
+      * rewrite andbF ; apply ReflectF ; injection ; intro.
+        apply Bool.reflect_iff in IHx2 ; destruct IHx2 as [IHx2 _].
+        discriminate IHx2 ; exact H0.
+    - rewrite andbF andFb ; apply ReflectF ; injection ; intros.
+      apply Bool.reflect_iff in IHx1 ; destruct IHx1 as [IHx1 _].
+      discriminate IHx1 ; exact H1.
+  + rewrite andFb ; apply ReflectF ; injection ; intros.
+    move /eqP : Ht => Ht ; done.
+Qed.
 Canonical connection_tree_eqMixin := EqMixin connection_tree_eqP.
 Canonical connection_tree_eqType := Eval hnf in EqType connection_tree connection_tree_eqMixin.
 
@@ -1240,9 +1270,7 @@ with ffield_mux' (f1 : ffield) (p1 : ffield_not_implicit_width f1) (f2 : ffield)
 
 Definition ftype_mux (x : ftype_explicit) (y : ftype_explicit) : option ftype_explicit :=
 (* return the type of mux expression on ftypes *)
-   match x, y with
-   exist x px, exist y py => ftype_mux' x px y py
-   end.
+   ftype_mux' (proj1_sig x) (proj2_sig x) (proj1_sig y) (proj2_sig y).
 *)
 
 (* type of mux expression *)
@@ -2238,21 +2266,21 @@ with connect_type_compatible_fields (ff_ref : ffield) (ff_expr : ffield_explicit
 Definition connect_non_passive_fgtyp (ct_old : module_graph_connection_trees_p.env)
                                      (lst_tgt : list PProdVarOrder.t) (gt_tgt : fgtyp)
                                      (lst_src : list PProdVarOrder.t) (gt_src : fgtyp)
-                                     (ct_new : module_graph_connection_trees_p.env) : Prop :=
+                                     (ct_new : module_graph_connection_trees_p.env) : bool :=
 (* The predicate checks whether ct_new contains the correct connection that connects from lst_src to lst_tgt,
    and it does not change the connection into lst_src.
    These lists must be one-element lists for output and input connectors of compatible types. *)
       match lst_tgt, lst_src with
-      | [:: ic], [:: oc] =>    module_graph_connection_trees_p.find ic ct_new = Some (Leaf oc)
-                            /\
-                               module_graph_connection_trees_p.find oc ct_new = module_graph_connection_trees_p.find oc ct_old
+      | [:: ic], [:: oc] =>    (module_graph_connection_trees_p.find ic ct_new == Some (Leaf oc))
+                            &&
+                               (module_graph_connection_trees_p.find oc ct_new == module_graph_connection_trees_p.find oc ct_old)
                                (* why this is compared?
                                   In Sem_frag_stmt, it is ensured that connection trees NOT related to tgt or src are not changed.
                                   Here, we need to ensure that the connection tree of tgt is changed
                                   and the connection tree of src remains the same. *)
-      | _, _ => False
+      | _, _ => false
       end
-   /\
+   &&
       match gt_tgt, gt_src with
       | Fuint _, Fuint _
       | Fuint _, Fuint_implicit _
@@ -2260,18 +2288,18 @@ Definition connect_non_passive_fgtyp (ct_old : module_graph_connection_trees_p.e
       | Fsint _, Fsint_implicit _
       | Fclock, Fclock
       | Freset, Freset
-      | Fasyncreset, Fasyncreset => True
+      | Fasyncreset, Fasyncreset => true
       | Fuint_implicit wt, Fuint ws
       | Fuint_implicit wt, Fuint_implicit ws
       | Fsint_implicit wt, Fsint ws
       | Fsint_implicit wt, Fsint_implicit ws => wt >= ws
-      | _, _ => False
+      | _, _ => false
       end.
 
 Fixpoint connect_non_passive (ct_old : module_graph_connection_trees_p.env)
                              (lst_tgt : list PProdVarOrder.t) (ft_tgt : ftype)
                              (lst_src : list PProdVarOrder.t) (ft_src : ftype)
-                             (ct_new : module_graph_connection_trees_p.env) : Prop :=
+                             (ct_new : module_graph_connection_trees_p.env) : bool :=
    (* The predicate returns true if the correct connection trees are in ct_new
       that connect from lst_src to lst_tgt, and that the connection trees that
       connect to lst_src are not changed.  Other connection trees are not checked.
@@ -2281,22 +2309,22 @@ Fixpoint connect_non_passive (ct_old : module_graph_connection_trees_p.env)
       We copy the same code two times, to allow Coq to prove that the recursion is well-founded. *)
    match ft_tgt, ft_src with
    | Gtyp gt_tgt, Gtyp gt_src => connect_non_passive_fgtyp ct_old lst_tgt gt_tgt lst_src gt_src ct_new
-   | Atyp elt_tgt n1, Atyp elt_src n2 => n1 = n2 /\
+   | Atyp elt_tgt n1, Atyp elt_src n2 => (n1 == n2) &&
       let type_len := size_of_ftype elt_tgt in
-            size lst_tgt <= type_len * n1 /\ size lst_src <= type_len * n1
-         /\
-            forall n : nat, n < n1 ->
+            (size lst_tgt <= type_len * n1) && (size lst_src <= type_len * n1)
+         &&
+            [forall n : ordinal n1,
                connect_non_passive ct_old
                                    (take type_len (drop (n * type_len) lst_tgt)) elt_tgt
                                    (take type_len (drop (n * type_len) lst_src)) elt_src
-                                   ct_new
+                                   ct_new]
    | Btyp ft, Btyp fs => connect_non_passive_fields ct_old lst_tgt ft lst_src fs ct_new
-   | _, _ => False
+   | _, _ => false
    end
 with connect_non_passive_fields (ct_old : module_graph_connection_trees_p.env)
                                 (lst_tgt : list PProdVarOrder.t) (ft_tgt : ffield)
                                 (lst_src : list PProdVarOrder.t) (ft_src : ffield)
-                                (ct_new : module_graph_connection_trees_p.env) : Prop :=
+                                (ct_new : module_graph_connection_trees_p.env) : bool :=
    (* The predicate returns true if the correct connection trees are in ct_new
       that connect from lst_src to lst_tgt, and that the connection trees that
       connect to lst_src are not changed.  Other connection trees are not checked.
@@ -2305,57 +2333,57 @@ with connect_non_passive_fields (ct_old : module_graph_connection_trees_p.env)
 
       We copy the same code two times, to allow Coq to prove that the recursion is well-founded. *)
    match ft_tgt, ft_src with
-   | Fnil, Fnil => True
-   | Fflips v1 Nflip gtt ft, Fflips v2 Nflip gts fs => v1 = v2 /\
+   | Fnil, Fnil => true
+   | Fflips v1 Nflip gtt ft, Fflips v2 Nflip gts fs => (v1 == v2) &&
          let type_len := size_of_ftype gtt in
                connect_non_passive ct_old (take type_len lst_tgt) gtt (take type_len lst_src) gts ct_new
-            /\
+            &&
                connect_non_passive_fields ct_old (drop type_len lst_tgt) ft (drop type_len lst_src) fs ct_new
-   | Fflips v1 Flipped gtt ft, Fflips v2 Flipped gts fs => v1 = v2 /\
+   | Fflips v1 Flipped gtt ft, Fflips v2 Flipped gts fs => (v1 == v2) &&
          let type_len := size_of_ftype gts in
                connect_non_passive_flipped ct_old (take type_len lst_src) gts (take type_len lst_tgt) gtt ct_new
-            /\
+            &&
                connect_non_passive_fields ct_old (drop type_len lst_tgt) ft (drop type_len lst_src) fs ct_new
-   | _, _ => False
+   | _, _ => false
    end
 with connect_non_passive_flipped (ct_old : module_graph_connection_trees_p.env)
                                  (lst_tgt : list PProdVarOrder.t) (ft_tgt : ftype)
                                  (lst_src : list PProdVarOrder.t) (ft_src : ftype)
-                                 (ct_new : module_graph_connection_trees_p.env) : Prop :=
+                                 (ct_new : module_graph_connection_trees_p.env) : bool :=
    (* The code in this predicate is the same as in connect_non_passive. *)
    match ft_tgt, ft_src with
    | Gtyp gt_tgt, Gtyp gt_src => connect_non_passive_fgtyp ct_old lst_tgt gt_tgt lst_src gt_src ct_new
-   | Atyp elt_tgt n1, Atyp elt_src n2 => n1 = n2 /\
+   | Atyp elt_tgt n1, Atyp elt_src n2 => (n1 == n2) &&
       let type_len := size_of_ftype elt_tgt in
-            size lst_tgt <= type_len * n1 /\ size lst_src <= type_len * n1
-         /\
-            forall n : nat, n < n1 ->
+            (size lst_tgt <= type_len * n1) && (size lst_src <= type_len * n1)
+         &&
+            [forall n : ordinal n1,
                connect_non_passive_flipped ct_old
                                            (take type_len (drop (n * type_len) lst_tgt)) elt_tgt
                                            (take type_len (drop (n * type_len) lst_src)) elt_src
-                                           ct_new
+                                           ct_new]
 
    | Btyp ft, Btyp fs => connect_non_passive_fields_flipped ct_old lst_tgt ft lst_src fs ct_new
-   | _, _ => False
+   | _, _ => false
    end
 with connect_non_passive_fields_flipped (ct_old : module_graph_connection_trees_p.env)
                                         (lst_tgt : list PProdVarOrder.t) (ft_tgt : ffield)
                                         (lst_src : list PProdVarOrder.t) (ft_src : ffield)
-                                        (ct_new : module_graph_connection_trees_p.env) : Prop :=
+                                        (ct_new : module_graph_connection_trees_p.env) : bool :=
    (* The code in this predicate is the same as in connect_non_passive_fields. *)
    match ft_tgt, ft_src with
-   | Fnil, Fnil => True
-   | Fflips v1 Nflip gtt ft, Fflips v2 Nflip gts fs => v1 = v2 /\
+   | Fnil, Fnil => true
+   | Fflips v1 Nflip gtt ft, Fflips v2 Nflip gts fs => (v1 == v2) &&
          let type_len := size_of_ftype gtt in
                connect_non_passive_flipped ct_old (take type_len lst_tgt) gtt (take type_len lst_src) gts ct_new
-            /\
+            &&
                connect_non_passive_fields_flipped ct_old (drop type_len lst_tgt) ft (drop type_len lst_src) fs ct_new
-   | Fflips v1 Flipped gtt ft, Fflips v2 Flipped gts fs => v1 = v2 /\
+   | Fflips v1 Flipped gtt ft, Fflips v2 Flipped gts fs => (v1 == v2) &&
          let type_len := size_of_ftype gts in
                connect_non_passive ct_old (take type_len lst_src) gts (take type_len lst_tgt) gtt ct_new
-            /\
+            &&
                connect_non_passive_fields_flipped ct_old (drop type_len lst_tgt) ft (drop type_len lst_src) fs ct_new
-   | _, _ => False
+   | _, _ => false
    end.
 *)
 
@@ -2561,7 +2589,23 @@ Fixpoint Sem_frag_stmt (vm_old : module_graph_vertex_set_p.env) (ct_old : module
                                end
                      | _, _ => False
                      end
-   | Smem var mem => False (* ? *)
+   | Smem v mem => False (* ? *)
+                 (*exists data_tlist : seq fgtyp,
+                         vtype_list (data_type mem) nil data_tlist
+                     /\ (forall (v0 : VarOrder.T) (n0 : N),
+                           if v0 != (fst v) then module_graph_vertex_set_p.find (v0, n0) vm_old = module_graph_vertex_set_p.find (v0, n0) vm_new
+                                              /\ module_graph_connection_trees_p.find ((v0, n0), 0%num) ct_new = module_graph_connection_trees_p.find ((v0, n0), 0%num) ct_old
+                           else True)
+                     /\ (let tlist := (some type based on the ports of mem and data_tlist) in
+                         forall n : nat,
+                           match List.nth_error tlist n with
+                           | Some nv => module_graph_vertex_set_p.find (fst v, N.of_nat n) vm_new = Some (Wire nv)
+                                     /\ module_graph_connection_trees_p.find ((fst v, N.of_nat n), 0%num) ct_new = Some Not_connected
+                           | None => module_graph_vertex_set_p.find (fst v, N.of_nat n) vm_new = module_graph_vertex_set_p.find (fst v, N.of_nat n) vm_old
+                                     /\ module_graph_connection_trees_p.find ((fst v, N.of_nat n), 0%num) ct_new = module_graph_connection_trees_p.find ((fst v, N.of_nat n), 0%num) ct_old
+                           end)
+                     /\ (* ct *)
+                        module_graph_connection_trees_p.Equal ct_old ct_new*)
    | Sinst var1 var2 => False (* ? *)
    | Swhen cond ss_true ss_false => match list_rhs_expr_p cond vm_old ct_old tmap, type_of_hfexpr_vm vm_old cond tmap with
                                     | Some ([:: oc], nvmap0, nctree0), Some (Gtyp (Fuint 1)) => exists (vm' : module_graph_vertex_set_p.env) (ct_true ct_false : module_graph_connection_trees_p.env), 
@@ -3635,9 +3679,9 @@ Definition Sem (F : HiFP.hfmodule) (vm : module_graph_vertex_set_p.env) (ct : mo
    match F with
    | FInmod n pp ss => let tmap := ports_tmap pp in 
                        match stmts_tmap (tmap, module_graph_vertex_set_p.empty (seq HiFP.hfexpr)) ss with 
-                     | Some prepro => exists (vm' : module_graph_vertex_set_p.env) (ct' : module_graph_connection_trees_p.env),
-                        Sem_port pp vm' /\ Sem_frag_stmts vm' ct' ss vm ct (fst prepro)
-                     | _ => False
+                     | Some (tmap', _) => exists (vm' : module_graph_vertex_set_p.env) (ct' : module_graph_connection_trees_p.env),
+                        Sem_port pp vm' /\ Sem_frag_stmts vm' ct' ss vm ct tmap'
+                     | None => False
                      end
    | FExmod _ _ _ => False
    end. 
