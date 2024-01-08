@@ -3506,7 +3506,7 @@ with split_expr_non_passive_f (ref_src : HiFP.href) (ff : ffield) (fl : bool) : 
     | _,_ => None
     end
   | Fflips v Flipped t ff' => 
-    match split_expr_non_passive_f ref_src ff' (~~fl), split_expr_non_passive (Esubfield ref_src v) t (~~fl) with
+    match split_expr_non_passive_f ref_src ff' fl, split_expr_non_passive (Esubfield ref_src v) t (~~fl) with
     | Some ls, Some ls' => Some (ls' ++ ls)
     | _,_ => None
     end
