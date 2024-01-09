@@ -507,6 +507,72 @@ match ref with
 | Esubaccess _ _ => None
 end.
 
+Definition tmap_subset (t1 t2: ft_pmap) : Prop :=
+forall v : ProdVarOrder.T,
+   match ft_find v t1 with
+   | Some ft => ft_find v t2 = Some ft
+   | None => True
+   end.
+
+Lemma tmap_subset_refl : forall tmap : ft_pmap, tmap_subset tmap tmap.
+Proof.
+unfold tmap_subset ; intros.
+destruct (ft_find v tmap) ; done.
+Qed.
+
+Lemma tmap_subset_trans : forall t2 t1 t3 : ft_pmap, tmap_subset t1 t2 -> tmap_subset t2 t3 -> tmap_subset t1 t3.
+Proof.
+unfold tmap_subset ; intros.
+specialize H with (v := v) ; specialize H0 with (v := v).
+destruct (ft_find v t1) ; last by trivial.
+rewrite H in H0.
+exact H0.
+Qed.
+
+Lemma tmap_subset_add : forall (tmap : ft_pmap) (v : N * N) (t : ftype),
+   ft_find v tmap = None -> tmap_subset tmap (ft_add v t tmap).
+Proof.
+unfold ft_add, tmap_subset, ft_find at 3.
+intros.
+destruct (v0 == v) eqn: Hv ; rewrite Hv.
+* move /eqP : Hv => Hv ; rewrite Hv H //.
+* destruct (ft_find v0 tmap) ; by done.
+Qed.
+
+Lemma tmap_subset_add_add : forall (tmap1 tmap2 : ft_pmap) (v : N * N) (t : ftype),
+   tmap_subset tmap1 tmap2 -> tmap_subset (ft_add v t tmap1) (ft_add v t tmap2).
+Proof.
+unfold ft_add, tmap_subset, ft_find at 3 5.
+intros.
+specialize H with (v := v0).
+destruct (ft_find v0 tmap1) ; simpl.
+* rewrite H.
+  destruct (if v0 == v then Some t else Some f) eqn: H0 ; rewrite H0 ; done.
+* destruct (v0 == v) eqn: H0 ; rewrite H0 ; done.
+Qed.
+
+Lemma type_of_ref_subset : forall (ref : HiFP.href) (tmap1 tmap2 : ft_pmap),
+   tmap_subset tmap1 tmap2 ->
+   match type_of_ref ref tmap1 with
+   | Some ft => type_of_ref ref tmap2 = Some ft
+   | None => True
+   end.
+Proof.
+intros.
+induction ref ; simpl ; try trivial.
+* by apply H.
+* destruct (type_of_ref ref tmap1) ; last by trivial.
+  rewrite IHref.
+  destruct f ; first (by trivial) ; first by trivial.
+  destruct (type_of_ffield v f) ; last by trivial.
+  by reflexivity.
+* destruct (type_of_ref ref tmap1) ; last by trivial.
+  rewrite IHref.
+  destruct f ; first (by trivial) ; last by trivial.
+  destruct (n < n0) ; last by trivial.
+  by reflexivity.
+Qed.
+
 Definition fgtyp_mux (x y : fgtyp_explicit) : option fgtyp_explicit :=
 (* Find the type of a multiplexer whose two inputs have types x and y, for ground types *)
     match x, y with
@@ -705,6 +771,75 @@ Fixpoint type_of_expr (expr : HiFP.hfexpr) (tmap: ft_pmap) : option ftype_explic
                       end
    | _ => None (* Some (exist ftype_not_implicit_width (Gtyp (Fuint 0)) I) *)
    end.
+
+Lemma type_of_expr_subset : forall (expr : HiFP.hfexpr) (tmap1 tmap2 : ft_pmap),
+   tmap_subset tmap1 tmap2 ->
+   match type_of_expr expr tmap1 with
+   | Some ft => type_of_expr expr tmap2 = Some ft
+   | None => True
+   end.
+Proof.
+intros.
+induction expr ; simpl ; try trivial.
+* destruct f ; by reflexivity.
+* destruct (type_of_expr expr tmap1) as [[ft p]|] ;
+        last by destruct u ; trivial.
+  rewrite IHexpr.
+  destruct u ; try done ;
+  destruct ft ; try done ;
+  destruct f ; by done.
+* destruct (type_of_expr expr tmap1) as [[ft p]|] ;
+        last by destruct e ; trivial.
+  rewrite IHexpr.
+  destruct e ;
+        destruct ft ; try done ;
+        destruct f ; try done.
+  - 1,2: destruct (n0 <= n < n1) ; by done.
+  - 1,2,3,4: destruct (n <= n0) ; by done.
+* destruct (type_of_expr expr1 tmap1) as [[ft1 p1]|] ;
+        last by destruct e ; trivial.
+  rewrite IHexpr1.
+  destruct (type_of_expr expr2 tmap1) as [[ft2 p2]|] ;
+        last by destruct e, ft1 ; try trivial ; destruct f ; trivial.
+  rewrite IHexpr2.
+  destruct e ;
+        destruct ft1 ; try done ;
+        destruct f ; try done ;
+        destruct ft2 ; try done ;
+        destruct f ; by done.
+* destruct (type_of_expr expr1 tmap1) as [[ft1 p1]|] ;
+        last by trivial.
+  rewrite IHexpr1.
+  destruct (type_of_expr expr2 tmap1) as [[ft2 p2]|] ;
+        last by destruct ft1 ; trivial ; destruct f ; trivial ; destruct n ; trivial ; destruct n ; trivial.
+  rewrite IHexpr2.
+  destruct (type_of_expr expr3 tmap1) as [[ft3 p3]|] ;
+        last by destruct ft1 ; trivial ; destruct f ; trivial ; destruct n ; trivial ; destruct n ; trivial.
+  rewrite IHexpr3.
+  destruct ft1 ; last (by trivial) ; last by trivial.
+  destruct f ; try by trivial.
+  destruct n ; first by trivial.
+  destruct n ; last by trivial.
+  destruct (ftype_mux
+    (exist (fun ft : ftype => ftype_not_implicit_width ft) ft2 p2)
+    (exist (fun ft : ftype => ftype_not_implicit_width ft) ft3 p3)) ; last by trivial.
+  by reflexivity.
+* destruct (type_of_expr expr1 tmap1) as [[ft1 p1]|] ;
+        last by trivial.
+  rewrite IHexpr1.
+  destruct (type_of_expr expr2 tmap1) as [[ft2 p2]|] ;
+        last by destruct ft1 ; trivial ; destruct f ; trivial ; destruct n ; trivial ; destruct n ; trivial.
+  rewrite IHexpr2.
+  destruct ft1 ; last (by trivial) ; last by trivial.
+  destruct f ; try by trivial.
+  destruct n ; first by trivial.
+  destruct n ; last by trivial.
+  by reflexivity.
+* apply type_of_ref_subset with (ref := h) in H.
+  destruct (type_of_ref h tmap1) ; try by trivial.
+  rewrite H.
+  by reflexivity.
+Qed.
 
 Definition vtype_equivalent (code_type : fgtyp) (graph_type : fgtyp) : bool :=
 (* check whether types code_type and graph_type are equivalent.
@@ -1170,7 +1305,11 @@ Fixpoint stmts_tmap (tmap_scope : ft_pmap * ft_pmap) (ss : HiFP.hfstmt_seq) : op
    is illegally used outside it).
    Produces None if some component is defined more than once,
    if a component is accessed before it is defined,
-   or if it is accessed out of scope. *)
+   or if it is accessed out of scope.
+
+   Problem: does not check the directionality of the component
+   (e.g. a node can only be read, an output port can only be written).
+   Should we replace the tmap with a component environment? *)
 match ss with
 | Qnil => Some tmap_scope
 | Qcons s ss' =>
@@ -1229,22 +1368,315 @@ match s with
     end
 end.
 
+Lemma stmts_tmap_subset :
+   forall (ss : HiFP.hfstmt_seq) (tmap scope : ft_pmap),
+      tmap_subset scope tmap ->
+         match stmts_tmap (tmap, scope) ss with
+         | Some (tmap', scope') => tmap_subset scope' tmap' /\ tmap_subset tmap tmap' /\ tmap_subset scope scope'
+         | None => True
+         end
+with stmt_tmap_subset :
+   forall (s : HiFP.hfstmt) (tmap scope : ft_pmap),
+      tmap_subset scope tmap ->
+         match stmt_tmap (tmap, scope) s with
+         | Some (tmap', scope') => tmap_subset scope' tmap' /\ tmap_subset tmap tmap' /\ tmap_subset scope scope'
+         | None => True
+         end.
+Proof.
+* clear stmts_tmap_subset.
+  induction ss.
+  + unfold stmts_tmap.
+    intros ; split ; first by exact H.
+    by split ; apply tmap_subset_refl.
+  + intros.
+    simpl stmts_tmap.
+    specialize stmt_tmap_subset with (s := h) (tmap := tmap) (scope := scope).
+    destruct (stmt_tmap (tmap, scope) h) as [[tmap' scope']|] ; last by trivial.
+    specialize IHss with (tmap := tmap') (scope := scope').
+    destruct (stmts_tmap (tmap', scope') ss) as [[tmap'' scope'']|] ; last by trivial.
+    split.
+    - apply IHss, stmt_tmap_subset, H.
+    split.
+    - apply (tmap_subset_trans tmap') ; first by apply stmt_tmap_subset.
+      by apply IHss, stmt_tmap_subset, H.
+    - apply (tmap_subset_trans scope') ; first by apply stmt_tmap_subset.
+      by apply IHss, stmt_tmap_subset, H.
+* clear stmt_tmap_subset.
+  intro.
+  destruct s ; simpl ; intros ; try trivial.
+  + (* Sskip *) split ; first by exact H.
+    by split ; apply tmap_subset_refl.
+  + (* Swire *)
+    destruct (ft_find s tmap) eqn: Hfind ; simpl ; first by trivial.
+    split.
+    - by apply tmap_subset_add_add, H.
+    split.
+    - by apply tmap_subset_add, Hfind.
+    - apply tmap_subset_add.
+      unfold tmap_subset in H ; specialize H with (v := s).
+      destruct (ft_find s scope) ; last by trivial.
+      by rewrite -H -Hfind //.
+  + (* Sreg *)
+    destruct (ft_find s tmap) eqn: Hfind ; simpl ; first by trivial.
+    destruct (reset h).
+    - split.
+      * by apply tmap_subset_add_add, H.
+      split.
+      * by apply tmap_subset_add, Hfind.
+      * apply tmap_subset_add.
+        unfold tmap_subset in H ; specialize H with (v := s).
+        destruct (ft_find s scope) ; last by trivial.
+        by rewrite -H -Hfind //.
+    - destruct (type_of_expr h0 scope) ; last by trivial.
+      destruct (type_of_expr h1 scope) ; last by trivial.
+      split.
+      * by apply tmap_subset_add_add, H.
+      split.
+      * by apply tmap_subset_add, Hfind.
+      * apply tmap_subset_add.
+        unfold tmap_subset in H ; specialize H with (v := s).
+        destruct (ft_find s scope) ; last by trivial.
+        by rewrite -H -Hfind //.
+  + (* Snode *)
+    destruct (type_of_expr h scope) as [[t p]|] ; last by trivial.
+    destruct (ft_find s tmap) eqn: Hfind ; simpl ; first by trivial.
+    split.
+    - by apply tmap_subset_add_add, H.
+    split.
+    - by apply tmap_subset_add, Hfind.
+    - apply tmap_subset_add.
+      unfold tmap_subset in H ; specialize H with (v := s).
+      destruct (ft_find s scope) ; last by trivial.
+      by rewrite -H -Hfind //.
+  + (* Sfcnct *)
+    destruct (type_of_ref h scope) ; last by trivial.
+    destruct (type_of_expr h0 scope) ; last by trivial.
+    split.
+    - by exact H.
+    - split ; by apply tmap_subset_refl.
+  + (* Sinvalid *)
+    destruct (type_of_ref h scope) ; last by trivial.
+    split.
+    - by exact H.
+    - split ; by apply tmap_subset_refl.
+  + (* Swhen *)
+    rename h0 into ss_true ; rename h1 into ss_false.
+    generalize (stmts_tmap_subset ss_true tmap scope H) ; intro.
+    destruct (stmts_tmap (tmap, scope) ss_true) as [[tmap_true scope_true]|] ; last by trivial.
+    generalize (stmts_tmap_subset ss_false tmap_true scope (tmap_subset_trans tmap _ _ H (proj1 (proj2 H0)))) ; intro.
+    destruct (stmts_tmap (tmap_true, scope) ss_false) as [[tmap_false scope_false]|] ; last by trivial.
+    split.
+    - apply (tmap_subset_trans tmap) ; first by apply H.
+      apply (tmap_subset_trans tmap_true) ; first by apply H0.
+      apply H1.
+    split.
+    - apply (tmap_subset_trans tmap_true) ; first by apply H0.
+      apply H1.
+    - apply tmap_subset_refl.
+Qed.
+
+Lemma stmts_tmap_cat :
+   forall (ss1 ss2 : HiFP.hfstmt_seq) (tmap_scope : ft_pmap * ft_pmap),
+      stmts_tmap tmap_scope (Qcat ss1 ss2) =
+      match stmts_tmap tmap_scope ss1 with
+      | Some tmap_scope' => stmts_tmap tmap_scope' ss2
+      | None => None
+      end.
+Proof.
+induction ss1.
+* simpl Qcat ; simpl stmts_tmap ; simpl.
+  by intro ; reflexivity.
+* simpl Qcat ; simpl stmts_tmap.
+  intros.
+  destruct (stmt_tmap tmap_scope h) ; last by reflexivity.
+  by apply IHss1.
+Qed.
+
+Fixpoint component_stmts_of (ss : HiFP.hfstmt_seq) : HiFP.hfstmt_seq :=
+match ss with
+| Qnil => ss
+| Qcons s ss' => Qcat (component_stmt_of s) (component_stmts_of ss')
+end
+with component_stmt_of (s : HiFP.hfstmt) : HiFP.hfstmt_seq :=
+match s with
+| Sskip
+| Sfcnct _ _
+| Sinvalid _ => Qnil ProdVarOrder.T
+| Swire _ _
+| Sreg _ _
+| Snode _ _
+| Smem _ _
+| Sinst _ _ => Qcons s (Qnil ProdVarOrder.T)
+| Swhen _ ss_true ss_false => Qcat (component_stmts_of ss_true) (component_stmts_of ss_false)
+end.
+
+Definition tmap_scope_subset (ts1 ts2 : ft_pmap * ft_pmap) : Prop :=
+fst ts1 = fst ts2 /\ tmap_subset (snd ts1) (snd ts2).
+
+Lemma stmts_tmap_components :
+   forall (ss : HiFP.hfstmt_seq) (tmap_scope1 tmap_scope2 : ft_pmap * ft_pmap),
+      tmap_subset (snd tmap_scope1) (fst tmap_scope1) ->
+      tmap_subset (snd tmap_scope2) (fst tmap_scope2) ->
+      tmap_scope_subset tmap_scope1 tmap_scope2 ->
+         match stmts_tmap tmap_scope1 ss, stmts_tmap tmap_scope2 (component_stmts_of ss) with
+         | Some result1, Some result2 =>
+              tmap_scope_subset result1 result2
+         | Some _, None => False
+         | _, _ => True
+         end
+with stmt_tmap_components :
+   forall (s : HiFP.hfstmt) (tmap_scope1 tmap_scope2 : ft_pmap * ft_pmap),
+      tmap_subset (snd tmap_scope1) (fst tmap_scope1) ->
+      tmap_subset (snd tmap_scope2) (fst tmap_scope2) ->
+      tmap_scope_subset tmap_scope1 tmap_scope2 ->
+         match stmt_tmap tmap_scope1 s, stmts_tmap tmap_scope2 (component_stmt_of s) with
+         | Some result1, Some result2 =>
+              tmap_scope_subset result1 result2
+         | Some _, None => False
+         | _, _ => True
+         end.
+Proof.
+* clear stmts_tmap_components.
+  induction ss.
+  + unfold component_stmts_of, stmts_tmap ; done.
+  + intros.
+    simpl stmts_tmap.
+    rewrite stmts_tmap_cat.
+    specialize stmt_tmap_components with (s := h) (tmap_scope1 := tmap_scope1) (tmap_scope2 := tmap_scope2).
+    generalize (stmt_tmap_subset h (fst tmap_scope1) (snd tmap_scope1) H) ;
+          intro ; rewrite -surjective_pairing in H2.
+    destruct (stmt_tmap tmap_scope1 h) as [tmap_scope1'|] ;
+          first rewrite (surjective_pairing tmap_scope1') in H2 ;
+          last by trivial.
+    generalize (stmts_tmap_subset (component_stmt_of h) (fst tmap_scope2) (snd tmap_scope2) H0) ;
+          intro ; rewrite -surjective_pairing in H3.
+    destruct (stmts_tmap tmap_scope2 (component_stmt_of h)) as [tmap_scope2'|] ;
+          first rewrite (surjective_pairing tmap_scope2') in H3.
+    - apply IHss, stmt_tmap_components ; try assumption.
+      * by apply (proj1 H2).
+      * by apply (proj1 H3).
+    - specialize IHss with (tmap_scope1 := tmap_scope1').
+      destruct (stmts_tmap tmap_scope1' ss) as [tmap_scope1''|] ; last by trivial.
+      apply stmt_tmap_components ; by assumption.
+* clear stmt_tmap_components.
+  intros.
+  destruct s ; simpl ; (try (by done)) ;
+        unfold tmap_scope_subset, tmap_subset in H1 ; destruct H1 ; try rewrite -H1.
+  + (* Swire *)
+    destruct (ft_find s (fst tmap_scope1)) ; simpl ; first by trivial.
+    unfold tmap_scope_subset ; split ; first by reflexivity.
+    simpl snd.
+    intro.
+    unfold ft_find, ft_add.
+    destruct (v == s) eqn: Hvs ; rewrite Hvs ; first by reflexivity.
+    by apply H2.
+  + (* Sreg *)
+    destruct (ft_find s (fst tmap_scope1)) ; simpl ; first by trivial.
+    destruct (reset h).
+    - unfold tmap_scope_subset ; split ; first by reflexivity.
+      simpl snd.
+      intro.
+      unfold ft_find, ft_add.
+      destruct (v == s) eqn: Hvs ; rewrite Hvs ; first by reflexivity.
+      by apply H2.
+    - destruct (type_of_expr h0 (snd tmap_scope1)) eqn: Hte0 ; last by trivial.
+      assert (type_of_expr h0 (snd tmap_scope2) = Some f).
+            generalize (type_of_expr_subset h0 (snd tmap_scope1) (snd tmap_scope2)) ; intro.
+            rewrite Hte0 in H3.
+            apply H3.
+            by exact H2.
+      rewrite H3.
+      destruct (type_of_expr h1 (snd tmap_scope1)) eqn: Hte1 ; last by trivial.
+      assert (type_of_expr h1 (snd tmap_scope2) = Some f0).
+            generalize (type_of_expr_subset h1 (snd tmap_scope1) (snd tmap_scope2)) ; intro.
+            rewrite Hte1 in H4.
+            apply H4.
+            by exact H2.
+      rewrite H4.
+      unfold tmap_scope_subset ; split ; first by reflexivity.
+      simpl snd.
+      intro.
+      unfold ft_find, ft_add.
+      destruct (v == s) eqn: Hvs ; rewrite Hvs ; first by reflexivity.
+      by apply H2.
+  + (* Snode *)
+    destruct (type_of_expr h (snd tmap_scope1)) as [[t p]|] eqn: Hte ; last by trivial.
+    assert (type_of_expr h (snd tmap_scope2) = Some (exist ftype_not_implicit_width t p)).
+          generalize (type_of_expr_subset h (snd tmap_scope1) (snd tmap_scope2)) ; intro.
+          rewrite Hte in H3.
+          apply H3.
+          by exact H2.
+    rewrite H3.
+    destruct (ft_find s (fst tmap_scope1)) ; simpl ; first by trivial.
+    unfold tmap_scope_subset ; split ; first by reflexivity.
+    simpl snd.
+    intro.
+    unfold ft_find, ft_add.
+    destruct (v == s) eqn: Hvs ; rewrite Hvs ; first by reflexivity.
+    by apply H2.
+  + (* Sfcnct *)
+    destruct (type_of_ref h (snd tmap_scope1)) ; last by trivial.
+    destruct (type_of_expr h0 (snd tmap_scope1)) ; last by trivial.
+    unfold tmap_scope_subset ; split ; first by exact H1.
+    by exact H2.
+  + (* Sinvalid *)
+    destruct (type_of_ref h (snd tmap_scope1)) ; last by trivial.
+    unfold tmap_scope_subset ; split ; first by exact H1.
+    by exact H2.
+  + (* Swhen *)
+    rename h0 into ss_true ; rename h1 into ss_false.
+    rewrite stmts_tmap_cat.
+    generalize (stmts_tmap_components ss_true tmap_scope1 tmap_scope2 H H0) ; intro.
+    generalize (stmts_tmap_subset ss_true (fst tmap_scope1) (snd tmap_scope1) H) ;
+          intro ; rewrite -surjective_pairing in H4.
+    destruct (stmts_tmap tmap_scope1 ss_true) as [[tmap_true tmap_scope_true]|] eqn: Hss_true ; last by trivial.
+    generalize (stmts_tmap_subset (component_stmts_of ss_true) (fst tmap_scope2) (snd tmap_scope2) H0) ;
+          intro ; rewrite -surjective_pairing in H5.
+    destruct (stmts_tmap tmap_scope2 (component_stmts_of ss_true)) as [[tmap_true' tmap_scope_true']|] eqn: Hss_true' ;
+          last by contradict H3 ; unfold tmap_scope_subset ; split ;
+                  first (by exact H1) ; exact H2.
+    assert (tmap_subset (snd tmap_scope1) tmap_true).
+          apply (tmap_subset_trans (fst tmap_scope1)) ; first (by exact H) ;
+          apply H4.
+    assert (tmap_scope_subset (tmap_true, snd tmap_scope1) (tmap_true', tmap_scope_true')).
+          split.
+          - simpl fst ; apply H3 ; exact (conj H1 H2).
+          - simpl snd ; apply (tmap_subset_trans (snd tmap_scope2)) ; first by exact H2.
+            by apply H5.
+    generalize (stmts_tmap_components ss_false (tmap_true, snd tmap_scope1) (tmap_true', tmap_scope_true') H6 (proj1 H5) H7) ; intro.
+    generalize (stmts_tmap_subset ss_false tmap_true (snd tmap_scope1) H6) ;
+          intro.
+    destruct (stmts_tmap (tmap_true, snd tmap_scope1) ss_false) as [[tmap_false tmap_scope_false]|] eqn: Hss_false ; last by trivial.
+    destruct (stmts_tmap (tmap_true', tmap_scope_true') (component_stmts_of ss_false)) as [[tmap_false' tmap_scope_false']|] eqn: Hss_false' ;
+          last by trivial.
+    split.
+    - simpl fst ; apply H8.
+    - simpl snd.
+      apply (tmap_subset_trans tmap_scope_false) ; first by apply H9.
+      apply H8.
+Qed.
+
 Definition Sem (F : HiFP.hfmodule) (vm : module_graph_vertex_set_p.env) (ct : module_graph_connection_trees_p.env) : Prop :=
 (* The predicate returns True if G = (vm, ct) conforms to F.
    (If F has errors, there is no such G.)
-   (If F has implicit width components, then there are many such Gs.) *)
+   (If F has implicit width components, then there are many such Gs.)
+
+   Problem: I made some assumption about identifiers of aggregate-type components;
+   is that what you need? *)
 match F with
 | FInmod n pp ss =>
     let pmap := ports_tmap pp in
     match stmts_tmap (pmap, pmap) ss with
     | Some (tmap, _) =>
-           (forall v1 : N,
-                match ft_find (v1, N0) tmap with
+           (forall v1 v2: N,
+                match ft_find (v1, v2) tmap with
                 | Some (Gtyp _)
                 | None => True
                 | _ => (* (v1, N0) identifies an aggregate-type component;
                           then there should not be any other component with the same v1 *)
-                    forall v2 : N, v2 <> N0 -> ft_find (v1, v2) tmap = None
+                       v2 = N0
+                    /\
+                       forall v2' : N, v2' <> N0 -> ft_find (v1, v2') tmap = None
                 end)
         /\
            exists (vm' : module_graph_vertex_set_p.env) (ct' : module_graph_connection_trees_p.env),
