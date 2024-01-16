@@ -602,15 +602,15 @@ match s with
     | _, _ => None (* identifier v is used multiple times, or the module graph does not fit *)
     end
 | Sreg v reg =>
-    match CEP.find v (fst tmap_scope), code_type_find_vm_widths (type reg) v vm with
-    | None, Some (newt, _) =>
+    match CEP.find v (fst tmap_scope), type_of_expr (clock reg) (snd tmap_scope), code_type_find_vm_widths (type reg) v vm with
+    | None, Some _, Some (newt, _) =>
         if reset reg is Rst rst_sig rst_val
         then match type_of_expr rst_sig (snd tmap_scope), type_of_expr rst_val (snd tmap_scope) with
              | Some _, Some _ => Some (CEP.add v newt (fst tmap_scope), CEP.add v newt (snd tmap_scope))
              | _, _ => None (* something undefined or out-of-scope is accessed *)
              end
         else Some (CEP.add v newt (fst tmap_scope), CEP.add v newt (snd tmap_scope))
-    | _, _ => None (* identifier v is used multiple times, or the module graph does not fit *)
+    | _, _, _ => None (* identifier v is used multiple times, or the clock is out of scope, or the module graph does not fit *)
     end
 | Snode v expr =>
     match CEP.find v (fst tmap_scope), type_of_expr expr (snd tmap_scope) with
@@ -826,6 +826,7 @@ Proof.
       by rewrite -H -Hfind //.
   + (* Sreg *)
     destruct (CEP.find s tmap) eqn: Hfind ; first by trivial.
+    destruct (type_of_expr (clock h) scope) ; last by trivial.
     destruct (code_type_find_vm_widths (type h) s vm) as [[newt _]|] ; last by trivial.
     destruct (reset h).
     - split.
@@ -928,25 +929,32 @@ end.
 Definition eq_submap (ts1 ts2 : CEP.t ftype * CEP.t ftype) : Prop :=
 fst ts1 = fst ts2 /\ submap (snd ts1) (snd ts2).
 
+Lemma eq_submap_refl :
+forall ts : CEP.t ftype * CEP.t ftype, eq_submap ts ts.
+Proof.
+intro ; unfold eq_submap ; split ; first by reflexivity.
+apply submap_refl.
+Qed.
+
 Lemma stmts_tmap_components :
-   forall (vm : module_graph_vertex_set_p.env) (ss : HiFP.hfstmt_seq) (tmap_scope1 tmap_scope2 : CEP.t ftype * CEP.t ftype),
-      submap (snd tmap_scope1) (fst tmap_scope1) ->
-      submap (snd tmap_scope2) (fst tmap_scope2) ->
-      eq_submap tmap_scope1 tmap_scope2 ->
-         match stmts_tmap tmap_scope1 ss vm, stmts_tmap tmap_scope2 (component_stmts_of ss) vm with
-         | Some result1, Some result2 =>
-              eq_submap result1 result2
+   forall (vm : module_graph_vertex_set_p.env) (ss : HiFP.hfstmt_seq) (tmap scope1 scope2 : CEP.t ftype),
+      submap scope1 tmap ->
+      submap scope2 tmap ->
+      submap scope1 scope2 ->
+         match stmts_tmap (tmap, scope1) ss vm, stmts_tmap (tmap, scope2) (component_stmts_of ss) vm with
+         | Some (tmap1', scope1'), Some (tmap2', scope2') =>
+              tmap1' = tmap2' /\ submap scope1' scope2'
          | Some _, None => False
          | _, _ => True
          end
 with stmt_tmap_components :
-   forall (vm : module_graph_vertex_set_p.env) (s : HiFP.hfstmt) (tmap_scope1 tmap_scope2 : CEP.t ftype * CEP.t ftype),
-      submap (snd tmap_scope1) (fst tmap_scope1) ->
-      submap (snd tmap_scope2) (fst tmap_scope2) ->
-      eq_submap tmap_scope1 tmap_scope2 ->
-         match stmt_tmap tmap_scope1 s vm, stmts_tmap tmap_scope2 (component_stmt_of s) vm with
-         | Some result1, Some result2 =>
-              eq_submap result1 result2
+   forall (vm : module_graph_vertex_set_p.env) (s : HiFP.hfstmt) (tmap scope1 scope2 : CEP.t ftype),
+      submap scope1 tmap ->
+      submap scope2 tmap ->
+      submap scope1 scope2 ->
+         match stmt_tmap (tmap, scope1) s vm, stmts_tmap (tmap, scope2) (component_stmt_of s) vm with
+         | Some (tmap1', scope1'), Some (tmap2', scope2') =>
+              tmap1' = tmap2' /\ submap scope1' scope2'
          | Some _, None => False
          | _, _ => True
          end.
@@ -957,31 +965,28 @@ Proof.
   + intros.
     simpl stmts_tmap.
     rewrite stmts_tmap_cat.
-    specialize stmt_tmap_components with (vm := vm) (s := h) (tmap_scope1 := tmap_scope1) (tmap_scope2 := tmap_scope2).
-    generalize (stmt_submap vm h (fst tmap_scope1) (snd tmap_scope1) H) ;
-          intro ; rewrite -surjective_pairing in H2.
-    destruct (stmt_tmap tmap_scope1 h vm) as [tmap_scope1'|] ;
-          first rewrite (surjective_pairing tmap_scope1') in H2 ;
+    specialize (stmt_tmap_components vm h tmap scope1 scope2 H H0 H1).
+    generalize (stmt_submap vm h tmap scope1 H) ;
+          intro.
+    destruct (stmt_tmap (tmap, scope1) h vm) as [[tmap'' scope1'']|] ;
           last by trivial.
-    generalize (stmts_submap vm (component_stmt_of h) (fst tmap_scope2) (snd tmap_scope2) H0) ;
-          intro ; rewrite -surjective_pairing in H3.
-    destruct (stmts_tmap tmap_scope2 (component_stmt_of h) vm) as [tmap_scope2'|] ;
-          first rewrite (surjective_pairing tmap_scope2') in H3.
-    - apply IHss, stmt_tmap_components ; try assumption.
+    generalize (stmts_submap vm (component_stmt_of h) tmap scope2 H0) ;
+          intro.
+    destruct (stmts_tmap (tmap, scope2) (component_stmt_of h) vm) as [[tmap2'' scope2'']|].
+    - rewrite -(proj1 stmt_tmap_components) ;
+      rewrite -(proj1 stmt_tmap_components) in H3.
+      apply IHss, stmt_tmap_components ; try assumption.
       * by apply (proj1 H2).
       * by apply (proj1 H3).
-    - specialize IHss with (tmap_scope1 := tmap_scope1').
-      destruct (stmts_tmap tmap_scope1' ss vm) as [tmap_scope1''|] ; last by trivial.
-      apply stmt_tmap_components ; by assumption.
+    - destruct (stmts_tmap (tmap'', scope1'') ss vm) as [[tmap1' scope1']|] ; last by trivial.
+      contradiction stmt_tmap_components.
 * clear stmt_tmap_components.
   intros.
-  destruct s ; simpl ; (try (by done)) ;
-        unfold eq_submap, submap in H1 ; destruct H1 ; try rewrite -H1.
+  destruct s ; simpl ; try by done.
   + (* Swire *)
-    destruct (CEP.find s (fst tmap_scope1)) ; first by trivial.
+    destruct (CEP.find s tmap) ; first by trivial.
     destruct (code_type_find_vm_widths f s vm) as [[newt _]|] ; last by trivial.
-    unfold eq_submap ; split ; first by reflexivity.
-    simpl snd.
+    split ; first by reflexivity.
     intro.
     destruct (v == s) eqn: Hvs.
     - rewrite CEP.Lemmas.find_add_eq ; last by rewrite /HiFirrtl.PVM.SE.eq Hvs //.
@@ -989,13 +994,16 @@ Proof.
       by reflexivity.
     - rewrite CEP.Lemmas.find_add_neq ; last by rewrite /HiFirrtl.PVM.SE.eq Hvs //.
       rewrite CEP.Lemmas.find_add_neq ; last by rewrite /HiFirrtl.PVM.SE.eq Hvs //.
-      by apply H2.
+      by apply H1.
   + (* Sreg *)
-    destruct (CEP.find s (fst tmap_scope1)) ; first by trivial.
+    destruct (CEP.find s tmap) ; first by trivial.
+    destruct (type_of_expr (clock h) scope1) eqn: Hclk ; last by trivial.
+    generalize (type_of_expr_submap (clock h) scope1 scope2 H1) ; intro ;
+          rewrite Hclk in H2.
     destruct (code_type_find_vm_widths (type h) s vm) as [[newt _]|] ; last by trivial.
     destruct (reset h).
-    - unfold eq_submap ; split ; first by reflexivity.
-      simpl snd.
+    - rewrite H2.
+      split ; first by reflexivity.
       intro.
       destruct (v == s) eqn: Hvs.
       * rewrite CEP.Lemmas.find_add_eq ; last by rewrite /HiFirrtl.PVM.SE.eq Hvs //.
@@ -1003,23 +1011,15 @@ Proof.
         by reflexivity.
       * rewrite CEP.Lemmas.find_add_neq ; last by rewrite /HiFirrtl.PVM.SE.eq Hvs //.
         rewrite CEP.Lemmas.find_add_neq ; last by rewrite /HiFirrtl.PVM.SE.eq Hvs //.
-        by apply H2.
-    - destruct (type_of_expr h0 (snd tmap_scope1)) eqn: Hte0 ; last by trivial.
-      assert (type_of_expr h0 (snd tmap_scope2) = Some f).
-            generalize (type_of_expr_submap h0 (snd tmap_scope1) (snd tmap_scope2)) ; intro.
-            rewrite Hte0 in H3.
-            apply H3.
-            by exact H2.
-      rewrite H3.
-      destruct (type_of_expr h1 (snd tmap_scope1)) eqn: Hte1 ; last by trivial.
-      assert (type_of_expr h1 (snd tmap_scope2) = Some f0).
-            generalize (type_of_expr_submap h1 (snd tmap_scope1) (snd tmap_scope2)) ; intro.
-            rewrite Hte1 in H4.
-            apply H4.
-            by exact H2.
-      rewrite H4.
-      unfold eq_submap ; split ; first by reflexivity.
-      simpl snd.
+        by apply H1.
+    - destruct (type_of_expr h0 scope1) eqn: Hte0 ; last by trivial.
+      generalize (type_of_expr_submap h0 scope1 scope2 H1) ;
+            intro ; rewrite Hte0 in H3.
+      destruct (type_of_expr h1 scope1) eqn: Hte1 ; last by trivial.
+      generalize (type_of_expr_submap h1 scope1 scope2 H1) ;
+            intro ; rewrite Hte1 in H4.
+      rewrite H2 H3 H4.
+      split ; first by reflexivity.
       intro.
       destruct (v == s) eqn: Hvs.
       * rewrite CEP.Lemmas.find_add_eq ; last by rewrite /HiFirrtl.PVM.SE.eq Hvs //.
@@ -1027,18 +1027,14 @@ Proof.
         by reflexivity.
       * rewrite CEP.Lemmas.find_add_neq ; last by rewrite /HiFirrtl.PVM.SE.eq Hvs //.
         rewrite CEP.Lemmas.find_add_neq ; last by rewrite /HiFirrtl.PVM.SE.eq Hvs //.
-        by apply H2.
+        by apply H1.
   + (* Snode *)
-    destruct (CEP.find s (fst tmap_scope1)) ; first by trivial.
-    destruct (type_of_expr h (snd tmap_scope1)) as [[newt p]|] eqn: Hte ; last by trivial.
-    assert (type_of_expr h (snd tmap_scope2) = Some (exist ftype_not_implicit_width newt p)).
-          generalize (type_of_expr_submap h (snd tmap_scope1) (snd tmap_scope2)) ; intro.
-          rewrite Hte in H3.
-          apply H3.
-          by exact H2.
-    rewrite H3.
-    unfold eq_submap ; split ; first by reflexivity.
-    simpl snd.
+    destruct (CEP.find s tmap) ; first by trivial.
+    destruct (type_of_expr h scope1) as [[newt p]|] eqn: Hte ; last by trivial.
+    generalize (type_of_expr_submap h scope1 scope2 H1) ;
+          intro ; rewrite Hte in H2.
+    rewrite H2.
+    split ; first by reflexivity.
     intro.
     destruct (v == s) eqn: Hvs.
     - rewrite CEP.Lemmas.find_add_eq ; last by rewrite /HiFirrtl.PVM.SE.eq Hvs //.
@@ -1046,48 +1042,46 @@ Proof.
       by reflexivity.
     - rewrite CEP.Lemmas.find_add_neq ; last by rewrite /HiFirrtl.PVM.SE.eq Hvs //.
       rewrite CEP.Lemmas.find_add_neq ; last by rewrite /HiFirrtl.PVM.SE.eq Hvs //.
-      by apply H2.
+      by apply H1.
   + (* Sfcnct *)
-    destruct (type_of_ref h (snd tmap_scope1)) ; last by trivial.
-    destruct (type_of_expr h0 (snd tmap_scope1)) ; last by trivial.
-    unfold eq_submap ; split ; first by exact H1.
-    by exact H2.
+    destruct (type_of_ref h scope1) ; last by trivial.
+    destruct (type_of_expr h0 scope1) ; last by trivial.
+    split ; first by reflexivity.
+    by exact H1.
   + (* Sinvalid *)
-    destruct (type_of_ref h (snd tmap_scope1)) ; last by trivial.
-    unfold eq_submap ; split ; first by exact H1.
-    by exact H2.
+    destruct (type_of_ref h scope1) ; last by trivial.
+    unfold eq_submap ; split ; first by reflexivity.
+    by exact H1.
   + (* Swhen *)
     rename h0 into ss_true ; rename h1 into ss_false.
-    destruct (type_of_expr h (snd tmap_scope1)) ; last by trivial.
+    destruct (type_of_expr h scope1) ; last by trivial.
     rewrite stmts_tmap_cat.
-    generalize (stmts_tmap_components vm ss_true tmap_scope1 tmap_scope2 H H0) ; intro.
-    generalize (stmts_submap vm ss_true (fst tmap_scope1) (snd tmap_scope1) H) ;
-          intro ; rewrite -surjective_pairing in H4.
-    destruct (stmts_tmap tmap_scope1 ss_true vm) as [[tmap_true tmap_scope_true]|] eqn: Hss_true ; last by trivial.
-    generalize (stmts_submap vm (component_stmts_of ss_true) (fst tmap_scope2) (snd tmap_scope2) H0) ;
-          intro ; rewrite -surjective_pairing in H5.
-    destruct (stmts_tmap tmap_scope2 (component_stmts_of ss_true) vm) as [[tmap_true' tmap_scope_true']|] eqn: Hss_true' ;
-          last by contradict H3 ; unfold eq_submap ; split ;
-                  first (by exact H1) ; exact H2.
-    assert (submap (snd tmap_scope1) tmap_true).
-          apply (submap_trans (fst tmap_scope1)) ; first (by exact H) ;
-          apply H4.
-    assert (eq_submap (tmap_true, snd tmap_scope1) (tmap_true', tmap_scope_true')).
-          split.
-          - simpl fst ; apply H3 ; exact (conj H1 H2).
-          - simpl snd ; apply (submap_trans (snd tmap_scope2)) ; first by exact H2.
-            by apply H5.
-    generalize (stmts_tmap_components vm ss_false (tmap_true, snd tmap_scope1) (tmap_true', tmap_scope_true') H6 (proj1 H5) H7) ; intro.
-    generalize (stmts_submap vm ss_false tmap_true (snd tmap_scope1) H6) ;
+    generalize (stmts_tmap_components vm ss_true tmap scope1 scope2 H H0 H1) ;
           intro.
-    destruct (stmts_tmap (tmap_true, snd tmap_scope1) ss_false vm) as [[tmap_false tmap_scope_false]|] eqn: Hss_false ; last by trivial.
-    destruct (stmts_tmap (tmap_true', tmap_scope_true') (component_stmts_of ss_false) vm) as [[tmap_false' tmap_scope_false']|] eqn: Hss_false' ;
+    generalize (stmts_submap vm ss_true tmap scope1 H) ;
+          intro.
+    destruct (stmts_tmap (tmap, scope1) ss_true vm) as [[tmap_true scope_true]|] eqn: Hss_true ; last by trivial.
+    generalize (stmts_submap vm (component_stmts_of ss_true) tmap scope2 H0) ;
+          intro.
+    destruct (stmts_tmap (tmap, scope2) (component_stmts_of ss_true) vm) as [[tmap_true' scope_true']|] eqn: Hss_true' ;
+          last by contradict H2.
+    rewrite -(proj1 H2) ; rewrite -(proj1 H2) in Hss_true', H4.
+    destruct H2 as [_ H2] ; clear tmap_true'.
+    assert (submap scope1 tmap_true).
+          apply (submap_trans tmap) ; first (by exact H) ;
+          apply H3.
+    assert (submap scope1 scope_true').
+          apply (submap_trans scope_true) ; first (by apply H3) ;
+          apply H2.
+    generalize (stmts_tmap_components vm ss_false tmap_true scope1 scope_true' H5 (proj1 H4) H6) ; intro.
+    generalize (stmts_submap vm ss_false tmap_true scope1 H5) ;
+          intro.
+    destruct (stmts_tmap (tmap_true, scope1) ss_false vm) as [[tmap_false scope_false]|] eqn: Hss_false ; last by trivial.
+    destruct (stmts_tmap (tmap_true, scope_true') (component_stmts_of ss_false) vm) as [[tmap_false' scope_false']|] eqn: Hss_false' ;
           last by trivial.
-    split.
-    - simpl fst ; apply H8.
-    - simpl snd.
-      apply (submap_trans tmap_scope_false) ; first by apply H9.
-      apply H8.
+    split ; first by apply H7.
+    apply (submap_trans scope_false) ; first by apply H8.
+    apply H7.
 Qed.
 
 
@@ -1686,12 +1680,12 @@ match F with
                            forall v2' : N, v2' <> v2 -> CEP.find (v1, v2') tmap = None
                     end)
             /\
-               exists (vm' : module_graph_vertex_set_p.env) (ct' : module_graph_connection_trees_p.env),
+               (exists (vm' : module_graph_vertex_set_p.env) (ct' : module_graph_connection_trees_p.env),
                       Sem_frag_ports (module_graph_vertex_set_p.empty vertex_type)
                                      (module_graph_connection_trees_p.empty def_expr)
                                      pp vm' ct' tmap
                    /\
-                      Sem_frag_stmts vm' ct' ss vm ct tmap
+                      Sem_frag_stmts vm' ct' ss vm ct tmap)
         | None => False
         end
     | None => False
