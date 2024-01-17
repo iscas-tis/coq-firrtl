@@ -99,17 +99,16 @@ Definition  input_connectors (v : vertex_type) : seq fgtyp :=
       It should be a list because the function of different input connectors can be different
       (for example with the multiplexer). *)
    match v with
-   | OutPort it => [:: it]
    | InPort _ => [::] (* An InPort has no input connector because the data comes from somewhere outside the module *)
-   | Register it => [:: it; Fclock]
-   | RegisterReset it true => [:: it; Fclock; Fasyncreset; it]
-   | RegisterReset it false => [:: it; Fclock; Fuint 1; it]
+   | OutPort it
+   | Register it
+   | RegisterReset it _
    | Wire it
+   | Node it => [:: it]
    (*
    reference it
    memory : ?
    inst : ? *)
-   | Node it => [:: it]
    end.
 
 Definition output_connectors (v : vertex_type) : seq fgtyp :=
@@ -1110,6 +1109,68 @@ match ff with
 | _ => None
 end.
 
+Lemma select_field_size :
+forall (v : VarOrder.T) (ff : ffield) (input_list : seq PProdVarOrder.T),
+   size_of_fields ff <= size input_list ->
+      match select_field v input_list ff with
+      | Some (output_list, ft) => size output_list = size_of_ftype ft
+      | None => True
+      end.
+Proof.
+induction ff ; simpl ; first by trivial.
+intros.
+assert (size input_list < size_of_ftype f0 = false)
+      by (apply negbTE ; rewrite -leqNgt ;
+          apply (leq_trans (n := size_of_ftype f0 + size_of_fields ff)) ;
+          try apply H ;
+          apply leq_addr).
+rewrite H0.
+destruct (v == v0).
+* rewrite size_take.
+  destruct (size_of_ftype f0 < size input_list) eqn: H1 ; rewrite H1 ; first by reflexivity.
+  apply anti_leq.
+  rewrite leqNgt H1 andTb leqNgt H0 //.
+* specialize (IHff (drop (size_of_ftype f0) input_list)).
+  destruct (select_field v (drop (size_of_ftype f0) input_list) ff) as [[output_list ff']|] eqn: Hselect ; rewrite Hselect ; last by trivial.
+  apply IHff.
+  rewrite size_drop leq_subRL ; first by exact H.
+  rewrite leqNgt H0 //.
+Qed.
+
+Lemma list_rhs_ref_p_ffield :
+forall (v : VarOrder.T) (ff : ffield) (input_list : seq PProdVarOrder.T),
+   match type_of_ffield v ff, select_field v input_list ff with
+   | Some type_ff, Some (_, list_ff) => type_ff = list_ff
+   | Some _, None => size input_list < size_of_fields ff
+   | None, Some _ => False
+   | None, None => True
+   end.
+Proof.
+induction ff ; simpl ; first by trivial.
+intro ; destruct (v == v0).
+* destruct (size input_list < size_of_ftype f0) eqn: Hshort ;
+        rewrite Hshort ; last by reflexivity.
+  apply ltn_addr.
+  rewrite Hshort //.
+* destruct (type_of_ffield v ff).
+  + destruct (size input_list < size_of_ftype f0) eqn: Hshort ;
+          rewrite Hshort.
+    - apply ltn_addr.
+      rewrite Hshort //.
+    - specialize (IHff (drop (size_of_ftype f0) input_list)).
+      destruct (select_field v (drop (size_of_ftype f0) input_list) ff) as [[t list_ff]|] eqn: Hselect ;
+            rewrite Hselect ; first by exact IHff.
+      rewrite size_drop ltn_subLR in IHff ; first by exact IHff.
+      apply negbT in Hshort.
+      rewrite -leqNgt in Hshort.
+      by exact Hshort.
+  + destruct (size input_list < size_of_ftype f0) eqn: Hshort ;
+          rewrite Hshort ; first by trivial.
+    specialize (IHff (drop (size_of_ftype f0) input_list)).
+    destruct (select_field v (drop (size_of_ftype f0) input_list) ff) as [[t list_ff]|] eqn: Hselect ;
+          rewrite Hselect ; done.
+Qed.
+
 Fixpoint list_lhs_ref_p (ref : HiFP.href) (tmap : CEP.t ftype) : option (seq PProdVarOrder.t * ftype) :=
 (* find which input connectors of ground-type identifiers correspond to reference ref.
    ground-type identifiers are vertices in the module graph (identified by a pair of N);
@@ -1120,12 +1181,7 @@ match ref with
     (* Construct a list of identifiers and find the type of v *)
     match CEP.find v tmap with
     | Some t =>
-        match t, snd v with
-        | Gtyp _, _
-        | _, N0 =>
-            Some (mkseq (fun i => (fst v, N.add (snd v) (N.of_nat i), N0)) (size_of_ftype t), t)
-        | _, _ => None
-        end
+        Some (mkseq (fun i => (fst v, N.add (snd v) (N.of_nat i), N0)) (size_of_ftype t), t)
     | None => None
     end
 | Esubfield ref' f =>
@@ -1149,6 +1205,64 @@ match ref with
     end
 | Esubaccess _ _ => None
 end.
+
+Lemma list_lhs_ref_p_size :
+forall (tmap : CEP.t ftype) (ref : HiFP.href),
+match list_lhs_ref_p ref tmap with
+| Some (input_list, ft) => size input_list = size_of_ftype ft
+| None => True
+end.
+Proof.
+induction ref ; simpl ; try done.
+* destruct (CEP.find s tmap) as [ft|] ; last by trivial.
+  rewrite size_mkseq //.
+* destruct (list_lhs_ref_p ref tmap) as [[input_list [| |ff]]|] ; try apply IHref ; try done.
+  generalize (select_field_size v ff input_list) ; intro.
+  destruct (select_field v input_list ff) as [[output_list ft]|]; last by trivial.
+  apply H, eq_leq.
+  rewrite IHref //.
+* destruct (list_lhs_ref_p ref tmap) as [[input_list [|t m|]]|] ; try by trivial.
+  destruct ((n < m) && (size input_list == m * size_of_ftype t)) eqn: Hshort ; last by trivial.
+  move /andP : Hshort => [Hnm /eqP Hshort].
+  rewrite size_take size_drop Hshort -mulnBl.
+  destruct (size_of_ftype t < (m - n) * size_of_ftype t) eqn: Hsize ; first by reflexivity.
+  apply anti_leq.
+  rewrite leqNgt Hsize andTb -subnSK // mulSn leq_addr //.
+Qed.
+
+Lemma list_lhs_ref_p_type :
+forall (tmap : CEP.t ftype) (ref : HiFP.href),
+   match type_of_ref ref tmap, list_lhs_ref_p ref tmap with
+   | Some type_ft, Some (list_lst, list_ft) => type_ft = list_ft
+   | Some _, None
+   | None, Some _ => False
+   | None, None => True
+   end.
+Proof.
+intros.
+induction ref ; simpl ; try by done.
+* destruct (CEP.find s tmap) ; by done.
+* destruct (type_of_ref ref tmap) as [type_ft|] ;
+        last by destruct (list_lhs_ref_p ref tmap) ; done.
+  generalize (list_lhs_ref_p_size tmap ref) ; intro.
+  destruct (list_lhs_ref_p ref tmap) as [[input_list list_ft]|] ; try done.
+  rewrite IHref ; clear type_ft IHref.
+  destruct (list_ft) ; try done.
+  generalize (list_rhs_ref_p_ffield v f input_list) ; intro.
+  simpl size_of_ftype in H.
+  destruct (type_of_ffield v f) as [type_ff|] eqn: Hfield ; try done.
+  destruct (select_field v input_list f) ; try done.
+  rewrite H ltnn // in H0.
+* destruct (type_of_ref ref tmap) as [type_ft|] ;
+        last by destruct (list_lhs_ref_p ref tmap) ; done.
+  generalize (list_lhs_ref_p_size tmap ref) ; intro.
+  destruct (list_lhs_ref_p ref tmap) as [[input_list list_ft]|] ; try done.
+  rewrite IHref ; clear type_ft IHref.
+  destruct (list_ft) ; try done.
+  simpl size_of_ftype in H.
+  destruct (n < n0) ; last by rewrite andFb //.
+  rewrite andTb H mulnC eq_refl //.
+Qed.
 
 Fixpoint list_rhs_ref_p (ref : HiFP.href) (ft : ftype) : option (seq HiFP.hfexpr) :=
 (* Finds expressions for the ground-type components of the reference ref, which is of type ft.
@@ -1455,12 +1569,12 @@ Fixpoint Sem_frag_stmt (vm_old : module_graph_vertex_set_p.env) (ct_old : module
    | Sfcnct ref expr =>
           module_graph_vertex_set_p.Equal vm_old vm_new
        /\
-          match list_lhs_ref_p ref tmap, type_of_expr expr tmap with
-          | Some (input_list, ft_ref), Some (exist ft_expr _) =>
+          match type_of_ref ref tmap, type_of_expr expr tmap with
+          | Some ft_ref, Some (exist ft_expr _) =>
                  connect_type_compatible false ft_ref ft_expr false
               /\
-                 match list_rhs_expr_p expr ft_expr with
-                 | Some expr_list =>
+                 match list_lhs_ref_p ref ft_ref, list_rhs_expr_p expr ft_expr with
+                 | Some input_list, Some expr_list =>
                         (forall n : nat,
                              match List.nth_error input_list n, List.nth_error expr_list n with
                              | Some ic, Some ex => module_graph_connection_trees_p.find ic ct_new = Some (D_fexpr ex)
@@ -1473,7 +1587,7 @@ Fixpoint Sem_frag_stmt (vm_old : module_graph_vertex_set_p.env) (ct_old : module
                         forall v0 : PProdVarOrder.T,
                             if v0 \in input_list then True
                             else module_graph_connection_trees_p.find v0 ct_old = module_graph_connection_trees_p.find v0 ct_new
-                 | None => False
+                 | _, _ => False
                  end
           | _, _ => False
           end
@@ -1538,22 +1652,9 @@ Fixpoint Sem_frag_stmt (vm_old : module_graph_vertex_set_p.env) (ct_old : module
                              end
                      | _ => False
                      end
-                  /\ (* connect rst_sig *)
-                     (forall n0 : N, n0 < size_of_ftype newft ->
-                         module_graph_connection_trees_p.find (fst v, N.add (snd v) n0, 2%num) ct_new = Some (D_fexpr rst_sig))
                   /\ (* type check rst_val -- also ensures that newft is passive *)
                      match type_of_expr rst_val tmap with
                      | Some (exist rst_val_type _) => connect_type_compatible false newft rst_val_type false
-                     | None => False
-                     end
-                  /\ (* connect rst_val *)
-                     match list_rhs_expr_p rst_val newft with
-                     | Some expr_list =>
-                         forall n : nat,
-                             match List.nth_error expr_list n with
-                             | Some ex => module_graph_connection_trees_p.find (fst v, N.add (snd v) (N.of_nat n), 3%num) ct_new = Some (D_fexpr ex)
-                             | None => True
-                             end
                      | None => False
                      end
               | NRst =>
@@ -1563,11 +1664,6 @@ Fixpoint Sem_frag_stmt (vm_old : module_graph_vertex_set_p.env) (ct_old : module
                           | Some gt => module_graph_vertex_set_p.find (fst v, N.add (snd v) (N.of_nat n)) vm_new = Some (Register gt)
                           | None => True
                           end)
-                  /\ (* input connectors reserved for rst_sig and rst_val do not change *)
-                     (forall n0 : N, n0 < size_of_ftype newft ->
-                             module_graph_connection_trees_p.find (fst v, N.add (snd v) n0, 2%num) ct_old = module_graph_connection_trees_p.find (fst v, N.add (snd v) n0, 2%num) ct_new
-                          /\
-                             module_graph_connection_trees_p.find (fst v, N.add (snd v) n0, 3%num) ct_old = module_graph_connection_trees_p.find (fst v, N.add (snd v) n0, 3%num) ct_new)
                   /\ (* type check newft: we only need to verify newft is passive *)
                      ftype_is_passive newft
               end
@@ -1576,9 +1672,6 @@ Fixpoint Sem_frag_stmt (vm_old : module_graph_vertex_set_p.env) (ct_old : module
               | Some (exist (Gtyp Fclock) _) => True
               | _ => False
               end
-           /\ (* connect clock *)
-              (forall n0 : N, n0 < size_of_ftype newft ->
-                  module_graph_connection_trees_p.find (fst v, N.add (snd v) n0, 1%num) ct_new = Some (D_fexpr (clock reg)))
            /\ (* connect default value for register *)
               match list_rhs_expr_p (Eref (Eid v)) newft with
               | Some expr_list =>
@@ -1594,7 +1687,7 @@ Fixpoint Sem_frag_stmt (vm_old : module_graph_vertex_set_p.env) (ct_old : module
                   module_graph_vertex_set_p.find (v0, n0) vm_old =
                   module_graph_vertex_set_p.find (v0, n0) vm_new)
            /\ (* other connections do not change *)
-              (forall (v0 n0 o0 : N), v0 <> fst v \/ n0 < snd v \/ n0 >= N.add (snd v) (N.of_nat (size_of_ftype newft)) \/ o0 > 3%num ->
+              (forall (v0 n0 o0 : N), v0 <> fst v \/ n0 < snd v \/ n0 >= N.add (snd v) (N.of_nat (size_of_ftype newft)) \/ o0 <> N0 ->
                   module_graph_connection_trees_p.find (v0, n0, o0) ct_old =
                   module_graph_connection_trees_p.find (v0, n0, o0) ct_new)
        | None => False (* should not happen *)

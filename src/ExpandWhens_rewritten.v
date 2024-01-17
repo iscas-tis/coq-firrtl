@@ -35,7 +35,7 @@ match gt with
 end.
 
 Lemma fully_inferred_does_not_change :
-forall (gt : fgtyp) (v : ProdVarOrder.T) (vm : module_graph_vertex_set_p.env),
+forall (gt : fgtyp) (v : CEP.key) (vm : module_graph_vertex_set_p.env),
    fully_inferred gt ->
       match code_type_find_vm_widths (Gtyp gt) v vm with
       | Some (Gtyp gt', _) => gt = gt'
@@ -73,6 +73,34 @@ forall (v : ProdVarOrder.T),
    | Some _ => False
    | None => True
    end.
+
+Lemma ports_tmap_preserves_fully_inferred :
+forall (vm : module_graph_vertex_set_p.env) (pp : seq HiFP.hfport),
+   ports_have_fully_inferred_ground_types pp ->
+      match ports_tmap pp vm with
+      | Some pmap => tmap_has_fully_inferred_ground_types pmap
+      | None => True
+      end.
+Proof.
+induction pp.
+* simpl ; intro ; intro.
+  rewrite CEP.Lemmas.empty_o //.
+* simpl ; intro.
+  destruct a, f ; try done.
+  1,2: move /andP : H => [H H0].
+  1,2: specialize (IHpp H0).
+  1,2: generalize (fully_inferred_does_not_change f s vm H);
+          intro.
+  1,2: destruct (code_type_find_vm_widths (Gtyp f) s vm) as [[[newgt| |] _]|] ; try done.
+  1,2: rewrite -H1 ; clear H1 newgt.
+  1,2: destruct (ports_tmap pp vm) ; last by trivial.
+  1,2: intro.
+  1,2: destruct (v == s) eqn: Hvs.
+  1,3: rewrite CEP.Lemmas.find_add_eq ; first (by apply H) ;
+       last by rewrite /HiFirrtl.PVM.SE.eq Hvs //.
+  1,2: rewrite CEP.Lemmas.find_add_neq ; first (by apply IHpp) ;
+       last by rewrite /HiFirrtl.PVM.SE.eq Hvs //.
+Qed.
 
 Fixpoint expr_has_fully_inferred_ground_types (expr : HiFP.hfexpr) : bool :=
 match expr with
@@ -1122,19 +1150,60 @@ Proof.
       rewrite H9 //.
 Qed.
 
-Fixpoint ExpandPort_fun (pp : seq HiFP.hfport) (old_conn_map : CEP.t def_expr) (old_scope : CEP.t ftype) : option (CEP.t def_expr * CEP.t ftype) :=
+Fixpoint ExpandPort_fun (pp : seq HiFP.hfport) : option (CEP.t def_expr * CEP.t ftype) :=
 (* create a map of def_expr for the port sequence pp.
    Out ports need to be assigned value “undefined”;
    in ports do not need to be assigned any value.
    Because types have been lowered already, we can assume
    that all ports have ground types. *)
 match pp with
-| [::] => Some (old_conn_map, old_scope)
+| [::] => Some (CEP.empty def_expr, CEP.empty ftype)
 | Finput p t :: pp' =>
-    ExpandPort_fun pp' old_conn_map (CEP.add p t old_scope)
+    match ExpandPort_fun pp' with
+    | Some (temp_conn_map, temp_scope) =>
+        Some (temp_conn_map, CEP.add p t temp_scope)
+    | None => None
+    end
 | Foutput p t :: pp' =>
-    ExpandPort_fun pp' (CEP.add p D_undefined old_conn_map) (CEP.add p t old_scope)
+    match ExpandPort_fun pp' with
+    | Some (temp_conn_map, temp_scope) =>
+        Some (CEP.add p D_undefined temp_conn_map, CEP.add p t temp_scope)
+    | None => None
+    end
 end.
+
+(* Some lemma about correctness of ports. *)
+
+Lemma ExpandPort_correct :
+forall (vm : module_graph_vertex_set_p.env) (pp : seq HiFP.hfport),
+   ports_have_fully_inferred_ground_types pp ->
+      match ports_tmap pp vm, ExpandPort_fun pp with
+      | Some pmap, Some (new_conn_map, new_scope) =>
+          CEP.Equal pmap new_scope
+      | _, _ => True
+      end.
+Proof.
+induction pp.
+* intros ; simpl ; reflexivity.
+* simpl ; intros.
+  destruct a as [v [gt| |]|v [gt| |]] ; try done.
+  1,2: move /andP : H => [H H0].
+  1,2: specialize IHpp with (1 := H0) ; clear H0.
+  1,2: generalize (fully_inferred_does_not_change gt v vm H) ;
+        intro.
+  1,2: destruct (code_type_find_vm_widths (Gtyp gt) v vm) as [[[newgt| |]]|] ; try done.
+  1,2: rewrite -H0 ; clear H0 newgt n.
+  1,2: destruct (ports_tmap pp vm) as [pmap|]; last by trivial.
+  1,2: destruct (ExpandPort_fun pp) as [[temp_conn_map temp_scope]|]; last by trivial.
+  1,2: intro.
+  1,2: destruct (y == v) eqn: Hyv.
+  1,3: rewrite CEP.Lemmas.find_add_eq ; last (by rewrite /HiFirrtl.PVM.SE.eq Hyv //) ;
+       rewrite CEP.Lemmas.find_add_eq ; last (by rewrite /HiFirrtl.PVM.SE.eq Hyv //) ;
+       by reflexivity.
+  1,2: rewrite CEP.Lemmas.find_add_neq ; last (by rewrite /HiFirrtl.PVM.SE.eq Hyv //) ;
+       rewrite CEP.Lemmas.find_add_neq ; last (by rewrite /HiFirrtl.PVM.SE.eq Hyv //) ;
+       by apply IHpp.
+Qed.
 
 (*
 Theorem ExpandBranch_Sem :
@@ -1161,12 +1230,52 @@ match old_ss, d with
 | Some old_ss, D_fexpr e => Some (Qrcons old_ss (Sfcnct (Eid v) e))
 end.
 
+Lemma fold_connect_components :
+forall conn_map : CEP.t def_expr,
+      CEP.fold helper_connect conn_map None = None
+   /\
+      forall ss : HiFP.hfstmt_seq,
+         match CEP.fold helper_connect conn_map (Some ss) with
+         | Some conn_ss => component_stmts_of conn_ss = component_stmts_of ss
+         | None => True
+         end.
+Proof.
+intro.
+assert (forall l : list (CEP.key * def_expr),
+          List.fold_left
+             (fun (a : option HiFP.hfstmt_seq) (p : CEP.key * def_expr)
+                  => helper_connect p.1 p.2 a) l None = None).
+      induction l.
+      * unfold List.fold_left ; by reflexivity.
+      * simpl List.fold_left ; apply IHl.
+split ; first by rewrite CEP.fold_1 ; apply H.
+intros.
+rewrite CEP.fold_1.
+revert ss.
+generalize (CEP.elements conn_map).
+induction l.
+* intro ; simpl ; by reflexivity.
+* intro ; simpl List.fold_left.
+  destruct a.2 ; try (rewrite H ; trivial).
+  + assert (component_stmts_of ss = component_stmts_of (Qrcons ss (Sinvalid (Eid (var:=ProdVarOrder.T) a.1)))).
+          induction ss.
+          + simpl ; by reflexivity.
+          + simpl ; rewrite IHss ; by reflexivity.
+    rewrite H0.
+    apply IHl.
+  + assert (component_stmts_of ss = component_stmts_of (Qrcons ss (Sfcnct (Eid (var:=ProdVarOrder.T) a.1) h))).
+          induction ss.
+          + simpl ; by reflexivity.
+          + simpl ; rewrite IHss ; by reflexivity.
+    rewrite H0.
+    apply IHl.
+Qed.
 
 Definition ExpandWhens_fun (m : HiFP.hfmodule) : option HiFP.hfmodule :=
 (* expand whens in module m *)
 match m with
 | FInmod v pp ss =>
-    match ExpandPort_fun pp (CEP.empty def_expr) (CEP.empty ftype) with
+    match ExpandPort_fun pp with
     | Some (port_conn_map, port_scope) =>
         match ExpandBranch_funs ss (Qnil ProdVarOrder.T) port_conn_map port_scope with
         | Some (def_ss, conn_map, _) =>
@@ -1189,13 +1298,6 @@ and there are no uninferred Resets.
 We need these conditions so ExpandBranch_fun works correctly
 and there is only one semantic for a module. *)
 
-
-
-(* Some useful lemmas:
-- The input and output of ExpandBranch_fun contain the same component definitions.
-
-Because the output  *)
-
 Theorem ExpandWhens_correct :
 (* The theorem states that ExpandWhens preserves semantics.
    (This requires that ExpandWhens_fun checks the scopes of variables,
@@ -1208,87 +1310,65 @@ forall m m' : HiFP.hfmodule, module_has_fully_inferred_ground_types m ->
 Proof.
 intros.
 unfold ExpandWhens_fun in H0.
-destruct m as [v pp ss|] ; last by discriminate.
-destruct (ExpandPort_fun pp (CEP.empty def_expr) (CEP.empty ftype)) as [[port_conn_map port_scope]|] eqn: Hport ; last by discriminate.
-destruct (ExpandBranch_funs ss (Qnil ProdVarOrder.T) port_conn_map port_scope) as [[[def_ss conn_map] scope]|] eqn: Hexpand ; last by discriminate.
-destruct (CEP.fold helper_connect conn_map (Some (Qnil ProdVarOrder.T))) as [conn_ss|] eqn: Hfold ; last by discriminate.
+destruct m as [v pp ss|] ; last by discriminate H0.
+simpl module_has_fully_inferred_ground_types in H.
+move /andP : H => [Hpp Hss].
+generalize (ExpandPort_correct vm pp Hpp) ;
+      intro.
+destruct (ExpandPort_fun pp) as [[port_conn_map port_scope]|] eqn: Hport ; last by discriminate.
+destruct (ExpandBranch_funs ss (Qnil ProdVarOrder.T) port_conn_map port_scope) as [[[def_ss conn_map] scope]|] eqn: Hexpand ; last by discriminate H0.
+destruct (CEP.fold helper_connect conn_map (Some (Qnil ProdVarOrder.T))) as [conn_ss|] eqn: Hfold ; last by discriminate H0.
 injection H0 ; clear H0 ; intro.
 rewrite -H0 in H1 ; clear H0 m'.
-(*unfold module_has_fully_inferred_ground_types in H.
-move /andP : H => [Hp Hs].*)
 unfold Sem in H1 ; unfold Sem.
-destruct (ports_tmap pp vm) as [pmap|] eqn: Hports_tmap ; last by trivial.
-destruct (stmts_tmap (pmap, pmap) (Qcat def_ss conn_ss) vm) as [[tmap' scope_map']|] eqn: Htmap' ; last done.
-destruct H1.
-destruct H1 as [vm'] ; destruct H1 as [ct'].
-generalize (ExpandBranch_components ss (Qnil ProdVarOrder.T) port_conn_map port_scope def_ss conn_map scope Hexpand) ;
+generalize (ports_tmap_preserves_fully_inferred vm pp Hpp) ;
       intro.
-unfold Qcat in H2.
-rewrite stmts_tmap_cat H2 in Htmap'.
-generalize (stmts_tmap_components vm ss pmap pmap pmap
-            (submap_refl pmap) (submap_refl pmap) (submap_refl pmap)) ;
+destruct (ports_tmap pp vm) as [pmap|] ; last by trivial.
+generalize (stmts_tmap_components vm ss pmap pmap pmap (submap_refl pmap) (submap_refl pmap) (submap_refl pmap)) ;
       intro.
-generalize (stmts_submap vm ss pmap pmap (submap_refl pmap)) ;
+generalize (ExpandBranch_components ss (Qnil ProdVarOrder.T) port_conn_map port_scope
+            def_ss conn_map scope Hexpand) ;
+      intro ;
+      unfold Qcat in H3.
+rewrite stmts_tmap_cat H3 in H1.
+generalize (ExpandBranch_funs_checks_scopes ss pmap pmap pmap vm
+            Hss H0 (submap_refl pmap) (submap_refl pmap) (submap_refl pmap)) ;
       intro.
-generalize (stmts_submap vm (component_stmts_of ss) pmap pmap (submap_refl pmap)) ;
+specialize H4 with (old_def_ss := (Qnil ProdVarOrder.T))
+                   (old_conn_map := port_conn_map) (old_scope := port_scope).
+generalize (stmts_submap vm (component_stmts_of ss) pmap pmap
+            (submap_refl pmap)) ;
       intro.
-destruct (stmts_tmap (pmap, pmap) ss) as [[tmap scope_map]|] eqn: Htmap.
-(* To prove the 2nd case, we need that ExpandBranch_fun checks that there are no scoping etc. errors. *)
-destruct (stmts_tmap (pmap, pmap) (component_stmts_of ss) vm) as [[tmap_comp scope_map_comp]|] ; last by done.
-destruct H3 ; simpl fst in H3 ; simpl snd in H6.
-rewrite -H3 in Htmap' ; rewrite -H3 in H5 ; clear H3 tmap_comp.
-assert (forall ss : HiFP.hfstmt_seq,
-          CEP.fold helper_connect conn_map (Some ss) = Some conn_ss ->
-             component_stmts_of conn_ss = component_stmts_of ss).
+destruct (stmts_tmap (pmap, pmap) (component_stmts_of ss) vm) as [[tmap' scope2]|] ; last by contradiction H1.
+destruct (stmts_tmap (pmap, pmap) ss vm) as [[tmap scope1]|] ;
+      last by (rewrite Hexpand in H4 ; discriminate H4 ; try done ;
+               intro ; specialize (H v0) ; rewrite H ;
+               destruct (CEP.find v0 port_scope) ; done).
+clear H4.
+destruct H2 as [H2' H2] ; rewrite -H2' in H1 H5 ; clear H2' tmap'.
+generalize (stmts_tmap_components vm conn_ss tmap scope2 scope2
+            (proj1 H5) (proj1 H5) (submap_refl scope2)) ;
       intro.
-      rewrite CEP.fold_1.
-      clear.
-      revert ss0 conn_ss.
-      generalize (CEP.elements conn_map).
-      induction l.
-      * unfold List.fold_left.
-        intros ; injection H ; intro.
-        rewrite H0 ; reflexivity.
-      * simpl List.fold_left.
-        intros.
-        destruct (a.2).
-        + contradict H ; clear.
-          induction l ; first by unfold List.fold_left ; discriminate.
-          simpl List.fold_left ; exact IHl.
-        + specialize IHl with (ss0 := (Qrcons ss0 (Sinvalid (Eid a.1))))
-                              (conn_ss := conn_ss).
-          rewrite IHl //.
-          clear.
-          induction ss0.
-          - unfold Qrcons, component_stmts_of, Qcat.
-            by reflexivity.
-          - simpl Qrcons ; simpl component_stmts_of.
-            rewrite IHss0 //.
-        + specialize IHl with (ss0 := (Qrcons ss0 (Sfcnct (Eid (var:=ProdVarOrder.T) a.1) h)))
-                              (conn_ss := conn_ss).
-          rewrite IHl //.
-          clear.
-          induction ss0.
-          - unfold Qrcons, component_stmts_of, Qcat.
-            by reflexivity.
-          - simpl Qrcons ; simpl component_stmts_of.
-            rewrite IHss0 //.
-generalize (H3 (Qnil ProdVarOrder.T) Hfold) ; clear H3 ; intro.
-simpl component_stmts_of in H3.
-generalize (stmts_tmap_components vm conn_ss tmap scope_map_comp scope_map_comp
-            (proj1 H5) (proj1 H5) (submap_refl scope_map_comp)) ;
+destruct (stmts_tmap (tmap, scope2) conn_ss vm) as [[tmap' scope2']|] ; last by contradiction H1.
+generalize (proj2 (fold_connect_components conn_map) (Qnil ProdVarOrder.T)) ;
       intro.
-rewrite Htmap' H3 /stmts_tmap /eq_submap /fst /snd in H7.
-destruct H7.
-rewrite H7 in H0 H1 Htmap' ; clear H7 tmap'.
-split ; first by exact H0.
+rewrite Hfold in H6 ; simpl component_stmts_of in H6.
+rewrite H6 /stmts_tmap in H4 ; clear H6.
+destruct H4 as [H4 _] ; rewrite H4 in H1 ; clear H4 tmap'.
+split ; first by (apply H1).
+destruct H1 as [_ [vm' [ct' H1]]].
 exists vm', ct'.
 split ; first by apply H1.
+clear scope2'.
+
+
+
 (* Now we have to verify that the module graph after ExpandBranch_funs
 is the same as before.
 Basically, the module graph vertex set vm only depends on components_of ss = def_ss,
 and the connection trees ct only depends on connect statements = conn_ss. *)
-destruct H1 as [_ H1].
+
+
 (* Probably look through ExpandBranch_funs and Sem_frag_stmts in parallel.
 We have:
 ExpandBranch_funs ss old_def_ss old_conn_map old_scope = Some (def_ss, conn_map, _)
@@ -1313,49 +1393,3 @@ Sem_frag_stmts vm_old ct_old (Qcat (components ss) (connections ss)) vm ct
 
 So we need to strengthen Hexpand so we can use this correspondence!
 *)
-
-(* For the second goal (where the original stmts_tmap is None),
-   we should prove that
-   - either the new stmts_tmap also produces None
-   - or there is a scope error, so ExpandBranch_funs produces an error.
-
-So I suggest this:
-From the fact that stmts_tmap (pmap, pmap) ss = None,
-we find the place where the error happened
-(through induction over ss).
-Then we conclude that
-either ExpandBranch_funs ... ss ... = None (for scope errors),
-or that stmts_tmap (pmap, pmap) (components_of ss) = None (for other errors).
-
-assert
-   (forall (ss : HiFP.hfstmt_seq) (tmap_scope1 tmap_scope2 : CEP.t ftype),
-      eq_submap tmap_scope1 tmap_scope2 ->
-         stmts_tmap tmap_scope1 ss = None ->
-            stmts_tmap tmap_scope2 (components_of ss) <> None ->
-               forall (old_def_ss : HiFP.hfstmt_seq) (old_conn_map : module_graph_connection_trees_p.env) (old_scope : CEP.t unit),
-                  (forall v : ProdVarOrder.T, CEP.find v (snd tmap_scope1) = None -> CEP.find v old_scope = None) ->
-                     ExpandBranch_funs ss old_def_ss old_conn_map old_scope = None).
-
-(ExpandBranch_funs does not verify any conditions on old_def_ss or old_conn_map,
- so the property does not depend on them!)
-
-This should be proven by induction over ss.
-*)
-
-
-* (* In this first goal, we verify that tmap does not contain duplicate identifiers.
-     We should be able to prove this because tmap' is basically the same as tmap. *)
-
-
-
-(* ExpandBranch_funs determines def_ss and conn_map
-   in the same way as Sem determines vm and ct.
-   So we should now proceed by induction over pp and ss.
-
-   First, by induction over pp, we should determine vm_ports and ct_ports
-   and establish that they remain the same
-   (independent of stmts_tmap). *)
-
-(* I see that it is simpler for me to construct tmap
-   together with going through the statements in ss. *)
-
