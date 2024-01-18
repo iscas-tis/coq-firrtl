@@ -35,7 +35,7 @@ match gt with
 end.
 
 Lemma fully_inferred_does_not_change :
-forall (gt : fgtyp) (v : CEP.key) (vm : module_graph_vertex_set_p.env),
+forall (gt : fgtyp) (v : CEP.key) (vm : CEP.t vertex_type),
    fully_inferred gt ->
       match code_type_find_vm_widths (Gtyp gt) v vm with
       | Some (Gtyp gt', _) => gt = gt'
@@ -46,15 +46,15 @@ Proof.
 intros.
 unfold fully_inferred in H.
 destruct gt ; try discriminate H ; simpl code_type_find_vm_widths.
-* destruct (module_graph_vertex_set_p.find v vm) as [[newgt|newgt|newgt|newgt _|newgt|newgt]|] ; try trivial ;
+* destruct (CEP.find v vm) as [[newgt|newgt|newgt _ _ _|newgt|newgt]|] ; try trivial ;
   destruct newgt ; try trivial ; destruct (n == n0) eqn :Hnn0 ; try trivial ;
   move /eqP : Hnn0 => Hnn0 ; rewrite -Hnn0 ; reflexivity.
-* destruct (module_graph_vertex_set_p.find v vm) as [[newgt|newgt|newgt|newgt _|newgt|newgt]|] ; try trivial ;
+* destruct (CEP.find v vm) as [[newgt|newgt|newgt _ _ _|newgt|newgt]|] ; try trivial ;
   destruct newgt ; try trivial ; destruct (n == n0) eqn :Hnn0 ; try trivial ;
   move /eqP : Hnn0 => Hnn0 ; rewrite -Hnn0 ; reflexivity.
-* destruct (module_graph_vertex_set_p.find v vm) as [[newgt|newgt|newgt|newgt _|newgt|newgt]|] ; try trivial ;
+* destruct (CEP.find v vm) as [[newgt|newgt|newgt _ _ _|newgt|newgt]|] ; try trivial ;
   destruct newgt ; trivial.
-* destruct (module_graph_vertex_set_p.find v vm) as [[newgt|newgt|newgt|newgt _|newgt|newgt]|] ; try trivial ;
+* destruct (CEP.find v vm) as [[newgt|newgt|newgt _ _ _|newgt|newgt]|] ; try trivial ;
   destruct newgt ; trivial.
 Qed.
 
@@ -75,7 +75,7 @@ forall (v : ProdVarOrder.T),
    end.
 
 Lemma ports_tmap_preserves_fully_inferred :
-forall (vm : module_graph_vertex_set_p.env) (pp : seq HiFP.hfport),
+forall (vm : CEP.t vertex_type) (pp : seq HiFP.hfport),
    ports_have_fully_inferred_ground_types pp ->
       match ports_tmap pp vm with
       | Some pmap => tmap_has_fully_inferred_ground_types pmap
@@ -242,7 +242,7 @@ Proof.
 Qed.
 
 Lemma stmt_tmap_preserves_fully_inferred :
-forall (vm : module_graph_vertex_set_p.env) (tmap scope : CEP.t ftype) (s : HiFP.hfstmt),
+forall (vm : CEP.t vertex_type) (tmap scope : CEP.t ftype) (s : HiFP.hfstmt),
    stmt_has_fully_inferred_ground_types s ->
    tmap_has_fully_inferred_ground_types tmap ->
    submap scope tmap ->
@@ -251,7 +251,7 @@ forall (vm : module_graph_vertex_set_p.env) (tmap scope : CEP.t ftype) (s : HiFP
       | _ => True
       end
 with stmts_tmap_preserves_fully_inferred :
-forall (vm : module_graph_vertex_set_p.env) (ss : HiFP.hfstmt_seq) (tmap scope : CEP.t ftype),
+forall (vm : CEP.t vertex_type) (ss : HiFP.hfstmt_seq) (tmap scope : CEP.t ftype),
    stmts_have_fully_inferred_ground_types ss ->
    tmap_has_fully_inferred_ground_types tmap ->
    submap scope tmap ->
@@ -669,7 +669,7 @@ Qed.
    note that the proofs are almost literally the same.
 
 Lemma ExpandBranch_stmt_tmap :
-forall (vm : module_graph_vertex_set_p.env) (s : HiFP.hfstmt)
+forall (vm : CEP.t vertex_type) (s : HiFP.hfstmt)
        (old_tmap new_tmap old_scope1 new_scope1 old_scope2 new_scope2 : CEP.t ftype)
        (old_def_ss new_def_ss : HiFP.hfstmt_seq) (old_conn_map new_conn_map : CEP.t def_expr),
    stmt_tmap (old_tmap, old_scope1) s vm = Some (new_tmap, new_scope1) ->
@@ -678,7 +678,7 @@ forall (vm : module_graph_vertex_set_p.env) (s : HiFP.hfstmt)
    stmt_has_fully_inferred_ground_types s ->
       submap new_scope1 new_scope2
 with ExpandBranch_stmts_tmap :
-forall (vm : module_graph_vertex_set_p.env) (ss : HiFP.hfstmt_seq)
+forall (vm : CEP.t vertex_type) (ss : HiFP.hfstmt_seq)
        (old_tmap new_tmap old_scope1 new_scope1 old_scope2 new_scope2 : CEP.t ftype)
        (old_def_ss new_def_ss : HiFP.hfstmt_seq) (old_conn_map new_conn_map : CEP.t def_expr),
    stmts_tmap (old_tmap, old_scope1) ss vm = Some (new_tmap, new_scope1) ->
@@ -795,7 +795,7 @@ Qed.
 *)
 
 Lemma ExpandBranch_stmt_tmap :
-forall (vm : module_graph_vertex_set_p.env) (s : HiFP.hfstmt)
+forall (vm : CEP.t vertex_type) (s : HiFP.hfstmt)
        (old_tmap new_tmap old_scope1 new_scope1 old_scope2 new_scope2 : CEP.t ftype)
        (old_def_ss new_def_ss : HiFP.hfstmt_seq) (old_conn_map new_conn_map : CEP.t def_expr),
    stmt_tmap (old_tmap, old_scope1) s vm = Some (new_tmap, new_scope1) ->
@@ -804,7 +804,7 @@ forall (vm : module_graph_vertex_set_p.env) (s : HiFP.hfstmt)
    stmt_has_fully_inferred_ground_types s ->
       submap new_scope2 new_scope1
 with ExpandBranch_stmts_tmap :
-forall (vm : module_graph_vertex_set_p.env) (ss : HiFP.hfstmt_seq)
+forall (vm : CEP.t vertex_type) (ss : HiFP.hfstmt_seq)
        (old_tmap new_tmap old_scope1 new_scope1 old_scope2 new_scope2 : CEP.t ftype)
        (old_def_ss new_def_ss : HiFP.hfstmt_seq) (old_conn_map new_conn_map : CEP.t def_expr),
    stmts_tmap (old_tmap, old_scope1) ss vm = Some (new_tmap, new_scope1) ->
@@ -922,7 +922,7 @@ Qed.
 The following lemma is probably not needed.
 Lemma ExpandBranch_funs_submap :
 forall (ss : HiFP.hfstmt_seq) (old_def_ss : HiFP.hfstmt_seq) (old_conn_map : CEP.t def_expr) (old_scope : CEP.t ftype),
-   forall (tmap : CEP.t ftype) (vm : module_graph_vertex_set_p.env),
+   forall (tmap : CEP.t ftype) (vm : CEP.t vertex_type),
       submap old_scope tmap ->
       stmts_tmap (tmap, old_scope) ss vm <> None ->
          match ExpandBranch_funs ss old_def_ss old_conn_map old_scope with
@@ -931,7 +931,7 @@ forall (ss : HiFP.hfstmt_seq) (old_def_ss : HiFP.hfstmt_seq) (old_conn_map : CEP
          end
 with ExpandBranch_fun_submap :
 forall (s : HiFP.hfstmt) (old_def_ss : HiFP.hfstmt_seq) (old_conn_map : CEP.t def_expr) (old_scope : CEP.t ftype),
-   forall (tmap : CEP.t ftype) (vm : module_graph_vertex_set_p.env),
+   forall (tmap : CEP.t ftype) (vm : CEP.t vertex_type),
       submap old_scope tmap ->
       stmt_tmap (tmap, old_scope) s vm <> None ->
          match ExpandBranch_fun s old_def_ss old_conn_map old_scope with
@@ -986,7 +986,7 @@ Proof.
 *)
 
 Lemma ExpandBranch_funs_checks_scopes :
-forall (ss : HiFP.hfstmt_seq) (tmap scope1 scope2 : CEP.t ftype) (vm : module_graph_vertex_set_p.env),
+forall (ss : HiFP.hfstmt_seq) (tmap scope1 scope2 : CEP.t ftype) (vm : CEP.t vertex_type),
    stmts_have_fully_inferred_ground_types ss ->
    tmap_has_fully_inferred_ground_types tmap ->
    submap scope1 tmap ->
@@ -998,7 +998,7 @@ forall (ss : HiFP.hfstmt_seq) (tmap scope1 scope2 : CEP.t ftype) (vm : module_gr
                submap old_scope scope1 ->
                   ExpandBranch_funs ss old_def_ss old_conn_map old_scope = None
 with ExpandBranch_fun_checks_scopes :
-forall (s : HiFP.hfstmt) (tmap scope1 scope2 : CEP.t ftype) (vm : module_graph_vertex_set_p.env),
+forall (s : HiFP.hfstmt) (tmap scope1 scope2 : CEP.t ftype) (vm : CEP.t vertex_type),
    stmt_has_fully_inferred_ground_types s ->
    tmap_has_fully_inferred_ground_types tmap ->
    submap scope1 tmap ->
@@ -1175,7 +1175,7 @@ end.
 (* Some lemma about correctness of ports. *)
 
 Lemma ExpandPort_correct :
-forall (vm : module_graph_vertex_set_p.env) (pp : seq HiFP.hfport),
+forall (vm : CEP.t vertex_type) (pp : seq HiFP.hfport),
    ports_have_fully_inferred_ground_types pp ->
       match ports_tmap pp vm, ExpandPort_fun pp with
       | Some pmap, Some (new_conn_map, new_scope) =>
@@ -1305,7 +1305,7 @@ Theorem ExpandWhens_correct :
    i.e. if components defined within a when statement are used outside. *)
 forall m m' : HiFP.hfmodule, module_has_fully_inferred_ground_types m ->
    ExpandWhens_fun m = Some m' ->
-      forall (vm : module_graph_vertex_set_p.env) (ct : module_graph_connection_trees_p.env),
+      forall (vm : CEP.t vertex_type) (ct : CEP.t def_expr),
          Sem m' vm ct -> Sem m vm ct.
 Proof.
 intros.
@@ -1378,14 +1378,14 @@ Hfold : CEP.fold helper_connect conn_map (Some (Qnil ProdVarOrder.T)) =
 and we have a correspondence
     def_ss_old  <---> vm_old (they contain the same components)
       forall v : ProdVarOrder.T,
-         match module_graph_vertex_set_p.find v vm_old with
+         match CEP.find v vm_old with
          | Swire _ newgt
          | ... newgt => CEP.find v def_ss_old = Some (Gtyp newgt)
          end
 
    conn_map_old <---> ct_old (they contain the same connections)
      forall v : ProdVarOrder.T,
-         module_graph_connection_trees_p.find (v, N0) comm_map_old =
+         CEP.find (v, N0) comm_map_old =
          CEP.find v ct_old
 
 We should prove:

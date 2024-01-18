@@ -135,6 +135,8 @@ Definition output_connectors (v : vertex_type) : seq fgtyp :=
 
 (* vertex set of a module graph (using pairs of natural numbers as keys) *)
 
+(* The vertex set should have type CEP.t vertex_type. *)
+(*
 Module MakeVtypFMap (V : SsrOrder) (VM : SsrFMap with Module SE := V)
 <: SsrFMap with Module SE := V.
   Include VM.
@@ -145,6 +147,7 @@ End MakeVtypFMap.
 Module ProdVarOrder := MakeProdOrder VarOrder VarOrder.
 Module PVM <: SsrFMap := FMaps.MakeTreeMap ProdVarOrder.
 Module module_graph_vertex_set_p <: SsrFMap := MakeVtypFMap ProdVarOrder PVM.
+*)
 
 
 
@@ -196,6 +199,9 @@ Canonical def_expr_eqMixin := EqMixin def_expr_eqP.
 Canonical def_expr_eqType := Eval hnf in EqType def_expr def_expr_eqMixin.
 
 
+(* The type of a connection tree is CEP.t def_expr.
+   Note that an input/output connector is now just identified with CEP.key,
+   no longer with PProdVarOrder.T. *)
 (* for connection_tree, whose key is (N_pair, N) as input_connector_id
    here this module produce ProdOrder like ((N,N),N) *)
 (*Module MakeProdOrderWithDefaultSucc2 (O1 O2 : SsrOrderWithDefaultSucc) <: SsrOrderWithDefaultSucc
@@ -213,6 +219,8 @@ Canonical def_expr_eqType := Eval hnf in EqType def_expr def_expr_eqMixin.
 End MakeProdOrderWithDefaultSucc2.*)
 
 (* can be identifier of a input/output_connector *)
+
+(*
 Module PProdVarOrder := MakeProdOrder ProdVarOrder VarOrder.
 
 Module MakeCnctFMap (V : SsrOrder) (VM : SsrFMap with Module SE := V)
@@ -224,7 +232,7 @@ End MakeCnctFMap.
 
 Module PPVM <: SsrFMap := FMaps.MakeTreeMap PProdVarOrder.
 Module module_graph_connection_trees_p <: SsrFMap := MakeCnctFMap PProdVarOrder PPVM.
-
+*)
 
 
 
@@ -496,7 +504,7 @@ match code_type, graph_type with
 | _, _ => false
 end.
 
-Fixpoint code_type_find_vm_widths (code_t : ftype) (v : ProdVarOrder.T) (vm : module_graph_vertex_set_p.env) : option (ftype * N) :=
+Fixpoint code_type_find_vm_widths (code_t : ftype) (v : ProdVarOrder.T) (vm : CEP.t vertex_type) : option (ftype * N) :=
 (* find the widths of types used in vm for a component that was declared with type code_t in the code.
    The module graph vertices (v, n), (v, n+1), (v, n+2), ... contain the relevant ground-type subcomponents.
    That means, the module graph vertices should contain ground-type elements as given by code_vm_type_equivalent.
@@ -510,7 +518,7 @@ Fixpoint code_type_find_vm_widths (code_t : ftype) (v : ProdVarOrder.T) (vm : mo
    but for OutPorts we use the type of the input (because an out-port has no output connector). *)
 match code_t with
 | Gtyp oldgt =>
-    match module_graph_vertex_set_p.find v vm with
+    match CEP.find v vm with
     | Some (OutPort newgt)
     | Some (InPort newgt)
     | Some (Register newgt _ _ _)
@@ -528,15 +536,15 @@ match code_t with
         (* Now check that there are another m-1 copies that are identical *)
         let elsize := N.sub new_n (snd v) in
         if [forall i : ordinal ((m-1) * elsize),
-               module_graph_vertex_set_p.find (fst v, N.add (snd v) (N.of_nat i)) vm ==
-               module_graph_vertex_set_p.find (fst v, N.add new_n   (N.of_nat i)) vm   ]
+               CEP.find (fst v, N.add (snd v) (N.of_nat i)) vm ==
+               CEP.find (fst v, N.add new_n   (N.of_nat i)) vm   ]
         then Some (Atyp graph_t' m, N.add (snd v) (N.mul (N.of_nat m) elsize))
         else None
     | None => None
     end
 | Btyp code_ff => code_ffield_find_vm_widths code_ff v vm
 end
-with code_ffield_find_vm_widths (code_ff : ffield) (v : ProdVarOrder.T) (vm : module_graph_vertex_set_p.env) : option (ftype * N) :=
+with code_ffield_find_vm_widths (code_ff : ffield) (v : ProdVarOrder.T) (vm : CEP.t vertex_type) : option (ftype * N) :=
 match code_ff with
 | Fnil => Some (Btyp Fnil, snd v)
 | Fflips f flp code_t code_ff' =>
@@ -551,7 +559,7 @@ match code_ff with
     end
 end.
 
-Fixpoint ports_tmap (pp : seq HiFP.hfport) (vm : module_graph_vertex_set_p.env) : option (CEP.t ftype) :=
+Fixpoint ports_tmap (pp : seq HiFP.hfport) (vm : CEP.t vertex_type) : option (CEP.t ftype) :=
 (* creates a tmap that contains exactly the types of the ports in pp. *)
 match pp with
 | [::] => Some (CEP.empty ftype)
@@ -563,7 +571,7 @@ match pp with
     end
 end.
 
-Fixpoint stmts_tmap (tmap_scope : CEP.t ftype * CEP.t ftype) (ss : HiFP.hfstmt_seq) (vm : module_graph_vertex_set_p.env) : option (CEP.t ftype * CEP.t ftype) :=
+Fixpoint stmts_tmap (tmap_scope : CEP.t ftype * CEP.t ftype) (ss : HiFP.hfstmt_seq) (vm : CEP.t vertex_type) : option (CEP.t ftype * CEP.t ftype) :=
 (* extends tmap_scope with the types of the defined components in ss.
    The first part of tmap_scope contains all defined components
    (used to check for name clashes, and will also be used later in Sem_frag_stmt);
@@ -585,7 +593,7 @@ match ss with
     | None => None
     end
 end
-with stmt_tmap (tmap_scope : CEP.t ftype * CEP.t ftype) (s : HiFP.hfstmt) (vm : module_graph_vertex_set_p.env) : option (CEP.t ftype * CEP.t ftype) :=
+with stmt_tmap (tmap_scope : CEP.t ftype * CEP.t ftype) (s : HiFP.hfstmt) (vm : CEP.t vertex_type) : option (CEP.t ftype * CEP.t ftype) :=
 (* extends tmap_scope with the type of the component defined in s.
    Produces None if s contains a definition of a component that is already in tmap. *)
 match s with
@@ -782,14 +790,14 @@ induction expr ; simpl ; try trivial.
 Qed.
 
 Lemma stmts_submap:
-   forall (vm : module_graph_vertex_set_p.env) (ss : HiFP.hfstmt_seq) (tmap scope : CEP.t ftype),
+   forall (vm : CEP.t vertex_type) (ss : HiFP.hfstmt_seq) (tmap scope : CEP.t ftype),
       submap scope tmap ->
          match stmts_tmap (tmap, scope) ss vm with
          | Some (tmap', scope') => submap scope' tmap' /\ submap tmap tmap' /\ submap scope scope'
          | None => True
          end
 with stmt_submap :
-   forall (vm : module_graph_vertex_set_p.env) (s : HiFP.hfstmt) (tmap scope : CEP.t ftype),
+   forall (vm : CEP.t vertex_type) (s : HiFP.hfstmt) (tmap scope : CEP.t ftype),
       submap scope tmap ->
          match stmt_tmap (tmap, scope) s vm with
          | Some (tmap', scope') => submap scope' tmap' /\ submap tmap tmap' /\ submap scope scope'
@@ -892,7 +900,7 @@ Proof.
 Qed.
 
 Lemma stmts_tmap_cat :
-   forall (vm : module_graph_vertex_set_p.env) (ss1 ss2 : HiFP.hfstmt_seq) (tmap_scope : CEP.t ftype * CEP.t ftype),
+   forall (vm : CEP.t vertex_type) (ss1 ss2 : HiFP.hfstmt_seq) (tmap_scope : CEP.t ftype * CEP.t ftype),
       stmts_tmap tmap_scope (Qcat ss1 ss2) vm =
       match stmts_tmap tmap_scope ss1 vm with
       | Some tmap_scope' => stmts_tmap tmap_scope' ss2 vm
@@ -942,7 +950,7 @@ apply submap_refl.
 Qed.
 
 Lemma stmts_tmap_components :
-   forall (vm : module_graph_vertex_set_p.env) (ss : HiFP.hfstmt_seq) (tmap scope1 scope2 : CEP.t ftype),
+   forall (vm : CEP.t vertex_type) (ss : HiFP.hfstmt_seq) (tmap scope1 scope2 : CEP.t ftype),
       submap scope1 tmap ->
       submap scope2 tmap ->
       submap scope1 scope2 ->
@@ -953,7 +961,7 @@ Lemma stmts_tmap_components :
          | _, _ => True
          end
 with stmt_tmap_components :
-   forall (vm : module_graph_vertex_set_p.env) (s : HiFP.hfstmt) (tmap scope1 scope2 : CEP.t ftype),
+   forall (vm : CEP.t vertex_type) (s : HiFP.hfstmt) (tmap scope1 scope2 : CEP.t ftype),
       submap scope1 tmap ->
       submap scope2 tmap ->
       submap scope1 scope2 ->
@@ -1102,7 +1110,7 @@ Qed.
 (*---------------------------------------------------------------------------*)
 (* Construct lists of input connectors and expressions (for connecting)      *)
 
-Fixpoint select_field (f : VarOrder.t) (l : seq PProdVarOrder.t) (ff : ffield) : option (seq PProdVarOrder.t * ftype) :=
+Fixpoint select_field (f : VarOrder.t) (l : seq CEP.key) (ff : ffield) : option (seq CEP.key * ftype) :=
 (* select field f from the list of input connectors l, which corresponds to type ff.
    ff does not need to be passive, but its direction is ignored.
    Return the corresponding output connectors, and also return the type of the field f. *)
@@ -1116,7 +1124,7 @@ match ff with
 end.
 
 Lemma select_field_size :
-forall (v : VarOrder.T) (ff : ffield) (input_list : seq PProdVarOrder.T),
+forall (v : VarOrder.T) (ff : ffield) (input_list : seq CEP.key),
    size_of_fields ff <= size input_list ->
       match select_field v input_list ff with
       | Some (output_list, ft) => size output_list = size_of_ftype ft
@@ -1133,18 +1141,18 @@ assert (size input_list < size_of_ftype f0 = false)
 rewrite H0.
 destruct (v == v0).
 * rewrite size_take.
-  destruct (size_of_ftype f0 < size input_list) eqn: H1 ; rewrite H1 ; first by reflexivity.
+  destruct (size_of_ftype f0 < size input_list) eqn: H1 ; first by reflexivity.
   apply anti_leq.
   rewrite leqNgt H1 andTb leqNgt H0 //.
 * specialize (IHff (drop (size_of_ftype f0) input_list)).
-  destruct (select_field v (drop (size_of_ftype f0) input_list) ff) as [[output_list ff']|] eqn: Hselect ; rewrite Hselect ; last by trivial.
+  destruct (select_field v (drop (size_of_ftype f0) input_list) ff) as [[output_list ff']|] ; last by trivial.
   apply IHff.
   rewrite size_drop leq_subRL ; first by exact H.
   rewrite leqNgt H0 //.
 Qed.
 
 Lemma list_rhs_ref_p_ffield :
-forall (v : VarOrder.T) (ff : ffield) (input_list : seq PProdVarOrder.T),
+forall (v : VarOrder.T) (ff : ffield) (input_list : seq CEP.key),
    match type_of_ffield v ff, select_field v input_list ff with
    | Some type_ff, Some (_, list_ff) => type_ff = list_ff
    | Some _, None => size input_list < size_of_fields ff
@@ -1155,29 +1163,28 @@ Proof.
 induction ff ; simpl ; first by trivial.
 intro ; destruct (v == v0).
 * destruct (size input_list < size_of_ftype f0) eqn: Hshort ;
-        rewrite Hshort ; last by reflexivity.
+        last by reflexivity.
   apply ltn_addr.
   rewrite Hshort //.
 * destruct (type_of_ffield v ff).
-  + destruct (size input_list < size_of_ftype f0) eqn: Hshort ;
-          rewrite Hshort.
+  + destruct (size input_list < size_of_ftype f0) eqn: Hshort.
     - apply ltn_addr.
       rewrite Hshort //.
     - specialize (IHff (drop (size_of_ftype f0) input_list)).
       destruct (select_field v (drop (size_of_ftype f0) input_list) ff) as [[t list_ff]|] eqn: Hselect ;
-            rewrite Hselect ; first by exact IHff.
+            first by exact IHff.
       rewrite size_drop ltn_subLR in IHff ; first by exact IHff.
       apply negbT in Hshort.
       rewrite -leqNgt in Hshort.
       by exact Hshort.
   + destruct (size input_list < size_of_ftype f0) eqn: Hshort ;
-          rewrite Hshort ; first by trivial.
+          first by trivial.
     specialize (IHff (drop (size_of_ftype f0) input_list)).
     destruct (select_field v (drop (size_of_ftype f0) input_list) ff) as [[t list_ff]|] eqn: Hselect ;
-          rewrite Hselect ; done.
+          done.
 Qed.
 
-Fixpoint list_lhs_ref_p (ref : HiFP.href) (tmap : CEP.t ftype) : option (seq PProdVarOrder.t * ftype) :=
+Fixpoint list_lhs_ref_p (ref : HiFP.href) (tmap : CEP.t ftype) : option (seq CEP.key * ftype) :=
 (* find which input connectors of ground-type identifiers correspond to reference ref.
    ground-type identifiers are vertices in the module graph (identified by a pair of N);
    input connectors are always the triple (vertex identifier, N0).
@@ -1187,7 +1194,7 @@ match ref with
     (* Construct a list of identifiers and find the type of v *)
     match CEP.find v tmap with
     | Some t =>
-        Some (mkseq (fun i => (fst v, N.add (snd v) (N.of_nat i), N0)) (size_of_ftype t), t)
+        Some (mkseq (fun i => (fst v, N.add (snd v) (N.of_nat i))) (size_of_ftype t), t)
     | None => None
     end
 | Esubfield ref' f =>
@@ -1439,7 +1446,7 @@ Qed.
 (*---------------------------------------------------------------------------*)
 (* Semantics of ports                                                        *)
 
-Definition Sem_frag_port (vm_old : module_graph_vertex_set_p.env) (ct_old : module_graph_connection_trees_p.env) (p : HiFP.hfport) (vm_new : module_graph_vertex_set_p.env) (ct_new : module_graph_connection_trees_p.env) (tmap : CEP.t ftype) : Prop :=
+Definition Sem_frag_port (vm_old : CEP.t vertex_type) (ct_old : CEP.t def_expr) (p : HiFP.hfport) (vm_new : CEP.t vertex_type) (ct_new : CEP.t def_expr) (tmap : CEP.t ftype) : Prop :=
 (* returns True if the port in p defines the components in vm *)
 match p with
 | Finput v t =>
@@ -1448,15 +1455,15 @@ match p with
            (* ground-type input ports are defined *)
            (forall n : nat,
                 match List.nth_error (list_rhs_type_p newft) n with
-                | Some gt => module_graph_vertex_set_p.find (fst v, N.add (snd v) (N.of_nat n)) vm_new = Some (InPort gt)
+                | Some gt => CEP.find (fst v, N.add (snd v) (N.of_nat n)) vm_new = Some (InPort gt)
                 | None => True
                 end)
         /\ (* other vertices do not change *)
            (forall (v0 n0 : N), v0 <> fst v \/ n0 < snd v \/ n0 >= N.add (snd v) (N.of_nat (size_of_ftype newft)) ->
-                module_graph_vertex_set_p.find (v0, n0) vm_old =
-                module_graph_vertex_set_p.find (v0, n0) vm_new)
+                CEP.find (v0, n0) vm_old =
+                CEP.find (v0, n0) vm_new)
         /\ (* connections do not change *)
-           module_graph_connection_trees_p.Equal ct_old ct_new
+           CEP.Equal ct_old ct_new
     | None => False
     end
 | Foutput v t =>
@@ -1465,30 +1472,30 @@ match p with
            (* ground-type input ports are defined *)
            (forall n : nat,
                 match List.nth_error (list_rhs_type_p newft) n with
-                | Some gt => module_graph_vertex_set_p.find (fst v, N.add (snd v) (N.of_nat n)) vm_new = Some (OutPort gt)
+                | Some gt => CEP.find (fst v, N.add (snd v) (N.of_nat n)) vm_new = Some (OutPort gt)
                 | None => True
                 end)
         /\ (* other vertices do not change *)
            (forall (v0 n0 : N), v0 <> fst v \/ n0 < snd v \/ n0 >= N.add (snd v) (N.of_nat (size_of_ftype newft)) ->
-                module_graph_vertex_set_p.find (v0, n0) vm_old =
-                module_graph_vertex_set_p.find (v0, n0) vm_new)
+                CEP.find (v0, n0) vm_old =
+                CEP.find (v0, n0) vm_new)
         /\ (* other connections do not change *)
-           (forall (v0 n0 o0 : N), v0 <> fst v \/ n0 < snd v \/ n0 >= N.add (snd v) (N.of_nat (size_of_ftype newft)) \/ o0 <> N0 ->
-                module_graph_connection_trees_p.find (v0, n0, o0) ct_old =
-                module_graph_connection_trees_p.find (v0, n0, o0) ct_new)
+           (forall (v0 n0 : N), v0 <> fst v \/ n0 < snd v \/ n0 >= N.add (snd v) (N.of_nat (size_of_ftype newft)) ->
+                CEP.find (v0, n0) ct_old =
+                CEP.find (v0, n0) ct_new)
         /\ (* set input connectors to undefined *)
            forall n0 : N, n0 < size_of_ftype newft ->
-               module_graph_connection_trees_p.find (fst v, N.add (snd v) n0, N0) ct_new = Some D_undefined
+               CEP.find (fst v, N.add (snd v) n0) ct_new = Some D_undefined
     | None => False
     end
 end.
 
-Fixpoint Sem_frag_ports (vm_old : module_graph_vertex_set_p.env) (ct_old : module_graph_connection_trees_p.env) (pp : seq HiFP.hfport) (vm_new : module_graph_vertex_set_p.env) (ct_new : module_graph_connection_trees_p.env) (tmap : CEP.t ftype) : Prop :=
+Fixpoint Sem_frag_ports (vm_old : CEP.t vertex_type) (ct_old : CEP.t def_expr) (pp : seq HiFP.hfport) (vm_new : CEP.t vertex_type) (ct_new : CEP.t def_expr) (tmap : CEP.t ftype) : Prop :=
 (* returns True if the ports in pp define the components in vm *)
 match pp with
 | [::] => vm_old = vm_new /\ ct_old = ct_new
 | p :: pp' =>
-    exists (vm' : module_graph_vertex_set_p.env) (ct' : module_graph_connection_trees_p.env),
+    exists (vm' : CEP.t vertex_type) (ct' : CEP.t def_expr),
            Sem_frag_port vm_old ct_old p vm' ct' tmap
         /\
            Sem_frag_ports vm' ct' pp' vm_new ct_new tmap
@@ -1544,11 +1551,11 @@ match ff_tgt, ff_src with
 | _, _ => false
 end.
 
-Definition connect_fgtyp (ct_old : module_graph_connection_trees_p.env)
-                         (ref_tgt : HiFP.href) (lst_tgt : list PProdVarOrder.t)
-                         (ref_src : HiFP.href) (lst_src : list PProdVarOrder.t)
+Definition connect_fgtyp (ct_old : CEP.t def_expr)
+                         (ref_tgt : HiFP.href) (lst_tgt : list CEP.key)
+                         (ref_src : HiFP.href) (lst_src : list CEP.key)
                          (flipped : bool)
-                         (ct_new : module_graph_connection_trees_p.env) : bool :=
+                         (ct_new : CEP.t def_expr) : bool :=
 (* The predicate checks whether ct_new contains the correct connection that connects from lst_src to lst_tgt,
    and it does not change the connection into lst_src.
    These lists must be one-element lists for output and input connectors of compatible types.
@@ -1556,9 +1563,9 @@ Definition connect_fgtyp (ct_old : module_graph_connection_trees_p.env)
 match flipped, ref_tgt, lst_tgt, ref_src, lst_src with
 | false, _, [:: ic], ref_src, [:: oc]
 | true,  ref_src, [:: oc], _, [:: ic] =>
-       (module_graph_connection_trees_p.find ic ct_new == Some (D_fexpr (Eref ref_src)))
+       (CEP.find ic ct_new == Some (D_fexpr (Eref ref_src)))
     &&
-       (module_graph_connection_trees_p.find oc ct_new == module_graph_connection_trees_p.find oc ct_old)
+       (CEP.find oc ct_new == CEP.find oc ct_old)
        (* why this is compared?
           In Sem_frag_stmt, it is ensured that connection trees NOT related to tgt or src are not changed.
           Here, we need to ensure that the connection tree of tgt is changed
@@ -1566,11 +1573,11 @@ match flipped, ref_tgt, lst_tgt, ref_src, lst_src with
 | _, _, _, _, _ => false
 end.
 
-Fixpoint connect (ct_old : module_graph_connection_trees_p.env)
-                 (ref_tgt : HiFP.href) (lst_tgt : list PProdVarOrder.t) (ft_tgt : ftype)
-                 (ref_src : HiFP.href) (lst_src : list PProdVarOrder.t) (ft_src : ftype)
+Fixpoint connect (ct_old : CEP.t def_expr)
+                 (ref_tgt : HiFP.href) (lst_tgt : list CEP.key) (ft_tgt : ftype)
+                 (ref_src : HiFP.href) (lst_src : list CEP.key) (ft_src : ftype)
                  (flipped : bool)
-                 (ct_new : module_graph_connection_trees_p.env) : bool :=
+                 (ct_new : CEP.t def_expr) : bool :=
 (* The predicate returns true if the correct connection trees are in ct_new
    that connect from lst_src to lst_tgt, and that the connection trees that
    connect to lst_src are not changed.  Other connection trees are not checked.
@@ -1590,11 +1597,11 @@ match ft_tgt, ft_src with
 | Btyp ff_tgt, Btyp ff_src => connect_fields ct_old ref_tgt lst_tgt ff_tgt ref_src lst_src ff_src flipped ct_new
 | _, _ => false
 end
-with connect_fields (ct_old : module_graph_connection_trees_p.env)
-                    (ref_tgt : HiFP.href) (lst_tgt : list PProdVarOrder.t) (ft_tgt : ffield)
-                    (ref_src : HiFP.href) (lst_src : list PProdVarOrder.t) (ft_src : ffield)
+with connect_fields (ct_old : CEP.t def_expr)
+                    (ref_tgt : HiFP.href) (lst_tgt : list CEP.key) (ft_tgt : ffield)
+                    (ref_src : HiFP.href) (lst_src : list CEP.key) (ft_src : ffield)
                     (flipped : bool)
-                    (ct_new : module_graph_connection_trees_p.env) : bool :=
+                    (ct_new : CEP.t def_expr) : bool :=
 (* The predicate returns true if the correct connection trees are in ct_new
    that connect from lst_src to lst_tgt, and that the connection trees that
    connect to lst_src are not changed.  Other connection trees are not checked.
@@ -1650,13 +1657,13 @@ end.
 (*---------------------------------------------------------------------------*)
 (* Semantics of statements                                                   *)
 
-Fixpoint Sem_frag_stmt (vm_old : module_graph_vertex_set_p.env) (ct_old : module_graph_connection_trees_p.env) (s : HiFP.hfstmt) (vm_new : module_graph_vertex_set_p.env) (ct_new : module_graph_connection_trees_p.env) (tmap : CEP.t ftype) : Prop :=
+Fixpoint Sem_frag_stmt (vm_old : CEP.t vertex_type) (ct_old : CEP.t def_expr) (s : HiFP.hfstmt) (vm_new : CEP.t vertex_type) (ct_new : CEP.t def_expr) (tmap : CEP.t ftype) : Prop :=
    (* The predicate returns True if vm_new/ct_new can be constructed from vm_old/ct_old by applying s.
    type checking, constraints *)
    match s with
    | Sskip => vm_old = vm_new /\ ct_old = ct_new
    | Sfcnct ref_tgt (Eref ref_src) => (* allow non-passive types *)
-          module_graph_vertex_set_p.Equal vm_old vm_new
+          CEP.Equal vm_old vm_new
        /\
           match list_lhs_ref_p ref_tgt tmap, list_lhs_ref_p ref_src tmap with
           | Some (lst_tgt, ft_tgt), Some (lst_src, ft_src) =>
@@ -1664,13 +1671,13 @@ Fixpoint Sem_frag_stmt (vm_old : module_graph_vertex_set_p.env) (ct_old : module
               /\
                  connect ct_old ref_tgt lst_tgt ft_tgt ref_src lst_src ft_src false ct_new
               /\
-                 forall v0 : PProdVarOrder.T,
+                 forall v0 : CEP.key,
                     if (v0 \in lst_tgt) || (v0 \in lst_src) then True (* already checked in connect_non_passive *)
-                    else module_graph_connection_trees_p.find v0 ct_old = module_graph_connection_trees_p.find v0 ct_new
+                    else CEP.find v0 ct_old = CEP.find v0 ct_new
           | _, _ => False
           end
    | Sfcnct ref expr =>
-          module_graph_vertex_set_p.Equal vm_old vm_new
+          CEP.Equal vm_old vm_new
        /\
           match type_of_ref ref tmap, type_of_expr expr tmap with
           | Some ft_ref, Some (exist ft_expr _) =>
@@ -1680,34 +1687,34 @@ Fixpoint Sem_frag_stmt (vm_old : module_graph_vertex_set_p.env) (ct_old : module
                  | Some (input_list, _), Some expr_list =>
                         (forall n : nat,
                              match List.nth_error input_list n, List.nth_error expr_list n with
-                             | Some ic, Some ex => module_graph_connection_trees_p.find ic ct_new = Some (D_fexpr ex)
+                             | Some ic, Some ex => CEP.find ic ct_new = Some (D_fexpr ex)
                              (* connect_type_compatible already checked that the lists have the same length.
                                 There is no need to add a check here:
                              | Some _, None | None, Some _ => False *)
                              | _, _ => True
                              end)
                      /\
-                        forall v0 : PProdVarOrder.T,
+                        forall v0 : CEP.key,
                             if v0 \in input_list then True
-                            else module_graph_connection_trees_p.find v0 ct_old = module_graph_connection_trees_p.find v0 ct_new
+                            else CEP.find v0 ct_old = CEP.find v0 ct_new
                  | _, _ => False
                  end
           | _, _ => False
           end
    | Sinvalid ref =>
-          module_graph_vertex_set_p.Equal vm_old vm_new
+          CEP.Equal vm_old vm_new
        /\
           match list_lhs_ref_p ref tmap with
           | Some (input_list, ft_ref) =>
                  (forall n : nat,
                       match List.nth_error input_list n with
-                      | Some ic => module_graph_connection_trees_p.find ic ct_new = Some D_invalidated
+                      | Some ic => CEP.find ic ct_new = Some D_invalidated
                       | None => True
                       end)
               /\
-                 forall v0 : PProdVarOrder.T,
+                 forall v0 : CEP.key,
                      if v0 \in input_list then True
-                     else module_graph_connection_trees_p.find v0 ct_old = module_graph_connection_trees_p.find v0 ct_new
+                     else CEP.find v0 ct_old = CEP.find v0 ct_new
           | _ => False
           end
    | Swire v _ =>
@@ -1716,20 +1723,20 @@ Fixpoint Sem_frag_stmt (vm_old : module_graph_vertex_set_p.env) (ct_old : module
               (* ground-type wires are defined *)
               (forall n : nat,
                    match List.nth_error (list_rhs_type_p newft) n with
-                   | Some gt => module_graph_vertex_set_p.find (fst v, N.add (snd v) (N.of_nat n)) vm_new = Some (Wire gt)
+                   | Some gt => CEP.find (fst v, N.add (snd v) (N.of_nat n)) vm_new = Some (Wire gt)
                    | None => True
                    end)
            /\ (* other vertices do not change *)
               (forall (v0 n0 : N), v0 <> fst v \/ n0 < snd v \/ n0 >= N.add (snd v) (N.of_nat (size_of_ftype newft)) ->
-                   module_graph_vertex_set_p.find (v0, n0) vm_old =
-                   module_graph_vertex_set_p.find (v0, n0) vm_new)
+                   CEP.find (v0, n0) vm_old =
+                   CEP.find (v0, n0) vm_new)
            /\ (* other connections do not change *)
-              (forall (v0 n0 o0 : N), v0 <> fst v \/ n0 < snd v \/ n0 >= N.add (snd v) (N.of_nat (size_of_ftype newft)) \/ o0 <> N0 ->
-                   module_graph_connection_trees_p.find (v0, n0, o0) ct_old =
-                   module_graph_connection_trees_p.find (v0, n0, o0) ct_new)
+              (forall (v0 n0 : N), v0 <> fst v \/ n0 < snd v \/ n0 >= N.add (snd v) (N.of_nat (size_of_ftype newft)) ->
+                   CEP.find (v0, n0) ct_old =
+                   CEP.find (v0, n0) ct_new)
            /\ (* set wires to undefined *)
               forall n0 : N, n0 < size_of_ftype newft ->
-                  module_graph_connection_trees_p.find (fst v, N.add (snd v) n0, N0) ct_new = Some D_undefined
+                  CEP.find (fst v, N.add (snd v) n0) ct_new = Some D_undefined
        | None => False (* should not happen *)
        end
    | Sreg v reg =>
@@ -1753,7 +1760,7 @@ Fixpoint Sem_frag_stmt (vm_old : module_graph_vertex_set_p.env) (ct_old : module
            /\ (* module graph contains ground-type registers *)
               (forall n : nat,
                    match List.nth_error (list_rhs_type_p newft) n with
-                   | Some gt => module_graph_vertex_set_p.find (fst v, N.add (snd v) (N.of_nat n)) vm_new =
+                   | Some gt => CEP.find (fst v, N.add (snd v) (N.of_nat n)) vm_new =
                        Some (Register gt (clock reg) (reset reg)
                                       (if reset reg is Rst rst_sig rst_val
                                        then if type_of_expr rst_sig tmap is Some (exist (Gtyp Fasuncreset) _)
@@ -1771,19 +1778,19 @@ Fixpoint Sem_frag_stmt (vm_old : module_graph_vertex_set_p.env) (ct_old : module
               | Some expr_list =>
                   forall n : nat,
                       match List.nth_error expr_list n with
-                      | Some ex => module_graph_connection_trees_p.find (fst v, N.add (snd v) (N.of_nat n), N0) ct_new = Some (D_fexpr ex)
+                      | Some ex => CEP.find (fst v, N.add (snd v) (N.of_nat n)) ct_new = Some (D_fexpr ex)
                       | None => True
                       end
               | None => False
               end
            /\ (* other vertices do not change *)
               (forall (v0 n0 : N), v0 <> fst v \/ n0 < snd v \/ n0 >= N.add (snd v) (N.of_nat (size_of_ftype newft)) ->
-                  module_graph_vertex_set_p.find (v0, n0) vm_old =
-                  module_graph_vertex_set_p.find (v0, n0) vm_new)
+                  CEP.find (v0, n0) vm_old =
+                  CEP.find (v0, n0) vm_new)
            /\ (* other connections do not change *)
-              (forall (v0 n0 o0 : N), v0 <> fst v \/ n0 < snd v \/ n0 >= N.add (snd v) (N.of_nat (size_of_ftype newft)) \/ o0 <> N0 ->
-                  module_graph_connection_trees_p.find (v0, n0, o0) ct_old =
-                  module_graph_connection_trees_p.find (v0, n0, o0) ct_new)
+              (forall (v0 n0 : N), v0 <> fst v \/ n0 < snd v \/ n0 >= N.add (snd v) (N.of_nat (size_of_ftype newft)) ->
+                  CEP.find (v0, n0) ct_old =
+                  CEP.find (v0, n0) ct_new)
        | None => False (* should not happen *)
        end
    | Snode v expr =>
@@ -1792,23 +1799,23 @@ Fixpoint Sem_frag_stmt (vm_old : module_graph_vertex_set_p.env) (ct_old : module
               (* ground-type nodes are defined *)
               (forall n : nat,
                    match List.nth_error (list_rhs_type_p newft) n with
-                   | Some gt => module_graph_vertex_set_p.find (fst v, N.add (snd v) (N.of_nat n)) vm_new = Some (Node gt)
+                   | Some gt => CEP.find (fst v, N.add (snd v) (N.of_nat n)) vm_new = Some (Node gt)
                    | None => True
                    end)
            /\ (* other vertices do not change *)
               (forall (v0 n0 : N), v0 <> fst v \/ n0 < snd v \/ n0 >= N.add (snd v) (N.of_nat (size_of_ftype newft)) ->
-                   module_graph_vertex_set_p.find (v0, n0) vm_old =
-                   module_graph_vertex_set_p.find (v0, n0) vm_new)
+                   CEP.find (v0, n0) vm_old =
+                   CEP.find (v0, n0) vm_new)
            /\ (* other connections do not change *)
-              (forall (v0 n0 o0 : N), v0 <> fst v \/ n0 < snd v \/ n0 >= N.add (snd v) (N.of_nat (size_of_ftype newft)) \/ o0 <> N0 ->
-                   module_graph_connection_trees_p.find (v0, n0, o0) ct_old =
-                   module_graph_connection_trees_p.find (v0, n0, o0) ct_new)
+              (forall (v0 n0 : N), v0 <> fst v \/ n0 < snd v \/ n0 >= N.add (snd v) (N.of_nat (size_of_ftype newft)) ->
+                   CEP.find (v0, n0) ct_old =
+                   CEP.find (v0, n0) ct_new)
            /\ (* set nodes to the respective part of the expression *)
               match list_rhs_expr_p expr newft with
               | Some expr_list =>
                   forall n : nat,
                       match List.nth_error expr_list n with
-                      | Some ex => module_graph_connection_trees_p.find (fst v, N.add (snd v) (N.of_nat n), N0) ct_new = Some (D_fexpr ex)
+                      | Some ex => CEP.find (fst v, N.add (snd v) (N.of_nat n)) ct_new = Some (D_fexpr ex)
                       | None => True
                       end
               | None => False
@@ -1819,23 +1826,23 @@ Fixpoint Sem_frag_stmt (vm_old : module_graph_vertex_set_p.env) (ct_old : module
    | Sinst var1 var2 => False (* ? *)
    | Swhen cond ss_true ss_false =>
        if type_of_expr cond tmap is Some (exist (Gtyp (Fuint 1)) _)
-       then exists (vm_true : module_graph_vertex_set_p.env) (ct_true ct_false : module_graph_connection_trees_p.env),
+       then exists (vm_true : CEP.t vertex_type) (ct_true ct_false : CEP.t def_expr),
                    Sem_frag_stmts vm_old ct_old ss_true vm_true ct_true tmap
                 /\
                    Sem_frag_stmts vm_true ct_old ss_false vm_new ct_false tmap
                 /\
-                   module_graph_connection_trees_p.Equal ct_new
-                       (module_graph_connection_trees_p.map2 (Swhen_map2_helper cond) ct_true ct_false)
+                   CEP.Equal ct_new
+                       (CEP.map2 (Swhen_map2_helper cond) ct_true ct_false)
        else False
 end
-with Sem_frag_stmts (vm_old : module_graph_vertex_set_p.env) (ct_old : module_graph_connection_trees_p.env) (ss : HiFP.hfstmt_seq) (vm_new : module_graph_vertex_set_p.env) (ct_new : module_graph_connection_trees_p.env) (tmap : CEP.t ftype) : Prop :=
+with Sem_frag_stmts (vm_old : CEP.t vertex_type) (ct_old : CEP.t def_expr) (ss : HiFP.hfstmt_seq) (vm_new : CEP.t vertex_type) (ct_new : CEP.t def_expr) (tmap : CEP.t ftype) : Prop :=
 match ss with
 | Qnil =>
-       module_graph_vertex_set_p.Equal vm_old vm_new
+       CEP.Equal vm_old vm_new
     /\
-       module_graph_connection_trees_p.Equal ct_old ct_new
+       CEP.Equal ct_old ct_new
 | Qcons s ss' =>
-    exists (vm' : module_graph_vertex_set_p.env) (ct' : module_graph_connection_trees_p.env),
+    exists (vm' : CEP.t vertex_type) (ct' : CEP.t def_expr),
            Sem_frag_stmt vm_old ct_old s vm' ct' tmap
         /\
            Sem_frag_stmts vm' ct' ss' vm_new ct_new tmap
@@ -1845,7 +1852,7 @@ end.
 (*---------------------------------------------------------------------------*)
 (* Semantics of module                                                       *)
 
-Definition Sem (F : HiFP.hfmodule) (vm : module_graph_vertex_set_p.env) (ct : module_graph_connection_trees_p.env) : Prop :=
+Definition Sem (F : HiFP.hfmodule) (vm : CEP.t vertex_type) (ct : CEP.t def_expr) : Prop :=
 (* The predicate returns True if G = (vm, ct) conforms to F.
    (If F has errors, there is no such G.)
    (If F has implicit width components, then there are many such Gs.)
@@ -1867,9 +1874,9 @@ match F with
                            forall v2' : N, v2' <> v2 -> CEP.find (v1, v2') tmap = None
                     end)
             /\
-               (exists (vm' : module_graph_vertex_set_p.env) (ct' : module_graph_connection_trees_p.env),
-                      Sem_frag_ports (module_graph_vertex_set_p.empty vertex_type)
-                                     (module_graph_connection_trees_p.empty def_expr)
+               (exists (vm' : CEP.t vertex_type) (ct' : CEP.t def_expr),
+                      Sem_frag_ports (CEP.empty vertex_type)
+                                     (CEP.empty def_expr)
                                      pp vm' ct' tmap
                    /\
                       Sem_frag_stmts vm' ct' ss vm ct tmap)
