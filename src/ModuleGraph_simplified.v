@@ -28,8 +28,7 @@ Inductive vertex_type :=
                                 (the output goes to some place outside the module) *) -> vertex_type |
    InPort : fgtyp -> vertex_type | (* main module only at present *)
    (* register, wire etc. *)
-   Register : fgtyp -> vertex_type | (* Register that is not reset *)
-   RegisterReset : fgtyp -> bool -> vertex_type | (* Register with reset input. The boolean is true if it is Fasyncreset. *)
+   Register : fgtyp -> HiFP.hfexpr (* clock *) -> HiFP.rst -> bool (* true if the reset is Fasyncreset *) -> vertex_type | (* Register, possibly with reset. The boolean is true if it is Fasyncreset. *)
    Wire : fgtyp -> vertex_type |
    (*memory : ?
    inst : ?*)
@@ -37,19 +36,18 @@ Inductive vertex_type :=
 
 (* equality of vertex_type is decidable *)
 Lemma vertex_type_eq_dec : forall {x y : vertex_type}, {x = y} + {x <> y}.
-Proof.  decide equality ; try apply fgtyp_eq_dec ; decide equality.  Qed.
-
+Proof.  decide equality ; try apply fgtyp_eq_dec. decide equality. apply rst_eq_dec. apply hfexpr_eq_dec. Qed.
 Definition vertex_type_eqn (x y : vertex_type) : bool :=
 match x, y with
-| OutPort i, OutPort j
-| InPort i, InPort j => i == j
+| OutPort tx, OutPort ty
+| InPort tx, InPort ty
 (*| Reference a, Reference b*)
-| Register a, Register b
-| Wire a, Wire b
+| Wire tx, Wire ty
 (*memory : ?
 inst : ?*)
-| Node a, Node b => a == b
-| RegisterReset a r1, RegisterReset b r2 => (a == b) && (r1 == r2)
+| Node tx, Node ty => tx == ty
+| Register tx cx rx bx, Register ty cy ry by_ =>
+    (tx == ty) && (cx == cy) && (rx == ry) && (bx == by_)
 | _, _ => false
 end.
 Lemma vertex_type_eqP : Equality.axiom vertex_type_eqn.
@@ -57,15 +55,26 @@ Proof.
 rewrite /Equality.axiom ; intros.
 case: (@vertex_type_eq_dec x y) => H.
 * rewrite H /vertex_type_eqn ; clear -y.
-  destruct y ; rewrite eq_refl ; try rewrite eq_refl andTb ; apply ReflectT ; reflexivity.
+  destruct y ; rewrite eq_refl ; try rewrite andTb eq_refl ;
+  try rewrite andTb eq_refl ; try rewrite andTb eq_refl ;
+  apply ReflectT ; reflexivity.
 * rewrite /vertex_type_eqn.
   destruct x, y ; try contradiction ; try (apply ReflectF ; exact H).
-  + 4:
+  + 3:
     destruct (b == b0) eqn: Hb ;
-    try (rewrite andFb ; apply ReflectF ; exact H) ;
-    move /eqP : Hb => Hb ; try rewrite Hb andbT ;
-    try (rewrite andbF ; apply ReflectF ; injection ; intros ; done) ;
-    rewrite Hb in H ; clear Hb.
+    last (by rewrite andbF ; apply ReflectF ; exact H) ;
+    rewrite andbT ;
+    destruct (r == r0) eqn: Hr ;
+    last (by rewrite andbF ; apply ReflectF ; exact H) ;
+    rewrite andbT ;
+    destruct (h == h0) eqn: Hh ;
+    last (by rewrite andbF ; apply ReflectF ; exact H) ;
+    rewrite andbT ;
+    destruct (f == f0) eqn: Hf ;
+    last (by apply ReflectF ; exact H) ;
+    apply ReflectT ; move /eqP : Hb => Hb ; move /eqP : Hr => Hr ;
+    move /eqP : Hh => Hh ; move /eqP: Hf => Hf ;
+    rewrite Hb Hr Hh Hf //.
   + all:
     assert (f <> f0) by (contradict H ; rewrite H ; reflexivity) ;
     move /eqP : H0 => H0 ; apply negbTE in H0 ;
@@ -101,8 +110,7 @@ Definition  input_connectors (v : vertex_type) : seq fgtyp :=
    match v with
    | InPort _ => [::] (* An InPort has no input connector because the data comes from somewhere outside the module *)
    | OutPort it
-   | Register it
-   | RegisterReset it _
+   | Register it _ _ _
    | Wire it
    | Node it => [:: it]
    (*
@@ -116,8 +124,7 @@ Definition output_connectors (v : vertex_type) : seq fgtyp :=
    match v with
    | OutPort _ => [::] (* An OutPort has no output connector because the data is sent to somewhere outside the module *)
    | InPort it
-   | Register it
-   | RegisterReset it _
+   | Register it _ _ _
    | Wire it
    | Node it => [:: it]
    (*
@@ -506,8 +513,7 @@ match code_t with
     match module_graph_vertex_set_p.find v vm with
     | Some (OutPort newgt)
     | Some (InPort newgt)
-    | Some (Register newgt)
-    | Some (RegisterReset newgt _)
+    | Some (Register newgt _ _ _)
     | Some (Wire newgt)
     | Some (Node newgt) =>
         if code_vm_type_equivalent oldgt newgt
@@ -1289,6 +1295,46 @@ match ff with
 | Fflips _ Flipped _ _ => None
 end.
 
+Lemma list_rhs_ref_p_size :
+forall (ft : ftype) (ref : HiFP.href),
+   match list_rhs_ref_p ref ft with
+   | Some expr_list => size expr_list = size_of_ftype ft
+   | None => True
+   end
+with list_rhs_ref_p_fields_size :
+forall (ff : ffield) (ref : HiFP.href),
+   match list_rhs_ref_p_fields ref ff with
+   | Some expr_list => size expr_list = size_of_fields ff
+   | None => True
+   end.
+Proof.
+* clear list_rhs_ref_p_size.
+  induction ft ; intro ; simpl ; first by done.
+  + induction n ; simpl ; first by rewrite muln0 //.
+    destruct (iteri n
+              (fun (i : nat) (ol : option (seq HiFP.hfexpr)) =>
+               match ol with
+               | Some l =>
+                   match list_rhs_ref_p (Esubindex ref i) ft with
+                   | Some li => Some (l ++ li)
+                   | None => None
+                   end
+               | None => None
+               end) (Some [::])) ; last by done.
+    specialize (IHft (Esubindex ref n)).
+    destruct (list_rhs_ref_p (Esubindex ref n) ft) ; last by done.
+    rewrite size_cat IHn IHft mulnSr //.
+  + apply list_rhs_ref_p_fields_size.
+* clear list_rhs_ref_p_fields_size.
+  induction ff ; intro ; simpl ; first by done.
+  destruct f ; first by done.
+  specialize (list_rhs_ref_p_size f0 (Esubfield ref v)).
+  destruct (list_rhs_ref_p (Esubfield ref v) f0) ; last by done.
+  specialize (IHff ref).
+  destruct (list_rhs_ref_p_fields ref ff) ; last by done.
+  rewrite size_cat list_rhs_ref_p_size IHff //.
+Qed.
+
 Fixpoint list_rhs_expr_p (expr : HiFP.hfexpr) (ft : ftype) : option (seq HiFP.hfexpr) :=
 (* Finds ground-type components of the expression expr, which is of type ft.
    Does not do type checking but just assumes that expr has type ft.
@@ -1313,6 +1359,48 @@ else match expr with
      | _ => None
      end.
 
+Lemma list_rhs_expr_p_size :
+forall (ft : ftype) (expr : HiFP.hfexpr),
+   match list_rhs_expr_p expr ft with
+   | Some expr_list => size expr_list = size_of_ftype ft
+   | None => True
+   end.
+Proof.
+induction ft ; intro ; first by destruct expr ; simpl ; done.
+* induction expr ; simpl ; try done.
+  + destruct (list_rhs_expr_p expr2 (Atyp ft n)) ; last by done.
+    destruct (list_rhs_expr_p expr3 (Atyp ft n)) ; last by done.
+    rewrite IHexpr2 IHexpr3 eq_refl.
+    simpl size_of_ftype in IHexpr2, IHexpr3.
+    rewrite size_map size_zip IHexpr2 IHexpr3 /minn ltnn //.
+  + induction n ; simpl ; first by rewrite muln0 //.
+    destruct (iteri n
+          (fun (i : nat) (ol : option (seq HiFP.hfexpr)) =>
+           match ol with
+           | Some l =>
+               match list_rhs_ref_p (Esubindex h i) ft with
+               | Some li => Some (l ++ li)
+               | None => None
+               end
+           | None => None
+           end) (Some [::])) ; last by trivial.
+    generalize (list_rhs_ref_p_size ft (Esubindex h n)) ; intro.
+    destruct (list_rhs_ref_p (Esubindex h n) ft) ; last by done.
+    rewrite size_cat IHn H mulnSr //.
+* induction expr ; simpl ; try done.
+  + destruct (list_rhs_expr_p expr2 (Btyp f)) ; last by done.
+    destruct (list_rhs_expr_p expr3 (Btyp f)) ; last by done.
+    rewrite IHexpr2 IHexpr3 eq_refl.
+    simpl size_of_ftype in IHexpr2, IHexpr3.
+    rewrite size_map size_zip IHexpr2 IHexpr3 /minn ltnn //.
+  + induction f ; simpl ; first by done.
+    destruct f ; first by done.
+    generalize (list_rhs_ref_p_size f0 (Esubfield h v)) ; intro.
+    destruct (list_rhs_ref_p (Esubfield h v) f0) ; last by done.
+    destruct (list_rhs_ref_p_fields h f1) ; last by done.
+    rewrite size_cat H IHf //.
+Qed.
+
 Fixpoint list_rhs_type_p (ft : ftype) : seq fgtyp :=
 (* Finds the types of ground-type components of type ft.
    (In contrast to the older function vtype_list, this function does not convert Freset to
@@ -1332,6 +1420,21 @@ match ff with
 | Fflips _ _ ft' ff' => (list_rhs_type_p ft') ++ (list_rhs_ffield_p ff')
 end.
 
+Lemma list_rhs_type_p_size :
+forall (ft : ftype),
+   size (list_rhs_type_p ft) = size_of_ftype ft
+with list_rhs_ffield_p_size :
+forall (ff : ffield),
+   size (list_rhs_ffield_p ff) = size_of_fields ff.
+Proof.
+* clear list_rhs_type_p_size.
+  induction ft ; simpl ; try done.
+  induction n ; simpl ; first by rewrite muln0 //.
+  rewrite size_cat IHn IHft -mulnSr //.
+* clear list_rhs_ffield_p_size.
+  induction ff ; simpl ; first by done.
+  rewrite size_cat list_rhs_type_p_size IHff //.
+Qed.
 
 (*---------------------------------------------------------------------------*)
 (* Semantics of ports                                                        *)
@@ -1573,8 +1676,8 @@ Fixpoint Sem_frag_stmt (vm_old : module_graph_vertex_set_p.env) (ct_old : module
           | Some ft_ref, Some (exist ft_expr _) =>
                  connect_type_compatible false ft_ref ft_expr false
               /\
-                 match list_lhs_ref_p ref ft_ref, list_rhs_expr_p expr ft_expr with
-                 | Some input_list, Some expr_list =>
+                 match list_lhs_ref_p ref tmap, list_rhs_expr_p expr ft_expr with
+                 | Some (input_list, _), Some expr_list =>
                         (forall n : nat,
                              match List.nth_error input_list n, List.nth_error expr_list n with
                              | Some ic, Some ex => module_graph_connection_trees_p.find ic ct_new = Some (D_fexpr ex)
@@ -1633,40 +1736,31 @@ Fixpoint Sem_frag_stmt (vm_old : module_graph_vertex_set_p.env) (ct_old : module
        match CEP.find v tmap with
        | Some newft => (* aggregate-type register *)
               match reset reg with
-              | Rst rst_sig rst_val =>
-                     (* type check rst_sig *)
+              | Rst rst_sig rst_val => (* type check rst_sig *)
                      match type_of_expr rst_sig tmap with
-                     | Some (exist (Gtyp (Fuint 1)) _) =>
-                         (* module graph contains ground-type registers with synchronous reset *)
-                         forall n : nat,
-                             match List.nth_error (list_rhs_type_p newft) n with
-                             | Some gt => module_graph_vertex_set_p.find (fst v, N.add (snd v) (N.of_nat n)) vm_new = Some (RegisterReset gt false)
-                             | None => True
-                             end
-                     | Some (exist (Gtyp Fasyncreset) _) =>
-                         (* module graph contains ground-type registers with asynchronous reset *)
-                         forall n : nat,
-                             match List.nth_error (list_rhs_type_p newft) n with
-                             | Some gt => module_graph_vertex_set_p.find (fst v, N.add (snd v) (N.of_nat n)) vm_new = Some (RegisterReset gt true)
-                             | None => True
-                             end
-                     | _ => False
+                     | Some (exist (Gtyp (Fuint 1)) _)
+                     | Some (exist (Gtyp Fasyncreset) _) => true
+                     | _ => false
                      end
                   /\ (* type check rst_val -- also ensures that newft is passive *)
                      match type_of_expr rst_val tmap with
                      | Some (exist rst_val_type _) => connect_type_compatible false newft rst_val_type false
-                     | None => False
+                     | None => false
                      end
-              | NRst =>
-                     (* module graph contains ground-type registers without reset *)
-                     (forall n : nat,
-                          match List.nth_error (list_rhs_type_p newft) n with
-                          | Some gt => module_graph_vertex_set_p.find (fst v, N.add (snd v) (N.of_nat n)) vm_new = Some (Register gt)
-                          | None => True
-                          end)
-                  /\ (* type check newft: we only need to verify newft is passive *)
-                     ftype_is_passive newft
+              | NRst => (* type check newft: we only need to verify newft is passive *)
+                   ftype_is_passive newft
               end
+           /\ (* module graph contains ground-type registers *)
+              (forall n : nat,
+                   match List.nth_error (list_rhs_type_p newft) n with
+                   | Some gt => module_graph_vertex_set_p.find (fst v, N.add (snd v) (N.of_nat n)) vm_new =
+                       Some (Register gt (clock reg) (reset reg)
+                                      (if reset reg is Rst rst_sig rst_val
+                                       then if type_of_expr rst_sig tmap is Some (exist (Gtyp Fasuncreset) _)
+                                            then true else false
+                                       else false))
+                   | None => True
+                   end)
            /\ (* type check clock *)
               match type_of_expr (clock reg) tmap with
               | Some (exist (Gtyp Fclock) _) => True
