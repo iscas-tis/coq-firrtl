@@ -101,38 +101,6 @@ Definition Fasyncreset_exp : fgtyp_explicit :=
    (* convert Fasyncreset to an explicit-width data type *)
    exist not_implicit_width Fasyncreset I.
 
-(* Input and output connectors of vertices *)
-
-Definition  input_connectors (v : vertex_type) : seq fgtyp :=
-   (* calculates the list of data types of input connectors of a vertex.
-      It should be a list because the function of different input connectors can be different
-      (for example with the multiplexer). *)
-   match v with
-   | InPort _ => [::] (* An InPort has no input connector because the data comes from somewhere outside the module *)
-   | OutPort it
-   | Register it _ _ _
-   | Wire it
-   | Node it => [:: it]
-   (*
-   reference it
-   memory : ?
-   inst : ? *)
-   end.
-
-Definition output_connectors (v : vertex_type) : seq fgtyp :=
-(* a list of types of the output connectors of a vertex of type v. *)
-   match v with
-   | OutPort _ => [::] (* An OutPort has no output connector because the data is sent to somewhere outside the module *)
-   | InPort it
-   | Register it _ _ _
-   | Wire it
-   | Node it => [:: it]
-   (*
-   reference it
-   memory : ?
-   inst : ? *)
-   end.
-
 (* vertex set of a module graph (using pairs of natural numbers as keys) *)
 
 (* The vertex set should have type CEP.t vertex_type. *)
