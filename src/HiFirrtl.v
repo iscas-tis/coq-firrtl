@@ -81,11 +81,27 @@ Section HiFirrtl.
 
   Inductive rst : Type :=
   | NRst : rst
-  | Rst : hfexpr -> hfexpr -> rst.
+  | Rst : hfexpr (* reset trigger signal *) -> hfexpr (* reset value *) -> rst.
 
-  Axiom rst_eq_dec : forall {x y : rst}, {x = y} + {x <> y}.
-  Parameter rst_eqn : forall (x y : rst), bool.
-  Axiom rst_eqP : Equality.axiom rst_eqn.
+  Lemma rst_eq_dec : forall {x y : rst}, {x = y} + {x <> y}.
+  Proof.  decide equality ; apply hfexpr_eq_dec.  Qed.
+  Definition rst_eqn (x y : rst) : bool :=
+  match x, y with
+  | NRst, NRst => true
+  | Rst t1 r1, Rst t2 r2 => (t1 == t2) && (r1 == r2)
+  | _, _ => false
+  end.
+  Lemma rst_eqP : Equality.axiom rst_eqn.
+  Proof.
+  unfold Equality.axiom, rst_eqn ; intros.
+  destruct x, y ; try (apply ReflectF ; discriminate) ; try (apply ReflectT ; reflexivity).
+  destruct (h == h1) eqn: H1 ; move /eqP : H1 => H1.
+  * rewrite andTb ; destruct (h0 == h2) eqn: H2 ; move /eqP : H2 => H2.
+    + apply ReflectT ; rewrite H1 H2 ; reflexivity.
+    + apply ReflectF ; contradict H2 ; injection H2 ; done.
+  * rewrite andFb ; apply ReflectF.
+    contradict H1 ; injection H1 ; done.
+  Qed.
   Canonical rst_eqMixin := EqMixin rst_eqP.
   Canonical rst_eqType := Eval hnf in EqType rst rst_eqMixin.
 
@@ -97,6 +113,25 @@ Section HiFirrtl.
         clock : hfexpr;
         reset : rst
       }.
+
+  Lemma hfreg_eq_dec : forall {x y : hfreg}, {x = y} + {x <> y}.
+  Proof.  decide equality.  apply rst_eq_dec.  apply hfexpr_eq_dec.  apply ftype_eq_dec.  Qed.
+  Definition hfreg_eqn (x y : hfreg) : bool :=
+  (type x == type y) && (clock x == clock y) && (reset x == reset y).
+  Lemma hfreg_eqP : Equality.axiom hfreg_eqn.
+  Proof.
+  unfold Equality.axiom, hfreg_eqn.
+  destruct x, y ; simpl.
+  destruct (type0 == type1) eqn: Ht ; move /eqP : Ht => Ht.
+  * rewrite andTb ; destruct (clock0 == clock1) eqn: Hc ; move /eqP : Hc => Hc.
+    + rewrite andTb ; destruct (reset0 == reset1) eqn: Hr ; move /eqP : Hr => Hr.
+      - rewrite Ht Hc Hr ; apply ReflectT ; reflexivity.
+      - apply ReflectF ; contradict Hr ; injection Hr ; done.
+    + apply ReflectF ; contradict Hc ; injection Hc ; done.
+  * apply ReflectF ; contradict Ht ; injection Ht ; done.
+  Qed.
+  Canonical hfreg_eqMixin := EqMixin hfreg_eqP.
+  Canonical hfreg_eqType := Eval hnf in EqType hfreg hfreg_eqMixin.
 
   Definition inst_ports : Type := seq var.
 
@@ -140,6 +175,22 @@ Section HiFirrtl.
    match s1 with Qnil => s2
                | Qcons h1 tl1 => Qcons h1 (Qcat tl1 s2) end.
 
+   Lemma Qcats0 : forall (ss : hfstmt_seq),
+      Qcat ss Qnil = ss.
+   Proof.
+   induction ss.
+   * by unfold Qcat ; reflexivity.
+   * by simpl Qcat ; rewrite IHss ; reflexivity.
+   Qed.
+
+   Lemma Qcat_assoc : forall (ss1 ss2 ss3 : hfstmt_seq),
+      Qcat (Qcat ss1 ss2) ss3 = Qcat ss1 (Qcat ss2 ss3).
+   Proof.
+   induction ss1.
+   * simpl Qcat ; by reflexivity.
+   * intros ; simpl Qcat ; rewrite IHss1 ; reflexivity.
+   Qed.
+
    Fixpoint Qcatrev (s1 s2 : hfstmt_seq) : hfstmt_seq := (* calculates the reversal of s1, followed by s2 *)
    match s1 with Qnil => s2
                | Qcons h1 tl1 => Qcatrev tl1 (Qcons h1 s2) end.
@@ -156,6 +207,16 @@ Section HiFirrtl.
    | Qnil => Qcons s Qnil
    | Qcons h tl => Qcons h (Qrcons tl s)
    end.
+
+   Lemma Qcat_rcons : forall (ss1 : hfstmt_seq) (s : hfstmt) (ss2 : hfstmt_seq),
+      Qcat (Qrcons ss1 s) ss2 = Qcat ss1 (Qcons s ss2).
+   Proof.
+   induction ss1.
+   * unfold Qrcons ; simpl Qcat ; reflexivity.
+   * simpl Qrcons ; simpl Qcat.
+     intros.
+     rewrite IHss1 ; reflexivity.
+   Qed.
 
   (* Fixpoint Qfoldl {R : Type} (f : R -> hfstmt -> R) (s : hfstmt_seq) (default : R) :=
    match s with Qnil => default
