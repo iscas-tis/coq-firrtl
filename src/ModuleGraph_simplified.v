@@ -534,10 +534,75 @@ match pp with
 | Finput v t :: pp'
 | Foutput v t :: pp' =>
     match code_type_find_vm_widths t v vm, ports_tmap pp' vm with
-    | Some (newt, _), Some tmap' => Some (CEP.add v newt tmap')
+    | Some (newt, _), Some tmap' =>
+        match CEP.find v tmap' with
+        | Some _ => None
+        | None => Some (CEP.add v newt tmap')
+        end
     | _, _ => None
     end
 end.
+
+Fixpoint ports_names (pp : seq HiFP.hfport) : seq CEP.key :=
+match pp with
+| [::] => [::]
+| Finput  v _ :: pp'
+| Foutput v _ :: pp' => v :: (ports_names pp')
+end.
+
+Lemma ports_tmap_names :
+forall (vm : CEP.t vertex_type) (pp : seq HiFP.hfport),
+    match ports_tmap pp vm with
+    | Some tmap =>
+        (* the domain of tmap is ports_names pp *)
+        forall y : CEP.key,
+            y \in ports_names pp <-> CEP.find y tmap <> None
+    | None => True
+    end.
+Proof.
+induction pp.
+* unfold ports_tmap, ports_names.
+  intro ; rewrite in_nil ; split ; first by done.
+  intro ; contradict H.
+  specialize (CEP.empty_1 (elt := ftype) (a := y)) ; intro.
+  specialize (CEP.find_2 (m := CEP.empty ftype) (x := y)) ; intro.
+  destruct (CEP.find y (CEP.empty ftype)) ; try by done.
+  specialize (H f) ; specialize (H0 f Logic.eq_refl) ; by contradiction.
+* simpl ports_tmap ; simpl ports_names.
+  destruct a, (code_type_find_vm_widths f s vm) ; try by done.
+  1,2: destruct p as [newt _].
+  1,2: destruct (ports_tmap pp vm) as [tmap|] ; try by done.
+  1,2: destruct (CEP.find s tmap) eqn: Hfind ; try by done.
+  1,2: intro ; specialize (IHpp y).
+  1,2: rewrite in_cons.
+  1,2: destruct (y == s) eqn: Hys.
+  1,3: move /eqP : Hys => Hys ;
+       rewrite orTb Hys CEP.Lemmas.find_add_eq // /PVM.SE.eq eq_refl //.
+  1,2: rewrite orFb CEP.Lemmas.find_add_neq // /PVM.SE.eq Hys //.
+Qed.
+
+Lemma ports_tmap_uniq :
+forall (vm : CEP.t vertex_type) (pp : seq HiFP.hfport),
+    match ports_tmap pp vm with
+    | Some _ => uniq (ports_names pp)
+    | None => true
+    end.
+Proof.
+induction pp ; first by (unfold ports_tmap, ports_names, uniq ; done).
+simpl ports_tmap ; simpl ports_names.
+destruct a, (code_type_find_vm_widths f s vm) ; try by done.
+1,2: destruct p as [newt _].
+1,2: specialize (ports_tmap_names vm pp) ; intro.
+1,2: destruct (ports_tmap pp vm) ; try by done.
+1,2: specialize (H s).
+1,2: destruct (CEP.find s t) ; try by done.
+1,2: destruct H as [H _].
+1,2: simpl uniq.
+1,2: rewrite IHpp andbT.
+1,2: destruct (s \in ports_names pp) eqn: Hpn ; try by done.
+1,2,3,4: rewrite Hpn ; try by done.
+1,2: rewrite Hpn in H ; specialize (H is_true_true) ; done.
+Qed.
 
 Fixpoint stmts_tmap (tmap_scope : CEP.t ftype * CEP.t ftype) (ss : HiFP.hfstmt_seq) (vm : CEP.t vertex_type) : option (CEP.t ftype * CEP.t ftype) :=
 (* extends tmap_scope with the types of the defined components in ss.
