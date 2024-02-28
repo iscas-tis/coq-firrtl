@@ -4,129 +4,7 @@ From nbits Require Import NBits.
 From firrtl Require Import Env Firrtl HiEnv HiFirrtl ModuleGraph TopoSort. (* for hfmodule and its parts *)
 From mathcomp Require Import ssreflect ssrbool ssrnat eqtype seq fintype ssrint ssrfun.
 
-(* Correctness theorem for stmts_tmap:
-- All of the below holds if the output is Some (tmap, var2exprsmap).
-  - The tmap contains exactly the entries for all components that appear in the statement sequence
-    (in addition to the input parameter). [“contains at least” is needed for correctness; “contains
-    at most” is only needed to show minimality.]
-  - The var2exprsmap contains all connections to implicit-width components declared in the statement sequence.
-  * The var2exprsmap does not contain any connection that is not present in the statement sequence
-    (if the input parameter var2exprsmap is the empty map).
-    [This is only needed to show minimality.] *)
-
-Fixpoint stmt_tmap_is_correct (t_in : CEP.t ftype) (v2e_in : var2exprsmap) (s : HiFP.hfstmt) (t_out: CEP.t ftype) (v2e_out: var2exprsmap) : Prop :=
-   match s with
-   | Swire v t => CEP.find v t_in = None ->
-                        CEP.find v t_out = Some t
-                     /\ (forall v' : ProdVarOrder.t, v != v' -> CEP.find v' t_in = CEP.find v' t_out)
-                     /\ module_graph_vertex_set_p.Equal v2e_in v2e_out
-   | Sreg v r => CEP.find v t_in = None ->
-                       CEP.find v t_out = Some (type r)
-                    /\ (forall v' : ProdVarOrder.t, v != v' -> CEP.find v' t_in = CEP.find v' t_out)
-                    /\ (reset r = NRst ProdVarOrder.T -> module_graph_vertex_set_p.Equal v2e_in v2e_out)
-   | Snode v e => CEP.find v t_in = None ->
-                  (type_of_hfexpr e t_in != None) ->
-                       CEP.find v t_out = type_of_hfexpr e t_in
-                    /\ (forall v' : ProdVarOrder.t, v != v' -> CEP.find v' t_in = CEP.find v' t_out)
-                    /\ (module_graph_vertex_set_p.Equal v2e_in v2e_out)
-   | Sfcnct v e =>    CEP.Equal t_in t_out
-                   /\ (* forall t : ftype, CEP.find v t_in = Some t -> the connection is in v2e*) True
-   | Swhen c ss_t ss_f => exists (t_internal : CEP.t ftype) (v2e_internal : var2exprsmap),
-                                stmts_tmap_is_correct t_in v2e_in ss_t t_internal v2e_internal
-                             /\ stmts_tmap_is_correct t_internal v2e_internal ss_f t_out v2e_out
-   | _ =>    CEP.Equal t_in t_out
-          /\ module_graph_vertex_set_p.Equal v2e_in v2e_out
-   end
-with stmts_tmap_is_correct (t_in : CEP.t ftype) (v2e_in : var2exprsmap) (ss : HiFP.hfstmt_seq) (t_out: CEP.t ftype) (v2e_out: var2exprsmap) : Prop :=
-   match ss with
-   | Qnil => CEP.Equal t_in t_out /\ module_graph_vertex_set_p.Equal v2e_in v2e_out
-   | Qcons s ss' => exists (t_internal : CEP.t ftype) (v2e_internal : var2exprsmap),
-                          stmt_tmap_is_correct t_in v2e_in s t_internal v2e_internal
-                       /\ stmts_tmap_is_correct t_internal v2e_internal ss' t_out v2e_out
-   end.
-
-Theorem stmts_tmap_correct :
-   forall (ss : HiFP.hfstmt_seq) (t_in : CEP.t ftype) (v2e_in: var2exprsmap) (t_out: CEP.t ftype) (v2e_out: var2exprsmap),
-      stmts_tmap (t_in, v2e_in) ss = Some (t_out, v2e_out) ->
-         stmts_tmap_is_correct t_in v2e_in ss t_out v2e_out.
-Proof.
-induction ss as [|s ss'].
-* intros.
-  simpl stmts_tmap_is_correct.
-  simpl stmts_tmap in H.
-  injection H ; intros.
-  split.
-  + unfold CEP.Equal ; intro ; rewrite H1 ; reflexivity.
-  + unfold module_graph_vertex_set_p.Equal ; intro ; rewrite H0 ; reflexivity.
-* intros.
-  simpl stmts_tmap_is_correct.
-  simpl stmts_tmap in H.
-  destruct (stmt_tmap (t_in, v2e_in) s) eqn: H0.
-  + destruct p as [t_internal v2e_internal].
-    exists t_internal, v2e_internal.
-    split.
-    - destruct s.
-      * (* Sskip *)
-        simpl stmt_tmap_is_correct.
-        simpl stmt_tmap in H0.
-        injection H0 ; intros.
-        split.
-        + intro ; rewrite H2 ; reflexivity.
-        + unfold module_graph_vertex_set_p.Equal ; intro ; rewrite H1 ; reflexivity.
-      * (* Swire *)
-        simpl stmt_tmap_is_correct.
-        simpl stmt_tmap in H0.
-        intro.
-        rewrite H1 in H0.
-        injection H0 ; intros.
-        split.
-        + rewrite -H3 CEP.Lemmas.find_add_eq // /HiFirrtl.PVM.SE.eq eq_refl //.
-        split.
-        + intros.
-          apply negbTE in H4.
-          rewrite -H3 CEP.Lemmas.find_add_neq // /HiFirrtl.PVM.SE.eq eq_sym H4 //.
-        + unfold module_graph_vertex_set_p.Equal ; intro ; rewrite H2 ; reflexivity.
-      * (* Sreg *)
-        simpl stmt_tmap_is_correct.
-        simpl stmt_tmap in H0.
-        intro.
-        rewrite H1 in H0.
-        destruct (reset h).
-        + injection H0 ; intros.
-          split.
-          - rewrite -H3 CEP.Lemmas.find_add_eq // /HiFirrtl.PVM.SE.eq eq_refl //.
-          split.
-          - intros.
-            apply negbTE in H4.
-            rewrite -H3 CEP.Lemmas.find_add_neq // /HiFirrtl.PVM.SE.eq eq_sym H4 //.
-          - unfold module_graph_vertex_set_p.Equal ; intro ; rewrite H2 ; reflexivity.
-        +(* destruct (tmap_add_expr_connect (v2e_in, s.2) s.1 h1 (type h)) eqn: Htmap ; rewrite Htmap in H0 ; try done.
-          injection H0 ; intros.
-          split.
-          - rewrite -H3 CEP.Lemmas.find_add_eq // /HiFirrtl.PVM.SE.eq eq_refl //.
-          - split ; try done.
-            intros.
-            apply negbTE in H4.
-            rewrite -H3 CEP.Lemmas.find_add_neq // /HiFirrtl.PVM.SE.eq eq_sym H4 //.
-      * (* Smem has not yet been implemented *)
-        unfold stmt_tmap in H0 ; done.
-      * (* Sinst has not yet been implemented *)
-        unfold stmt_tmap in H0 ; done.
-      * (* Snode *)
-        simpl stmt_tmap_is_correct.
-        simpl stmt_tmap in H0.
-        destruct (CEP.find s t_in) eqn: H1 ; try done.
-        destruct (type_of_hfexpr h t_in) eqn: H2 ; try done.
-        destruct (tmap_add_expr_connect (v2e_in, s.2) s.1 h f) eqn: H3 ; try done ; rewrite H3 in H0.
-        injection H0 ; intros.
-        split.
-        + intro.
-
-    - apply IHss ; exact H.
-  + discriminate H.*)
-Admitted.
-
-(* return a fgtyp with the larger width for gtyp *)
+(* return a fgtyp with the larger width for gtyp ft2 *)
 Definition max_fgtyp (ft1 : fgtyp) (ft2 : fgtyp) : option fgtyp :=
   match ft1, ft2 with
   | Fuint w1, Fuint_implicit w2 => Some (Fuint_implicit (max w1 w2))
@@ -519,7 +397,7 @@ Proof.
   apply rwP with (P := (v == v) /\ ftype_equiv f0 f0).
   apply andP.
   split; try done.
-  admit.
+  apply ftype_equiv_refl.
   move : Hfind Heq Hset'.
   apply IHcheckf.
   apply rwP with (P := (v == v) && ftype_equiv f0 f0 /\ fbtyp_equiv checkf newf).
@@ -528,7 +406,7 @@ Proof.
   apply rwP with (P := (v == v) /\ ftype_equiv f0 f0).
   apply andP.
   split; try done.
-  admit.
+  apply ftype_equiv_refl.
   move : Hfind Heq Hset'.
   apply IHcheckf.
   case Hset' : (ft_set_sub f0 nt cnt) => [newt'|]; rewrite Hset' in Hset; try discriminate.
@@ -543,7 +421,7 @@ Proof.
   split; try done.
   move : Hfind Heq Hset'.
   apply ft_set_sub_eq.
-  admit.
+  apply fbtyp_equiv_refl.
   apply rwP with (P := (v == v) && ftype_equiv f0 newt' /\ fbtyp_equiv checkf checkf).
   apply andP.
   split; try done.
@@ -552,8 +430,8 @@ Proof.
   split; try done.
   move : Hfind Heq Hset'.
   apply ft_set_sub_eq.
-  admit.
-Admitted.
+  apply fbtyp_equiv_refl.
+Qed.
 
 Lemma set_find_sub : forall checkt nt nt0 n, ft_set_sub checkt nt n = Some nt0 -> ftype_equiv checkt nt0 -> ft_find_sub nt0 n = Some nt
 with set_find_sub_f : forall checkf nf nf0 n, ft_set_sub_f checkf nf n = Some nf0 -> fbtyp_equiv checkf nf0 -> ft_find_ff nf0 n = Some nf.
@@ -636,7 +514,7 @@ Proof.
   move /andP : Heq => [_ Heq]; done.
   move /andP : Heq => [Heq _].
   move /andP : Heq => [_ Heq]; done.
-Admitted.
+Qed.
 
 Lemma infer_compatible : forall te otype nt, max_fgtyp te otype = Some nt -> connect_fgtyp_compatible nt otype /\ connect_fgtyp_compatible nt te.
 Proof.
@@ -654,116 +532,59 @@ Proof.
     apply rwP with (P := (ow' <= Nat.max ow' w') /\ true).
     apply andP.
     split; try done. 
-    (* rewrite <- Nat.le_max_l. *)
-    admit.
-    admit.
+    apply Nats.le_leq; apply Nat.le_max_l.
+    apply rwP with (P := (w' <= Nat.max ow' w') /\ true).
+    apply andP.
+    split; try done. 
+    apply Nats.le_leq; apply Nat.le_max_r.
   - case Hogt : otype => [ow'|ow'|ow'|ow'|||]; rewrite Hogt in H; simpl in H; try discriminate.
     (* otype = Gtyp (uint ow') *)
     inversion H; clear H. 
     rewrite /connect_fgtyp_compatible.
     simpl.
     rewrite Nat.max_comm.
-    (*specialize Nat.le_max_l with (n := w') (m := ow').*)
-    admit.
+    split.
+    apply rwP with (P := (ow' <= Nat.max ow' w') /\ true).
+    apply andP.
+    split; try done. 
+    apply Nats.le_leq; apply Nat.le_max_l.
+    apply rwP with (P := (w' <= Nat.max ow' w') /\ true).
+    apply andP.
+    split; try done. 
+    apply Nats.le_leq; apply Nat.le_max_r.
   - case Hogt : otype => [ow'|ow'|ow'|ow'|||]; rewrite Hogt in H; simpl in H; try discriminate.
     (* otype = Gtyp (uint ow') *)
     inversion H; clear H. 
     rewrite /connect_fgtyp_compatible.
     simpl.
     rewrite Nat.max_comm.
-    (*specialize Nat.le_max_l with (n := w') (m := ow').*)
-    admit.
+    split.
+    apply rwP with (P := (ow' <= Nat.max ow' w') /\ true).
+    apply andP.
+    split; try done. 
+    apply Nats.le_leq; apply Nat.le_max_l.
+    apply rwP with (P := (w' <= Nat.max ow' w') /\ true).
+    apply andP.
+    split; try done. 
+    apply Nats.le_leq; apply Nat.le_max_r.
   - case Hogt : otype => [ow'|ow'|ow'|ow'|||]; rewrite Hogt in H; simpl in H; try discriminate.
     (* otype = Gtyp (uint ow') *)
     inversion H; clear H. 
     rewrite /connect_fgtyp_compatible.
     simpl.
     rewrite Nat.max_comm.
-    (*specialize Nat.le_max_l with (n := w') (m := ow').*)
-    admit.
+    split.
+    apply rwP with (P := (ow' <= Nat.max ow' w') /\ true).
+    apply andP.
+    split; try done. 
+    apply Nats.le_leq; apply Nat.le_max_l.
+    apply rwP with (P := (w' <= Nat.max ow' w') /\ true).
+    apply andP.
+    split; try done. 
+    apply Nats.le_leq; apply Nat.le_max_r.
   - case Hogt : otype => [ow'|ow'|ow'|ow'|||]; rewrite Hogt in H; simpl in H; try discriminate.
   - case Hogt : otype => [ow'|ow'|ow'|ow'|||]; rewrite Hogt in H; simpl in H; try discriminate.
   - case Hogt : otype => [ow'|ow'|ow'|ow'|||]; rewrite Hogt in H; simpl in H; try discriminate.
-Admitted.
-
-Lemma fgtyp_equiv_dlvr : forall t1 t2 t3, fgtyp_equiv t1 t2 -> fgtyp_equiv t2 t3 -> fgtyp_equiv t1 t3.
-Proof.
-  intros.
-  case Ht1 : t1; case Ht2 : t2; case Ht3 : t3; rewrite Ht1 Ht2 in H; rewrite Ht2 Ht3 in H0; simpl in H; simpl in H0; simpl; try done; try discriminate.
-Qed.
-
-Lemma ftype_equiv_dlvr : forall t1 t2 t3, ftype_equiv t1 t2 -> ftype_equiv t2 t3 -> ftype_equiv t1 t3
-with ftype_equiv_dlvr_f : forall t1 t2 t3, fbtyp_equiv t1 t2 -> fbtyp_equiv t2 t3 -> fbtyp_equiv t1 t3.
-Proof.
-  elim.
-  intros gt1 t2 t3 H H0.
-  case Ht2 : t2 => [gt2|atyp2 n2|btyp2]; rewrite Ht2 in H H0; simpl in H; try discriminate.
-  case Ht3 : t3 => [gt3|atyp3 n3|btyp3]; rewrite Ht3 in H H0; simpl in H0; simpl; try done; try discriminate.
-  move : H H0; apply fgtyp_equiv_dlvr.
-
-  intros atyp1 IH n1 t2 t3 H H0.
-  case Ht2 : t2 => [gt2|atyp2 n2|btyp2]; rewrite Ht2 in H H0; simpl in H; try discriminate.
-  case Ht3 : t3 => [gt3|atyp3 n3|btyp3]; rewrite Ht3 in H H0; simpl in H0; simpl; try done; try discriminate.
-  move /andP : H => [H1 H].
-  move /andP : H0 => [H2 H0].
-  move /eqP : H1 => H1.
-  move /eqP : H2 => H2.
-  apply rwP with (P := (n1 == n3) /\ ftype_equiv atyp1 atyp3).
-  apply andP.
-  split.
-  rewrite H1 -H2; try done.
-  move : H H0; apply IH.
-
-  intros btyp t2 t3 H H0.
-  case Ht2 : t2 => [gt2|atyp2 n2|btyp2]; rewrite Ht2 in H H0; simpl in H; try discriminate.
-  case Ht3 : t3 => [gt3|atyp3 n3|btyp3]; rewrite Ht3 in H H0; simpl in H0; simpl; try done; try discriminate.
-  move : H H0; apply ftype_equiv_dlvr_f.
-
-  elim.
-  intros t2 t3 H H0.
-  case Ht2 : t2 => [|v2 fl2 ft2 f2]; rewrite Ht2 in H H0; simpl in H; try discriminate.
-  case Ht3 : t3 => [|v3 fl3 ft3 f3]; rewrite Ht3 in H0; simpl in H0; try discriminate.
-  simpl; done.
-  intros v1 fl1 ft1 f1 IH t2 t3 H H0.
-  case Ht2 : t2 => [|v2 fl2 ft2 f2]; rewrite Ht2 in H H0; simpl in H; case Hf1 : fl1; rewrite Hf1 in H; try discriminate.
-  case Hf2 : fl2; rewrite Hf2 in H; try discriminate.
-  case Ht3 : t3 => [|v3 fl3 ft3 f3]; rewrite Ht3 Hf2 in H0; simpl in H0; try discriminate.
-  case Hf3 : fl3; rewrite Hf3 in H0; try discriminate.
-  simpl.
-  move /andP : H => [H H1].
-  move /andP : H => [H H']. 
-  move /andP : H0 => [H0 H2].
-  move /andP : H0 => [H0 H3].
-  move /eqP : H => H.
-  move /eqP : H0 => H0.
-  apply rwP with (P := (v1 == v3) && ftype_equiv ft1 ft3 /\ fbtyp_equiv f1 f3).
-  apply andP.
-  split.
-  apply rwP with (P := (v1 == v3) /\ ftype_equiv ft1 ft3).
-  apply andP.
-  split.
-  rewrite H -H0; done.
-  move : H' H3; apply ftype_equiv_dlvr.
-  move : H1 H2; apply IH.
-  case Hf2 : fl2; rewrite Hf2 in H; try discriminate.
-  case Ht3 : t3 => [|v3 fl3 ft3 f3]; rewrite Ht3 Hf2 in H0; simpl in H0; try discriminate.
-  case Hf3 : fl3; rewrite Hf3 in H0; try discriminate.
-  simpl.
-  move /andP : H => [H H1].
-  move /andP : H => [H H']. 
-  move /andP : H0 => [H0 H2].
-  move /andP : H0 => [H0 H3].
-  move /eqP : H => H.
-  move /eqP : H0 => H0.
-  apply rwP with (P := (v1 == v3) && ftype_equiv ft1 ft3 /\ fbtyp_equiv f1 f3).
-  apply andP.
-  split.
-  apply rwP with (P := (v1 == v3) /\ ftype_equiv ft1 ft3).
-  apply andP.
-  split.
-  rewrite H -H0; done.
-  move : H' H3; apply ftype_equiv_dlvr.
-  move : H1 H2; apply IH.
 Qed.
 
 Lemma max_compatible' : forall gte gt tmax, max_fgtyp gte gt = Some tmax -> (sizeof_fgtyp gte <= sizeof_fgtyp tmax) && fgtyp_equiv tmax gte && fgtyp_equiv tmax gt && (sizeof_fgtyp gt <= sizeof_fgtyp tmax).
@@ -775,26 +596,58 @@ Proof.
     inversion H; clear H.
     simpl.
     rewrite Nat.max_comm.
-    admit. (* <= max *)
+    apply rwP with (P := (w' <= Nat.max ow' w') && true && true /\ (ow' <= Nat.max ow' w')).
+    apply andP.
+    split; try apply Nats.le_leq; try apply Nat.le_max_l.
+    apply rwP with (P := (w' <= Nat.max ow' w') && true /\ true).
+    apply andP.
+    split; try done.
+    apply rwP with (P := (w' <= Nat.max ow' w') /\ true).
+    apply andP.
+    split; try done; try apply Nats.le_leq; try apply Nat.le_max_r.
   - case Hgt : gt => [ow'|ow'|ow'|ow'|||]; rewrite Hgt in H; simpl in Hgt; simpl in H; try discriminate.
     inversion H; clear H.
     simpl.
     rewrite Nat.max_comm.
-    admit. (* <= max *)
+    apply rwP with (P := (w' <= Nat.max ow' w') && true && true /\ (ow' <= Nat.max ow' w')).
+    apply andP.
+    split; try apply Nats.le_leq; try apply Nat.le_max_l.
+    apply rwP with (P := (w' <= Nat.max ow' w') && true /\ true).
+    apply andP.
+    split; try done.
+    apply rwP with (P := (w' <= Nat.max ow' w') /\ true).
+    apply andP.
+    split; try done; try apply Nats.le_leq; try apply Nat.le_max_r.
   - case Hgt : gt => [ow'|ow'|ow'|ow'|||]; rewrite Hgt in H; simpl in Hgt; simpl in H; try discriminate.
     inversion H; clear H.
     simpl.
     rewrite Nat.max_comm.
-    admit. (* <= max *)
+    apply rwP with (P := (w' <= Nat.max ow' w') && true && true /\ (ow' <= Nat.max ow' w')).
+    apply andP.
+    split; try apply Nats.le_leq; try apply Nat.le_max_l.
+    apply rwP with (P := (w' <= Nat.max ow' w') && true /\ true).
+    apply andP.
+    split; try done.
+    apply rwP with (P := (w' <= Nat.max ow' w') /\ true).
+    apply andP.
+    split; try done; try apply Nats.le_leq; try apply Nat.le_max_r.
   - case Hgt : gt => [ow'|ow'|ow'|ow'|||]; rewrite Hgt in H; simpl in Hgt; simpl in H; try discriminate.
     inversion H; clear H.
     simpl.
     rewrite Nat.max_comm.
-    admit. (* <= max *)
+    apply rwP with (P := (w' <= Nat.max ow' w') && true && true /\ (ow' <= Nat.max ow' w')).
+    apply andP.
+    split; try apply Nats.le_leq; try apply Nat.le_max_l.
+    apply rwP with (P := (w' <= Nat.max ow' w') && true /\ true).
+    apply andP.
+    split; try done.
+    apply rwP with (P := (w' <= Nat.max ow' w') /\ true).
+    apply andP.
+    split; try done; try apply Nats.le_leq; try apply Nat.le_max_r.
   - case Hgt : gt => [ow'|ow'|ow'|ow'|||]; rewrite Hgt in H; simpl in Hgt; simpl in H; try discriminate.
   - case Hgt : gt => [ow'|ow'|ow'|ow'|||]; rewrite Hgt in H; simpl in Hgt; simpl in H; try discriminate.
   - case Hgt : gt => [ow'|ow'|ow'|ow'|||]; rewrite Hgt in H; simpl in Hgt; simpl in H; try discriminate.
-Admitted.
+Qed.
 
 Lemma max_compatible : forall el tmap eftl initt tmax, fil_ftlist (map (fun e => type_of_hfexpr e tmap) el) = Some eftl -> forall expr gte, expr \in el -> type_of_hfexpr expr tmap = Some (Gtyp gte) -> max_ftlist eftl initt = Some tmax -> (sizeof_fgtyp gte <= sizeof_fgtyp tmax) && fgtyp_equiv tmax gte.
 Proof.
@@ -917,7 +770,7 @@ Proof.
   rewrite -H2; done.
   simpl in H. 
   inversion H.
-  admit.
+  apply fgtyp_equiv_refl.
 
   intros hd tl H init nt Hl.
   split.
@@ -941,32 +794,14 @@ Proof.
   move /andP : Hl => [H1 _].
   move /andP : H1 => [_ H1].
   assert (fgtyp_equiv nt' nt).
-  admit.
+  apply fgtyp_equiv_comm; done.
   move : Htl H0.
   apply fgtyp_equiv_dlvr.
-Admitted.
+Qed.
 
-(* TBD!!重要 *)
+(* TBD!!重要1 simplified type_of_expr_submap *)
 Lemma type_of_hfexpr_eq : forall (expr : HiFP.hfexpr) (pv : ProdVarOrder.t) (nt0 : ftype) (tmap : CEP.t ftype), type_of_hfexpr expr (CEP.add (pv.1, 0%num) nt0 tmap) = type_of_hfexpr expr tmap.
 Proof.
-  elim. 
-  - intros.
-    simpl; done.
-  - (*intros.
-    case Hu : u.
-    simpl.*)
-    admit.
-    admit.
-    admit.
-    admit.
-    admit.
-  - (* ref *)
-    intros ref pv nt0 tmap. 
-    simpl.
-    move : ref.
-    elim. 
-    intro ref.
-    rewrite /base_ref.
 Admitted.
 
 Lemma InferWidth_fun_correct : forall pv el tmap newtm, InferWidth_fun pv el tmap = Some newtm -> forall expr, expr \in el -> 
@@ -1230,50 +1065,55 @@ Proof.
   rewrite H2'; done.
 Qed.
 
-Lemma check_connect_fgtyp_compatible4n ft te : forall n, (forall n0, n0 < n -> ft_check_flip ft (N.of_nat n0) false = Some false) -> (forall n0 gt gte, n0 < n -> ft_check_flip ft (N.of_nat n0) false = Some false -> ft_find_sub ft (N.of_nat n0) = Some gt -> ft_find_sub te (N.of_nat n0) = Some gte ->
-  connect_fgtyp_compatible gt gte) -> ftype_equiv ft te -> check_connect_fgtyp_compatible ft te n.
+Lemma check_connect_fgtyp_compatible4n ft te : forall n, (forall n0 , n0 < n -> (ft_check_flip ft (N.of_nat n0) false = Some false /\ (exists gt gte, ft_find_sub ft (N.of_nat n0) = Some gt /\ ft_find_sub te (N.of_nat n0) = Some gte /\
+  connect_fgtyp_compatible gt gte)) \/ (ft_find_sub ft (N.of_nat n0) = None /\ ft_find_sub te (N.of_nat n0) = None)) -> ftype_equiv ft te -> check_connect_fgtyp_compatible ft te n.
 Proof.
   induction n. 
   intros.
   simpl; done.
-  intros Hnflip H Heq. 
+  intros H Heq. 
   simpl.
-  generalize Hnflip; specialize Hnflip with (n0 := n).
-  rewrite Hnflip; try done.
-  intro Hnflip'.
-  case Htgt : (ft_find_sub ft (N.of_nat n)) => [gt_tgt|].
-  case Hsrc : (ft_find_sub te (N.of_nat n)) => [gt_src|].
+  apply IHn in Heq; clear IHn.
+  specialize H with (n0 := n).
+  assert (n < n.+1).
+  rewrite -(addn1 n).
+  apply leqnn.
+  apply H in H0; clear H.
+  case Hflip : (ft_check_flip ft (N.of_nat n) false) => [b|]; rewrite Hflip in H0.
+  case Htgt : (ft_find_sub ft (N.of_nat n)) => [gt_tgt|]; rewrite Htgt in H0.
+  case Hsrc : (ft_find_sub te (N.of_nat n)) => [gt_src|]; rewrite Hsrc in H0.
+  assert (Some b = Some false /\
+    (exists gt gte : fgtyp,
+    Some gt_tgt = Some gt /\
+    Some gt_src = Some gte /\ connect_fgtyp_compatible gt gte)).
+  admit.
+  clear H0; move : H => [H H0].
+  inversion H; clear H. 
   apply rwP with (P := connect_fgtyp_compatible gt_tgt gt_src /\ check_connect_fgtyp_compatible ft te n).
   apply andP. 
-  split.
-  apply H with (n0 := n); try done.
-  apply Hnflip; try done.
-  apply IHn; try done.
+  split; try done; try apply H0; try done.
+  destruct H0 as [gt [gte H0]].
+  move : H0 => [H0 [H1 H3]]; inversion H0; inversion H1; clear H0 H1; done.
+  admit. (* discriminate 前提H0为false *)
+  case Hsrc : (ft_find_sub te (N.of_nat n)) => [gt_src|]; rewrite Hsrc in H0.
+  admit. (* discriminate 前提H0为false *)
+  case Hb : b; done.
+  assert (ft_find_sub ft (N.of_nat n) = None /\ ft_find_sub te (N.of_nat n) = None).
+  admit.
+  clear H0; move : H => [H H0]; rewrite H H0; done.
   intros.
-  apply Hnflip'.
+  apply H.
   rewrite -(addn1 n).
   move : H0.
   apply ltn_addr.
-  intros.
-  apply H with (n0 := n0); try done.
-  rewrite -(addn1 n).
-  move : H0.
-  apply ltn_addr.
-  apply ftype_eq_find_some with (t2 := te) in Htgt; try done.
-  destruct Htgt as [b [Hb [te' Htgt]]].
-  rewrite Htgt in Hsrc; discriminate.
-  case Hsrc : (ft_find_sub te (N.of_nat n)) => [te'|]; try done.
-  apply ftype_eq_find_some with (t2 := ft) in Hsrc; try done.
-  destruct Hsrc as [b [Hb [ft' Hsrc]]].
-  rewrite Htgt in Hsrc; discriminate.
 Admitted.
 
-Lemma check_connect_non_passive_fgtyp4n ft te : forall n, (forall n0 gt gte, n0 < n -> ft_find_sub ft (N.of_nat n0) = Some gt -> ft_find_sub te (N.of_nat n0) = Some gte ->
+Lemma check_connect_non_passive_fgtyp4n ft te : forall n, (forall n0, n0 < n -> (exists gt gte, ft_find_sub ft (N.of_nat n0) = Some gt /\ ft_find_sub te (N.of_nat n0) = Some gte /\
         match ft_check_flip ft (N.of_nat n0) false with
         | Some false => connect_fgtyp_compatible gt gte
         | Some true => connect_fgtyp_compatible gte gt
-        | None => true
-        end) -> ftype_equiv ft te ->
+        | None => false
+        end) \/ (ft_find_sub ft (N.of_nat n0) = None /\ ft_find_sub te (N.of_nat n0) = None)) -> ftype_equiv ft te ->
         check_connect_non_passive_fgtyp ft te n.
 Proof.
   induction n. 
@@ -1281,69 +1121,53 @@ Proof.
   simpl; done.
   intros H Heq. 
   simpl.
-  case Hflip : (ft_check_flip ft (N.of_nat n) false) => [b|].
-  case Hb : b; rewrite Hb in Hflip.
+  apply IHn in Heq; clear IHn.
+  specialize H with (n0 := n).
+  assert (n < n.+1).
+  rewrite -(addn1 n).
+  apply leqnn.
+  apply H in H0; clear H.
+  case Hflip : (ft_check_flip ft (N.of_nat n) false) => [b|]; rewrite Hflip in H0.
+  case Hb : b; rewrite Hb in Hflip H0.
   (* case1 : flip *)
-  case Htgt : (ft_find_sub ft (N.of_nat n)) => [gt_tgt|].
-  case Hsrc : (ft_find_sub te (N.of_nat n)) => [gt_src|].
+  case Htgt : (ft_find_sub ft (N.of_nat n)) => [gt_tgt|]; rewrite Htgt in H0.
+  case Hsrc : (ft_find_sub te (N.of_nat n)) => [gt_src|]; rewrite Hsrc in H0.
   apply rwP with (P := connect_fgtyp_compatible gt_src gt_tgt /\ check_connect_non_passive_fgtyp ft te n).
   apply andP. 
-  split.
-  specialize H with (n0 := n) (gt := gt_tgt) (gte := gt_src).
-  rewrite Hflip in H. 
-  apply H; try done.
-  apply IHn; try done.
-  intros.
-  case Hflip' : (ft_check_flip ft (N.of_nat n0) false) => [b0|]; try done.
-  apply H with (n0 := n0) (gt := gt) (gte := gte) in H1; try done.
-  rewrite Hflip' in H1; done.
-  rewrite -(addn1 n).
-  move : H0.
-  apply ltn_addr.
-  apply ftype_eq_find_some with (t2 := te) in Htgt; try done.
-  destruct Htgt as [b' [Hb' [te' Htgt]]].
-  rewrite Htgt in Hsrc; discriminate.
-  case Hsrc : (ft_find_sub te (N.of_nat n)) => [te'|]; try done.
-  apply ftype_eq_find_some with (t2 := ft) in Hsrc; try done.
-  destruct Hsrc as [b' [Hb' [ft' Hsrc]]].
-  rewrite Htgt in Hsrc; discriminate.
+  split; try done.
+  assert ((exists gt gte : fgtyp,
+    Some gt_tgt = Some gt /\
+    Some gt_src = Some gte /\ connect_fgtyp_compatible gte gt)).
   admit.
+  clear H0; destruct H as [gt [gte H]].
+  move : H => [H [H1 H2]]; inversion H; inversion H1; done.
+  admit. (* discriminate 前提H0为false *)
+  case Hsrc : (ft_find_sub te (N.of_nat n)) => [gt_src|]; rewrite Hsrc in H0; try done.
+  admit. (* discriminate 前提H0为false *)
   (* case2 : nflip *)
-  case Htgt : (ft_find_sub ft (N.of_nat n)) => [gt_tgt|].
-  case Hsrc : (ft_find_sub te (N.of_nat n)) => [gt_src|].
+  case Htgt : (ft_find_sub ft (N.of_nat n)) => [gt_tgt|]; rewrite Htgt in H0.
+  case Hsrc : (ft_find_sub te (N.of_nat n)) => [gt_src|]; rewrite Hsrc in H0.
   apply rwP with (P := connect_fgtyp_compatible gt_tgt gt_src /\ check_connect_non_passive_fgtyp ft te n).
   apply andP. 
-  split.
-  specialize H with (n0 := n) (gt := gt_tgt) (gte := gt_src).
-  rewrite Hflip in H. 
-  apply H; try done.
-  apply IHn; try done.
+  split; try done.
+  assert ((exists gt gte : fgtyp,
+    Some gt_tgt = Some gt /\
+    Some gt_src = Some gte /\ connect_fgtyp_compatible gt gte)).
+  admit.
+  clear H0; destruct H as [gt [gte H]].
+  move : H => [H [H1 H2]]; inversion H; inversion H1; done.
+  admit. (* discriminate 前提H0为false *)
+  case Hsrc : (ft_find_sub te (N.of_nat n)) => [gt_src|]; rewrite Hsrc in H0; try done.
+  admit. (* discriminate 前提H0为false *)
+
+  assert (ft_find_sub ft (N.of_nat n) = None /\ ft_find_sub te (N.of_nat n) = None).
+  admit.
+  clear H0; move : H => [H H0]; rewrite H H0; done.
   intros.
-  case Hflip' : (ft_check_flip ft (N.of_nat n0) false) => [b0|]; try done.
-  apply H with (n0 := n0) (gt := gt) (gte := gte) in H1; try done.
-  rewrite Hflip' in H1; done.
+  apply H.
   rewrite -(addn1 n).
   move : H0.
   apply ltn_addr.
-  apply ftype_eq_find_some with (t2 := te) in Htgt; try done.
-  destruct Htgt as [b' [Hb' [te' Htgt]]].
-  rewrite Htgt in Hsrc; discriminate.
-  case Hsrc : (ft_find_sub te (N.of_nat n)) => [te'|]; try done.
-  apply ftype_eq_find_some with (t2 := ft) in Hsrc; try done.
-  destruct Hsrc as [b' [Hb' [ft' Hsrc]]].
-  rewrite Htgt in Hsrc; discriminate.
-  admit.
-  case Hsrc : (ft_find_sub te (N.of_nat n)) => [te'|]; try done.
-  apply ftype_eq_find_some with (t2 := ft) in Hsrc; try done.
-  destruct Hsrc as [b' [Hb' [ft' Hsrc]]].
-  apply ftype_eq_check_flip with (n := N.of_nat n) in Heq.
-  rewrite Heq in Hflip.
-  rewrite Hflip in Hb'; discriminate.
-  admit.
-  case Htgt : (ft_find_sub ft (N.of_nat n)) => [ft'|]; try done.
-  apply ftype_eq_find_some with (t2 := te) in Htgt; try done.
-  destruct Htgt as [b' [Hb' [te' Htgt]]].
-  rewrite Htgt in Hsrc; discriminate.
 Admitted.
 
 Lemma infer_cons_order : forall order1 order2 var2exprs tmap tmap' newtm, InferWidths_fun (order1 ++ order2) var2exprs tmap = Some newtm -> InferWidths_fun order1 var2exprs tmap = Some tmap' ->
@@ -1602,15 +1426,15 @@ Proof.
   apply mux_types_eq in H.
   move : H => [H H2].
   apply ftype_equiv_dlvr with (t1 := te1) (t2 := te2) (t3 := te) in H; try done.
-  admit.
+  split; try apply ftype_equiv_comm; try done.
   case Hw : w => [|n0]; rewrite Hw in H; try discriminate.
   case Hn0 : n0; rewrite Hn0 in H; try discriminate.
   rewrite H0 H1 in H.
   apply mux_types_eq in H.
   move : H => [H H2].
   apply ftype_equiv_dlvr with (t1 := te1) (t2 := te2) (t3 := te) in H; try done.
-  admit.
-Admitted.
+  split; try apply ftype_equiv_comm; try done.
+Qed.
 
 (*Lemma type_of_hfexpr_gt : forall e : HiFP.hfexpr, .
 Proof.
@@ -1694,8 +1518,8 @@ Proof.
   simpl in H2.
   rewrite H; simpl in H. 
   inversion H; clear H.
-  rewrite -H1 in H2; simpl in H2.
-  inversion H2; done.
+  case Hf : f; rewrite Hf in H1.
+  1,2,3,4,5,6,7:inversion H1 as [H0]; rewrite -H0 in H2; simpl in H2; inversion H2; done.
   apply nth_error_In in H1.
   apply List.in_nil in H1; done.
 
@@ -1799,6 +1623,7 @@ Proof.
   induction n as [|n]; simpl.
   simpl in H. 
   inversion H.
+  case Hf : f
   simpl; done.
   simpl in H.
   inversion H.
@@ -1893,9 +1718,15 @@ Proof.
   apply split_ref_correct.
 Admitted.
 
+Lemma add_expr_connect_findn_eq : forall var2exprs (v r : ProdVarOrder.t) el, if (v.1 == r.1) then if (v.2 < r.2) then module_graph_vertex_set_p.find v var2exprs = module_graph_vertex_set_p.find v (add_expr_connect r el var2exprs)
+  else if (v.2 >= (N.add r.2 (N.of_nat (length el)))) then module_graph_vertex_set_p.find v var2exprs = module_graph_vertex_set_p.find v (add_expr_connect r el var2exprs) else true
+  else module_graph_vertex_set_p.find v var2exprs = module_graph_vertex_set_p.find v (add_expr_connect r el var2exprs).
+Proof.
+Admitted.
+
 Lemma add_expr_connect_findn : forall rstl (r v : ProdVarOrder.t) (var2exprs0 : var2exprsmap), 
   if (v.1 == r.1) then 
-    if (v.2 <= N.add r.2 (N.of_nat (List.length rstl))) 
+    if ((r.2 <= v.2) && (v.2 < N.add r.2 (N.of_nat (List.length rstl))))
       then match module_graph_vertex_set_p.find v var2exprs0, List.nth_error rstl (N.to_nat (N.sub v.2 r.2)) with
       | Some el0, Some e => module_graph_vertex_set_p.find v (add_expr_connect r rstl var2exprs0) = Some (e :: el0)
       | None, Some e => module_graph_vertex_set_p.find v (add_expr_connect r rstl var2exprs0) = Some [::e]
@@ -1909,246 +1740,169 @@ Proof.
   elim.
   intros.
   case Hvr1 : (v.1 == r.1); simpl; try done.
-  case Hvr2 : (v.2 <= N.add r.2 N0); simpl; try done.
+  rewrite N.add_0_r.
+  assert ((r.2 <= v.2 < r.2) = false).
+  (*case Hvr2 : (r.2 <= v.2).
+  rewrite <- N.nlt_ge in Hvr2.*)
+  admit.
+  rewrite H; done.
+
+  (*case Hvr2 : (v.2 <= N.add r.2 N0); simpl; try done.
   case Hfind : (module_graph_vertex_set_p.find v var2exprs0) => [el0|]; try done.
   case Hnth : (nth_error [::] (N.to_nat (N.sub v.2 r.2))) => [e|]; simpl; try done; try discriminate.
   apply nth_error_In in Hnth.
   apply List.in_nil in Hnth; done.
   case Hnth : (nth_error [::] (N.to_nat (N.sub v.2 r.2))) => [e|]; simpl; try done; try discriminate.
   apply nth_error_In in Hnth.
-  apply List.in_nil in Hnth; done.
+  apply List.in_nil in Hnth; done.*)
 
   intros hd tl IH.
   intros.
   assert (Hlengthadd1 : length (hd :: tl) = length tl + 1).
   simpl; rewrite addn1; done.
   case Hvr1 : (v.1 == r.1); try done.
-  case Hvr2 : (v.2 <= N.add r.2 (N.of_nat (length (hd :: tl)))); try done.
-  rewrite Hlengthadd1 in Hvr2.
-  rewrite leq_eqVlt in Hvr2.
-  case Hvr2' : (v.2 == (N.add r.2 (N.of_nat (length tl + 1)))).
-  move /eqP : Hvr2' => Hvr2'; rewrite Hvr2'.
-  assert (N.to_nat (r.2 + N.of_nat (length tl + 1) - r.2) = length tl + 1).
-  rewrite N.add_comm N.add_sub Nnat.Nat2N.id; done.
-  rewrite H; clear H.
-  assert (nth_error (hd :: tl) (length tl + 1) = nth_error tl (length tl)).
-  assert (hd :: tl = [::hd] ++ tl).
+  case Hvr2 : (r.2 <= v.2).
+  case Hvr2' : (v.2 < (r.2 + N.of_nat (length (hd :: tl)))%num).
+  rewrite Hlengthadd1 in Hvr2'; clear Hlengthadd1.
+  case Hfind : (module_graph_vertex_set_p.find v var2exprs0) => [el0|]; try done.
+  case Hfindr : (module_graph_vertex_set_p.find r var2exprs0) => [ls|].
+  specialize IH with (r := (r.1, N.add r.2 1%num)) (v := v) (var2exprs0 := module_graph_vertex_set_p.add r (hd :: ls) var2exprs0).
+  assert ((r.2 + N.of_nat (length tl + 1))%num = (r.2 + 1 + N.of_nat (length tl))%num).
+  admit.
+  simpl in IH; rewrite Hvr1 -H Hvr2' in IH; clear H.
+  destruct (eqVneq v r).
+  clear IH; rewrite e; rewrite e in Hfind; rewrite Hfindr in Hfind; inversion Hfind; clear Hfind.
+  rewrite N.sub_diag; simpl; rewrite Hfindr.
+  specialize add_expr_connect_findn_eq with (v := r) (r := (r.1, (r.2 + 1)%num)) (var2exprs := (module_graph_vertex_set_p.add r (hd :: ls) var2exprs0)) (el := tl); intro.
+  assert (r.1 == (r.1, (r.2 + 1)%num).1).
   simpl; done.
-  rewrite H; clear H.
-  rewrite -> nth_error_app2.
+  assert (r.2 < (r.1, (r.2 + 1)%num).2).
   simpl.
-  rewrite addn1.
-  rewrite -> subn1; rewrite -pred_Sn; done.
-  simpl.
-  apply Nats.leq_le.
-  rewrite addn1 ltn0Sn //.
+  specialize NltSn with (n := r.2); intro.
+  admit.
+  rewrite H1 H2 in H; clear H1 H2.
+  rewrite -H module_graph_vertex_set_p.F.add_eq_o.
+  rewrite H0; done.
+  apply PVM.SE.eq_refl.
 
-  rewrite H; clear H.
-  case Hfind : (module_graph_vertex_set_p.find v var2exprs0) => [el0|]; try done.
-  specialize nth_error_None with (l := tl) (n := length tl); intro.
-  assert ((length tl <= length tl)%coq_nat).
-  apply Nats.leq_le.
-  rewrite leqnn; done.
-  apply H in H0; clear H.
+  assert ((r.2 + 1)%num <= v.2).
+  admit. (* 由 Hvr2 i *)
+  rewrite H in IH; clear Hvr2 i.
+  rewrite -> module_graph_vertex_set_p.F.add_neq_o in IH.
+  rewrite Hfind in IH. 
+  assert (nth_error tl (N.to_nat (v.2 - (r.2 + 1))) = nth_error (hd :: tl) (N.to_nat (v.2 - r.2))).
+  (*assert (hd :: tl = [::hd] ++ tl).
+  simpl; done.
+  rewrite Nnat.N2Nat.inj_sub -Nats.subn_sub.
+  rewrite Nnat.N2Nat.inj_sub -Nats.subn_sub.
+  rewrite Nnat.N2Nat.inj_add -Nats.addn_add.
   rewrite H0; clear H0.
-  simpl.
-  case Hfindr : (module_graph_vertex_set_p.find r var2exprs0) => [ls|].
-
-  specialize IH with (r := (r.1, N.add r.2 1%num)) (v := v) (var2exprs0 := module_graph_vertex_set_p.add r (hd :: ls) var2exprs0).
-  simpl in IH; rewrite Hvr1 Hvr2' in IH.
-  assert ((r.2 + N.of_nat (length tl + 1))%num <= (r.2 + 1 + N.of_nat (length tl))%num).
-  admit. 
-  rewrite H in IH; clear H.
-  assert (module_graph_vertex_set_p.find v (module_graph_vertex_set_p.add r (hd :: ls) var2exprs0) = Some el0).
-  rewrite -> module_graph_vertex_set_p.F.add_neq_o.
-  admit. (* PVM? *)
-  destruct v; destruct r; simpl in Hvr1; simpl in Hvr2'.
-  move /eqP : Hvr1 => Hvr1; rewrite Hvr1 Hvr2'.
+  rewrite -> nth_error_app2.
+  simpl.*)
   admit.
-  rewrite H in IH; clear H.
-  assert (nth_error tl (N.to_nat (r.2 + N.of_nat (length tl + 1) - (N.add r.2 1%num))) = None).
-  rewrite Nnat.N2Nat.inj_sub.
-  rewrite Nnat.N2Nat.inj_add.
-  rewrite -Nats.addn_add Nnat.Nat2N.id Nnat.N2Nat.inj_add -Nats.addn_add.
-  (*rewrite subnDl.*)
+  specialize nth_error_Some with (l := tl) (n := (N.to_nat (v.2 - (r.2 + 1)))); intro.
+  assert (exists e, nth_error tl (N.to_nat (v.2 - (r.2 + 1))) = Some e).
+  admit. (* 由 H1 *)
+  destruct H2 as [e Hnth]; clear H1.
+  rewrite Hnth in H0; rewrite -H0; rewrite Hnth in IH; clear Hnth H0. 
+  simpl; simpl in IH; rewrite Hfindr //.
+  admit. (* 由H *)
+
+  specialize IH with (r := (r.1, N.add r.2 1%num)) (v := v) (var2exprs0 := module_graph_vertex_set_p.add r [:: hd] var2exprs0).
+  assert ((r.2 + N.of_nat (length tl + 1))%num = (r.2 + 1 + N.of_nat (length tl))%num).
   admit.
-  rewrite H in IH; clear H; done.
+  simpl in IH; rewrite Hvr1 -H Hvr2' in IH; clear H.
+  destruct (eqVneq v r).
+  clear IH; rewrite e; rewrite e in Hfind; rewrite Hfindr in Hfind; inversion Hfind; clear Hfind.
 
-    specialize IH with (r := (r.1, N.add r.2 1%num)) (v := v) (var2exprs0 := module_graph_vertex_set_p.add r [::hd] var2exprs0).
-    simpl in IH; rewrite Hvr1 Hvr2' in IH.
-    assert ((r.2 + N.of_nat (length tl + 1))%num <= (r.2 + 1 + N.of_nat (length tl))%num).
-    admit. 
-    rewrite H in IH; clear H.
-    assert (module_graph_vertex_set_p.find v (module_graph_vertex_set_p.add r [::hd] var2exprs0) = Some el0).
-    rewrite -> module_graph_vertex_set_p.F.add_neq_o.
-    admit.
-    admit.
-    rewrite H in IH; clear H.
-    assert (nth_error tl (N.to_nat (r.2 + N.of_nat (length tl + 1) - (N.add r.2 1%num))) = None).
-    rewrite Nnat.N2Nat.inj_sub.
-    rewrite Nnat.N2Nat.inj_add.
-    rewrite -Nats.addn_add Nnat.Nat2N.id.
-    (*rewrite subnDl.*)
-    admit.
-    rewrite H in IH; clear H; done.
+  assert ((r.2 + 1)%num <= v.2).
+  admit. (* 由 Hvr2 i *)
+  rewrite H in IH; clear Hvr2 i.
+  rewrite -> module_graph_vertex_set_p.F.add_neq_o in IH.
+  rewrite Hfind in IH. 
+  assert (nth_error tl (N.to_nat (v.2 - (r.2 + 1))) = nth_error (hd :: tl) (N.to_nat (v.2 - r.2))).
+  admit.
+  specialize nth_error_Some with (l := tl) (n := (N.to_nat (v.2 - (r.2 + 1)))); intro.
+  assert (exists e, nth_error tl (N.to_nat (v.2 - (r.2 + 1))) = Some e).
+  admit. (* 由 H1 *)
+  destruct H2 as [e Hnth]; clear H1.
+  rewrite Hnth in H0; rewrite -H0; rewrite Hnth in IH; clear Hnth H0. 
+  simpl; simpl in IH; rewrite Hfindr //.
+  admit. (* 由H *)
 
-    specialize nth_error_None with (l := tl) (n := length tl); intro.
-    assert ((length tl <= length tl)%coq_nat).
-    apply Nats.leq_le.
-    rewrite leqnn; done.
-    apply H in H0; clear H.
-    rewrite H0; clear H0.
+    case Hfindr : (module_graph_vertex_set_p.find r var2exprs0) => [ls|].
+    specialize IH with (r := (r.1, N.add r.2 1%num)) (v := v) (var2exprs0 := module_graph_vertex_set_p.add r (hd :: ls) var2exprs0).
+    assert ((r.2 + N.of_nat (length tl + 1))%num = (r.2 + 1 + N.of_nat (length tl))%num).
+    admit.
+    simpl in IH; rewrite Hvr1 -H Hvr2' in IH; clear H.
+    destruct (eqVneq v r).
+    clear IH; rewrite e; rewrite e in Hfind; rewrite Hfindr in Hfind; inversion Hfind; clear Hfind.
+
+    assert ((r.2 + 1)%num <= v.2).
+    admit. (* 由 Hvr2 i *)
+    rewrite H in IH; clear Hvr2 i.
+    rewrite -> module_graph_vertex_set_p.F.add_neq_o in IH.
+    rewrite Hfind in IH. 
+    assert (nth_error tl (N.to_nat (v.2 - (r.2 + 1))) = nth_error (hd :: tl) (N.to_nat (v.2 - r.2))).
+    admit.
+    specialize nth_error_Some with (l := tl) (n := (N.to_nat (v.2 - (r.2 + 1)))); intro.
+    assert (exists e, nth_error tl (N.to_nat (v.2 - (r.2 + 1))) = Some e).
+    admit. (* 由 H1 *)
+    destruct H2 as [e Hnth]; clear H1.
+    rewrite Hnth in H0; rewrite -H0; rewrite Hnth in IH; clear Hnth H0. 
+    simpl; simpl in IH; rewrite Hfindr //.
+    admit. (* 由H *)
+
+    specialize IH with (r := (r.1, N.add r.2 1%num)) (v := v) (var2exprs0 := module_graph_vertex_set_p.add r [:: hd] var2exprs0).
+    assert ((r.2 + N.of_nat (length tl + 1))%num = (r.2 + 1 + N.of_nat (length tl))%num).
+    admit.
+    simpl in IH; rewrite Hvr1 -H Hvr2' in IH; clear H.
+    destruct (eqVneq v r).
+    clear IH; rewrite e; rewrite e in Hfind; rewrite Hfindr in Hfind; inversion Hfind; clear Hfind.
+    rewrite N.sub_diag; simpl; rewrite Hfindr.
+    specialize add_expr_connect_findn_eq with (v := r) (r := (r.1, (r.2 + 1)%num)) (var2exprs := (module_graph_vertex_set_p.add r [::hd] var2exprs0)) (el := tl); intro.
+    assert (r.1 == (r.1, (r.2 + 1)%num).1).
+    simpl; done.
+    assert (r.2 < (r.1, (r.2 + 1)%num).2).
     simpl.
-    case Hfindr : (module_graph_vertex_set_p.find r var2exprs0) => [ls|].
-    specialize IH with (r := (r.1, N.add r.2 1%num)) (v := v) (var2exprs0 := module_graph_vertex_set_p.add r (hd :: ls) var2exprs0).
-    simpl in IH; rewrite Hvr1 Hvr2' in IH.
-    assert ((r.2 + N.of_nat (length tl + 1))%num <= (r.2 + 1 + N.of_nat (length tl))%num).
-    admit. 
-    rewrite H in IH; clear H.
-    assert (module_graph_vertex_set_p.find v (module_graph_vertex_set_p.add r (hd :: ls) var2exprs0) = None).
-    rewrite -> module_graph_vertex_set_p.F.add_neq_o.
+    specialize NltSn with (n := r.2); intro.
     admit.
-    admit.
-    rewrite H in IH; clear H.
-    assert (nth_error tl (N.to_nat (r.2 + N.of_nat (length tl + 1) - (N.add r.2 1%num))) = None).
-    rewrite Nnat.N2Nat.inj_sub.
-    rewrite Nnat.N2Nat.inj_add.
-    rewrite -Nats.addn_add Nnat.Nat2N.id.
-    (*rewrite subnDl.*)
-    admit.
-    rewrite H in IH; clear H; done.
-    specialize IH with (r := (r.1, N.add r.2 1%num)) (v := v) (var2exprs0 := module_graph_vertex_set_p.add r [::hd] var2exprs0).
-    simpl in IH; rewrite Hvr1 Hvr2' in IH.
-    assert ((r.2 + N.of_nat (length tl + 1))%num <= (r.2 + 1 + N.of_nat (length tl))%num).
-    admit. 
-    rewrite H in IH; clear H.
-    assert (module_graph_vertex_set_p.find v (module_graph_vertex_set_p.add r [::hd] var2exprs0) = None).
-    rewrite -> module_graph_vertex_set_p.F.add_neq_o.
-    admit.
-    admit.
-    rewrite H in IH; clear H.
-    assert (nth_error tl (N.to_nat (r.2 + N.of_nat (length tl + 1) - (N.add r.2 1%num))) = None).
-    rewrite Nnat.N2Nat.inj_sub.
-    rewrite Nnat.N2Nat.inj_add.
-    rewrite -Nats.addn_add Nnat.Nat2N.id.
-    (*rewrite subnDl.*)
-    admit.
-    rewrite H in IH; clear H; done.
+    rewrite H0 H1 in H; clear H0 H1.
+    rewrite -H module_graph_vertex_set_p.F.add_eq_o //.
+    apply PVM.SE.eq_refl.
 
-  (*rewrite Hvr2' in Hvr2.*)
-  assert (v.2 <= (r.2 + N.of_nat (length tl))%num).
+    assert ((r.2 + 1)%num <= v.2).
+    admit. (* 由 Hvr2 i *)
+    rewrite H in IH; clear Hvr2 i.
+    rewrite -> module_graph_vertex_set_p.F.add_neq_o in IH.
+    rewrite Hfind in IH. 
+    assert (nth_error tl (N.to_nat (v.2 - (r.2 + 1))) = nth_error (hd :: tl) (N.to_nat (v.2 - r.2))).
+    admit.
+    specialize nth_error_Some with (l := tl) (n := (N.to_nat (v.2 - (r.2 + 1)))); intro.
+    assert (exists e, nth_error tl (N.to_nat (v.2 - (r.2 + 1))) = Some e).
+    admit. (* 由 H1 *)
+    destruct H2 as [e Hnth]; clear H1.
+    rewrite Hnth in H0; rewrite -H0; rewrite Hnth in IH; clear Hnth H0. 
+    simpl; simpl in IH; rewrite Hfindr //.
+    admit. (* 由H *)
+
+  specialize add_expr_connect_findn_eq with (v := v) (r := r) (var2exprs := var2exprs0) (el := hd :: tl); intro.
+  rewrite Hvr1 in H.
+  (* N.le_ngt *)
   admit.
-  clear Hvr2 Hvr2'.
-
-  case Hfind : (module_graph_vertex_set_p.find v var2exprs0) => [el0|]; try done.
-  case Hnth : (nth_error (hd :: tl) (N.to_nat (v.2 - r.2))) => [e|]; simpl.
-  case Hfindr : (module_graph_vertex_set_p.find r var2exprs0) => [ls|].
-  specialize IH with (r := (r.1, N.add r.2 1%num)) (v := v) (var2exprs0 := module_graph_vertex_set_p.add r (hd :: ls) var2exprs0).
-  simpl in IH; rewrite Hvr1 in IH.
-  assert (v.2 <= (r.2 + 1 + N.of_nat (length tl))%num).
-  admit. 
-  rewrite H0 in IH; clear H0.
-  (* IH中有N.to_nat (v.2 - (r.2 + 1)) 从而v.2一定大于等于r.2 + 1？ *)
-  assert (module_graph_vertex_set_p.find v (module_graph_vertex_set_p.add r (hd :: ls) var2exprs0) = Some el0).
-  rewrite -> module_graph_vertex_set_p.F.add_neq_o.
-  admit. (* PVM? *)
+  specialize add_expr_connect_findn_eq with (v := v) (r := r) (var2exprs := var2exprs0) (el := hd :: tl); intro.
+  rewrite Hvr1 in H.
+  (*apply N.leb_gt in Hvr2.*)
   admit.
-  rewrite H0 in IH; clear H0.
-  assert (nth_error tl (N.to_nat (v.2 - (r.2 + 1))) = Some e).
-  admit. (* Hnth *)
-  rewrite H0 in IH; clear H0; done.
+  specialize add_expr_connect_findn_eq with (v := v) (r := r) (var2exprs := var2exprs0) (el := hd :: tl); intro.
+  rewrite Hvr1 in H; done.
 
-    specialize IH with (r := (r.1, N.add r.2 1%num)) (v := v) (var2exprs0 := module_graph_vertex_set_p.add r [::hd] var2exprs0).
-    simpl in IH; rewrite Hvr1 in IH.
-    assert (v.2 <= (r.2 + 1 + N.of_nat (length tl))%num).
-    admit. 
-    rewrite H0 in IH; clear H0.
-    (* IH中有N.to_nat (v.2 - (r.2 + 1)) 从而v.2一定大于等于r.2 + 1？ *)
-    assert (module_graph_vertex_set_p.find v (module_graph_vertex_set_p.add r [::hd] var2exprs0) = Some el0).
-    rewrite -> module_graph_vertex_set_p.F.add_neq_o.
-    admit. (* PVM? *)
-    admit.
-    rewrite H0 in IH; clear H0.
-    assert (nth_error tl (N.to_nat (v.2 - (r.2 + 1))) = Some e).
-    admit. (* Hnth *)
-    rewrite H0 in IH; clear H0; done.
-
-  admit. (* 由H,小于等于length tl，不应为None *)
-
-    case Hnth : (nth_error (hd :: tl) (N.to_nat (v.2 - r.2))) => [e|]; simpl.
-    case Hfindr : (module_graph_vertex_set_p.find r var2exprs0) => [ls|].
-    specialize IH with (r := (r.1, N.add r.2 1%num)) (v := v) (var2exprs0 := module_graph_vertex_set_p.add r (hd :: ls) var2exprs0).
-    simpl in IH; rewrite Hvr1 in IH.
-    assert (v.2 <= (r.2 + 1 + N.of_nat (length tl))%num).
-    admit. 
-    rewrite H0 in IH; clear H0.
-    (* IH中有N.to_nat (v.2 - (r.2 + 1)) 从而v.2一定大于等于r.2 + 1？ *)
-    assert (module_graph_vertex_set_p.find v (module_graph_vertex_set_p.add r (hd :: ls) var2exprs0) = None).
-    rewrite -> module_graph_vertex_set_p.F.add_neq_o.
-    admit. (* PVM? *)
-    admit.
-    rewrite H0 in IH; clear H0.
-    assert (nth_error tl (N.to_nat (v.2 - (r.2 + 1))) = Some e).
-    admit. (* Hnth *)
-    rewrite H0 in IH; clear H0; done.
-
-      specialize IH with (r := (r.1, N.add r.2 1%num)) (v := v) (var2exprs0 := module_graph_vertex_set_p.add r [::hd] var2exprs0).
-      simpl in IH; rewrite Hvr1 in IH.
-      assert (v.2 <= (r.2 + 1 + N.of_nat (length tl))%num).
-      admit. 
-      rewrite H0 in IH; clear H0.
-      (* IH中有N.to_nat (v.2 - (r.2 + 1)) 从而v.2一定大于等于r.2 + 1？ *)
-      assert (module_graph_vertex_set_p.find v (module_graph_vertex_set_p.add r [::hd] var2exprs0) = None).
-      rewrite -> module_graph_vertex_set_p.F.add_neq_o.
-      admit. (* PVM? *)
-      admit.
-      rewrite H0 in IH; clear H0.
-      assert (nth_error tl (N.to_nat (v.2 - (r.2 + 1))) = Some e).
-      admit. (* Hnth *)
-      rewrite H0 in IH; clear H0; done.
-
-    admit. (* 由H,小于等于length tl，不应为None *)
-
-  simpl.
-  case Hfindr : (module_graph_vertex_set_p.find r var2exprs0) => [ls|].
-  specialize IH with (r := (r.1, N.add r.2 1%num)) (v := v) (var2exprs0 := module_graph_vertex_set_p.add r (hd :: ls) var2exprs0).
-  simpl in IH; rewrite Hvr1 in IH.
-  assert ((v.2 <= (r.2 + 1 + N.of_nat (length tl))%num) = false).
-  admit. (* 由Hvr2 *)
-  rewrite H in IH. 
-  assert (module_graph_vertex_set_p.find v (module_graph_vertex_set_p.add r (hd :: ls) var2exprs0) = module_graph_vertex_set_p.find v var2exprs0).
-  rewrite -> module_graph_vertex_set_p.F.add_neq_o; try done.
-  admit.
-  rewrite H0 in IH; clear H0; done.
-    specialize IH with (r := (r.1, N.add r.2 1%num)) (v := v) (var2exprs0 := module_graph_vertex_set_p.add r [::hd] var2exprs0).
-    simpl in IH; rewrite Hvr1 in IH.
-    assert ((v.2 <= (r.2 + 1 + N.of_nat (length tl))%num) = false).
-    admit. (* 由Hvr2 *)
-    rewrite H in IH. 
-    assert (module_graph_vertex_set_p.find v (module_graph_vertex_set_p.add r [::hd] var2exprs0) = module_graph_vertex_set_p.find v var2exprs0).
-    rewrite -> module_graph_vertex_set_p.F.add_neq_o; try done.
-    admit.
-    rewrite H0 in IH; clear H0; done.
-    simpl.
-    case Hfindr : (module_graph_vertex_set_p.find r var2exprs0) => [ls|].
-    specialize IH with (r := (r.1, N.add r.2 1%num)) (v := v) (var2exprs0 := module_graph_vertex_set_p.add r (hd :: ls) var2exprs0).
-    simpl in IH; rewrite Hvr1 in IH.
-    assert (module_graph_vertex_set_p.find v (module_graph_vertex_set_p.add r (hd :: ls) var2exprs0) = module_graph_vertex_set_p.find v var2exprs0).
-    rewrite -> module_graph_vertex_set_p.F.add_neq_o; try done.
-    admit.
-    rewrite H in IH; clear H; done.
-    specialize IH with (r := (r.1, N.add r.2 1%num)) (v := v) (var2exprs0 := module_graph_vertex_set_p.add r [::hd] var2exprs0).
-    simpl in IH; rewrite Hvr1 in IH.
-    assert (module_graph_vertex_set_p.find v (module_graph_vertex_set_p.add r [::hd] var2exprs0) = module_graph_vertex_set_p.find v var2exprs0).
-    rewrite -> module_graph_vertex_set_p.F.add_neq_o; try done.
-    admit.
-    rewrite H in IH; clear H; done.
 Admitted.
 
 Lemma add_expr_non_passive_findn : forall lhsl rhsl (v v_tgt v_src : ProdVarOrder.t) (var2exprs0 var2exprs : var2exprsmap), 
   add_expr_connect_non_passive v_tgt v_src lhsl rhsl var2exprs0 = Some var2exprs ->
   if (v.1 == v_tgt.1) then 
-    if (v.2 <= N.add v_tgt.2 (N.of_nat (List.length rhsl))) 
+    if (v_tgt.2 <= v.2 < N.add v_tgt.2 (N.of_nat (List.length rhsl))) 
       then match module_graph_vertex_set_p.find v var2exprs0, List.nth_error rhsl (N.to_nat (N.sub v.2 v_tgt.2)) with
       | Some el0, Some (e, false) => module_graph_vertex_set_p.find v var2exprs = Some ((Eref e) :: el0) 
       | None, Some (e, false) => module_graph_vertex_set_p.find v var2exprs = Some [::(Eref e)] 
@@ -2157,7 +1911,7 @@ Lemma add_expr_non_passive_findn : forall lhsl rhsl (v v_tgt v_src : ProdVarOrde
     else
     module_graph_vertex_set_p.find v var2exprs0 = module_graph_vertex_set_p.find v var2exprs
   else if (v.1 == v_src.1) then
-    if (v.2 <= N.add v_src.2 (N.of_nat (List.length lhsl))) 
+    if (v_src.2 <= v.2 < N.add v_src.2 (N.of_nat (List.length lhsl))) 
       then match module_graph_vertex_set_p.find v var2exprs0, List.nth_error lhsl (N.to_nat (N.sub v.2 v_src.2)) with
       | Some el0, Some (e, true) => module_graph_vertex_set_p.find v var2exprs = Some ((Eref e) :: el0) 
       | None, Some (e, true) => module_graph_vertex_set_p.find v var2exprs = Some [::(Eref e)] 
@@ -2175,7 +1929,16 @@ Proof.
   inversion H; clear H. 
   case Htgt : (v.1 == v_tgt.1).
   simpl.
-  case Htgt2 : (v.2 <= (v_tgt.2 + 0)%num); try done.
+  assert ((v_tgt.2 <= v.2 < (v_tgt.2 + 0)%num) = false).
+  admit.
+  rewrite H //.
+  case Hsrc : (v.1 == v_src.1).
+  simpl.
+  assert ((v_src.2 <= v.2 < (v_src.2 + 0)%num) = false).
+  admit.
+  rewrite H //.
+  done.
+  (*case Htgt2 : (v.2 <= (v_tgt.2 + 0)%num); try done.
   case Hfindv : (module_graph_vertex_set_p.find v var2exprs) => [el0|].
   case Hnth : (nth_error [::] (N.to_nat (v.2 - v_tgt.2))) => [p|]; try done.
   apply nth_error_In in Hnth.
@@ -2192,13 +1955,21 @@ Proof.
   apply List.in_nil in Hnth; done.
   case Hnth : (nth_error [::] (N.to_nat (v.2 - v_src.2))) => [p|]; try done.
   apply nth_error_In in Hnth.
-  apply List.in_nil in Hnth; done.
+  apply List.in_nil in Hnth; done.*)
 
   intros [hd b] tl IH rhsl. 
   case Hrhs : rhsl => [|[hd' b'] tl'].
   intros; simpl in H; case Hb : b; rewrite Hb in H; discriminate.
   intros.
   simpl in H.
+  assert (Hlengthadd1 : (v_tgt.2 + 1 + N.of_nat (length tl'))%num = (v_tgt.2 + N.of_nat (length ((hd', false) :: tl')))%num).
+  unfold length; fold length.
+  rewrite -addn1.
+  admit.
+  assert (Hlengthadd1' : (v_src.2 + 1 + N.of_nat (length tl))%num = (v_src.2 + N.of_nat (length ((hd, false) :: tl)))%num).
+  unfold length; fold length.
+  rewrite -addn1.
+  admit.
   case Hb : b; case Hb' : b'; rewrite Hb Hb' in H; try discriminate.
   (* Flip *)
   admit.
@@ -2206,124 +1977,163 @@ Proof.
   (* Nflip *)
   case Hfindtgt : (module_graph_vertex_set_p.find v_tgt var2exprs0) => [ls|]; rewrite Hfindtgt in H.
   specialize IH with (v_tgt := (v_tgt.1, N.add v_tgt.2 1%num)) (v_src := (v_src.1, N.add v_src.2 1%num)) (v := v) (rhsl := tl')
-    (var2exprs0 := module_graph_vertex_set_p.add v_tgt (Eref hd :: ls) var2exprs0) (var2exprs := var2exprs); simpl in IH.
+    (var2exprs0 := module_graph_vertex_set_p.add v_tgt (Eref hd' :: ls) var2exprs0) (var2exprs := var2exprs); simpl in IH.
   apply IH in H; clear IH.
-  assert (Hlengthadd1 : (v_tgt.2 + 1 + N.of_nat (length tl'))%num = (v_tgt.2 + N.of_nat (length ((hd', false) :: tl')))%num).
-  unfold length; fold length.
-  rewrite -addn1.
-  admit.
-  assert (Hlengthadd1' : (v_src.2 + 1 + N.of_nat (length tl))%num = (v_src.2 + N.of_nat (length ((hd, false) :: tl)))%num).
-  unfold length; fold length.
-  rewrite -addn1.
-  admit.
   case Htgt : (v.1 == v_tgt.1); rewrite Htgt in H.
-  rewrite -Hlengthadd1.
-  case Htgt2 : (v.2 <= (v_tgt.2 + 1 + N.of_nat (length tl'))%num); rewrite Htgt2 in H; try done.
-  (*case Htgt' : (v.2 == v_tgt.2); move /eqP : Htgt' => Htgt'.
-  assert (v == v_tgt).
-  destruct v; destruct v_tgt; simpl in Htgt'; simpl in Htgt; move /eqP : Htgt => Htgt.
-  rewrite Htgt'. rewrite Htgt; done.
-  move /eqP : H0 => H0; rewrite -H0 in H Hfindtgt; rewrite -H0 Hfindtgt.
-  rewrite PVM.Lemmas.find_add_eq in H; try (apply module_graph_vertex_set_p.SE.eq_refl).*)
-  assert (Hneq : v <> v_tgt).
-  admit.
-  rewrite module_graph_vertex_set_p.F.add_neq_o in H.
-  case Hfindv : (module_graph_vertex_set_p.find v var2exprs0) => [el0|]; rewrite Hfindv in H.
-  case Hnth : (nth_error tl' (N.to_nat (v.2 - (v_tgt.2 + 1)))) => [[e b0]|]; rewrite Hnth in H.
-  assert (nth_error tl' (N.to_nat (v.2 - (v_tgt.2 + 1))) = nth_error ((hd', false) :: tl') (N.to_nat (v.2 - v_tgt.2))).
-  admit.
-  rewrite -H0 Hnth; clear H0; done.
-  admit. (* 由Htgt2不为None *)
-  case Hnth : (nth_error tl' (N.to_nat (v.2 - (v_tgt.2 + 1)))) => [[e b0]|]; rewrite Hnth in H.
-  assert (nth_error tl' (N.to_nat (v.2 - (v_tgt.2 + 1))) = nth_error ((hd', false) :: tl') (N.to_nat (v.2 - v_tgt.2))).
-  admit.
-  rewrite -H0 Hnth; clear H0; done.
-  admit. (* 由Htgt2不为None *)
-  admit.
-  rewrite module_graph_vertex_set_p.F.add_neq_o in H.
-  rewrite -H; done.
-  admit.
+    rewrite -Hlengthadd1.
+    case Hvr2 : (v_tgt.2 <= v.2).
+    case Hvr2' : (v.2 < (v_tgt.2 + 1 + N.of_nat (length tl'))%num).
+    rewrite Hvr2' in H.
+    destruct (eqVneq v v_tgt).
+    rewrite e Hfindtgt; rewrite e in H.
+    assert (((v_tgt.2 + 1)%num <= v_tgt.2) = false).
+    admit. 
+    rewrite H0 in H; simpl in H; clear H0.
+    rewrite N.sub_diag; simpl; rewrite -H module_graph_vertex_set_p.F.add_eq_o //.
+    apply PVM.SE.eq_refl.
+
+    assert ((v_tgt.2 + 1)%num <= v.2).
+    admit. (* 由 Hvr2 i *)
+    rewrite H0 in H; clear Hvr2 i.
+    rewrite -> module_graph_vertex_set_p.F.add_neq_o in H.
+    assert (nth_error tl' (N.to_nat (v.2 - (v_tgt.2 + 1))) = nth_error ((hd', false) :: tl') (N.to_nat (v.2 - v_tgt.2))).
+    admit.
+    specialize nth_error_Some with (l := tl') (n := (N.to_nat (v.2 - (v_tgt.2 + 1)))); intro.
+    assert (exists e, nth_error tl' (N.to_nat (v.2 - (v_tgt.2 + 1))) = Some e).
+    admit. (* 由 H2 *)
+    case Hfind : (module_graph_vertex_set_p.find v var2exprs0) => [el0|]; rewrite Hfind in H.
+    destruct H3 as [[e0 b0] Hnth]; clear H2.
+    rewrite Hnth in H1; rewrite -H1; rewrite Hnth in H; clear Hnth H1.
+    done.
+    destruct H3 as [[e0 b0] Hnth]; clear H2.
+    rewrite Hnth in H1; rewrite -H1; rewrite Hnth in H; clear Hnth H1.
+    done.
+    admit. (* 由H0 *)
+
+    simpl.
+    admit.
+    simpl.
+    admit.
 
   case Hsrc : (v.1 == v_src.1); rewrite Hsrc in H.
-  rewrite -Hlengthadd1'.
-  case Hsrc2 : (v.2 <= (v_src.2 + 1 + N.of_nat (length tl))%num); rewrite Hsrc2 in H; try done.
-  rewrite module_graph_vertex_set_p.F.add_neq_o in H.
-  case Hfindv : (module_graph_vertex_set_p.find v var2exprs0) => [el0|]; rewrite Hfindv in H.
-  case Hnth : (nth_error tl (N.to_nat (v.2 - (v_src.2 + 1)))) => [[e b0]|]; rewrite Hnth in H.
-  assert (nth_error tl (N.to_nat (v.2 - (v_src.2 + 1))) = nth_error ((hd, false) :: tl) (N.to_nat (v.2 - v_src.2))).
-  admit.
-  rewrite -H0 Hnth; clear H0; done.
-  admit. (* 由Hsrc2不为None *)
-  case Hnth : (nth_error tl (N.to_nat (v.2 - (v_src.2 + 1)))) => [[e b0]|]; rewrite Hnth in H.
-  assert (nth_error tl (N.to_nat (v.2 - (v_src.2 + 1))) = nth_error ((hd, false) :: tl) (N.to_nat (v.2 - v_src.2))).
-  admit.
-  rewrite -H0 Hnth; clear H0; done.
-  admit. (* 由Htgt2不为None *)
-  admit.
-  rewrite module_graph_vertex_set_p.F.add_neq_o in H.
-  rewrite -H; done.
-  admit.
-  rewrite module_graph_vertex_set_p.F.add_neq_o in H.
-  rewrite -H; done.
-  admit.
+    rewrite -> module_graph_vertex_set_p.F.add_neq_o in H.
+    destruct (eqVneq v v_src).
+    assert ((v_src.2 <= v.2 < (v_src.2 + N.of_nat (length ((hd, false) :: tl)))%num) = true).
+    admit.
+    rewrite H0; clear H0.
+    assert (((v_src.2 + 1)%num <= v.2 < (v_src.2 + 1 + N.of_nat (length tl))%num) = false).
+    admit.
+    rewrite H0 in H; clear H0.
+    rewrite H e; clear H.
+    rewrite N.sub_diag; simpl.
+    case : (module_graph_vertex_set_p.find v_src var2exprs); done.
+    rewrite -Hlengthadd1'.
+    case Hvr2 : (v_src.2 <= v.2).
+    assert ((v_src.2 + 1)%num <= v.2).
+    admit. (* i Hvr2 *)
+    rewrite H0 in H; clear i Hvr2 H0.
+    case Hvr2' : ((v.2 < (v_src.2 + 1 + N.of_nat (length tl))%num)); rewrite Hvr2' in H; try done.
+    assert (nth_error tl (N.to_nat (v.2 - (v_src.2 + 1))) = nth_error ((hd, false) :: tl) (N.to_nat (v.2 - v_src.2))).
+    admit.
+    specialize nth_error_Some with (l := tl) (n := (N.to_nat (v.2 - (v_src.2 + 1)))); intro.
+    assert (exists e, nth_error tl (N.to_nat (v.2 - (v_src.2 + 1))) = Some e).
+    admit. (* 由 H1 *)
+    case Hfind : (module_graph_vertex_set_p.find v var2exprs0) => [el0|]; rewrite Hfind in H.
+    destruct H2 as [[e0 b0] Hnth]; clear H1.
+    rewrite Hnth in H0; rewrite -H0; rewrite Hnth in H; clear Hnth H0.
+    done.
+    destruct H2 as [[e0 b0] Hnth]; clear H1.
+    rewrite Hnth in H0; rewrite -H0; rewrite Hnth in H; clear Hnth H0.
+    done.
+    
+    simpl.
+    admit.
+    admit.
+    rewrite module_graph_vertex_set_p.F.add_neq_o in H. rewrite -H //.
+    admit.
 
-  (* the same case Hfindtgt *)
-  specialize IH with (v_tgt := (v_tgt.1, N.add v_tgt.2 1%num)) (v_src := (v_src.1, N.add v_src.2 1%num)) (v := v) (rhsl := tl')
-    (var2exprs0 := module_graph_vertex_set_p.add v_tgt [::(Eref hd)] var2exprs0) (var2exprs := var2exprs); simpl in IH.
-  apply IH in H; clear IH.
-  assert (Hlengthadd1 : (v_tgt.2 + 1 + N.of_nat (length tl'))%num = (v_tgt.2 + N.of_nat (length ((hd', false) :: tl')))%num).
-  unfold length; fold length.
-  rewrite -addn1.
-  admit.
-  assert (Hlengthadd1' : (v_src.2 + 1 + N.of_nat (length tl))%num = (v_src.2 + N.of_nat (length ((hd, false) :: tl)))%num).
-  unfold length; fold length.
-  rewrite -addn1.
-  admit.
-  case Htgt : (v.1 == v_tgt.1); rewrite Htgt in H.
-  rewrite -Hlengthadd1.
-  case Htgt2 : (v.2 <= (v_tgt.2 + 1 + N.of_nat (length tl'))%num); rewrite Htgt2 in H; try done.
-  rewrite module_graph_vertex_set_p.F.add_neq_o in H.
-  case Hfindv : (module_graph_vertex_set_p.find v var2exprs0) => [el0|]; rewrite Hfindv in H.
-  case Hnth : (nth_error tl' (N.to_nat (v.2 - (v_tgt.2 + 1)))) => [[e b0]|]; rewrite Hnth in H.
-  assert (nth_error tl' (N.to_nat (v.2 - (v_tgt.2 + 1))) = nth_error ((hd', false) :: tl') (N.to_nat (v.2 - v_tgt.2))).
-  admit.
-  rewrite -H0 Hnth; clear H0; done.
-  admit. (* 由Htgt2不为None *)
-  case Hnth : (nth_error tl' (N.to_nat (v.2 - (v_tgt.2 + 1)))) => [[e b0]|]; rewrite Hnth in H.
-  assert (nth_error tl' (N.to_nat (v.2 - (v_tgt.2 + 1))) = nth_error ((hd', false) :: tl') (N.to_nat (v.2 - v_tgt.2))).
-  admit.
-  rewrite -H0 Hnth; clear H0; done.
-  admit. (* 由Htgt2不为None *)
-  admit.
-  rewrite module_graph_vertex_set_p.F.add_neq_o in H.
-  rewrite -H; done.
-  admit.
+    (* the same case Hfindtgt *)
+    specialize IH with (v_tgt := (v_tgt.1, N.add v_tgt.2 1%num)) (v_src := (v_src.1, N.add v_src.2 1%num)) (v := v) (rhsl := tl')
+    (var2exprs0 := module_graph_vertex_set_p.add v_tgt [:: Eref hd'] var2exprs0) (var2exprs := var2exprs); simpl in IH.
+    apply IH in H; clear IH.
+    case Htgt : (v.1 == v_tgt.1); rewrite Htgt in H.
+    rewrite -Hlengthadd1.
+    case Hvr2 : (v_tgt.2 <= v.2).
+    case Hvr2' : (v.2 < (v_tgt.2 + 1 + N.of_nat (length tl'))%num).
+    rewrite Hvr2' in H.
+    destruct (eqVneq v v_tgt).
+    rewrite e Hfindtgt; rewrite e in H.
+    assert (((v_tgt.2 + 1)%num <= v_tgt.2) = false).
+    admit. 
+    rewrite H0 in H; simpl in H; clear H0.
+    rewrite N.sub_diag; simpl; rewrite -H module_graph_vertex_set_p.F.add_eq_o //.
+    apply PVM.SE.eq_refl.
+
+    assert ((v_tgt.2 + 1)%num <= v.2).
+    admit. (* 由 Hvr2 i *)
+    rewrite H0 in H; clear Hvr2 i.
+    rewrite -> module_graph_vertex_set_p.F.add_neq_o in H.
+    assert (nth_error tl' (N.to_nat (v.2 - (v_tgt.2 + 1))) = nth_error ((hd', false) :: tl') (N.to_nat (v.2 - v_tgt.2))).
+    admit.
+    specialize nth_error_Some with (l := tl') (n := (N.to_nat (v.2 - (v_tgt.2 + 1)))); intro.
+    assert (exists e, nth_error tl' (N.to_nat (v.2 - (v_tgt.2 + 1))) = Some e).
+    admit. (* 由 H2 *)
+    case Hfind : (module_graph_vertex_set_p.find v var2exprs0) => [el0|]; rewrite Hfind in H.
+    destruct H3 as [[e0 b0] Hnth]; clear H2.
+    rewrite Hnth in H1; rewrite -H1; rewrite Hnth in H; clear Hnth H1.
+    done.
+    destruct H3 as [[e0 b0] Hnth]; clear H2.
+    rewrite Hnth in H1; rewrite -H1; rewrite Hnth in H; clear Hnth H1.
+    done.
+    admit. (* 由H0 *)
+
+    simpl.
+    admit.
+    simpl.
+    admit.
 
   case Hsrc : (v.1 == v_src.1); rewrite Hsrc in H.
-  rewrite -Hlengthadd1'.
-  case Hsrc2 : (v.2 <= (v_src.2 + 1 + N.of_nat (length tl))%num); rewrite Hsrc2 in H; try done.
-  rewrite module_graph_vertex_set_p.F.add_neq_o in H.
-  case Hfindv : (module_graph_vertex_set_p.find v var2exprs0) => [el0|]; rewrite Hfindv in H.
-  case Hnth : (nth_error tl (N.to_nat (v.2 - (v_src.2 + 1)))) => [[e b0]|]; rewrite Hnth in H.
-  assert (nth_error tl (N.to_nat (v.2 - (v_src.2 + 1))) = nth_error ((hd, false) :: tl) (N.to_nat (v.2 - v_src.2))).
-  admit.
-  rewrite -H0 Hnth; clear H0; done.
-  admit. (* 由Hsrc2不为None *)
-  case Hnth : (nth_error tl (N.to_nat (v.2 - (v_src.2 + 1)))) => [[e b0]|]; rewrite Hnth in H.
-  assert (nth_error tl (N.to_nat (v.2 - (v_src.2 + 1))) = nth_error ((hd, false) :: tl) (N.to_nat (v.2 - v_src.2))).
-  admit.
-  rewrite -H0 Hnth; clear H0; done.
-  admit. (* 由Htgt2不为None *)
-  admit.
-  rewrite module_graph_vertex_set_p.F.add_neq_o in H.
-  rewrite -H; done.
-  admit.
-  rewrite module_graph_vertex_set_p.F.add_neq_o in H.
-  rewrite -H; done.
-  admit.
+    rewrite -> module_graph_vertex_set_p.F.add_neq_o in H.
+    destruct (eqVneq v v_src).
+    assert ((v_src.2 <= v.2 < (v_src.2 + N.of_nat (length ((hd, false) :: tl)))%num) = true).
+    admit.
+    rewrite H0; clear H0.
+    assert (((v_src.2 + 1)%num <= v.2 < (v_src.2 + 1 + N.of_nat (length tl))%num) = false).
+    admit.
+    rewrite H0 in H; clear H0.
+    rewrite H e; clear H.
+    rewrite N.sub_diag; simpl.
+    case : (module_graph_vertex_set_p.find v_src var2exprs); done.
+    rewrite -Hlengthadd1'.
+    case Hvr2 : (v_src.2 <= v.2).
+    assert ((v_src.2 + 1)%num <= v.2).
+    admit. (* i Hvr2 *)
+    rewrite H0 in H; clear i Hvr2 H0.
+    case Hvr2' : ((v.2 < (v_src.2 + 1 + N.of_nat (length tl))%num)); rewrite Hvr2' in H; try done.
+    assert (nth_error tl (N.to_nat (v.2 - (v_src.2 + 1))) = nth_error ((hd, false) :: tl) (N.to_nat (v.2 - v_src.2))).
+    admit.
+    specialize nth_error_Some with (l := tl) (n := (N.to_nat (v.2 - (v_src.2 + 1)))); intro.
+    assert (exists e, nth_error tl (N.to_nat (v.2 - (v_src.2 + 1))) = Some e).
+    admit. (* 由 H1 *)
+    case Hfind : (module_graph_vertex_set_p.find v var2exprs0) => [el0|]; rewrite Hfind in H.
+    destruct H2 as [[e0 b0] Hnth]; clear H1.
+    rewrite Hnth in H0; rewrite -H0; rewrite Hnth in H; clear Hnth H0.
+    done.
+    destruct H2 as [[e0 b0] Hnth]; clear H1.
+    rewrite Hnth in H0; rewrite -H0; rewrite Hnth in H; clear Hnth H0.
+    done.
+    
+    simpl.
+    admit.
+    admit.
+    rewrite module_graph_vertex_set_p.F.add_neq_o in H. rewrite -H //.
+    admit.
 Admitted.
 
 Lemma base_ref_cepfind : forall ref ft n pv tmap checkt, base_ref ref tmap = Some (pv, ft) -> CEP.find (pv.1, 0%num) tmap = Some checkt -> 
+  (*ft_find_sub checkt pv.2 = Some ft.
+
+  ft_find_sub checkt pv.2 = Some ft -> *)
   ft_find_sub checkt (pv.2 + N.of_nat n) = ft_find_sub ft (N.of_nat n).
 Proof.
   elim.
@@ -2349,7 +2159,7 @@ Proof.
   intros.
   simpl in H0; discriminate.
   intros.*)
-  admit. (* base_ref_field 的归纳 重要！！ *)
+  admit. (* base_ref_field 的归纳 重要！！2 *)
   
   intros.
   simpl in H0.
@@ -2402,7 +2212,7 @@ Definition Sem_port' (p : HiFP.hfport) (vm : module_graph_vertex_set_p.env) : Pr
   | _ => true
    end.
 
-Fixpoint Sem_frag_stmt' (vm : module_graph_vertex_set_p.env) (s : HiFP.hfstmt) (tmap : CEP.t ftype) : Prop :=
+Fixpoint Sem_frag_stmt_for_iw (vm : module_graph_vertex_set_p.env) (s : HiFP.hfstmt) (tmap : CEP.t ftype) : Prop :=
    (* The predicate returns True if vm_new/ct_new can be constructed from vm_old/ct_old by applying s. 
    type checking, constraints *)
   match s with
@@ -2447,14 +2257,28 @@ Fixpoint Sem_frag_stmt' (vm : module_graph_vertex_set_p.env) (s : HiFP.hfstmt) (
                           end else True)
                 | None => False
                 end
-  | Swhen _ s1 s2 => Sem_frag_stmts' vm s1 tmap /\ Sem_frag_stmts' vm s2 tmap
+  | Swhen _ s1 s2 => Sem_frag_stmts_for_iw vm s1 tmap /\ Sem_frag_stmts_for_iw vm s2 tmap
   | _ => True 
   end
-with Sem_frag_stmts' (vm : module_graph_vertex_set_p.env) (ss : HiFP.hfstmt_seq) (tmap : CEP.t ftype) : Prop :=
+with Sem_frag_stmts_for_iw (vm : module_graph_vertex_set_p.env) (ss : HiFP.hfstmt_seq) (tmap : CEP.t ftype) : Prop :=
   match ss with
   | Qnil => True
-  | Qcons s ss' => Sem_frag_stmt' vm s tmap /\ Sem_frag_stmts' vm ss' tmap
+  | Qcons s ss' => Sem_frag_stmt_for_iw vm s tmap /\ Sem_frag_stmts_for_iw vm ss' tmap
   end.
+
+Lemma Sem_frag_stmt4iw : forall ss vm_old ct_old vm_new ct_new tmap, Sem_frag_stmt vm_old ct_old ss vm_new ct_new tmap -> Sem_frag_stmt_for_iw vm_new ss tmap
+with Sem_frag_stmts4iw : forall ss vm_old ct_old vm_new ct_new tmap, Sem_frag_stmts vm_old ct_old ss vm_new ct_new tmap -> Sem_frag_stmts_for_iw vm_new ss tmap.
+Proof.
+  clear Sem_frag_stmt4iw.
+  elim.
+  - (* skip *)
+    simpl; done.
+  - (* wire *)
+    clear.
+    intros.  
+    simpl.
+    simpl in H.
+Admitted.
 
 Lemma geq_conj2mux : forall vmap tmap (gt initt : fgtyp) (el : seq HiFP.hfexpr) eftl (nt : fgtyp), (forall (texpr : HiFP.hfexpr) (tge : fgtyp), texpr \in el -> type_of_hfexpr_vm vmap texpr tmap = Some (Gtyp tge) -> ((sizeof_fgtyp gt) >= (sizeof_fgtyp tge))) ->
         fil_ftlist [seq type_of_hfexpr_vm vmap e tmap | e <- el] = Some eftl -> sizeof_fgtyp initt = 0 -> max_ftlist eftl initt = Some nt -> ((sizeof_fgtyp gt) >= (sizeof_fgtyp nt)).
@@ -2489,6 +2313,9 @@ Proof.
   case Hnt' : nt' => [w'|w'|w'|w'|||]; rewrite Hnt' in H H0; try discriminate.
   inversion H; clear H.
   simpl in H1; simpl in H0; simpl.
+  Search (Init.Nat.max).
+
+  specialize Nat.max_spec_le with (n := w) (m := w'); intro.
   move : H1 H0.
   admit.
   case Hnt' : nt' => [w'|w'|w'|w'|||]; rewrite Hnt' in H H0; try discriminate.
@@ -2614,13 +2441,24 @@ Proof.
   case Hb : b; rewrite Hb in H0; try discriminate; try done.
   case Hfind : (ft_find_sub f (N.of_nat n)) => [gt_tgt|]; rewrite Hfind in H0; try discriminate; try done.
   case Hfind' : (ft_find_sub atyp (N.of_nat n)) => [gt_src|]; rewrite Hfind' in H0; try discriminate; try done.
+  move : H0; apply H; done.
+  case Hfind : (ft_find_sub f (N.of_nat n)) => [gt_tgt|]; rewrite Hfind in H0; try discriminate; try done.
+  case Hfind' : (ft_find_sub atyp (N.of_nat n)) => [gt_src|]; rewrite Hfind' in H0; try discriminate; try done.
   apply rwP with (P := connect_fgtyp_compatible gt_tgt gt_src /\ check_connect_fgtyp_compatible f atyp n).
   apply andP.
   move /andP : H0 => [H1 H0].
   split; try done.
-  move : H0; apply H. 
-  done.
+  move : H0; apply H.
+  case Hfind' : (ft_find_sub atyp (N.of_nat n)) => [gt_src|]; rewrite Hfind' in H0; try discriminate; try done.
+  move : H0; apply H; done.
+  case Hfind : (ft_find_sub f (N.of_nat n)) => [gt_tgt|]; rewrite Hfind in H0; try discriminate; try done.
+  case Hfind' : (ft_find_sub atyp (N.of_nat n)) => [gt_src|]; rewrite Hfind' in H0; try discriminate; try done.
+  move : H0; apply H; done.
 Qed.
+
+Lemma check_non_passive_atyp_eq : forall n0 atyp f n na,  check_connect_non_passive_fgtyp (Atyp f n) (Atyp atyp na) n0 -> check_connect_non_passive_fgtyp f atyp n0.
+Proof.
+Admitted.
 
 Lemma ft_check_flip_nfield : forall f1 n f0 v b f, if (N.to_nat n) >= (tmap_type_size f0) then ft_check_flip (Btyp (Fflips v f f0 f1)) n b = ft_check_flip (Btyp f1) (n - N.of_nat (tmap_type_size f0)) b
                                                     else if f == Nflip then ft_check_flip (Btyp (Fflips v f f0 f1)) n b = ft_check_flip f0 n b
@@ -2678,25 +2516,34 @@ Proof.
   rewrite H; clear H; done.
 Admitted.
 
-Lemma check_connect_fgtyp_compatible4n' : forall ft te n, check_connect_fgtyp_compatible ft te n -> ftype_equiv ft te -> (forall n0, n0 < n -> ft_check_flip ft (N.of_nat n0) false = Some false /\ (exists gt gte, ft_check_flip ft (N.of_nat n0) false = Some false /\ ft_find_sub ft (N.of_nat n0) = Some gt /\ ft_find_sub te (N.of_nat n0) = Some gte /\
-  connect_fgtyp_compatible gt gte))
-with check_connect_fgtyp_compatible4n'_f : forall ft te n, check_connect_fgtyp_compatible (Btyp ft) (Btyp te) n -> fbtyp_equiv ft te -> tmap_type_size_fields ft >= n -> (forall n0, n0 < n -> ft_check_flip_f ft (N.of_nat n0) false = Some false /\ (exists gt gte, ft_check_flip_f ft (N.of_nat n0) false = Some false /\ ft_find_ff ft (N.of_nat n0) = Some gt /\ ft_find_ff te (N.of_nat n0) = Some gte /\
-connect_fgtyp_compatible gt gte)).
+Lemma check_connect_fgtyp_compatible4n' : forall ft te n, check_connect_fgtyp_compatible ft te n -> ftype_equiv ft te -> (forall n0, n0 < n -> ft_check_flip ft (N.of_nat n0) false = Some false /\ (exists gt gte, ft_find_sub ft (N.of_nat n0) = Some gt /\ ft_find_sub te (N.of_nat n0) = Some gte /\
+  connect_fgtyp_compatible gt gte) \/ (ft_find_sub ft (N.of_nat n0) = None /\ ft_find_sub te (N.of_nat n0) = None))
+with check_connect_fgtyp_compatible4n'_f : forall ft te n, check_connect_fgtyp_compatible (Btyp ft) (Btyp te) n -> fbtyp_equiv ft te -> (forall n0, n0 < n -> ft_check_flip_f ft (N.of_nat n0) false = Some false /\ (exists gt gte, ft_find_ff ft (N.of_nat n0) = Some gt /\ ft_find_ff te (N.of_nat n0) = Some gte /\
+  connect_fgtyp_compatible gt gte) \/ (ft_find_ff ft (N.of_nat n0) = None /\ ft_find_ff te (N.of_nat n0) = None))
+with check_connect_fgtyp_compatible_dlvr : forall v f f0 f1 v' f' f0' f1' n, check_connect_fgtyp_compatible (Btyp (Fflips v f f0 f1)) (Btyp (Fflips v' f' f0' f1')) n -> ftype_equiv (Btyp (Fflips v f f0 f1)) (Btyp (Fflips v' f' f0' f1')) ->
+  check_connect_fgtyp_compatible (Btyp f1) (Btyp f1') (n - tmap_type_size f0) /\ check_connect_fgtyp_compatible f0 f0' (tmap_type_size f0).
 Proof.
   elim.
+  clear.
   intros.
   case Hte : te => [ft||]; rewrite Hte in H0 H; simpl in H0; try discriminate.
   destruct (eqVneq n 0).
   rewrite e in H1; discriminate.
-  destruct (eqVneq n 1).
-  rewrite e in H H1.
-  apply AuxLemmas.lt1_eq0 in H1; rewrite H1.
-  simpl; split; try done.
-  simpl in H.
-  exists f; exists ft. 
-  move /andP : H => [H _].
+  rewrite -lt0n in i.
+  destruct (eqVneq n0 0).
+  assert (ft_check_flip (Gtyp f) (N.of_nat n0) false = Some false /\ (exists gt gte : fgtyp, ft_find_sub (Gtyp f) (N.of_nat n0) = Some gt /\ ft_find_sub (Gtyp ft) (N.of_nat n0) = Some gte /\ connect_fgtyp_compatible gt gte)).
+  rewrite e; simpl.
   split; try done.
-  admit. (* 对gtyp，n>1前提H是wrong *)
+  exists f; exists ft.
+  induction n as [|n']; try discriminate.
+  induction n' as [|n''].
+  clear IHn'; simpl in H; move /andP : H => [H _]; done.
+  clear IHn''; rewrite e in IHn'; apply IHn'; try done.
+  apply or_introl; done.
+  rewrite -lt0n in i0.
+  induction n0 as [|n0']; try discriminate.
+  apply or_intror.
+  simpl; done.
 
   intros.
   case Hte : te => [|atyp na|]; rewrite Hte in H1 H0; simpl in H1; simpl; try discriminate.
@@ -2711,193 +2558,101 @@ Proof.
   apply check_connect_fgtyp_compatible4n'_f with (n0 := n0) in H; try done.
   apply num_ref_eq_f in H0; rewrite -H0.
   case Hn0 : (tmap_type_size_fields f <= N.of_nat n0); try done.
-  admit. (* field不够时，函数返回none *)
-  admit. (* n很大时，H为wrong *)
+  apply or_intror; done.
 
   clear check_connect_fgtyp_compatible4n'_f.
   elim.
   intros.
+  apply check_connect_fgtyp_compatible4n' with (n0 := n0) in H; try done.
   case Hte : te => [|v' f' f0' f1']; rewrite Hte in H0 H; simpl in H0; try discriminate.
-  destruct (eqVneq n 0).
-  rewrite e in H2; discriminate.
-  simpl in H1.
-  rewrite leqn0 in H1.
-  move /eqP : H1 => H1; rewrite H1 in i; discriminate.
+  simpl in H; simpl; done.
 
   intros.
   case Hbtyp : te => [|v' f' f0' f1']; rewrite Hbtyp in H1 H0; simpl in H1; case Hf : f; rewrite Hf in H1; try discriminate.
   case Hf' : f'; rewrite Hf' in H1; try discriminate.
-  admit. (* flip由check_connect_fgtyp_compatible4n'知不为false，wrong前提 *)
-  case Hf' : f'; rewrite Hf' in H1; try discriminate.
-  admit. (* 讨论n0的大小 *)
-
-  (*rewrite /connect_type_compatible in H0; simpl in H0; case Hf : f; rewrite Hf in H0; try discriminate.
-  clear ftype2fgtyp_compatible.
-  apply check_compatible_btyp_eq in H0.
-  move : H0 => [H0 H1].
-  simpl.
-  rewrite /connect_type_compatible in H1.
-  move /andP : H1 => [H1 H2].
-  case Hn1 : ((tmap_type_size f0 + tmap_type_size_fields f1)%num <= n); try done.
-
-  apply H with (n := N.sub n (N.of_nat (tmap_type_size f0))) in H0.
-  case Hf : (ft_check_flip (Btyp (Fflips v f f0 f1)) n false) => [b|]; try done.
-  rewrite ft_check_flip_nfield in Hf.
+  apply check_connect_fgtyp_compatible4n' with (n0 := 0) in H0; try done.
   rewrite Hf in H0.
-  case Hb : b; rewrite Hb in H0; try done.
-  case Hfind : (ft_find_sub (Btyp (Fflips v f f0 f1)) n) => [gt|]; try done.
-  rewrite ft_find_sub_nfield in Hfind.
-  rewrite Hfind in H0.
-  case Hfind' : (ft_find_sub (Btyp (Fflips v' f' f0' f1')) n) => [gt'|]; try done.
-  rewrite ft_find_sub_nfield in Hfind'.
-
-  apply num_ref_eq in H1; rewrite H1 Hfind' in H0; done.
-
-  clear check_compatible_btyp_eq.
-  intros.
-  rewrite /connect_type_compatible in H; rewrite /connect_type_compatible.
-  split.
-  simpl in H.
-  case Hf : f; case Hf' : f'; rewrite Hf Hf' in H; simpl in H; try discriminate.
-  apply rwP with (P := ftype_equiv (Btyp f1) (Btyp f1') /\ check_connect_fgtyp_compatible (Btyp f1) (Btyp f1')
-    (tmap_type_size (Btyp f1))).
-  apply andP.
-  split; simpl.
-  move /andP : H => [H _].
-  move /andP : H => [_ H]; done. 
-  apply check_connect_fgtyp_compatible4n.
-  move /andP : H => [H H1].
-  intros.
-  rewrite nat_of_add_bin in H1.
-  apply check_connect_fgtyp_compatible4n' with (n0 := n0 + (tmap_type_size f0)) in H1.
-  move : H1 => [H1 H2].
-  rewrite ft_check_flip_nfield in H1.
-  rewrite -Nnat.Nat2N.inj_sub in H1.
-  rewrite <- addnBA in H1; try done.
-  rewrite subnn addn0 in H1; done.
-  simpl; done.
-  rewrite {1}addnC.
-  rewrite ltn_add2l; done.
-  intros.
-  specialize ftype2fgtyp_compatible with (ft := Btyp f1) (te := Btyp f1') (n := N.of_nat n0).
-  move /andP : H => [H H4].
-  rewrite nat_of_add_bin in H4.
-  apply check_connect_fgtyp_compatible4n' with (n0 := n0 + (tmap_type_size f0)) in H4.
-  move : H4 => [_ H4].
-  specialize H4 with (gt := gt) (gte := gte).
-  move : H4 => [H4 H5].
-  rewrite ft_check_flip_nfield in H4.
-  rewrite -Nnat.Nat2N.inj_sub in H4.
-  rewrite <- addnBA in H4; try done.
-  rewrite subnn addn0 in H4.
-  rewrite H4 in ftype2fgtyp_compatible; clear H4.
-  move : H5 => [H4 H5].
-  rewrite ft_find_sub_nfield in H4.
-  rewrite -Nnat.Nat2N.inj_sub in H4.
-  rewrite <- addnBA in H4; try done.
-  rewrite subnn addn0 in H4.
-  rewrite H4 in ftype2fgtyp_compatible; clear H4.
-  move : H5 => [H4 H5].
-  rewrite ft_find_sub_nfield in H4.
-  rewrite -Nnat.Nat2N.inj_sub in H4.
-  move /andP : H => [H _].
-  move /andP : H => [_ H].
-  apply num_ref_eq in H; rewrite H in H4; clear H.
-  rewrite <- addnBA in H4; try done.
-  simpl; done.
-  rewrite {1}addnC.
-  rewrite ltn_add2l; done.
+  admit. (* H0 为false *)
+  simpl; rewrite Hf Hf'; done.
+  rewrite lt0n.
+  destruct (eqVneq n 0).
+  rewrite e in H2; discriminate.
+  apply negbT; done.
+  case Hf' : f'; rewrite Hf' in H1; try discriminate.
   simpl.
-  move /andP : H => [H _].
-  move /andP : H => [_ H]; done.
-    apply rwP with (P := ftype_equiv (Btyp f1) (Btyp f1') /\ check_connect_fgtyp_compatible (Btyp f1) (Btyp f1')
-      (tmap_type_size (Btyp f1))).
-    apply andP.
-    split; simpl.
-    move /andP : H => [H _].
-    move /andP : H => [_ H]; done. 
-    apply check_connect_fgtyp_compatible4n.
-    move /andP : H => [H H1].
-    intros.
-    rewrite nat_of_add_bin in H1.
-    apply check_connect_fgtyp_compatible4n' with (n0 := n0 + (tmap_type_size f0)) in H1.
-    move : H1 => [H1 H2].
-    rewrite ft_check_flip_nfield in H1.
-    rewrite -Nnat.Nat2N.inj_sub in H1.
-    rewrite <- addnBA in H1; try done.
-    rewrite subnn addn0 in H1; done.
-    simpl; done.
-    rewrite {1}addnC.
-    rewrite ltn_add2l; done.
-    intros.
-    specialize ftype2fgtyp_compatible with (ft := Btyp f1) (te := Btyp f1') (n := N.of_nat n0).
-    move /andP : H => [H H4].
-    rewrite nat_of_add_bin in H4.
-    apply check_connect_fgtyp_compatible4n' with (n0 := n0 + (tmap_type_size f0)) in H4.
-    move : H4 => [_ H4].
-    specialize H4 with (gt := gt) (gte := gte).
-    move : H4 => [H4 H5].
-    rewrite ft_check_flip_nfield in H4.
-    rewrite -Nnat.Nat2N.inj_sub in H4.
-    rewrite <- addnBA in H4; try done.
-    rewrite subnn addn0 in H4.
-    rewrite H4 in ftype2fgtyp_compatible; clear H4.
-    move : H5 => [H4 H5].
-    rewrite ft_find_sub_nfield in H4.
-    rewrite -Nnat.Nat2N.inj_sub in H4.
-    rewrite <- addnBA in H4; try done.
-    rewrite subnn addn0 in H4.
-    rewrite H4 in ftype2fgtyp_compatible; clear H4.
-    move : H5 => [H4 H5].
-    rewrite ft_find_sub_nfield in H4.
-    rewrite -Nnat.Nat2N.inj_sub in H4.
-    move /andP : H => [H _].
-    move /andP : H => [_ H].
-    apply num_ref_eq in H; rewrite H in H4; clear H.
-    rewrite <- addnBA in H4; try done.
-    simpl; done.
-    rewrite {1}addnC.
-    rewrite ltn_add2l; done.
-    simpl.
-    move /andP : H => [H _].
-    move /andP : H => [_ H]; done.
-  apply rwP with (P := ftype_equiv f0 f0' /\ check_connect_fgtyp_compatible f0 f0' (tmap_type_size f0)).
-  apply andP.
+  move /andP : H1 => [H1 H1']; move /andP : H1 => [H1'' H1]; generalize H1; apply num_ref_eq in H1; rewrite -H1; clear H1.
+  move => H1.
+  case Hn0 : (N.of_nat (tmap_type_size f0) <= N.of_nat n0).
+  apply H with (n := n - (tmap_type_size f0)) (n0 := n0 - (tmap_type_size f0)) in H1'.
+  rewrite Nats.subn_sub Nnat.Nat2N.inj_sub in H1'; done.
+  apply check_connect_fgtyp_compatible_dlvr in H0.
+  move : H0 => [H0 _]; done.
+  simpl; rewrite Hf Hf' H1'' H1 H1' //.
+  apply ltn_sub2r; try done.
+  admit. (* H2 Hn0 *)
+  apply check_connect_fgtyp_compatible4n' with (n := (tmap_type_size f0)) (n0 := n0) in H1; try done.
+  apply check_connect_fgtyp_compatible_dlvr in H0.
+  move : H0 => [_ H0]; done.
+  simpl; rewrite Hf Hf' H1'' H1 H1' //.
+  admit. (* Hn0 *)
+
+  clear check_connect_fgtyp_compatible_dlvr.
+  intros.
   split.
-  move /andP : H => [H H1].
-  simpl in H. 
-  case Hf : f; case Hf' : f'; rewrite Hf Hf' in H; try discriminate.
-  1,2:move /andP : H => [H _].
-  1,2:move /andP : H => [_ H]; done. 
   apply check_connect_fgtyp_compatible4n.
   intros.
-  move /andP : H => [H H1].
-  apply check_connect_fgtyp_compatible4n' with (n0 := n0) in H1; try done.
-  specialize ftype2fgtyp_compatible with (ft := Btyp f1) (te := Btyp f1') (n := N.of_nat n0).
-  move : H1 => [H4 H5].
-  rewrite ft_check_flip_nfield in H4.
-  rewrite -Nnat.Nat2N.inj_sub in H4.
-  rewrite <- addnBA in H4; try done.
-  rewrite subnn addn0 in H4.
-  rewrite H4 in ftype2fgtyp_compatible; clear H4.
-  specialize H5 with (gt := gt) (gte := gte).
-  move : H5 => [H4 H5].
-  rewrite ft_find_sub_nfield in H4.
-  rewrite -Nnat.Nat2N.inj_sub in H4.
-  rewrite <- addnBA in H4; try done.
-  rewrite subnn addn0 in H4.
-  rewrite H4 in ftype2fgtyp_compatible; clear H4.
-  move : H5 => [H4 H5].
-  rewrite ft_find_sub_nfield in H4.
-  rewrite -Nnat.Nat2N.inj_sub in H4.
-  move /andP : H => [H _].
-  move /andP : H => [_ H].
-  apply num_ref_eq in H; rewrite H in H4; clear H.
-  rewrite <- addnBA in H4; try done.
-  simpl; done.
-  rewrite {1}addnC.
-  rewrite ltn_add2l; done.
-  simpl.*)
+  apply check_connect_fgtyp_compatible4n' with (n0 := n0 + tmap_type_size f0) in H; try done.
+  specialize ft_check_flip_nfield with (f1 := f1) (f0 := f0) (v := v) (f := f) (n := N.of_nat (n0 + (tmap_type_size f0))) (b := false); intro.
+  rewrite Nnat.Nat2N.id addnC leq_addr in H2.
+  rewrite -Nnat.Nat2N.inj_sub in H2.
+  rewrite -Nats.subn_sub in H2.
+  rewrite -addnBAC in H2.
+  rewrite subnn add0n addnC in H2; rewrite H2 in H; clear H2.
+  specialize ft_find_sub_nfield with (f1 := f1) (f0 := f0) (v := v) (f := f) (n := N.of_nat (n0 + (tmap_type_size f0))); intro.
+  rewrite Nnat.Nat2N.id addnC leq_addr in H2.
+  rewrite -Nnat.Nat2N.inj_sub in H2.
+  rewrite -Nats.subn_sub in H2.
+  rewrite -addnBAC in H2.
+  rewrite subnn add0n addnC in H2; rewrite H2 in H; clear H2.
+  specialize ft_find_sub_nfield with (f1 := f1') (f0 := f0') (v := v') (f := f') (n := N.of_nat (n0 + (tmap_type_size f0'))); intro.
+  rewrite Nnat.Nat2N.id addnC leq_addr in H2.
+  rewrite -Nnat.Nat2N.inj_sub in H2.
+  rewrite -Nats.subn_sub in H2.
+  rewrite -addnBAC in H2.
+  assert (tmap_type_size f0 = tmap_type_size f0').
+  apply num_ref_eq.
+  simpl in H0.
+  case Hf : f; case Hf' : f'; rewrite Hf Hf' in H0; try discriminate; move /andP : H0 => [H0 _]; move /andP : H0 => [_ H0]; done.
+  rewrite subnn add0n addnC -H3 in H2; rewrite H2 in H; clear H2 H3; done.
+  1,2,3: apply leqnn.
+  generalize H1; rewrite -(ltn_add2r (tmap_type_size f0)) in H1; intro.
+  rewrite subnK in H1. done.
+  admit.
+  simpl; simpl in H0.
+  case Hf : f; case Hf' : f'; rewrite Hf Hf' in H0; try discriminate; move /andP : H0 => [_ H0]; done.
+  
+  apply check_connect_fgtyp_compatible4n.
+  intros.
+  apply check_connect_fgtyp_compatible4n' with (n0 := n0) in H; try done.
+  specialize ft_check_flip_nfield with (f1 := f1) (f0 := f0) (v := v) (f := f) (n := N.of_nat n0) (b := false); intro.
+  rewrite Nnat.Nat2N.id in H2.
+  rewrite ltnNge in H1.
+  apply negbTE in H1.
+  rewrite H1 in H2.
+  assert (f = Nflip).
+  admit.
+  rewrite H3 eq_refl -H3 in H2; clear H3.
+  rewrite H2 in H; clear H2.
+  specialize ft_find_sub_nfield with (f1 := f1) (f0 := f0) (v := v) (f := f) (n := N.of_nat n0); intro.
+  rewrite Nnat.Nat2N.id H1 in H2; rewrite H2 in H; clear H2.
+  specialize ft_find_sub_nfield with (f1 := f1') (f0 := f0') (v := v') (f := f') (n := N.of_nat n0); intro.
+  assert (tmap_type_size f0 = tmap_type_size f0').
+  apply num_ref_eq.
+  simpl in H0.
+  case Hf : f; case Hf' : f'; rewrite Hf Hf' in H0; try discriminate; move /andP : H0 => [H0 _]; move /andP : H0 => [_ H0]; done.
+  rewrite -H3 Nnat.Nat2N.id H1 in H2; rewrite H2 in H; clear H2; done.
+  admit.
+  case Hf : f; case Hf' : f'; rewrite Hf Hf' in H0; try discriminate; move /andP : H0 => [H0 _]; move /andP : H0 => [_ H0]; done.
 Admitted.
 
 Lemma ftype2fgtyp_compatible : forall ft te n, N.to_nat n < tmap_type_size ft -> connect_type_compatible ft te -> 
@@ -2911,23 +2666,204 @@ Proof.
   rewrite /connect_type_compatible in H0.
   move /andP : H0 => [H0 H1].
   apply check_connect_fgtyp_compatible4n' with (n0 := N.to_nat n) in H1; try done.
-  move : H1 => [H4 H5].
-  rewrite Nnat.N2Nat.id in H5 H4; rewrite H4.
-  destruct H5 as [gt H5].
-  destruct H5 as [gte H5].
-  move : H5 => [_ H5].
-  move : H5 => [H1 H5]; rewrite H1; try done.
-  move : H5 => [H2 H5]; rewrite H2; done.
-Qed.
+  rewrite Nnat.N2Nat.id in H1.
+  case Hf : (ft_check_flip ft n false) => [b|]; try done.
+  case Hb : b; try done.
+  case Hft : (ft_find_sub ft n) => [gt|]; try done.
+  case Hte : (ft_find_sub te n) => [gte|]; try done.
+  rewrite Hf Hb Hft Hte in H1.
+Admitted.
 
-Lemma ftype2fgtyp_non_passive_compatible : forall ft te n, connect_non_passive_type ft te -> 
+Lemma check_non_passive_fgtyp_compatible4n' : forall ft te n, check_connect_non_passive_fgtyp ft te n -> ftype_equiv ft te -> (forall n0, n0 < n -> 
+  (ft_check_flip ft (N.of_nat n0) false = Some false /\ (exists gt gte, ft_find_sub ft (N.of_nat n0) = Some gt /\ ft_find_sub te (N.of_nat n0) = Some gte /\ connect_fgtyp_compatible gt gte)) \/
+  (ft_check_flip ft (N.of_nat n0) false = Some true /\ (exists gt gte, ft_find_sub ft (N.of_nat n0) = Some gt /\ ft_find_sub te (N.of_nat n0) = Some gte /\ connect_fgtyp_compatible gte gt)) \/
+  (ft_find_sub ft (N.of_nat n0) = None /\ ft_find_sub te (N.of_nat n0) = None))
+with check_non_passive_fgtyp_compatible4n'_f : forall ft te n, check_connect_non_passive_fgtyp (Btyp ft) (Btyp te) n -> fbtyp_equiv ft te -> (forall n0, n0 < n -> 
+  (ft_check_flip_f ft (N.of_nat n0) false = Some false /\ (exists gt gte, ft_find_ff ft (N.of_nat n0) = Some gt /\ ft_find_ff te (N.of_nat n0) = Some gte /\ connect_fgtyp_compatible gt gte)) \/
+  (ft_check_flip_f ft (N.of_nat n0) false = Some true /\ (exists gt gte, ft_find_ff ft (N.of_nat n0) = Some gt /\ ft_find_ff te (N.of_nat n0) = Some gte /\ connect_fgtyp_compatible gte gt)) \/
+  (ft_find_ff ft (N.of_nat n0) = None /\ ft_find_ff te (N.of_nat n0) = None))
+with check_non_passive_fgtyp_compatible_dlvr : forall v f f0 f1 v' f' f0' f1' n, check_connect_non_passive_fgtyp (Btyp (Fflips v f f0 f1)) (Btyp (Fflips v' f' f0' f1')) n -> ftype_equiv (Btyp (Fflips v f f0 f1)) (Btyp (Fflips v' f' f0' f1')) ->
+  check_connect_non_passive_fgtyp (Btyp f1) (Btyp f1') (n - tmap_type_size f0) /\ check_connect_non_passive_fgtyp f0 f0' (tmap_type_size f0).
+Proof.
+  elim.
+  clear.
+  intros.
+  case Hte : te => [ft||]; rewrite Hte in H0 H; simpl in H0; try discriminate.
+  destruct (eqVneq n 0).
+  rewrite e in H1; discriminate.
+  rewrite -lt0n in i.
+  destruct (eqVneq n0 0).
+  apply or_introl.
+  rewrite e; simpl.
+  split; try done.
+  exists f; exists ft.
+  induction n as [|n']; try discriminate.
+  induction n' as [|n''].
+  clear IHn'; simpl in H; move /andP : H => [H _]; done.
+  clear IHn''; rewrite e in IHn'; apply IHn'; try done.
+  rewrite -lt0n in i0.
+  induction n0 as [|n0']; try discriminate.
+  apply or_intror.
+  apply or_intror.
+  simpl; done.
+
+  clear.
+  intros.
+  case Hte : te => [|atyp na|]; rewrite Hte in H1 H0; simpl in H1; simpl; try discriminate.
+  apply check_non_passive_atyp_eq in H0.
+  apply H with (n0 := n1) in H0; try done.
+  move /andP : H1 => [_ H1]; try done.
+
+  clear check_non_passive_fgtyp_compatible4n'.
+  intros.
+  case Hte : te => [||btyp]; rewrite Hte in H H0; simpl in H0; try discriminate.
+  simpl.
+  apply check_non_passive_fgtyp_compatible4n'_f with (n0 := n0) in H; try done.
+  apply num_ref_eq_f in H0; rewrite -H0.
+  case Hn0 : (tmap_type_size_fields f <= N.of_nat n0); try done.
+  apply or_intror; apply or_intror; done.
+
+  clear check_non_passive_fgtyp_compatible4n'_f.
+  elim.
+  intros.
+  apply check_non_passive_fgtyp_compatible4n' with (n0 := n0) in H; try done.
+  case Hte : te => [|v' f' f0' f1']; rewrite Hte in H0 H; simpl in H0; try discriminate.
+  simpl in H; simpl; done.
+
+  intros.
+  case Hbtyp : te => [|v' f' f0' f1']; rewrite Hbtyp in H1 H0; simpl in H1; case Hf : f; rewrite Hf in H1; try discriminate.
+  case Hf' : f'; rewrite Hf' in H1; try discriminate.
+  simpl.
+  move /andP : H1 => [H1 H1']; move /andP : H1 => [H1'' H1]; generalize H1; apply num_ref_eq in H1; rewrite -H1; clear H1.
+  move => H1.
+  case Hn0 : (N.of_nat (tmap_type_size f0) <= N.of_nat n0).
+  apply H with (n := n - (tmap_type_size f0)) (n0 := n0 - (tmap_type_size f0)) in H1'.
+  rewrite Nats.subn_sub Nnat.Nat2N.inj_sub in H1'; done.
+  apply check_non_passive_fgtyp_compatible_dlvr in H0.
+  move : H0 => [H0 _]; done.
+  simpl; rewrite Hf Hf' H1'' H1 H1' //.
+  apply ltn_sub2r; try done.
+  admit. (* H2 Hn0 *)
+  apply check_non_passive_fgtyp_compatible4n' with (n := (tmap_type_size f0)) (n0 := n0) in H1; try done.
+  admit. (* ft_check_flip_rev，讨论H1哪一个是true 貌似有地方不对！！TBD *)
+  apply check_non_passive_fgtyp_compatible_dlvr in H0.
+  move : H0 => [_ H0]; done.
+  simpl; rewrite Hf Hf' H1'' H1 H1' //.
+  admit. (* Hn0 *)
+    case Hf' : f'; rewrite Hf' in H1; try discriminate.
+    simpl.
+    move /andP : H1 => [H1 H1']; move /andP : H1 => [H1'' H1]; generalize H1; apply num_ref_eq in H1; rewrite -H1; clear H1.
+    move => H1.
+    case Hn0 : (N.of_nat (tmap_type_size f0) <= N.of_nat n0).
+    apply H with (n := n - (tmap_type_size f0)) (n0 := n0 - (tmap_type_size f0)) in H1'.
+    rewrite Nats.subn_sub Nnat.Nat2N.inj_sub in H1'; done.
+    apply check_non_passive_fgtyp_compatible_dlvr in H0.
+    move : H0 => [H0 _]; done.
+    simpl; rewrite Hf Hf' H1'' H1 H1' //.
+    apply ltn_sub2r; try done.
+    admit. (* H2 Hn0 *)
+    apply check_non_passive_fgtyp_compatible4n' with (n := (tmap_type_size f0)) (n0 := n0) in H1; try done.
+    apply check_non_passive_fgtyp_compatible_dlvr in H0.
+    move : H0 => [_ H0]; done.
+    simpl; rewrite Hf Hf' H1'' H1 H1' //.
+    admit. (* Hn0 *)
+
+  clear check_non_passive_fgtyp_compatible_dlvr.
+  intros.
+  split.
+  apply check_connect_non_passive_fgtyp4n.
+  intros.
+  apply check_non_passive_fgtyp_compatible4n' with (n0 := n0 + tmap_type_size f0) in H; try done.
+  specialize ft_check_flip_nfield with (f1 := f1) (f0 := f0) (v := v) (f := f) (n := N.of_nat (n0 + (tmap_type_size f0))) (b := false); intro.
+  rewrite Nnat.Nat2N.id addnC leq_addr in H2.
+  rewrite -Nnat.Nat2N.inj_sub in H2.
+  rewrite -Nats.subn_sub in H2.
+  rewrite -addnBAC in H2.
+  rewrite subnn add0n addnC in H2; rewrite H2 in H; clear H2.
+  specialize ft_find_sub_nfield with (f1 := f1) (f0 := f0) (v := v) (f := f) (n := N.of_nat (n0 + (tmap_type_size f0))); intro.
+  rewrite Nnat.Nat2N.id addnC leq_addr in H2.
+  rewrite -Nnat.Nat2N.inj_sub in H2.
+  rewrite -Nats.subn_sub in H2.
+  rewrite -addnBAC in H2.
+  rewrite subnn add0n addnC in H2; rewrite H2 in H; clear H2.
+  specialize ft_find_sub_nfield with (f1 := f1') (f0 := f0') (v := v') (f := f') (n := N.of_nat (n0 + (tmap_type_size f0'))); intro.
+  rewrite Nnat.Nat2N.id addnC leq_addr in H2.
+  rewrite -Nnat.Nat2N.inj_sub in H2.
+  rewrite -Nats.subn_sub in H2.
+  rewrite -addnBAC in H2.
+  assert (tmap_type_size f0 = tmap_type_size f0').
+  apply num_ref_eq.
+  simpl in H0.
+  case Hf : f; case Hf' : f'; rewrite Hf Hf' in H0; try discriminate; move /andP : H0 => [H0 _]; move /andP : H0 => [_ H0]; done.
+  rewrite subnn add0n addnC -H3 in H2; rewrite H2 in H; clear H2 H3.
+  admit. (* 讨论H哪一个是true *)
+  1,2,3: apply leqnn.
+  generalize H1; rewrite -(ltn_add2r (tmap_type_size f0)) in H1; intro.
+  rewrite subnK in H1. done.
+  admit.
+  simpl; simpl in H0.
+  case Hf : f; case Hf' : f'; rewrite Hf Hf' in H0; try discriminate; move /andP : H0 => [_ H0]; done.
+  
+  apply check_connect_non_passive_fgtyp4n.
+  intros.
+  apply check_non_passive_fgtyp_compatible4n' with (n0 := n0) in H; try done.
+  specialize ft_check_flip_nfield with (f1 := f1) (f0 := f0) (v := v) (f := f) (n := N.of_nat n0) (b := false); intro.
+  rewrite Nnat.Nat2N.id in H2.
+  rewrite ltnNge in H1.
+  apply negbTE in H1.
+  rewrite H1 in H2.
+  case Hf : (f == Nflip); rewrite Hf in H2.
+  rewrite H2 in H; clear H2.
+  specialize ft_find_sub_nfield with (f1 := f1) (f0 := f0) (v := v) (f := f) (n := N.of_nat n0); intro.
+  rewrite Nnat.Nat2N.id H1 in H2; rewrite H2 in H; clear H2.
+  specialize ft_find_sub_nfield with (f1 := f1') (f0 := f0') (v := v') (f := f') (n := N.of_nat n0); intro.
+  assert (tmap_type_size f0 = tmap_type_size f0').
+  apply num_ref_eq.
+  simpl in H0.
+  move /eqP : Hf => Hf.
+  case Hf' : f'; rewrite Hf Hf' in H0; try discriminate; move /andP : H0 => [H0 _]; move /andP : H0 => [_ H0]; done.
+  rewrite -H3 Nnat.Nat2N.id H1 in H2; rewrite H2 in H; clear H2.
+  admit. (* 讨论H哪一个是true *)
+  clear Hf.
+  assert (Hf : f = Flipped).
+  admit.
+  rewrite H2 in H; clear H2.
+  specialize ft_find_sub_nfield with (f1 := f1) (f0 := f0) (v := v) (f := f) (n := N.of_nat n0); intro.
+  rewrite Nnat.Nat2N.id H1 in H2; rewrite H2 in H; clear H2.
+  specialize ft_find_sub_nfield with (f1 := f1') (f0 := f0') (v := v') (f := f') (n := N.of_nat n0); intro.
+  assert (tmap_type_size f0 = tmap_type_size f0').
+  apply num_ref_eq.
+  simpl in H0.
+  case Hf' : f'; rewrite Hf Hf' in H0; try discriminate; move /andP : H0 => [H0 _]; move /andP : H0 => [_ H0]; done.
+  rewrite -H3 Nnat.Nat2N.id H1 in H2; rewrite H2 in H; clear H2.
+  admit. (* 讨论H哪一个是true *)
+  admit.
+  case Hf : f; case Hf' : f'; rewrite Hf Hf' in H0; try discriminate; move /andP : H0 => [H0 _]; move /andP : H0 => [_ H0]; done.
+
+Admitted.
+
+Lemma ftype2fgtyp_non_passive_compatible : forall ft te n, N.to_nat n < tmap_type_size ft -> connect_non_passive_type ft te -> 
   match ft_check_flip ft n false, ft_find_sub ft n, ft_find_sub te n with
   | Some false, Some gt, Some gte => connect_fgtyp_compatible gt gte
   | Some true, Some gt, Some gte => connect_fgtyp_compatible gte gt
   | _,_,_ => true
   end.
 Proof.
-  
+  intros.
+  rewrite /connect_non_passive_type in H0.
+  move /andP : H0 => [H0 H1].
+  apply check_non_passive_fgtyp_compatible4n' with (n0 := N.to_nat n) in H1; try done.
+  rewrite Nnat.N2Nat.id in H1.
+  case Hf : (ft_check_flip ft n false) => [b|]; try done.
+  case Hb : b; try done.
+  case Hft : (ft_find_sub ft n) => [gt|]; try done.
+  case Hte : (ft_find_sub te n) => [gte|]; try done.
+  rewrite Hf Hb Hft Hte in H1.
+  admit.
+  case Hft : (ft_find_sub ft n) => [gt|]; try done.
+  case Hte : (ft_find_sub te n) => [gte|]; try done.
+  rewrite Hf Hb Hft Hte in H1.
+  admit.
 Admitted.
 
 Lemma component_vx_type_vm : forall v r tmap vmap v_tgt t_tgt t_tgt' gte, base_ref r tmap = Some (v_tgt, t_tgt) -> if (v.1 == v_tgt.1) then fillft_vm (tmap_type_size t_tgt) t_tgt v_tgt vmap = Some t_tgt' -> ft_find_sub t_tgt' (N.sub v.2 v_tgt.2) = Some gte ->
@@ -2953,8 +2889,29 @@ Proof.
   
 Admitted.
 
-Lemma split_expr_non_passive_size : forall f ref b ls, split_expr_non_passive ref f b = Some ls -> List.length ls = tmap_type_size f.
+Lemma split_expr_non_passive_size : forall f ref b ls, split_expr_non_passive ref f b = Some ls -> List.length ls = tmap_type_size f
+with split_expr_non_passive_size_f : forall f ref b ls, split_expr_non_passive_f ref f b = Some ls -> List.length ls = tmap_type_size_fields f.
 Proof.
+  elim.
+  simpl.
+  intros; inversion H; done.
+  simpl.
+  intros.
+  apply H in H0; done.
+  clear split_expr_non_passive_size.
+  simpl; intros.
+  move : H.
+  apply split_expr_non_passive_size_f; done.
+  elim.
+  simpl; intros; inversion H; done.
+  simpl; intros.
+  case Hf : f; rewrite Hf in H0.
+  1,2 : case Hsplit : (split_expr_non_passive_f ref f1 b) => [ls'|]; rewrite Hsplit in H0; try discriminate.
+  case Hsplit' : (split_expr_non_passive (Esubfield ref v) f0 (~~ b)) => [ls''|]; rewrite Hsplit' in H0; try discriminate.
+  inversion H0; clear H0.
+  apply split_expr_non_passive_size in Hsplit'; apply H in Hsplit.
+  (*apply app_length.
+  rewrite -Hsplit -Hsplit'.*)
 Admitted.
 
 Lemma split_non_passive_flip_eq : forall t r n rstl p b, split_expr_non_passive r t b = Some rstl -> nth_error rstl n = Some p -> Some p.2 = ft_check_flip t (N.of_nat n) b

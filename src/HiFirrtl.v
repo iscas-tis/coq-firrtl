@@ -81,7 +81,29 @@ Section HiFirrtl.
 
   Inductive rst : Type :=
   | NRst : rst
-  | Rst : hfexpr -> hfexpr -> rst.
+  | Rst : hfexpr (* reset trigger signal *) -> hfexpr (* reset value *) -> rst.
+
+  Lemma rst_eq_dec : forall {x y : rst}, {x = y} + {x <> y}.
+  Proof.  decide equality ; apply hfexpr_eq_dec.  Qed.
+  Definition rst_eqn (x y : rst) : bool :=
+  match x, y with
+  | NRst, NRst => true
+  | Rst t1 r1, Rst t2 r2 => (t1 == t2) && (r1 == r2)
+  | _, _ => false
+  end.
+  Lemma rst_eqP : Equality.axiom rst_eqn.
+  Proof.
+  unfold Equality.axiom, rst_eqn ; intros.
+  destruct x, y ; try (apply ReflectF ; discriminate) ; try (apply ReflectT ; reflexivity).
+  destruct (h == h1) eqn: H1 ; move /eqP : H1 => H1.
+  * rewrite andTb ; destruct (h0 == h2) eqn: H2 ; move /eqP : H2 => H2.
+    + apply ReflectT ; rewrite H1 H2 ; reflexivity.
+    + apply ReflectF ; contradict H2 ; injection H2 ; done.
+  * rewrite andFb ; apply ReflectF.
+    contradict H1 ; injection H1 ; done.
+  Qed.
+  Canonical rst_eqMixin := EqMixin rst_eqP.
+  Canonical rst_eqType := Eval hnf in EqType rst rst_eqMixin.
 
   Record hfreg : Type :=
     mk_freg
@@ -91,6 +113,25 @@ Section HiFirrtl.
         clock : hfexpr;
         reset : rst
       }.
+
+  Lemma hfreg_eq_dec : forall {x y : hfreg}, {x = y} + {x <> y}.
+  Proof.  decide equality.  apply rst_eq_dec.  apply hfexpr_eq_dec.  apply ftype_eq_dec.  Qed.
+  Definition hfreg_eqn (x y : hfreg) : bool :=
+  (type x == type y) && (clock x == clock y) && (reset x == reset y).
+  Lemma hfreg_eqP : Equality.axiom hfreg_eqn.
+  Proof.
+  unfold Equality.axiom, hfreg_eqn.
+  destruct x, y ; simpl.
+  destruct (type0 == type1) eqn: Ht ; move /eqP : Ht => Ht.
+  * rewrite andTb ; destruct (clock0 == clock1) eqn: Hc ; move /eqP : Hc => Hc.
+    + rewrite andTb ; destruct (reset0 == reset1) eqn: Hr ; move /eqP : Hr => Hr.
+      - rewrite Ht Hc Hr ; apply ReflectT ; reflexivity.
+      - apply ReflectF ; contradict Hr ; injection Hr ; done.
+    + apply ReflectF ; contradict Hc ; injection Hc ; done.
+  * apply ReflectF ; contradict Ht ; injection Ht ; done.
+  Qed.
+  Canonical hfreg_eqMixin := EqMixin hfreg_eqP.
+  Canonical hfreg_eqType := Eval hnf in EqType hfreg hfreg_eqMixin.
 
   Definition inst_ports : Type := seq var.
 
@@ -134,6 +175,22 @@ Section HiFirrtl.
    match s1 with Qnil => s2
                | Qcons h1 tl1 => Qcons h1 (Qcat tl1 s2) end.
 
+   Lemma Qcats0 : forall (ss : hfstmt_seq),
+      Qcat ss Qnil = ss.
+   Proof.
+   induction ss.
+   * by unfold Qcat ; reflexivity.
+   * by simpl Qcat ; rewrite IHss ; reflexivity.
+   Qed.
+
+   Lemma Qcat_assoc : forall (ss1 ss2 ss3 : hfstmt_seq),
+      Qcat (Qcat ss1 ss2) ss3 = Qcat ss1 (Qcat ss2 ss3).
+   Proof.
+   induction ss1.
+   * simpl Qcat ; by reflexivity.
+   * intros ; simpl Qcat ; rewrite IHss1 ; reflexivity.
+   Qed.
+
    Fixpoint Qcatrev (s1 s2 : hfstmt_seq) : hfstmt_seq := (* calculates the reversal of s1, followed by s2 *)
    match s1 with Qnil => s2
                | Qcons h1 tl1 => Qcatrev tl1 (Qcons h1 s2) end.
@@ -150,6 +207,16 @@ Section HiFirrtl.
    | Qnil => Qcons s Qnil
    | Qcons h tl => Qcons h (Qrcons tl s)
    end.
+
+   Lemma Qcat_rcons : forall (ss1 : hfstmt_seq) (s : hfstmt) (ss2 : hfstmt_seq),
+      Qcat (Qrcons ss1 s) ss2 = Qcat ss1 (Qcons s ss2).
+   Proof.
+   induction ss1.
+   * unfold Qrcons ; simpl Qcat ; reflexivity.
+   * simpl Qrcons ; simpl Qcat.
+     intros.
+     rewrite IHss1 ; reflexivity.
+   Qed.
 
   (* Fixpoint Qfoldl {R : Type} (f : R -> hfstmt -> R) (s : hfstmt_seq) (default : R) :=
    match s with Qnil => default
@@ -245,6 +312,128 @@ End HiFirrtl.
            (v1 == v2) && ftype_equiv t1 t2 && fbtyp_equiv fs1 fs2
          | _, _ => false
          end.
+
+  Lemma fgtyp_equiv_refl t1 : fgtyp_equiv t1 t1.
+  Proof.
+  case : t1; intros; try done.
+  Qed.
+
+  Lemma ftype_equiv_refl t1 : ftype_equiv t1 t1
+  with fbtyp_equiv_refl f1 : fbtyp_equiv f1 f1.
+  Proof.
+    induction t1; simpl; try apply fgtyp_equiv_refl.
+    rewrite eq_refl IHt1; done.
+    apply fbtyp_equiv_refl.
+    induction f1; simpl; try done.
+    case : f; rewrite eq_refl IHf1 ftype_equiv_refl; done.
+  Qed.
+
+  Lemma fgtyp_equiv_comm t1 t2 : fgtyp_equiv t1 t2 -> fgtyp_equiv t2 t1.
+  Proof.
+    case : t1; intros; try done.
+  Qed.
+
+  Lemma ftype_equiv_comm : forall t1 t2, ftype_equiv t1 t2 -> ftype_equiv t2 t1
+  with fbtyp_equiv_comm : forall f1 f2, fbtyp_equiv f1 f2 -> fbtyp_equiv f2 f1.
+  Proof.
+    elim; intro t1.
+    elim; intro t2; simpl; try discriminate; try apply fgtyp_equiv_comm.
+    intros IH n t2.
+    case Ht2 : t2 => [|t2' n'|]; simpl; try discriminate.
+    intro; move /andP : H => [H1 H2]; move /eqP : H1 => H1; rewrite H1; apply IH in H2.
+    rewrite eq_refl H2; done.
+    intro t2.
+    case Ht2 : t2 => [||t2']; simpl; try discriminate; try apply fbtyp_equiv_comm.
+    elim.
+    intro t2.
+    case Ht2 : t2; simpl; try discriminate; try done.
+    intros v f f0 f1 IH.
+    intro t2; case Ht2 : t2 => [|v' f' f0' f1']; simpl; case Hf : f; try discriminate.
+    1,2: case Hf' : f'; try discriminate.
+    1,2: intro.
+    1,2: move /andP : H => [H1 H2]; move /andP : H1 => [H1 H]; move /eqP : H1 => H1; rewrite H1 eq_refl.
+    1,2: apply IH in H2; apply ftype_equiv_comm in H; rewrite H H2; done.
+  Qed.
+
+Lemma fgtyp_equiv_dlvr : forall t1 t2 t3, fgtyp_equiv t1 t2 -> fgtyp_equiv t2 t3 -> fgtyp_equiv t1 t3.
+Proof.
+  intros.
+  case Ht1 : t1; case Ht2 : t2; case Ht3 : t3; rewrite Ht1 Ht2 in H; rewrite Ht2 Ht3 in H0; simpl in H; simpl in H0; simpl; try done; try discriminate.
+Qed.
+
+Lemma ftype_equiv_dlvr : forall t1 t2 t3, ftype_equiv t1 t2 -> ftype_equiv t2 t3 -> ftype_equiv t1 t3
+with ftype_equiv_dlvr_f : forall t1 t2 t3, fbtyp_equiv t1 t2 -> fbtyp_equiv t2 t3 -> fbtyp_equiv t1 t3.
+Proof.
+  elim.
+  intros gt1 t2 t3 H H0.
+  case Ht2 : t2 => [gt2|atyp2 n2|btyp2]; rewrite Ht2 in H H0; simpl in H; try discriminate.
+  case Ht3 : t3 => [gt3|atyp3 n3|btyp3]; rewrite Ht3 in H H0; simpl in H0; simpl; try done; try discriminate.
+  move : H H0; apply fgtyp_equiv_dlvr.
+
+  intros atyp1 IH n1 t2 t3 H H0.
+  case Ht2 : t2 => [gt2|atyp2 n2|btyp2]; rewrite Ht2 in H H0; simpl in H; try discriminate.
+  case Ht3 : t3 => [gt3|atyp3 n3|btyp3]; rewrite Ht3 in H H0; simpl in H0; simpl; try done; try discriminate.
+  move /andP : H => [H1 H].
+  move /andP : H0 => [H2 H0].
+  move /eqP : H1 => H1.
+  move /eqP : H2 => H2.
+  apply rwP with (P := (n1 == n3) /\ ftype_equiv atyp1 atyp3).
+  apply andP.
+  split.
+  rewrite H1 -H2; try done.
+  move : H H0; apply IH.
+
+  intros btyp t2 t3 H H0.
+  case Ht2 : t2 => [gt2|atyp2 n2|btyp2]; rewrite Ht2 in H H0; simpl in H; try discriminate.
+  case Ht3 : t3 => [gt3|atyp3 n3|btyp3]; rewrite Ht3 in H H0; simpl in H0; simpl; try done; try discriminate.
+  move : H H0; apply ftype_equiv_dlvr_f.
+
+  elim.
+  intros t2 t3 H H0.
+  case Ht2 : t2 => [|v2 fl2 ft2 f2]; rewrite Ht2 in H H0; simpl in H; try discriminate.
+  case Ht3 : t3 => [|v3 fl3 ft3 f3]; rewrite Ht3 in H0; simpl in H0; try discriminate.
+  simpl; done.
+  intros v1 fl1 ft1 f1 IH t2 t3 H H0.
+  case Ht2 : t2 => [|v2 fl2 ft2 f2]; rewrite Ht2 in H H0; simpl in H; case Hf1 : fl1; rewrite Hf1 in H; try discriminate.
+  case Hf2 : fl2; rewrite Hf2 in H; try discriminate.
+  case Ht3 : t3 => [|v3 fl3 ft3 f3]; rewrite Ht3 Hf2 in H0; simpl in H0; try discriminate.
+  case Hf3 : fl3; rewrite Hf3 in H0; try discriminate.
+  simpl.
+  move /andP : H => [H H1].
+  move /andP : H => [H H']. 
+  move /andP : H0 => [H0 H2].
+  move /andP : H0 => [H0 H3].
+  move /eqP : H => H.
+  move /eqP : H0 => H0.
+  apply rwP with (P := (v1 == v3) && ftype_equiv ft1 ft3 /\ fbtyp_equiv f1 f3).
+  apply andP.
+  split.
+  apply rwP with (P := (v1 == v3) /\ ftype_equiv ft1 ft3).
+  apply andP.
+  split.
+  rewrite H -H0; done.
+  move : H' H3; apply ftype_equiv_dlvr.
+  move : H1 H2; apply IH.
+  case Hf2 : fl2; rewrite Hf2 in H; try discriminate.
+  case Ht3 : t3 => [|v3 fl3 ft3 f3]; rewrite Ht3 Hf2 in H0; simpl in H0; try discriminate.
+  case Hf3 : fl3; rewrite Hf3 in H0; try discriminate.
+  simpl.
+  move /andP : H => [H H1].
+  move /andP : H => [H H']. 
+  move /andP : H0 => [H0 H2].
+  move /andP : H0 => [H0 H3].
+  move /eqP : H => H.
+  move /eqP : H0 => H0.
+  apply rwP with (P := (v1 == v3) && ftype_equiv ft1 ft3 /\ fbtyp_equiv f1 f3).
+  apply andP.
+  split.
+  apply rwP with (P := (v1 == v3) /\ ftype_equiv ft1 ft3).
+  apply andP.
+  split.
+  rewrite H -H0; done.
+  move : H' H3; apply ftype_equiv_dlvr.
+  move : H1 H2; apply IH.
+Qed.
 
   (* type weak equivalence -- seems to be removed from the FIRRTL specification
   Fixpoint have_field bs f : bool :=

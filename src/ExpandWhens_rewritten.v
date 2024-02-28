@@ -94,6 +94,7 @@ induction pp.
   1,2: destruct (code_type_find_vm_widths (Gtyp f) s vm) as [[[newgt| |] _]|] ; try done.
   1,2: rewrite -H1 ; clear H1 newgt.
   1,2: destruct (ports_tmap pp vm) ; last by trivial.
+  1,2: destruct (CEP.find s t) ; first by trivial.
   1,2: intro.
   1,2: destruct (v == s) eqn: Hvs.
   1,3: rewrite CEP.Lemmas.find_add_eq ; first (by apply H) ;
@@ -1194,6 +1195,7 @@ induction pp.
   1,2: destruct (code_type_find_vm_widths (Gtyp gt) v vm) as [[[newgt| |]]|] ; try done.
   1,2: rewrite -H0 ; clear H0 newgt n.
   1,2: destruct (ports_tmap pp vm) as [pmap|]; last by trivial.
+  1,2: destruct (CEP.find v pmap) ; first by trivial.
   1,2: destruct (ExpandPort_fun pp) as [[temp_conn_map temp_scope]|]; last by trivial.
   1,2: intro.
   1,2: destruct (y == v) eqn: Hyv.
@@ -1203,6 +1205,171 @@ induction pp.
   1,2: rewrite CEP.Lemmas.find_add_neq ; last (by rewrite /HiFirrtl.PVM.SE.eq Hyv //) ;
        rewrite CEP.Lemmas.find_add_neq ; last (by rewrite /HiFirrtl.PVM.SE.eq Hyv //) ;
        by apply IHpp.
+Qed.
+
+Lemma ExpandPort_Sem :
+forall (tmap : CEP.t ftype) (pp : seq HiFP.hfport) (vm : CEP.t vertex_type) (ct : CEP.t def_expr),
+    ports_have_fully_inferred_ground_types pp ->
+    match ports_tmap pp vm with
+    | Some pmap =>
+        submap pmap tmap ->
+        Sem_frag_ports (CEP.empty vertex_type) (CEP.empty def_expr) pp vm ct tmap ->
+           match ExpandPort_fun pp with
+           | Some (new_conn_map, new_scope) =>
+               CEP.Equal ct new_conn_map
+           | _ => True
+           end
+    | None => True
+    end.
+Proof.
+induction pp ; first by (simpl ; intros ; destruct H1 ; rewrite H2 ; reflexivity).
+intros.
+generalize (ports_tmap_preserves_fully_inferred vm (a :: pp) H) ; intro.
+simpl ports_have_fully_inferred_ground_types in H.
+generalize (ports_tmap_names vm pp) ; intro.
+generalize (ports_tmap_uniq vm (a :: pp)) ; intro.
+destruct (ports_tmap (a :: pp) vm) as [pmap|] eqn: Hpmap ; last by trivial.
+intros.
+simpl ports_tmap in Hpmap.
+destruct H4 as [vm' [ct' [H4 H5]]].
+assert (submap vm' vm /\ submap ct' ct)
+      by (apply Sem_frag_ports_submap with (pp := [:: a]) (tmap := tmap) ;
+          simpl ; exists vm', ct' ;
+          split ; last (by exact H5) ; split ; reflexivity).
+unfold Sem_frag_port in H5.
+destruct (ExpandPort_fun (a :: pp)) as [[new_conn_map new_scope]|] eqn: Hexpand ; last by trivial.
+simpl ExpandPort_fun in Hexpand.
+destruct a as [p [gt| |]|p [gt| |]] ; try done.
+1,2: move /andP : H => [H H7].
+1,2: specialize (IHpp vm' ct' H7).
+1,2: destruct (ExpandPort_fun pp) as [[temp_conn_map temp_scope]|] ; last by discriminate Hexpand.
+1,2: injection Hexpand ; clear Hexpand ; intros _ Hexpand ;
+     rewrite -Hexpand ; clear new_conn_map new_scope temp_scope Hexpand.
+1,2: generalize (fully_inferred_does_not_change gt p vm H) ; intro.
+1,2: destruct (code_type_find_vm_widths (Gtyp gt) p vm) as [[[gt'| |] _]|] ; try by done.
+1,2: rewrite -H8 in Hpmap ; clear gt' H8.
+1,2: destruct (ports_tmap pp vm) as [pmap'|] eqn: Hports_tmap ; last by done.
+1,2: specialize (H1 p).
+1,2: destruct (CEP.find p pmap') eqn: Hfindp' ; try by done.
+1,2: destruct H1 as [H1 _].
+1,2: destruct (CEP.find p pmap') eqn: Hfindp' ; first by done.
+1,2: injection Hpmap ; clear Hpmap ; intro Hpmap.
+1,2: rewrite -Hpmap in H0, H3 ; clear pmap Hpmap.
+1,2: generalize (H3 p) ; intro.
+1,2: rewrite CEP.Lemmas.find_add_eq in H8 ; last by rewrite /CEP.SE.eq //.
+1,2: rewrite H8 in H5.
+1,2: simpl size_of_ftype in H5 ; simpl list_rhs_type_p in H5.
+(* First goal: we use proj2 (proj2 H5) and IHpp to prove the result.
+   We only need to prove that ports_tmap pp vm' is Some pmap and is a submap of tmap;
+   that should be possible to prove by using the other parts of H5,
+   which state that vm and vm' are almost the same, so we finally get
+   ports_tmap pp vm is basically CEP.Equal to ports_tmap pp vm'. *)
+* destruct H5 as [_ [H9 H10]].
+  (*specialize (H5 0) ; rewrite /List.nth_error add0n nat_of_binK -surjective_pairing in H5.*)
+  intro.
+  specialize (H10 y).
+  rewrite -H10 ; destruct H6 as [H6 _] ; clear ct H10.
+  assert (ports_tmap pp vm' = ports_tmap pp vm).
+        clear -H2 H7 H9.
+        revert H2 H7.
+        induction pp ;
+              first by (unfold ports_tmap ; reflexivity).
+        intros ; simpl ports_tmap.
+        simpl ports_have_fully_inferred_ground_types in H7.
+        destruct a as [p0 [gt0| |]|p0 [gt0| |]] ; try done.
+        1,2: simpl uniq in H2 ; move /andP : H2 => [H21 /andP [_ H23]].
+        1,2: rewrite in_cons negb_or in H21.
+        1,2: move /andP : H21 => [H21 H22].
+        1,2: move /andP : H7 => [H H7].
+        1,2: simpl uniq in IHpp.
+        1,2: rewrite H22 H23 andTb in IHpp.
+        1,2: specialize (IHpp is_true_true H7).
+        1,2: rewrite IHpp.
+        1,2: assert (CEP.find p0 vm' = CEP.find p0 vm)
+              by (specialize (H9 p0.1 p0.2) ;
+                  rewrite add1n -surjective_pairing in H9 ;
+                  specialize (N.eq_dec p0.1 p.1) ; intro ;
+                  destruct H0 ; last (by apply H9 ; left ; exact n) ;
+                  destruct (Nat.compare_spec p0.2 p.2) ;
+                        first (by specialize (injective_projections p0 p e) ; intro ;
+                                  rewrite -(nat_of_binK p0.2) -(nat_of_binK p.2) H0 in H1 ;
+                                  specialize (H1 Logic.eq_refl) ;
+                                  rewrite H1 eq_refl // in H21) ;
+                        first (by apply H9 ; right ; left  ; move /ltP : H0 => H0 ; exact H0) ;
+                  apply H9 ; right ; right ; move /ltP : H0 => H0 ; exact H0).
+        1,2: unfold code_type_find_vm_widths ;
+             rewrite H0 ;
+             fold (code_type_find_vm_widths (Gtyp gt0) p0 vm).
+        1,2: reflexivity.
+  rewrite H5 Hports_tmap in IHpp.
+  apply IHpp ; last by exact H4.
+  intro.
+  specialize (H3 v).
+  destruct (v == p) eqn: Hvp ; first by move /eqP : Hvp => Hvp ; rewrite Hvp Hfindp' //.
+  rewrite CEP.Lemmas.find_add_neq // in H3.
+  rewrite /PVM.SE.eq Hvp //.
+(* Second goal: similar, just that an element is added to ct. *)
+* destruct H5 as [_ [H9 [H10 H11]]].
+  (*specialize (H5 0) ; rewrite /List.nth_error add0n nat_of_binK -surjective_pairing in H5.*)
+  intro.
+  specialize (H10 y.1 y.2) ; rewrite add1n -surjective_pairing in H10.
+  specialize (H11 0 is_true_true) ; rewrite add0n nat_of_binK -surjective_pairing in H11.
+  destruct (y == p) eqn: Hyp ;
+        first by (move /eqP : Hyp => Hyp ;
+                  rewrite CEP.Lemmas.find_add_eq /PVM.SE.eq Hyp // ;
+                  apply H11).
+  clear H11.
+  rewrite CEP.Lemmas.find_add_neq ; last by rewrite /PVM.SE.eq Hyp //.
+  assert (CEP.find y ct' = CEP.find y ct)
+        by (specialize (N.eq_dec y.1 p.1) ; intro ;
+            destruct H5 ; last (by apply H10 ; left ; exact n) ;
+            destruct (Nat.compare_spec y.2 p.2) ;
+                        first (by specialize (injective_projections y p e) ; intro ;
+                                  rewrite -(nat_of_binK y.2) -(nat_of_binK p.2) H5 in H11 ;
+                                  specialize (H11 Logic.eq_refl) ;
+                                  rewrite H11 eq_refl // in Hyp) ;
+                        first (by apply H10 ; right ; left  ; move /ltP : H5 => H5 ; exact H5) ;
+                  apply H10 ; right ; right ; move /ltP : H5 => H5 ; exact H5).
+  rewrite -H5 ; destruct H6 as [H6 _] ; clear ct H5 H10.
+  assert (ports_tmap pp vm' = ports_tmap pp vm).
+        clear -H2 H7 H9.
+        revert H2 H7.
+        induction pp ;
+              first by (unfold ports_tmap ; reflexivity).
+        intros ; simpl ports_tmap.
+        simpl ports_have_fully_inferred_ground_types in H7.
+        destruct a as [p0 [gt0| |]|p0 [gt0| |]] ; try done.
+        1,2: simpl uniq in H2 ; move /andP : H2 => [H21 /andP [_ H23]].
+        1,2: rewrite in_cons negb_or in H21.
+        1,2: move /andP : H21 => [H21 H22].
+        1,2: move /andP : H7 => [H H7].
+        1,2: simpl uniq in IHpp.
+        1,2: rewrite H22 H23 andTb in IHpp.
+        1,2: specialize (IHpp is_true_true H7).
+        1,2: rewrite IHpp.
+        1,2: assert (CEP.find p0 vm' = CEP.find p0 vm)
+              by (specialize (H9 p0.1 p0.2) ;
+                  rewrite add1n -surjective_pairing in H9 ;
+                  specialize (N.eq_dec p0.1 p.1) ; intro ;
+                  destruct H0 ; last (by apply H9 ; left ; exact n) ;
+                  destruct (Nat.compare_spec p0.2 p.2) ;
+                        first (by specialize (injective_projections p0 p e) ; intro ;
+                                  rewrite -(nat_of_binK p0.2) -(nat_of_binK p.2) H0 in H1 ;
+                                  specialize (H1 Logic.eq_refl) ;
+                                  rewrite H1 eq_refl // in H21) ;
+                        first (by apply H9 ; right ; left  ; move /ltP : H0 => H0 ; exact H0) ;
+                  apply H9 ; right ; right ; move /ltP : H0 => H0 ; exact H0).
+        1,2: unfold code_type_find_vm_widths ;
+             rewrite H0 ;
+             fold (code_type_find_vm_widths (Gtyp gt0) p0 vm).
+        1,2: reflexivity.
+  rewrite H5 Hports_tmap in IHpp.
+  apply IHpp ; last by exact H4.
+  intro.
+  specialize (H3 v).
+  destruct (v == p) eqn: Hvp ; first by move /eqP : Hvp => Hvp ; rewrite Hvp Hfindp' //.
+  rewrite CEP.Lemmas.find_add_neq // in H3.
+  rewrite /PVM.SE.eq Hvp //.
 Qed.
 
 (*
@@ -1270,6 +1437,45 @@ induction l.
     rewrite H0.
     apply IHl.
 Qed.
+
+Lemma ExpandBranches_correct :
+forall (vm : CEP.t vertex_type) (ct : CEP.t def_expr)
+       (ss old_def_ss def_ss old_conn_ss conn_ss : HiFP.hfstmt_seq)
+       (old_conn_map conn_map ct' : CEP.t def_expr) (old_scope tmap : CEP.t ftype)
+       (vm' : CEP.t vertex_type),
+(* perhaps tmap_has_fully_inferred_ground_types tmap *)
+(exists temp_scope, ExpandBranch_funs ss old_def_ss old_conn_map old_scope = Some ((Qcat old_def_ss def_ss), conn_map, temp_scope)) ->
+def_ss = component_stmts_of ss ->
+CEP.fold helper_connect conn_map (Some old_conn_ss) = Some conn_ss ->
+Sem_frag_stmts vm' ct' (Qcat def_ss conn_ss) vm ct tmap ->
+(* vm' contains the component definitions in old_def_ss and old_conn_map -> *)
+(* ct' contains the connections in old_conn_ss / old_conn_map -> *)
+(* vm' and ct' fit together (i.e. have the same components) -> *)
+   Sem_frag_stmts vm' ct' ss vm ct tmap
+with ExpandBranch_correct :
+forall (vm : CEP.t vertex_type) (ct : CEP.t def_expr)
+       (s : HiFP.hfstmt) (old_def_ss def_ss old_conn_ss conn_ss : HiFP.hfstmt_seq)
+       (old_conn_map conn_map ct' : CEP.t def_expr) (old_scope tmap : CEP.t ftype)
+       (vm' : CEP.t vertex_type),
+(exists temp_scope, ExpandBranch_fun s old_def_ss old_conn_map old_scope = Some ((Qcat old_def_ss def_ss), conn_map, temp_scope)) ->
+def_ss = component_stmt_of s ->
+CEP.fold helper_connect conn_map (Some old_conn_ss) = Some conn_ss ->
+Sem_frag_stmts vm' ct' (Qcat def_ss conn_ss) vm ct tmap ->
+(* vm' contains the component definitions in old_def_ss and old_conn_map -> *)
+(* ct' contains the connections in old_conn_ss / old_conn_map -> *)
+(* vm' and ct' fit together (i.e. have the same components) -> *)
+   Sem_frag_stmt vm' ct' s vm ct tmap.
+Proof.
+* clear ExpandBranches_correct.
+  induction ss.
+  + simpl.
+    intros.
+    rewrite H0 in H, H2 ; clear def_ss H0.
+    simpl Qcat in H2 ; rewrite Qcats0 in H.
+    destruct H ; injection H ; clear H ; intros _ H ; clear x.
+    clear old_conn_map H.
+Admitted.
+
 
 Definition ExpandWhens_fun (m : HiFP.hfmodule) : option HiFP.hfmodule :=
 (* expand whens in module m *)
@@ -1360,6 +1566,10 @@ destruct H1 as [_ [vm' [ct' H1]]].
 exists vm', ct'.
 split ; first by apply H1.
 clear scope2'.
+destruct H5 as [_ [H5 _]].
+clear H2 scope2 scope1.
+replace pmap with port_scope in H0, H5 by (admit).
+clear H pmap.
 
 
 
