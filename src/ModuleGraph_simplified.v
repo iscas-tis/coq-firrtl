@@ -708,10 +708,22 @@ Proof.
 unfold submap.
 intros.
 destruct (v0 == v) eqn: Hv.
-* rewrite CEP.Lemmas.find_add_eq ; last by rewrite /HiFirrtl.PVM.SE.eq Hv //.
+* rewrite CEP.Lemmas.find_add_eq ; last by rewrite /PVM.SE.eq Hv //.
   move /eqP : Hv => Hv ; rewrite Hv H //.
-* rewrite CEP.Lemmas.find_add_neq ; last by rewrite /HiFirrtl.PVM.SE.eq Hv //.
+* rewrite CEP.Lemmas.find_add_neq ; last by rewrite /PVM.SE.eq Hv //.
   destruct (CEP.find v0 tmap) ; done.
+Qed.
+
+Lemma submap_addl {T : Type} : forall (tmap1 tmap2 : CEP.t T) (v : CEP.key) (t : T),
+    CEP.find v tmap1 = None -> submap (CEP.add v t tmap1) tmap2 -> submap tmap1 tmap2.
+Proof.
+unfold submap.
+intros.
+specialize (H0 v0).
+destruct (v0 == v) eqn: Hv.
+* move /eqP : Hv => Hv ; rewrite Hv H //.
+* rewrite CEP.Lemmas.find_add_neq in H0 ; last by rewrite /PVM.SE.eq Hv //.
+  exact H0.
 Qed.
 
 Lemma submap_add_add {T : Type} : forall (tmap1 tmap2 : CEP.t T) (v : CEP.key) (t : T),
@@ -1840,11 +1852,11 @@ match d_true, d_false with
     if expr_true == expr_false then d_true
     else Some (D_fexpr (Emux cond expr_true expr_false))
 | _, None
-| _, Some D_invalidated
 | Some D_undefined, _ => d_true
 | None, _
 | Some D_invalidated, _
 | _, Some D_undefined => d_false
+| _, Some D_invalidated => d_true
 end.
 
 
@@ -1917,20 +1929,20 @@ Fixpoint Sem_frag_stmt (vm_old : CEP.t vertex_type) (ct_old : CEP.t def_expr) (s
               (* ground-type wires are defined *)
               (forall n : nat,
                    match List.nth_error (list_rhs_type_p newft) n with
-                   | Some gt => CEP.find (fst v, N.add (snd v) (N.of_nat n)) vm_new = Some (Wire gt)
+                   | Some gt => CEP.find (fst v, bin_of_nat (n + snd v)) vm_new = Some (Wire gt)
                    | None => True
                    end)
            /\ (* other vertices do not change *)
-              (forall (v0 n0 : N), v0 <> fst v \/ n0 < snd v \/ n0 >= N.add (snd v) (N.of_nat (size_of_ftype newft)) ->
+              (forall (v0 n0 : N), v0 <> fst v \/ n0 < snd v \/ n0 >= (size_of_ftype newft) + (snd v) ->
                    CEP.find (v0, n0) vm_old =
                    CEP.find (v0, n0) vm_new)
            /\ (* other connections do not change *)
-              (forall (v0 n0 : N), v0 <> fst v \/ n0 < snd v \/ n0 >= N.add (snd v) (N.of_nat (size_of_ftype newft)) ->
+              (forall (v0 n0 : N), v0 <> fst v \/ n0 < snd v \/ n0 >= (size_of_ftype newft) + (snd v) ->
                    CEP.find (v0, n0) ct_old =
                    CEP.find (v0, n0) ct_new)
            /\ (* set wires to undefined *)
               forall n0 : N, n0 < size_of_ftype newft ->
-                  CEP.find (fst v, N.add (snd v) n0) ct_new = Some D_undefined
+                  CEP.find (fst v, bin_of_nat (n0 + snd v)) ct_new = Some D_undefined
        | None => False (* should not happen *)
        end
    | Sreg v reg =>
@@ -1954,7 +1966,7 @@ Fixpoint Sem_frag_stmt (vm_old : CEP.t vertex_type) (ct_old : CEP.t def_expr) (s
            /\ (* module graph contains ground-type registers *)
               (forall n : nat,
                    match List.nth_error (list_rhs_type_p newft) n with
-                   | Some gt => CEP.find (fst v, N.add (snd v) (N.of_nat n)) vm_new =
+                   | Some gt => CEP.find (fst v, bin_of_nat (n + snd v)) vm_new =
                        Some (Register gt (clock reg) (reset reg)
                                       (if reset reg is Rst rst_sig rst_val
                                        then if type_of_expr rst_sig tmap is Some (exist (Gtyp Fasuncreset) _)
@@ -1972,17 +1984,17 @@ Fixpoint Sem_frag_stmt (vm_old : CEP.t vertex_type) (ct_old : CEP.t def_expr) (s
               | Some expr_list =>
                   forall n : nat,
                       match List.nth_error expr_list n with
-                      | Some ex => CEP.find (fst v, N.add (snd v) (N.of_nat n)) ct_new = Some (D_fexpr ex)
+                      | Some ex => CEP.find (fst v, bin_of_nat (n + snd v)) ct_new = Some (D_fexpr ex)
                       | None => True
                       end
               | None => False
               end
            /\ (* other vertices do not change *)
-              (forall (v0 n0 : N), v0 <> fst v \/ n0 < snd v \/ n0 >= N.add (snd v) (N.of_nat (size_of_ftype newft)) ->
+              (forall (v0 n0 : N), v0 <> fst v \/ n0 < snd v \/ n0 >= size_of_ftype newft + snd v ->
                   CEP.find (v0, n0) vm_old =
                   CEP.find (v0, n0) vm_new)
            /\ (* other connections do not change *)
-              (forall (v0 n0 : N), v0 <> fst v \/ n0 < snd v \/ n0 >= N.add (snd v) (N.of_nat (size_of_ftype newft)) ->
+              (forall (v0 n0 : N), v0 <> fst v \/ n0 < snd v \/ n0 >= size_of_ftype newft + snd v ->
                   CEP.find (v0, n0) ct_old =
                   CEP.find (v0, n0) ct_new)
        | None => False (* should not happen *)
@@ -1993,15 +2005,15 @@ Fixpoint Sem_frag_stmt (vm_old : CEP.t vertex_type) (ct_old : CEP.t def_expr) (s
               (* ground-type nodes are defined *)
               (forall n : nat,
                    match List.nth_error (list_rhs_type_p newft) n with
-                   | Some gt => CEP.find (fst v, N.add (snd v) (N.of_nat n)) vm_new = Some (Node gt)
+                   | Some gt => CEP.find (fst v, bin_of_nat (n + snd v)) vm_new = Some (Node gt)
                    | None => True
                    end)
            /\ (* other vertices do not change *)
-              (forall (v0 n0 : N), v0 <> fst v \/ n0 < snd v \/ n0 >= N.add (snd v) (N.of_nat (size_of_ftype newft)) ->
+              (forall (v0 n0 : N), v0 <> fst v \/ n0 < snd v \/ n0 >= size_of_ftype newft + snd v ->
                    CEP.find (v0, n0) vm_old =
                    CEP.find (v0, n0) vm_new)
            /\ (* other connections do not change *)
-              (forall (v0 n0 : N), v0 <> fst v \/ n0 < snd v \/ n0 >= N.add (snd v) (N.of_nat (size_of_ftype newft)) ->
+              (forall (v0 n0 : N), v0 <> fst v \/ n0 < snd v \/ n0 >= size_of_ftype newft + snd v ->
                    CEP.find (v0, n0) ct_old =
                    CEP.find (v0, n0) ct_new)
            /\ (* set nodes to the respective part of the expression *)
@@ -2009,7 +2021,7 @@ Fixpoint Sem_frag_stmt (vm_old : CEP.t vertex_type) (ct_old : CEP.t def_expr) (s
               | Some expr_list =>
                   forall n : nat,
                       match List.nth_error expr_list n with
-                      | Some ex => CEP.find (fst v, N.add (snd v) (N.of_nat n)) ct_new = Some (D_fexpr ex)
+                      | Some ex => CEP.find (fst v, bin_of_nat (n + snd v)) ct_new = Some (D_fexpr ex)
                       | None => True
                       end
               | None => False
@@ -2046,6 +2058,16 @@ end.
 (*---------------------------------------------------------------------------*)
 (* Semantics of module                                                       *)
 
+Definition ports_stmts_tmap (pp : seq HiFP.hfport) (ss : HiFP.hfstmt_seq) (vm : CEP.t vertex_type) : option (CEP.t ftype) :=
+match ports_tmap pp vm with
+| Some pmap =>
+    match stmts_tmap (pmap, pmap) ss vm with
+    | Some (tmap, _) => Some tmap
+    | None => None
+    end
+| None => None
+end.
+
 Definition Sem (F : HiFP.hfmodule) (vm : CEP.t vertex_type) (ct : CEP.t def_expr) : Prop :=
 (* The predicate returns True if G = (vm, ct) conforms to F.
    (If F has errors, there is no such G.)
@@ -2055,27 +2077,23 @@ Definition Sem (F : HiFP.hfmodule) (vm : CEP.t vertex_type) (ct : CEP.t def_expr
    is that what you need? *)
 match F with
 | FInmod n pp ss =>
-    match ports_tmap pp vm with
-    | Some pmap =>
-        match stmts_tmap (pmap, pmap) ss vm with
-        | Some (tmap, _) =>
-               (forall v1 v2: N,
-                    match CEP.find (v1, v2) tmap with
-                    | Some (Gtyp _)
-                    | None => True
-                    | _ => (* (v1, v2) identifies an aggregate-type component;
-                              then there should not be any other component with the same v1 *)
-                           forall v2' : N, v2' <> v2 -> CEP.find (v1, v2') tmap = None
-                    end)
-            /\
-               (exists (vm' : CEP.t vertex_type) (ct' : CEP.t def_expr),
-                      Sem_frag_ports (CEP.empty vertex_type)
-                                     (CEP.empty def_expr)
-                                     pp vm' ct' tmap
-                   /\
-                      Sem_frag_stmts vm' ct' ss vm ct tmap)
-        | None => False
-        end
+    match ports_stmts_tmap pp ss vm with
+    | Some tmap =>
+           (forall v1 v2: N,
+                match CEP.find (v1, v2) tmap with
+                | Some (Gtyp _)
+                | None => True
+                | _ => (* (v1, v2) identifies an aggregate-type component;
+                          then there should not be any other component with the same v1 *)
+                       forall v2' : N, v2' <> v2 -> CEP.find (v1, v2') tmap = None
+                end)
+        /\
+           (exists (vm' : CEP.t vertex_type) (ct' : CEP.t def_expr),
+                  Sem_frag_ports (CEP.empty vertex_type)
+                                 (CEP.empty def_expr)
+                                 pp vm' ct' tmap
+               /\
+                  Sem_frag_stmts vm' ct' ss vm ct tmap)
     | None => False
     end
 | FExmod _ _ _ => False
