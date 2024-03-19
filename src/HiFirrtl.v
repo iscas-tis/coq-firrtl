@@ -83,7 +83,7 @@ Section HiFirrtl.
   | Eref rx, Eref ry => href_eqn rx ry
   | _, _ => false
   end
-  with href_eqn (x y : href) : bool := 
+  with href_eqn (x y : href) : bool :=
   match x, y with
   | Eid vx, Eid vy => vx == vy
   | Esubfield rx vx, Esubfield ry vy => href_eqn rx ry && (vx == vy)
