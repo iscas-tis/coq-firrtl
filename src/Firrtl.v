@@ -19,6 +19,24 @@ Section LoFirrtl.
   Inductive ucast : Set :=
   | AsUInt | AsSInt (*| AsFixed*) | AsClock | AsReset | AsAsync .
 
+  Lemma ucast_eq_dec : forall {x y : ucast}, {x = y} + {x <> y}.
+  Proof.  decide equality.  Qed.
+  Definition ucast_eqn (x y : ucast) : bool :=
+  match x, y with
+  | AsUInt, AsUInt | AsSInt, AsSInt | AsClock, AsClock
+  | AsReset, AsReset | AsAsync, AsAsync => true
+  | _, _ => false
+  end.
+  Lemma ucast_eqP : Equality.axiom ucast_eqn.
+  Proof.
+  unfold Equality.axiom, ucast_eqn.
+  destruct x, y ; simpl ;
+        try (by apply ReflectF ; discriminate) ;
+        by apply ReflectT ; reflexivity.
+  Qed.
+  Canonical ucast_eqMixin := EqMixin ucast_eqP.
+  Canonical ucast_eqType := Eval hnf in EqType ucast ucast_eqMixin.
+
   Inductive eunop : Set :=
   | Upad : nat -> eunop
   | Ushl : nat -> eunop
@@ -33,8 +51,54 @@ Section LoFirrtl.
   | Uhead : nat -> eunop
   | Utail : nat -> eunop.
 
+  Lemma eunop_eq_dec : forall {x y : eunop}, {x = y} + {x <> y}.
+  Proof.  decide equality ; apply Nat.eq_dec.  Qed.
+  Definition eunop_eqn (x y : eunop) : bool :=
+  match x, y with
+  | Upad n, Upad m | Ushl n, Ushl m | Ushr n, Ushr m | Uhead n, Uhead m | Utail n, Utail m =>
+        n == m
+  | Ucvt, Ucvt | Uneg, Uneg | Unot, Unot | Uandr, Uandr | Uorr, Uorr | Uxorr, Uxorr => true
+  | Uextr n n0, Uextr m m0 => (n == m) && (n0 == m0)
+  | _, _ => false
+  end.
+  Lemma eunop_eqP : Equality.axiom eunop_eqn.
+  Proof.
+  unfold Equality.axiom, eunop_eqn.
+  destruct x, y ; simpl ;
+        try (by apply ReflectF ; discriminate) ;
+        try (by apply ReflectT ; reflexivity).
+  1,2,3,5,6: destruct (n == n0) eqn: Hn ; move /eqP : Hn => Hn ;
+        first (by rewrite Hn ; apply ReflectT ; reflexivity) ;
+        last  (by apply ReflectF ; contradict Hn ; injection Hn ; done).
+  destruct (n == n1) eqn: Hn ; move /eqP : Hn => Hn ;
+        last (by apply ReflectF ; contradict Hn ; injection Hn ; done).
+  rewrite Hn andTb.
+  destruct (n0 == n2) eqn: Hn0 ; move /eqP : Hn0 => Hn0 ;
+        last (by apply ReflectF ; contradict Hn0 ; injection Hn0 ; done).
+  rewrite Hn0 ; apply ReflectT ; reflexivity.
+  Qed.
+  Canonical eunop_eqMixin := EqMixin eunop_eqP.
+  Canonical eunop_eqType := Eval hnf in EqType eunop eunop_eqMixin.
+
   Inductive bcmp : Set :=
   | Blt | Bleq | Bgt | Bgeq | Beq | Bneq.
+
+  Lemma bcmp_eq_dec : forall {x y : bcmp}, {x = y} + {x <> y}.
+  Proof.  decide equality.  Qed.
+  Definition bcmp_eqn (x y : bcmp) : bool :=
+  match x, y with
+  | Blt, Blt | Bleq, Bleq | Bgt, Bgt | Bgeq, Bgeq | Beq, Beq | Bneq, Bneq => true
+  | _, _ => false
+  end.
+  Lemma bcmp_eqP : Equality.axiom bcmp_eqn.
+  Proof.
+  unfold Equality.axiom, bcmp_eqn.
+  destruct x, y ; simpl ;
+        try (by apply ReflectF ; discriminate) ;
+        by apply ReflectT ; reflexivity.
+  Qed.
+  Canonical bcmp_eqMixin := EqMixin bcmp_eqP.
+  Canonical bcmp_eqType := Eval hnf in EqType bcmp bcmp_eqMixin.
 
   Inductive ebinop : Set :=
   | Badd
@@ -52,6 +116,28 @@ Section LoFirrtl.
   | Bxor
   | Bcat .
 
+  Lemma ebinop_eq_dec : forall {x y : ebinop}, {x = y} + {x <> y}.
+  Proof.  decide equality ; apply bcmp_eq_dec.  Qed.
+  Definition ebinop_eqn (x y : ebinop) : bool :=
+  match x, y with
+  | Badd, Badd | Bsub, Bsub | Bmul, Bmul | Bdiv, Bdiv | Brem, Brem
+  | Bdshl, Bdshl | Bdshr, Bdshr | Band, Band | Bor, Bor | Bxor, Bxor | Bcat, Bcat => true
+  | Bcomp b, Bcomp c => b == c
+  | _, _ => false
+  end.
+  Lemma ebinop_eqP : Equality.axiom ebinop_eqn.
+  Proof.
+  unfold Equality.axiom, ebinop_eqn.
+  destruct x, y ; simpl ;
+        try (by apply ReflectF ; discriminate) ;
+        try (by apply ReflectT ; reflexivity).
+  destruct (b == b0) eqn: Hb ; move /eqP : Hb => Hb ;
+        first (by apply ReflectT ; rewrite Hb ; reflexivity) ;
+        last  (by apply ReflectF ; injection ; done).
+  Qed.
+  Canonical ebinop_eqMixin := EqMixin ebinop_eqP.
+  Canonical ebinop_eqType := Eval hnf in EqType ebinop ebinop_eqMixin.
+
   Variable var : eqType.
 
   (* mux, valid, sub-xxx, TBD *)
@@ -65,9 +151,148 @@ Section LoFirrtl.
   | Eref : var -> fexpr
   .
 
+  Lemma fexpr_eq_dec : forall {x y : fexpr}, {x = y} + {x <> y}.
+  Proof.  decide equality ; try apply fgtyp_eq_dec ; try apply ucast_eq_dec ;
+  try apply eunop_eq_dec ; try apply ebinop_eq_dec.
+  destruct (b == b0) eqn: Hb ; move /eqP : Hb => Hb ;
+        first (by left  ; exact Hb) ;
+        last  (by right ; exact Hb).
+  destruct (s == s0) eqn: Hs ; move /eqP : Hs => Hs ;
+        first (by left  ; exact Hs) ;
+        last  (by right ; exact Hs).
+  Qed.
+  Fixpoint fexpr_eqn (x y : fexpr) : bool :=
+  match x, y with
+  | Econst tx sx, Econst ty sy => (tx == ty) && (sx == sy)
+  | Ecast  cx ex, Ecast  cy ey => (cx == cy) && fexpr_eqn ex ey
+  | Eprim_unop ux ex, Eprim_unop uy ey => (ux == uy) && fexpr_eqn ex ey
+  | Eprim_binop ox ex fx, Eprim_binop oy ey fy => (ox == oy) && fexpr_eqn ex ey && fexpr_eqn fx fy
+  | Emux ex fx gx, Emux ey fy gy => fexpr_eqn ex ey && fexpr_eqn fx fy && fexpr_eqn gx gy
+  | Evalidif ex fx, Evalidif ey fy => fexpr_eqn ex ey && fexpr_eqn fx fy
+  | Eref vx, Eref vy => vx == vy
+  | _, _ => false
+  end.
+  Lemma fexpr_eqP : Equality.axiom fexpr_eqn.
+  Proof.
+  unfold Equality.axiom, fexpr_eqn.
+  induction x, y ;
+        try (by apply ReflectF ; discriminate).
+  * destruct (f == f0) eqn: Hf ; move /eqP : Hf => Hf ;
+          last by (apply ReflectF ; contradict Hf ; injection Hf ; done).
+    rewrite Hf andTb.
+    destruct (b == b0) eqn: Hb ; move /eqP : Hb => Hb ;
+          last by (apply ReflectF ; contradict Hb ; injection Hb ; done).
+    rewrite Hb ; apply ReflectT ; reflexivity.
+  * fold fexpr_eqn in IHx ; fold fexpr_eqn.
+    destruct (u == u0) eqn: Hu ; move /eqP : Hu => Hu ;
+          last by (apply ReflectF ; contradict Hu ; injection Hu ; done).
+    rewrite Hu andTb.
+    specialize (IHx y) ; apply reflect_iff in IHx.
+    destruct (fexpr_eqn x y) eqn: Hx.
+    + apply ReflectT.
+      destruct IHx as [_ IHx] ; specialize (IHx Logic.eq_refl).
+      rewrite IHx ; reflexivity.
+    + apply ReflectF ; injection ; intro.
+      destruct IHx as [IHx _].
+      apply IHx in H0 ; done.
+  * fold fexpr_eqn in IHx ; fold fexpr_eqn.
+    destruct (e == e0) eqn: He ; move /eqP : He => He ;
+          last by (apply ReflectF ; contradict He ; injection He ; done).
+    rewrite He andTb.
+    specialize (IHx y) ; apply reflect_iff in IHx.
+    destruct (fexpr_eqn x y).
+    + apply ReflectT.
+      destruct IHx as [_ IHx] ; specialize (IHx Logic.eq_refl).
+      rewrite IHx ; reflexivity.
+    + apply ReflectF ; injection ; intro.
+      destruct IHx as [IHx _].
+      apply IHx in H0 ; done.
+  * fold fexpr_eqn in IHx1 ; fold fexpr_eqn in IHx2 ; fold fexpr_eqn.
+    destruct (e == e0) eqn: He ; move /eqP : He => He ;
+          last by (apply ReflectF ; contradict He ; injection He ; done).
+    rewrite He andTb.
+    specialize (IHx1 y1) ; apply reflect_iff in IHx1.
+    destruct (fexpr_eqn x1 y1) ;
+          last by (apply ReflectF ; injection ; intros _ H0 ;
+                   destruct IHx1 as [IHx1 _] ;
+                   apply IHx1 in H0 ; done).
+    destruct IHx1 as [_ IHx1] ; specialize (IHx1 Logic.eq_refl).
+    rewrite IHx1 andTb.
+    specialize (IHx2 y2) ; apply reflect_iff in IHx2.
+    destruct (fexpr_eqn x2 y2) ;
+          last by (apply ReflectF ; injection ; intros H0 ;
+                   destruct IHx2 as [IHx2 _] ;
+                   apply IHx2 in H0 ; done).
+    destruct IHx2 as [_ IHx2] ; specialize (IHx2 Logic.eq_refl).
+    rewrite IHx2.
+    apply ReflectT ; reflexivity.
+  * fold fexpr_eqn in IHx1 ; fold fexpr_eqn in IHx2 ; fold fexpr_eqn in IHx3 ; fold fexpr_eqn.
+    specialize (IHx1 y1) ; apply reflect_iff in IHx1.
+    destruct (fexpr_eqn x1 y1) ;
+          last by (apply ReflectF ; injection ; intros _ _ H0 ;
+                   destruct IHx1 as [IHx1 _] ;
+                   apply IHx1 in H0 ; done).
+    destruct IHx1 as [_ IHx1] ; specialize (IHx1 Logic.eq_refl).
+    rewrite IHx1 andTb.
+    specialize (IHx2 y2) ; apply reflect_iff in IHx2.
+    destruct (fexpr_eqn x2 y2) ;
+          last by (apply ReflectF ; injection ; intros _ H0 ;
+                   destruct IHx2 as [IHx2 _] ;
+                   apply IHx2 in H0 ; done).
+    destruct IHx2 as [_ IHx2] ; specialize (IHx2 Logic.eq_refl).
+    rewrite IHx2 andTb.
+    specialize (IHx3 y3) ; apply reflect_iff in IHx3.
+    destruct (fexpr_eqn x3 y3) ;
+          last by (apply ReflectF ; injection ; intros H0 ;
+                   destruct IHx3 as [IHx3 _] ;
+                   apply IHx3 in H0 ; done).
+    destruct IHx3 as [_ IHx3] ; specialize (IHx3 Logic.eq_refl).
+    rewrite IHx3.
+    apply ReflectT ; reflexivity.
+  * fold fexpr_eqn in IHx1 ; fold fexpr_eqn in IHx2 ; fold fexpr_eqn.
+    specialize (IHx1 y1) ; apply reflect_iff in IHx1.
+    destruct (fexpr_eqn x1 y1) ;
+          last by (apply ReflectF ; injection ; intros _ H0 ;
+                   destruct IHx1 as [IHx1 _] ;
+                   apply IHx1 in H0 ; done).
+    destruct IHx1 as [_ IHx1] ; specialize (IHx1 Logic.eq_refl).
+    rewrite IHx1 andTb.
+    specialize (IHx2 y2) ; apply reflect_iff in IHx2.
+    destruct (fexpr_eqn x2 y2) ;
+          last by (apply ReflectF ; injection ; intros H0 ;
+                   destruct IHx2 as [IHx2 _] ;
+                   apply IHx2 in H0 ; done).
+    destruct IHx2 as [_ IHx2] ; specialize (IHx2 Logic.eq_refl).
+    rewrite IHx2.
+    apply ReflectT ; reflexivity.
+  * destruct (s == s0) eqn: Hs ; move /eqP : Hs => Hs ;
+          last by (apply ReflectF ; contradict Hs ; injection Hs ; done).
+    rewrite Hs.
+    apply ReflectT ; reflexivity.
+  Qed.
+  Canonical fexpr_eqMixin := EqMixin fexpr_eqP.
+  Canonical fexpr_eqType := Eval hnf in EqType fexpr fexpr_eqMixin.
+
   (****** Statements ******)
   Inductive ruw : Set :=
   | old | new | undefined.
+
+  Lemma ruw_eq_dec : forall {x y : ruw}, {x = y} + {x <> y}.
+  Proof.  decide equality.  Qed.
+  Definition ruw_eqn (x y : ruw) : bool :=
+  match x, y with
+  | old, old | new, new | undefined, undefined => true
+  | _, _ => false
+  end.
+  Lemma ruw_eqP : Equality.axiom ruw_eqn.
+  Proof.
+  unfold Equality.axiom, ruw_eqn.
+  destruct x, y ; simpl ;
+        try (by apply ReflectF ; discriminate) ;
+        by apply ReflectT ; reflexivity.
+  Qed.
+  Canonical ruw_eqMixin := EqMixin ruw_eqP.
+  Canonical ruw_eqType := Eval hnf in EqType ruw ruw_eqMixin.
 
   Record freader_port : Type :=
     mk_freader_port
