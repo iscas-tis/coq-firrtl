@@ -912,11 +912,11 @@ with InferWidths_transss (sts : HiFP.hfstmt_seq) (tmap : CEP.t ftype) : option H
                   end
   end.
 
-Definition InferWidths_stage2 (F : HiFP.hfmodule) (tmap : CEP.t ftype) : option (HiFP.hfmodule * CEP.t ftype) :=
+Definition InferWidths_stage2 (F : HiFP.hfmodule) (tmap : CEP.t ftype) : option HiFP.hfmodule :=
 match F with
   | FExmod _ _ _ => None
   | FInmod v ps ss => match InferWidths_transps ps tmap, InferWidths_transss ss tmap with
-                      | Some nps, Some nss => Some (FInmod v nps nss, tmap)
+                      | Some nps, Some nss => Some (FInmod v nps nss)
                       | _, _ => None
                       end
   end.
@@ -4116,9 +4116,12 @@ Proof.
   admit. (* 不是None *)
 Admitted.
 
-Definition InferWidths_m F :=
+Definition InferWidths_m F : option (HiFP.hfmodule * CEP.t ftype) :=
   match InferWidths_stage1 F with
-  | Some newtm => InferWidths_stage2 F newtm 
+  | Some newtm => match InferWidths_stage2 F newtm with
+                  | Some nm => Some (nm, newtm)
+                  | _ => None
+                  end
   | None => None
   end.
 
