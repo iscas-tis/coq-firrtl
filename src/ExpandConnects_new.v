@@ -1409,16 +1409,18 @@ Definition expand_node (r : pvar) e ce l : HiFP.hfstmt_seq :=
     | m => m
     end.
 
-  Definition output_ft_pmap m (inf_mp : ft_pmap) :=
-    match m with
-    | FInmod v ps ss =>
-        let mt := rcd_types_from_m ss (ft_flp_pmap_empty) in
-        let ce := rcd_pmaps_from_m ss (ft_pmap_empty)  in
-        rcd_pmaps_from_m (expandconnects_stmt_seq_ft_pmap ss ce mt (HiFP.qnil )) ce
-    | _ => ft_pmap_empty
-    end.
+  (* Definition output_ft_pmap m (inf_mp : ft_pmap) := *)
+  (*   match m with *)
+  (*   | FInmod v ps ss => *)
+  (*       let mt := rcd_types_from_m ss (ft_flp_pmap_empty) in *)
+  (*       let ce := rcd_pmaps_from_m ss (ft_pmap_empty)  in *)
+  (*       rcd_pmaps_from_m (expandconnects_stmt_seq_ft_pmap ss ce mt (HiFP.qnil )) ce *)
+  (*   | _ => ft_pmap_empty *)
+  (*   end. *)
+
+  Definition output_ft_pmap m (inf_mp : ft_pmap) : ft_pmap :=
+    rcd_pmaps m inf_mp (CEP.empty ftype).
     
-  
 Definition test_module := HiFP.hfinmod (100%num,0%num) nil
                             (HiFP.qcons (HiFP.swire (10%num,0%num) (Atyp (Gtyp (Fsint 10)) 5))
                                (HiFP.qcons (HiFP.swire (11%num,0%num) (Atyp (Gtyp (Fsint 10)) 5))
