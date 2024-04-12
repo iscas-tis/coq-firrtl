@@ -1431,7 +1431,12 @@ Definition test_sts := (HiFP.qcons (HiFP.swire (10%num,0%num) (Atyp (Gtyp (Fsint
                                   (HiFP.qcons (HiFP.sfcnct (HiFP.eid (10%num,0%num)) (HiFP.eref (HiFP.eid (11%num,0%num)))) HiFP.qnil))).
 
 Compute (expandconnects_fmodule test_module (rcd_pmaps_from_m test_sts ft_pmap_empty)).
-  
+
+Definition test_module0 := HiFP.hfinmod (100%num,0%num) ([:: HiFP.hinport (10%num, 0%num) (Atyp (Gtyp (Fsint 10)) 5)])
+                            HiFP.qnil.
+Compute (expandconnects_fmodule test_module0 (rcd_pmaps_from_m HiFP.qnil ft_pmap_empty)).
+
+End ExpandConnectsP.
 (* (vm_old : module_graph_vertex_set_p.env) (ct_old : module_graph_connection_trees_p.env) (s : HiFP.hfstmt) (vm_new : module_graph_vertex_set_p.env) (ct_new : module_graph_connection_trees_p.env) (tmap : ft_pmap) *)
   
 (*   Lemma ExpandConnects_skip_correct : *)
