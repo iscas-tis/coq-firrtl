@@ -1067,7 +1067,13 @@ end.
 
 (** Pass ExpandConnect *)
 Section ExpandConnectsP.
-Search repeat.
+
+
+(* use type of expressions, returns optional ftype (from inferwidth_rewritten by ky) *)
+
+From firrtl Require Import InferWidth_rewritten.
+  
+
   Fixpoint ftype_list_all (ft : ftype) (l : list ftype) : list ftype :=
     match ft with
     | Gtyp t => cons ft l
@@ -1143,7 +1149,7 @@ Search repeat.
                                 | None => (Gtyp (Fuint_implicit 1))
                                 end.
   
-  (* Record types *)
+  (* Record types from the output of inferwidth *)
 
   Fixpoint gen_pmap r cnt (tls : list ftype) (mt : ft_pmap) :=
     match tls with
@@ -1155,7 +1161,10 @@ Search repeat.
     match st with
     | Swire v t => gen_pmap v 0 (ftype_list_all (ft_find_def v inf_mp) nil) mt
     | Sreg v r => gen_pmap v 0 (ftype_list_all (ft_find_def v inf_mp) nil) mt
-    | Snode v e => mt
+    | Snode v e => match (type_of_hfexpr e inf_mp) with
+                   | Some et => gen_pmap v 0 (ftype_list_all et nil) mt
+                   | None => mt
+                   end
     | Swhen c s1 s2 => rcd_pmaps s2 inf_mp (rcd_pmaps s1 inf_mp mt)
     |_ => mt
     end
@@ -1165,20 +1174,40 @@ Search repeat.
          | Qcons s sts => rcd_pmaps sts inf_mp (rcd_pmap s inf_mp mt)
          end.
 
-  Fixpoint rcd_pmap_from_m (st: HiFP.hfstmt) (mt : ft_pmap) : ft_pmap :=
+  (* Record types according to firrtl modules *)
+  
+  Fixpoint rcd_pmap_from_st (st: HiFP.hfstmt) (mt : ft_pmap) : ft_pmap :=
     match st with
     | Swire v t => gen_pmap v 0 (ftype_list_all t nil) mt
     | Sreg v r => gen_pmap v 0 (ftype_list_all (type r) nil) mt
-    | Snode v e => mt
-    | Swhen c s1 s2 => rcd_pmaps_from_m s2 (rcd_pmaps_from_m s1 mt)
+    | Snode v e =>  match (type_of_hfexpr e mt) with
+                   | Some et => gen_pmap v 0 (ftype_list_all et nil) mt
+                   | None => mt
+                   end
+    | Swhen c s1 s2 => rcd_pmap_from_sts s2 (rcd_pmap_from_sts s1 mt)
     |_ => mt
     end
-  with rcd_pmaps_from_m (st: HiFP.hfstmt_seq) (mt : ft_pmap) :=
+  with rcd_pmap_from_sts (st: HiFP.hfstmt_seq) (mt : ft_pmap) :=
          match st with
          | Qnil => mt
-         | Qcons s sts => rcd_pmaps_from_m sts (rcd_pmap_from_m s mt)
+         | Qcons s sts => rcd_pmap_from_sts sts (rcd_pmap_from_st s mt)
          end.
 
+  Definition rcd_pmap_from_p (ps: HiFP.hfport) (mt : ft_pmap) : ft_pmap :=
+    match ps with
+    | Finput v t => gen_pmap v 0 (ftype_list_all t nil) mt
+    | Foutput v t => gen_pmap v 0 (ftype_list_all t nil) mt
+    end.
+
+  Definition rcd_pmap_from_ps (ps: seq HiFP.hfport) (mt : ft_pmap) : ft_pmap :=
+    fold_right rcd_pmap_from_p mt ps.
+
+  Definition rcd_pmap_from_m m mt : ft_pmap :=
+    match m with
+    | FInmod v ps sts => rcd_pmap_from_sts sts (rcd_pmap_from_ps ps mt)
+    | _ => mt
+    end.
+  
   Fixpoint qcat (s1 s2: HiFP.hfstmt_seq) : HiFP.hfstmt_seq :=
     match s1 with
     | Qnil => s2
@@ -1252,7 +1281,6 @@ Search repeat.
     | (e1, e2) :: zes => expand_emux c zes (rcons es (HiFP.emux c e1 e2))
     end.
   
-  (*TODO?: Somewhere "Replaces constant [[firrtl.WSubAccess]] with [[firrtl.WSubIndex]]"*)
   (*recursively expand expr on rhs*) 
   Fixpoint expand_expr_ft_pmap (e : HiFP.hfexpr) (ce : ft_pmap) (es : seq HiFP.hfexpr) : seq HiFP.hfexpr :=
     match e with
@@ -1263,6 +1291,7 @@ Search repeat.
     | e => rcons es e
     end.
 
+  (* Expand connections by creating new connections from the lists of lhs and rhs *)
   Fixpoint expand_fcnct es1 es2 (mt : ft_flp_pmap) (l : HiFP.hfstmt_seq)  : HiFP.hfstmt_seq :=
     match es1, es2 with
     | cons (Eref (Eid v)) ess1, cons ee2 ess2 =>
@@ -1278,6 +1307,7 @@ Search repeat.
     | _, _ => l
     end.
 
+  (* Expand wires *)
   Fixpoint expand_wire_aux (r : pvar) (sz : nat) (cnt : nat) (ce : ft_pmap) (rs : HiFP.hfstmt_seq) : HiFP.hfstmt_seq :=
     match sz with
     | 0 => rs
@@ -1294,7 +1324,8 @@ Search repeat.
         let sz := size ts in
         expand_wire_aux r sz 0 ce l.
 
-Fixpoint expand_reg_aux (r : pvar) (sz : nat) (cnt : nat) cl rst (ce : ft_pmap) (rs : HiFP.hfstmt_seq) : HiFP.hfstmt_seq :=
+  (* Expand registers *)
+  Fixpoint expand_reg_aux (r : pvar) (sz : nat) (cnt : nat) cl rst (ce : ft_pmap) (rs : HiFP.hfstmt_seq) : HiFP.hfstmt_seq :=
     match sz with
     | 0 => rs
     | S n => match (ft_find (r.1, (r.2 + N.of_nat cnt)%num) ce) with
@@ -1311,25 +1342,27 @@ Fixpoint expand_reg_aux (r : pvar) (sz : nat) (cnt : nat) cl rst (ce : ft_pmap) 
         let sz := size ts in
         expand_reg_aux r sz 0 cl rst ce l end.
 
-  Fixpoint expand_node_aux (r : pvar) (sz : nat) (cnt : nat) (ce : ft_pmap) es (rs : HiFP.hfstmt_seq) : HiFP.hfstmt_seq :=
+  (* Expand Nodes *)
+  Fixpoint expand_node_aux r sz cnt es (ce : ft_pmap) (rs : HiFP.hfstmt_seq)  : HiFP.hfstmt_seq :=
     match sz with
     | 0 => rs
     | S n => match (ft_find (r.1, (r.2 + N.of_nat cnt)%num) ce) with
              | Some t => if is_gtyp t
-                              then expand_wire_aux r n (cnt.+1) ce (Qrcons rs (HiFP.snode (r.1, r.2 + N.of_nat cnt)%num (nth (HiFP.eref (HiFP.eid (0,0)%num)) es cnt)))
-                              else expand_wire_aux r n (cnt.+1) ce rs
+                         then expand_node_aux r n (cnt.+1) es ce (Qrcons rs (HiFP.snode (r.1, r.2 + N.of_nat cnt)%num (nth (HiFP.eref (HiFP.eid (0,0)%num)) es cnt.-1)))
+                         else expand_node_aux r n (cnt.+1) es ce rs
              | None => rs
-             end                                              
+             end
     end.
 
-Definition expand_node (r : pvar) e ce l : HiFP.hfstmt_seq :=
-  let (t,p) := match (type_of_expr e ce) with Some t => t | None => make_ftype_explicit (Gtyp (Fuint 0)) end in
+  Fixpoint expand_node v e (mt : ft_pmap) (l : HiFP.hfstmt_seq) : HiFP.hfstmt_seq :=
+    match ft_find v mt with
+    | Some t => let ts := ftype_list_all t nil in
+                let sz := size ts in
+                expand_node_aux v sz 0 (expand_expr_ft_pmap e mt nil) mt l
+    | None => l
+    end.
 
-        let ts := ftype_list_all t nil in
-        let sz := size ts in
-        let es := expand_expr_ft_pmap e ce nil in
-        expand_node_aux r sz 0 ce es l.
-
+  (* Expand statements *)
   Fixpoint expandconnects_stmt_ft_pmap (s : HiFP.hfstmt) (ce : ft_pmap) mt (sts : HiFP.hfstmt_seq) : HiFP.hfstmt_seq :=
     match s with
     | Sskip => Qrcons sts s
@@ -1358,7 +1391,8 @@ Definition expand_node (r : pvar) e ce l : HiFP.hfstmt_seq :=
       | Qnil => sts
       | Qcons s ss => expandconnects_stmt_seq_ft_pmap ss ce mt (expandconnects_stmt_ft_pmap s ce mt sts)
     end.
-  
+
+  (* Expand ports *)
   Fixpoint expand_inport_aux (r : pvar) (sz : nat) (cnt : nat) (ce : ft_pmap) (rs : seq HiFP.hfport) : seq HiFP.hfport :=
     match sz with
     | 0 => rs
@@ -1371,9 +1405,9 @@ Definition expand_node (r : pvar) e ce l : HiFP.hfstmt_seq :=
     end.
 
   Definition expand_inport (r : pvar) t ce l : seq HiFP.hfport :=
-        let ts := ftype_list_all t nil in
-        let sz := size ts in
-        expand_inport_aux r sz 0 ce l.
+    let ts := ftype_list_all t nil in
+    let sz := size ts in
+    expand_inport_aux r sz 0 ce l.
   
   Fixpoint expand_outport_aux (r : pvar) (sz : nat) (cnt : nat) (ce : ft_pmap) (rs : seq HiFP.hfport) : seq HiFP.hfport :=
     match sz with
@@ -1395,46 +1429,49 @@ Definition expand_node (r : pvar) e ce l : HiFP.hfstmt_seq :=
     match p with
     | Finput v t => expand_inport v t ce l
     | Foutput v t => expand_outport v t ce l
-    end.   
+    end.
+
 
  Definition ft_flp_pmap_empty := CEP.empty (ftype * bool).
  Definition ft_pmap_empty := CEP.empty (ftype).
-
+ 
+ (* Output a firrtl module *)
   Definition expandconnects_fmodule (m : HiFP.hfmodule) (inf_mp : ft_pmap) : HiFP.hfmodule :=
     match m with
     | FInmod v ps ss =>
         let mt := rcd_types ss inf_mp (ft_flp_pmap_empty) in
         let ce := rcd_pmaps ss inf_mp (ft_pmap_empty)  in
-        FInmod v (fold_right (expand_ports ce) ps nil) (expandconnects_stmt_seq_ft_pmap ss ce mt (HiFP.qnil ))
+        FInmod v (fold_right (expand_ports ce) nil ps) (expandconnects_stmt_seq_ft_pmap ss ce mt (HiFP.qnil ))
     | m => m
     end.
 
-  (* Definition output_ft_pmap m (inf_mp : ft_pmap) := *)
-  (*   match m with *)
-  (*   | FInmod v ps ss => *)
-  (*       let mt := rcd_types_from_m ss (ft_flp_pmap_empty) in *)
-  (*       let ce := rcd_pmaps_from_m ss (ft_pmap_empty)  in *)
-  (*       rcd_pmaps_from_m (expandconnects_stmt_seq_ft_pmap ss ce mt (HiFP.qnil )) ce *)
-  (*   | _ => ft_pmap_empty *)
-  (*   end. *)
-
+  (* Output a ft_pmap *)
   Definition output_ft_pmap m (inf_mp : ft_pmap) : ft_pmap :=
     rcd_pmaps m inf_mp (CEP.empty ftype).
     
-Definition test_module := HiFP.hfinmod (100%num,0%num) nil
-                            (HiFP.qcons (HiFP.swire (10%num,0%num) (Atyp (Gtyp (Fsint 10)) 5))
+
+(* Examples *)
+  
+Definition test_sts1 := (HiFP.qcons (HiFP.swire (10%num,0%num) (Atyp (Gtyp (Fsint 10)) 5))
                                (HiFP.qcons (HiFP.swire (11%num,0%num) (Atyp (Gtyp (Fsint 10)) 5))
                                   (HiFP.qcons (HiFP.sfcnct (HiFP.eid (10%num,0%num)) (HiFP.eref (HiFP.eid (11%num,0%num)))) HiFP.qnil))).
 
-Definition test_sts := (HiFP.qcons (HiFP.swire (10%num,0%num) (Atyp (Gtyp (Fsint 10)) 5))
-                               (HiFP.qcons (HiFP.swire (11%num,0%num) (Atyp (Gtyp (Fsint 10)) 5))
+Definition test_sts2 := (HiFP.qcons (HiFP.swire (10%num,0%num) (Atyp (Gtyp (Fsint 10)) 5))
+                               (HiFP.qcons (HiFP.snode (11%num,0%num) (HiFP.eref (HiFP.eid (10,0)%num)))
                                   (HiFP.qcons (HiFP.sfcnct (HiFP.eid (10%num,0%num)) (HiFP.eref (HiFP.eid (11%num,0%num)))) HiFP.qnil))).
 
-Compute (expandconnects_fmodule test_module (rcd_pmaps_from_m test_sts ft_pmap_empty)).
+Definition test_module := HiFP.hfinmod (100%num,0%num) nil test_sts2.
 
-Definition test_module0 := HiFP.hfinmod (100%num,0%num) ([:: HiFP.hinport (10%num, 0%num) (Atyp (Gtyp (Fsint 10)) 5)])
-                            HiFP.qnil.
-Compute (expandconnects_fmodule test_module0 (rcd_pmaps_from_m HiFP.qnil ft_pmap_empty)).
+Compute (expandconnects_fmodule test_module (rcd_pmap_from_sts test_sts2 ft_pmap_empty)).
+
+ Definition test_ports0 := [:: HiFP.hinport (10%num, 0%num) (Atyp (Gtyp (Fsint 10)) 5)].
+ Definition test_ports_map := rcd_pmap_from_ps test_ports0 ft_pmap_empty.
+
+ Compute (fold_right (expand_ports test_ports_map) nil test_ports0) .
+
+ Definition test_module0 := HiFP.hfinmod (100%num,0%num) test_ports0 test_sts2.
+ 
+Compute (expandconnects_fmodule test_module0 (rcd_pmap_from_m test_module0 ft_pmap_empty)).
 
 End ExpandConnectsP.
 (* (vm_old : module_graph_vertex_set_p.env) (ct_old : module_graph_connection_trees_p.env) (s : HiFP.hfstmt) (vm_new : module_graph_vertex_set_p.env) (ct_new : module_graph_connection_trees_p.env) (tmap : ft_pmap) *)
