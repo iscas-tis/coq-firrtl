@@ -1157,7 +1157,7 @@ From firrtl Require Import InferWidth_rewritten.
     | cons t ts => (CEP.add (r.1, r.2+N.of_nat cnt)%num t (gen_pmap r (cnt.+1) ts mt))
     end.
 
-  Fixpoint rcd_pmap (st: HiFP.hfstmt) (inf_mp : ft_pmap) (mt : ft_pmap) : ft_pmap :=
+  Fixpoint rcd_pmap_st (st: HiFP.hfstmt) (inf_mp : ft_pmap) (mt : ft_pmap) : ft_pmap :=
     match st with
     | Swire v t => gen_pmap v 0 (ftype_list_all (ft_find_def v inf_mp) nil) mt
     | Sreg v r => gen_pmap v 0 (ftype_list_all (ft_find_def v inf_mp) nil) mt
@@ -1165,14 +1165,29 @@ From firrtl Require Import InferWidth_rewritten.
                    | Some et => gen_pmap v 0 (ftype_list_all et nil) mt
                    | None => mt
                    end
-    | Swhen c s1 s2 => rcd_pmaps s2 inf_mp (rcd_pmaps s1 inf_mp mt)
+    | Swhen c s1 s2 => rcd_pmap_sts s2 inf_mp (rcd_pmap_sts s1 inf_mp mt)
     |_ => mt
     end
-  with rcd_pmaps (st: HiFP.hfstmt_seq) (inf_mp : ft_pmap) (mt : ft_pmap) :=
+  with rcd_pmap_sts (st: HiFP.hfstmt_seq) (inf_mp : ft_pmap) (mt : ft_pmap) :=
          match st with
          | Qnil => mt
-         | Qcons s sts => rcd_pmaps sts inf_mp (rcd_pmap s inf_mp mt)
+         | Qcons s sts => rcd_pmap_sts sts inf_mp (rcd_pmap_st s inf_mp mt)
          end.
+
+  Definition rcd_pmap_p (inf_mp : ft_pmap) (ps: HiFP.hfport) (mt : ft_pmap) : ft_pmap :=
+    match ps with
+    | Finput v t => gen_pmap v 0 (ftype_list_all (ft_find_def v inf_mp) nil) mt
+    | Foutput v t => gen_pmap v 0 (ftype_list_all (ft_find_def v inf_mp) nil) mt
+    end.
+
+  Definition rcd_pmap_ps (ps: seq HiFP.hfport) (inf_mp : ft_pmap) (mt : ft_pmap) : ft_pmap :=
+    fold_right (rcd_pmap_p inf_mp) mt ps.
+
+  Definition rcd_pmap_m m inf_mp mt : ft_pmap :=
+    match m with
+    | FInmod v ps sts => rcd_pmap_sts sts inf_mp (rcd_pmap_ps ps inf_mp mt)
+    | _ => mt
+    end.
 
   (* Record types according to firrtl modules *)
   
@@ -1214,7 +1229,7 @@ From firrtl Require Import InferWidth_rewritten.
     | Qcons x ss1 => Qcons x (qcat ss1 s2)
     end.
 
-  (* Record flip info *)
+  (* Record flip info from the output of inferwidth *)
   
   Fixpoint gen_ft_pmap r cnt (tls : list (ftype * bool)) (mt : ft_flp_pmap) :=
     match tls with
@@ -1222,35 +1237,67 @@ From firrtl Require Import InferWidth_rewritten.
     | cons t ts => (CEP.add (r.1, r.2+N.of_nat cnt)%num t (gen_ft_pmap r (cnt.+1) ts mt))
     end.
 
-  Fixpoint rcd_type (st: HiFP.hfstmt) (inf_mp : ft_pmap) (mt : ft_flp_pmap) : ft_flp_pmap :=
+  Fixpoint rcd_flip_st (st: HiFP.hfstmt) (inf_mp : ft_pmap) (mt : ft_flp_pmap) : ft_flp_pmap :=
     match st with
     | Swire v t => gen_ft_pmap v 0 (ftype_list_flip (ft_find_def v inf_mp) false nil) mt
     | Sreg v r => gen_ft_pmap v 0 (ftype_list_flip (ft_find_def v inf_mp) false nil) mt
     | Snode v e => mt
-    | Swhen c s1 s2 => rcd_types s2 inf_mp (rcd_types s1 inf_mp mt)
+    | Swhen c s1 s2 => rcd_flip_sts s2 inf_mp (rcd_flip_sts s1 inf_mp mt)
     |_ => mt
     end
-  with rcd_types (st: HiFP.hfstmt_seq) (inf_mp : ft_pmap) (mt : ft_flp_pmap) :=
+  with rcd_flip_sts (st: HiFP.hfstmt_seq) (inf_mp : ft_pmap) (mt : ft_flp_pmap) :=
          match st with
          | Qnil => mt
-         | Qcons s sts => rcd_types sts inf_mp (rcd_type s inf_mp mt)
+         | Qcons s sts => rcd_flip_sts sts inf_mp (rcd_flip_st s inf_mp mt)
          end.
 
-  Fixpoint rcd_type_from_m (st: HiFP.hfstmt) (mt : ft_flp_pmap) : ft_flp_pmap :=
+  Definition rcd_flip_p (inf_mp : ft_pmap) (ps: HiFP.hfport) (mt : ft_flp_pmap) : ft_flp_pmap :=
+    match ps with
+    | Finput v t => gen_ft_pmap v 0 (ftype_list_flip (ft_find_def v inf_mp) false nil) mt
+    | Foutput v t => gen_ft_pmap v 0 (ftype_list_flip (ft_find_def v inf_mp) false nil) mt
+    end.
+
+  Definition rcd_flip_ps (ps: seq HiFP.hfport) (inf_mp : ft_pmap) (mt : ft_flp_pmap) : ft_flp_pmap :=
+    fold_right (rcd_flip_p inf_mp) mt ps.
+
+  Definition rcd_flip_m m inf_mp mt : ft_flp_pmap :=
+    match m with
+    | FInmod v ps sts => rcd_flip_sts sts inf_mp (rcd_flip_ps ps inf_mp mt)
+    | _ => mt
+    end.
+
+  (* Record flip info according to firrtl module *)
+  
+  Fixpoint rcd_flip_from_st (st: HiFP.hfstmt) (mt : ft_flp_pmap) : ft_flp_pmap :=
     match st with
     | Swire v t => gen_ft_pmap v 0 (ftype_list_flip t false nil) mt
     | Sreg v r => gen_ft_pmap v 0 (ftype_list_flip (type r) false nil) mt
     | Snode v e => mt
-    | Swhen c s1 s2 => rcd_types_from_m s2 (rcd_types_from_m s1 mt)
+    | Swhen c s1 s2 => rcd_flip_from_sts s2 (rcd_flip_from_sts s1 mt)
     |_ => mt
     end
-  with rcd_types_from_m (st: HiFP.hfstmt_seq) (mt : ft_flp_pmap) :=
+  with rcd_flip_from_sts (st: HiFP.hfstmt_seq) (mt : ft_flp_pmap) :=
          match st with
          | Qnil => mt
-         | Qcons s sts => rcd_types_from_m sts (rcd_type_from_m s mt)
+         | Qcons s sts => rcd_flip_from_sts sts (rcd_flip_from_st s mt)
          end.
+  
+  Definition rcd_flip_from_p (ps: HiFP.hfport) (mt : ft_flp_pmap) : ft_flp_pmap :=
+    match ps with
+    | Finput v t => gen_ft_pmap v 0 (ftype_list_flip t false nil) mt
+    | Foutput v t => gen_ft_pmap v 0 (ftype_list_flip t false nil) mt
+    end.
 
-  (* Compute (ft_find (100,2)%num (rcd_types (Qcons (HiFP.swire (100,0)%num agt) (Qcons (HiFP.swire (101,0)%num agt) HiFP.qnil)) (CEP.empty (ftype * bool)))). *)
+  Definition rcd_flip_from_ps (ps: seq HiFP.hfport) (mt : ft_flp_pmap) : ft_flp_pmap :=
+    fold_right rcd_flip_from_p mt ps.
+
+  Definition rcd_flip_from_m m mt : ft_flp_pmap :=
+    match m with
+    | FInmod v ps sts => rcd_flip_from_sts sts (rcd_flip_from_ps ps mt)
+    | _ => mt
+    end.  
+
+  (* Compute (ft_find (100,2)%num (rcd_flip_from_sts (Qcons (HiFP.swire (100,0)%num agt) (Qcons (HiFP.swire (101,0)%num agt) HiFP.qnil)) (CEP.empty (ftype * bool)))). *)
   
   (*recursively expand reference on rhs with ft_pmap*) 
   Fixpoint expand_eref_aux_ft_pmap (r : pvar) (sz : nat) (cnt : nat) (ce : ft_pmap) (rs : seq HiFP.hfexpr) : seq HiFP.hfexpr :=
@@ -1363,6 +1410,7 @@ From firrtl Require Import InferWidth_rewritten.
     end.
 
   (* Expand statements *)
+  (* If types not match, then returns qnil for the connections sts *)
   Fixpoint expandconnects_stmt_ft_pmap (s : HiFP.hfstmt) (ce : ft_pmap) mt (sts : HiFP.hfstmt_seq) : HiFP.hfstmt_seq :=
     match s with
     | Sskip => Qrcons sts s
@@ -1373,6 +1421,8 @@ From firrtl Require Import InferWidth_rewritten.
     | Sinst _ _=>Qrcons sts s
     | Snode v e => expand_node v e ce sts
     | Sfcnct (Eid r1) e2 =>
+        if (ft_find r1 ce != type_of_hfexpr e2 ce) then sts
+        else
         match e2 with
         | Eref _
         | Emux _ _ _ =>
@@ -1439,22 +1489,21 @@ From firrtl Require Import InferWidth_rewritten.
   Definition expandconnects_fmodule (m : HiFP.hfmodule) (inf_mp : ft_pmap) : HiFP.hfmodule :=
     match m with
     | FInmod v ps ss =>
-        let mt := rcd_types ss inf_mp (ft_flp_pmap_empty) in
-        let ce := rcd_pmaps ss inf_mp (ft_pmap_empty)  in
+        let mt := rcd_flip_m m inf_mp (ft_flp_pmap_empty) in
+        let ce := rcd_pmap_m m inf_mp (ft_pmap_empty)  in
         FInmod v (fold_right (expand_ports ce) nil ps) (expandconnects_stmt_seq_ft_pmap ss ce mt (HiFP.qnil ))
     | m => m
     end.
 
   (* Output a ft_pmap *)
   Definition output_ft_pmap m (inf_mp : ft_pmap) : ft_pmap :=
-    rcd_pmaps m inf_mp (CEP.empty ftype).
-    
+    rcd_pmap_m m inf_mp (CEP.empty ftype).
 
 (* Examples *)
   
 Definition test_sts1 := (HiFP.qcons (HiFP.swire (10%num,0%num) (Atyp (Gtyp (Fsint 10)) 5))
                                (HiFP.qcons (HiFP.swire (11%num,0%num) (Atyp (Gtyp (Fsint 10)) 5))
-                                  (HiFP.qcons (HiFP.sfcnct (HiFP.eid (10%num,0%num)) (HiFP.eref (HiFP.eid (11%num,0%num)))) HiFP.qnil))).
+                                  (HiFP.qcons (HiFP.sfcnct (HiFP.eid (10%num,0%num)) (HiFP.eref (HiFP.eid (9%num,0%num)))) HiFP.qnil))).
 
 Definition test_sts2 := (HiFP.qcons (HiFP.swire (10%num,0%num) (Atyp (Gtyp (Fsint 10)) 5))
                                (HiFP.qcons (HiFP.snode (11%num,0%num) (HiFP.eref (HiFP.eid (10,0)%num)))
@@ -1462,14 +1511,12 @@ Definition test_sts2 := (HiFP.qcons (HiFP.swire (10%num,0%num) (Atyp (Gtyp (Fsin
 
 Definition test_module := HiFP.hfinmod (100%num,0%num) nil test_sts2.
 
-Compute (expandconnects_fmodule test_module (rcd_pmap_from_sts test_sts2 ft_pmap_empty)).
+Compute (expandconnects_fmodule test_module (rcd_pmap_from_m test_module ft_pmap_empty)).
 
- Definition test_ports0 := [:: HiFP.hinport (10%num, 0%num) (Atyp (Gtyp (Fsint 10)) 5)].
+ Definition test_ports0 := [:: HiFP.hinport (9%num, 0%num) (Atyp (Gtyp (Fsint 10)) 5)].
  Definition test_ports_map := rcd_pmap_from_ps test_ports0 ft_pmap_empty.
 
- Compute (fold_right (expand_ports test_ports_map) nil test_ports0) .
-
- Definition test_module0 := HiFP.hfinmod (100%num,0%num) test_ports0 test_sts2.
+ Definition test_module0 := HiFP.hfinmod (100%num,0%num) test_ports0 test_sts1.
  
 Compute (expandconnects_fmodule test_module0 (rcd_pmap_from_m test_module0 ft_pmap_empty)).
 
