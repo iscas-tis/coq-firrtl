@@ -1411,7 +1411,7 @@ From firrtl Require Import InferWidth_rewritten.
 
   (* Expand statements *)
   (* If types not match, then returns qnil for the connections sts *)
-  Fixpoint expandconnects_stmt_ft_pmap (s : HiFP.hfstmt) (ce : ft_pmap) mt (sts : HiFP.hfstmt_seq) : HiFP.hfstmt_seq :=
+  Fixpoint expandconnects_stmt_ft_pmap (s : HiFP.hfstmt) (ce : ft_pmap) (mt : ft_flp_pmap) (sts : HiFP.hfstmt_seq) : HiFP.hfstmt_seq :=
     match s with
     | Sskip => Qrcons sts s
     | Swire v t => expand_wire v t ce sts
@@ -1436,51 +1436,56 @@ From firrtl Require Import InferWidth_rewritten.
     | Sfcnct _ _ => sts
     | Swhen c s1 s2 => expandconnects_stmt_seq_ft_pmap s2 ce mt (expandconnects_stmt_seq_ft_pmap s1 ce mt sts)
     end
-      with expandconnects_stmt_seq_ft_pmap (ss : HiFP.hfstmt_seq) (ce : ft_pmap) mt (sts : HiFP.hfstmt_seq) : HiFP.hfstmt_seq :=
+      with expandconnects_stmt_seq_ft_pmap (ss : HiFP.hfstmt_seq) (ce : ft_pmap) (mt : ft_flp_pmap) (sts : HiFP.hfstmt_seq) : HiFP.hfstmt_seq :=
       match ss with
       | Qnil => sts
       | Qcons s ss => expandconnects_stmt_seq_ft_pmap ss ce mt (expandconnects_stmt_ft_pmap s ce mt sts)
     end.
 
   (* Expand ports *)
-  Fixpoint expand_inport_aux (r : pvar) (sz : nat) (cnt : nat) (ce : ft_pmap) (rs : seq HiFP.hfport) : seq HiFP.hfport :=
+  Fixpoint expand_inport_aux (r : pvar) (sz : nat) (cnt : nat) (mt : ft_flp_pmap) (rs : seq HiFP.hfport) : seq HiFP.hfport :=
     match sz with
     | 0 => rs
-    | S n => match (ft_find (r.1, (r.2 + N.of_nat cnt)%num) ce) with
-             | Some t => if is_gtyp t
-                              then expand_inport_aux r n (cnt.+1) ce (rcons rs (HiFP.hinport (r.1, r.2 + N.of_nat cnt)%num t))
-                              else expand_inport_aux r n (cnt.+1) ce rs
+    | S n => match (ft_find (r.1, (r.2 + N.of_nat cnt)%num) mt) with
+             | Some (t, false) => if is_gtyp t
+                              then expand_inport_aux r n (cnt.+1) mt (rcons rs (HiFP.hinport (r.1, r.2 + N.of_nat cnt)%num t))
+                              else expand_inport_aux r n (cnt.+1) mt rs
+             | Some (t, true) => if is_gtyp t
+                              then expand_inport_aux r n (cnt.+1) mt (rcons rs (HiFP.houtport (r.1, r.2 + N.of_nat cnt)%num t))
+                              else expand_inport_aux r n (cnt.+1) mt rs
              | None => rs
              end                                              
     end.
 
-  Definition expand_inport (r : pvar) t ce l : seq HiFP.hfport :=
+  Definition expand_inport (r : pvar) t mt l : seq HiFP.hfport :=
     let ts := ftype_list_all t nil in
     let sz := size ts in
-    expand_inport_aux r sz 0 ce l.
+    expand_inport_aux r sz 0 mt l.
   
-  Fixpoint expand_outport_aux (r : pvar) (sz : nat) (cnt : nat) (ce : ft_pmap) (rs : seq HiFP.hfport) : seq HiFP.hfport :=
+  Fixpoint expand_outport_aux (r : pvar) (sz : nat) (cnt : nat) (mt : ft_flp_pmap) (rs : seq HiFP.hfport) : seq HiFP.hfport :=
     match sz with
     | 0 => rs
-    | S n => match (ft_find (r.1, (r.2 + N.of_nat cnt)%num) ce) with
-             | Some t => if is_gtyp t
-                              then expand_outport_aux r n (cnt.+1) ce (rcons rs (HiFP.houtport (r.1, r.2 + N.of_nat cnt)%num t))
-                              else expand_outport_aux r n (cnt.+1) ce rs
+    | S n => match (ft_find (r.1, (r.2 + N.of_nat cnt)%num) mt) with
+             | Some (t, false) => if is_gtyp t
+                              then expand_outport_aux r n (cnt.+1) mt (rcons rs (HiFP.houtport (r.1, r.2 + N.of_nat cnt)%num t))
+                              else expand_outport_aux r n (cnt.+1) mt rs
+             | Some (t, true) => if is_gtyp t
+                              then expand_outport_aux r n (cnt.+1) mt (rcons rs (HiFP.hinport (r.1, r.2 + N.of_nat cnt)%num t))
+                              else expand_outport_aux r n (cnt.+1) mt rs
              | None => rs
              end                                              
     end.
 
-  Definition expand_outport (r : pvar) t ce l : seq HiFP.hfport :=
+  Definition expand_outport (r : pvar) t mt l : seq HiFP.hfport :=
         let ts := ftype_list_all t nil in
         let sz := size ts in
-        expand_outport_aux r sz 0 ce l.
+        expand_outport_aux r sz 0 mt l.
 
-  Fixpoint expand_ports ce p l :=
+  Fixpoint expand_ports mt p l :=
     match p with
-    | Finput v t => expand_inport v t ce l
-    | Foutput v t => expand_outport v t ce l
+    | Finput v t => expand_inport v t mt l
+    | Foutput v t => expand_outport v t mt l
     end.
-
 
  Definition ft_flp_pmap_empty := CEP.empty (ftype * bool).
  Definition ft_pmap_empty := CEP.empty (ftype).
@@ -1491,7 +1496,7 @@ From firrtl Require Import InferWidth_rewritten.
     | FInmod v ps ss =>
         let mt := rcd_flip_m m inf_mp (ft_flp_pmap_empty) in
         let ce := rcd_pmap_m m inf_mp (ft_pmap_empty)  in
-        FInmod v (fold_right (expand_ports ce) nil ps) (expandconnects_stmt_seq_ft_pmap ss ce mt (HiFP.qnil ))
+        FInmod v (fold_right (expand_ports mt) nil ps) (expandconnects_stmt_seq_ft_pmap ss ce mt (HiFP.qnil ))
     | m => m
     end.
 
@@ -1507,7 +1512,7 @@ Definition test_sts1 := (HiFP.qcons (HiFP.swire (10%num,0%num) (Atyp (Gtyp (Fsin
 
 Definition test_sts2 := (HiFP.qcons (HiFP.swire (10%num,0%num) (Atyp (Gtyp (Fsint 10)) 5))
                                (HiFP.qcons (HiFP.snode (11%num,0%num) (HiFP.eref (HiFP.eid (10,0)%num)))
-                                  (HiFP.qcons (HiFP.sfcnct (HiFP.eid (10%num,0%num)) (HiFP.eref (HiFP.eid (11%num,0%num)))) HiFP.qnil))).
+                                  (HiFP.qcons (HiFP.sfcnct (HiFP.eid (11%num,0%num)) (HiFP.eref (HiFP.eid (11%num,0%num)))) HiFP.qnil))).
 
 Definition test_module := HiFP.hfinmod (100%num,0%num) nil test_sts2.
 
@@ -1516,9 +1521,14 @@ Compute (expandconnects_fmodule test_module (rcd_pmap_from_m test_module ft_pmap
  Definition test_ports0 := [:: HiFP.hinport (9%num, 0%num) (Atyp (Gtyp (Fsint 10)) 5)].
  Definition test_ports_map := rcd_pmap_from_ps test_ports0 ft_pmap_empty.
 
- Definition test_module0 := HiFP.hfinmod (100%num,0%num) test_ports0 test_sts1.
+ Definition test_module0 := HiFP.hfinmod (101%num,0%num) test_ports0 test_sts1.
  
-Compute (expandconnects_fmodule test_module0 (rcd_pmap_from_m test_module0 ft_pmap_empty)).
+ Compute (expandconnects_fmodule test_module0 (rcd_pmap_from_m test_module0 ft_pmap_empty)).
+
+ Definition test_flip_ports := [:: HiFP.houtport (8%num, 0%num) agt].
+ Definition test_flip_module := HiFP.hfinmod (102%num,0%num) test_flip_ports HiFP.qnil.
+ 
+ Compute (expandconnects_fmodule test_flip_module (rcd_pmap_from_m test_flip_module ft_pmap_empty)).
 
 End ExpandConnectsP.
 (* (vm_old : module_graph_vertex_set_p.env) (ct_old : module_graph_connection_trees_p.env) (s : HiFP.hfstmt) (vm_new : module_graph_vertex_set_p.env) (ct_new : module_graph_connection_trees_p.env) (tmap : ft_pmap) *)
