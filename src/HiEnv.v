@@ -83,8 +83,8 @@ Fixpoint ftype_eqn (x y : ftype) : bool :=
 with ffield_eqn (f1 f2 : ffield) : bool :=
        match  f1, f2 with
        | Fnil, Fnil => true
-       | Fflips _ Nflip t1 fs1, Fflips _ Nflip t2 fs2
-         => ftype_eqn t1 t2 && ffield_eqn fs1 fs2
+       | Fflips v1 Nflip t1 fs1, Fflips v2 Nflip t2 fs2
+         => (v1 == v2) && ftype_eqn t1 t2 && ffield_eqn fs1 fs2
        | Fflips v1 Flipped t1 fs1, Fflips v2 Flipped t2 fs2
          => (v1 == v2) && ftype_eqn t1 t2 && ffield_eqn fs1 fs2
        | _, _ => false
@@ -95,22 +95,74 @@ Notation "x =? y" := (ftype_eqn x y).
 Lemma ftype_eqn_refl (x : ftype) : x =? x
 with ffield_eqn_refl (fx : ffield) : ffield_eqn fx fx.
 Proof.
-Admitted.
+* clear ftype_eqn_refl.
+  induction x ; simpl ; try done.
+  + apply fgtyp_eqn_refl.
+  + rewrite IHx andTb eq_refl //.
+* clear ffield_eqn_refl.
+  induction fx ; simpl ; try done.
+  destruct f.
+  + 1,2: rewrite IHfx andbT (ftype_eqn_refl f0) andbT eq_refl //.
+Qed.
 
 Lemma ftype_eqn_eq (x y : ftype) : x =? y <-> x = y
 with ffield_eqn_eq (fx fy : ffield) : ffield_eqn fx fy <-> fx = fy.
 Proof.
-Admitted.
+* clear ftype_eqn_eq.
+  split ; last by (intro ; rewrite H ; apply ftype_eqn_refl).
+  revert x y ; induction x, y ; simpl ; try done.
+  + generalize (fgtyp_eq_dec f f0) ; intro.
+    destruct H ; first by (rewrite e ; intro ; reflexivity).
+    intro ; apply fgtyp_eqn_eq in H ; contradiction.
+  + intro ; move /andP : H => [H /eqP H0].
+    apply IHx in H.
+    rewrite H H0 ; by reflexivity.
+  + intro ; apply ffield_eqn_eq in H.
+    rewrite H ; by reflexivity.
+* clear ffield_eqn_eq.
+  split ; last by (intro ; rewrite H ; apply ffield_eqn_refl).
+  revert fx fy ; induction fx, fy ; simpl ; try done.
+  + destruct f ; done.
+  + destruct f, f1 ; try done.
+    1,2: destruct (v == v0) eqn: Hv ; last by rewrite andFb ; done.
+    1,2: move /eqP : Hv => Hv ; rewrite andTb Hv.
+    1,2: destruct (f0 =? f2) eqn: Hf ; last by rewrite andFb ; done.
+    1,2: apply ftype_eqn_eq in Hf ; rewrite andTb Hf.
+    1,2: intro ; apply IHfx in H.
+    1,2: rewrite H //.
+Qed.
 
 Lemma ftype_eqn_sym (x y : ftype) : x =? y -> y =? x
 with ffield_eqn_sym (fx fy : ffield) : ffield_eqn fx fy -> ffield_eqn fy fx.
 Proof.
-Admitted.
+* clear ftype_eqn_sym.
+  revert x y ; induction x, y ; simpl ; try done.
+  + apply fgtyp_eqn_sym.
+  + intro ; move /andP : H => [H H0].
+    apply IHx in H ; rewrite eq_sym in H0.
+    rewrite H andTb H0 //.
+  + apply ffield_eqn_sym.
+* clear ffield_eqn_sym.
+  revert fx fy ; induction fx, fy ; simpl ; try done.
+  + destruct f ; done.
+  + destruct f, f1 ; try done.
+    1,2: intro ; move /andP : H => [/andP [H H0] H1].
+    1,2: rewrite eq_sym in H ; apply ftype_eqn_sym in H0 ; apply IHfx in H1.
+    1,2: rewrite H andTb H0 andTb H1 //.
+Qed.
 
 Lemma ftype_eqn_trans (x y z : ftype) : x =? y -> y =? z -> x =? z
 with ffield_eqn_trans (fx fy fz : ffield) : ffield_eqn fx fy -> ffield_eqn fy fz -> ffield_eqn fx fz.
 Proof.
-Admitted.
+* clear ftype_eqn_trans.
+  intros.
+  apply ftype_eqn_eq in H.
+  rewrite -H // in H0.
+* clear ffield_eqn_trans.
+  intros.
+  apply ffield_eqn_eq in H.
+  rewrite -H // in H0.
+Qed.
 
 Instance ftype_eqn_Reflexive : Reflexive (@ftype_eqn) := @ftype_eqn_refl.
 Instance ftype_eqn_Symmetric : Symmetric (@ftype_eqn) := @ftype_eqn_sym.
@@ -130,7 +182,25 @@ Instance ffield_eqn_Equivalence : Equivalence (@ffield_eqn) :=
 Lemma ftype_eqP : forall (x y : ftype), reflect (x = y) (x =? y)
 with ffield_eqP : forall (fx fy : ffield), reflect (fx = fy) (ffield_eqn fx fy).
 Proof.
-Admitted.
+* clear ftype_eqP.
+  intros.
+  generalize (ftype_eq_dec x y) ; intro.
+  destruct H.
+  + assert (x =? y) by (apply ftype_eqn_eq, e).
+    rewrite H ; apply ReflectT, e.
+  + assert (~ (x =? y)) by (contradict n ; apply ftype_eqn_eq, n).
+    move /negP : H => H ; apply negbTE in H.
+    rewrite H ; apply ReflectF, n.
+* clear ffield_eqP.
+  intros.
+  generalize (ffield_eq_dec fx fy) ; intro.
+  destruct H.
+  + assert (ffield_eqn fx fy) by (apply ffield_eqn_eq, e).
+    rewrite H ; apply ReflectT, e.
+  + assert (~ ffield_eqn fx fy) by (contradict n ; apply ffield_eqn_eq, n).
+    move /negP : H => H ; apply negbTE in H.
+    rewrite H ; apply ReflectF, n.
+Qed.
 
 Definition ftype_eqMixin := EqMixin ftype_eqP.
 Definition ffield_eqMixin := EqMixin ffield_eqP.
@@ -206,15 +276,26 @@ with make_ffield_explicit (fs: ffield) : ffield_explicit :=
 
 (* Definition explicit_to_ftype (fte : ftype_explicit) : ftype := proj1_sig fte. *)
 
-(* Equality of ftype_explicit is decidable *)
-Lemma ftype_explicit_eq_dec : forall {x y : ftype_explicit}, {x = y} + {x <> y}
-with ffield_explicit_eq_dec : forall {x y : ffield_explicit}, {x = y} + {x <> y}.
-Proof.
-Admitted.
 Definition ftype_explicit_eqn (x y : ftype_explicit) : bool :=
 proj1_sig x == proj1_sig y.
 Definition ffield_explicit_eqn (x y : ffield_explicit) : bool :=
 proj1_sig x == proj1_sig y.
+Lemma ftype_explicit_proof_uniqueness (x : ftype) : forall (px1 px2 : ftype_not_implicit_width x), px1 = px2
+with ffield_explicit_proof_uniqueness (f : ffield) : forall (pf1 pf2 : ffield_not_implicit_width f), pf1 = pf2.
+Proof.
+* clear ftype_explicit_proof_uniqueness.
+  induction x ; simpl.
+  + destruct f ; simpl ; try by (destruct px1, px2 ; reflexivity).
+  + apply IHx.
+  + apply ffield_explicit_proof_uniqueness.
+* clear ffield_explicit_proof_uniqueness.
+  induction f ; simpl.
+  + destruct pf1, pf2 ; reflexivity.
+  + destruct pf1, pf2.
+    rewrite (ftype_explicit_proof_uniqueness f0 f2 f4)
+            (IHf f3 f5) //.
+Qed.
+
 Lemma ftype_explicit_eqP : Equality.axiom ftype_explicit_eqn.
 Proof.
 rewrite /Equality.axiom /ftype_explicit_eqn.
@@ -223,17 +304,53 @@ destruct (eqVneq (proj1_sig x) (proj1_sig y)).
 * apply ReflectT.
   destruct x, y.
   simpl proj1_sig in e.
-  (* Now need to argue with proof uniqueness that basically f = f0. *)
-  admit.
+  subst x0.
+  rewrite (ftype_explicit_proof_uniqueness f0 f).
+  reflexivity.
 * apply ReflectF.
   destruct x, y.
   move /eqP : i => i.
   injection ; exact i.
-Admitted.
+Qed.
+
 Lemma ffield_explicit_eqP : Equality.axiom ffield_explicit_eqn.
 Proof.
 rewrite /Equality.axiom /ffield_explicit_eqn.
-Admitted.
+intros.
+destruct (eqVneq (proj1_sig x) (proj1_sig y)).
+* apply ReflectT.
+  destruct x, y.
+  simpl proj1_sig in e.
+  subst x0.
+  rewrite (ffield_explicit_proof_uniqueness f0 f).
+  reflexivity.
+* apply ReflectF.
+  destruct x, y.
+  move /eqP : i => i.
+  injection ; exact i.
+Qed.
+
+(* Equality of ftype_explicit is decidable *)
+Lemma ftype_explicit_eq_dec : forall {x y : ftype_explicit}, {x = y} + {x <> y}
+with ffield_explicit_eq_dec : forall {x y : ffield_explicit}, {x = y} + {x <> y}.
+Proof.
+* clear ftype_explicit_eq_dec.
+  intros.
+  destruct x, y.
+  generalize (ftype_eq_dec x x0) ; intro.
+  destruct H.
+  + subst x0.
+    left ; rewrite (ftype_explicit_proof_uniqueness f0 f) //.
+  + right ; injection ; done.
+* clear ffield_explicit_eq_dec.
+  intros.
+  destruct x, y.
+  generalize (ffield_eq_dec x x0) ; intro.
+  destruct H.
+  + subst x0.
+    left ; rewrite (ffield_explicit_proof_uniqueness f0 f) //.
+  + right ; injection ; done.
+Qed.
 
 Canonical ftype_explicit_eqMixin := EqMixin ftype_explicit_eqP.
 Canonical ftype_explicit_eqType := Eval hnf in EqType ftype_explicit ftype_explicit_eqMixin.
