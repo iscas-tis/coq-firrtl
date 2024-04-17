@@ -2,7 +2,7 @@ From Coq Require Import ZArith (* for Nat.eq_dec *).
 From simplssrlib Require Import SsrOrder FMaps Nats Var ZAriths.
 From nbits Require Import NBits.
 From firrtl Require Import Env Firrtl HiEnv HiFirrtl. (* for hfmodule and its parts *)
-From mathcomp Require Import ssreflect ssrbool ssrnat eqtype seq fintype.
+From mathcomp Require Import ssreflect ssrbool ssrnat eqtype seq fintype div.
 
 (* This file contains a simpler version of module graphs as a semantic structure for FIRRTL modules.
    The idea is to have vertices that correspond to ground-type components
@@ -680,6 +680,8 @@ end.
 (*---------------------------------------------------------------------------*)
 (* Submaps                                                                   *)
 
+(* Most of this has already been defined as CEP.submap etc.
+
 Definition submap {T : Type} (t1 t2: CEP.t T) : Prop :=
 forall v : ProdVarOrder.T,
    match CEP.find v t1 with
@@ -714,6 +716,7 @@ destruct (v0 == v) eqn: Hv.
   destruct (CEP.find v0 tmap) ; done.
 Qed.
 
+(* The following lemma is the same as CEP.Lemmas.submap_add_find_none. *)
 Lemma submap_addl {T : Type} : forall (tmap1 tmap2 : CEP.t T) (v : CEP.key) (t : T),
     CEP.find v tmap1 = None -> submap (CEP.add v t tmap1) tmap2 -> submap tmap1 tmap2.
 Proof.
@@ -724,27 +727,59 @@ destruct (v0 == v) eqn: Hv.
 * move /eqP : Hv => Hv ; rewrite Hv H //.
 * rewrite CEP.Lemmas.find_add_neq in H0 ; last by rewrite /PVM.SE.eq Hv //.
   exact H0.
-Qed.
+Qed. *)
 
 Lemma submap_add_add {T : Type} : forall (tmap1 tmap2 : CEP.t T) (v : CEP.key) (t : T),
-   submap tmap1 tmap2 -> submap (CEP.add v t tmap1) (CEP.add v t tmap2).
+   CEP.submap tmap1 tmap2 -> CEP.submap (CEP.add v t tmap1) (CEP.add v t tmap2).
 Proof.
-unfold submap.
-intros.
-destruct (v0 == v) eqn: Hv.
+unfold CEP.submap, CEP.Lemmas.submap.
+intros until 1 ; intro.
+destruct (k == v) eqn: Hv.
 * rewrite CEP.Lemmas.find_add_eq ; last by rewrite /HiFirrtl.PVM.SE.eq Hv //.
   rewrite CEP.Lemmas.find_add_eq ; last by rewrite /HiFirrtl.PVM.SE.eq Hv //.
-  reflexivity.
+  done.
 * rewrite CEP.Lemmas.find_add_neq ; last by rewrite /HiFirrtl.PVM.SE.eq Hv //.
   rewrite CEP.Lemmas.find_add_neq ; last by rewrite /HiFirrtl.PVM.SE.eq Hv //.
   apply H.
+Qed.
+
+(*Lemma Equal_submap {T : Type} : forall (tmap1 tmap2 : CEP.t T),
+    CEP.Equal tmap1 tmap2 -> submap tmap1 tmap2.
+Proof.
+intros.
+intro.
+specialize (H v).
+rewrite H.
+destruct (CEP.find v tmap2) ; done.
+Qed.*)
+
+Definition subdomain {T1 T2 : Type} (t1 : CEP.t T1) (t2 : CEP.t T2) : Prop :=
+forall k : ProdVarOrder.T,
+   match CEP.find k t2 with
+   | None => CEP.find k t1 = None
+   | Some _ => True
+   end.
+
+Lemma subdomain_refl {T : Type} : forall tmap : CEP.t T, subdomain tmap tmap.
+Proof.
+unfold subdomain ; intros.
+destruct (CEP.find k tmap) ; done.
+Qed.
+
+Lemma subdomain_trans {T1 T2 T3 : Type} : forall (t2 : CEP.t T2) (t1 : CEP.t T1) (t3 : CEP.t T3), subdomain t1 t2 -> subdomain t2 t3 -> subdomain t1 t3.
+Proof.
+unfold subdomain ; intros.
+specialize (H k) ; specialize (H0 k).
+destruct (CEP.find k t3) ; first by trivial.
+rewrite H0 in H.
+exact H.
 Qed.
 
 (*---------------------------------------------------------------------------*)
 (* Properties of type_of_ref and of type_of_expr                             *)
 
 Lemma type_of_ref_submap : forall (ref : HiFP.href) (tmap1 tmap2 : CEP.t ftype),
-   submap tmap1 tmap2 ->
+   CEP.submap tmap1 tmap2 ->
    match type_of_ref ref tmap1 with
    | Some ft => type_of_ref ref tmap2 = Some ft
    | None => True
@@ -752,7 +787,10 @@ Lemma type_of_ref_submap : forall (ref : HiFP.href) (tmap1 tmap2 : CEP.t ftype),
 Proof.
 intros.
 induction ref ; simpl ; try trivial.
-* by apply H.
+* specialize (H s).
+  destruct (CEP.find s tmap1) ; last by trivial.
+  specialize (H f Logic.eq_refl).
+  exact H.
 * destruct (type_of_ref ref tmap1) ; last by trivial.
   rewrite IHref.
   destruct f ; first (by trivial) ; first by trivial.
@@ -766,7 +804,7 @@ induction ref ; simpl ; try trivial.
 Qed.
 
 Lemma type_of_expr_submap : forall (expr : HiFP.hfexpr) (tmap1 tmap2 : CEP.t ftype),
-   submap tmap1 tmap2 ->
+   CEP.submap tmap1 tmap2 ->
    match type_of_expr expr tmap1 with
    | Some ft => type_of_expr expr tmap2 = Some ft
    | None => True
@@ -834,18 +872,33 @@ induction expr ; simpl ; try trivial.
   by reflexivity.
 Qed.
 
+Lemma type_of_expr_Equal : forall (expr : HiFP.hfexpr) (tmap1 tmap2 : CEP.t ftype),
+   CEP.Equal tmap1 tmap2 ->
+   type_of_expr expr tmap1 = type_of_expr expr tmap2.
+Proof.
+intros.
+generalize (type_of_expr_submap expr tmap1 tmap2
+            (CEP.Lemmas.Equal_submap H)) ; intro.
+apply CEP.Lemmas.Equal_sym in H.
+generalize (type_of_expr_submap expr tmap2 tmap1
+            (CEP.Lemmas.Equal_submap H)) ; intro.
+destruct (type_of_expr expr tmap1) ; first by rewrite H0 //.
+destruct (type_of_expr expr tmap2) ; done.
+Qed.
+
+
 Lemma stmts_submap:
    forall (vm : CEP.t vertex_type) (ss : HiFP.hfstmt_seq) (tmap scope : CEP.t ftype),
-      submap scope tmap ->
+      CEP.submap scope tmap ->
          match stmts_tmap (tmap, scope) ss vm with
-         | Some (tmap', scope') => submap scope' tmap' /\ submap tmap tmap' /\ submap scope scope'
+         | Some (tmap', scope') => CEP.submap scope' tmap' /\ CEP.submap tmap tmap' /\ CEP.submap scope scope'
          | None => True
          end
 with stmt_submap :
    forall (vm : CEP.t vertex_type) (s : HiFP.hfstmt) (tmap scope : CEP.t ftype),
-      submap scope tmap ->
+      CEP.submap scope tmap ->
          match stmt_tmap (tmap, scope) s vm with
-         | Some (tmap', scope') => submap scope' tmap' /\ submap tmap tmap' /\ submap scope scope'
+         | Some (tmap', scope') => CEP.submap scope' tmap' /\ CEP.submap tmap tmap' /\ CEP.submap scope scope'
          | None => True
          end.
 Proof.
@@ -853,7 +906,7 @@ Proof.
   induction ss.
   + unfold stmts_tmap.
     intros ; split ; first by exact H.
-    by split ; apply submap_refl.
+    by split ; apply CEP.Lemmas.submap_refl.
   + intros.
     simpl stmts_tmap.
     specialize stmt_submap with (vm := vm) (s := h) (tmap := tmap) (scope := scope).
@@ -863,25 +916,26 @@ Proof.
     split.
     - apply IHss, stmt_submap, H.
     split.
-    - apply (submap_trans tmap') ; first by apply stmt_submap.
+    - apply (CEP.Lemmas.submap_trans (m2 := tmap')) ; first by apply stmt_submap.
       by apply IHss, stmt_submap, H.
-    - apply (submap_trans scope') ; first by apply stmt_submap.
+    - apply (CEP.Lemmas.submap_trans (m2 := scope')) ; first by apply stmt_submap.
       by apply IHss, stmt_submap, H.
 * clear stmt_submap.
   destruct s ; simpl ; intros ; try trivial.
   + (* Sskip *) split ; first by exact H.
-    by split ; apply submap_refl.
+    by split ; apply CEP.Lemmas.submap_refl.
   + (* Swire *)
     destruct (CEP.find s tmap) eqn: Hfind ; first by trivial.
     destruct (code_type_find_vm_widths f s vm) as [[newt _]|] ; last by trivial.
     split.
-    - by apply submap_add_add, H.
+    - apply submap_add_add, H.
     split.
-    - by apply submap_add, Hfind.
-    - apply submap_add.
-      unfold submap in H ; specialize H with (v := s).
+    - apply CEP.Lemmas.submap_none_add ; first by apply CEP.Lemmas.submap_refl.
+      exact Hfind.
+    - apply CEP.Lemmas.submap_none_add ; first by apply CEP.Lemmas.submap_refl.
+      specialize (H s).
       destruct (CEP.find s scope) ; last by trivial.
-      by rewrite -H -Hfind //.
+      by rewrite -Hfind (H f0) //.
   + (* Sreg *)
     destruct (CEP.find s tmap) eqn: Hfind ; first by trivial.
     destruct (type_of_expr (clock h) scope) ; last by trivial.
@@ -890,58 +944,61 @@ Proof.
     - split.
       * by apply submap_add_add, H.
       split.
-      * by apply submap_add, Hfind.
-      * apply submap_add.
-        unfold submap in H ; specialize H with (v := s).
+      * apply CEP.Lemmas.submap_none_add ; first by apply CEP.Lemmas.submap_refl.
+        exact Hfind.
+      * apply CEP.Lemmas.submap_none_add ; first by apply CEP.Lemmas.submap_refl.
+        specialize (H s).
         destruct (CEP.find s scope) ; last by trivial.
-        by rewrite -H -Hfind //.
+        by rewrite -Hfind (H f0) //.
     - destruct (type_of_expr h0 scope) ; last by trivial.
       destruct (type_of_expr h1 scope) ; last by trivial.
       split.
       * by apply submap_add_add, H.
       split.
-      * by apply submap_add, Hfind.
-      * apply submap_add.
-        unfold submap in H ; specialize H with (v := s).
+      * apply CEP.Lemmas.submap_none_add ; first by apply CEP.Lemmas.submap_refl.
+        exact Hfind.
+      * apply CEP.Lemmas.submap_none_add ; first by apply CEP.Lemmas.submap_refl.
+        specialize (H s).
         destruct (CEP.find s scope) ; last by trivial.
-        by rewrite -H -Hfind //.
+        by rewrite -Hfind (H f2) //.
   + (* Snode *)
     destruct (CEP.find s tmap) eqn: Hfind ; first by trivial.
     destruct (type_of_expr h scope) as [[newt _]|] ; last by trivial.
     split.
     - by apply submap_add_add, H.
     split.
-    - by apply submap_add, Hfind.
-    - apply submap_add.
-      unfold submap in H ; specialize H with (v := s).
+    - apply CEP.Lemmas.submap_none_add ; first by apply CEP.Lemmas.submap_refl.
+      exact Hfind.
+    - apply CEP.Lemmas.submap_none_add ; first by apply CEP.Lemmas.submap_refl.
+      specialize (H s).
       destruct (CEP.find s scope) ; last by trivial.
-      by rewrite -H -Hfind //.
+      by rewrite -Hfind (H f) //.
   + (* Sfcnct *)
     destruct (type_of_ref h scope) ; last by trivial.
     destruct (type_of_expr h0 scope) ; last by trivial.
     split.
     - by exact H.
-    - split ; by apply submap_refl.
+    - split ; by apply CEP.Lemmas.submap_refl.
   + (* Sinvalid *)
     destruct (type_of_ref h scope) ; last by trivial.
     split.
     - by exact H.
-    - split ; by apply submap_refl.
+    - split ; by apply CEP.Lemmas.submap_refl.
   + (* Swhen *)
     rename h0 into ss_true ; rename h1 into ss_false.
     destruct (type_of_expr h scope) ; last by trivial.
     generalize (stmts_submap vm ss_true tmap scope H) ; intro.
     destruct (stmts_tmap (tmap, scope) ss_true vm) as [[tmap_true scope_true]|] ; last by trivial.
-    generalize (stmts_submap vm ss_false tmap_true scope (submap_trans tmap _ _ H (proj1 (proj2 H0)))) ; intro.
+    generalize (stmts_submap vm ss_false tmap_true scope (CEP.Lemmas.submap_trans H (proj1 (proj2 H0)))) ; intro.
     destruct (stmts_tmap (tmap_true, scope) ss_false vm) as [[tmap_false scope_false]|] ; last by trivial.
     split.
-    - apply (submap_trans tmap) ; first by apply H.
-      apply (submap_trans tmap_true) ; first by apply H0.
+    - apply (CEP.Lemmas.submap_trans H).
+      apply (CEP.Lemmas.submap_trans (proj1 (proj2 H0))).
       apply H1.
     split.
-    - apply (submap_trans tmap_true) ; first by apply H0.
+    - apply (CEP.Lemmas.submap_trans (proj1 (proj2 H0))).
       apply H1.
-    - apply submap_refl.
+    - apply CEP.Lemmas.submap_refl.
 Qed.
 
 Lemma stmts_tmap_cat :
@@ -984,35 +1041,25 @@ match s with
 | Swhen _ ss_true ss_false => Qcat (component_stmts_of ss_true) (component_stmts_of ss_false)
 end.
 
-Definition eq_submap (ts1 ts2 : CEP.t ftype * CEP.t ftype) : Prop :=
-fst ts1 = fst ts2 /\ submap (snd ts1) (snd ts2).
-
-Lemma eq_submap_refl :
-forall ts : CEP.t ftype * CEP.t ftype, eq_submap ts ts.
-Proof.
-intro ; unfold eq_submap ; split ; first by reflexivity.
-apply submap_refl.
-Qed.
-
 Lemma stmts_tmap_components :
    forall (vm : CEP.t vertex_type) (ss : HiFP.hfstmt_seq) (tmap scope1 scope2 : CEP.t ftype),
-      submap scope1 tmap ->
-      submap scope2 tmap ->
-      submap scope1 scope2 ->
+      CEP.submap scope1 tmap ->
+      CEP.submap scope2 tmap ->
+      CEP.submap scope1 scope2 ->
          match stmts_tmap (tmap, scope1) ss vm, stmts_tmap (tmap, scope2) (component_stmts_of ss) vm with
          | Some (tmap1', scope1'), Some (tmap2', scope2') =>
-              tmap1' = tmap2' /\ submap scope1' scope2'
+              tmap1' = tmap2' /\ CEP.submap scope1' scope2'
          | Some _, None => False
          | _, _ => True
          end
 with stmt_tmap_components :
    forall (vm : CEP.t vertex_type) (s : HiFP.hfstmt) (tmap scope1 scope2 : CEP.t ftype),
-      submap scope1 tmap ->
-      submap scope2 tmap ->
-      submap scope1 scope2 ->
+      CEP.submap scope1 tmap ->
+      CEP.submap scope2 tmap ->
+      CEP.submap scope1 scope2 ->
          match stmt_tmap (tmap, scope1) s vm, stmts_tmap (tmap, scope2) (component_stmt_of s) vm with
          | Some (tmap1', scope1'), Some (tmap2', scope2') =>
-              tmap1' = tmap2' /\ submap scope1' scope2'
+              tmap1' = tmap2' /\ CEP.submap scope1' scope2'
          | Some _, None => False
          | _, _ => True
          end.
@@ -1046,10 +1093,10 @@ Proof.
     destruct (code_type_find_vm_widths f s vm) as [[newt _]|] ; last by trivial.
     split ; first by reflexivity.
     intro.
-    destruct (v == s) eqn: Hvs.
+    destruct (k == s) eqn: Hvs.
     - rewrite CEP.Lemmas.find_add_eq ; last by rewrite /HiFirrtl.PVM.SE.eq Hvs //.
       rewrite CEP.Lemmas.find_add_eq ; last by rewrite /HiFirrtl.PVM.SE.eq Hvs //.
-      by reflexivity.
+      by done.
     - rewrite CEP.Lemmas.find_add_neq ; last by rewrite /HiFirrtl.PVM.SE.eq Hvs //.
       rewrite CEP.Lemmas.find_add_neq ; last by rewrite /HiFirrtl.PVM.SE.eq Hvs //.
       by apply H1.
@@ -1063,10 +1110,10 @@ Proof.
     - rewrite H2.
       split ; first by reflexivity.
       intro.
-      destruct (v == s) eqn: Hvs.
+      destruct (k == s) eqn: Hvs.
       * rewrite CEP.Lemmas.find_add_eq ; last by rewrite /HiFirrtl.PVM.SE.eq Hvs //.
         rewrite CEP.Lemmas.find_add_eq ; last by rewrite /HiFirrtl.PVM.SE.eq Hvs //.
-        by reflexivity.
+        by done.
       * rewrite CEP.Lemmas.find_add_neq ; last by rewrite /HiFirrtl.PVM.SE.eq Hvs //.
         rewrite CEP.Lemmas.find_add_neq ; last by rewrite /HiFirrtl.PVM.SE.eq Hvs //.
         by apply H1.
@@ -1079,10 +1126,10 @@ Proof.
       rewrite H2 H3 H4.
       split ; first by reflexivity.
       intro.
-      destruct (v == s) eqn: Hvs.
+      destruct (k == s) eqn: Hvs.
       * rewrite CEP.Lemmas.find_add_eq ; last by rewrite /HiFirrtl.PVM.SE.eq Hvs //.
         rewrite CEP.Lemmas.find_add_eq ; last by rewrite /HiFirrtl.PVM.SE.eq Hvs //.
-        by reflexivity.
+        by done.
       * rewrite CEP.Lemmas.find_add_neq ; last by rewrite /HiFirrtl.PVM.SE.eq Hvs //.
         rewrite CEP.Lemmas.find_add_neq ; last by rewrite /HiFirrtl.PVM.SE.eq Hvs //.
         by apply H1.
@@ -1094,10 +1141,10 @@ Proof.
     rewrite H2.
     split ; first by reflexivity.
     intro.
-    destruct (v == s) eqn: Hvs.
+    destruct (k == s) eqn: Hvs.
     - rewrite CEP.Lemmas.find_add_eq ; last by rewrite /HiFirrtl.PVM.SE.eq Hvs //.
       rewrite CEP.Lemmas.find_add_eq ; last by rewrite /HiFirrtl.PVM.SE.eq Hvs //.
-      by reflexivity.
+      by done.
     - rewrite CEP.Lemmas.find_add_neq ; last by rewrite /HiFirrtl.PVM.SE.eq Hvs //.
       rewrite CEP.Lemmas.find_add_neq ; last by rewrite /HiFirrtl.PVM.SE.eq Hvs //.
       by apply H1.
@@ -1108,7 +1155,7 @@ Proof.
     by exact H1.
   + (* Sinvalid *)
     destruct (type_of_ref h scope1) ; last by trivial.
-    unfold eq_submap ; split ; first by reflexivity.
+    split ; first by reflexivity.
     by exact H1.
   + (* Swhen *)
     rename h0 into ss_true ; rename h1 into ss_false.
@@ -1125,12 +1172,10 @@ Proof.
           last by contradict H2.
     rewrite -(proj1 H2) ; rewrite -(proj1 H2) in Hss_true', H4.
     destruct H2 as [_ H2] ; clear tmap_true'.
-    assert (submap scope1 tmap_true).
-          apply (submap_trans tmap) ; first (by exact H) ;
-          apply H3.
-    assert (submap scope1 scope_true').
-          apply (submap_trans scope_true) ; first (by apply H3) ;
-          apply H2.
+    assert (CEP.submap scope1 tmap_true)
+          by apply (CEP.Lemmas.submap_trans H), H3.
+    assert (CEP.submap scope1 scope_true')
+          by apply (CEP.Lemmas.submap_trans (proj2 (proj2 H3)) H2).
     generalize (stmts_tmap_components vm ss_false tmap_true scope1 scope_true' H5 (proj1 H4) H6) ; intro.
     generalize (stmts_submap vm ss_false tmap_true scope1 H5) ;
           intro.
@@ -1138,9 +1183,33 @@ Proof.
     destruct (stmts_tmap (tmap_true, scope_true') (component_stmts_of ss_false) vm) as [[tmap_false' scope_false']|] eqn: Hss_false' ;
           last by trivial.
     split ; first by apply H7.
-    apply (submap_trans scope_false) ; first by apply H8.
-    apply H7.
+    apply (CEP.Lemmas.submap_trans (proj2 (proj2 H8))), H7.
 Qed.
+
+
+(*---------------------------------------------------------------------------*)
+(* connection updating statements and their properties                       *)
+
+Fixpoint connection_stmts_of (ss : HiFP.hfstmt_seq) : HiFP.hfstmt_seq :=
+(* extracts from ss the statements that update connections.
+   Note that this command does not change the structure of Shwen statements. *)
+match ss with
+| Qnil => ss
+| Qcons s ss' => Qcat (connection_stmt_of s) (connection_stmts_of ss')
+end
+with connection_stmt_of (s : HiFP.hfstmt) : HiFP.hfstmt_seq :=
+match s with
+| Sskip => Qnil ProdVarOrder.T
+| Sfcnct _ _
+| Sinvalid _ => Qcons s (Qnil ProdVarOrder.T)
+| Swire _ _
+| Sreg _ _
+| Snode _ _
+| Smem _ _
+| Sinst _ _ => Qnil ProdVarOrder.T
+| Swhen cond ss_true ss_false =>
+    Qcons (Swhen cond (connection_stmts_of ss_true) (connection_stmts_of ss_false)) (Qnil ProdVarOrder.T)
+end.
 
 
 
@@ -1491,57 +1560,282 @@ Qed.
 (*---------------------------------------------------------------------------*)
 (* Semantics of ports                                                        *)
 
+Fixpoint connect_port (vm_old : CEP.t vertex_type) (ct_old : CEP.t def_expr)
+                      (p : HiFP.hfport) (ft : ftype)
+                      (vm_new : CEP.t vertex_type) (ct_new : CEP.t def_expr) : bool :=
+(* The predicate returns true if the correct port definitions are in vm_new
+   and the correct D_undefined connections are made in ct_new.
+   Only the elements where p should define something are checked,
+   i.e. (size_of_ftype ft) identifiers.
+   The port name and flow direction are taken from p, but its type is taken from ft.
+   (In most cases the port type is also ft, but that is not necessary.
+   It is clumsy to take ft from p because that disallows Coq from
+   determining the decreasing argument of the recursion.) *)
+match ft, p with
+| Gtyp gt, Finput v _ =>
+            (   (CEP.find v vm_old == None)
+            &&
+                (CEP.find v vm_new == Some (InPort gt)))
+        &&
+            (   (CEP.find v ct_old == None)
+            &&
+                (CEP.find v ct_new == None))
+| Gtyp gt, Foutput v _ =>
+            (   (CEP.find v vm_old == None)
+            &&
+                (CEP.find v vm_new == Some (OutPort gt)))
+        &&
+            (   (CEP.find v ct_old == None)
+            &&
+                (CEP.find v ct_new == Some (D_undefined)))
+| Atyp elt n, Finput v _ =>
+    let type_len := size_of_ftype elt in
+        [forall i : ordinal n, connect_port vm_old ct_old (Finput  (fst v, bin_of_nat (i * type_len + snd v)) elt) elt vm_new ct_new]
+| Atyp elt n, Foutput v _ =>
+    let type_len := size_of_ftype elt in
+        [forall i : ordinal n, connect_port vm_old ct_old (Foutput (fst v, bin_of_nat (i * type_len + snd v)) elt) elt vm_new ct_new]
+| Btyp ff, _ => connect_port_fields vm_old ct_old p ff vm_new ct_new
+end
+with connect_port_fields (vm_old : CEP.t vertex_type) (ct_old : CEP.t def_expr)
+                         (p : HiFP.hfport) (ff : ffield)
+                         (vm_new : CEP.t vertex_type) (ct_new : CEP.t def_expr) : bool :=
+(* The predicate returns true if the correct port definitions are in vm_new
+   and the correct D_undefined connections are made in ct_new.
+   Only the elements where p should define something are checked,
+   i.e. (size_of_ffield ff) identifiers.
+   The port name and flow direction are taken from p, but its type is taken from ft. *)
+match ff with
+| Fnil => true
+| Fflips v flp gt ff' =>
+    let type_len := size_of_ftype gt in
+            match flp with
+            | Nflip => connect_port vm_old ct_old p gt vm_new ct_new
+            | Flipped =>
+                match p with
+                | Finput  v _ => connect_port vm_old ct_old (Foutput v gt) gt vm_new ct_new
+                | Foutput v _ => connect_port vm_old ct_old (Finput  v gt) gt vm_new ct_new
+                end
+            end
+        &&
+            match p with
+            | Finput  v _ =>
+                connect_port_fields vm_old ct_old (Finput  (fst v, bin_of_nat (type_len + snd v)) (Btyp ff')) ff' vm_new ct_new
+            | Foutput v _ =>
+                connect_port_fields vm_old ct_old (Foutput (fst v, bin_of_nat (type_len + snd v)) (Btyp ff')) ff' vm_new ct_new
+            end
+end.
+
+
+Lemma connect_port_submap :
+(* Helper lemma to prove that Sem_frag_ports adds new definitions
+   but does not change existing ones. *)
+forall (ft : ftype)
+       (vm_old : CEP.t vertex_type) (ct_old : CEP.t def_expr)
+       (p : HiFP.hfport)
+       (vm_new : CEP.t vertex_type) (ct_new : CEP.t def_expr),
+           connect_port vm_old ct_old p ft vm_new ct_new ->
+               match p with
+               | Finput  v _
+               | Foutput v _ =>
+                   forall (n0 : N), n0 >= snd v -> n0 < (size_of_ftype ft) + (snd v) ->
+                           (forall el : vertex_type, CEP.find (fst v, n0) vm_old = Some el -> CEP.find (fst v, n0) vm_new = Some el)
+                       /\
+                           (forall el : def_expr,    CEP.find (fst v, n0) ct_old = Some el -> CEP.find (fst v, n0) ct_new = Some el)
+               end
+with connect_port_fields_submap :
+forall (ff : ffield)
+       (vm_old : CEP.t vertex_type) (ct_old : CEP.t def_expr)
+       (p : HiFP.hfport)
+       (vm_new : CEP.t vertex_type) (ct_new : CEP.t def_expr),
+           connect_port_fields vm_old ct_old p ff vm_new ct_new ->
+               match p with
+               | Finput  v _
+               | Foutput v _ =>
+                   forall (n0 : N), n0 >= snd v -> n0 < (size_of_fields ff) + (snd v) ->
+                           (forall el : vertex_type, CEP.find (fst v, n0) vm_old = Some el -> CEP.find (fst v, n0) vm_new = Some el)
+                       /\
+                           (forall el : def_expr,    CEP.find (fst v, n0) ct_old = Some el -> CEP.find (fst v, n0) ct_new = Some el)
+               end.
+Proof.
+* clear connect_port_submap.
+  induction ft ; simpl ; intros ; destruct p ; intros ; split ; intro.
+  + (* Gtyp *)
+    1-4: rewrite -add1n leq_add2l in H1.
+    1-4: assert (nat_of_bin (snd s) == nat_of_bin n0)
+          by rewrite eqn_leq H0 H1 //.
+    1-4: move /eqP : H2 => H2.
+    1,3: move /andP : H => [/andP [/eqP H _] _].
+    3,4: move /andP : H => [_ /andP [/eqP H _]].
+    1-4: rewrite -(nat_of_binK n0) -H2 nat_of_binK -surjective_pairing H //.
+  + (* Atyp *)
+    1-4: assert (0 < size_of_ftype ft /\ 0 < n)
+               by (apply (leq_ltn_trans H0) in H1 ;
+                   rewrite -subn_gt0 -addnBA // subnn addn0 muln_gt0 in H1 ;
+                   move /andP : H1 => H1 ; exact H1).
+    1-4: assert ((n-1).+1 = n)
+               by (rewrite subn1 ; apply prednK ; apply H2).
+    1-4: move /forallP : H => H.
+    1-4: specialize (H (cast_ord H3 (inord ((n0 - snd s) %/ size_of_ftype ft)))).
+    1-4: simpl nat_of_ord in H ;
+         rewrite inordK in H ;
+               last by (rewrite H3 ltn_divLR ; last (by apply H2) ;
+                        rewrite mulnC ltn_subLR // addnC //).
+    1-4: apply IHft in H ; rewrite bin_of_natK in H ; simpl in H.
+    1-4: apply H ;
+               first (by rewrite -(addn0 ((n0 - snd s) %/ size_of_ftype ft * size_of_ftype ft))
+                                 -(subnn ((n0 - snd s) %% size_of_ftype ft)) addnBA // -divn_eq
+                                 addnBAC ; last (by rewrite leq_mod //) ;
+                         rewrite -addnABC // subnn addn0 leq_subr //).
+    1-4: rewrite addnA addnC -ltn_subLR //
+                 -{1}(mul1n (size_of_ftype ft)) -mulnDl -ltn_divLR ;
+         last (by apply H2) ;
+         by apply leq_div2r, leqnn.
+  + (* Btyp *)
+    1-4: apply connect_port_fields_submap in H.
+    1-4: specialize (H n0 H0 H1) ; apply H.
+* clear connect_port_fields_submap.
+  induction ff ; simpl ; intros ; destruct p ; intros ; split ; intro.
+  + (* Fnil *)
+    1-4: apply (leq_ltn_trans H0) in H1.
+    1-4: rewrite add0n ltnn // in H1.
+  + (* Fflips *)
+    1-4: destruct (n0 < size_of_ftype f0 + snd s) eqn: Hns.
+    1,3,5,7: destruct f ; move /andP : H => [H _] ;
+             apply connect_port_submap in H ;
+             specialize (H n0 H0 Hns) ;
+             apply H.
+    1-4: destruct f ; move /andP : H => [_ H].
+    1-8: apply IHff in H.
+    1-8: specialize (H n0) ; simpl in H.
+    1-8: rewrite bin_of_natK addnA (addnC (size_of_fields ff)) in H.
+    1-8: apply negbT in Hns ; rewrite -leqNgt in Hns.
+    1-8: by apply (H Hns H1).
+Qed.
+
+
+Definition vm_and_ct_compatible (vm : CEP.t vertex_type) (ct : CEP.t def_expr) :=
+forall (v : CEP.key),
+    match CEP.find v vm with
+    | None
+    | Some (InPort _) => CEP.find v ct = None
+    | _ => CEP.find v ct <> None
+    end.
+
+
+Lemma connect_port_compatible :
+(* Helper lemma to prove that Sem_frag_ports
+   keeps the compatibility between vm and ct. *)
+forall (ft : ftype)
+       (vm_old : CEP.t vertex_type) (ct_old : CEP.t def_expr)
+       (p : HiFP.hfport)
+       (vm_new : CEP.t vertex_type) (ct_new : CEP.t def_expr),
+           connect_port vm_old ct_old p ft vm_new ct_new ->
+               match p with
+               | Finput  v _
+               | Foutput v _ =>
+                   forall (n0 : N), n0 >= snd v -> n0 < (size_of_ftype ft) + (snd v) ->
+                       match CEP.find (fst v, n0) vm_old with
+                       | Some (InPort _) | None => CEP.find (fst v, n0) ct_old = None
+                       | _ => CEP.find (fst v, n0) ct_old <> None
+                       end ->
+                           match CEP.find (fst v, n0) vm_new with
+                           | Some (InPort _) | None => CEP.find (fst v, n0) ct_new = None
+                           | _ => CEP.find (fst v, n0) ct_new <> None
+                           end
+               end
+with connect_port_fields_compatible :
+forall (ff : ffield)
+       (vm_old : CEP.t vertex_type) (ct_old : CEP.t def_expr)
+       (p : HiFP.hfport)
+       (vm_new : CEP.t vertex_type) (ct_new : CEP.t def_expr),
+           connect_port_fields vm_old ct_old p ff vm_new ct_new ->
+               match p with
+               | Finput  v _
+               | Foutput v _ =>
+                   forall (n0 : N), n0 >= snd v -> n0 < (size_of_fields ff) + (snd v) ->
+                       match CEP.find (fst v, n0) vm_old with
+                       | Some (InPort _) | None => CEP.find (fst v, n0) ct_old = None
+                       | _ => CEP.find (fst v, n0) ct_old <> None
+                       end ->
+                           match CEP.find (fst v, n0) vm_new with
+                           | Some (InPort _) | None => CEP.find (fst v, n0) ct_new = None
+                           | _ => CEP.find (fst v, n0) ct_new <> None
+                           end
+               end.
+Proof.
+* clear connect_port_compatible.
+  induction ft ; simpl ; intros ; destruct p ; intros.
+  + (* Gtyp *)
+    1-2: rewrite -add1n leq_add2l in H1.
+    1-2: assert (nat_of_bin (snd s) == nat_of_bin n0)
+          by rewrite eqn_leq H0 H1 //.
+    1-2: move /eqP : H3 => H3.
+    1-2: move /and3P : H => [/andP [_ /eqP H] _ /eqP H4].
+    1-2: rewrite -(nat_of_binK n0) -H3 nat_of_binK -surjective_pairing H H4 //.
+  + (* Atyp *)
+    1-2: assert (0 < size_of_ftype ft /\ 0 < n)
+               by (apply (leq_ltn_trans H0) in H1 ;
+                   rewrite -subn_gt0 -addnBA // subnn addn0 muln_gt0 in H1 ;
+                   move /andP : H1 => H1 ; exact H1).
+    1-2: assert ((n-1).+1 = n)
+               by (rewrite subn1 ; apply prednK ; apply H3).
+    1-2: move /forallP : H => H.
+    1-2: specialize (H (cast_ord H4 (inord ((n0 - snd s) %/ size_of_ftype ft)))).
+    1-2: simpl nat_of_ord in H ;
+         rewrite inordK in H ;
+               last by (rewrite H4 ltn_divLR ; last (by apply H3) ;
+                        rewrite mulnC ltn_subLR // addnC //).
+    1-2: apply IHft in H ; rewrite bin_of_natK in H ; simpl in H.
+    1-2: apply H ;
+               first (by rewrite -(addn0 ((n0 - snd s) %/ size_of_ftype ft * size_of_ftype ft))
+                                 -(subnn ((n0 - snd s) %% size_of_ftype ft)) addnBA // -divn_eq
+                                 addnBAC ; last (by rewrite leq_mod //) ;
+                         rewrite -addnABC // subnn addn0 leq_subr //) ;
+               last by apply H2.
+    1-2: rewrite addnA addnC -ltn_subLR //
+                 -{1}(mul1n (size_of_ftype ft)) -mulnDl -ltn_divLR ;
+         last (by apply H3) ;
+         by apply leq_div2r, leqnn.
+  + (* Btyp *)
+    1-2: apply connect_port_fields_compatible in H.
+    1-2: specialize (H n0 H0 H1 H2) ; apply H.
+* clear connect_port_fields_compatible.
+  induction ff ; simpl ; intros ; destruct p ; intros.
+  + (* Fnil *)
+    1-2: apply (leq_ltn_trans H0) in H1.
+    1-2: rewrite add0n ltnn // in H1.
+  + (* Fflips *)
+    1-2: destruct (n0 < size_of_ftype f0 + snd s) eqn: Hns.
+    1,3: destruct f ; move /andP : H => [H _] ;
+         apply connect_port_compatible in H ;
+         specialize (H n0 H0 Hns H2) ;
+         apply H.
+    1-2: move /andP : H => [_ H].
+    1-2: apply IHff in H.
+    1-2: specialize (H n0) ; simpl in H.
+    1-2: rewrite bin_of_natK addnA (addnC (size_of_fields ff)) in H.
+    1-2: apply negbT in Hns ; rewrite -leqNgt in Hns.
+    1-2: by apply (H Hns H1 H2).
+Qed.
+
+
 Definition Sem_frag_port (vm_old : CEP.t vertex_type) (ct_old : CEP.t def_expr) (p : HiFP.hfport) (vm_new : CEP.t vertex_type) (ct_new : CEP.t def_expr) (tmap : CEP.t ftype) : Prop :=
 (* returns True if the port in p defines the components in vm *)
 match p with
-| Finput v t =>
+| Finput v _
+| Foutput v _ =>
     match CEP.find v tmap with
-    | Some newft =>
-           (* ground-type input ports are defined *)
-           (forall n : nat,
-                match List.nth_error (list_rhs_type_p newft) n with
-                | Some gt =>
-                       CEP.find (fst v, bin_of_nat (n + snd v)) vm_old = None
-                    /\
-                       CEP.find (fst v, bin_of_nat (n + snd v)) vm_new = Some (InPort gt)
-                | None => True
-                end)
-        /\ (* other vertices do not change *)
-           (forall (v0 n0 : N), v0 <> fst v \/ n0 < snd v \/ n0 >= (size_of_ftype newft) + (snd v) ->
-                CEP.find (v0, n0) vm_old =
-                CEP.find (v0, n0) vm_new)
-        /\ (* connections do not change *)
-           CEP.Equal ct_old ct_new
-    | None => False
-    end
-| Foutput v t =>
-    match CEP.find v tmap with
-    | Some newft =>
-           (* ground-type output ports are defined *)
-           (forall n : nat,
-                match List.nth_error (list_rhs_type_p newft) n with
-                | Some gt => 
-                       CEP.find (fst v, bin_of_nat (n + snd v)) vm_old = None
-                    /\
-                       CEP.find (fst v, bin_of_nat (n + snd v)) vm_new = Some (OutPort gt)
-                | None => True
-                end)
-        /\ (* other vertices do not change *)
-           (forall (v0 n0 : N), v0 <> fst v \/ n0 < snd v \/ n0 >= (size_of_ftype newft) + (snd v) ->
-                CEP.find (v0, n0) vm_old =
-                CEP.find (v0, n0) vm_new)
-        /\ (* other connections do not change *)
-           (forall (v0 n0 : N), v0 <> fst v \/ n0 < snd v \/ n0 >= (size_of_ftype newft) + (snd v) ->
-                CEP.find (v0, n0) ct_old =
-                CEP.find (v0, n0) ct_new)
-        /\ (* set input connectors to undefined *)
-           forall n0 : nat, n0 < size_of_ftype newft ->
-                  CEP.find (fst v, bin_of_nat (n0 + snd v)) ct_old = None
+    | Some ft =>
+            connect_port vm_old ct_old p ft vm_new ct_new
+        /\ (* other vertices and connections do not change *)
+           forall (v0 n0 : N), v0 <> fst v \/ n0 < snd v \/ n0 >= (size_of_ftype ft) + (snd v) ->
+                   CEP.find (v0, n0) vm_old = CEP.find (v0, n0) vm_new
                /\
-                  CEP.find (fst v, bin_of_nat (n0 + snd v)) ct_new = Some D_undefined
+                   CEP.find (v0, n0) ct_old = CEP.find (v0, n0) ct_new
     | None => False
     end
 end.
+
 
 Fixpoint Sem_frag_ports (vm_old : CEP.t vertex_type) (ct_old : CEP.t def_expr) (pp : seq HiFP.hfport) (vm_new : CEP.t vertex_type) (ct_new : CEP.t def_expr) (tmap : CEP.t ftype) : Prop :=
 (* returns True if the ports in pp define the components in vm *)
@@ -1554,91 +1848,57 @@ match pp with
            Sem_frag_port vm' ct' p vm_new ct_new tmap
 end.
 
+
 Lemma Sem_frag_ports_submap :
 forall (pp : seq HiFP.hfport) (vm_old : CEP.t vertex_type) (ct_old : CEP.t def_expr)
        (vm_new : CEP.t vertex_type) (ct_new : CEP.t def_expr) (tmap : CEP.t ftype),
     Sem_frag_ports vm_old ct_old pp vm_new ct_new tmap ->
-        submap vm_old vm_new /\ submap ct_old ct_new.
+        CEP.submap vm_old vm_new /\ CEP.submap ct_old ct_new.
 Proof.
 induction pp ; simpl ; intros ;
-      first by (destruct H ; rewrite H H0 ; split ; apply submap_refl).
+      first by (destruct H ; rewrite H H0 ; split ; apply CEP.Lemmas.submap_refl).
 destruct H as [vm' [ct' [H H0]]].
 specialize (IHpp vm_old ct_old vm' ct' tmap H).
-destruct IHpp as [IHpp_vm IHpp_ct].
 unfold Sem_frag_port in H0.
 destruct a.
 1,2: destruct (CEP.find s tmap) ; last by contradiction H0.
 1,2: split.
-1,2,3,4: intro.
-1,2,3,4: destruct H0 as [H0 [H1 H2]].
-* 2: specialize (IHpp_ct v) ;
-     specialize (H2 v) ;
-     destruct (CEP.find v ct_old) ; last (by done) ;
-     rewrite -H2 ;
-     exact IHpp_ct.
-* 1,2: specialize (H0 (snd v - snd s)) ; specialize (H1 (fst v) (snd v)).
-  1,2: rewrite -surjective_pairing in H1.
-  1,2: specialize (IHpp_vm v).
-  1,2: destruct (fst v == fst s) eqn: Hfst.
-  1,2,3,4: move /eqP : Hfst => Hfst.
-  + 1,3: destruct (snd v < snd s) eqn: Hsnd_small ;
-               first by (destruct (CEP.find v vm_old) ; last (by done) ;
-                         rewrite -IHpp_vm ; symmetry ; apply H1 ; right ; left ; done).
-    1,2: destruct (size_of_ftype f0 + snd s <= snd v) eqn: Hsnd_large ;
-               first by (destruct (CEP.find v vm_old) ; last (by done) ;
-                         rewrite -IHpp_vm ; symmetry ; apply H1 ; right ; right ; done).
-    1,2: generalize (List.nth_error_Some (list_rhs_type_p f0) (snd v - snd s)) ; intro.
-    1,2: replace (length (list_rhs_type_p f0)) with (size_of_ftype f0) in H3
-               by (rewrite -list_rhs_type_p_size ; reflexivity).
-    1,2: rewrite ltnNge in Hsnd_small ; apply negbFE in Hsnd_small.
-    1,2: rewrite leqNgt addnC -ltn_subLR // in Hsnd_large ; apply negbFE in Hsnd_large.
-    1,2: apply simplssrlib.Nats.ltn_lt in Hsnd_large.
-    1,2: destruct H3 as [_ H3] ; specialize (H3 Hsnd_large).
-    1,2: destruct (List.nth_error (list_rhs_type_p f0) (snd v - snd s)) ; last by contradiction H3.
-    1,2: rewrite subnK // -Hfst nat_of_binK -surjective_pairing in H0.
-    1,2: destruct (CEP.find v vm') ; first by discriminate (proj1 H0).
-    1,2: destruct (CEP.find v vm_old) ; first by discriminate IHpp_vm.
-    1,2: by done.
-  + 1,2: destruct (CEP.find v vm_old) ; last by done.
-    1,2: rewrite -H1 ; last by (left ; exact Hfst).
-    1,2: by exact IHpp_vm.
-* clear H0 H1 ; destruct H2 as [H1 H0].
-  specialize (H0 (snd v - snd s)) ; specialize (H1 (fst v) (snd v)).
-  destruct (fst v == fst s) eqn: Hfst.
-  1,2: move /eqP : Hfst => Hfst.
-  1,2: rewrite -surjective_pairing in H1.
-  1,2: specialize (IHpp_ct v).
-  + destruct (snd v < snd s) eqn: Hsnd_small ;
-          first by (destruct (CEP.find v ct_old) ; last (by done) ;
-                    rewrite -IHpp_ct ; symmetry ; apply H1 ; right ; left ; done).
-    destruct (size_of_ftype f0 + snd s <= snd v) eqn: Hsnd_large ;
-          first by (destruct (CEP.find v ct_old) ; last (by done) ;
-                    rewrite -IHpp_ct ; symmetry ; apply H1 ; right ; right ; done).
-    (*generalize (List.nth_error_Some (list_rhs_type_p f0) (snd v - snd s)) ; intro H3.
-    replace (length (list_rhs_type_p f0)) with (size_of_ftype f0) in H3
-          by (rewrite -list_rhs_type_p_size ; reflexivity).*)
-    rewrite ltnNge in Hsnd_small ; apply negbFE in Hsnd_small.
-    rewrite leqNgt addnC -ltn_subLR // in Hsnd_large ; apply negbFE in Hsnd_large.
-    specialize (H0 Hsnd_large).
-    (*apply simplssrlib.Nats.ltn_lt in Hsnd_large.
-    destruct H3 as [_ H3] ; specialize (H3 Hsnd_large).
-    destruct (List.nth_error (list_rhs_type_p f0) (snd v - snd s)) ; last by contradiction H3.*)
-    rewrite subnK // -Hfst nat_of_binK -surjective_pairing in H0.
-    destruct (CEP.find v ct') ; first by discriminate (proj1 H0).
-    destruct (CEP.find v ct_old) ; first by discriminate IHpp_ct.
-    by done.
-  + destruct (CEP.find v ct_old) ; last by done.
-    rewrite -H1 ; last by (left ; exact Hfst).
-    by exact IHpp_ct.
+1-4: intro.
+1-4: destruct H0 as [H0 H1].
+1-4: specialize (H1 (fst k) (snd k)) ; rewrite -surjective_pairing in H1.
+1-4: destruct (fst k != fst s) eqn: Hks1.
+1,3,5,7: move /eqP : Hks1 => Hks1.
+1-4: specialize (H1 (or_introl Hks1)).
+1,3: destruct H1 as [H1 _].
+3,4: destruct H1 as [_ H1].
+1-4: rewrite -H1 ; apply IHpp.
+1-4: destruct (snd k < snd s) eqn: Hksmall.
+1,3,5,7: specialize (H1 (or_intror (or_introl is_true_true))).
+1,3: destruct H1 as [H1 _].
+3,4: destruct H1 as [_ H1].
+1-4: rewrite -H1 ; apply IHpp.
+1-4: destruct (size_of_ftype f0 + snd s <= snd k) eqn: Hklarge.
+1,3,5,7: specialize (H1 (or_intror (or_intror is_true_true))).
+1,3: destruct H1 as [H1 _].
+3,4: destruct H1 as [_ H1].
+1-4: rewrite -H1 ; apply IHpp.
+1-4: apply connect_port_submap in H0.
+1-4: apply negbT in Hksmall ; rewrite -leqNgt in Hksmall.
+1-4: apply negbT in Hklarge ; rewrite -ltnNge in Hklarge.
+1-4: specialize (H0 (snd k) Hksmall Hklarge).
+1,3: destruct H0 as [H0 _] ; destruct IHpp as [IHpp _].
+3,4: destruct H0 as [_ H0] ; destruct IHpp as [_ IHpp].
+1-4: specialize (IHpp k).
+1-2: destruct (CEP.find k vm_old) as [v|] ; try by (intros ; discriminate H2).
+3-4: destruct (CEP.find k ct_old) as [v|] ; try by (intros ; discriminate H2).
+1-4: specialize (IHpp v Logic.eq_refl).
+1-4: move /eqP : Hks1 => Hks1.
+1-4: rewrite -Hks1 -surjective_pairing IHpp in H0.
+1-4: specialize (H0 v Logic.eq_refl).
+1-4: intros.
+1-4: rewrite H0 H2 //.
 Qed.
 
-Definition vm_and_ct_compatible (vm : CEP.t vertex_type) (ct : CEP.t def_expr) :=
-forall (v : CEP.key),
-    match CEP.find v vm with
-    | None
-    | Some (InPort _) => CEP.find v ct = None
-    | _ => CEP.find v ct <> None
-    end.
 
 Lemma Sem_frag_ports_compatible :
 forall (pp : seq HiFP.hfport) (vm_old : CEP.t vertex_type) (ct_old : CEP.t def_expr)
@@ -1652,60 +1912,27 @@ destruct H as [vm' [ct' [H H1]]].
 intro.
 specialize (IHpp vm_old ct_old vm' ct' tmap H H0 v).
 unfold Sem_frag_port in H1.
-destruct a ; try done ; destruct (CEP.find s tmap) ; try by contradiction H1.
-* destruct H1 as [H1 [H2 H3]].
-  specialize (H1 (snd v - snd s)) ; specialize (H2 (fst v) (snd v)).
-  specialize (H3 v) ; rewrite H3 in IHpp.
-  rewrite -surjective_pairing in H2.
-  destruct (fst v == fst s) eqn: Hfst ; move /eqP : Hfst => Hfst ;
-        last by (rewrite -H2 ; first (by exact IHpp) ;
-                 left ; done).
-  destruct (snd v < snd s) eqn: Hsnd_small ;
-        first by (rewrite -H2 ; first (by exact IHpp) ;
-                  right ; left ; done).
-  destruct (size_of_ftype f0 + snd s <= snd v) eqn: Hsnd_large ;
-        first by (rewrite -H2 ; first (by exact IHpp) ;
-                  right ; right ; done).
-  generalize (List.nth_error_Some (list_rhs_type_p f0) (snd v - snd s)) ; intro.
-  replace (length (list_rhs_type_p f0)) with (size_of_ftype f0) in H4
-        by (rewrite -list_rhs_type_p_size ; reflexivity).
-  rewrite ltnNge in Hsnd_small ; apply negbFE in Hsnd_small.
-  rewrite leqNgt addnC -ltn_subLR // in Hsnd_large ; apply negbFE in Hsnd_large.
-  apply simplssrlib.Nats.ltn_lt in Hsnd_large.
-  destruct H4 as [_ H4] ; specialize (H4 Hsnd_large).
-  destruct (List.nth_error (list_rhs_type_p f0) (snd v - snd s)) ; last by contradiction H4.
-  rewrite subnK // -Hfst nat_of_binK -surjective_pairing in H1.
-  rewrite (proj1 H1) in IHpp ; rewrite (proj2 H1).
-  by exact IHpp.
-* destruct H1 as [H1 [H2 [H4 H3]]].
-  specialize (H1 (snd v - snd s)) ; specialize (H2 (fst v) (snd v)).
-  rewrite -surjective_pairing in H2.
-  specialize (H3 (snd v - snd s)) ; specialize (H4 (fst v) (snd v)).
-  rewrite -surjective_pairing in H4.
-  destruct (fst v == fst s) eqn: Hfst ; move /eqP : Hfst => Hfst ;
-        last by (rewrite -H2 ; last (by left ; done) ;
-                 rewrite -H4 ; last (by left ; done) ;
-                 exact IHpp).
-  destruct (snd v < snd s) eqn: Hsnd_small ;
-        first by (rewrite -H2 ; last (by right ; left ; done) ;
-                  rewrite -H4 ; last (by right ; left ; done) ;
-                  exact IHpp).
-  destruct (size_of_ftype f0 + snd s <= snd v) eqn: Hsnd_large ;
-        first by (rewrite -H2 ; last (by right ; right ; done) ;
-                  rewrite -H4 ; last (by right ; right ; done) ;
-                  exact IHpp).
-  generalize (List.nth_error_Some (list_rhs_type_p f0) (snd v - snd s)) ; intro.
-  replace (length (list_rhs_type_p f0)) with (size_of_ftype f0) in H5
-        by (rewrite -list_rhs_type_p_size ; reflexivity).
-  rewrite ltnNge in Hsnd_small ; apply negbFE in Hsnd_small.
-  rewrite leqNgt addnC -ltn_subLR // in Hsnd_large ; apply negbFE in Hsnd_large.
-  specialize (H3 Hsnd_large).
-  apply simplssrlib.Nats.ltn_lt in Hsnd_large.
-  destruct H5 as [_ H5] ; specialize (H5 Hsnd_large).
-  destruct (List.nth_error (list_rhs_type_p f0) (snd v - snd s)) ; last by contradiction H5.
-  rewrite subnK // -Hfst nat_of_binK -surjective_pairing in H1, H3.
-  rewrite (proj2 H1) (proj2 H3).
-  discriminate.
+destruct a.
+1,2: destruct (CEP.find s tmap) ; last by contradiction H1.
+1,2: destruct H1 as [H1 H2].
+1,2: specialize (H2 (fst v) (snd v)) ; rewrite -surjective_pairing in H2.
+1,2: destruct (fst v != fst s) eqn: Hvs1.
+1,3: move /eqP : Hvs1 => Hvs1.
+1,2: specialize (H2 (or_introl Hvs1)).
+1,2: rewrite -(proj1 H2) -(proj2 H2) //.
+1,2: destruct (snd v < snd s) eqn: Hvsmall.
+1,3: specialize (H2 (or_intror (or_introl is_true_true))).
+1,2: rewrite -(proj1 H2) -(proj2 H2) //.
+1,2: destruct (size_of_ftype f0 + snd s <= snd v) eqn: Hvlarge.
+1,3: specialize (H2 (or_intror (or_intror is_true_true))).
+1,2: rewrite -(proj1 H2) -(proj2 H2) //.
+1,2: apply connect_port_compatible in H1.
+1,2: apply negbT in Hvsmall ; rewrite -leqNgt in Hvsmall.
+1,2: apply negbT in Hvlarge ; rewrite -ltnNge in Hvlarge.
+1,2: specialize (H1 (snd v) Hvsmall Hvlarge).
+1,2: move /eqP : Hvs1 => Hvs1.
+1,2: rewrite -Hvs1 -surjective_pairing in H1.
+1,2: apply H1, IHpp.
 Qed.
 
 (*---------------------------------------------------------------------------*)
@@ -1757,6 +1984,35 @@ match ff_tgt, ff_src with
 | _, _ => false
 end.
 
+Lemma connect_type_compatible_size :
+    forall (can_flip : bool) (ft_tgt ft_src : ftype) (flipped : bool),
+        connect_type_compatible can_flip ft_tgt ft_src flipped ->
+            size_of_ftype ft_tgt = size_of_ftype ft_src
+with connect_type_compatible_fields_size :
+    forall (can_flip : bool) (ff_tgt ff_src : ffield) (flipped : bool),
+        connect_type_compatible_fields can_flip ff_tgt ff_src flipped ->
+            size_of_fields ff_tgt = size_of_fields ff_src.
+Proof.
+* clear connect_type_compatible_size.
+  induction ft_tgt ; simpl.
+  + (* Gtyp *) destruct ft_src ; simpl ; try done ; by (destruct f ; done).
+  + (* Atyp *) destruct ft_src ; simpl ; try done.
+    move => flipped /andP [/eqP H1 H2].
+    apply IHft_tgt in H2.
+    rewrite H1 H2 //.
+  + (* Btyp *) destruct ft_src ; simpl ; try done.
+    apply connect_type_compatible_fields_size.
+* clear connect_type_compatible_fields_size.
+  induction ff_tgt ; simpl.
+  + (* Fnil *) destruct ff_src ; simpl ; done.
+  + (* Fflips *) destruct ff_src ; simpl ; first by (destruct f ; done).
+    destruct f, f1 ; simpl ; try done.
+    1,2: move => flipped /andP [/andP [_ Ht] Hf].
+    1,2: apply connect_type_compatible_size in Ht.
+    1,2: apply IHff_tgt in Hf.
+    1,2: rewrite Ht Hf //.
+Qed.
+
 Definition connect_fgtyp (ct_old : CEP.t def_expr)
                          (ref_tgt : HiFP.href) (lst_tgt : list CEP.key)
                          (ref_src : HiFP.href) (lst_src : list CEP.key)
@@ -1766,9 +2022,11 @@ Definition connect_fgtyp (ct_old : CEP.t def_expr)
    and it does not change the connection into lst_src.
    These lists must be one-element lists for output and input connectors of compatible types.
    It assumes that the types are compatible. *)
-match flipped, ref_tgt, lst_tgt, ref_src, lst_src with
-| false, _, [:: ic], ref_src, [:: oc]
-| true,  ref_src, [:: oc], _, [:: ic] =>
+match lst_tgt, lst_src, flipped, ref_tgt, ref_src with
+| [:: ic], [:: oc], false, _, ref_src
+| [:: oc], [:: ic], true , ref_src, _ =>
+       (CEP.find ic ct_old != None)
+    &&
        (CEP.find ic ct_new == Some (D_fexpr (Eref ref_src)))
     &&
        (CEP.find oc ct_new == CEP.find oc ct_old)
@@ -1832,6 +2090,422 @@ match ft_tgt, ft_src with
 | _, _ => false
 end.
 
+Lemma connect_subdomain : forall (ct_old ct_new : CEP.t def_expr) (ft_tgt ft_src : ftype) (ref_tgt ref_src : HiFP.href) (lst_tgt lst_src : seq CEP.key) (can_flip flipped : bool) (v : CEP.key),
+(* This lemma is used in the theorem Sem_frag_stmts_subset;
+   it proves that a connect statement only extends the domain.
+   We prove it as a separate lemma because we need a mutual recursion over ftype and ffield. *)
+connect ct_old ref_tgt lst_tgt ft_tgt ref_src lst_src ft_src flipped ct_new ->
+connect_type_compatible can_flip ft_tgt ft_src flipped ->
+    size_of_ftype ft_tgt = size lst_tgt ->
+    size_of_ftype ft_src = size lst_src ->
+    v \in lst_tgt \/ v \in lst_src ->
+        match CEP.find v ct_new with
+        | None => CEP.find v ct_old = None
+        | Some _ => True
+        end
+with connect_fields_subdomain : forall (ct_old ct_new : CEP.t def_expr) (ff_tgt ff_src : ffield) (ref_tgt ref_src : HiFP.href) (lst_tgt lst_src : seq CEP.key) (can_flip flipped : bool) (v : CEP.key),
+connect_fields ct_old ref_tgt lst_tgt ff_tgt ref_src lst_src ff_src flipped ct_new ->
+connect_type_compatible_fields can_flip ff_tgt ff_src flipped ->
+    size_of_fields ff_tgt = size lst_tgt ->
+    size_of_fields ff_src = size lst_src ->
+    v \in lst_tgt \/ v \in lst_src ->
+        match CEP.find v ct_new with
+        | None => CEP.find v ct_old = None
+        | Some _ => True
+        end.
+Proof.
+* clear connect_subdomain.
+  induction ft_tgt as [gt_tgt|ft'_tgt|ff_tgt] ; simpl connect ;
+  destruct ft_src as [ft_src|ft'_src|ff_src] ; try (by done) ;
+  simpl connect_type_compatible ; simpl size_of_ftype ; intros.
+  + (* Gtyp *)
+    unfold connect_fgtyp in H.
+    destruct lst_tgt as [|el_tgt [|]] ; try by done.
+    destruct lst_src as [|el_src [|]] ; try by done.
+    destruct H3 ; rewrite mem_seq1 in H3 ; move /eqP : H3 => H3 ; rewrite -H3 in H.
+    1,2: destruct flipped ; move /andP : H => [/andP [_ /eqP H] /eqP H4] ; try (by rewrite H //).
+    1,2: rewrite H4 ; destruct (CEP.find v ct_old) ; by done.
+  + (* Atyp *)
+    specialize (IHft'_tgt ft'_src).
+    move /andP : H => [/eqP H4 /forallP H] ; rewrite -H4 in H0, H2 ; clear n0 H4.
+    rewrite eq_refl andTb in H0.
+    generalize (connect_type_compatible_size can_flip ft'_tgt ft'_src flipped H0) ; intro.
+    assert (n <> 0).
+          destruct H3 as [H3|H3].
+          - by contradict H3 ; rewrite H3 muln0 in H1 ; symmetry in H1 ;
+               apply size0nil in H1 ; rewrite H1 in_nil //.
+          - by contradict H3 ; rewrite H3 muln0 in H2 ; symmetry in H2 ;
+               apply size0nil in H2 ; rewrite H2 in_nil //.
+      assert (size_of_ftype ft'_tgt <> 0).
+          destruct H3 as [H3|H3].
+          - by contradict H3 ; rewrite H3 mul0n in H1 ; symmetry in H1 ;
+               apply size0nil in H1 ; rewrite H1 in_nil //.
+          - by contradict H3 ; rewrite -H4 H3 mul0n in H2 ; symmetry in H2 ;
+               apply size0nil in H2 ; rewrite H2 in_nil //.
+    move /eqP : H6 => H6 ; apply negbTE in H6.
+    assert ((n-1).+1 = n)
+           by (rewrite subn1 ; apply prednK ; rewrite lt0n ;
+               move /eqP : H5 => H5 ; exact H5).
+    (* Now find out which array element contains v,
+       and then apply the induction hypothesis to this element. *)
+    destruct H3 as [H3|H3].
+    - assert (index v lst_tgt %/ size_of_ftype ft'_tgt < n)
+            by (rewrite -index_mem -H1 mulnC -ltn_divLR // in H3 ;
+                rewrite lt0n H6 //).
+      specialize (H (cast_ord H7 (inord (index v lst_tgt %/ size_of_ftype ft'_tgt)))) ;
+      simpl nat_of_ord in H ;
+      rewrite inordK in H ; last by rewrite H7 H8 //.
+      specialize (IHft'_tgt
+            (Esubindex ref_tgt (index v lst_tgt %/ size_of_ftype ft'_tgt))
+            (Esubindex ref_src (index v lst_tgt %/ size_of_ftype ft'_tgt))
+            (take (size_of_ftype ft'_tgt)
+                  (drop (index v lst_tgt %/ size_of_ftype ft'_tgt * size_of_ftype ft'_tgt)
+                        lst_tgt))
+            (take (size_of_ftype ft'_tgt)
+                  (drop (index v lst_tgt %/ size_of_ftype ft'_tgt * size_of_ftype ft'_tgt)
+                        lst_src))
+            can_flip flipped v H H0).
+      apply IHft'_tgt.
+      * rewrite size_takel ; first by reflexivity.
+        by rewrite size_drop -H1 -(mulnC n) -mulnBl -{1}(mul1n (size_of_ftype ft'_tgt))
+                   leq_mul2r H6 orFb subn_gt0 H8 //.
+      * rewrite size_takel ; first by rewrite H4 //.
+        by rewrite size_drop -H2 -H4 -(mulnC n) -mulnBl -{1}(mul1n (size_of_ftype ft'_tgt))
+                   leq_mul2r H6 orFb subn_gt0 H8 //.
+      * left.
+        rewrite in_take_leq ;
+              last by rewrite size_drop -H1 -(mulnC n) -mulnBl -{1}(mul1n (size_of_ftype ft'_tgt))
+                              leq_mul2r H6 orFb subn_gt0 H8 //.
+        assert (index v lst_tgt = (index v lst_tgt %/ size_of_ftype ft'_tgt *
+                         size_of_ftype ft'_tgt) + index v (drop
+                        (index v lst_tgt %/ size_of_ftype ft'_tgt *
+                         size_of_ftype ft'_tgt) lst_tgt)).
+              rewrite -{1}(cat_take_drop (index v lst_tgt %/ size_of_ftype ft'_tgt *
+                               size_of_ftype ft'_tgt) lst_tgt) index_cat.
+              destruct (v \in take
+                        (index v lst_tgt %/ size_of_ftype ft'_tgt *
+                         size_of_ftype ft'_tgt) lst_tgt) eqn: Hin_take ;
+                    first by (apply index_ltn in Hin_take ; rewrite ltnNge leq_trunc_div // in Hin_take).
+              rewrite Hin_take size_take -{1}H1 -(mulnC n) ltn_mul2r.
+              rewrite lt0n H6 andTb H8 //.
+        rewrite -(ltn_add2l (index v lst_tgt %/ size_of_ftype ft'_tgt * size_of_ftype ft'_tgt)) -H9.
+        rewrite {1}(divn_eq (index v lst_tgt) (size_of_ftype ft'_tgt)) ltn_add2l ltn_mod lt0n H6 //.
+    - assert (index v lst_src %/ size_of_ftype ft'_tgt < n)
+            by (rewrite -index_mem -H2 -H4 mulnC -ltn_divLR // in H3 ;
+                rewrite lt0n H6 //).
+      specialize (H (cast_ord H7 (inord (index v lst_src %/ size_of_ftype ft'_tgt)))) ;
+      simpl nat_of_ord in H ;
+      rewrite inordK in H ; last by rewrite H7 H8 //.
+      specialize (IHft'_tgt
+            (Esubindex ref_tgt (index v lst_src %/ size_of_ftype ft'_tgt))
+            (Esubindex ref_src (index v lst_src %/ size_of_ftype ft'_tgt))
+            (take (size_of_ftype ft'_tgt)
+                  (drop (index v lst_src %/ size_of_ftype ft'_tgt * size_of_ftype ft'_tgt)
+                        lst_tgt))
+            (take (size_of_ftype ft'_tgt)
+                  (drop (index v lst_src %/ size_of_ftype ft'_tgt * size_of_ftype ft'_tgt)
+                        lst_src))
+            can_flip flipped v H H0).
+      apply IHft'_tgt.
+      * rewrite size_takel ; first by reflexivity.
+         rewrite size_drop -H1 -(mulnC n) -mulnBl -{1}(mul1n (size_of_ftype ft'_tgt))
+                   leq_mul2r H6 orFb subn_gt0 H8 //.
+      * rewrite size_takel ; first by rewrite H4 //.
+        by rewrite size_drop -H2 -H4 -(mulnC n) -mulnBl -{1}(mul1n (size_of_ftype ft'_tgt))
+                   leq_mul2r H6 orFb subn_gt0 H8 //.
+      * right.
+        rewrite in_take_leq ;
+              last by rewrite size_drop -H2 -H4 -(mulnC n) -mulnBl -{1}(mul1n (size_of_ftype ft'_tgt))
+                              leq_mul2r H6 orFb subn_gt0 H8 //.
+        assert (index v lst_src = (index v lst_src %/ size_of_ftype ft'_tgt *
+                         size_of_ftype ft'_tgt) + index v (drop
+                        (index v lst_src %/ size_of_ftype ft'_tgt *
+                         size_of_ftype ft'_tgt) lst_src)).
+              rewrite -{1}(cat_take_drop (index v lst_src %/ size_of_ftype ft'_tgt *
+                               size_of_ftype ft'_tgt) lst_src) index_cat.
+              destruct (v \in take
+                        (index v lst_src %/ size_of_ftype ft'_tgt *
+                         size_of_ftype ft'_tgt) lst_src) eqn: Hin_take ;
+                    first by (apply index_ltn in Hin_take ; rewrite ltnNge leq_trunc_div // in Hin_take).
+              rewrite Hin_take size_take -{1}H2 -{1}H4 -(mulnC n) ltn_mul2r.
+              rewrite lt0n H6 andTb H8 //.
+        rewrite -(ltn_add2l (index v lst_src %/ size_of_ftype ft'_tgt * size_of_ftype ft'_tgt)) -H9.
+        rewrite {1}(divn_eq (index v lst_src) (size_of_ftype ft'_tgt)) ltn_add2l ltn_mod lt0n H6 //.
+  + (* Btyp *)
+    apply (connect_fields_subdomain ct_old ct_new ff_tgt ff_src ref_tgt ref_src lst_tgt lst_src can_flip flipped) ;
+    by assumption.
+* clear connect_fields_subdomain.
+  induction ff_tgt as [|v_tgt flipped_tgt ft_tgt ff'_tgt] ; simpl connect_fields ;
+  destruct ff_src as [|v_src flipped_src ft_src ff'_src] ;
+  try done ; try (by destruct flipped_tgt ; done) ;
+  simpl size_of_fields ; intros.
+  + (* Fnil *)
+    symmetry in H1, H2.
+    apply size0nil in H1, H2.
+    rewrite H1 H2 in_nil in H3.
+    by destruct H3 ; discriminate H3.
+  + (* Fflips *)
+    simpl connect_type_compatible_fields in H0.
+    (* Now find out whether v is in the first part of lst_tgt / lst_src,
+       and decide based on that whether to use connect_subdomain or IHff'_tgt *)
+    destruct H3 as [H3|H3].
+    - rewrite -(cat_take_drop (size_of_ftype ft_tgt) lst_tgt) mem_cat in H3.
+      move /orP : H3 => H3.
+      destruct H3 as [H3|H3] ;
+      destruct flipped_tgt, flipped_src ; try done.
+      1,2: move /andP : H => [/eqP H4 /andP [H _]] ;
+           move /andP : H0 => [/andP [_ H0] _] ;
+           rewrite -H4 in H, H0 ; clear v_src H4 ;
+           specialize (connect_subdomain ct_old ct_new ft_tgt ft_src
+                                         (Esubfield ref_tgt v_tgt)
+                                         (Esubfield ref_src v_tgt)) with (v := v) (1 := H) (2 := H0) ;
+           apply connect_type_compatible_size in H0 ;
+           first rewrite -H0 in connect_subdomain ;
+           apply connect_subdomain.
+      1,4: by rewrite size_takel // -H1 leq_addr //.
+      1,3: by rewrite size_takel H0 // -H2 leq_addr //.
+      1,2: by left ; rewrite H3 //.
+      1,2: move /andP : H => [_ /andP [_ H]] ;
+           move /andP : H0 => [/andP [_ H0] H4] ;
+           specialize (IHff'_tgt ff'_src) with (v := v) (1 := H) (2 := H4) ;
+           apply connect_type_compatible_size in H0 ;
+           try rewrite -H0 in IHff'_tgt ;
+           apply IHff'_tgt.
+      1,4: by rewrite size_drop -H1 addKn //.
+      1,3: by rewrite size_drop -H2 H0 addKn //.
+      1,2: by left ; rewrite H3 //.
+    - rewrite -(cat_take_drop (size_of_ftype ft_src) lst_src) mem_cat in H3.
+      move /orP : H3 => H3.
+      destruct H3 as [H3|H3] ;
+      destruct flipped_tgt, flipped_src ; try done.
+      1,2: move /andP : H => [/eqP H4 /andP [H _]] ;
+           move /andP : H0 => [/andP [_ H0] _] ;
+           rewrite -H4 in H, H0 ; clear v_src H4 ;
+           specialize (connect_subdomain ct_old ct_new ft_tgt ft_src
+                                         (Esubfield ref_tgt v_tgt)
+                                         (Esubfield ref_src v_tgt)) with (v := v) (1 := H) (2 := H0) ;
+           apply connect_type_compatible_size in H0 ;
+           first rewrite -H0 in connect_subdomain ;
+           apply connect_subdomain.
+      1,4: by rewrite size_takel // -H1 leq_addr //.
+      1,3: by rewrite size_takel H0 // -H2 leq_addr //.
+      1,2: by right ; rewrite H0 H3 //.
+      1,2: move /andP : H => [_ /andP [_ H]] ;
+           move /andP : H0 => [/andP [_ H0] H4] ;
+           specialize (IHff'_tgt ff'_src) with (v := v) (1 := H) (2 := H4) ;
+           apply connect_type_compatible_size in H0 ;
+           try rewrite -H0 in IHff'_tgt ;
+           apply IHff'_tgt.
+      1,4: by rewrite size_drop -H1 addKn //.
+      1,3: by rewrite size_drop -H2 H0 addKn //.
+      1,2: by right ; rewrite H0 H3 //.
+Qed.
+
+Lemma connect_preserves_compatibility :
+forall (ct_old ct_new : CEP.t def_expr) (ft_tgt ft_src : ftype) (ref_tgt ref_src : HiFP.href) (lst_tgt lst_src : seq CEP.key) (can_flip flipped : bool) (v : CEP.key),
+connect ct_old ref_tgt lst_tgt ft_tgt ref_src lst_src ft_src flipped ct_new ->
+connect_type_compatible can_flip ft_tgt ft_src flipped ->
+    size_of_ftype ft_tgt = size lst_tgt ->
+    size_of_ftype ft_src = size lst_src ->
+    v \in lst_tgt \/ v \in lst_src ->
+        CEP.find v ct_old = None <-> CEP.find v ct_new = None
+with connect_preserves_compatibility_fields :
+forall (ct_old ct_new : CEP.t def_expr) (ff_tgt ff_src : ffield) (ref_tgt ref_src : HiFP.href) (lst_tgt lst_src : seq CEP.key) (can_flip flipped : bool) (v : CEP.key),
+connect_fields ct_old ref_tgt lst_tgt ff_tgt ref_src lst_src ff_src flipped ct_new ->
+connect_type_compatible_fields can_flip ff_tgt ff_src flipped ->
+    size_of_fields ff_tgt = size lst_tgt ->
+    size_of_fields ff_src = size lst_src ->
+    v \in lst_tgt \/ v \in lst_src ->
+        CEP.find v ct_old = None <-> CEP.find v ct_new = None.
+Proof.
+* clear connect_preserves_compatibility.
+  induction ft_tgt as [gt_tgt|ft'_tgt|ff_tgt] ; simpl connect ;
+  destruct ft_src as [ft_src|ft'_src|ff_src] ; try (by done) ;
+  simpl connect_type_compatible ; simpl size_of_ftype ; intros.
+  + (* Gtyp *)
+    unfold connect_fgtyp in H.
+    destruct lst_tgt as [|el_tgt [|]] ; try by done.
+    destruct lst_src as [|el_src [|]] ; try by done.
+    destruct H3 ; rewrite mem_seq1 in H3 ; move /eqP : H3 => H3 ; rewrite -H3 in H.
+    1,2: destruct flipped ; move /andP : H => [/andP [/eqP H4 /eqP H5] /eqP H] ; try by rewrite H //.
+    1,2: destruct (CEP.find v ct_old) ; last (by contradiction H4).
+    1,2: rewrite H5 ; split ; intro ; discriminate H6.
+  + (* Atyp *)
+    specialize (IHft'_tgt ft'_src).
+    move /andP : H => [/eqP H4 /forallP H] ; rewrite -H4 in H0, H2 ; clear n0 H4.
+    rewrite eq_refl andTb in H0.
+    generalize (connect_type_compatible_size can_flip ft'_tgt ft'_src flipped H0) ; intro.
+    assert (n <> 0).
+          destruct H3 as [H3|H3].
+          - by contradict H3 ; rewrite H3 muln0 in H1 ; symmetry in H1 ;
+               apply size0nil in H1 ; rewrite H1 in_nil //.
+          - by contradict H3 ; rewrite H3 muln0 in H2 ; symmetry in H2 ;
+               apply size0nil in H2 ; rewrite H2 in_nil //.
+      assert (size_of_ftype ft'_tgt <> 0).
+          destruct H3 as [H3|H3].
+          - by contradict H3 ; rewrite H3 mul0n in H1 ; symmetry in H1 ;
+               apply size0nil in H1 ; rewrite H1 in_nil //.
+          - by contradict H3 ; rewrite -H4 H3 mul0n in H2 ; symmetry in H2 ;
+               apply size0nil in H2 ; rewrite H2 in_nil //.
+    move /eqP : H6 => H6 ; apply negbTE in H6.
+    assert ((n-1).+1 = n)
+           by (rewrite subn1 ; apply prednK ; rewrite lt0n ;
+               move /eqP : H5 => H5 ; exact H5).
+    (* Now find out which array element contains v,
+       and then apply the induction hypothesis to this element. *)
+    destruct H3 as [H3|H3].
+    - assert (index v lst_tgt %/ size_of_ftype ft'_tgt < n)
+            by (rewrite -index_mem -H1 mulnC -ltn_divLR // in H3 ;
+                rewrite lt0n H6 //).
+      specialize (H (cast_ord H7 (inord (index v lst_tgt %/ size_of_ftype ft'_tgt)))) ;
+      simpl nat_of_ord in H ;
+      rewrite inordK in H ; last by rewrite H7 H8 //.
+      specialize (IHft'_tgt
+            (Esubindex ref_tgt (index v lst_tgt %/ size_of_ftype ft'_tgt))
+            (Esubindex ref_src (index v lst_tgt %/ size_of_ftype ft'_tgt))
+            (take (size_of_ftype ft'_tgt)
+                  (drop (index v lst_tgt %/ size_of_ftype ft'_tgt * size_of_ftype ft'_tgt)
+                        lst_tgt))
+            (take (size_of_ftype ft'_tgt)
+                  (drop (index v lst_tgt %/ size_of_ftype ft'_tgt * size_of_ftype ft'_tgt)
+                        lst_src))
+            can_flip flipped v H H0).
+      apply IHft'_tgt.
+      * rewrite size_takel ; first by reflexivity.
+        by rewrite size_drop -H1 -(mulnC n) -mulnBl -{1}(mul1n (size_of_ftype ft'_tgt))
+                   leq_mul2r H6 orFb subn_gt0 H8 //.
+      * rewrite size_takel ; first by rewrite H4 //.
+        by rewrite size_drop -H2 -H4 -(mulnC n) -mulnBl -{1}(mul1n (size_of_ftype ft'_tgt))
+                   leq_mul2r H6 orFb subn_gt0 H8 //.
+      * left.
+        rewrite in_take_leq ;
+              last by rewrite size_drop -H1 -(mulnC n) -mulnBl -{1}(mul1n (size_of_ftype ft'_tgt))
+                              leq_mul2r H6 orFb subn_gt0 H8 //.
+        assert (index v lst_tgt = (index v lst_tgt %/ size_of_ftype ft'_tgt *
+                         size_of_ftype ft'_tgt) + index v (drop
+                        (index v lst_tgt %/ size_of_ftype ft'_tgt *
+                         size_of_ftype ft'_tgt) lst_tgt)).
+              rewrite -{1}(cat_take_drop (index v lst_tgt %/ size_of_ftype ft'_tgt *
+                               size_of_ftype ft'_tgt) lst_tgt) index_cat.
+              destruct (v \in take
+                        (index v lst_tgt %/ size_of_ftype ft'_tgt *
+                         size_of_ftype ft'_tgt) lst_tgt) eqn: Hin_take ;
+                    first by (apply index_ltn in Hin_take ; rewrite ltnNge leq_trunc_div // in Hin_take).
+              rewrite Hin_take size_take -{1}H1 -(mulnC n) ltn_mul2r.
+              rewrite lt0n H6 andTb H8 //.
+        rewrite -(ltn_add2l (index v lst_tgt %/ size_of_ftype ft'_tgt * size_of_ftype ft'_tgt)) -H9.
+        rewrite {1}(divn_eq (index v lst_tgt) (size_of_ftype ft'_tgt)) ltn_add2l ltn_mod lt0n H6 //.
+    - assert (index v lst_src %/ size_of_ftype ft'_tgt < n)
+            by (rewrite -index_mem -H2 -H4 mulnC -ltn_divLR // in H3 ;
+                rewrite lt0n H6 //).
+      specialize (H (cast_ord H7 (inord (index v lst_src %/ size_of_ftype ft'_tgt)))) ;
+      simpl nat_of_ord in H ;
+      rewrite inordK in H ; last by rewrite H7 H8 //.
+      specialize (IHft'_tgt
+            (Esubindex ref_tgt (index v lst_src %/ size_of_ftype ft'_tgt))
+            (Esubindex ref_src (index v lst_src %/ size_of_ftype ft'_tgt))
+            (take (size_of_ftype ft'_tgt)
+                  (drop (index v lst_src %/ size_of_ftype ft'_tgt * size_of_ftype ft'_tgt)
+                        lst_tgt))
+            (take (size_of_ftype ft'_tgt)
+                  (drop (index v lst_src %/ size_of_ftype ft'_tgt * size_of_ftype ft'_tgt)
+                        lst_src))
+            can_flip flipped v H H0).
+      apply IHft'_tgt.
+      * rewrite size_takel ; first by reflexivity.
+         rewrite size_drop -H1 -(mulnC n) -mulnBl -{1}(mul1n (size_of_ftype ft'_tgt))
+                   leq_mul2r H6 orFb subn_gt0 H8 //.
+      * rewrite size_takel ; first by rewrite H4 //.
+        by rewrite size_drop -H2 -H4 -(mulnC n) -mulnBl -{1}(mul1n (size_of_ftype ft'_tgt))
+                   leq_mul2r H6 orFb subn_gt0 H8 //.
+      * right.
+        rewrite in_take_leq ;
+              last by rewrite size_drop -H2 -H4 -(mulnC n) -mulnBl -{1}(mul1n (size_of_ftype ft'_tgt))
+                              leq_mul2r H6 orFb subn_gt0 H8 //.
+        assert (index v lst_src = (index v lst_src %/ size_of_ftype ft'_tgt *
+                         size_of_ftype ft'_tgt) + index v (drop
+                        (index v lst_src %/ size_of_ftype ft'_tgt *
+                         size_of_ftype ft'_tgt) lst_src)).
+              rewrite -{1}(cat_take_drop (index v lst_src %/ size_of_ftype ft'_tgt *
+                               size_of_ftype ft'_tgt) lst_src) index_cat.
+              destruct (v \in take
+                        (index v lst_src %/ size_of_ftype ft'_tgt *
+                         size_of_ftype ft'_tgt) lst_src) eqn: Hin_take ;
+                    first by (apply index_ltn in Hin_take ; rewrite ltnNge leq_trunc_div // in Hin_take).
+              rewrite Hin_take size_take -{1}H2 -{1}H4 -(mulnC n) ltn_mul2r.
+              rewrite lt0n H6 andTb H8 //.
+        rewrite -(ltn_add2l (index v lst_src %/ size_of_ftype ft'_tgt * size_of_ftype ft'_tgt)) -H9.
+        rewrite {1}(divn_eq (index v lst_src) (size_of_ftype ft'_tgt)) ltn_add2l ltn_mod lt0n H6 //.
+  + (* Btyp *)
+    apply (connect_preserves_compatibility_fields ct_old ct_new ff_tgt ff_src ref_tgt ref_src lst_tgt lst_src can_flip flipped) ;
+    by assumption.
+* clear connect_preserves_compatibility_fields.
+  induction ff_tgt as [|v_tgt flipped_tgt ft_tgt ff'_tgt] ; simpl connect_fields ;
+  destruct ff_src as [|v_src flipped_src ft_src ff'_src] ;
+  try done ; try (by destruct flipped_tgt ; done) ;
+  simpl size_of_fields ; intros.
+  + (* Fnil *)
+    symmetry in H1, H2.
+    apply size0nil in H1, H2.
+    rewrite H1 H2 in_nil in H3.
+    by destruct H3 ; discriminate H3.
+  + (* Fflips *)
+    simpl connect_type_compatible_fields in H0.
+    (* Now find out whether v is in the first part of lst_tgt / lst_src,
+       and decide based on that whether to use connect_subdomain or IHff'_tgt *)
+    destruct H3 as [H3|H3].
+    - rewrite -(cat_take_drop (size_of_ftype ft_tgt) lst_tgt) mem_cat in H3.
+      move /orP : H3 => H3.
+      destruct H3 as [H3|H3] ;
+      destruct flipped_tgt, flipped_src ; try done.
+      1,2: move /andP : H => [/eqP H4 /andP [H _]] ;
+           move /andP : H0 => [/andP [_ H0] _] ;
+           rewrite -H4 in H, H0 ; clear v_src H4 ;
+           specialize (connect_preserves_compatibility ct_old ct_new ft_tgt ft_src
+                                         (Esubfield ref_tgt v_tgt)
+                                         (Esubfield ref_src v_tgt)) with (v := v) (1 := H) (2 := H0) ;
+           apply connect_type_compatible_size in H0 ;
+           first rewrite -H0 in connect_preserves_compatibility ;
+           apply connect_preserves_compatibility.
+      1,4: by rewrite size_takel // -H1 leq_addr //.
+      1,3: by rewrite size_takel H0 // -H2 leq_addr //.
+      1,2: by left ; rewrite H3 //.
+      1,2: move /andP : H => [_ /andP [_ H]] ;
+           move /andP : H0 => [/andP [_ H0] H4] ;
+           specialize (IHff'_tgt ff'_src) with (v := v) (1 := H) (2 := H4) ;
+           apply connect_type_compatible_size in H0 ;
+           try rewrite -H0 in IHff'_tgt ;
+           apply IHff'_tgt.
+      1,4: by rewrite size_drop -H1 addKn //.
+      1,3: by rewrite size_drop -H2 H0 addKn //.
+      1,2: by left ; rewrite H3 //.
+    - rewrite -(cat_take_drop (size_of_ftype ft_src) lst_src) mem_cat in H3.
+      move /orP : H3 => H3.
+      destruct H3 as [H3|H3] ;
+      destruct flipped_tgt, flipped_src ; try done.
+      1,2: move /andP : H => [/eqP H4 /andP [H _]] ;
+           move /andP : H0 => [/andP [_ H0] _] ;
+           rewrite -H4 in H, H0 ; clear v_src H4 ;
+           specialize (connect_preserves_compatibility ct_old ct_new ft_tgt ft_src
+                                         (Esubfield ref_tgt v_tgt)
+                                         (Esubfield ref_src v_tgt)) with (v := v) (1 := H) (2 := H0) ;
+           apply connect_type_compatible_size in H0 ;
+           first rewrite -H0 in connect_preserves_compatibility ;
+           apply connect_preserves_compatibility.
+      1,4: by rewrite size_takel // -H1 leq_addr //.
+      1,3: by rewrite size_takel H0 // -H2 leq_addr //.
+      1,2: by right ; rewrite H0 H3 //.
+      1,2: move /andP : H => [_ /andP [_ H]] ;
+           move /andP : H0 => [/andP [_ H0] H4] ;
+           specialize (IHff'_tgt ff'_src) with (v := v) (1 := H) (2 := H4) ;
+           apply connect_type_compatible_size in H0 ;
+           try rewrite -H0 in IHff'_tgt ;
+           apply IHff'_tgt.
+      1,4: by rewrite size_drop -H1 addKn //.
+      1,3: by rewrite size_drop -H2 H0 addKn //.
+      1,2: by right ; rewrite H0 H3 //.
+Qed.
+
 Fixpoint ftype_is_passive (ft : ftype) : bool :=
 (* returns true if ft is a passive type *)
 match ft with
@@ -1859,6 +2533,22 @@ match d_true, d_false with
 | _, Some D_invalidated => d_true
 end.
 
+Definition extend_map_with {T : Type} (m dflt : CEP.t T) : CEP.t T :=
+(* Returns map m, except that undefined elements are copied from dflt *)
+CEP.map2 (fun (elm eld : option T) => if elm is Some e then Some e else eld) m dflt.
+
+Lemma extend_map_with_submap {T : Type} :
+forall (base dflt1 dflt2 : CEP.t T),
+    CEP.submap dflt1 dflt2 ->
+        CEP.Equal (extend_map_with (extend_map_with base dflt1) dflt2) (extend_map_with base dflt2).
+Proof.
+intros.
+intro ; specialize (H y).
+rewrite CEP.Lemmas.map2_1bis // CEP.Lemmas.map2_1bis // CEP.Lemmas.map2_1bis //.
+destruct (PVM.find y base) ; first by reflexivity.
+destruct (PVM.find y dflt1) ; last by reflexivity.
+by rewrite (H t) //.
+Qed.
 
 (*---------------------------------------------------------------------------*)
 (* Semantics of statements                                                   *)
@@ -1867,7 +2557,7 @@ Fixpoint Sem_frag_stmt (vm_old : CEP.t vertex_type) (ct_old : CEP.t def_expr) (s
    (* The predicate returns True if vm_new/ct_new can be constructed from vm_old/ct_old by applying s.
    type checking, constraints *)
    match s with
-   | Sskip => vm_old = vm_new /\ ct_old = ct_new
+   | Sskip => CEP.Equal vm_old vm_new /\ CEP.Equal ct_old ct_new
    | Sfcnct ref_tgt (Eref ref_src) => (* allow non-passive types *)
           CEP.Equal vm_old vm_new
        /\
@@ -1893,7 +2583,9 @@ Fixpoint Sem_frag_stmt (vm_old : CEP.t vertex_type) (ct_old : CEP.t def_expr) (s
                  | Some (input_list, _), Some expr_list =>
                         (forall n : nat,
                              match List.nth_error input_list n, List.nth_error expr_list n with
-                             | Some ic, Some ex => CEP.find ic ct_new = Some (D_fexpr ex)
+                             | Some ic, Some ex =>
+                                    CEP.find ic ct_old <> None
+                                 /\ CEP.find ic ct_new = Some (D_fexpr ex)
                              (* connect_type_compatible already checked that the lists have the same length.
                                 There is no need to add a check here:
                              | Some _, None | None, Some _ => False *)
@@ -1914,7 +2606,9 @@ Fixpoint Sem_frag_stmt (vm_old : CEP.t vertex_type) (ct_old : CEP.t def_expr) (s
           | Some (input_list, ft_ref) =>
                  (forall n : nat,
                       match List.nth_error input_list n with
-                      | Some ic => CEP.find ic ct_new = Some D_invalidated
+                      | Some ic =>
+                             CEP.find ic ct_old <> None
+                          /\ CEP.find ic ct_new = Some D_invalidated
                       | None => True
                       end)
               /\
@@ -1929,7 +2623,9 @@ Fixpoint Sem_frag_stmt (vm_old : CEP.t vertex_type) (ct_old : CEP.t def_expr) (s
               (* ground-type wires are defined *)
               (forall n : nat,
                    match List.nth_error (list_rhs_type_p newft) n with
-                   | Some gt => CEP.find (fst v, bin_of_nat (n + snd v)) vm_new = Some (Wire gt)
+                   | Some gt =>
+                          CEP.find (fst v, bin_of_nat (n + snd v)) vm_old = None
+                       /\ CEP.find (fst v, bin_of_nat (n + snd v)) vm_new = Some (Wire gt)
                    | None => True
                    end)
            /\ (* other vertices do not change *)
@@ -1941,8 +2637,9 @@ Fixpoint Sem_frag_stmt (vm_old : CEP.t vertex_type) (ct_old : CEP.t def_expr) (s
                    CEP.find (v0, n0) ct_old =
                    CEP.find (v0, n0) ct_new)
            /\ (* set wires to undefined *)
-              forall n0 : N, n0 < size_of_ftype newft ->
-                  CEP.find (fst v, bin_of_nat (n0 + snd v)) ct_new = Some D_undefined
+              forall n0 : nat, n0 < size_of_ftype newft ->
+                     (*CEP.find (fst v, bin_of_nat (n0 + snd v)) ct_old = None
+                  /\*) CEP.find (fst v, bin_of_nat (n0 + snd v)) ct_new = Some D_undefined
        | None => False (* should not happen *)
        end
    | Sreg v reg =>
@@ -1966,10 +2663,12 @@ Fixpoint Sem_frag_stmt (vm_old : CEP.t vertex_type) (ct_old : CEP.t def_expr) (s
            /\ (* module graph contains ground-type registers *)
               (forall n : nat,
                    match List.nth_error (list_rhs_type_p newft) n with
-                   | Some gt => CEP.find (fst v, bin_of_nat (n + snd v)) vm_new =
-                       Some (Register gt (clock reg) (reset reg)
+                   | Some gt =>
+                          CEP.find (fst v, bin_of_nat (n + snd v)) vm_old = None
+                       /\ CEP.find (fst v, bin_of_nat (n + snd v)) vm_new =
+                             Some (Register gt (clock reg) (reset reg)
                                       (if reset reg is Rst rst_sig rst_val
-                                       then if type_of_expr rst_sig tmap is Some (exist (Gtyp Fasuncreset) _)
+                                       then if type_of_expr rst_sig tmap is Some (exist (Gtyp Fasyncreset) _)
                                             then true else false
                                        else false))
                    | None => True
@@ -1984,7 +2683,9 @@ Fixpoint Sem_frag_stmt (vm_old : CEP.t vertex_type) (ct_old : CEP.t def_expr) (s
               | Some expr_list =>
                   forall n : nat,
                       match List.nth_error expr_list n with
-                      | Some ex => CEP.find (fst v, bin_of_nat (n + snd v)) ct_new = Some (D_fexpr ex)
+                      | Some ex =>
+                             (*CEP.find (fst v, bin_of_nat (n + snd v)) ct_old = None
+                          /\*) CEP.find (fst v, bin_of_nat (n + snd v)) ct_new = Some (D_fexpr ex)
                       | None => True
                       end
               | None => False
@@ -2005,7 +2706,9 @@ Fixpoint Sem_frag_stmt (vm_old : CEP.t vertex_type) (ct_old : CEP.t def_expr) (s
               (* ground-type nodes are defined *)
               (forall n : nat,
                    match List.nth_error (list_rhs_type_p newft) n with
-                   | Some gt => CEP.find (fst v, bin_of_nat (n + snd v)) vm_new = Some (Node gt)
+                   | Some gt =>
+                          CEP.find (fst v, bin_of_nat (n + snd v)) vm_old = None
+                       /\ CEP.find (fst v, bin_of_nat (n + snd v)) vm_new = Some (Node gt)
                    | None => True
                    end)
            /\ (* other vertices do not change *)
@@ -2021,7 +2724,9 @@ Fixpoint Sem_frag_stmt (vm_old : CEP.t vertex_type) (ct_old : CEP.t def_expr) (s
               | Some expr_list =>
                   forall n : nat,
                       match List.nth_error expr_list n with
-                      | Some ex => CEP.find (fst v, bin_of_nat (n + snd v)) ct_new = Some (D_fexpr ex)
+                      | Some ex =>
+                             (*CEP.find (fst v, bin_of_nat (n + snd v)) ct_old = None
+                          /\*) CEP.find (fst v, bin_of_nat (n + snd v)) ct_new = Some (D_fexpr ex)
                       | None => True
                       end
               | None => False
@@ -2035,7 +2740,7 @@ Fixpoint Sem_frag_stmt (vm_old : CEP.t vertex_type) (ct_old : CEP.t def_expr) (s
        then exists (vm_true : CEP.t vertex_type) (ct_true ct_false : CEP.t def_expr),
                    Sem_frag_stmts vm_old ct_old ss_true vm_true ct_true tmap
                 /\
-                   Sem_frag_stmts vm_true ct_old ss_false vm_new ct_false tmap
+                   Sem_frag_stmts vm_true (extend_map_with ct_old ct_true) ss_false vm_new ct_false tmap
                 /\
                    CEP.Equal ct_new
                        (CEP.map2 (Swhen_map2_helper cond) ct_true ct_false)
@@ -2054,6 +2759,612 @@ match ss with
            Sem_frag_stmts vm' ct' ss' vm_new ct_new tmap
 end.
 
+Lemma Sem_frag_stmts_Equal :
+forall (ss : HiFP.hfstmt_seq) (vm_old1 vm_old2 : CEP.t vertex_type) (ct_old1 ct_old2 : CEP.t def_expr) (vm_new1 vm_new2 : CEP.t vertex_type) (ct_new1 ct_new2 : CEP.t def_expr) (tmap1 tmap2 : CEP.t ftype),
+    CEP.Equal vm_old1 vm_old2 ->
+    CEP.Equal ct_old1 ct_old2 ->
+    CEP.Equal vm_new1 vm_new2 ->
+    CEP.Equal ct_new1 ct_new2 ->
+    CEP.Equal tmap1 tmap2 ->
+    Sem_frag_stmts vm_old1 ct_old1 ss vm_new1 ct_new1 tmap1 ->
+    Sem_frag_stmts vm_old2 ct_old2 ss vm_new2 ct_new2 tmap2
+with Sem_frag_stmt_Equal :
+forall (s : HiFP.hfstmt) (vm_old1 vm_old2 : CEP.t vertex_type) (ct_old1 ct_old2 : CEP.t def_expr) (vm_new1 vm_new2 : CEP.t vertex_type) (ct_new1 ct_new2 : CEP.t def_expr) (tmap1 tmap2 : CEP.t ftype),
+    CEP.Equal vm_old1 vm_old2 ->
+    CEP.Equal ct_old1 ct_old2 ->
+    CEP.Equal vm_new1 vm_new2 ->
+    CEP.Equal ct_new1 ct_new2 ->
+    CEP.Equal tmap1 tmap2 ->
+    Sem_frag_stmt vm_old1 ct_old1 s vm_new1 ct_new1 tmap1 ->
+    Sem_frag_stmt vm_old2 ct_old2 s vm_new2 ct_new2 tmap2.
+Proof.
+* clear Sem_frag_stmts_Equal.
+  induction ss ; simpl Sem_frag_stmts.
+  + split.
+    - apply CEP.Lemmas.Equal_trans with (m' := vm_new1) ; last by exact H1.
+      apply CEP.Lemmas.Equal_trans with (m' := vm_old1) ; last by apply H4.
+      apply CEP.Lemmas.Equal_sym ; exact H.
+    - apply CEP.Lemmas.Equal_trans with (m' := ct_new1) ; last by exact H2.
+      apply CEP.Lemmas.Equal_trans with (m' := ct_old1) ; last by apply H4.
+      apply CEP.Lemmas.Equal_sym ; exact H0.
+  + intros.
+    destruct H4 as [vm' [ct' H4]].
+    exists vm', ct'.
+    split ;
+          first by apply (Sem_frag_stmt_Equal h vm_old1 vm_old2 ct_old1 ct_old2 vm' vm' ct' ct' tmap1 tmap2) ;
+                   try assumption ; try apply CEP.Lemmas.Equal_refl ; apply H4.
+    by apply (IHss vm' vm' ct' ct' vm_new1 vm_new2 ct_new1 ct_new2 tmap1 tmap2) ;
+          try assumption ; try apply CEP.Lemmas.Equal_refl ; apply H4.
+* clear Sem_frag_stmt_Equal.
+  destruct s ; simpl ; intros ; try by done.
+  + (* Sskip *)
+    split.
+    - apply CEP.Lemmas.Equal_trans with (m' := vm_new1) ; last by exact H1.
+      apply CEP.Lemmas.Equal_trans with (m' := vm_old1) ; last by apply H4.
+      by apply CEP.Lemmas.Equal_sym, H.
+    - apply CEP.Lemmas.Equal_trans with (m' := ct_new1) ; last by exact H2.
+      apply CEP.Lemmas.Equal_trans with (m' := ct_old1) ; last by apply H4.
+      by apply CEP.Lemmas.Equal_sym, H0.
+  + (* Swire *)
+    specialize (H3 s).
+    destruct (CEP.find s tmap1) ; last by contradiction H4.
+    rewrite -H3 ; clear tmap1 tmap2 H3.
+    split.
+    - destruct H4 as [H4 _].
+      intro ; specialize (H4 n).
+      destruct (List.nth_error (list_rhs_type_p f0) n) ; last by trivial.
+      by rewrite -H -H1 ; exact H4.
+    destruct H4 as [_ H4] ; split.
+    - destruct H4 as [H4 _].
+      intro ; intro.
+      by rewrite -H -H1 ; apply H4.
+    destruct H4 as [_ H4] ; split.
+    - destruct H4 as [H4 _].
+      intro ; intro.
+      by rewrite -H0 -H2 ; apply H4.
+    - destruct H4 as [_ H4].
+      intro.
+      by rewrite -H2 ; apply H4.
+  + (* Sreg *)
+    generalize (H3 s) ; intro.
+    destruct (CEP.find s tmap1) ; last by contradiction H4.
+    rewrite -H5 ; clear H5.
+    split.
+    - destruct H4 as [H4 _].
+      destruct (reset h) ; first by exact H4.
+      rewrite (type_of_expr_Equal h0 tmap1 tmap2 H3) in H4.
+      rewrite (type_of_expr_Equal h1 tmap1 tmap2 H3) in H4.
+      by exact H4.
+    destruct H4 as [_ H4] ; split.
+    - destruct H4 as [H4 _].
+      intro ; specialize (H4 n).
+      destruct (List.nth_error (list_rhs_type_p f) n) ; last by trivial.
+      rewrite -H -H1.
+      destruct (reset h) ; first by exact H4.
+      rewrite (type_of_expr_Equal h0 tmap1 tmap2 H3) in H4.
+      by exact H4.
+    destruct H4 as [_ H4] ; split.
+    - destruct H4 as [H4 _].
+      rewrite (type_of_expr_Equal (clock h) tmap1 tmap2 H3) in H4.
+      by exact H4.
+    destruct H4 as [_ H4] ; split.
+    - destruct H4 as [H4 _].
+      destruct (match f with
+                | Gtyp _ => Some [:: Eref (Eid (var:=ProdVarOrder.T) s)]
+                | _ => list_rhs_ref_p (Eid (var:=ProdVarOrder.T) s) f
+                end) eqn: Hf ; rewrite Hf ; rewrite Hf in H4 ; clear Hf ;
+            last by contradiction H4.
+      intro ; specialize (H4 n).
+      destruct (List.nth_error l n) eqn: Hl ; rewrite Hl ; rewrite Hl in H4 ; clear Hl ;
+            last by trivial.
+      by rewrite -H2 ; exact H4.
+    destruct H4 as [_ H4] ; split.
+    - destruct H4 as [H4 _].
+      intro ; intro.
+      by rewrite -H -H1 ; apply H4.
+    - destruct H4 as [_ H4].
+      intro ; intro.
+      by rewrite -H0 -H2 ; apply H4.
+  + (* Snode *)
+    rewrite (type_of_expr_Equal h tmap1 tmap2 H3) in H4.
+    destruct (type_of_expr h tmap2) as [[newft _]|] ; last by contradiction H4.
+    clear tmap1 tmap2 H3.
+    split.
+    - destruct H4 as [H4 _].
+      intro ; specialize (H4 n).
+      destruct (List.nth_error (list_rhs_type_p newft) n) ; last by trivial.
+      by rewrite -H -H1 ; exact H4.
+    destruct H4 as [_ H4] ; split.
+    - destruct H4 as [H4 _].
+      intro ; intro.
+      by rewrite -H -H1 ; apply H4.
+    destruct H4 as [_ H4] ; split.
+    - destruct H4 as [H4 _].
+      intro ; intro.
+      by rewrite -H0 -H2 ; apply H4.
+    - destruct H4 as [_ H4].
+      destruct (list_rhs_expr_p h newft) ; last by contradiction H4.
+      intro.
+      by rewrite -H2 ; apply H4.
+  + (* Sfcnct *)
+    admit.
+  + (* Sinvalid *)
+    admit.
+  + (* Swhen *)
+    admit.
+Admitted.
+
+Lemma Sem_frag_stmts_cat :
+forall (ss1 ss2 : HiFP.hfstmt_seq) (vm_old : CEP.t vertex_type) (ct_old : CEP.t def_expr)
+       (vm_new : CEP.t vertex_type) (ct_new : CEP.t def_expr) (tmap : CEP.t ftype),
+        Sem_frag_stmts vm_old ct_old (Qcat ss1 ss2) vm_new ct_new tmap
+    <->
+        exists (vm_temp : CEP.t vertex_type) (ct_temp : CEP.t def_expr),
+                Sem_frag_stmts vm_old ct_old ss1 vm_temp ct_temp tmap
+            /\
+                Sem_frag_stmts vm_temp ct_temp ss2 vm_new ct_new tmap.
+Proof.
+induction ss1.
+* split ; intro.
+  + exists vm_old, ct_old.
+    split.
+    - simpl ; split ; apply CEP.Lemmas.Equal_refl.
+    - simpl Qcat in H ; exact H.
+  + destruct H as [vm_temp [ct_temp [H H0]]].
+    simpl Sem_frag_stmts in H.
+    apply Sem_frag_stmts_Equal with (vm_old1 := vm_temp) (vm_old2 := vm_old)
+                                    (ct_old1 := ct_temp) (ct_old2 := ct_old)
+                                    (vm_new1 := vm_new) (ct_new1 := ct_new) (tmap1 := tmap) ;
+          try by apply CEP.Lemmas.Equal_refl.
+    - 1,2: apply CEP.Lemmas.Equal_sym, H.
+    - exact H0.
+* split ; intro.
+  + simpl Sem_frag_stmts in H.
+    destruct H as [vm' [ct' [H H0]]].
+    apply IHss1 in H0.
+    destruct H0 as [vm_temp [ct_temp [H0 H1]]].
+    exists vm_temp, ct_temp.
+    split ; last by exact H1.
+    simpl Sem_frag_stmts.
+    exists vm', ct'.
+    split ; assumption.
+  + destruct H as [vm_temp [ct_temp [H H1]]].
+    simpl Sem_frag_stmts in H.
+    destruct H as [vm' [ct' [H H0]]].
+    simpl Sem_frag_stmts.
+    exists vm', ct'.
+    split ; first by exact H.
+    specialize (IHss1 ss2 vm' ct' vm_new ct_new tmap).
+    apply IHss1.
+    exists vm_temp, ct_temp.
+    split ; assumption.
+Qed.
+
+Lemma Sem_frag_stmts_compatible :
+forall (ss : HiFP.hfstmt_seq) (vm_old : CEP.t vertex_type) (ct_old : CEP.t def_expr)
+       (vm_new : CEP.t vertex_type) (ct_new : CEP.t def_expr) (tmap : CEP.t ftype),
+    Sem_frag_stmts vm_old ct_old ss vm_new ct_new tmap ->
+           CEP.submap vm_old vm_new /\ subdomain ct_old ct_new
+        /\ (vm_and_ct_compatible vm_old ct_old ->
+                vm_and_ct_compatible vm_new ct_new)
+with Sem_frag_stmt_compatible :
+forall (s : HiFP.hfstmt) (vm_old : CEP.t vertex_type) (ct_old : CEP.t def_expr)
+       (vm_new : CEP.t vertex_type) (ct_new : CEP.t def_expr) (tmap : CEP.t ftype),
+    Sem_frag_stmt vm_old ct_old s vm_new ct_new tmap ->
+           CEP.submap vm_old vm_new /\ subdomain ct_old ct_new
+        /\ (vm_and_ct_compatible vm_old ct_old ->
+                vm_and_ct_compatible vm_new ct_new).
+Proof.
+* clear Sem_frag_stmts_compatible.
+  induction ss ; simpl Sem_frag_stmts ; intros.
+  + split.
+    - intro ; rewrite (proj1 H k) ; destruct (CEP.find k vm_new) ; done.
+    split.
+    - intro ; rewrite (proj2 H k) ; destruct (CEP.find k ct_new) ; done.
+    - intro ; intro.
+      rewrite -(proj1 H) -(proj2 H).
+      apply H0.
+  + destruct H as [vm' [ct' [Hh Hss]]].
+    specialize (Sem_frag_stmt_compatible h vm_old ct_old vm' ct' tmap Hh).
+    specialize (IHss vm' ct' vm_new ct_new tmap Hss).
+    split.
+    - apply (CEP.Lemmas.submap_trans (proj1 Sem_frag_stmt_compatible)), IHss.
+    split.
+    - apply (subdomain_trans ct') ; first by apply Sem_frag_stmt_compatible.
+      apply IHss.
+    - intro ; intro.
+      destruct Sem_frag_stmt_compatible as [_ [_ Sem_frag_stmt_compatible]].
+      destruct IHss as [_ [_ IHss]].
+      apply IHss, Sem_frag_stmt_compatible, H.
+* clear Sem_frag_stmt_compatible.
+  induction s ; simpl Sem_frag_stmt ; intros.
+  + (* Sskip *)
+    split.
+    - intro.
+      rewrite (proj1 H) ; destruct (CEP.find k vm_new) ; done.
+    split.
+    - intro.
+      rewrite (proj2 H) ; destruct (CEP.find k ct_new) ; done.
+    - intro ; intro.
+      rewrite -(proj1 H) -(proj2 H).
+      by apply H0.
+  + (* Swire *)
+    destruct (CEP.find s tmap) as [newft|] ; last by contradiction H.
+    split ; last (split ; last intro) ; intro k.
+    1-3: destruct (fst k == fst s) eqn: Hfst ; move /eqP : Hfst => Hfst ;
+          last (destruct H as [_ [Hvm [Hct _]]] ;
+                   specialize (Hvm (fst k) (snd k)) ; specialize (Hct (fst k) (snd k)) ;
+                   rewrite -surjective_pairing in Hvm, Hct ;
+                   try (rewrite -Hvm ; last (by left ; done)) ;
+                   try (rewrite -Hct ; last (by left ; done))).
+    2: by destruct (CEP.find k vm_old) ; done.
+    3: by destruct (CEP.find k ct_old) ; done.
+    4: by apply H0.
+    1-3: destruct (snd k < snd s) eqn: Hsnd_small ;
+          first (destruct H as [_ [Hvm [Hct _]]] ;
+                    specialize (Hvm (fst k) (snd k)) ; specialize (Hct (fst k) (snd k)) ;
+                    rewrite Hsnd_small -surjective_pairing in Hvm, Hct ;
+                    try (rewrite -Hvm ; last (by right ; left ; done)) ;
+                    try (rewrite -Hct ; last (by right ; left ; done))).
+    1: by destruct (CEP.find k vm_old) ; done.
+    2: by destruct (CEP.find k ct_old) ; done.
+    3: by apply H0.
+    1-3: destruct (size_of_ftype newft + snd s <= snd k) eqn: Hsnd_large ;
+          first (destruct H as [_ [Hvm [Hct _]]] ;
+                    specialize (Hvm (fst k) (snd k)) ; specialize (Hct (fst k) (snd k)) ;
+                    rewrite Hsnd_small -surjective_pairing in Hvm, Hct ;
+                    try (rewrite -Hvm ; last (by right ; right ; done)) ;
+                    try (rewrite -Hct ; last (by right ; right ; done))).
+    1: by destruct (CEP.find k vm_old) ; done.
+    2: by destruct (CEP.find k ct_old) ; done.
+    3: by apply H0.
+    1-3: destruct H as [Hvm [_ [_ Hct]]].
+    1-3: specialize (Hvm (snd k - snd s)) ; specialize (Hct (snd k - snd s)).
+    1-3: apply negbT in Hsnd_small.
+    1-3: rewrite -leqNgt in Hsnd_small.
+    1-3: apply negbT in Hsnd_large.
+    1-3: rewrite -ltnNge addnC -ltn_subLR // in Hsnd_large.
+    1-3: specialize (Hct Hsnd_large).
+    1-3: rewrite -(list_rhs_type_p_size newft) in Hsnd_large.
+    1-3: move /ltP : Hsnd_large => Hsnd_large.
+    1-3: generalize (proj2 (List.nth_error_Some (list_rhs_type_p newft) (snd k - snd s)) Hsnd_large) ; intro.
+    1-3: destruct (List.nth_error (list_rhs_type_p newft) (snd k - snd s)) ; last by contradiction H.
+    1-3: rewrite -Hfst subnK // nat_of_binK -surjective_pairing in Hvm, Hct.
+    rewrite (proj1 Hvm) //.
+    rewrite Hct //.
+    rewrite (proj2 Hvm) Hct //.
+  + (* Sreg *)
+    destruct (CEP.find s tmap) as [newft|] ; last by contradiction H.
+    destruct H as [_ H].
+    split ; last (split ; last intro) ; intro k.
+    1-3: destruct (fst k == fst s) eqn: Hfst ; move /eqP : Hfst => Hfst ;
+          last (destruct H as [_ [_ [_ [Hvm Hct]]]] ;
+                   specialize (Hvm (fst k) (snd k)) ; specialize (Hct (fst k) (snd k)) ;
+                   rewrite -surjective_pairing in Hvm, Hct ;
+                   try (rewrite -Hvm ; last (by left ; done)) ;
+                   try (rewrite -Hct ; last (by left ; done))).
+    2: by destruct (CEP.find k vm_old) ; done.
+    3: by destruct (CEP.find k ct_old) ; done.
+    4: by apply H0.
+    1-3: destruct (snd k < snd s) eqn: Hsnd_small ;
+          first (destruct H as [_ [_ [_ [Hvm Hct]]]] ;
+                    specialize (Hvm (fst k) (snd k)) ; specialize (Hct (fst k) (snd k)) ;
+                    rewrite Hsnd_small -surjective_pairing in Hvm, Hct ;
+                    try (rewrite -Hvm ; last (by right ; left ; done)) ;
+                    try (rewrite -Hct ; last (by right ; left ; done))).
+    1: by destruct (CEP.find k vm_old) ; done.
+    2: by destruct (CEP.find k ct_old) ; done.
+    3: by apply H0.
+    1-3: destruct (size_of_ftype newft + snd s <= snd k) eqn: Hsnd_large ;
+          first (destruct H as [_ [_ [_ [Hvm Hct]]]] ;
+                    specialize (Hvm (fst k) (snd k)) ; specialize (Hct (fst k) (snd k)) ;
+                    rewrite Hsnd_small -surjective_pairing in Hvm, Hct ;
+                    try (rewrite -Hvm ; last (by right ; right ; done)) ;
+                    try (rewrite -Hct ; last (by right ; right ; done))).
+    1: by destruct (CEP.find k vm_old) ; done.
+    2: by destruct (CEP.find k ct_old) ; done.
+    3: by apply H0.
+    1-3: destruct H as [Hvm [_ [Hct _]]].
+    1-3: specialize (list_rhs_expr_p_size newft (Eref (Eid (var:=ProdVarOrder.T) s))) ; intro.
+    1-3: destruct (list_rhs_expr_p (Eref (Eid (var:=ProdVarOrder.T) s)) newft) eqn: H1 ;
+          simpl in H1 ; rewrite H1 in Hct ; last by contradiction Hct.
+    1-3: specialize (Hvm (snd k - snd s)) ; specialize (Hct (snd k - snd s)).
+    1-3: apply negbT in Hsnd_small.
+    1-3: rewrite -leqNgt in Hsnd_small.
+    1-3: apply negbT in Hsnd_large.
+    1-3: rewrite -ltnNge addnC -ltn_subLR // -H in Hsnd_large.
+    (*specialize (Hct Hsnd_large).
+    rewrite -(list_rhs_type_p_size f) in H.*)
+    1-3: move /ltP : Hsnd_large => Hsnd_large.
+    1-3: generalize (proj2 (List.nth_error_Some l (snd k - snd s)) Hsnd_large) ; intro.
+    1-3: rewrite H -(list_rhs_type_p_size newft) in Hsnd_large.
+    1-3: generalize (proj2 (List.nth_error_Some (list_rhs_type_p newft) (snd k - snd s)) Hsnd_large) ; intro.
+    1-3: destruct (List.nth_error (list_rhs_type_p newft) (snd k - snd s)) ; last by done.
+    1-3: destruct (List.nth_error l (snd k - snd s)) ; last by done.
+    1-3: rewrite -Hfst subnK // nat_of_binK -surjective_pairing in Hvm, Hct.
+    rewrite (proj1 Hvm) //.
+    rewrite Hct //.
+    rewrite (proj2 Hvm) Hct //.
+  + (* Smem: TBD *)
+    contradiction H.
+  + (* Sinst *)
+    contradiction H.
+  + (* Snode *)
+    destruct (type_of_expr h tmap) as [[newft _]|] ; last by contradiction H.
+    split ; last (split ; last intro) ; intro k.
+    1-3: destruct (fst k == fst s) eqn: Hfst ; move /eqP : Hfst => Hfst ;
+          last (destruct H as [_ [Hvm [Hct _]]] ;
+                   specialize (Hvm (fst k) (snd k)) ; specialize (Hct (fst k) (snd k)) ;
+                   rewrite -surjective_pairing in Hvm, Hct ;
+                   try (rewrite -Hvm ; last (by left ; done)) ;
+                   try (rewrite -Hct ; last (by left ; done))).
+    2: by destruct (CEP.find k vm_old) ; done.
+    3: by destruct (CEP.find k ct_old) ; done.
+    4: by apply H0.
+    1-3: destruct (snd k < snd s) eqn: Hsnd_small ;
+          first (destruct H as [_ [Hvm [Hct _]]] ;
+                    specialize (Hvm (fst k) (snd k)) ; specialize (Hct (fst k) (snd k)) ;
+                    rewrite Hsnd_small -surjective_pairing in Hvm, Hct ;
+                    try (rewrite -Hvm ; last (by right ; left ; done)) ;
+                    try (rewrite -Hct ; last (by right ; left ; done))).
+    1: by destruct (CEP.find k vm_old) ; done.
+    2: by destruct (CEP.find k ct_old) ; done.
+    3: by apply H0.
+    1-3: destruct (size_of_ftype newft + snd s <= snd k) eqn: Hsnd_large ;
+          first (destruct H as [_ [Hvm [Hct _]]] ;
+                    specialize (Hvm (fst k) (snd k)) ; specialize (Hct (fst k) (snd k)) ;
+                    rewrite Hsnd_small -surjective_pairing in Hvm, Hct ;
+                    try (rewrite -Hvm ; last (by right ; right ; done)) ;
+                    try (rewrite -Hct ; last (by right ; right ; done))).
+    1: by destruct (CEP.find k vm_old) ; done.
+    2: by destruct (CEP.find k ct_old) ; done.
+    3: by apply H0.
+    1-3: destruct H as [Hvm [_ [_ Hct]]].
+    1-3: generalize (list_rhs_expr_p_size newft h) ; intro.
+    1-3: destruct (list_rhs_expr_p h newft) ; last by contradiction Hct.
+    1-3: specialize (Hvm (snd k - snd s)) ; specialize (Hct (snd k - snd s)).
+    1-3: apply negbT in Hsnd_small.
+    1-3: rewrite -leqNgt in Hsnd_small.
+    1-3: apply negbT in Hsnd_large.
+    1-3: rewrite -ltnNge addnC -ltn_subLR // -H in Hsnd_large.
+    (*specialize (Hct Hsnd_large).*)
+    1-3: move /ltP : Hsnd_large => Hsnd_large.
+    1-3: generalize (proj2 (List.nth_error_Some l (snd k - snd s)) Hsnd_large) ; intro.
+    1-3: destruct (List.nth_error l (snd k - snd s)) ; last by done.
+    1-3: rewrite H -(list_rhs_type_p_size newft) in Hsnd_large.
+    1-3: generalize (proj2 (List.nth_error_Some (list_rhs_type_p newft) (snd k - snd s)) Hsnd_large) ; intro.
+    1-3: destruct (List.nth_error (list_rhs_type_p newft) (snd k - snd s)) ; last by done.
+    1-3: rewrite -Hfst subnK // nat_of_binK -surjective_pairing in Hvm, Hct.
+    rewrite (proj1 Hvm) //.
+    rewrite Hct //.
+    rewrite (proj2 Hvm) Hct //.
+  + (* Sfcnct *)
+    destruct h0.
+    1-6: destruct H.
+    1-6: split ;
+          first by (intro ; rewrite H ; destruct (CEP.find k vm_new) ; done).
+    1-6: generalize (list_lhs_ref_p_size tmap h) ; intro.
+    1-6: generalize (list_lhs_ref_p_type tmap h) ; intro.
+    1-6: destruct (type_of_ref h tmap) as [ft_ref|] ; last by done.
+    1: destruct (type_of_expr (Econst ProdVarOrder.T f b) tmap) as [[ft_expr _]|] ; last by done.
+    2: destruct (type_of_expr (Ecast u h0) tmap) as [[ft_expr _]|] ; last by done.
+    3: destruct (type_of_expr (Eprim_unop e h0) tmap) as [[ft_expr _]|] ; last by done.
+    4: destruct (type_of_expr (Eprim_binop e h0_1 h0_2) tmap) as [[ft_expr _]|] ; last by done.
+    5: destruct (type_of_expr (Emux h0_1 h0_2 h0_3) tmap) as [[ft_expr _]|] ; last by done.
+    6: destruct (type_of_expr (Evalidif h0_1 h0_2) tmap) as [[ft_expr _]|] ; last by done.
+    1-6: destruct H0.
+    1-6: apply connect_type_compatible_size in H0.
+    1-6: destruct (list_lhs_ref_p h tmap) as [[input_list ft_ref']|] ; last by done.
+    1-6: rewrite -H2 in H1 ; clear ft_ref' H2.
+    1: generalize (list_rhs_expr_p_size ft_expr (Econst ProdVarOrder.T f b)) ; intro ;
+       destruct (list_rhs_expr_p (Econst ProdVarOrder.T f b) ft_expr) as [expr_list|] ; last by done.
+    2: generalize (list_rhs_expr_p_size ft_expr (Ecast u h0)) ; intro ;
+       destruct (list_rhs_expr_p (Ecast u h0) ft_expr) as [expr_list|] ; last by done.
+    3: generalize (list_rhs_expr_p_size ft_expr (Eprim_unop e h0)) ; intro ;
+       destruct (list_rhs_expr_p (Eprim_unop e h0) ft_expr) as [expr_list|] ; last by done.
+    4: generalize (list_rhs_expr_p_size ft_expr (Eprim_binop e h0_1 h0_2)) ; intro ;
+       destruct (list_rhs_expr_p (Eprim_binop e h0_1 h0_2) ft_expr) as [expr_list|] ; last by done.
+    5: generalize (list_rhs_expr_p_size ft_expr (Emux h0_1 h0_2 h0_3)) ; intro ;
+       destruct (list_rhs_expr_p (Emux h0_1 h0_2 h0_3) ft_expr) as [expr_list|] ; last by done.
+    6: generalize (list_rhs_expr_p_size ft_expr (Evalidif h0_1 h0_2)) ; intro ;
+       destruct (list_rhs_expr_p (Evalidif h0_1 h0_2) ft_expr) as [expr_list|] ; last by done.
+    1-6: split ; intro ; last (intro k ; specialize (H4 k)).
+    1-12: specialize (H k) ; try rewrite -H.
+    1-12: destruct (k \in input_list) eqn: Hv;
+          last by (destruct H3 as [_ H3] ;
+                   specialize (H3 k) ; rewrite Hv in H3 ;
+                   rewrite -H3 ; destruct (CEP.find k ct_old) ; done).
+    1-12: destruct H3 as [H3 _] ;
+          specialize (H3 (index k input_list)).
+    1-12: generalize (nth_index k Hv) ; intro Hnth_index ;
+          rewrite -index_mem in Hv ;
+          move /ltP : Hv => Hv ;
+          generalize (proj2 (List.nth_error_Some input_list (index k input_list)) Hv) ; intro ;
+          rewrite H1 H0 -H2 in Hv ;
+          apply List.nth_error_Some in Hv.
+    1-12: destruct (List.nth_error input_list (index k input_list)) eqn: Hi ; last (by done).
+    1-12: destruct (List.nth_error expr_list (index k input_list)) ; last (by done).
+    1-12: replace k0 with k in H3
+          by (clear -Hnth_index Hi ;
+              induction input_list ; simpl in Hnth_index ; simpl in Hi ; first (by done) ;
+              destruct (a == k) ; simpl nth in Hnth_index ; simpl List.nth_error in Hi ;
+              first (by rewrite -Hnth_index ; injection Hi ; done) ;
+              last (by apply IHinput_list ; assumption)).
+    1-12: rewrite (proj2 H3) //.
+    1-6:  destruct (CEP.find k vm_old) as [[]|] ; try (by done).
+    1-12: rewrite H4 in H3 ; by contradiction (proj1 H3).
+    (* Remains the case of a Sfcnct between two references (may be bidirectional) *)
+    destruct H.
+    split ; first by (intro ; rewrite H ; destruct (CEP.find k vm_new) ; done).
+    generalize (list_lhs_ref_p_size tmap h) ; intro.
+    generalize (list_lhs_ref_p_type tmap h) ; intro.
+    destruct (list_lhs_ref_p h tmap) as [[lst_tgt ft_tgt]|] ; last by contradiction H0.
+    generalize (list_lhs_ref_p_size tmap h0) ; intro.
+    generalize (list_lhs_ref_p_type tmap h0) ; intro.
+    destruct (list_lhs_ref_p h0 tmap) as [[lst_src ft_src]|] ; last by contradiction H0.
+    destruct H0 as [H0 [H5 H6]].
+    (*apply connect_type_compatible_size in H1.*)
+    (*rewrite H1 -H4 in H2. ?? *)
+    split ; intro ; last (intro k ; specialize (H k) ; rewrite -H ; specialize (H7 k)).
+    1-2: clear H vm_new.
+    1-2: specialize (H6 k).
+    1-2: destruct ((k \in lst_tgt) || (k \in lst_src)) eqn: Hv ; rewrite Hv in H6 ;
+          last by (rewrite -H6 ; destruct (CEP.find k ct_old) ; done).
+    1-2: clear H6 ; move /orP : Hv => Hv.
+    1-2: symmetry in H1, H3.
+    1-2: generalize (connect_preserves_compatibility ct_old ct_new ft_tgt ft_src
+                     h h0 lst_tgt lst_src true false k H5 H0 H1 H3 Hv) ; intro.
+    - destruct (CEP.find k ct_new) ; first by done.
+      by apply H ; reflexivity.
+    - destruct (CEP.find k vm_old) as [[]|] ; try apply H, H7 ;
+      by contradict H7 ; apply H, H7.
+  + (* Sinvalid *)
+    destruct H.
+    split ; first by (intro ; rewrite H ; destruct (CEP.find k vm_new) ; done).
+    generalize (list_lhs_ref_p_size tmap h) ; intro.
+    generalize (list_lhs_ref_p_type tmap h) ; intro.
+    destruct (list_lhs_ref_p h tmap) as [[input_list ft_tgt]|] ; last by contradiction H0.
+    destruct H0 as [H0 H3].
+    split ; intro ; last (intro k ; specialize (H k) ; rewrite -H ; specialize (H4 k)).
+    1-2: clear vm_new H.
+    1-2: specialize (H3 k).
+    1-2: destruct (k \in input_list) eqn: Hv ; rewrite Hv in H3 ;
+          last by (rewrite -H3 ; destruct (CEP.find k ct_old) ; done).
+    1-2: specialize (H0 (index k input_list)).
+    1-2: generalize (nth_index k Hv) ; intro.
+    1-2: rewrite -index_mem in Hv.
+    1-2: move /ltP : Hv => Hv.
+    1-2: destruct (List.nth_error input_list (index k input_list)) eqn: Hi ;
+          last by (apply List.nth_error_Some in Hv ;
+                   rewrite Hi // in Hv).
+    1-2: apply List.nth_error_nth with (d := k) in Hi.
+    1-2: replace k0 with k in H0 ;
+               last by (clear -Hi H ;
+                   induction input_list ; simpl in Hi ; first (by rewrite Hi //) ;
+                   simpl in H ; destruct (a == k) ; first (by simpl nth in H ; rewrite -Hi -H //) ;
+                   simpl nth in H ; apply IHinput_list ; assumption).
+    1-2: rewrite (proj2 H0) //.
+    destruct (CEP.find k vm_old) as [[]|]; try (by done) ;
+    rewrite H4 in H0 ; contradiction (proj1 H0) ; reflexivity.
+  + (* Swhen *)
+    rename h into cond ; rename h0 into ss_true ; rename h1 into ss_false.
+    destruct (type_of_expr cond tmap) as [[[[[|[|]]| | | | | |]| |] _]|] ; try by contradiction H.
+    destruct H as [vm_true [ct_true [ct_false [Ht [Hf H]]]]].
+    generalize (Sem_frag_stmts_compatible ss_true vm_old ct_old vm_true ct_true tmap Ht) ; intro.
+    assert (vm_and_ct_compatible vm_old ct_old -> vm_and_ct_compatible vm_true (extend_map_with ct_old ct_true)).
+          intro ; intro.
+          destruct H0 as [H0 [_ H2]].
+          specialize (H0 v) ; specialize (H2 H1 v).
+          specialize (H1 v).
+          rewrite /extend_map_with CEP.Lemmas.map2_1bis //.
+          by destruct (CEP.find v vm_true) as [[]|] ;
+             destruct (CEP.find v vm_old) as [[]|] ;
+             destruct (CEP.find v ct_old) ; try done ;
+             specialize (H0 _ Logic.eq_refl) ; done.
+    specialize (Sem_frag_stmts_compatible ss_false vm_true (extend_map_with ct_old ct_true) vm_new ct_false tmap Hf).
+    split ;
+          first by apply (CEP.Lemmas.submap_trans (proj1 H0)), Sem_frag_stmts_compatible.
+    split.
+    - intro.
+      destruct H0 as [_ [H0 _]].
+      destruct Sem_frag_stmts_compatible as [_ [Sem_frag_stmts_compatible _]].
+      specialize (H k) ; specialize (H0 k) ; specialize (Sem_frag_stmts_compatible k).
+      rewrite H CEP.Lemmas.map2_1bis /Swhen_map2_helper //.
+      rewrite /extend_map_with CEP.Lemmas.map2_1bis // in Sem_frag_stmts_compatible.
+      destruct (CEP.find k ct_true) as [[]|] ;
+      destruct (CEP.find k ct_false) as [[]|] ; try by done.
+      destruct (h == h0) ; by done.
+    - intro ; intro.
+      destruct H0 as [_ [_ H0]].
+      destruct Sem_frag_stmts_compatible as [H4 [_ Sem_frag_stmts_compatible]].
+      specialize (H v) ; specialize (H0 H2 v) ;
+      specialize (H4 v) ;
+      specialize (Sem_frag_stmts_compatible (H1 H2) v).
+      rewrite H CEP.Lemmas.map2_1bis // /Swhen_map2_helper.
+      destruct (CEP.find v vm_new) as [[]|] eqn: Hvm_new ;
+      destruct (CEP.find v vm_true) as [[]|] eqn: Hvm_true ;
+      destruct (CEP.find v ct_true) as [[]|] eqn: Hct_true ;
+      destruct (CEP.find v ct_false) as [[]|] eqn: Hct_false ; try done ;
+      try (by specialize (H4 _ Logic.eq_refl) ; done) ;
+      try (by destruct (h == h0) ; done).
+      by destruct (h1 == h2) ; done.
+Qed.
+
+Lemma Sem_frag_stmts_component :
+forall (ss : HiFP.hfstmt_seq) (vm_old : CEP.t vertex_type) (ct_old : CEP.t def_expr)
+       (vm_new : CEP.t vertex_type) (ct_new : CEP.t def_expr) (tmap : CEP.t ftype),
+    vm_and_ct_compatible vm_old ct_old ->
+        Sem_frag_stmts vm_old ct_old (component_stmts_of ss) vm_new ct_new tmap ->
+           CEP.submap ct_old ct_new
+with Sem_frag_stmt_component :
+forall (s : HiFP.hfstmt) (vm_old : CEP.t vertex_type) (ct_old : CEP.t def_expr)
+       (vm_new : CEP.t vertex_type) (ct_new : CEP.t def_expr) (tmap : CEP.t ftype),
+    vm_and_ct_compatible vm_old ct_old ->
+        Sem_frag_stmts vm_old ct_old (component_stmt_of s) vm_new ct_new tmap ->
+           CEP.submap ct_old ct_new.
+Proof.
+* clear Sem_frag_stmts_component.
+  induction ss ; simpl ; intros ; first by apply CEP.Lemmas.Equal_submap, H0.
+  apply Sem_frag_stmts_cat in H0.
+  destruct H0 as [vm_temp [ct_temp [H0 H1]]].
+  generalize (proj2 (proj2 (Sem_frag_stmts_compatible (component_stmt_of h) vm_old ct_old vm_temp ct_temp tmap H0)) H) ; intro.
+  apply Sem_frag_stmt_component in H0 ; last by exact H.
+  apply IHss in H1 ; last by exact H2.
+  by apply (CEP.Lemmas.submap_trans H0 H1).
+* clear Sem_frag_stmt_component.
+  destruct s ; simpl ; intros ; try by (apply CEP.Lemmas.Equal_submap, H0).
+  + (* Swire *)
+    destruct H0 as [vm' [ct' [H0 [_ H1]]]].
+    destruct (CEP.find s tmap) as [newft|] ; last by contradiction H0.
+    intro.
+    destruct (fst k == fst s) eqn: Hfst ; move /eqP : Hfst => Hfst ;
+          last by (destruct H0 as [_ [_ [H0 _]]] ;
+                   specialize (H0 (fst k) (snd k)) ;
+                   rewrite -surjective_pairing H1 in H0 ;
+                   rewrite H0 ; last (by left ; exact Hfst) ;
+                   destruct (CEP.find k ct_new) ; by done).
+    destruct (snd k < snd s) eqn: Hsnd_small ;
+          first by (destruct H0 as [_ [_ [H0 _]]] ;
+                    specialize (H0 (fst k) (snd k)) ;
+                    rewrite -surjective_pairing H1 in H0 ;
+                    rewrite H0 ; last (by right ; left ; exact Hsnd_small) ;
+                    destruct (CEP.find k ct_new) ; by done).
+    destruct (size_of_ftype newft + snd s <= snd k) eqn: Hsnd_large ;
+          first by (destruct H0 as [_ [_ [H0 _]]] ;
+                    specialize (H0 (fst k) (snd k)) ;
+                    rewrite -surjective_pairing H1 in H0 ;
+                    rewrite H0 ; last (by right ; right ; exact Hsnd_large) ;
+                    destruct (CEP.find k ct_new) ; by done).
+    destruct H0 as [H0 _].
+    specialize (H k).
+    specialize (H0 (snd k - snd s)).
+    generalize (List.nth_error_Some (list_rhs_type_p newft) (snd k - snd s)) ; intro.
+    replace (length (list_rhs_type_p newft)) with (size_of_ftype newft) in H2
+          by (rewrite -list_rhs_type_p_size ; reflexivity).
+    rewrite ltnNge in Hsnd_small ; apply negbFE in Hsnd_small.
+    rewrite leqNgt addnC -ltn_subLR // in Hsnd_large ; apply negbFE in Hsnd_large.
+    destruct H2 as [_ H2] ; specialize (H2 (simplssrlib.Nats.ltn_lt Hsnd_large)).
+    destruct (List.nth_error (list_rhs_type_p newft) (snd k - snd s)) ; last by contradiction H2.
+    rewrite -Hfst subnK // nat_of_binK -surjective_pairing in H0.
+    rewrite (proj1 H0) in H.
+    rewrite H //.
+  + (* Sreg -- should be similar to Swire *)
+    admit.
+  + (* Smem *)
+    destruct H0 as [vm' [ct' [H0 _]]] ; contradiction H0.
+  + (* Sinst *)
+    destruct H0 as [vm' [ct' [H0 _]]] ; contradiction H0.
+  + (* Snode -- should be similar to Swire *)
+    admit.
+  + (* Swhen *)
+    rename h into cond ; rename h0 into ss_true ; rename h1 into ss_false.
+    apply Sem_frag_stmts_cat in H0.
+    destruct H0 as [vm_true [ct_true [H0_true H0_false]]].
+    generalize (proj2 (proj2 (Sem_frag_stmts_compatible (component_stmts_of ss_true) vm_old ct_old vm_true ct_true tmap H0_true)) H) ; intro.
+    apply Sem_frag_stmts_component in H0_true ; last by exact H.
+    apply Sem_frag_stmts_component in H0_false ; last by exact H0.
+    by apply (CEP.Lemmas.submap_trans H0_true H0_false).
+Admitted.
 
 (*---------------------------------------------------------------------------*)
 (* Semantics of module                                                       *)
