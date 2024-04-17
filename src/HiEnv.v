@@ -68,8 +68,8 @@ with is_passive_fields (fs : ffield) : bool :=
 Lemma ftype_eq_dec (x y : ftype) : {x = y} + {x <> y}
 with ffield_eq_dec (fx fy : ffield) : {fx = fy} + {fx <> fy}.
 Proof.
-  decide equality. apply fgtyp_eq_dec. apply Nat.eq_dec.
-  decide equality.
+* decide equality. apply fgtyp_eq_dec. apply Nat.eq_dec.
+* decide equality.
   decide equality. apply N.eq_dec.
 Qed.
 
@@ -151,17 +151,18 @@ Proof.
     1,2: rewrite H andTb H0 andTb H1 //.
 Qed.
 
-Lemma ftype_eqn_trans (x y z : ftype) : x =? y -> y =? z -> x =? z
-with ffield_eqn_trans (fx fy fz : ffield) : ffield_eqn fx fy -> ffield_eqn fy fz -> ffield_eqn fx fz.
+Lemma ftype_eqn_trans (x y z : ftype) : x =? y -> y =? z -> x =? z.
 Proof.
-* clear ftype_eqn_trans.
-  intros.
-  apply ftype_eqn_eq in H.
-  rewrite -H // in H0.
-* clear ffield_eqn_trans.
-  intros.
-  apply ffield_eqn_eq in H.
-  rewrite -H // in H0.
+intros.
+apply ftype_eqn_eq in H.
+rewrite -H // in H0.
+Qed.
+
+Lemma ffield_eqn_trans (fx fy fz : ffield) : ffield_eqn fx fy -> ffield_eqn fy fz -> ffield_eqn fx fz.
+Proof.
+intros.
+apply ffield_eqn_eq in H.
+rewrite -H // in H0.
 Qed.
 
 Instance ftype_eqn_Reflexive : Reflexive (@ftype_eqn) := @ftype_eqn_refl.
@@ -179,27 +180,28 @@ Instance ffield_eqn_Equivalence : Equivalence (@ffield_eqn) :=
     Equivalence_Symmetric := ffield_eqn_Symmetric;
     Equivalence_Transitive := ffield_eqn_Transitive }.
 
-Lemma ftype_eqP : forall (x y : ftype), reflect (x = y) (x =? y)
-with ffield_eqP : forall (fx fy : ffield), reflect (fx = fy) (ffield_eqn fx fy).
+Lemma ftype_eqP : forall (x y : ftype), reflect (x = y) (x =? y).
 Proof.
-* clear ftype_eqP.
-  intros.
-  generalize (ftype_eq_dec x y) ; intro.
-  destruct H.
-  + assert (x =? y) by (apply ftype_eqn_eq, e).
-    rewrite H ; apply ReflectT, e.
-  + assert (~ (x =? y)) by (contradict n ; apply ftype_eqn_eq, n).
-    move /negP : H => H ; apply negbTE in H.
-    rewrite H ; apply ReflectF, n.
-* clear ffield_eqP.
-  intros.
-  generalize (ffield_eq_dec fx fy) ; intro.
-  destruct H.
-  + assert (ffield_eqn fx fy) by (apply ffield_eqn_eq, e).
-    rewrite H ; apply ReflectT, e.
-  + assert (~ ffield_eqn fx fy) by (contradict n ; apply ffield_eqn_eq, n).
-    move /negP : H => H ; apply negbTE in H.
-    rewrite H ; apply ReflectF, n.
+intros.
+generalize (ftype_eq_dec x y) ; intro.
+destruct H.
+* assert (x =? y) by (apply ftype_eqn_eq, e).
+  rewrite H ; apply ReflectT, e.
+* assert (~ (x =? y)) by (contradict n ; apply ftype_eqn_eq, n).
+  move /negP : H => H ; apply negbTE in H.
+  rewrite H ; apply ReflectF, n.
+Qed.
+
+Lemma ffield_eqP : forall (fx fy : ffield), reflect (fx = fy) (ffield_eqn fx fy).
+Proof.
+intros.
+generalize (ffield_eq_dec fx fy) ; intro.
+destruct H.
+* assert (ffield_eqn fx fy) by (apply ffield_eqn_eq, e).
+  rewrite H ; apply ReflectT, e.
+* assert (~ ffield_eqn fx fy) by (contradict n ; apply ffield_eqn_eq, n).
+  move /negP : H => H ; apply negbTE in H.
+  rewrite H ; apply ReflectF, n.
 Qed.
 
 Definition ftype_eqMixin := EqMixin ftype_eqP.
@@ -280,6 +282,7 @@ Definition ftype_explicit_eqn (x y : ftype_explicit) : bool :=
 proj1_sig x == proj1_sig y.
 Definition ffield_explicit_eqn (x y : ffield_explicit) : bool :=
 proj1_sig x == proj1_sig y.
+
 Lemma ftype_explicit_proof_uniqueness (x : ftype) : forall (px1 px2 : ftype_not_implicit_width x), px1 = px2
 with ffield_explicit_proof_uniqueness (f : ffield) : forall (pf1 pf2 : ffield_not_implicit_width f), pf1 = pf2.
 Proof.
@@ -331,25 +334,26 @@ destruct (eqVneq (proj1_sig x) (proj1_sig y)).
 Qed.
 
 (* Equality of ftype_explicit is decidable *)
-Lemma ftype_explicit_eq_dec : forall {x y : ftype_explicit}, {x = y} + {x <> y}
-with ffield_explicit_eq_dec : forall {x y : ffield_explicit}, {x = y} + {x <> y}.
+Lemma ftype_explicit_eq_dec : forall {x y : ftype_explicit}, {x = y} + {x <> y}.
 Proof.
-* clear ftype_explicit_eq_dec.
-  intros.
-  destruct x, y.
-  generalize (ftype_eq_dec x x0) ; intro.
-  destruct H.
-  + subst x0.
-    left ; rewrite (ftype_explicit_proof_uniqueness f0 f) //.
-  + right ; injection ; done.
-* clear ffield_explicit_eq_dec.
-  intros.
-  destruct x, y.
-  generalize (ffield_eq_dec x x0) ; intro.
-  destruct H.
-  + subst x0.
-    left ; rewrite (ffield_explicit_proof_uniqueness f0 f) //.
-  + right ; injection ; done.
+intros.
+destruct x, y.
+generalize (ftype_eq_dec x x0) ; intro.
+destruct H.
+* subst x0.
+  left ; rewrite (ftype_explicit_proof_uniqueness f0 f) //.
+* right ; injection ; done.
+Qed.
+
+Lemma ffield_explicit_eq_dec : forall {x y : ffield_explicit}, {x = y} + {x <> y}.
+Proof.
+intros.
+destruct x, y.
+generalize (ffield_eq_dec x x0) ; intro.
+destruct H.
+* subst x0.
+  left ; rewrite (ffield_explicit_proof_uniqueness f0 f) //.
+* right ; injection ; done.
 Qed.
 
 Canonical ftype_explicit_eqMixin := EqMixin ftype_explicit_eqP.
