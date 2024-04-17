@@ -1390,6 +1390,7 @@ From firrtl Require Import InferWidth_rewritten.
         expand_reg_aux r sz 0 cl rst ce l end.
 
   (* Expand Nodes *)
+  (* If the node is not of passive types, then return nil for the rest *)
   Fixpoint expand_node_aux r sz cnt es (ce : ft_pmap) (rs : HiFP.hfstmt_seq)  : HiFP.hfstmt_seq :=
     match sz with
     | 0 => rs
@@ -1400,15 +1401,17 @@ From firrtl Require Import InferWidth_rewritten.
              | None => rs
              end
     end.
-
+  
   Fixpoint expand_node v e (mt : ft_pmap) (l : HiFP.hfstmt_seq) : HiFP.hfstmt_seq :=
     match ft_find v mt with
-    | Some t => let ts := ftype_list_all t nil in
-                let sz := size ts in
-                expand_node_aux v sz 0 (expand_expr_ft_pmap e mt nil) mt l
+    | Some t => if ftype_is_passive t then
+                  let ts := ftype_list_all t nil in
+                  let sz := size ts in
+                  expand_node_aux v sz 0 (expand_expr_ft_pmap e mt nil) mt l
+                else l
     | None => l
     end.
-
+  
   (* Expand statements *)
   (* If types not match, then returns qnil for the connections sts *)
   Fixpoint expandconnects_stmt_ft_pmap (s : HiFP.hfstmt) (ce : ft_pmap) (mt : ft_flp_pmap) (sts : HiFP.hfstmt_seq) : HiFP.hfstmt_seq :=
