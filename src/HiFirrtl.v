@@ -1075,6 +1075,8 @@ Module MakeCmpntEnv (V : SsrOrder) (VM : SsrFMap with Module SE := V) <:
   Lemma Add_add_snd {v c e} : Add_snd v c e (add_snd v c e).
   Proof. done. Qed.
 
+  Definition submap {T : Type} (m1 m2 : t T) := Lemmas.submap m1 m2.
+
 End MakeCmpntEnv.
 
 
