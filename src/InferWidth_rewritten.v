@@ -541,7 +541,12 @@ Fixpoint add_expr_connect_non_passive (el1 el2 : seq (ProdVarOrder.t * bool)) (v
                 | Some ls => add_expr_connect_non_passive tl1 tl2 (CEP.add ref1 ((Eref (Eid ref2)) :: ls) var2exprs)
                 | None => add_expr_connect_non_passive tl1 tl2 (CEP.add ref1 [::(Eref (Eid ref2))] var2exprs)
                 end
-  | (ref1, true) :: tl1, (ref2, true) :: tl2 => 
+  | (ref1, true) :: tl1, (ref2, _) :: tl2 => 
+                match CEP.find ref2 var2exprs with
+                | Some ls => add_expr_connect_non_passive tl1 tl2 (CEP.add ref2 ((Eref (Eid ref1)) :: ls) var2exprs)
+                | None => add_expr_connect_non_passive tl1 tl2 (CEP.add ref2 [::(Eref (Eid ref1))] var2exprs)
+                end
+  | (ref1, _) :: tl1, (ref2, true) :: tl2 => 
                 match CEP.find ref2 var2exprs with
                 | Some ls => add_expr_connect_non_passive tl1 tl2 (CEP.add ref2 ((Eref (Eid ref1)) :: ls) var2exprs)
                 | None => add_expr_connect_non_passive tl1 tl2 (CEP.add ref2 [::(Eref (Eid ref1))] var2exprs)
@@ -642,34 +647,33 @@ Compute (match stmt_tmap (CEP.add (2%num, 0%num) (Gtyp Freset)(CEP.add (1%num, 0
         | _ => None
         end).
 
-Fixpoint expr2varlist (expr : HiFP.hfexpr) (tmap : CEP.t ftype) : option (seq ProdVarOrder.t) :=
+Fixpoint expr2varlist (expr : HiFP.hfexpr) : option (seq ProdVarOrder.t) :=
    (* Prepends to ls the list of variable/component identifiers accessed by the expression expr.
-      tmap is used to look up the identifiers.
       DNJ: I think parameter ls is superfluous, it seems to be never used.  It could be replaced by [::]. *)
   match expr with
   | Econst _ _ => Some nil
   | Eref (Eid ref) => Some [:: ref] (* 根据var2expr，只包含gtyp element *)
   | Eref _ => None
-  | Eprim_unop _ e1 => expr2varlist e1 tmap
-  | Eprim_binop _ e1 e2 => match expr2varlist e1 tmap, expr2varlist e2 tmap with
+  | Eprim_unop _ e1 => expr2varlist e1 
+  | Eprim_binop _ e1 e2 => match expr2varlist e1, expr2varlist e2 with
                           | Some ls', Some ls'' => Some (ls' ++ ls'')
                           | _,_ => None
                           end
-  | Emux e1 e2 e3 => match expr2varlist e1 tmap, expr2varlist e2 tmap, expr2varlist e3 tmap with
+  | Emux e1 e2 e3 => match expr2varlist e1, expr2varlist e2, expr2varlist e3 with
                     | Some ls', Some ls'', Some ls''' => Some (ls' ++ ls'' ++ ls''')
                     | _,_,_ => None
                     end
-  | Evalidif e1 e2 => match expr2varlist e1 tmap, expr2varlist e2 tmap with
+  | Evalidif e1 e2 => match expr2varlist e1, expr2varlist e2 with
                       | Some ls', Some ls'' => Some (ls' ++ ls'')
                       | _,_ => None
                       end
-  | Ecast _ e => expr2varlist e tmap
+  | Ecast _ e => expr2varlist e
    end.
 
 Definition updg (key : ProdVarOrder.t) (v : seq ProdVarOrder.t) (map : ProdVarOrder.t -> seq ProdVarOrder.t) : ProdVarOrder.t -> seq ProdVarOrder.t :=
     fun (y : ProdVarOrder.t) => if y == key then v else map y.
 
-Fixpoint drawel (v : ProdVarOrder.t) (el : seq HiFP.hfexpr) (tmap : CEP.t ftype) (newg : ProdVarOrder.t -> seq ProdVarOrder.t) (vertices : seq ProdVarOrder.t) : option ((ProdVarOrder.t -> seq ProdVarOrder.t) * (seq ProdVarOrder.t)) :=
+Fixpoint drawel (v : ProdVarOrder.t) (el : seq HiFP.hfexpr) (newg : ProdVarOrder.t -> seq ProdVarOrder.t) (vertices : seq ProdVarOrder.t) : option ((ProdVarOrder.t -> seq ProdVarOrder.t) * (seq ProdVarOrder.t)) :=
    (* recursively draw dependencies in el for element v *)
    (* v: vertex in the dependency graph that is updated
       el: list of expressions that need to be considered for adding dependency edges
@@ -680,18 +684,17 @@ Fixpoint drawel (v : ProdVarOrder.t) (el : seq HiFP.hfexpr) (tmap : CEP.t ftype)
       containing additionally the dependencies from el *)
    match el with
    | nil => Some (newg, vertices)
-   | e :: etl => let vl := expr2varlist e tmap in
+   | e :: etl => let vl := expr2varlist e in
                  match vl with (* all elements appearing in e *)
                  | Some ls => let g' := List.fold_left (fun tempg tempv => updg tempv (cons v (tempg tempv)) tempg) ls newg in
-                              drawel v etl tmap g' (vertices ++ ls)
+                              drawel v etl g' (vertices ++ ls)
                  | None => None
                  end
    end.
 
-Fixpoint drawg depandencyls (tmap : CEP.t ftype) (expli_reg : seq ProdVarOrder.t) (newg : ProdVarOrder.t -> seq ProdVarOrder.t) (vertices : seq ProdVarOrder.t) : option ((ProdVarOrder.t -> seq ProdVarOrder.t) * (seq ProdVarOrder.t)) :=
+Fixpoint drawg depandencyls (expli_reg : seq ProdVarOrder.t) (newg : ProdVarOrder.t -> seq ProdVarOrder.t) (vertices : seq ProdVarOrder.t) : option ((ProdVarOrder.t -> seq ProdVarOrder.t) * (seq ProdVarOrder.t)) :=
    (* construct the dependency graph:
       depandencyls: list of pairs (vertex in the module graph, list of expressions)
-      tmap: map of (known) types of components
       expli_reg: list of completely explicit-width components; they can be ignored
       newg: current edges in the dependency graph (will be extended by drawel)
       vertices: current vertices in the dependency graph (will be extended by drawel)
@@ -700,14 +703,25 @@ Fixpoint drawg depandencyls (tmap : CEP.t ftype) (expli_reg : seq ProdVarOrder.t
    match depandencyls with
    (* list of all pairs (element as key, its connections as value) *)
    | nil => Some (newg, vertices)
-  | (v, el) :: vtl => if ((fst v, N0) \in expli_reg) then drawg vtl tmap expli_reg newg vertices
-                      else match drawel v el tmap newg vertices with (* for a certain element v, draw dependencies in the el to newg *)
-                      | Some (g', vertices') => drawg vtl tmap expli_reg g' (v :: vertices')
+  | (v, el) :: vtl => if ((fst v, N0) \in expli_reg) then drawg vtl expli_reg newg vertices
+                      else match drawel v el newg vertices with (* for a certain element v, draw dependencies in the el to newg *)
+                      | Some (g', vertices') => drawg vtl expli_reg g' (v :: vertices')
                       | None => None
                       end
   end.
 
-Fixpoint list_expligref (tl : seq fgtyp) (vl : seq ProdVarOrder.t) : option (seq ProdVarOrder.t) := 
+Fixpoint drawreg (lsreg : seq ProdVarOrder.t) (var2exprs : CEP.t (seq HiFP.hfexpr)) (newg : ProdVarOrder.t -> seq ProdVarOrder.t) (vertices : seq ProdVarOrder.t) : option ((ProdVarOrder.t -> seq ProdVarOrder.t) * (seq ProdVarOrder.t)) :=
+  match lsreg with
+  | nil => Some (newg, vertices)
+  | hd :: tl => match CEP.find hd var2exprs with
+                | Some el => match drawel hd el newg vertices with
+                            | Some (g', vertices') => drawreg tl var2exprs g' (hd :: vertices')
+                            | None => None
+                            end
+                | _ => None
+                end
+  end.
+(*Fixpoint list_expligref (tl : seq fgtyp) (vl : seq ProdVarOrder.t) : option (seq ProdVarOrder.t) := 
   match tl, vl with
   | nil, nil => Some nil
   | thd :: ttl, vhd :: vtl => match list_expligref ttl vtl with
@@ -736,6 +750,30 @@ with explireg_stmts (sts : HiFP.hfstmt_seq) :=
   match sts with
   | Qnil => Some nil
   | Qcons s ss => match explireg_stmt s, explireg_stmts ss with
+                  | Some ls, Some ls' => Some (ls ++ ls')
+                  | _,_ => None
+                  end
+  end.*)
+
+Fixpoint lsreg_stmt (st : HiFP.hfstmt) : option (seq ProdVarOrder.t) :=
+  match st with
+  | Sskip => Some nil 
+  | Swire v t => Some nil
+  | Sreg v r => Some (list_gtypref v (type r))
+  | Smem v m => (*TBD*) Some nil
+  | Sinst v inst => (*TBD*) Some nil
+  | Snode v e => Some nil
+  | Sfcnct v e => Some nil
+  | Sinvalid _ => Some nil
+  | Swhen _ s1 s2 => match lsreg_stmts s1 , lsreg_stmts s2 with
+                    | Some ls, Some ls' => Some (ls ++ ls')
+                    | _,_ => None
+                    end
+  end
+with lsreg_stmts (sts : HiFP.hfstmt_seq) :=
+  match sts with
+  | Qnil => Some nil
+  | Qcons s ss => match lsreg_stmt s, lsreg_stmts ss with
                   | Some ls, Some ls' => Some (ls ++ ls')
                   | _,_ => None
                   end
@@ -819,17 +857,23 @@ Definition InferWidths_stage1 (F : HiFP.hfmodule) : option (CEP.t ftype) :=
 match F with
 | FExmod _ _ _ => None
 | FInmod v ps ss =>
-    match stmts_tmap (ports_tmap ps, CEP.empty (seq HiFP.hfexpr)) ss, explireg_stmts ss with
-    | Some (tmap', var2exprs), Some expli_reg => (* tmap' : all the expli/uninferred impli aggr&gtyp are stored here
+    match stmts_tmap (ports_tmap ps, CEP.empty (seq HiFP.hfexpr)) ss, lsreg_stmts ss with
+    | Some (tmap', var2exprs), Some lsreg => (* tmap' : all the expli/uninferred impli aggr&gtyp are stored here
                                             var2exprs : every connected elements are stored *)
-           match drawg (CEP.elements var2exprs) tmap' expli_reg emptyg nil with
-           | Some (theg, vertices) => (* theg : new drawn graph
+           match drawg (CEP.elements var2exprs) lsreg emptyg nil, drawreg lsreg var2exprs emptyg nil with
+           | Some (theg, vertices), Some (regg, regvs) => (* theg : new drawn graph
                                          vertices : set for topo sort to start with *)
-               match TopoSort.topo_sort vertices theg with
-               | TopoSort.Sorted inferorder => InferWidths_fun inferorder var2exprs tmap'
-               | _ => None
+               match TopoSort.topo_sort vertices theg, TopoSort.topo_sort regvs regg with
+               | TopoSort.Sorted inferorder, TopoSort.Sorted regorder => (*match*) InferWidths_fun inferorder var2exprs tmap'(* with
+                                                                        | Some tmap0 => match InferWidths_fun regorder var2exprs tmap0 with
+                                                                                        | Some newtm => InferWidths_fun inferorder var2exprs newtm
+                                                                                        | _ => None
+                                                                                        end
+                                                                        | _ => None
+                                                                        end*)
+               | _, _ => None
                end
-           | None => None
+           | _, _ => None
            end
        | _,_ => None
        end
@@ -2859,7 +2903,7 @@ Proof.
     case Hrhd : rhd => [ref3 b0].
     assert (b = b0).
     admit.
-    case Hb : b; rewrite Hb in Hvhd; rewrite -H Hb; rewrite -H Hb in Hrhd; clear H Hb b b0.
+    (*case Hb : b; rewrite Hb in Hvhd; rewrite -H Hb; rewrite -H Hb in Hrhd; clear H Hb b b0.
     (* flip *)
     case Hhd : (CEP.find ref3 var2exprs0) => [ls|].
     - (* hd之前被连接过 *)
@@ -2929,7 +2973,7 @@ Proof.
       case Hfind : (CEP.find ref1 var2exprs0) => [el0|]; rewrite Hfind in Hlength; try done.
       admit.
     apply IH in Hlength; try done.
-  admit.
+  admit.*)
 Admitted.
 
 Lemma cons_cat_eq : forall [T : Type] (hd : T) (tl : seq T), hd :: tl = [:: hd] ++ tl.
@@ -4250,7 +4294,7 @@ Proof.
   case HF : F => [mv ps ss|]; rewrite HF in Hinfer1; try discriminate.
   rewrite HF in Hsem Hinfer; clear HF F.
   case Hpre : (stmts_tmap (ports_tmap ps, CEP.empty (seq HiFP.hfexpr)) ss) => [[tmap' var2exprs]|]; rewrite Hpre in Hinfer1; try discriminate.
-  case Hexplireg : (explireg_stmts ss) => [expli_reg|]; rewrite Hexplireg in Hinfer1; try discriminate.
+  (*case Hexplireg : (explireg_stmts ss) => [expli_reg|]; rewrite Hexplireg in Hinfer1; try discriminate.
   case Hdraw : (drawg (CEP.elements var2exprs) tmap' expli_reg emptyg [::]) => [[theg vertices]|]; rewrite Hdraw in Hinfer1; try discriminate.
   case Htopo : (TopoSort.topo_sort vertices theg) => [inferorder||]; rewrite Htopo in Hinfer1; try discriminate.
   assert (v \in inferorder).
@@ -4305,7 +4349,7 @@ Proof.
   admit. (* 不是None *)
   admit. (* 不是None *)
   case Ht : (CEP.find v vm) => [t|]; try done.
-  admit. (* 不是None *) *)
+  admit. (* 不是None *) *)*)
 Admitted.
 
 (*Theorem InferWidths_correct :
