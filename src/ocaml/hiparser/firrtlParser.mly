@@ -11,7 +11,7 @@
 %token STM_WIRE STM_REG REG_WITH REG_RST REG_RSTARR STM_MEM SUB_FIELD UINT SINT INT CLOCK 
 %token EXPR_VALIDIF EXPR_ADD EXPR_AND EXPR_ANDR EXPR_ASCLOCK EXPR_ASFIXED EXPR_ASSINT EXPR_ASUINT EXPR_CAT EXPR_CVT EXPR_DIV EXPR_DSHL EXPR_DSHR EXPR_EQ EXPR_GEQ EXPR_GT EXPR_HEAD EXPR_LEQ EXPR_LT EXPR_MUL EXPR_MUX EXPR_NEG EXPR_NEQ EXPR_NOT EXPR_OR EXPR_ORR EXPR_PAD EXPR_REM EXPR_SHL EXPR_SHR EXPR_SUB EXPR_TAIL EXPR_XOR EXPR_XORR EXPR_BITS
 %token EOF
-%token M_OLD M_NEW M_UNDEFINED
+%token M_OLD M_NEW M_UNDEFINED ASYNC RESET BRA_OPEN BRA_CLOSE FLIP EXPR_ASASYNC FULL
 
 %start file
 %type <Ast.file> file
@@ -23,7 +23,7 @@ file
 ;
 
 circuit
-  : cct fmodules                         { ($1, $2)}
+  : cct fmodules                         { Fcircuit ($1, $2)}
   ;
 
 cct
@@ -42,7 +42,7 @@ fmodule
 
 mdl 
   : STM_MODULE symbol KEYWORD            { $2 }
-  | STM_EXTMODULE symbol KEYWORD            { $2 }
+  | STM_EXTMODULE symbol KEYWORD         { $2 }
   ;
 
 ports
@@ -57,71 +57,111 @@ port
                                          { Foutput ($2, $4) }
 ;
 
+btyp_def
+  : FLIP symbol KEYWORD typ_def          { Fflips ($2, Flipped, $4, Fnil) }
+  | symbol KEYWORD typ_def               { Fflips ($1, Nflip, $3, Fnil) }
+  | FLIP symbol KEYWORD typ_def SPRT btyp_def 
+                                         { Fflips ($2, Flipped, $4, $6) }
+  | symbol KEYWORD typ_def SPRT btyp_def      
+                                         { Fflips ($1, Nflip, $3, $5) }
+;
+
 typ_def
-  : UINT ANG_OPEN numeral ANG_CLOSE      { Fuint $3 }
-  | SINT ANG_OPEN numeral ANG_CLOSE      { Fsint $3 }
-  | CLOCK                                { Fclock }
+  : UINT ANG_OPEN numeral ANG_CLOSE      { Gtyp (Fuint $3) }
+  | SINT ANG_OPEN numeral ANG_CLOSE      { Gtyp (Fsint $3) }
+  | CLOCK                                { Gtyp Fclock }
+  | RESET                                { Gtyp Freset}
+  | ASYNC                                { Gtyp Fasyncreset}
+  | UINT                                 { Gtyp (Fuint_implicit 0) }
+  | SINT                                 { Gtyp (Fsint_implicit 0) }
+  | typ_def SQR_OPEN numeral SQR_CLOSE   { Atyp ($1, $3) }
+  | BRA_OPEN btyp_def BRA_CLOSE          { Btyp ($2) }
 ;
 
 ruw
-  : M_OLD      { Mold}
-  | M_NEW     { Mnew}
-  | M_UNDEFINED     { Mundefined}
-
+  : M_OLD                                { Coq_old }
+  | M_NEW                                { Coq_new }
+  | M_UNDEFINED                          { Coq_undefined }
+;
 /* statement */
 
 statements
-  :                                      { [] }
-  | statement statements                 { $1::$2 }
+  :                                      { Qnil }
+  | statement statements                 { Qcons ($1, $2) }
   ;    
 
 statement
-  : STM_SKIP
-	                                    { Sskip }
-  | expr STM_CONNECT expr
-                                            { Sfcnct ( $1, $3) }
-  | STM_WIRE symbol KEYWORD typ_def 
-                                            { Swire ($2, $4) }
-  | STM_NODE symbol STM_NASS expr           { Snode ($2, $4) }
-  | STM_REG symbol KEYWORD typ_def SPRT symbol REG_WITH KEYWORD REG_RST REG_RSTARR PAR_OPEN expr SPRT expr PAR_CLOSE
-                                            { Sreg (mk_freg $2 $4 $6 $12 $14) }
-  | symbol STM_INVALID                { Sinvalid ($1) }
-  | STM_MEM symbol KEYWORD STM_DATATYPE REG_RSTARR typ_def STM_DEPTH REG_RSTARR numeral STM_READ_L REG_RSTARR numeral STM_WRITE_L REG_RSTARR numeral memrdports memwrports STM_READWRITE REG_RSTARR ruw
-                                           { Smem (mk_fmem $2 $6 $9 $12 $15 $16 $17 $20)}
-  /*| STM_MEM symbol KEYWORD STM_DATATYPE REG_RSTARR typ_def STM_DEPTH REG_RSTARR numeral STM_READ_L REG_RSTARR numeral STM_WRITE_L REG_RSTARR numeral STM_READ REG_RSTARR symbols STM_WRITE REG_RSTARR symbols STM_READWRITE REG_RSTARR ruw
+  : STM_SKIP                             { Sskip }
+  | ref STM_CONNECT expr                 { Sfcnct ($1, $3) }
+  | STM_WIRE symbol KEYWORD typ_def      { Swire ($2, $4) }
+  | STM_NODE symbol STM_NASS expr        { Snode ($2, $4) }
+  | STM_REG symbol KEYWORD typ_def SPRT expr  { Sreg ($2, mk_freg_non $4 $6)}
+  | STM_REG symbol KEYWORD typ_def SPRT expr REG_WITH KEYWORD REG_RST REG_RSTARR PAR_OPEN expr SPRT expr PAR_CLOSE
+                                         { Sreg ($2, mk_freg $4 $6 $12 $14) }
+  | ref STM_INVALID                      { Sinvalid ($1) }
+  /*| STM_MEM symbol KEYWORD STM_DATATYPE REG_RSTARR typ_def STM_DEPTH REG_RSTARR numeral STM_READ_L REG_RSTARR numeral STM_WRITE_L REG_RSTARR numeral memrdports memwrports STM_READWRITE REG_RSTARR ruw
+                                         { Smem ($2, mk_fmem $6 $9 $12 $15 $16 $17 $20)}
+  | STM_MEM symbol KEYWORD STM_DATATYPE REG_RSTARR typ_def STM_DEPTH REG_RSTARR numeral STM_READ_L REG_RSTARR numeral STM_WRITE_L REG_RSTARR numeral STM_READ REG_RSTARR symbols STM_WRITE REG_RSTARR symbols STM_READWRITE REG_RSTARR ruw
                                            { Smem (mk_fmem $2 $6 $9 $12 $15 $18 $21 $24)}*/
-  | STM_INST symbol KEYWORD_OF symbol     { Sinst ($2, $4) }
+  | STM_INST symbol KEYWORD_OF symbol    { Sinst ($2, $4) }
+  | STM_WHEN expr KEYWORD BRA_OPEN statements BRA_CLOSE STM_ELSE KEYWORD BRA_OPEN statements BRA_CLOSE
+                                         {Swhen ($2, $5, $10)}
+  | STM_WHEN expr KEYWORD BRA_OPEN statements BRA_CLOSE {Swhen ($2, $5, Qnil)}
 ;
   
 /* expression */
   
 expr
-:   symbol                                  { Eref $1 }
+:   ref                                     { Eref $1 }
     | UINT ANG_OPEN numeral ANG_CLOSE PAR_OPEN QUOT hexadecimal QUOT PAR_CLOSE
                                             { Econst (Fuint($3), $7)}
     | UINT ANG_OPEN numeral ANG_CLOSE PAR_OPEN QUOT binary QUOT PAR_CLOSE
                                             { Econst (Fuint($3), $7)}
     | UINT ANG_OPEN numeral ANG_CLOSE PAR_OPEN QUOT octal QUOT PAR_CLOSE
                                             { Econst (Fuint($3), $7)}
-    | UINT ANG_OPEN numeral ANG_CLOSE PAR_OPEN numeral PAR_CLOSE
+    | UINT ANG_OPEN numeral ANG_CLOSE PAR_OPEN u_numeral PAR_CLOSE
                                             { Econst (Fuint($3), $6)}
+    | UINT PAR_OPEN QUOT hexadecimal QUOT PAR_CLOSE
+                                            { Econst (Fuint_implicit(0), $4)}
+    | UINT PAR_OPEN QUOT binary QUOT PAR_CLOSE
+                                            { Econst (Fuint_implicit(0), $4)}
+    | UINT PAR_OPEN QUOT octal QUOT PAR_CLOSE
+                                            { Econst (Fuint_implicit(0), $4)}
+    | UINT PAR_OPEN u_numeral PAR_CLOSE
+                                            { Econst (Fuint_implicit(0), $3)}
 
     | SINT ANG_OPEN numeral ANG_CLOSE PAR_OPEN QUOT s_hexadecimal QUOT PAR_CLOSE
                                             { Econst (Fsint($3), $7)}
-    | SINT ANG_OPEN numeral ANG_CLOSE PAR_OPEN QUOT hexadecimal QUOT PAR_CLOSE
-                                            { Econst (Fsint($3), $7)}
     | SINT ANG_OPEN numeral ANG_CLOSE PAR_OPEN QUOT s_binary QUOT PAR_CLOSE
-                                            { Econst (Fsint($3), $7)}
-    | SINT ANG_OPEN numeral ANG_CLOSE PAR_OPEN QUOT binary QUOT PAR_CLOSE
                                             { Econst (Fsint($3), $7)}
     | SINT ANG_OPEN numeral ANG_CLOSE PAR_OPEN QUOT s_octal QUOT PAR_CLOSE
                                             { Econst (Fsint($3), $7)}
-    | SINT ANG_OPEN numeral ANG_CLOSE PAR_OPEN QUOT octal QUOT PAR_CLOSE
-                                            { Econst (Fsint($3), $7)}
     | SINT ANG_OPEN numeral ANG_CLOSE PAR_OPEN s_numeral PAR_CLOSE
                                             { Econst (Fsint($3), $6)}
-    | SINT ANG_OPEN numeral ANG_CLOSE PAR_OPEN numeral PAR_CLOSE
+    | SINT PAR_OPEN QUOT s_hexadecimal QUOT PAR_CLOSE
+                                            { Econst (Fsint_implicit(0), $4)}
+    | SINT PAR_OPEN QUOT s_binary QUOT PAR_CLOSE
+                                            { Econst (Fsint_implicit(0), $4)}
+    | SINT PAR_OPEN QUOT s_octal QUOT PAR_CLOSE
+                                            { Econst (Fsint_implicit(0), $4)}
+    | SINT PAR_OPEN s_numeral PAR_CLOSE
+                                            { Econst (Fsint_implicit(0), $3)}
+    | SINT ANG_OPEN numeral ANG_CLOSE PAR_OPEN QUOT hexadecimal QUOT PAR_CLOSE
+                                            { Econst (Fsint($3), $7)}
+    | SINT ANG_OPEN numeral ANG_CLOSE PAR_OPEN QUOT binary QUOT PAR_CLOSE
+                                            { Econst (Fsint($3), $7)}
+    | SINT ANG_OPEN numeral ANG_CLOSE PAR_OPEN QUOT octal QUOT PAR_CLOSE
+                                            { Econst (Fsint($3), $7)}
+    | SINT ANG_OPEN numeral ANG_CLOSE PAR_OPEN u_numeral PAR_CLOSE
                                             { Econst (Fsint($3), $6)}
+    | SINT PAR_OPEN QUOT hexadecimal QUOT PAR_CLOSE
+                                            { Econst (Fsint_implicit(0), $4)}
+    | SINT PAR_OPEN QUOT binary QUOT PAR_CLOSE
+                                            { Econst (Fsint_implicit(0), $4)}
+    | SINT PAR_OPEN QUOT octal QUOT PAR_CLOSE
+                                            { Econst (Fsint_implicit(0), $4)}
+    | SINT PAR_OPEN u_numeral PAR_CLOSE
+                                            { Econst (Fsint_implicit(0), $3)}
 
     | EXPR_ADD PAR_OPEN expr SPRT expr PAR_CLOSE
                                             { Eprim_binop (Badd, $3, $5)}
@@ -169,7 +209,7 @@ expr
     | EXPR_SHR PAR_OPEN expr SPRT numeral PAR_CLOSE
                                             { Eprim_unop ( Ushr ($5), $3)}
     | EXPR_BITS PAR_OPEN expr SPRT numeral SPRT numeral PAR_CLOSE
-                                            { Eprim_unop ( Ubits ($5, $7), $3)}
+                                            { Eprim_unop ( Uextr ($5, $7), $3)}
 
     | EXPR_ASUINT PAR_OPEN expr PAR_CLOSE
                                             { Ecast (AsUInt, $3)}
@@ -179,6 +219,8 @@ expr
                                             { Eprim_unop (Ucast (AsFixed), $3)}*/
     | EXPR_ASCLOCK PAR_OPEN expr PAR_CLOSE
                                             { Ecast (AsClock, $3)}
+    | EXPR_ASASYNC PAR_OPEN expr PAR_CLOSE
+                                            { Ecast (AsAsync, $3)}
 
     | EXPR_GT PAR_OPEN expr SPRT expr PAR_CLOSE
                                             { Eprim_binop (Bcomp (Bgt), $3, $5)}
@@ -195,8 +237,8 @@ expr
 
     | EXPR_MUX PAR_OPEN expr SPRT expr SPRT expr PAR_CLOSE
                                             { Emux ($3, $5, $7)}
-    |  EXPR_VALIDIF PAR_OPEN expr SPRT expr PAR_CLOSE
-                                            { Evalidif ($3, $5)}
+    /*| EXPR_VALIDIF PAR_OPEN expr SPRT expr PAR_CLOSE
+                                            { Evalidif ($3, $5)}*/
 ;  
 
 
@@ -204,14 +246,19 @@ expr
 
 symbol
   : SYMBOL                              { $1 }
-  | SYMBOL SQR_OPEN  SQR_CLOSE
+  
+ref
+  : SYMBOL                              { Eid ($1) }
+  | ref FULL SYMBOL                  { Esubfield ($1, $3) }
+  | ref SQR_OPEN numeral SQR_CLOSE   { Esubindex ($1, $3) }
+  | ref SQR_OPEN expr SQR_CLOSE      { Esubaccess ($1, $3) }
 ;
 
 symbols
   :                                      { [] }
   | symbol symbols                    { $1::$2 }
 ;
-/* memports */
+/* memports 
 
 memrdport 
   : STM_READ REG_RSTARR symbol            { $3 }
@@ -230,9 +277,15 @@ memwrports
   :                                       { [] }
   | memwrport memwrports                { $1::$2 }
 ;
+*/
+
 /* spec_constant */
 
 numeral
+  : NUMERAL                             { Stdlib.int_of_string $1 }
+;
+
+u_numeral
   : NUMERAL                             { Z.of_string $1 }
 ;
 

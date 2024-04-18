@@ -7,7 +7,7 @@
 )
 
 (library
-  (name            firrtl_lang)
+  (name            hifirrtl_lang)
   (libraries       str zarith extraction)
   (flags           (:standard -w -3-32-33-27-39))
   (modules         firrtlLexer firrtlParser ast parser)

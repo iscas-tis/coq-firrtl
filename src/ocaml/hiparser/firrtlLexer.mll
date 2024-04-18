@@ -15,8 +15,8 @@ let numeral = '0' | ['1'-'9'] digit*
 let s_binary_digit = binary_digit | ('-' binary_digit)
 let s_numeral = numeral | ('-' numeral)
 let letter = ['a'-'z' 'A'-'Z' '_']
-let special_char = ['+' '-' '/' '*' '=' '%' '?' '!' '$' '_' '~' '&' '^' '@' '\'' '.']
-let symbol = ('|' [^'|']+ '|') | (letter|special_char)(letter|special_char|digit)*
+let special_char = ['+' '-' '/' '*' '=' '?' '!' '$' '_' '~' '&' '^' '\'']
+let symbol = ('|' [^'|']+ '|') | (letter|'_')(letter|'_'|digit)*
 let escape_space = "\"\""
 
 let letter = ['a'-'z' 'A'-'Z' '_']
@@ -24,6 +24,8 @@ let number = ['0'-'9']
 let hex = ['0'-'9' 'a'-'f' 'A'-'F']
 let s_hex = hex | ('-' hex)
 let comment_line = ('@'([^ '\n' ]+))|('#'([^ '\n' ]+))
+let comment_symbol = ['{' '}' '"' ':' '\'' ',' '~' '|' '>' '\n' '\r']
+let comment_line' = (comment_symbol|letter)*
 
 rule line_comment = parse
  ("\r\n"|'\n'|'\r')                     { reset_cnum(); incr lnum; token lexbuf }
@@ -34,13 +36,17 @@ and token = parse
 | [' ' '\t']                            { upd_cnum lexbuf; token lexbuf }
 | ("\r\n"|'\n'|'\r')                    { reset_cnum(); incr lnum; token lexbuf }
 | '@'                                   { upd_cnum lexbuf; line_comment lexbuf }
+| ';'                                   { upd_cnum lexbuf; line_comment lexbuf }
+| "%[[" comment_line' "]]"    { upd_cnum lexbuf; line_comment lexbuf }
 | '('                                   { upd_cnum lexbuf; PAR_OPEN }
 | ')'                                   { upd_cnum lexbuf; PAR_CLOSE }
 | '<'                                   { upd_cnum lexbuf; ANG_OPEN }
 | '>'                                   { upd_cnum lexbuf; ANG_CLOSE }
 | '['                                   { upd_cnum lexbuf; SQR_OPEN }
 | ']'                                   { upd_cnum lexbuf; SQR_CLOSE }
-| '"'                                  { upd_cnum lexbuf; QUOT } 
+| '{'                                   { upd_cnum lexbuf; BRA_OPEN }
+| '}'                                   { upd_cnum lexbuf; BRA_CLOSE }
+| '"'                                   { upd_cnum lexbuf; QUOT } 
 | '_'                                   { upd_cnum lexbuf; UNDERSCORE }
 | "b" (binary_digit+ as str)            { upd_cnum lexbuf; BINARY str }
 | "o" (numeral+ as str)                 { upd_cnum lexbuf; OCTAL str }
@@ -50,6 +56,7 @@ and token = parse
 | "h" (s_hex+ as str)                           { upd_cnum lexbuf; S_HEX_DECIMAL str }
 | ':'                                   { upd_cnum lexbuf; KEYWORD }
 | ','                                   { upd_cnum lexbuf; SPRT }
+| '.'                                   { upd_cnum lexbuf; FULL }
 (*| numeral '.' '0'* numeral as str       { upd_cnum lexbuf; DECIMAL str }*)
 | numeral as str                        { upd_cnum lexbuf; NUMERAL str }
 | s_numeral as str                        { upd_cnum lexbuf; S_NUMERAL str }
@@ -97,8 +104,9 @@ and token = parse
 
 | "asUInt"                                       { upd_cnum lexbuf;  EXPR_ASUINT}
 | "asSInt"                                       { upd_cnum lexbuf; EXPR_ASSINT }
-| "asFixed"                                       { upd_cnum lexbuf; EXPR_ASFIXED }
+(*| "asFixed"                                       { upd_cnum lexbuf; EXPR_ASFIXED }*)
 | "asClock"                                       { upd_cnum lexbuf; EXPR_ASCLOCK }
+| "asAsyncReset"                                  { upd_cnum lexbuf; EXPR_ASASYNC }
 
 | "wire"                                { upd_cnum lexbuf; STM_WIRE }
 | "reg"                                 { upd_cnum lexbuf; STM_REG }
@@ -138,8 +146,11 @@ and token = parse
 (*
 | "Analog"                              { upd_cnum lexbuf; ANALOG } *)
 | "Clock"                               { upd_cnum lexbuf; CLOCK }
+| "AsyncReset"                          { upd_cnum lexbuf; ASYNC }
+| "Reset"                               { upd_cnum lexbuf; RESET }
 (* 
 | "Fixed"                               { upd_cnum lexbuf; FIXED }
  *)
-| symbol as str                         { upd_cnum lexbuf; SYMBOL str } (* 包含subaccess。。 *)
+| "flip"                                { upd_cnum lexbuf; FLIP }
+| symbol as str                         { upd_cnum lexbuf; SYMBOL str }
 | eof                                   { EOF }
