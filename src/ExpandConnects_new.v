@@ -1424,20 +1424,21 @@ From firrtl Require Import InferWidth_rewritten.
     | Sinst _ _=>Qrcons sts s
     | Snode v e => expand_node v e ce sts
     | Sfcnct (Eid r1) e2 =>
-        if (ft_find r1 ce != type_of_hfexpr e2 ce) then sts
+        match (ft_find r1 ce), (ft_find r1 ce) with
+        | Some t1, Some t2 =>
+        if ((~~ is_gtyp t1) && (t1 != t2)) then Qrcons sts s
         else
-        match e2 with
-        | Eref _
-        | Emux _ _ _ =>
-            match (ft_find r1 ce) with
-            | Some t1 =>
-                expand_fcnct (expand_expr_ft_pmap (Eref (Eid r1)) ce nil) (expand_expr_ft_pmap e2 ce nil) mt sts
-            | _ => sts
-            end
-        | _ => sts
+        (match e2 with
+         | Eref _
+         | Emux _ _ _ =>
+             expand_fcnct (expand_expr_ft_pmap (Eref (Eid r1)) ce nil) (expand_expr_ft_pmap e2 ce nil) mt sts
+         | Econst _ _ => Qrcons sts s
+         | _ => sts
+         end)
+        | _, _ => sts
         end
     | Sfcnct _ _ => sts
-    | Swhen c s1 s2 => expandconnects_stmt_seq_ft_pmap s2 ce mt (expandconnects_stmt_seq_ft_pmap s1 ce mt sts)
+    | Swhen c s1 s2 => Qrcons sts (Swhen c (expandconnects_stmt_seq_ft_pmap s2 ce mt HiFP.qnil) (expandconnects_stmt_seq_ft_pmap s1 ce mt HiFP.qnil))
     end
       with expandconnects_stmt_seq_ft_pmap (ss : HiFP.hfstmt_seq) (ce : ft_pmap) (mt : ft_flp_pmap) (sts : HiFP.hfstmt_seq) : HiFP.hfstmt_seq :=
       match ss with
@@ -1484,7 +1485,7 @@ From firrtl Require Import InferWidth_rewritten.
         let sz := size ts in
         expand_outport_aux r sz 0 mt l.
 
-  Fixpoint expand_ports mt p l :=
+  Definition expand_ports mt p l :=
     match p with
     | Finput v t => expand_inport v t mt l
     | Foutput v t => expand_outport v t mt l
@@ -1498,7 +1499,7 @@ From firrtl Require Import InferWidth_rewritten.
     match m with
     | FInmod v ps ss =>
         let mt := rcd_flip_m m inf_mp (ft_flp_pmap_empty) in
-        let ce := rcd_pmap_m m inf_mp (ft_pmap_empty)  in
+        let ce := rcd_pmap_m m inf_mp (ft_pmap_empty) in
         FInmod v (fold_right (expand_ports mt) nil ps) (expandconnects_stmt_seq_ft_pmap ss ce mt (HiFP.qnil ))
     | m => m
     end.
