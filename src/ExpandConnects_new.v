@@ -1438,7 +1438,7 @@ From firrtl Require Import InferWidth_rewritten.
         | _, _ => sts
         end
     | Sfcnct _ _ => sts
-    | Swhen c s1 s2 => Qrcons sts (Swhen c (expandconnects_stmt_seq_ft_pmap s2 ce mt HiFP.qnil) (expandconnects_stmt_seq_ft_pmap s1 ce mt HiFP.qnil))
+    | Swhen c s1 s2 => Qrcons sts (Swhen c (expandconnects_stmt_seq_ft_pmap s1 ce mt HiFP.qnil) (expandconnects_stmt_seq_ft_pmap s2 ce mt HiFP.qnil))
     end
       with expandconnects_stmt_seq_ft_pmap (ss : HiFP.hfstmt_seq) (ce : ft_pmap) (mt : ft_flp_pmap) (sts : HiFP.hfstmt_seq) : HiFP.hfstmt_seq :=
       match ss with
