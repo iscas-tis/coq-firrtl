@@ -1948,10 +1948,6 @@ Proof.
                           | exist (Gtyp _) _ => exist ftype_not_implicit_width (Gtyp Fclock) I
                           | _ => exist ftype_not_implicit_width def_ftype I
                           end
-    | Ecast AsReset e1 => match type_of_hfexpr e1 ce with
-                          | exist (Gtyp _) _ => exist ftype_not_implicit_width (Gtyp Freset) I
-                          | _ => exist ftype_not_implicit_width def_ftype I
-                          end
     | Ecast AsAsync e1 => match type_of_hfexpr e1 ce  with
                           | exist (Gtyp _) _ => exist ftype_not_implicit_width (Gtyp Fasyncreset) I
                           | _ => exist ftype_not_implicit_width def_ftype I
@@ -2437,10 +2433,6 @@ Module  MakeHiFirrtlP
                          end
     | Ecast AsClock e1 => match type_of_hfexpr e1 ce with
                           | exist (Gtyp _) _ => exist ftype_not_implicit_width (Gtyp Fclock) I
-                          | _ => exist ftype_not_implicit_width def_ftype I
-                          end
-    | Ecast AsReset e1 => match type_of_hfexpr e1 ce with
-                          | exist (Gtyp _) _ => exist ftype_not_implicit_width (Gtyp Freset) I
                           | _ => exist ftype_not_implicit_width def_ftype I
                           end
     | Ecast AsAsync e1 => match type_of_hfexpr e1 ce  with

@@ -288,7 +288,7 @@ with ffield_explicit_proof_uniqueness (f : ffield) : forall (pf1 pf2 : ffield_no
 Proof.
 * clear ftype_explicit_proof_uniqueness.
   induction x ; simpl.
-  + destruct f ; simpl ; try by (destruct px1, px2 ; reflexivity).
+  + destruct f ; simpl ; by (destruct px1, px2 ; reflexivity).
   + apply IHx.
   + apply ffield_explicit_proof_uniqueness.
 * clear ffield_explicit_proof_uniqueness.

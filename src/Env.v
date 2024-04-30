@@ -109,7 +109,8 @@ Import Prenex Implicits.
    (* disallow implicit widths *)
    { x : fgtyp | not_implicit_width x }.
 
-  Definition explicit_to_fgtyp (H: fgtyp_explicit) : fgtyp := let (x, _) := H in x.
+(*Instead of explicit_to_fgtyp you can use proj1_sig.
+  Definition explicit_to_fgtyp (H: fgtyp_inferred) : fgtyp := let (x, _) := H in x.*)
 
   Definition fgtyp_remove_implicit (gt : fgtyp) : fgtyp := 
     match gt with
@@ -479,7 +480,7 @@ Module MakeValStore (V : SsrOrder) (TE : TypEnv with Module SE := V) <:
     TE.Equal E1 E2 -> conform s E1 <-> conform s E2.
   Proof.
     move=> Heq. move: (Lemmas.Equal_submap Heq) => H12.
-    move: (Lemmas.Equal_sym Heq) => {Heq} Heq.
+    move: (Lemmas.Equal_sym Heq) => {Heq} Heq. (* Here is a warning: duplicate clear of Heq *)
     move: (Lemmas.Equal_submap Heq) => H21. split.
     - exact: (conform_submap H21).
     - exact: (conform_submap H12).

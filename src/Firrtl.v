@@ -17,14 +17,14 @@ Section LoFirrtl.
   (****** Expressions ******)
 
   Inductive ucast : Set :=
-  | AsUInt | AsSInt (*| AsFixed*) | AsClock | AsReset | AsAsync .
+  | AsUInt | AsSInt (*| AsFixed*) | AsClock | AsAsync .
 
   Lemma ucast_eq_dec : forall {x y : ucast}, {x = y} + {x <> y}.
   Proof.  decide equality.  Qed.
   Definition ucast_eqn (x y : ucast) : bool :=
   match x, y with
   | AsUInt, AsUInt | AsSInt, AsSInt | AsClock, AsClock
-  | AsReset, AsReset | AsAsync, AsAsync => true
+  | AsAsync, AsAsync => true
   | _, _ => false
   end.
   Lemma ucast_eqP : Equality.axiom ucast_eqn.
@@ -544,7 +544,7 @@ Module MakeFirrtl
     | AsUInt => to_Zpos
     | AsSInt => to_Z
     | AsClock => to_Clock
-    | AsReset | AsAsync => to_Reset
+    | AsAsync => to_Reset
     end.
 
   (* Unary operations *)
@@ -557,7 +557,11 @@ Module MakeFirrtl
                   | _ => b
                   end)
     | Ushl n => fun b => cat (zeros n) b
-    | Ushr n => fun b => if (n < size b) then high (size b - n) b else [::msb b]
+    | Ushr n => fun b => if (n < size b) then high (size b - n) b
+                         else (match t with
+                               | Fsint _ => [::msb b]
+                               | _ => [::] (* unsigned int is shifted to zero-bit constant *)
+                               end)
     | Ucvt =>  fun b =>
                  (match t with
                   | Fuint w | Fuint_implicit w => zext 1 b
@@ -1518,11 +1522,10 @@ Qed.
                 | Fsint_implicit w => exist not_implicit_width (Fsint w) I
                 | t => exist not_implicit_width t I
                 end
-    | Ecast AsUInt e
-    | Ecast AsSInt e => exist not_implicit_width (Fsint (sizeof_fgtyp (explicit_to_fgtyp (type_of_fexpr e te)))) I
-    | Ecast AsClock e
-    | Ecast AsReset e
-    | Ecast AsAsync e => exist not_implicit_width (Fuint 1) I
+    | Ecast AsUInt e => exist not_implicit_width (Fuint (sizeof_fgtyp (proj1_sig (type_of_fexpr e te)))) I
+    | Ecast AsSInt e => exist not_implicit_width (Fsint (sizeof_fgtyp (proj1_sig (type_of_fexpr e te)))) I
+    | Ecast AsClock e => exist not_implicit_width (Fclock) I
+    | Ecast AsAsync e => exist not_implicit_width (Fasyncreset) I
     | Eprim_unop u e => match u with
                         | Upad n => let (t1, p1) := type_of_fexpr e te in
                                     if n < sizeof_fgtyp t1 then exist not_implicit_width t1 p1
@@ -1534,14 +1537,14 @@ Qed.
                         | Uandr | Uorr | Uxorr => exist not_implicit_width (Fuint 1) I
                         | Uextr n1 n2 => exist not_implicit_width (Fuint (n1 - n2 + 1)) I
                         | Uhead n => exist not_implicit_width (Fuint n) I
-                        | Utail n => exist not_implicit_width (Fuint (sizeof_fgtyp (explicit_to_fgtyp (type_of_fexpr e te)) - n)) I
+                        | Utail n => exist not_implicit_width (Fuint (sizeof_fgtyp (proj1_sig (type_of_fexpr e te)) - n)) I
                         | Ushl n => match type_of_fexpr e te with
                                     | exist (Fuint w) _ => exist not_implicit_width (Fuint (w + n)) I
                                     | exist (Fsint w) _ => exist not_implicit_width (Fsint (w + n)) I
                                     | _ => exist not_implicit_width TE.deftyp TE.deftyp_not_implicit_width
                                     end
                         | Ushr n => match type_of_fexpr e te with
-                                    | exist (Fuint w) _ => if n < w then exist not_implicit_width (Fuint (w - n)) I else exist not_implicit_width (Fuint 1) I
+                                    | exist (Fuint w) _ => if n < w then exist not_implicit_width (Fuint (w - n)) I else exist not_implicit_width (Fuint 0) I
                                     | exist (Fsint w) _ => if n < w then exist not_implicit_width (Fsint (w - n)) I else exist not_implicit_width (Fsint 1) I
                                     | _ => exist not_implicit_width TE.deftyp TE.deftyp_not_implicit_width
                                     end
@@ -1662,11 +1665,11 @@ Qed.
     | Eprim_binop b e1 e2 =>
       let (rs0, ve1) := (eval_fexpr e1 rs s te readerls writerls data2etc memmap read_la) in
       let (rs1, ve2) := (eval_fexpr e2 rs0 s te readerls writerls data2etc memmap read_la) in
-      let val := (ebinop_op b (explicit_to_fgtyp (type_of_fexpr e1 te)) (explicit_to_fgtyp (type_of_fexpr e2 te))) ve1 ve2 in
+      let val := (ebinop_op b (proj1_sig (type_of_fexpr e1 te)) (proj1_sig (type_of_fexpr e2 te))) ve1 ve2 in
       (rs1, val)
     | Eprim_unop u e =>
       let (rs0, val1) := (eval_fexpr e rs s te readerls writerls data2etc memmap read_la) in
-      let val := (eunop_op u (explicit_to_fgtyp (type_of_fexpr e te))) val1 in
+      let val := (eunop_op u (proj1_sig (type_of_fexpr e te))) val1 in
       (rs0, val)
     | Emux c e1 e2 =>
       let (rs0, valc) := (eval_fexpr c rs s te readerls writerls data2etc memmap read_la) in
@@ -1695,8 +1698,6 @@ Qed.
     | Ecast AsSInt e => let (rs0, val) := eval_fexpr e rs s te readerls writerls data2etc memmap read_la in (rs0, val)
     | Ecast AsClock e => let (rs0, val1) := (eval_fexpr e rs s te readerls writerls data2etc memmap read_la) in
                          let val := [::lsb val1] in (rs0, val)
-    | Ecast AsReset e => let (rs0, val1) := (eval_fexpr e rs s te readerls writerls data2etc memmap read_la) in
-                         let val := [::lsb val1] in (rs0, val)
     | Ecast AsAsync e => let (rs0, val1) := (eval_fexpr e rs s te readerls writerls data2etc memmap read_la) in
                          let val := [::lsb val1] in (rs0, val)
     end.
@@ -1721,7 +1722,7 @@ Qed.
     match s with
     | Swire v t  => TE.add v t te
     | Sreg r => TE.add (rid r) (type r) te
-    | Snode v e => TE.add v (explicit_to_fgtyp (type_of_fexpr e te)) te
+    | Snode v e => TE.add v (proj1_sig (type_of_fexpr e te)) te
     | Smem m => let te1 := List.fold_left (fun tt tr => let tt0 := TE.add (addr tr) (Fuint ((Nat.log2 (depth m)) )) tt in
                                              let tt1 := TE.add (data tr) (data_type m) tt0 in
                                              let tt2 := TE.add (en tr) (Fuint 1) tt1 in
@@ -2400,9 +2401,9 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
     | Eprim_binop b e1 e2 =>
       let ve1 := (no_mem_eval_fexpr e1 s te) in
       let ve2 := (no_mem_eval_fexpr e2 s te) in
-      (ebinop_op b (explicit_to_fgtyp (type_of_fexpr e1 te)) (explicit_to_fgtyp (type_of_fexpr e2 te ))) ve1 ve2
+      (ebinop_op b (proj1_sig (type_of_fexpr e1 te)) (proj1_sig (type_of_fexpr e2 te ))) ve1 ve2
     | Eprim_unop u e =>
-      (eunop_op u (explicit_to_fgtyp (type_of_fexpr e te))) (no_mem_eval_fexpr e s te)
+      (eunop_op u (proj1_sig (type_of_fexpr e te))) (no_mem_eval_fexpr e s te)
     | Emux c e1 e2 =>
       match type_of_fexpr e1 te, type_of_fexpr e2 te with
       | exist (Fuint w1) _, exist (Fuint w2) _ => if ~~ (is_zero (no_mem_eval_fexpr c s te)) 
@@ -2420,7 +2421,6 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
     | Ecast AsUInt e => no_mem_eval_fexpr e s te
     | Ecast AsSInt e => no_mem_eval_fexpr e s te
     | Ecast AsClock e => [::lsb (no_mem_eval_fexpr e s te)]
-    | Ecast AsReset e => [::lsb (no_mem_eval_fexpr e s te)]
     | Ecast AsAsync e => [::lsb (no_mem_eval_fexpr e s te)]
     end.
 
@@ -2477,7 +2477,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
     match s with
     | Swire v t  => TE.add v t te
     | Sreg r => TE.add (rid r) (type r) te
-    | Snode v e => TE.add v (explicit_to_fgtyp (type_of_fexpr e te)) te
+    | Snode v e => TE.add v (proj1_sig (type_of_fexpr e te)) te
     | Sinst inst => upd_typenv_fports (iports inst) te
     | Sinvalid v => TE.add v (TE.vtyp v te) te
     | _ => te
@@ -2864,11 +2864,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
           apply SV.Upd_upd.
           done.
           rewrite Hreset in He2.
-          move /andP : He2 => [He2 He22].
-          move /andP : He2 => [He2 He21].
-          move /eqP : He21 => He21.
-          move /eqP : He22 => He22.
-          move /andP : He2 => [Hwf1 Hwf2].
+          move /andP : He2 => [/andP [/andP [Hwf1 Hwf2] /eqP He21] /eqP He22].
           simpl.
           apply SV.conform_upd.
           symmetry.
@@ -2896,11 +2892,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         split.
         1,2: apply SV.conform_upd.
         1,2,3,4: rewrite Hreset in He2.
-        1,2,3,4: move /andP : He2 => [He2 He22].
-        1,2,3,4: move /andP : He2 => [He2 He21].
-        1,2,3,4: move /eqP : He21 => He21.
-        1,2,3,4: move /eqP : He22 => He22.
-        1,2,3,4: move /andP : He2 => [Hwf1 Hwf2].
+        1,2,3,4: move /andP : He2 => [/andP [/andP [Hwf1 Hwf2] /eqP He21] /eqP He22].
         1,3: symmetry.
         1,2: exact He21.
         move : Hzeros1.
@@ -2950,11 +2942,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
           (SV.upd (rid r) (SV.acc (rid r) rs1) s1)
           (TE.add (rid r) (type r) te)) rs1.
           rewrite Hreset in He2.
-          move /andP : He2 => [He2 He22].
-          move /andP : He2 => [He2 He21].
-          move /eqP : He21 => He21.
-          move /eqP : He22 => He22.
-          move /andP : He2 => [Hwf1 Hwf2].
+          move /andP : He2 => [/andP [/andP [Hwf1 Hwf2] /eqP He21] /eqP He22].
           symmetry.
           exact He22.
           apply SV.Upd_upd.
@@ -2982,11 +2970,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         simpl.
         apply SV.conform_upd.
         rewrite Hreset in He2.
-        move /andP : He2 => [He2 He22].
-        move /andP : He2 => [He2 He21].
-        move /eqP : He21 => He21.
-        move /eqP : He22 => He22.
-        move /andP : He2 => [Hwf1 Hwf2].
+        move /andP : He2 => [/andP [/andP [Hwf1 Hwf2] /eqP He21] /eqP He22].
         symmetry.
         exact He22.
         assert (Haccs1 : SV.conform (SV.upd (rid r) (SV.acc (rid r) rs1) s1) (TE.add (rid r) (type r) te)).
@@ -3001,11 +2985,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         simpl.
         apply SV.conform_upd.
         rewrite Hreset in He2.
-        move /andP : He2 => [He2 He22].
-        move /andP : He2 => [He2 He21].
-        move /eqP : He21 => He21.
-        move /eqP : He22 => He22.
-        move /andP : He2 => [Hwf1 Hwf2].
+        move /andP : He2 => [/andP [/andP [Hwf1 Hwf2] /eqP He21] /eqP He22].
         symmetry.
         exact He22.
         exact Hcfr1.
@@ -3027,7 +3007,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
   Lemma typeof_eval_fexpr e : forall s1 te,
     SV.conform s1 te ->
     well_formed_fexpr e te ->
-    size (no_mem_eval_fexpr e s1 te) = sizeof_fgtyp (explicit_to_fgtyp (type_of_fexpr e te)).
+    size (no_mem_eval_fexpr e s1 te) = sizeof_fgtyp (proj1_sig (type_of_fexpr e te)).
   Proof.
     induction e.
     - (* const *)
@@ -3061,7 +3041,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         apply IHe with (s1:=s1) in Hwt.
         exact Hwt.
         exact Hcf.
-      - 1,2,3: reflexivity.
+      - 1,2: reflexivity.
     - (* unop *)
       move => s1 te Hcf Hwf.
       rewrite /well_formed_fexpr in Hwf.
@@ -3813,7 +3793,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       rewrite /is_defined in Hid.
       apply SV.conform_mem with (v:=s) in Hcf.
       rewrite -Hcf.
-      case (TE.vtyp s te) eqn: Hvtyp ; rewrite /explicit_to_fgtyp.
+      case (TE.vtyp s te) eqn: Hvtyp ; rewrite /proj1_sig.
       3: replace (sizeof_fgtyp (Fuint n)) with (sizeof_fgtyp (Fuint_implicit n)) by (rewrite /sizeof_fgtyp ; reflexivity).
       4: replace (sizeof_fgtyp (Fsint n)) with (sizeof_fgtyp (Fsint_implicit n)) by (rewrite /sizeof_fgtyp ; reflexivity).
       1,2,3,4,5,6,7: apply TE.vtyp_vsize ; exact Hvtyp.
@@ -3825,7 +3805,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
   Admitted.
 
   Lemma acyclic_eval_stmt_node : forall v e te s1 rs1,
-  no_mem_eval_noninst_fstmt (Snode v e) rs1 s1 (TE.add v (explicit_to_fgtyp (type_of_fexpr e te)) te) = no_mem_eval_noninst_fstmt (Snode v e) rs1 s1 te.
+  no_mem_eval_noninst_fstmt (Snode v e) rs1 s1 (TE.add v (proj1_sig (type_of_fexpr e te)) te) = no_mem_eval_noninst_fstmt (Snode v e) rs1 s1 te.
   Admitted.
 
   Lemma acyclic_typ_expr_node : forall v e te s1 rs1 ty,
@@ -3906,11 +3886,6 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl.
       reflexivity.
       exact Hcf.
-      - move => rs1 s1 te v Hcf Hwf.
-      apply SV.conform_upd.
-      simpl.
-      reflexivity.
-      exact Hcf.
     (* eunop *)
     - move => rs1 s1 te v Hcf Hwf.
       rewrite /well_formed_fstmt_inline in Hwf.
@@ -3929,15 +3904,15 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       1-24: apply IHe in Hcf ; try exact Hwf.
       1-24: apply SV.conform_mem with (v:=v) in Hcf ;
                    try (apply SV.Lemmas.mem_add_eq, TE.SE.eq_refl).
-      1-24: rewrite TE.vsize_add_eq // SV.acc_upd_eq // Htyp /explicit_to_fgtyp in Hcf.
+      1-24: rewrite TE.vsize_add_eq // SV.acc_upd_eq // Htyp /proj1_sig in Hcf.
       - (* upad *)
         1,2: rewrite -Hcf ; simpl sizeof_fgtyp.
         1,2: case Hn:(n < n').
-        1,3: rewrite /explicit_to_fgtyp Hcf //.
-        rewrite /explicit_to_fgtyp size_zext -Hcf /sizeof_fgtyp subnKC // leqNgt Hn //.
-        rewrite /explicit_to_fgtyp size_sext -Hcf /sizeof_fgtyp subnKC // leqNgt Hn //.
+        1,3: rewrite /proj1_sig Hcf //.
+        rewrite /proj1_sig size_zext -Hcf /sizeof_fgtyp subnKC // leqNgt Hn //.
+        rewrite /proj1_sig size_sext -Hcf /sizeof_fgtyp subnKC // leqNgt Hn //.
       - (* shl *)
-        1,2: rewrite size_cat -Hcf size_zeros /explicit_to_fgtyp /sizeof_fgtyp.
+        1,2: rewrite size_cat -Hcf size_zeros /proj1_sig /sizeof_fgtyp.
         1,2: rewrite addnC //.
       - (* shr *)
         1,2: rewrite -Hcf ; simpl sizeof_fgtyp.
@@ -3986,11 +3961,11 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       1-24: apply IHe1 in Hcf ; try exact Hwf2.
       1-24: apply SV.conform_mem with (v:=v) in Hcf ;
                   try (apply SV.Lemmas.mem_add_eq, TE.SE.eq_refl).
-      1-24: rewrite /explicit_to_fgtyp TE.vsize_add_eq // SV.acc_upd_eq // in Hcf.
+      1-24: rewrite /proj1_sig TE.vsize_add_eq // SV.acc_upd_eq // in Hcf.
       1-24: apply IHe2 in Hcf0 ; try exact Hwf3.
       1-24: apply SV.conform_mem with (v:=v) in Hcf0 ;
                   try (apply SV.Lemmas.mem_add_eq, TE.SE.eq_refl).
-      1-24: rewrite /explicit_to_fgtyp TE.vsize_add_eq // SV.acc_upd_eq // in Hcf0.
+      1-24: rewrite /proj1_sig TE.vsize_add_eq // SV.acc_upd_eq // in Hcf0.
       - (* add *)
         rewrite size_addB_ext -Hcf -Hcf0 /sizeof_fgtyp addn1 //.
         rewrite size_SadcB_ext 2!size_sext -Hcf -Hcf0 /sizeof_fgtyp.
@@ -4077,11 +4052,11 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       1-5: apply IHe2 in Hcf ; try exact Hwf2.
       1-5: apply SV.conform_mem with (v:=v) in Hcf ;
                   try (apply SV.Lemmas.mem_add_eq, TE.SE.eq_refl).
-      1-5: rewrite /explicit_to_fgtyp TE.vsize_add_eq // SV.acc_upd_eq // in Hcf.
+      1-5: rewrite /proj1_sig TE.vsize_add_eq // SV.acc_upd_eq // in Hcf.
       1-5: apply IHe3 in Hcf0 ; try exact Hwf3.
       1-5: apply SV.conform_mem with (v:=v) in Hcf0 ;
                   try (apply SV.Lemmas.mem_add_eq, TE.SE.eq_refl).
-      1-5: rewrite /explicit_to_fgtyp TE.vsize_add_eq // SV.acc_upd_eq // in Hcf0.
+      1-5: rewrite /proj1_sig TE.vsize_add_eq // SV.acc_upd_eq // in Hcf0.
       1-5: destruct (is_zero (no_mem_eval_fexpr e1 s1 te)) ; simpl.
       1,2: rewrite size_zext.
       3,4: rewrite size_sext.
@@ -4106,8 +4081,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       1-5: apply IHe2 in Hcf ; try exact Hwf.
       1-5: apply SV.conform_mem with (v:=v) in Hcf ;
                    try (apply SV.Lemmas.mem_add_eq, TE.SE.eq_refl).
-      1-5: rewrite TE.vsize_add_eq // SV.acc_upd_eq // Htyp /explicit_to_fgtyp in Hcf.
-      1-5: rewrite /explicit_to_fgtyp Hcf //.
+      1-5: rewrite TE.vsize_add_eq // SV.acc_upd_eq // Htyp /proj1_sig in Hcf.
+      1-5: rewrite /proj1_sig Hcf //.
     - (* case ref *)
     move => rs1 s1 te v Hcf Hwf.
     rewrite /well_formed_fstmt_inline in Hwf.
@@ -4119,7 +4094,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
     rewrite -Hcf.
     symmetry.
     case (TE.vtyp s te) eqn: Hvtyp.
-    1-7: rewrite /explicit_to_fgtyp.
+    1-7: rewrite /proj1_sig.
     3: replace (sizeof_fgtyp (Fuint n)) with (sizeof_fgtyp (Fuint_implicit n)) by (rewrite /sizeof_fgtyp ; reflexivity).
     4: replace (sizeof_fgtyp (Fsint n)) with (sizeof_fgtyp (Fsint_implicit n)) by (rewrite /sizeof_fgtyp ; reflexivity).
     1-7: apply TE.vtyp_vsize, Hvtyp.
