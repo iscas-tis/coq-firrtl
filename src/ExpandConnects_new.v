@@ -1372,22 +1372,39 @@ From firrtl Require Import InferWidth_rewritten.
         expand_wire_aux r sz 0 ce l.
 
   (* Expand registers *)
-  Fixpoint expand_reg_aux (r : pvar) (sz : nat) (cnt : nat) cl rst (ce : ft_pmap) (rs : HiFP.hfstmt_seq) : HiFP.hfstmt_seq :=
+  Fixpoint expand_reg_aux_nrst (r : pvar) (sz : nat) (cnt : nat) cl (ce : ft_pmap) (rs : HiFP.hfstmt_seq) : HiFP.hfstmt_seq :=
     match sz with
     | 0 => rs
     | S n => match (ft_find (r.1, (r.2 + N.of_nat cnt)%num) ce) with
              | Some t => if is_gtyp t
-                              then expand_reg_aux r n (cnt.+1) cl rst ce (Qrcons rs (HiFP.sreg (r.1, r.2 + N.of_nat cnt)%num (mk_freg t cl rst)))
-                              else expand_reg_aux r n (cnt.+1) cl rst ce rs
+                               then expand_reg_aux_nrst r n (cnt.+1) cl ce (Qrcons rs (HiFP.sreg (r.1, r.2 + N.of_nat cnt)%num (mk_freg t cl (NRst _))))
+                               else expand_reg_aux_nrst r n (cnt.+1) cl ce rs
              | None => rs
              end                                              
     end.
 
-  Definition expand_reg (r : pvar) t ce l : HiFP.hfstmt_seq :=
-        match t with | mk_freg tp cl rst => 
+  Fixpoint expand_reg_aux_rst (r : pvar) (sz : nat) (cnt : nat) cl c es (ce : ft_pmap) (rs : HiFP.hfstmt_seq) : HiFP.hfstmt_seq :=
+    match sz with
+    | 0 => rs
+    | S n => match (ft_find (r.1, (r.2 + N.of_nat cnt)%num) ce) with
+             | Some t => if is_gtyp t
+                         then expand_reg_aux_rst r n (cnt.+1) cl c es ce (Qrcons rs (HiFP.sreg (r.1, r.2 + N.of_nat cnt)%num (mk_freg t cl (Rst c (nth (HiFP.eref (HiFP.eid (0,0)%num)) es cnt.-1)))))
+                         else expand_reg_aux_rst r n (cnt.+1) cl c es ce rs
+             | None => rs
+             end                                              
+    end.
+
+  Definition expand_reg (r : pvar) t mt l : HiFP.hfstmt_seq :=
+    match t with
+    | mk_freg tp cl NRst => 
         let ts := ftype_list_all tp nil in
         let sz := size ts in
-        expand_reg_aux r sz 0 cl rst ce l end.
+        expand_reg_aux_nrst r sz 0 cl mt l
+    | mk_freg tp cl (Rst c re) =>
+        let ts := ftype_list_all tp nil in
+        let sz := size ts in
+        expand_reg_aux_rst r sz 0 cl c (expand_expr_ft_pmap re mt nil) mt l
+    end.
 
   (* Expand Nodes *)
   (* If the node is not of passive types, then return nil for the rest *)
@@ -1533,6 +1550,21 @@ Compute (expandconnects_fmodule test_module (rcd_pmap_from_m test_module ft_pmap
  Definition test_flip_module := HiFP.hfinmod (102%num,0%num) test_flip_ports HiFP.qnil.
  
  Compute (expandconnects_fmodule test_flip_module (rcd_pmap_from_m test_flip_module ft_pmap_empty)).
+
+ (* reg regVec : UInt<1>[8], clock with :
+      reset => (UInt<1>("h0"), regVec) @[ScalaGen.scala 10:19] *)
+ Definition test_ports7 := [:: HiFP.hinport (8%num, 0%num) (Gtyp Fclock)].
+ Definition test_sts7 :=
+   (HiFP.qcons
+      (HiFP.sreg (10%num,0%num)
+         (mk_freg (Atyp (Gtyp (Fuint 2)) 8)
+            (Eref (HiFP.eid (8%num, N0)))
+            (Rst (HiFP.econst (Fuint 1) [:: true])
+               (Eref (HiFP.eid (10%num, N0))))))
+      HiFP.qnil).
+
+ Definition test_module7 := HiFP.hfinmod (101%num,0%num) test_ports7 test_sts7.
+ Compute (expandconnects_fmodule test_module7 (rcd_pmap_from_m test_module7 ft_pmap_empty)).
 
 End ExpandConnectsP.
 (* (vm_old : module_graph_vertex_set_p.env) (ct_old : module_graph_connection_trees_p.env) (s : HiFP.hfstmt) (vm_new : module_graph_vertex_set_p.env) (ct_new : module_graph_connection_trees_p.env) (tmap : ft_pmap) *)
