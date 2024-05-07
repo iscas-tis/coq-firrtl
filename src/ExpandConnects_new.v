@@ -1449,8 +1449,8 @@ From firrtl Require Import InferWidth_rewritten.
          | Eref _
          | Emux _ _ _ =>
              expand_fcnct (expand_expr_ft_pmap (Eref (Eid r1)) ce nil) (expand_expr_ft_pmap e2 ce nil) mt sts
-         | Econst _ _ => Qrcons sts s
-         | _ => sts
+         (* | Econst _ _ => Qrcons sts s *)
+         | _ => Qrcons  sts s
          end)
         | _, _ => sts
         end
@@ -1566,6 +1566,17 @@ Compute (expandconnects_fmodule test_module (rcd_pmap_from_m test_module ft_pmap
  Definition test_module7 := HiFP.hfinmod (101%num,0%num) test_ports7 test_sts7.
  Compute (expandconnects_fmodule test_module7 (rcd_pmap_from_m test_module7 ft_pmap_empty)).
 
+ (* wire signed : SInt<3> @[UIntVsU.scala 15:27]
+    signed <= asSInt(UInt<3>("h7")) @[UIntVsU.scala 15:27] *)
+ Definition test_sts8 :=
+   (HiFP.qcons
+      (HiFP.swire (10%num,0%num) (Gtyp (Fsint 3)))
+      (HiFP.qcons (HiFP.sfcnct (HiFP.eid (10%num,0%num))
+         (HiFP.ecast AsSInt (HiFP.econst (Fuint 3) [:: true; true; true])))
+         HiFP.qnil)).
+ Definition test_module8 := HiFP.hfinmod (101%num,0%num) [::] test_sts8.
+ Compute (expandconnects_fmodule test_module8 (rcd_pmap_from_m test_module8 ft_pmap_empty)).
+ 
 End ExpandConnectsP.
 (* (vm_old : module_graph_vertex_set_p.env) (ct_old : module_graph_connection_trees_p.env) (s : HiFP.hfstmt) (vm_new : module_graph_vertex_set_p.env) (ct_new : module_graph_connection_trees_p.env) (tmap : ft_pmap) *)
   
