@@ -1083,45 +1083,43 @@ From firrtl Require Import InferWidth_rewritten.
   with ftype_list_btyp_all (b : ffield) (l : list ftype) : list ftype :=
          match b with
          | Fnil => l
-         | Fflips v fl t fs => ftype_list_all t (ftype_list_btyp_all fs l)
+         | Fflips v fl t fs => (ftype_list_all t l) ++ (ftype_list_btyp_all fs nil)
          end.
 
-  Fixpoint ftype_list' (ft : ftype) (l : list ftype) : list ftype :=
-    match ft with
-    | Gtyp t => rcons l ft
-    | Atyp t n => l ++ flatten (repeat (ftype_list' t nil) n)
-    | Btyp b => ftype_list_btyp' b l
-    end
-  with ftype_list_btyp' (b : ffield) (l : list ftype) : list ftype :=
-         match b with
-         | Fnil => l
-         | Fflips v fl t fs => ftype_list_btyp' fs (ftype_list' t l)
-         end.
+  (* Fixpoint ftype_list' (ft : ftype) (l : list ftype) : list ftype := *)
+  (*   match ft with *)
+  (*   | Gtyp t => rcons l ft *)
+  (*   | Atyp t n => l ++ flatten (repeat (ftype_list' t nil) n) *)
+  (*   | Btyp b => ftype_list_btyp' b l *)
+  (*   end *)
+  (* with ftype_list_btyp' (b : ffield) (l : list ftype) : list ftype := *)
+  (*        match b with *)
+  (*        | Fnil => l *)
+  (*        | Fflips v fl t fs => ftype_list_btyp' fs (ftype_list' t l) *)
+  (*        end. *)
+  (* Fixpoint ftype_list_all_c (ft : ftype) (l : list ftype) : list ftype := *)
+  (*   match ft with *)
+  (*   | Gtyp t => cons ft l *)
+  (*   | Atyp t n => cons ft (l ++ flatten (repeat (ftype_list_all_c t nil) n)) *)
+  (*   | Btyp b => cons ft (ftype_list_btyp_all_c b l) *)
+  (*   end *)
+  (* with ftype_list_btyp_all_c (b : ffield) (l : list ftype) : list ftype := *)
+  (*        match b with *)
+  (*        | Fnil => l *)
+  (*        | Fflips v fl t fs => ftype_list_btyp_all_c fs (ftype_list_all_c t l) *)
+  (*        end. *)  
+  (* Fixpoint ftype_list_all_r (ft : ftype) (l : list ftype) : list ftype := *)
+  (*   match ft with *)
+  (*   | Gtyp t => rcons l ft *)
+  (*   | Atyp t n => rcons (l ++ flatten (repeat (ftype_list_all_r t nil) n)) ft *)
+  (*   | Btyp b => rcons (ftype_list_btyp_all_r b l) ft *)
+  (*   end *)
+  (* with ftype_list_btyp_all_r (b : ffield) (l : list ftype) : list ftype := *)
+  (*        match b with *)
+  (*        | Fnil => l *)
+  (*        | Fflips v fl t fs => ftype_list_btyp_all_r fs (ftype_list_all_r t l) *)
+  (*        end. *)
 
-  Fixpoint ftype_list_all_c (ft : ftype) (l : list ftype) : list ftype :=
-    match ft with
-    | Gtyp t => cons ft l
-    | Atyp t n => cons ft (l ++ flatten (repeat (ftype_list_all_c t nil) n))
-    | Btyp b => cons ft (ftype_list_btyp_all_c b l)
-    end
-  with ftype_list_btyp_all_c (b : ffield) (l : list ftype) : list ftype :=
-         match b with
-         | Fnil => l
-         | Fflips v fl t fs => ftype_list_btyp_all_c fs (ftype_list_all_c t l)
-         end.
-  
-  Fixpoint ftype_list_all_r (ft : ftype) (l : list ftype) : list ftype :=
-    match ft with
-    | Gtyp t => rcons l ft
-    | Atyp t n => rcons (l ++ flatten (repeat (ftype_list_all_r t nil) n)) ft
-    | Btyp b => rcons (ftype_list_btyp_all_r b l) ft
-    end
-  with ftype_list_btyp_all_r (b : ffield) (l : list ftype) : list ftype :=
-         match b with
-         | Fnil => l
-         | Fflips v fl t fs => ftype_list_btyp_all_r fs (ftype_list_all_r t l)
-         end.
-  
   Definition is_gtyp t := match t with | Gtyp _ => true | _ => false end.
 
   Fixpoint ftype_list_flip (ft : ftype) f (l : list (ftype * bool)) : list (ftype * bool) :=
@@ -1133,8 +1131,8 @@ From firrtl Require Import InferWidth_rewritten.
   with ftype_list_btyp_flip (b : ffield) f (l : list (ftype * bool)) : list (ftype *bool) :=
          match b with
          | Fnil => l
-         | Fflips v Flipped t fs => ftype_list_flip t (~~ f) (ftype_list_btyp_flip fs f l)
-         | Fflips v Nflip t fs => ftype_list_flip t f (ftype_list_btyp_flip fs f l)
+         | Fflips v Flipped t fs => ftype_list_flip t (~~ f) l ++ (ftype_list_btyp_flip fs f nil)
+         | Fflips v Nflip t fs => ftype_list_flip t f l ++ (ftype_list_btyp_flip fs f nil)
          end.
 
   Definition agt := (Atyp (Btyp (Fflips 5%num Flipped (Gtyp (Fsint_implicit 1)) (Fflips 6%num Nflip (Atyp (Gtyp (Fsint 2)) 2) Fnil))) 3).
@@ -1419,7 +1417,7 @@ From firrtl Require Import InferWidth_rewritten.
              end
     end.
   
-  Fixpoint expand_node v e (mt : ft_pmap) (l : HiFP.hfstmt_seq) : HiFP.hfstmt_seq :=
+  Definition expand_node v e (mt : ft_pmap) (l : HiFP.hfstmt_seq) : HiFP.hfstmt_seq :=
     match ft_find v mt with
     | Some t => if ftype_is_passive t then
                   let ts := ftype_list_all t nil in
@@ -1478,7 +1476,7 @@ From firrtl Require Import InferWidth_rewritten.
              end                                              
     end.
 
-  Definition expand_inport (r : pvar) t mt l : seq HiFP.hfport :=
+  Definition expand_inport (r : pvar) (t: ftype) mt l : seq HiFP.hfport :=
     let ts := ftype_list_all t nil in
     let sz := size ts in
     expand_inport_aux r sz 0 mt l.
@@ -1508,8 +1506,8 @@ From firrtl Require Import InferWidth_rewritten.
     | Foutput v t => expand_outport v t mt l
     end.
 
- Definition ft_flp_pmap_empty := CEP.empty (ftype * bool).
- Definition ft_pmap_empty := CEP.empty (ftype).
+  Definition ft_flp_pmap_empty := CEP.empty (ftype * bool).
+  Definition ft_pmap_empty := CEP.empty (ftype).
  
  (* Output a firrtl module *)
   Definition expandconnects_fmodule (m : HiFP.hfmodule) (inf_mp : ft_pmap) : HiFP.hfmodule :=
@@ -1576,6 +1574,14 @@ Compute (expandconnects_fmodule test_module (rcd_pmap_from_m test_module ft_pmap
          HiFP.qnil)).
  Definition test_module8 := HiFP.hfinmod (101%num,0%num) [::] test_sts8.
  Compute (expandconnects_fmodule test_module8 (rcd_pmap_from_m test_module8 ft_pmap_empty)).
+
+(* output io : { flip in : UInt<10>[5], res : UInt<10>} *)
+ Definition test_ports1 := [:: HiFP.houtport (9%num, 0%num) (Btyp (Fflips (1%num) Flipped (Atyp (Gtyp (Fuint 10)) 5) (Fflips (2%num) Nflip (Gtyp (Fuint 9)) Fnil)))].
+ Definition test_ports_map1 := rcd_pmap_from_ps test_ports1 ft_pmap_empty.
+
+ Definition test_module1 := HiFP.hfinmod (101%num,0%num) test_ports1 HiFP.qnil.
+ 
+ Compute (expandconnects_fmodule test_module1 (rcd_pmap_from_m test_module1 ft_pmap_empty)).
  
 End ExpandConnectsP.
 (* (vm_old : module_graph_vertex_set_p.env) (ct_old : module_graph_connection_trees_p.env) (s : HiFP.hfstmt) (vm_new : module_graph_vertex_set_p.env) (ct_new : module_graph_connection_trees_p.env) (tmap : ft_pmap) *)
