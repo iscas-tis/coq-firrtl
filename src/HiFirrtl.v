@@ -569,6 +569,31 @@ Instance hfstmt_seq_eqn_Equivalence : Equivalence (@hfstmt_seq_eqn) :=
      rewrite IHss1 ; reflexivity.
    Qed.
 
+Fixpoint Qcatrev_rec (ss1 ss2 : hfstmt_seq) : hfstmt_seq :=
+(* calculates the recursive reversal of ss1, followed by ss2 *)
+match s1 with Qnil => s2
+            | Qcons h1 tl1 => Qcatrev_rev tl1 (Qcons (Qrev_rec h1) ss2) end
+with Qrev_rec (s : hfstmt) : hfstmt :=
+match s with Swhen c sst ssf => Swhen c (Qcatrev_rec sst Qnil) (Qcatrev_rec ssf Qnil)
+           | s => s end.
+
+Lemma Qrcons_ind :
+forall (Ps : hfstmt -> Prop) (Pss : hfstmt_seq -> Prop),
+(Ps Sskip) ->
+(forall (v : var) (ft : ftype), Ps (Swire v ft)) ->
+(forall (v : var) (r : hfreg),  Ps (Sreg v r)) ->
+(forall (v : var) (m : hfmem),  Ps (Smem v m)) ->
+(forall (v1 v2 : var),          Ps (Sinst v1 v2)) ->
+(forall (v : var) (e : hfexpr), Ps (Snode v e)) ->
+(forall (r : href) (e : hfexpr), Ps (Sfcnct r e)) ->
+(forall (f : href),             Ps (Sinvalid r)) ->
+(forall (cond : hfexpr) (sst ssf : hfstmt_seq), Pss sst -> Pss ssf -> Ps (Swhen cond sst ssf)) ->
+(Pss Qnil) ->
+(forall (ss : hfstmt_seq) (s : hfstmt), Pss ss -> Ps s -> Pss (Qrcons ss s)) ->
+(forall s : hfstmt, Ps s) /\ (forall ss : hfstmt_seq, Pss ss).
+Proof.
+Admitted.
+
    Lemma Qeqseq_cons : forall (s : hfstmt) (ss1 ss2 : hfstmt_seq), (Qcons s ss1 == Qcons s ss2) = (ss1 == ss2).
    Proof.
    intros.

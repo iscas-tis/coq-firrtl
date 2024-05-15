@@ -1515,7 +1515,7 @@ Qed.
     | Econst t c => match t with
                     | Fuint_implicit w => exist not_implicit_width (Fuint w) I
                     | Fsint_implicit w => exist not_implicit_width (Fsint w) I
-                    | t => exist not_implicit_width t I
+                    | t => exist not_implicit_width t I (* actually, only integer types should be allowed here *)
                     end
     | Eref v => match TE.vtyp v te with
                 | Fuint_implicit w => exist not_implicit_width (Fuint w) I
