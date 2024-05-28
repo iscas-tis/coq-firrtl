@@ -504,7 +504,7 @@ Fixpoint type_of_expr (expr : HiFP.hfexpr) (tmap: CEP.t ftype) : option ftype_ex
                       | Some (exist (Gtyp (Fuint 1)) _) => type_of_expr e1 tmap
                       | _ => None
                       end
-   | _ => None (* Some (exist ftype_not_implicit_width (Gtyp (Fuint 0)) I) *)
+   (* | _ => None (* Some (exist ftype_not_implicit_width (Gtyp (Fuint 0)) I) *) *)
    end.
 
 
@@ -1078,6 +1078,7 @@ From firrtl Require Import InferWidth_rewritten.
     match ft with
     | Gtyp t => cons ft l
     | Atyp t n => cons ft (flatten (repeat (ftype_list_all t l) n))
+    | Btyp Fnil => nil
     | Btyp b => cons ft (ftype_list_btyp_all b l)
     end
   with ftype_list_btyp_all (b : ffield) (l : list ftype) : list ftype :=
@@ -1126,6 +1127,7 @@ From firrtl Require Import InferWidth_rewritten.
     match ft with
     | Gtyp t => cons (ft, f) l
     | Atyp t n => cons (ft, f) (flatten (repeat (ftype_list_flip t f l) n))
+    | Btyp Fnil => nil
     | Btyp b => cons (ft, f) (ftype_list_btyp_flip b f l)
     end
   with ftype_list_btyp_flip (b : ffield) f (l : list (ftype * bool)) : list (ftype *bool) :=
@@ -1138,6 +1140,7 @@ From firrtl Require Import InferWidth_rewritten.
   Definition agt := (Atyp (Btyp (Fflips 5%num Flipped (Gtyp (Fsint_implicit 1)) (Fflips 6%num Nflip (Atyp (Gtyp (Fsint 2)) 2) Fnil))) 3).
   Compute (ftype_list_flip agt false nil).
   Compute (ftype_list_all agt nil).
+  Compute (ftype_list_all (Btyp Fnil) nil).
 
   Notation ft_pmap := (CEP.t ftype).
   Notation ft_flp_pmap := (CEP.t (ftype * bool)).
@@ -1343,7 +1346,13 @@ From firrtl Require Import InferWidth_rewritten.
         match (ft_find v mt) with
         | Some (t, true) =>
             match ee2 with
-            | Eref (Eid v2) => expand_fcnct ess1 ess2 mt (Qrcons l (Sfcnct (Eid v2) (Eref (Eid v)) ))
+            | Eref (Eid v2) =>
+                match (ft_find v2 mt) with
+                | Some (t2, true) =>
+                    expand_fcnct ess1 ess2 mt (Qrcons l (Sfcnct (Eid v2) (Eref (Eid v)) ))
+                | _ =>
+                    expand_fcnct ess1 ess2 mt (Qrcons l (Sfcnct (Eid v) ee2))
+                end
             | _ => l
             end
         | Some (t, false) => expand_fcnct ess1 ess2 mt (Qrcons l (Sfcnct (Eid v) ee2) )
@@ -1352,6 +1361,27 @@ From firrtl Require Import InferWidth_rewritten.
     | _, _ => l
     end.
 
+  (* Expand invalid *)
+  Fixpoint expand_invalid_aux (r : pvar) (sz : nat) (cnt : nat) (ce : ft_pmap) (rs : HiFP.hfstmt_seq) : HiFP.hfstmt_seq :=
+    match sz with
+    | 0 => rs
+    | S n => match (ft_find (r.1, (r.2 + N.of_nat cnt)%num) ce) with
+             | Some t => if is_gtyp t
+                              then expand_invalid_aux r n (cnt.+1) ce (Qrcons rs (HiFP.sinvalid (HiFP.eid (r.1, r.2 + N.of_nat cnt)%num)))
+                              else expand_invalid_aux r n (cnt.+1) ce rs
+             | None => rs
+             end                                              
+    end.
+
+  Definition expand_invalid (r : pvar) ce l : HiFP.hfstmt_seq :=
+    match ft_find r ce with
+    | None => l
+    | Some t =>
+      let ts := ftype_list_all t nil in
+      let sz := size ts in
+      expand_invalid_aux r sz 0 ce l
+    end.
+  
   (* Expand wires *)
   Fixpoint expand_wire_aux (r : pvar) (sz : nat) (cnt : nat) (ce : ft_pmap) (rs : HiFP.hfstmt_seq) : HiFP.hfstmt_seq :=
     match sz with
@@ -1435,7 +1465,8 @@ From firrtl Require Import InferWidth_rewritten.
     | Swire v t => expand_wire v t ce sts
     | Sreg v r => expand_reg v r ce sts
     | Smem _ _ =>Qrcons sts s
-    | Sinvalid _=> Qrcons sts s
+    | Sinvalid (Eid v) => expand_invalid v ce sts
+    | Sinvalid _ => Qrcons sts s
     | Sinst _ _=>Qrcons sts s
     | Snode v e => expand_node v e ce sts
     | Sfcnct (Eid r1) e2 =>
@@ -1582,6 +1613,26 @@ Compute (expandconnects_fmodule test_module (rcd_pmap_from_m test_module ft_pmap
  Definition test_module1 := HiFP.hfinmod (101%num,0%num) test_ports1 HiFP.qnil.
  
  Compute (expandconnects_fmodule test_module1 (rcd_pmap_from_m test_module1 ft_pmap_empty)).
+
+ (* wire io_out_out : { flip ready : UInt<1>, valid : UInt<1>, bits_wky : UInt<8>} *)
+ Definition test_sts9 :=  (HiFP.qcons
+      (HiFP.swire (10%num,0%num) ((Btyp (Fflips (1%num) Flipped (Gtyp (Fuint 1)) (Fflips (2%num) Nflip (Gtyp (Fuint 1)) Fnil)))))
+      (HiFP.qcons (HiFP.snode (11%num,0%num)
+         (HiFP.econst (Fuint 1) [:: true]))
+      (HiFP.qcons (HiFP.sfcnct (HiFP.eid (10%num,1%num)) (HiFP.eref (HiFP.eid (11%num,0%num))))
+         HiFP.qnil))).
+ Definition test_module9 := HiFP.hfinmod (101%num,0%num) [::] test_sts9.
+ Compute (expandconnects_fmodule test_module9 (rcd_pmap_from_m test_module9 ft_pmap_empty)).
+ 
+ Definition test_sts10 :=  (HiFP.qcons
+      (HiFP.swire (10%num,0%num) ((Btyp (Fflips (1%num) Flipped (Gtyp (Fuint 1)) (Fflips (2%num) Nflip (Gtyp (Fuint 1)) Fnil)))))
+      (HiFP.qcons (HiFP.swire (12%num,0%num) ((Btyp (Fflips (1%num) Flipped (Gtyp (Fuint 1)) (Fflips (2%num) Nflip (Gtyp (Fuint 1)) Fnil)))))
+      (HiFP.qcons (HiFP.snode (11%num,0%num)
+         (HiFP.econst (Fuint 1) [:: true]))
+      (HiFP.qcons (HiFP.sfcnct (HiFP.eid (10%num,1%num)) (HiFP.eref (HiFP.eid (12%num,1%num))))
+         HiFP.qnil)))).
+ Definition test_module10 := HiFP.hfinmod (101%num,0%num) [::] test_sts10.
+ Compute (expandconnects_fmodule test_module10 (rcd_pmap_from_m test_module10 ft_pmap_empty)).
  
 End ExpandConnectsP.
 (* (vm_old : module_graph_vertex_set_p.env) (ct_old : module_graph_connection_trees_p.env) (s : HiFP.hfstmt) (vm_new : module_graph_vertex_set_p.env) (ct_new : module_graph_connection_trees_p.env) (tmap : ft_pmap) *)
