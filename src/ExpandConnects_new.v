@@ -1501,7 +1501,8 @@ From firrtl Require Import InferWidth_rewritten.
                               then expand_inport_aux r n (cnt.+1) mt (rcons rs (HiFP.hinport (r.1, r.2 + N.of_nat cnt)%num t))
                               else expand_inport_aux r n (cnt.+1) mt rs
              | Some (t, true) => if is_gtyp t
-                              then expand_inport_aux r n (cnt.+1) mt (rcons rs (HiFP.houtport (r.1, r.2 + N.of_nat cnt)%num t))
+                                 then expand_inport_aux r n (cnt.+1) (CEP.add (r.1, r.2 + N.of_nat cnt)%num (t, false) mt)
+                                        (rcons rs (HiFP.houtport (r.1, r.2 + N.of_nat cnt)%num t))
                               else expand_inport_aux r n (cnt.+1) mt rs
              | None => rs
              end                                              
@@ -1520,7 +1521,7 @@ From firrtl Require Import InferWidth_rewritten.
                               then expand_outport_aux r n (cnt.+1) mt (rcons rs (HiFP.houtport (r.1, r.2 + N.of_nat cnt)%num t))
                               else expand_outport_aux r n (cnt.+1) mt rs
              | Some (t, true) => if is_gtyp t
-                              then expand_outport_aux r n (cnt.+1) mt (rcons rs (HiFP.hinport (r.1, r.2 + N.of_nat cnt)%num t))
+                              then expand_outport_aux r n (cnt.+1) (CEP.add (r.1, r.2 + N.of_nat cnt)%num (t, false) mt) (rcons rs (HiFP.hinport (r.1, r.2 + N.of_nat cnt)%num t))
                               else expand_outport_aux r n (cnt.+1) mt rs
              | None => rs
              end                                              
@@ -1629,10 +1630,24 @@ Compute (expandconnects_fmodule test_module (rcd_pmap_from_m test_module ft_pmap
       (HiFP.qcons (HiFP.swire (12%num,0%num) ((Btyp (Fflips (1%num) Flipped (Gtyp (Fuint 1)) (Fflips (2%num) Nflip (Gtyp (Fuint 1)) Fnil)))))
       (HiFP.qcons (HiFP.snode (11%num,0%num)
          (HiFP.econst (Fuint 1) [:: true]))
-      (HiFP.qcons (HiFP.sfcnct (HiFP.eid (10%num,1%num)) (HiFP.eref (HiFP.eid (12%num,1%num))))
+      (HiFP.qcons (HiFP.sfcnct (HiFP.eid (10%num,1%num)) (HiFP.eref (HiFP.eid (12%num,2%num))))
          HiFP.qnil)))).
  Definition test_module10 := HiFP.hfinmod (101%num,0%num) [::] test_sts10.
  Compute (expandconnects_fmodule test_module10 (rcd_pmap_from_m test_module10 ft_pmap_empty)).
+
+(* output b: {a: UInt<1>, flip b: UInt<1> }
+ wire x: {a: UInt<1>, flip b: UInt<1> }
+ x.b <= b.b *)
+ Definition test_sts11 :=  
+      (HiFP.qcons (HiFP.swire (12%num,0%num) ((Btyp (Fflips (1%num) Nflip (Gtyp (Fuint 1)) (Fflips (2%num) Flipped (Gtyp (Fuint 1)) Fnil)))))
+      (HiFP.qcons (HiFP.sfcnct (HiFP.eid (12%num,2%num)) (HiFP.eref (HiFP.eid (11%num,2%num))))
+      HiFP.qnil)).
+ Definition test_ports11 := [:: HiFP.houtport (11%num, 0%num) (Btyp (Fflips (1%num) Nflip (Gtyp (Fuint 1)) (Fflips (2%num) Flipped (Gtyp (Fuint 1)) Fnil)))].
+ Definition test_ports_map11 := rcd_pmap_from_ps test_ports11 ft_pmap_empty.
+
+ Definition test_module11 := HiFP.hfinmod (101%num,0%num) test_ports11 test_sts11.
+ 
+ Compute (expandconnects_fmodule test_module11 (rcd_pmap_from_m test_module11 ft_pmap_empty)).
  
 End ExpandConnectsP.
 (* (vm_old : module_graph_vertex_set_p.env) (ct_old : module_graph_connection_trees_p.env) (s : HiFP.hfstmt) (vm_new : module_graph_vertex_set_p.env) (ct_new : module_graph_connection_trees_p.env) (tmap : ft_pmap) *)
