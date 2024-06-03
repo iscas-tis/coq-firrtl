@@ -1493,9 +1493,9 @@ From firrtl Require Import InferWidth_rewritten.
     end.
 
   (* Expand ports *)
-  Fixpoint expand_inport_aux (r : pvar) (sz : nat) (cnt : nat) (mt : ft_flp_pmap) (rs : seq HiFP.hfport) : seq HiFP.hfport :=
+  Fixpoint expand_inport_aux (r : pvar) (sz : nat) (cnt : nat) (mt : ft_flp_pmap) (rs : seq HiFP.hfport) : seq HiFP.hfport * ft_flp_pmap :=
     match sz with
-    | 0 => rs
+    | 0 => (rs, mt)
     | S n => match (ft_find (r.1, (r.2 + N.of_nat cnt)%num) mt) with
              | Some (t, false) => if is_gtyp t
                               then expand_inport_aux r n (cnt.+1) mt (rcons rs (HiFP.hinport (r.1, r.2 + N.of_nat cnt)%num t))
@@ -1504,18 +1504,18 @@ From firrtl Require Import InferWidth_rewritten.
                                  then expand_inport_aux r n (cnt.+1) (CEP.add (r.1, r.2 + N.of_nat cnt)%num (t, false) mt)
                                         (rcons rs (HiFP.houtport (r.1, r.2 + N.of_nat cnt)%num t))
                               else expand_inport_aux r n (cnt.+1) mt rs
-             | None => rs
+             | None => (rs, mt)
              end                                              
     end.
 
-  Definition expand_inport (r : pvar) (t: ftype) mt l : seq HiFP.hfport :=
+  Definition expand_inport (r : pvar) (t: ftype) mt l : seq HiFP.hfport * ft_flp_pmap :=
     let ts := ftype_list_all t nil in
     let sz := size ts in
     expand_inport_aux r sz 0 mt l.
   
-  Fixpoint expand_outport_aux (r : pvar) (sz : nat) (cnt : nat) (mt : ft_flp_pmap) (rs : seq HiFP.hfport) : seq HiFP.hfport :=
+  Fixpoint expand_outport_aux (r : pvar) (sz : nat) (cnt : nat) (mt : ft_flp_pmap) (rs : seq HiFP.hfport) : seq HiFP.hfport * ft_flp_pmap  :=
     match sz with
-    | 0 => rs
+    | 0 => (rs, mt)
     | S n => match (ft_find (r.1, (r.2 + N.of_nat cnt)%num) mt) with
              | Some (t, false) => if is_gtyp t
                               then expand_outport_aux r n (cnt.+1) mt (rcons rs (HiFP.houtport (r.1, r.2 + N.of_nat cnt)%num t))
@@ -1523,19 +1523,26 @@ From firrtl Require Import InferWidth_rewritten.
              | Some (t, true) => if is_gtyp t
                               then expand_outport_aux r n (cnt.+1) (CEP.add (r.1, r.2 + N.of_nat cnt)%num (t, false) mt) (rcons rs (HiFP.hinport (r.1, r.2 + N.of_nat cnt)%num t))
                               else expand_outport_aux r n (cnt.+1) mt rs
-             | None => rs
+             | None => (rs, mt)
              end                                              
     end.
 
-  Definition expand_outport (r : pvar) t mt l : seq HiFP.hfport :=
+  Definition expand_outport (r : pvar) t mt l : seq HiFP.hfport * ft_flp_pmap :=
         let ts := ftype_list_all t nil in
         let sz := size ts in
         expand_outport_aux r sz 0 mt l.
 
-  Definition expand_ports mt p l :=
+  Definition expand_port p l mt :=
     match p with
     | Finput v t => expand_inport v t mt l
     | Foutput v t => expand_outport v t mt l
+    end.
+
+  Fixpoint expand_ports ps l mt : seq HiFP.hfport * ft_flp_pmap :=
+    match ps with
+    | nil => (l, mt)
+    | hd :: tl => let (l', mt') := expand_port hd l mt in
+                  expand_ports tl l' mt'
     end.
 
   Definition ft_flp_pmap_empty := CEP.empty (ftype * bool).
@@ -1547,7 +1554,8 @@ From firrtl Require Import InferWidth_rewritten.
     | FInmod v ps ss =>
         let mt := rcd_flip_m m inf_mp (ft_flp_pmap_empty) in
         let ce := rcd_pmap_m m inf_mp (ft_pmap_empty) in
-        FInmod v (fold_right (expand_ports mt) nil ps) (expandconnects_stmt_seq_ft_pmap ss ce mt (HiFP.qnil ))
+        let (exp_ps, mt') := expand_ports ps nil mt in
+        FInmod v exp_ps (expandconnects_stmt_seq_ft_pmap ss ce mt' (HiFP.qnil ))
     | m => m
     end.
 
