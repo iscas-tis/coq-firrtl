@@ -311,6 +311,34 @@ rewrite H0 in H.
 exact H.
 Qed.
 
+Lemma subdomain_add {T : Type} :
+forall (tmap : CEP.t T) (k : ProdVarOrder.T) (val : T),
+    subdomain tmap (CEP.add k val tmap).
+Proof.
+unfold subdomain ; intros.
+destruct (k0 == k) eqn: Hk0k.
+* rewrite (CEP.Lemmas.find_add_eq Hk0k) //.
+* rewrite (CEP.Lemmas.find_add_neq (elimT negP (negbT Hk0k))).
+  destruct (CEP.find k0 tmap) ; done.
+Qed.
+
+Lemma submap_subdomain {T : Type} :
+forall (tmap1 tmap2 : CEP.t T),
+    CEP.submap tmap1 tmap2 -> subdomain tmap1 tmap2.
+Proof.
+unfold subdomain ; intros.
+specialize (H k).
+destruct (CEP.find k tmap1), (CEP.find k tmap2) ; try by done.
+rewrite (H t) //.
+Qed.
+
+Lemma Equal_subdomain {T : Type} :
+forall (tmap1 tmap2 : CEP.t T),
+    CEP.Equal tmap1 tmap2 -> subdomain tmap1 tmap2.
+Proof.
+intros.
+apply (submap_subdomain _ _ (CEP.Lemmas.Equal_submap H)).
+Qed.
 
 (*---------------------------------------------------------------------------*)
 (* Find the type of different kinds of expressions                           *)
@@ -380,18 +408,22 @@ Fixpoint ftype_mux' (x : ftype) (px : ftype_not_implicit_width x) (y : ftype) (p
                           | None => None
                           end
                      else None
-  | Btyp fx, px, Btyp fy, py => ffield_mux' fx px fy py
+  | Btyp fx, px, Btyp fy, py =>
+       match ffield_mux' fx px fy py with
+       | Some (exist ff pf) => Some (exist ftype_not_implicit_width (Btyp ff) pf)
+       | _ => None
+       end
   | _, _, _, _ => None
   end
-with ffield_mux' (f1 : ffield) (p1 : ffield_not_implicit_width f1) (f2 : ffield) (p2 : ffield_not_implicit_width f2) : option ftype_explicit :=
+with ffield_mux' (f1 : ffield) (p1 : ffield_not_implicit_width f1) (f2 : ffield) (p2 : ffield_not_implicit_width f2) : option ffield_explicit :=
        match f1, p1, f2, p2 with
-       | Fnil, _, Fnil, _ => Some (exist ftype_not_implicit_width (Btyp Fnil) I)
+       | Fnil, _, Fnil, _ => Some (exist ffield_not_implicit_width Fnil I)
        | Fflips v1 Nflip t1 fs1, p1, Fflips v2 Nflip t2 fs2, p2
          => if v1 == v2 then
                match ftype_mux'  t1  (proj1 p1) t2  (proj1 p2),
                      ffield_mux' fs1 (proj2 p1) fs2 (proj2 p2) with
-               | Some (exist ft pt), Some (exist (Btyp bf) pf) =>
-                   Some (exist ftype_not_implicit_width (Btyp (Fflips v1 Nflip ft bf)) (conj pt pf))
+               | Some (exist ft pt), Some (exist bf pf) =>
+                   Some (exist ffield_not_implicit_width (Fflips v1 Nflip ft bf) (conj pt pf))
                | _, _ => None
                end
             else None
@@ -2154,7 +2186,7 @@ match lst_tgt, lst_src, flipped, ref_tgt, ref_src with
     &&
        (CEP.find ic ct_new == Some (D_fexpr (Eref ref_src)))
     &&
-       (CEP.find oc ct_new == CEP.find oc ct_old)
+       ((ic == oc) || (CEP.find oc ct_new == CEP.find oc ct_old))
        (* why this is compared?
           In Sem_frag_stmt, it is ensured that connection trees NOT related to tgt or src are not changed.
           Here, we need to ensure that the connection tree of tgt is changed
@@ -2248,7 +2280,9 @@ Proof.
     destruct lst_tgt as [|el_tgt [|]] ; try by done.
     destruct lst_src as [|el_src [|]] ; try by done.
     destruct H3 ; rewrite mem_seq1 in H3 ; move /eqP : H3 => H3 ; rewrite -H3 in H.
-    1,2: destruct flipped ; move /andP : H => [/andP [_ /eqP H] /eqP H4] ; try (by rewrite H //).
+    1,2: destruct flipped ; move /andP : H => [/andP [_ /eqP H] /orP H4] ; try (by rewrite H //).
+    1,2: destruct H4 as [H4|H4] ; move /eqP : H4 => H4 ;
+          first by (subst el_src el_tgt ; rewrite H //).
     1,2: rewrite H4 ; destruct (CEP.find v ct_old) ; by done.
   + (* Atyp *)
     specialize (IHft'_tgt ft'_src).
@@ -2452,9 +2486,11 @@ Proof.
     destruct lst_tgt as [|el_tgt [|]] ; try by done.
     destruct lst_src as [|el_src [|]] ; try by done.
     destruct H3 ; rewrite mem_seq1 in H3 ; move /eqP : H3 => H3 ; rewrite -H3 in H.
-    1,2: destruct flipped ; move /andP : H => [/andP [/eqP H4 /eqP H5] /eqP H] ; try by rewrite H //.
-    1,2: destruct (CEP.find v ct_old) ; last (by contradiction H4).
-    1,2: rewrite H5 ; split ; intro ; discriminate H6.
+    1,2: destruct flipped ; move /andP : H => [/andP [/eqP H4 /eqP H5] /orP H].
+    1-4: destruct H as [H|H] ; move /eqP : H => H ;
+               try (by subst el_src el_tgt ; rewrite H5 ; split ; done) ;
+               try (by rewrite H //) ;
+               (by rewrite H5 ; split ; done).
   + (* Atyp *)
     specialize (IHft'_tgt ft'_src).
     move /andP : H => [/eqP H4 /forallP H] ; rewrite -H4 in H0, H2 ; clear n0 H4.
@@ -2686,49 +2722,56 @@ Fixpoint Sem_frag_stmt (vm_old : CEP.t vertex_type) (ct_old : CEP.t def_expr) (s
    | Sfcnct ref_tgt (Eref ref_src) => (* allow non-passive types *)
           CEP.Equal vm_old vm_new
        /\
-          match list_lhs_ref_p ref_tgt tmap, list_lhs_ref_p ref_src tmap with
-          | Some (lst_tgt, (ft_tgt, HiF.Duplex)), Some (lst_src, (ft_src, HiF.Duplex))
-          | Some (lst_tgt, (ft_tgt, HiF.Duplex)), Some (lst_src, (ft_src, HiF.Source))
-          | Some (lst_tgt, (ft_tgt, HiF.Sink)), Some (lst_src, (ft_src, HiF.Duplex))
-          | Some (lst_tgt, (ft_tgt, HiF.Sink)), Some (lst_src, (ft_src, HiF.Source)) =>
-                 (* we should allow flipped fields even if the orientation is “Sink” and “Source”
-                    because the flip will turn around the orientation as well *)
-                 connect_type_compatible true ft_tgt ft_src false
-              /\
-                 connect ct_old ref_tgt lst_tgt ft_tgt ref_src lst_src ft_src false ct_new
-              /\
-                 forall v0 : CEP.key,
-                    if (v0 \in lst_tgt) || (v0 \in lst_src) then True (* already checked in connect_non_passive *)
-                    else CEP.find v0 ct_old = CEP.find v0 ct_new
-          | _, _ => False
+          match list_lhs_ref_p ref_tgt tmap with
+          | Some (lst_tgt, (ft_tgt, HiF.Duplex))
+          | Some (lst_tgt, (ft_tgt, HiF.Sink)) =>
+              match list_lhs_ref_p ref_src tmap with
+              | Some (lst_src, (ft_src, HiF.Duplex))
+              | Some (lst_src, (ft_src, HiF.Source)) =>
+                     (* we should allow flipped fields even if the orientation is “Sink” and “Source”
+                        because the flip will turn around the orientation as well *)
+                     connect_type_compatible true ft_tgt ft_src false
+                  /\
+                     connect ct_old ref_tgt lst_tgt ft_tgt ref_src lst_src ft_src false ct_new
+                  /\
+                     forall v0 : CEP.key,
+                        if (v0 \in lst_tgt) || (v0 \in lst_src) then True (* already checked in connect_non_passive *)
+                        else CEP.find v0 ct_old = CEP.find v0 ct_new
+              | _ => False
+              end
+          | _ => False
           end
    | Sfcnct ref expr =>
           CEP.Equal vm_old vm_new
        /\
-          match list_lhs_ref_p ref tmap, type_of_expr expr tmap with
-          | Some (input_list, (ft_ref, HiF.Sink)), Some (exist ft_expr _)
-          | Some (input_list, (ft_ref, HiF.Duplex)), Some (exist ft_expr _) =>
-                 connect_type_compatible false ft_ref ft_expr false
-              /\
-                 match list_rhs_expr_p expr ft_expr with
-                 | Some expr_list =>
-                        (forall n : nat,
-                             match List.nth_error input_list n, List.nth_error expr_list n with
-                             | Some ic, Some ex =>
-                                    CEP.find ic ct_old <> None
-                                 /\ CEP.find ic ct_new = Some (D_fexpr ex)
-                             (* connect_type_compatible already checked that the lists have the same length.
-                                There is no need to add a check here:
-                             | Some _, None | None, Some _ => False *)
-                             | _, _ => True
-                             end)
-                     /\
-                        forall v0 : CEP.key,
-                            if v0 \in input_list then True
-                            else CEP.find v0 ct_old = CEP.find v0 ct_new
-                 | _ => False
-                 end
-          | _, _ => False
+          match list_lhs_ref_p ref tmap with
+          | Some (input_list, (ft_ref, HiF.Sink))
+          | Some (input_list, (ft_ref, HiF.Duplex)) =>
+              match type_of_expr expr tmap with
+              | Some (exist ft_expr _) =>
+                     connect_type_compatible false ft_ref ft_expr false
+                  /\
+                     match list_rhs_expr_p expr ft_expr with
+                     | Some expr_list =>
+                            (forall n : nat,
+                                 match List.nth_error input_list n, List.nth_error expr_list n with
+                                 | Some ic, Some ex =>
+                                        CEP.find ic ct_old <> None
+                                     /\ CEP.find ic ct_new = Some (D_fexpr ex)
+                                 (* connect_type_compatible already checked that the lists have the same length.
+                                    There is no need to add a check here:
+                                 | Some _, None | None, Some _ => False *)
+                                 | _, _ => True
+                                 end)
+                         /\
+                            forall v0 : CEP.key,
+                                if v0 \in input_list then True
+                                else CEP.find v0 ct_old = CEP.find v0 ct_new
+                     | _ => False
+                     end
+              | _ => False
+              end
+          | _ => False
           end
    | Sinvalid ref =>
           CEP.Equal vm_old vm_new
@@ -3252,12 +3295,18 @@ Proof.
           first by (intro ; rewrite H ; destruct (CEP.find k vm_new) ; done).
     1-6: generalize (list_lhs_ref_p_size tmap h) ; intro.
     1-6: destruct (list_lhs_ref_p h tmap) as [[input_list [ft_ref []]]|] ; try by done.
-    1,2: destruct (type_of_expr (Econst ProdVarOrder.T f b) tmap) as [[ft_expr _]|] ; last by done.
-    3,4: destruct (type_of_expr (Ecast u h0) tmap) as [[ft_expr _]|] ; last by done.
-    5,6: destruct (type_of_expr (Eprim_unop e h0) tmap) as [[ft_expr _]|] ; last by done.
-    7,8: destruct (type_of_expr (Eprim_binop e h0_1 h0_2) tmap) as [[ft_expr _]|] ; last by done.
-    9,10: destruct (type_of_expr (Emux h0_1 h0_2 h0_3) tmap) as [[ft_expr _]|] ; last by done.
-    11,12: destruct (type_of_expr (Evalidif h0_1 h0_2) tmap) as [[ft_expr _]|] ; last by done.
+    1,2: destruct (type_of_expr (Econst ProdVarOrder.T f b) tmap)
+         as [[ft_expr _]|] ; last by done.
+    3,4: destruct (type_of_expr (Ecast u h0) tmap)
+         as [[ft_expr _]|] ; last by done.
+    5,6: destruct (type_of_expr (Eprim_unop e h0) tmap)
+         as [[ft_expr _]|] ; last by done.
+    7,8: destruct (type_of_expr (Eprim_binop e h0_1 h0_2) tmap)
+         as [[ft_expr _]|] ; last by done.
+    9,10: destruct (type_of_expr (Emux h0_1 h0_2 h0_3) tmap)
+          as [[ft_expr _]|] ; last by done.
+    11,12: destruct (type_of_expr (Evalidif h0_1 h0_2) tmap)
+           as [[ft_expr _]|] ; last by done.
     1-12: destruct H0.
     1-12: apply connect_type_compatible_size in H0.
     1,2: generalize (list_rhs_expr_p_size ft_expr (Econst ProdVarOrder.T f b)) ; intro ;
@@ -3302,8 +3351,10 @@ Proof.
     split ; first by (intro ; rewrite H ; destruct (CEP.find k vm_new) ; done).
     generalize (list_lhs_ref_p_size tmap h) ; intro.
     generalize (list_lhs_ref_p_type tmap h) ; intro.
-    destruct (list_lhs_ref_p h tmap) as [[lst_tgt [ft_tgt []]]|] ;
-          try (by destruct (list_lhs_ref_p h0 tmap) as [[_ [_ []]]|]; contradiction H0).
+    destruct (list_lhs_ref_p h tmap) as [[lst_tgt [ft_tgt [| | | |]]]|] eqn: Hhhh ;
+          last (by contradiction H0) ;
+          try (by destruct (list_lhs_ref_p h0 tmap)
+                  as [[_ [_ []]]|]; contradiction H0).
     1,2: generalize (list_lhs_ref_p_size tmap h0) ; intro.
     1,2: generalize (list_lhs_ref_p_type tmap h0) ; intro.
     1,2: destruct (list_lhs_ref_p h0 tmap) as [[lst_src [ft_src []]]|] ; try by contradiction H0.
@@ -3398,14 +3449,19 @@ Qed.
 Lemma Sem_frag_stmts_component :
 forall (ss : HiFP.hfstmt_seq) (vm_old : CEP.t vertex_type) (ct_old : CEP.t def_expr)
        (vm_new : CEP.t vertex_type) (ct_new : CEP.t def_expr) (tmap : CEP.t (ftype * HiF.forient)),
-    vm_and_ct_compatible vm_old ct_old ->
-        Sem_frag_stmts vm_old ct_old (component_stmts_of ss) vm_new ct_new tmap ->
+        vm_and_ct_compatible vm_old ct_old
+    ->
+        Sem_frag_stmts vm_old ct_old (component_stmts_of ss) vm_new ct_new tmap
+    ->
+        (*   CEP.submap vm_old vm_new
+        /\*)
            CEP.submap ct_old ct_new
 with Sem_frag_stmt_component :
 forall (s : HiFP.hfstmt) (vm_old : CEP.t vertex_type) (ct_old : CEP.t def_expr)
        (vm_new : CEP.t vertex_type) (ct_new : CEP.t def_expr) (tmap : CEP.t (ftype * HiF.forient)),
-    vm_and_ct_compatible vm_old ct_old ->
-        Sem_frag_stmts vm_old ct_old (component_stmt_of s) vm_new ct_new tmap ->
+        vm_and_ct_compatible vm_old ct_old
+    ->
+        Sem_frag_stmts vm_old ct_old (component_stmt_of s) vm_new ct_new tmap->
            CEP.submap ct_old ct_new.
 Proof.
 * clear Sem_frag_stmts_component.
@@ -3483,6 +3539,17 @@ match ports_tmap pp vm with
     end
 | None => None
 end.
+
+Definition ports_stmt_tmap (pp : seq HiFP.hfport) (s : HiFP.hfstmt) (vm : CEP.t vertex_type) : option (CEP.t (ftype * HiF.forient)) :=
+match ports_tmap pp vm with
+| Some pmap =>
+    match stmt_tmap (pmap, pmap) s vm with
+    | Some (tmap, _) => Some tmap
+    | None => None
+    end
+| None => None
+end.
+
 
 Definition Sem (F : HiFP.hfmodule) (vm : CEP.t vertex_type) (ct : CEP.t def_expr) : Prop :=
 (* The predicate returns True if G = (vm, ct) conforms to F.

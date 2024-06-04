@@ -569,6 +569,15 @@ Instance hfstmt_seq_eqn_Equivalence : Equivalence (@hfstmt_seq_eqn) :=
      rewrite IHss1 ; reflexivity.
    Qed.
 
+   Lemma Qcats1 : forall (ss : hfstmt_seq) (s : hfstmt),
+       Qcat ss (Qcons s Qnil) = Qrcons ss s.
+   Proof.
+   induction ss.
+   * simpl ; reflexivity.
+   * simpl.
+     intro ; rewrite -IHss //.
+   Qed.
+
 Fixpoint Qcatrev_rec (ss1 ss2 : hfstmt_seq) : hfstmt_seq :=
 (* calculates the recursive reversal of ss1, followed by ss2 *)
   match ss1 with
