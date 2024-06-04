@@ -1344,7 +1344,7 @@ From firrtl Require Import InferWidth_rewritten.
     match es1, es2 with
     | cons (Eref (Eid v)) ess1, cons ee2 ess2 =>
         match (ft_find v mt) with
-        | Some (t, true, true) =>
+        | Some (t, true, _) =>
             match ee2 with
             | Eref (Eid v2) =>
                 match (ft_find v2 mt) with
