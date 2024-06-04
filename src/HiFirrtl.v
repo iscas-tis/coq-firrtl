@@ -571,12 +571,87 @@ Instance hfstmt_seq_eqn_Equivalence : Equivalence (@hfstmt_seq_eqn) :=
 
 Fixpoint Qcatrev_rec (ss1 ss2 : hfstmt_seq) : hfstmt_seq :=
 (* calculates the recursive reversal of ss1, followed by ss2 *)
-match s1 with Qnil => s2
-            | Qcons h1 tl1 => Qcatrev_rev tl1 (Qcons (Qrev_rec h1) ss2) end
+  match ss1 with
+    Qnil => ss2
+  | Qcons h1 tl1 =>
+      Qcatrev_rec tl1 (Qcons (Qrev_rec h1) ss2) end
 with Qrev_rec (s : hfstmt) : hfstmt :=
-match s with Swhen c sst ssf => Swhen c (Qcatrev_rec sst Qnil) (Qcatrev_rec ssf Qnil)
-           | s => s end.
+       match s with
+         Swhen c sst ssf =>
+           Swhen c (Qcatrev_rec sst Qnil) (Qcatrev_rec ssf Qnil)
+       | s => s end.
+   
+Lemma qcatrev_rec0s s : Qcatrev_rec Qnil s = s.
+Proof. by []. Qed.
 
+Lemma qcat0s s : Qcat Qnil s = s.
+Proof. by []. Qed.
+
+Lemma qcats0 s : Qcat s Qnil = s.
+Proof.
+  elim : s => // h h0 /= ->//. 
+Qed.
+
+Variable n0 : nat.  (* numerical parameter for take, drop et al *)
+Variable T : Type.  (* must come before the implicit Type     *)
+Variable x0 : T.    (* default for head/nth *)
+
+Implicit Types x y z : T.
+Implicit Types m n : nat.
+Implicit Type s : seq T.
+Lemma last_ind P :
+  P [::] -> (forall s x, P s -> P (rcons s x)) -> forall s, P s.
+Proof.
+move=> Hnil Hlast s. rewrite -(cat0s s).
+elim : s nil Hnil => [|x s2 IHs] s1 Hs1.
+by rewrite cats0.
+by rewrite -cat_rcons; apply/IHs /Hlast.
+Qed.
+
+Lemma Qrcons_ind' :
+   forall (P : hfstmt_seq -> Prop) (P0 : hfstmt -> Prop),
+       P Qnil ->
+       (forall h : hfstmt, P0 h -> forall h0 : hfstmt_seq, P h0 -> P (Qrcons h0 h)) ->
+       P0 Sskip ->
+       (forall (s : var) (f2 : ftype), P0 (Swire s f2)) ->
+       (forall (s : var) (h : hfreg), P0 (Sreg s h)) ->
+       (forall (s : var) (h : hfmem), P0 (Smem s h)) ->
+       (forall s s0 : var, P0 (Sinst s s0)) ->
+       (forall (s : var) (h : hfexpr), P0 (Snode s h)) ->
+       (forall (h : href) (h0 : hfexpr), P0 (Sfcnct h h0)) ->
+       (forall h : href, P0 (Sinvalid h)) ->
+       (forall (h : hfexpr) (h0 : hfstmt_seq),
+        P h0 -> forall h1 : hfstmt_seq, P h1 -> P0 (Swhen h h0 h1)) ->
+       forall h : hfstmt, P0 h
+
+with Qrcons_seq_ind' :
+forall (P : hfstmt_seq -> Prop) (P0 : hfstmt -> Prop),
+       P Qnil ->
+       (forall h : hfstmt, P0 h -> forall h0 : hfstmt_seq, P h0 -> P (Qrcons h0 h)) ->
+       P0 Sskip ->
+       (forall (s : var) (f2 : ftype), P0 (Swire s f2)) ->
+       (forall (s : var) (h : hfreg), P0 (Sreg s h)) ->
+       (forall (s : var) (h : hfmem), P0 (Smem s h)) ->
+       (forall s s0 : var, P0 (Sinst s s0)) ->
+       (forall (s : var) (h : hfexpr), P0 (Snode s h)) ->
+       (forall (h : href) (h0 : hfexpr), P0 (Sfcnct h h0)) ->
+       (forall h : href, P0 (Sinvalid h)) ->
+       (forall (h : hfexpr) (h0 : hfstmt_seq),
+        P h0 -> forall h1 : hfstmt_seq, P h1 -> P0 (Swhen h h0 h1)) ->
+       forall h : hfstmt_seq, P h.
+Proof.
+  intros. move : h.
+  elim; try done. 
+  intros. apply H9;
+    by apply (Qrcons_seq_ind' P P0).
+
+  intros. rewrite-(qcat0s h). generalize H. move => Hnil.
+  elim : h Qnil H => [|x s2 IHs] s1 Hs1.
+  by rewrite qcats0.
+  rewrite -Qcat_rcons. apply IHs. apply H0; last done.
+  apply (Qrcons_ind' P); try done. 
+Qed.
+  
 Lemma Qrcons_ind :
 forall (Ps : hfstmt -> Prop) (Pss : hfstmt_seq -> Prop),
 (Ps Sskip) ->
@@ -586,13 +661,16 @@ forall (Ps : hfstmt -> Prop) (Pss : hfstmt_seq -> Prop),
 (forall (v1 v2 : var),          Ps (Sinst v1 v2)) ->
 (forall (v : var) (e : hfexpr), Ps (Snode v e)) ->
 (forall (r : href) (e : hfexpr), Ps (Sfcnct r e)) ->
-(forall (f : href),             Ps (Sinvalid r)) ->
-(forall (cond : hfexpr) (sst ssf : hfstmt_seq), Pss sst -> Pss ssf -> Ps (Swhen cond sst ssf)) ->
+(forall (f : href),             Ps (Sinvalid f)) ->
+(forall (cond : hfexpr) (sst : hfstmt_seq), Pss sst -> forall (ssf : hfstmt_seq), Pss ssf -> Ps (Swhen cond sst ssf)) ->
 (Pss Qnil) ->
-(forall (ss : hfstmt_seq) (s : hfstmt), Pss ss -> Ps s -> Pss (Qrcons ss s)) ->
+(forall (s : hfstmt), Ps s -> forall (ss : hfstmt_seq), Pss ss -> Pss (Qrcons ss s)) ->
 (forall s : hfstmt, Ps s) /\ (forall ss : hfstmt_seq, Pss ss).
 Proof.
-Admitted.
+  intros. split.
+  apply Qrcons_ind' with Pss; try done.
+  apply Qrcons_seq_ind' with Ps; try done.
+Qed.
 
    Lemma Qeqseq_cons : forall (s : hfstmt) (ss1 ss2 : hfstmt_seq), (Qcons s ss1 == Qcons s ss2) = (ss1 == ss2).
    Proof.
