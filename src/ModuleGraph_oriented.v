@@ -2667,6 +2667,176 @@ Proof.
       1,2: by right ; rewrite H0 H3 //.
 Qed.
 
+Definition invalidate_fgtyp (ct_old : CEP.t def_expr)
+                            (lst_tgt : list CEP.key)
+                            (ori : HiF.forient)
+                            (ct_new : CEP.t def_expr) : bool :=
+(* The predicate checks whether ct_new contains the correct connection that sets lst_tgt to D_invalidated.
+   The list must be a one-element list for output (flipped) or an input (~~flipped) connector. *)
+match lst_tgt, ori with
+| [:: ic], HiF.Sink
+| [:: ic], HiF.Duplex =>
+       (CEP.find ic ct_old != None)
+    &&
+       (CEP.find ic ct_new == Some D_invalidated)
+| [:: oc], HiF.Source =>
+       CEP.find oc ct_new == CEP.find oc ct_old
+       (* why this is compared?
+          In Sem_frag_stmt, it is ensured that connection trees NOT related to tgt or src are not changed.
+          Here, we need to ensure that the connection tree of tgt is changed
+          and the connection tree of src remains the same. *)
+| _, _ => false
+end.
+
+Definition flip_ori (ori : HiF.forient) : HiF.forient :=
+match ori with
+| HiF.Sink => HiF.Source
+| HiF.Source => HiF.Sink
+| ori => ori
+end.
+
+Fixpoint invalidate (ct_old : CEP.t def_expr)
+                    (lst_tgt : list CEP.key) (ft_tgt : ftype)
+                    (ori : HiF.forient)
+                    (ct_new : CEP.t def_expr) : bool :=
+(* The predicate returns true if the correct connection trees are in ct_new
+   that set lst_tgt to D_invalidated.  Other connection trees are not checked.
+   The type of lst_tgt is ft_tgt.
+   This reference is *not* required to have passive types. *)
+match ft_tgt with
+| Gtyp gt_tgt => invalidate_fgtyp ct_old lst_tgt ori ct_new
+| Atyp elt_tgt n1 =>
+       let type_len := size_of_ftype elt_tgt in
+       [forall n : ordinal n1,
+          invalidate ct_old
+                  (take type_len (drop (n * type_len) lst_tgt)) elt_tgt
+                  ori ct_new]
+| Btyp ff_tgt => invalidate_fields ct_old lst_tgt ff_tgt ori ct_new
+end
+with invalidate_fields (ct_old : CEP.t def_expr)
+                       (lst_tgt : list CEP.key) (ft_tgt : ffield)
+                       (ori : HiF.forient)
+                       (ct_new : CEP.t def_expr) : bool :=
+(* The predicate returns true if the correct connection trees are in ct_new
+   that set lst_tgt to D_invalidated.  Other connection trees are not checked.
+   The type of lst_tgt is (Btyp ft_tgt).
+   This reference is *not* required to have passive types. *)
+match ft_tgt with
+| Fnil => true
+| Fflips v1 Nflip gtt ft =>
+       let type_len := size_of_ftype gtt in
+              invalidate ct_old (take type_len lst_tgt) gtt ori ct_new
+           &&
+              invalidate_fields ct_old (drop type_len lst_tgt) ft ori ct_new
+| Fflips v1 Flipped gtt ft =>
+       let type_len := size_of_ftype gtt in
+              invalidate ct_old (take type_len lst_tgt) gtt (flip_ori ori) ct_new
+           &&
+              invalidate_fields ct_old (drop type_len lst_tgt) ft ori ct_new
+end.
+
+Lemma invalidate_preserves_compatibility :
+forall (ct_old ct_new : CEP.t def_expr) (ft_tgt : ftype) (lst_tgt : seq CEP.key) (ori : HiF.forient) (v : CEP.key),
+invalidate ct_old lst_tgt ft_tgt ori ct_new ->
+    size_of_ftype ft_tgt = size lst_tgt ->
+    v \in lst_tgt ->
+        CEP.find v ct_old = None <-> CEP.find v ct_new = None
+with invalidate_preserves_compatibility_fields :
+forall (ct_old ct_new : CEP.t def_expr) (ff_tgt : ffield) (lst_tgt : seq CEP.key) (ori : HiF.forient) (v : CEP.key),
+invalidate_fields ct_old lst_tgt ff_tgt ori ct_new ->
+    size_of_fields ff_tgt = size lst_tgt ->
+    v \in lst_tgt ->
+        CEP.find v ct_old = None <-> CEP.find v ct_new = None.
+Proof.
+* clear invalidate_preserves_compatibility.
+  induction ft_tgt as [gt_tgt|ft'_tgt|ff_tgt] ; simpl connect ;
+  try (by done) ;
+  simpl size_of_ftype ; intros.
+  + (* Gtyp *)
+    simpl invalidate in H.
+    destruct lst_tgt as [|el_tgt [|]] ; try by done.
+    rewrite mem_seq1 in H1 ; move /eqP : H1 => H1 ; rewrite -H1 in H.
+    destruct ori ; try by discriminate H.
+    - move /eqP : H => H ; rewrite H //.
+    - 1,2: move /andP : H => [/eqP H4 /eqP H] ; rewrite H //.
+  + (* Atyp *)
+    specialize (IHft'_tgt).
+    simpl invalidate in H.
+    move /forallP : H => H.
+    assert (n <> 0).
+          by contradict H1 ; rewrite H1 muln0 in H0 ; symmetry in H0 ;
+               apply size0nil in H0 ; rewrite H0 in_nil //.
+    assert (size_of_ftype ft'_tgt <> 0).
+          by contradict H1 ; rewrite H1 mul0n in H0 ; symmetry in H0 ;
+               apply size0nil in H0 ; rewrite H0 in_nil //.
+    move /eqP : H3 => H3 ; apply negbTE in H3.
+    assert ((n-1).+1 = n)
+           by (rewrite subn1 ; apply prednK ; rewrite lt0n ;
+               move /eqP : H2 => H2 ; exact H2).
+    (* Now find out which array element contains v,
+       and then apply the induction hypothesis to this element. *)
+    assert (index v lst_tgt %/ size_of_ftype ft'_tgt < n)
+            by (rewrite -index_mem -H0 mulnC -ltn_divLR // in H1 ;
+                rewrite lt0n H3 //).
+    specialize (H (cast_ord H4 (inord (index v lst_tgt %/ size_of_ftype ft'_tgt)))) ;
+    simpl nat_of_ord in H ;
+    rewrite inordK in H ; last by rewrite H4 H5 //.
+    specialize (IHft'_tgt
+            (take (size_of_ftype ft'_tgt)
+                  (drop (index v lst_tgt %/ size_of_ftype ft'_tgt * size_of_ftype ft'_tgt)
+                        lst_tgt))
+            ori v H).
+    apply IHft'_tgt.
+    * rewrite size_takel ; first by reflexivity.
+      by rewrite size_drop -H0 -(mulnC n) -mulnBl -{1}(mul1n (size_of_ftype ft'_tgt))
+                 leq_mul2r H3 orFb subn_gt0 H5 //.
+    * rewrite in_take_leq ;
+              last by rewrite size_drop -H0 -(mulnC n) -mulnBl -{1}(mul1n (size_of_ftype ft'_tgt))
+                              leq_mul2r H3 orFb subn_gt0 H5 //.
+      assert (index v lst_tgt = (index v lst_tgt %/ size_of_ftype ft'_tgt *
+                         size_of_ftype ft'_tgt) + index v (drop
+                        (index v lst_tgt %/ size_of_ftype ft'_tgt *
+                         size_of_ftype ft'_tgt) lst_tgt)).
+              rewrite -{1}(cat_take_drop (index v lst_tgt %/ size_of_ftype ft'_tgt *
+                               size_of_ftype ft'_tgt) lst_tgt) index_cat.
+              destruct (v \in take
+                        (index v lst_tgt %/ size_of_ftype ft'_tgt *
+                         size_of_ftype ft'_tgt) lst_tgt) eqn: Hin_take ;
+                    first by (apply index_ltn in Hin_take ; rewrite ltnNge leq_trunc_div // in Hin_take).
+              rewrite Hin_take size_take -{1}H0 -(mulnC n) ltn_mul2r.
+              rewrite lt0n H3 andTb H5 //.
+      rewrite -(ltn_add2l (index v lst_tgt %/ size_of_ftype ft'_tgt * size_of_ftype ft'_tgt)) -H6.
+      rewrite {1}(divn_eq (index v lst_tgt) (size_of_ftype ft'_tgt)) ltn_add2l ltn_mod lt0n H3 //.
+  + (* Btyp *)
+    apply (invalidate_preserves_compatibility_fields ct_old ct_new ff_tgt lst_tgt ori) ;
+    by assumption.
+* clear invalidate_preserves_compatibility_fields.
+  induction ff_tgt as [|v_tgt flipped_tgt ft_tgt ff'_tgt] ; simpl connect_fields ;
+  try done ; try (by destruct flipped_tgt ; done) ;
+  simpl size_of_fields ; intros.
+  + (* Fnil *)
+    symmetry in H0.
+    apply size0nil in H0.
+    rewrite H0 in_nil in H1.
+    by discriminate H1.
+  + (* Fflips *)
+    simpl invalidate_fields in H.
+    (* Now find out whether v is in the first part of lst_tgt / lst_src,
+       and decide based on that whether to use connect_subdomain or IHff'_tgt *)
+    rewrite -(cat_take_drop (size_of_ftype ft_tgt) lst_tgt) mem_cat in H1.
+    move /orP : H1 => H1.
+    destruct H1 as [H1|H1] ;
+    destruct flipped_tgt ; try done.
+    - 1,2: move /andP : H => [H _] ;
+             specialize (invalidate_preserves_compatibility ct_old ct_new ft_tgt) with (v := v) (1 := H) (3 := H1) ;
+             apply invalidate_preserves_compatibility.
+      1,2: by rewrite size_takel // -H0 leq_addr //.
+    - 1,2: move /andP : H => [_ H] ;
+             specialize (IHff'_tgt) with (v := v) (1 := H) (3 := H1) ;
+             apply IHff'_tgt.
+      1,2: by rewrite size_drop -H0 addKn //.
+Qed.
+
 Fixpoint ftype_is_passive (ft : ftype) : bool :=
 (* returns true if ft is a passive type *)
 match ft with
@@ -2773,23 +2943,16 @@ Fixpoint Sem_frag_stmt (vm_old : CEP.t vertex_type) (ct_old : CEP.t def_expr) (s
               end
           | _ => False
           end
-   | Sinvalid ref =>
+   | Sinvalid ref_tgt =>
           CEP.Equal vm_old vm_new
        /\
-          match list_lhs_ref_p ref tmap with
-          | Some (input_list, (ft_ref, HiF.Sink))
-          | Some (input_list, (ft_ref, HiF.Duplex)) =>
-                 (forall n : nat,
-                      match List.nth_error input_list n with
-                      | Some ic =>
-                             CEP.find ic ct_old <> None
-                          /\ CEP.find ic ct_new = Some D_invalidated
-                      | None => True
-                      end)
-              /\
-                 forall v0 : CEP.key,
-                     if v0 \in input_list then True
-                     else CEP.find v0 ct_old = CEP.find v0 ct_new
+          match list_lhs_ref_p ref_tgt tmap with
+          | Some (lst_tgt, (ft_tgt, ori)) =>
+                     invalidate ct_old lst_tgt ft_tgt ori ct_new
+                  /\
+                     forall v0 : CEP.key,
+                        if (v0 \in lst_tgt) then True (* already checked in invalidate *)
+                        else CEP.find v0 ct_old = CEP.find v0 ct_new
           | _ => False
           end
    | Swire v _ =>
@@ -3292,7 +3455,7 @@ Proof.
     destruct h0.
     1-6: destruct H.
     1-6: split ;
-          first by (intro ; rewrite H ; destruct (CEP.find k vm_new) ; done).
+          first by (apply CEP.Lemmas.Equal_submap, H).
     1-6: generalize (list_lhs_ref_p_size tmap h) ; intro.
     1-6: destruct (list_lhs_ref_p h tmap) as [[input_list [ft_ref []]]|] ; try by done.
     1,2: destruct (type_of_expr (Econst ProdVarOrder.T f b) tmap)
@@ -3376,32 +3539,27 @@ Proof.
            by contradict H7 ; apply H, H7.
   + (* Sinvalid *)
     destruct H.
-    split ; first by (intro ; rewrite H ; destruct (CEP.find k vm_new) ; done).
+    split ; first by (apply CEP.Lemmas.Equal_submap, H).
     generalize (list_lhs_ref_p_size tmap h) ; intro.
     generalize (list_lhs_ref_p_type tmap h) ; intro.
-    destruct (list_lhs_ref_p h tmap) as [[input_list [ft_tgt []]]|] ; try by contradiction H0.
-    1-2: destruct H0 as [H0 H3].
-    1-2: split ; intro ; last (intro k ; specialize (H k) ; rewrite -H ; specialize (H4 k)).
-    1-4: clear vm_new H.
-    1-4: specialize (H3 k).
-    1-4: destruct (k \in input_list) eqn: Hv ; rewrite Hv in H3 ;
-          last by (rewrite -H3 ; destruct (CEP.find k ct_old) ; done).
-    1-4: specialize (H0 (index k input_list)).
-    1-4: generalize (nth_index k Hv) ; intro.
-    1-4: rewrite -index_mem in Hv.
-    1-4: move /ltP : Hv => Hv.
-    1-4: destruct (List.nth_error input_list (index k input_list)) eqn: Hi ;
-          last by (apply List.nth_error_Some in Hv ;
-                   rewrite Hi // in Hv).
-    1-4: apply List.nth_error_nth with (d := k) in Hi.
-    1-4: replace k0 with k in H0 ;
-               last by (clear -Hi H ;
-                   induction input_list ; simpl in Hi ; first (by rewrite Hi //) ;
-                   simpl in H ; destruct (a == k) ; first (by simpl nth in H ; rewrite -Hi -H //) ;
-                   simpl nth in H ; apply IHinput_list ; assumption).
-    1-4: rewrite (proj2 H0) //.
-    1-2: destruct (CEP.find k vm_old) as [[]|]; try (by done) ;
-         rewrite H4 in H0 ; contradiction (proj1 H0) ; reflexivity.
+    destruct (list_lhs_ref_p h tmap) as [[lst_tgt [ft_tgt ori]]|] eqn: Hhhh ;
+          last (by contradiction H0).
+    destruct H0 as [H0 H6].
+    (*apply connect_type_compatible_size in H1.*)
+    (*rewrite H1 -H4 in H2. ?? *)
+    split ; intro ; last (intro k ; specialize (H k) ; specialize (H3 k) ; rewrite -H).
+    1,2: clear H vm_new.
+    1,2: specialize (H6 k).
+    1,2: destruct (k \in lst_tgt) eqn: Hv ; rewrite Hv in H6 ;
+         last by (rewrite -H6 ; destruct (CEP.find k ct_old) ; done).
+    1,2: clear H6.
+    1,2: symmetry in H1.
+    1,2: generalize (invalidate_preserves_compatibility ct_old ct_new ft_tgt
+                     lst_tgt ori k H0 H1 Hv) ; intro.
+    - destruct (CEP.find k ct_new) ; first (by done) ;
+               by apply H ; reflexivity.
+    - destruct (CEP.find k vm_old) as [[]|] ; try apply H, H3 ;
+           by contradict H3 ; apply H, H3.
   + (* Swhen *)
     rename h into cond ; rename h0 into ss_true ; rename h1 into ss_false.
     destruct (type_of_expr cond tmap) as [[[[[|[|]]| | | | | |]| |] _]|] ; try by contradiction H.
