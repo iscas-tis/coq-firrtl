@@ -2469,8 +2469,10 @@ Module  MakeHiFirrtlP
   Definition mem_typ t := @Mem_typ V.T t.
   Definition unknown_typ := @Unknown_typ V.T.
 
+  Definition r_fexpr e := @R_fexpr V.T e.
+    
   Definition def_ftype := Gtyp (Fuint 0).
-
+  
   (* type of mux expression *)
   Fixpoint mux_types' (t1 : ftype) (p1 : ftype_not_implicit_width t1) (t2 : ftype) (p2 : ftype_not_implicit_width t2) : option ftype_explicit :=
       match t1, p1, t2, p2 with
@@ -2679,6 +2681,73 @@ Module  MakeHiFirrtlP
          | Fflips v f tv fs => is_deftyp tv || (is_deftyp_f fs)
          end.
 
+  
+  (****** Oriented type ******)
+  Inductive forient : Type :=
+  | Source | Sink | Duplex | Passive | Other.
+
+  (** eq dec *)
+  Lemma forient_eq_dec : forall {x y : forient}, {x = y} + {x <> y}.
+  Proof. decide equality. Qed.
+  Definition forient_eqn (x y : forient) : bool :=
+  match x, y with Source, Source | Sink, Sink | Duplex, Duplex | Passive, Passive | Other, Other => true
+                | _, _ => false end.
+  Lemma forient_eqP : Equality.axiom forient_eqn.
+  Proof. unfold Equality.axiom, forient_eqn. induction x, y ; try (apply ReflectF ; discriminate) ; try (apply ReflectT ; reflexivity). Qed.
+  Canonical forient_eqMixin := EqMixin forient_eqP.
+  Canonical forient_eqType := Eval hnf in EqType forient forient_eqMixin.
+
+  Definition orient_of_comp c :=
+    match c with
+    | In_port | Instanceof | Memory | Node => Source
+    (* DNJ: Not sure whether a memory should be a source. It is written like that
+    in the specificiation, but actually the data type of a memory port is a bundle
+    defined as a sink (with some fields flipped). *)
+    | Out_port => Sink
+    | Register | Wire => Duplex
+    | Fmodule => Other
+    end.
+
+  Definition valid_lhs_orient o :=
+    match o with
+    | Sink | Duplex => true
+    | _ => false
+    end.
+
+  Definition valid_rhs_orient o :=
+    match o with
+    | Source | Duplex | Passive => true
+    | _ => false
+    end.
+
+  (* rhs expr has right orient *)
+  Fixpoint valid_rhs_ref (e : href) (ce : pcenv) :=
+    match e with
+    | Eid r => valid_rhs_orient (orient_of_comp (snd (PCE.vtyp r ce)))
+    | Esubfield r _ => valid_rhs_ref r ce
+    (* DNJ: Subfields can be flipped. So one needs to check with the data type of r *)
+    | Esubindex r _ => valid_rhs_ref r ce
+    | Esubaccess r _ => valid_rhs_ref r ce
+    end.
+
+  Fixpoint valid_rhs_fexpr (e : hfexpr) (ce : pcenv) :=
+    match e with
+    | Econst _ _ => true
+    | Eref r => valid_rhs_ref r ce
+    | Ecast _ _ => true (* TODO: This looks incomplete *)
+    | Eprim_binop _ _ _ => true
+    | Eprim_unop _ _ => true
+    (* DNJ: The arguments of a multiplexer or a validif need to be passive. *)
+    | Emux _ e1 e2 => valid_rhs_fexpr e1 ce && (valid_rhs_fexpr e2 ce)
+    | Evalidif _ e => valid_rhs_fexpr e ce
+    end.
+
+  Definition valid_rhs (re : rhs_expr) (ce : pcenv) : bool :=
+    match re with
+    | R_default' => true
+    | R_invalid t => true
+    | R_cnct e => valid_rhs_fexpr e ce
+    end.
   
 End MakeHiFirrtlP.
 
