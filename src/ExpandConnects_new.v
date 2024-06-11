@@ -3,8 +3,7 @@ From mathcomp Require Import ssreflect ssrbool ssrnat ssrint eqtype seq ssrfun f
 From simplssrlib Require Import Types SsrOrder FSets FMaps Tactics Var Store.
 (*From nbits Require Import NBits.*)
 From firrtl Require Import Firrtl Env HiEnv HiFirrtl .
-
-
+From firrtl Require Import InferWidth_rewritten.
 (* (*Set Printing Universes.*) *)
 (* Variable E : nat -> Type. *)
 (* Variable A : forall i :nat, E i. Check (A 1). *)
@@ -1068,11 +1067,7 @@ end.
 (** Pass ExpandConnect *)
 Section ExpandConnectsP.
 
-
 (* use type of expressions, returns optional ftype (from inferwidth_rewritten by ky) *)
-
-From firrtl Require Import InferWidth_rewritten.
-  
 
   Fixpoint ftype_list_all (ft : ftype) (l : list ftype) : list ftype :=
     match ft with
@@ -1362,26 +1357,29 @@ From firrtl Require Import InferWidth_rewritten.
     end.
 
   (* Expand invalid *)
-  Fixpoint expand_invalid_aux (r : pvar) (sz : nat) (cnt : nat) (ce : ft_pmap) (rs : HiFP.hfstmt_seq) : HiFP.hfstmt_seq :=
+  Fixpoint expand_invalid_aux (r : pvar) (sz : nat) (cnt : nat) (mt : ft_flp_pmap) (rs : HiFP.hfstmt_seq) : HiFP.hfstmt_seq :=
     match sz with
     | 0 => rs
-    | S n => match (ft_find (r.1, (r.2 + N.of_nat cnt)%num) ce) with
-             | Some t => if is_gtyp t
-                              then expand_invalid_aux r n (cnt.+1) ce (Qrcons rs (HiFP.sinvalid (HiFP.eid (r.1, r.2 + N.of_nat cnt)%num)))
-                              else expand_invalid_aux r n (cnt.+1) ce rs
+    | S n => match (ft_find (r.1, (r.2 + N.of_nat cnt)%num) mt) with
+             | Some (t, _, b) =>
+                 if is_gtyp t then
+                   if b then
+                     expand_invalid_aux r n (cnt.+1) mt (Qrcons rs (HiFP.sinvalid (HiFP.eid (r.1, r.2 + N.of_nat cnt)%num)))
+                   else expand_invalid_aux r n (cnt.+1) mt rs
+                 else expand_invalid_aux r n (cnt.+1) mt rs
              | None => rs
              end                                              
     end.
 
-  Definition expand_invalid (r : pvar) ce l : HiFP.hfstmt_seq :=
-    match ft_find r ce with
+  Definition expand_invalid (r : pvar) mt l : HiFP.hfstmt_seq :=
+    match ft_find r mt with
     | None => l
-    | Some t =>
+    | Some (t, _, _) =>
       let ts := ftype_list_all t nil in
       let sz := size ts in
-      expand_invalid_aux r sz 0 ce l
+      expand_invalid_aux r sz 0 mt l
     end.
-  
+
   (* Expand wires *)
   Fixpoint expand_wire_aux (r : pvar) (sz : nat) (cnt : nat) (ce : ft_pmap) (rs : HiFP.hfstmt_seq) : HiFP.hfstmt_seq :=
     match sz with
@@ -1465,9 +1463,9 @@ From firrtl Require Import InferWidth_rewritten.
     | Swire v t => expand_wire v t ce sts
     | Sreg v r => expand_reg v r ce sts
     | Smem _ _ =>Qrcons sts s
-    | Sinvalid (Eid v) => expand_invalid v ce sts
+    | Sinvalid (Eid v) => expand_invalid v mt sts
     | Sinvalid _ => Qrcons sts s
-    | Sinst _ _=>Qrcons sts s
+    | Sinst _ _=> Qrcons sts s
     | Snode v e => expand_node v e ce sts
     | Sfcnct (Eid r1) e2 =>
         match (ft_find r1 ce), (ft_find r1 ce) with
@@ -1671,17 +1669,27 @@ Compute (expandconnects_fmodule test_flip_module (rcd_pmap_from_m test_flip_modu
  Definition test_module12 := HiFP.hfinmod (101%num,0%num) test_ports12 test_sts12.
  
  Compute (expandconnects_fmodule test_module12 (rcd_pmap_from_m test_module12 ft_pmap_empty)).
+
+ Definition test_sts13 :=  
+   (HiFP.qcons (HiFP.sinvalid (HiFP.eid (11%num,0%num)))
+      HiFP.qnil).
+ Definition test_ports13 := [:: HiFP.hinport (11%num, 0%num) (Btyp (Fflips (1%num) Nflip (Gtyp (Fuint 1)) (Fflips (2%num) Flipped (Gtyp (Fuint 1)) Fnil)))].
+ Definition test_ports_map13 := rcd_pmap_from_ps test_ports13 ft_pmap_empty.
+
+ Definition test_module13 := HiFP.hfinmod (101%num,0%num) test_ports13 test_sts13.
+ 
+ Compute (expandconnects_fmodule test_module13 (rcd_pmap_from_m test_module12 ft_pmap_empty)).
  
 End ExpandConnectsP.
 (* (vm_old : module_graph_vertex_set_p.env) (ct_old : module_graph_connection_trees_p.env) (s : HiFP.hfstmt) (vm_new : module_graph_vertex_set_p.env) (ct_new : module_graph_connection_trees_p.env) (tmap : ft_pmap) *)
   
-(*   Lemma ExpandConnects_skip_correct : *)
-(*     forall vm_old ct_old vm_new ct_new tmap tfmap ss0, *)
-(*       Sem_frag_stmts vm_old ct_old (expandconnects_stmt_ft_pmap HiFP.sskip tmap tfmap ss0) vm_new ct_new tmap -> *)
-(*       Sem_frag_stmts vm_old ct_old (Qrcons ss0 HiFP.sskip) vm_new ct_new tmap. *)
-(*   Proof. *)
-(*     rewrite /=//. *)
-(*   Qed. *)
+  Lemma ExpandConnects_skip_correct :
+    forall vm_old ct_old vm_new ct_new tmap tfmap ss0,
+      Sem_frag_stmts vm_old ct_old (expandconnects_stmt_ft_pmap HiFP.sskip tmap tfmap ss0) vm_new ct_new tmap ->
+      Sem_frag_stmts vm_old ct_old (Qrcons ss0 HiFP.sskip) vm_new ct_new tmap.
+  Proof.
+    rewrite /=//.
+  Qed.
 
 (*   Lemma expand_fcnct_rcons : *)
 (*     forall v1 sz1 v2 sz2 ofs1 ofs2 tm ss0 tfm ss, *)
