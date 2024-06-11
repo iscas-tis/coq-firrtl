@@ -354,7 +354,7 @@ int & ::= & [\mbox{\tt ``-''}] d \{d\} \mid \mbox{\tt ``"b''} [\mbox{\tt ``-''}]
 \end{figure}
 \end{comment}
 
-According to the syntax, FIRRTL features high-level constructs like vector types, bundle types, conditional statements, connects, partial connects, and modules.
+According to the syntax, FIRRTL features high-level constructs such as vector types, bundle types, conditional statements, connects, partial connects, and modules.
 These high-level constructs are then gradually removed by a sequence of lowering transformations. During each lowering transformation, the circuit is rewritten into an equivalent circuit using simpler, lower-level
 constructs. Eventually the circuit is simplified to its most restricted form, resembling a structured netlist,
 which allows for easy translation to an output language (e.g. Verilog).
@@ -421,7 +421,8 @@ t & ::= & tg \\
 \caption{Syntax of LoFIRRTL (Rules that are identical to those in Figure~\ref{fig-firrtl-synt-simp} are not repeated)}
 \label{fig-lofirrtl-synt}
 \end{figure}
-%
+
+
 Note that in Figure~\ref{fig-lofirrtl-synt}, the rules for $f$, $id$, $op$ are the same as those in Figure~\ref{fig-firrtl-synt-simp}, thus omitted to avoid tediousness.
 In a nutshell, the syntactic rules in Figure~\ref{fig-lofirrtl-synt} are obtained from those in Figure~\ref{fig-firrtl-synt-simp} by replacing $[w]$ with $w$ (so that the width becomes mandatory),
 removing the \prettyll{when} statement and the partial connect statement (\prettyll{<-}) from the rule for $s$,
