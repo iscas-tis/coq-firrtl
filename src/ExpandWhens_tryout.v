@@ -178,19 +178,18 @@ Fixpoint ExpandBranches_funs
        statements) into a sequence that defines components and a
        connection map.  The output does not contain when statements. *)
     (ss           : HiFP.hfstmt_seq)   (* sequence of statements being translated *)
-    (old_comp_ss  : HiFP.hfstmt_seq)   (* component statements of earlier statements in the sequence (used for recursion) *)
     (old_conn_map : CEP.t def_expr)    (* connections made by earlier statements in the sequence (used for recursion) *)
     (old_scope    : CEP.t (ftype * HiF.forient)) (* part of module graph vertices that is currently in scope *)
-:   option (HiFP.hfstmt_seq * CEP.t def_expr * CEP.t (ftype * HiF.forient))
+:   option (CEP.t def_expr * CEP.t (ftype * HiF.forient))
     (* old_comp_ss, extended with the component statements in ss,
        old_conn_map, extended with the connection statements in ss,
        and old_scope, extended with the component statements in ss that remain in scope *)
 :=  match ss with
-    | Qnil => Some (old_comp_ss, old_conn_map, old_scope)
+    | Qnil => Some (old_conn_map, old_scope)
     | Qcons s ss =>
-        match ExpandBranch_fun s old_comp_ss old_conn_map old_scope with
-        | Some (temp_comp_ss, temp_conn_map, temp_scope) =>
-            ExpandBranches_funs ss temp_comp_ss temp_conn_map temp_scope
+        match ExpandBranch_fun s old_conn_map old_scope with
+        | Some (temp_conn_map, temp_scope) =>
+            ExpandBranches_funs ss temp_conn_map temp_scope
         | None => None
         end
     end
@@ -199,23 +198,22 @@ with ExpandBranch_fun
        statement) into a sequence that defines components and a
        connection map.  The output does not contain when statements. *)
     (s            : HiFP.hfstmt)       (* a single statement being translated *)
-    (old_comp_ss  : HiFP.hfstmt_seq)   (* component statements of earlier statements in the sequence (used for recursion) *)
     (old_conn_map : CEP.t def_expr)    (* connections made by earlier statements in the sequence (used for recursion) *)
     (old_scope    : CEP.t (ftype * HiF.forient)) (* part of module graph vertices that is currently in scope *)
-:   option (HiFP.hfstmt_seq * CEP.t def_expr * CEP.t (ftype * HiF.forient))
+:   option (CEP.t def_expr * CEP.t (ftype * HiF.forient))
     (* old_comp_ss, extended with the component statements in s,
        old_conn_map, extended with the connection statements in s,
        and old_scope, extended with the component statements in s that remain in scope *)
 :=  match s with
-    | Sskip => Some (old_comp_ss, old_conn_map, old_scope)
+    | Sskip => Some (old_conn_map, old_scope)
     | Swire var ft =>
         match CEP.find var old_scope with
-        | None => Some (Qrcons old_comp_ss s, CEP.add var D_undefined old_conn_map, CEP.add var (ft, HiF.Duplex) old_scope)
+        | None => Some (CEP.add var D_undefined old_conn_map, CEP.add var (ft, HiF.Duplex) old_scope)
         | Some _ => None
         end
     | Sreg var reg =>
         match CEP.find var old_scope with
-        | None => Some (Qrcons old_comp_ss s, CEP.add var (D_fexpr (Eref (Eid var))) old_conn_map, CEP.add var ((type reg), HiF.Duplex) old_scope)
+        | None => Some (CEP.add var (D_fexpr (Eref (Eid var))) old_conn_map, CEP.add var ((type reg), HiF.Duplex) old_scope)
         | Some _ => None
         end
     | Smem var mem => None
@@ -223,7 +221,7 @@ with ExpandBranch_fun
     | Snode var expr =>
         match CEP.find var old_scope, type_of_expr expr old_scope with
         | None, Some (exist ft _) =>
-            Some (Qrcons old_comp_ss s, old_conn_map, CEP.add var (ft, HiF.Source) old_scope)
+            Some (old_conn_map, CEP.add var (ft, HiF.Source) old_scope)
         | _, _ => None
         end
     | Sfcnct (Eid var) expr =>
@@ -235,7 +233,7 @@ with ExpandBranch_fun
             match type_of_expr expr old_scope with
             | Some (exist (Gtyp gt_expr) _) =>
                 if connect_type_compatible false (Gtyp gt_ref) (Gtyp gt_expr) false
-                then Some (old_comp_ss, CEP.add var (D_fexpr expr) old_conn_map, old_scope)
+                then Some (CEP.add var (D_fexpr expr) old_conn_map, old_scope)
                 else None
             | _ => None
             end
@@ -244,15 +242,15 @@ with ExpandBranch_fun
     | Sinvalid (Eid var) =>
         match type_of_ref (Eid var) old_scope with
         | Some (_, HiF.Duplex) | Some (_, HiF.Sink) =>
-            Some (old_comp_ss, CEP.add var D_invalidated old_conn_map, old_scope)
+            Some (CEP.add var D_invalidated old_conn_map, old_scope)
         | _ => None
         end
     | Swhen cond ss_true ss_false =>
-        match type_of_expr cond old_scope, ExpandBranches_funs ss_true old_comp_ss old_conn_map old_scope with
-        | Some (exist (Gtyp (Fuint 1)) _), Some (true_comp_ss, true_conn_map, _) =>
-            match ExpandBranches_funs ss_false true_comp_ss old_conn_map old_scope with
-            | Some (false_comp_ss, false_conn_map, _) =>
-                Some (false_comp_ss, combine_when_connections cond true_conn_map false_conn_map, old_scope)
+        match type_of_expr cond old_scope, ExpandBranches_funs ss_true old_conn_map old_scope with
+        | Some (exist (Gtyp (Fuint 1)) _), Some (true_conn_map, _) =>
+            match ExpandBranches_funs ss_false old_conn_map old_scope with
+            | Some (false_conn_map, _) =>
+                Some (combine_when_connections cond true_conn_map false_conn_map, old_scope)
             | _ => None
             end
         | _, _ => None
@@ -261,22 +259,18 @@ with ExpandBranch_fun
     end.
 
 Lemma ExpandBranch_fun_submap :
-forall (s : HiFP.hfstmt) (old_comp_ss : HiFP.hfstmt_seq) (old_conn_map : CEP.t def_expr) (old_scope : CEP.t (ftype * HiF.forient)),
-    match ExpandBranch_fun s old_comp_ss old_conn_map old_scope with
-    | Some (new_comp_ss, new_conn_map, new_scope) =>
-            new_comp_ss = Qcat old_comp_ss (component_stmt_of s)
-        /\
+forall (s : HiFP.hfstmt) (old_conn_map : CEP.t def_expr) (old_scope : CEP.t (ftype * HiF.forient)),
+    match ExpandBranch_fun s old_conn_map old_scope with
+    | Some (new_conn_map, new_scope) =>
             subdomain old_conn_map new_conn_map
         /\
             CEP.submap old_scope new_scope
     | None => True
     end
 with ExpandBranches_funs_submap :
-forall (ss : HiFP.hfstmt_seq) (old_comp_ss : HiFP.hfstmt_seq) (old_conn_map : CEP.t def_expr) (old_scope : CEP.t (ftype * HiF.forient)),
-    match ExpandBranches_funs ss old_comp_ss old_conn_map old_scope with
-    | Some (new_comp_ss, new_conn_map, new_scope) =>
-            new_comp_ss = Qcat old_comp_ss (component_stmts_of ss)
-        /\
+forall (ss : HiFP.hfstmt_seq) (old_conn_map : CEP.t def_expr) (old_scope : CEP.t (ftype * HiF.forient)),
+    match ExpandBranches_funs ss old_conn_map old_scope with
+    | Some (new_conn_map, new_scope) =>
             subdomain old_conn_map new_conn_map
         /\
             CEP.submap old_scope new_scope
@@ -290,21 +284,15 @@ Proof.
         simpl ; intros.
   + (* Sskip *)
     split.
-    - rewrite Qcats0 //.
-    split.
     - apply subdomain_refl.
     - apply CEP.Lemmas.submap_refl.
   + (* Swire *)
     destruct (CEP.find var old_scope) eqn: Hvar ; first by trivial.
     split.
-    - rewrite -Qcats1 //.
-    split.
     - apply subdomain_add.
     - apply (CEP.Lemmas.submap_none_add _ (CEP.Lemmas.submap_refl _)), Hvar.
   + (* Sreg *)
     destruct (CEP.find var old_scope) eqn: Hvar ; first by trivial.
-    split.
-    - rewrite -Qcats1 //.
     split.
     - apply subdomain_add.
     - apply (CEP.Lemmas.submap_none_add _ (CEP.Lemmas.submap_refl _)), Hvar.
@@ -315,8 +303,6 @@ Proof.
   + (* Snode *)
     destruct (CEP.find var old_scope) eqn: Hvar ; first by trivial.
     destruct (type_of_expr expr old_scope) as [[ft p]|] eqn: Hexpr ; last by trivial.
-    split.
-    - rewrite -Qcats1 //.
     split.
     - apply subdomain_refl.
     - apply (CEP.Lemmas.submap_none_add _ (CEP.Lemmas.submap_refl _)), Hvar.
@@ -333,28 +319,24 @@ Proof.
                    | Freset => false
                    | Fasyncreset => match f0 with | Fasyncreset => true | _ => false end
                    end) ; try by trivial.
-    1,2: split ; first by rewrite Qcats0 //.
     1,2: split ; first by apply subdomain_add.
     1,2: by apply CEP.Lemmas.submap_refl.
   + (* Sinvalid *)
     destruct ref as [var| | |] ; try by trivial.
     destruct (CEP.find var old_scope) as [[_ [| | | |]]|] ; try by trivial.
-    1,2: split ; first by rewrite Qcats0 //.
     1,2: split ; first by apply subdomain_add.
     1,2: by apply CEP.Lemmas.submap_refl.
   + (* Swhen *)
     destruct (type_of_expr cond old_scope) as [[[[[|[|]]| | | | | |]| |] _]|] ; try by trivial.
-    generalize (IHss sst old_comp_ss old_conn_map old_scope) ; intro IHsst.
-    destruct (ExpandBranches_funs sst old_comp_ss old_conn_map old_scope) as [[[true_comp_ss true_conn_map] true_scope]|] ; last by trivial.
-    specialize (IHss ssf true_comp_ss old_conn_map old_scope) ; rename IHss into IHssf.
-    destruct (ExpandBranches_funs ssf true_comp_ss old_conn_map old_scope) as [[[false_comp_ss false_conn_map] false_scope]|] ; last by trivial.
-    split.
-    - rewrite (proj1 IHssf) (proj1 IHsst) Qcat_assoc //.
+    generalize (IHss sst old_conn_map old_scope) ; intro IHsst.
+    destruct (ExpandBranches_funs sst old_conn_map old_scope) as [[true_conn_map true_scope]|] ; last by trivial.
+    specialize (IHss ssf old_conn_map old_scope) ; rename IHss into IHssf.
+    destruct (ExpandBranches_funs ssf old_conn_map old_scope) as [[false_conn_map false_scope]|] ; last by trivial.
     split.
     - intro.
       rewrite /combine_when_connections CEP.Lemmas.map2_1bis //.
-      destruct IHsst as [_ [IHsst _]] ; specialize (IHsst k).
-      destruct IHssf as [_ [IHssf _]] ; specialize (IHssf k).
+      destruct IHsst as [IHsst _] ; specialize (IHsst k).
+      destruct IHssf as [IHssf _] ; specialize (IHssf k).
       destruct (CEP.find k true_conn_map) as [[]|], (CEP.find k false_conn_map) as [[]|] ;
             try by done.
       destruct (h == h0) ; done.
@@ -364,20 +346,16 @@ Proof.
   induction ss as [|s ss] ; simpl ; intros.
   + (* Qnil *)
     split.
-    - rewrite Qcats0 //.
-    split.
     - apply subdomain_refl.
     - apply CEP.Lemmas.submap_refl.
   + (* Qcons *)
-    specialize (IHs s old_comp_ss old_conn_map old_scope).
-    destruct (ExpandBranch_fun s old_comp_ss old_conn_map old_scope) as [[[temp_comp_ss temp_conn_map] temp_scope]|] ; last by trivial.
-    specialize (IHss temp_comp_ss temp_conn_map temp_scope).
-    destruct (ExpandBranches_funs ss temp_comp_ss temp_conn_map temp_scope) as [[[new_comp_ss new_conn_map] new_scope]|] ; last by trivial.
+    specialize (IHs s old_conn_map old_scope).
+    destruct (ExpandBranch_fun s old_conn_map old_scope) as [[temp_conn_map temp_scope]|] ; last by trivial.
+    specialize (IHss temp_conn_map temp_scope).
+    destruct (ExpandBranches_funs ss temp_conn_map temp_scope) as [[new_conn_map new_scope]|] ; last by trivial.
     split.
-    + rewrite (proj1 IHss) (proj1 IHs) Qcat_assoc //.
-    split.
-    + apply (subdomain_trans _ _ _ (proj1 (proj2 IHs))), IHss.
-    + apply (CEP.Lemmas.submap_trans (proj2 (proj2 IHs))), IHss.
+    + apply (subdomain_trans _ _ _ (proj1 IHs)), IHss.
+    + apply (CEP.Lemmas.submap_trans (proj2 IHs)), IHss.
 Qed.
 
 Definition convert_to_connect_stmt
@@ -854,14 +832,231 @@ Proof.
   destruct (stmts_tmap (tmap', scope') ss vm) as [[tmap'' _]|] ; by done.
 Qed.
 
+(* We use the following maps to describe the graph and its values:
+old_scope : CEP.t (ftype * HiF.forient) -- assigns a type to every assignable/usable component
+old_connmap : CEP.t def_expr -- contains new connections
+old_ct : CEP.t def_expr -- contains a value for every assignable component
+old_vm : CEP.t vertex_type -- contains the components in the current graph
+old_tmap : CEP.t (ftype * HiF.forient) -- contains all components in the final graph
+
+Relations between the maps are:
+- scope_sub_connmap scope connmap: connmap assigns to each Sink/Duplex in scope, and the types fit
+- connmap_sub_ct connmap ct: connmap is a subdomain of ct, and the types fit
+- ct_sub_vm ct vm: ct assigns a value exactly to every assignable component
+- vm_sub_tmap vm tmap: tmap types every component in vm correctly
+
+Type correctness is judged according to type_of_expr expr tmap
+
+(Additionally, old_comp contains exactly the definitions of components in vm.)
+*)
+
+Definition scope_sub_connmap
+    (* checks whether the scope and connmap fit together:
+       connmap contains a value for everything in scope (may be undefined),
+       and types are correct *)
+    (scope : CEP.t (ftype * HiF.forient))
+    (connmap : CEP.t def_expr)
+    (tmap : CEP.t (ftype * HiF.forient)) (* tmap is used to check types *)
+:   Prop
+:=  forall k : CEP.key,
+        match CEP.find k scope with
+        | Some (ft_tgt, HiF.Sink) | Some (ft_tgt, HiF.Duplex) =>
+            match CEP.find k connmap with
+            | None => False
+            | Some (D_fexpr expr) =>
+                match type_of_expr expr tmap with
+                | Some (exist ft_src _) => connect_type_compatible false ft_tgt ft_src false
+                | _ => False
+                end
+            | _ => True
+            end
+        | _ => True
+        end.
+
+Definition connmap_sub_ct
+    (* check whether the connmap and ct fit together:
+       connmap does not assign anything to components outside ct.
+       It is not necessary to check the types because the other parts of all_fit_together will ensure that. *)
+    (connmap : CEP.t def_expr)
+    (ct : CEP.t def_expr)
+:   Prop
+:=  forall k : CEP.key,
+        match CEP.find k connmap, CEP.find k ct with
+        | Some _, None => False
+        | _, _ => True
+        end.
+
+Definition ct_sub_vm
+    (* check whether the ct/edges and vm/vertices of the module graph fit together:
+       ct assigns a value exactly to every writable component in vm,
+       and types are correct *)
+    (ct : CEP.t def_expr)
+    (vm : CEP.t vertex_type)
+    (tmap : CEP.t (ftype * HiF.forient))
+:   Prop
+:=  forall k : CEP.key,
+        match CEP.find k ct, CEP.find k vm with
+        | Some (D_fexpr expr), Some (OutPort gt)
+        | Some (D_fexpr expr), Some (Register gt _ _ _)
+        | Some (D_fexpr expr), Some (Wire gt) =>
+            match type_of_expr expr tmap with
+            | Some (exist (Gtyp gt_expr) _) => connect_type_compatible false (Gtyp gt) (Gtyp gt_expr) false
+            | _ => False
+            end
+        | Some _, Some (OutPort _)
+        | Some _, Some (Register _ _ _ _)
+        | Some _, Some (Wire _)
+        | None, Some (InPort _)
+        | None, Some (Node _)
+        | None, None => True
+        | _, _ => False
+        end.
+
+Definition vm_sub_tmap
+    (* check whether the vm/vertices of the module graph and the tmap fit together:
+       tmap defines their types and orientation correctly *)
+    (vm : CEP.t vertex_type)
+    (tmap : CEP.t (ftype * HiF.forient))
+:   Prop
+:=  forall k : CEP.key,
+        match CEP.find k vm with
+        | Some (OutPort  gt      ) => CEP.find k tmap = Some (Gtyp gt, HiF.Sink)
+        | Some (InPort   gt      )
+        | Some (Node     gt      ) => CEP.find k tmap = Some (Gtyp gt, HiF.Source)
+        | Some (Register gt _ _ _)
+        | Some (Wire     gt      ) => CEP.find k tmap = Some (Gtyp gt, HiF.Duplex)
+        | None => True
+        end.
+
+Definition scope_sub_vm
+    (* checks whether scope and vm fit together. This separate check is required
+       because connmap and ct do not preserve information about read-only components. *)
+    (scope : CEP.t (ftype * HiF.forient))
+    (vm : CEP.t vertex_type)
+:   Prop
+:=  forall k : CEP.key,
+        match CEP.find k scope, CEP.find k vm with
+        | Some (ft, HiF.Source), Some (Node     gt      )
+        | Some (ft, HiF.Source), Some (InPort   gt      )
+        | Some (ft, HiF.Sink  ), Some (OutPort  gt      )
+        | Some (ft, HiF.Duplex), Some (Register gt _ _ _)
+        | Some (ft, HiF.Duplex), Some (Wire     gt      ) =>
+            ft = Gtyp gt
+        | Some _, _ => False
+        | None, _ => True
+        end.
+
+Definition connmap_sub_tm
+    (* checks whether the connmap and tmap fit together.
+       We could alternatively check whether connmap and vm fit together,
+       but in Lemma ExpandBranch_fun_and_stmt_tmap this definition is more suitable. *)
+    (connmap : CEP.t def_expr)
+    (tmap : CEP.t (ftype * HiF.forient))
+:   Prop
+:=  forall k : CEP.key,
+        match CEP.find k connmap with
+        | Some (D_fexpr expr) =>
+            match type_of_expr expr tmap, CEP.find k tmap with
+            | Some (exist (Gtyp gt_expr) _), Some (Gtyp gt_ref, HiF.Sink)
+            | Some (exist (Gtyp gt_expr) _), Some (Gtyp gt_ref, HiF.Duplex) =>
+                connect_type_compatible false (Gtyp gt_ref) (Gtyp gt_expr) false
+            | _, _ => False
+            end
+        | Some _ =>
+            match CEP.find k tmap with
+            | Some (_, HiF.Sink)
+            | Some (_, HiF.Duplex) => True
+            | _ => False
+            end
+        | None => True
+        end.
+
+Definition all_fit_together
+    (scope : CEP.t (ftype * HiF.forient)) (* type and orientation of components in the scope *)
+    (connmap : CEP.t def_expr) (* connection map, i.e. map containing information about Sfncnt / Sinvalid *)
+    (ct : CEP.t def_expr) (* edges of the module graph *)
+    (vm : CEP.t vertex_type) (* vertices of the module graph *)
+    (tmap : CEP.t (ftype * HiF.forient)) (* type and orientation of all components (for namespace checks) *)
+:   Prop
+:=      scope_sub_connmap scope connmap tmap
+    /\
+        connmap_sub_ct connmap ct
+    /\
+        ct_sub_vm ct vm tmap
+    /\
+        vm_sub_tmap vm tmap
+    /\
+        scope_sub_vm scope vm
+    /\
+        connmap_sub_tm connmap tmap.
+
+Lemma aft_connmap_fits_ct_type :
+forall (scope : CEP.t (ftype * HiF.forient)) (connmap : CEP.t def_expr)
+       (ct : CEP.t def_expr) (vm : CEP.t vertex_type) (tmap : CEP.t (ftype * HiF.forient)),
+        all_fit_together scope connmap ct vm tmap
+    ->
+        forall k : CEP.key,
+            match CEP.find k connmap, CEP.find k ct with
+            | Some (D_fexpr cm_expr), Some (D_fexpr ct_expr) =>
+                match type_of_expr cm_expr tmap, type_of_expr ct_expr tmap with
+                | Some (exist (Gtyp cm_gt) _), Some (exist (Gtyp ct_gt) _) => connect_type_compatible false (Gtyp cm_gt) (Gtyp ct_gt) false
+                | _, _ => False
+                end
+            | Some _, None => False
+            | _, _ => True
+            end.
+Proof.
+intros scope connmap ct vm tmap [_ [Hcm_sub_ct [Hct_sub_vm [Hvm_sub_tm [_ Hcm_sub_tm]]]]] k.
+specialize (Hcm_sub_ct k) ; specialize (Hct_sub_vm k) ; specialize (Hvm_sub_tm k) ; specialize (Hcm_sub_tm k).
+destruct (CEP.find k connmap) as [[| |cm_expr]|] ;
+      try by exact Hcm_sub_ct.
+destruct (CEP.find k ct) as [[| |ct_expr]|] ;
+      try by exact Hcm_sub_ct.
+clear Hcm_sub_ct.
+destruct (type_of_expr cm_expr tmap) as [[[cm_gt| |] Hcm_gt_inf]|] ;
+      try by exact Hcm_sub_tm.
+destruct (type_of_expr ct_expr tmap) as [[[ct_gt| |] Hct_gt_inf]|],
+         (CEP.find k vm) as [[gt|gt|gt|gt|gt]|] ;
+      try by contradiction Hct_sub_vm.
+all: rewrite Hvm_sub_tm in Hcm_sub_tm ; clear Hvm_sub_tm.
+all: destruct gt, cm_gt, ct_gt ; done.
+Qed.
+
+Lemma scope_vm_submap_tmap :
+forall (scope : CEP.t (ftype * HiF.forient)) (vm : CEP.t vertex_type) (tmap : CEP.t (ftype * HiF.forient)),
+        scope_sub_vm scope vm
+    ->
+        vm_sub_tmap vm tmap
+    ->
+        CEP.submap scope tmap.
+Proof.
+intros scope vm tmap Hsc_vm Hvm_tm k v Hsc.
+destruct v as [ft ori].
+specialize (Hsc_vm k) ; specialize (Hvm_tm k).
+rewrite Hsc in Hsc_vm.
+destruct ori, (CEP.find k vm) as [[gt|gt|gt|gt|gt]|].
+all: try (by contradiction Hsc_vm).
+all: rewrite Hsc_vm.
+all: by exact Hvm_tm.
+Qed.
+
+Lemma aft_scope_submap_tmap :
+forall (scope : CEP.t (ftype * HiF.forient)) (connmap : CEP.t def_expr)
+       (ct : CEP.t def_expr) (vm : CEP.t vertex_type) (tmap : CEP.t (ftype * HiF.forient)),
+        all_fit_together scope connmap ct vm tmap
+    ->
+        CEP.submap scope tmap.
+Proof.
+intros scope connmap ct vm tmap Haft.
+destruct Haft as [_ [_ [_ [Hvm_tm [Hsc_vm _]]]]].
+exact (scope_vm_submap_tmap scope vm tmap Hsc_vm Hvm_tm).
+Qed.
+
+
 Lemma convert_to_connect_stmts_Sem :
 (* a lemma that states that convert_to_connect_stmts and Sem_frag_stmts are sort of inverses *)
 forall (conn_map : CEP.t def_expr) (vm_old : CEP.t vertex_type) (ct_old : CEP.t def_expr) (vm_new : CEP.t vertex_type) (ct_new : CEP.t def_expr) (tmap: CEP.t (ftype * HiF.forient)),
-        tmap_has_fully_inferred_ground_types tmap
-    ->
-        ct_has_fully_inferred_ground_types conn_map
-    ->
-        subdomain conn_map ct_old (* perhaps vm_and_ct_compatible vm_old ct_old, but that is not enough *)
+        all_fit_together (CEP.empty (ftype * HiF.forient)) conn_map ct_old vm_old tmap
     ->
         Sem_frag_stmts vm_old ct_old (convert_to_connect_stmts conn_map) vm_new ct_new tmap
     ->
@@ -869,204 +1064,209 @@ forall (conn_map : CEP.t def_expr) (vm_old : CEP.t vertex_type) (ct_old : CEP.t 
         /\
             CEP.Equal ct_new (extend_defined_map_with conn_map ct_old).
 Proof.
-intros until 3.
-* rewrite /convert_to_connect_stmts CEP.Lemmas.P.fold_spec_right.
-  assert (SetoidList.equivlistA (@CEP.Lemmas.O.eqke def_expr)
+intros conn_map vm_old ct_old vm_new ct_new tmap Haft.
+destruct Haft as [_ [Hcm_sub_ct [Hct_sub_vm [Hvm_sub_tm [_ Hcm_sub_tm]]]]].
+rewrite /convert_to_connect_stmts CEP.Lemmas.P.fold_spec_right.
+assert (SetoidList.equivlistA (@CEP.Lemmas.O.eqke def_expr)
                                 (List.rev (CEP.elements conn_map))
                                 (CEP.elements conn_map))
         by (intro ;
             apply (SetoidList.InA_rev (@CEP.Lemmas.O.eqke def_expr))).
-  revert H2.
-  generalize (CEP.elements_3w conn_map) ; intro.
-(*  assert (Heqv_key : RelationClasses.Equivalence (CEP.eq_key (elt:=def_expr))).
-        clear.
-        assert (forall x : CEP.key * def_expr, CEP.eq_key x x)
-              by (intro ; rewrite /CEP.eq_key /CEP.SE.eq eq_refl //).
-        assert (forall x y : CEP.key * def_expr, CEP.eq_key x y -> CEP.eq_key y x)
-              by (intros ; rewrite /CEP.eq_key /CEP.SE.eq eq_sym H0 //).
-        assert (forall x y z : CEP.key * def_expr, CEP.eq_key x y -> CEP.eq_key y z -> CEP.eq_key x z)
-              by (intros ; rewrite H1 H2 /CEP.eq_key /CEP.SE.eq //).
-        exact (RelationClasses.Build_Equivalence (CEP.eq_key (elt:=def_expr)) H H0 H1).
-  assert (Heqv_key_elt : RelationClasses.Equivalence (CEP.eq_key_elt (elt:=def_expr))).
-        clear.
-        assert (forall x : CEP.key * def_expr, CEP.eq_key_elt x x)
-              by (destruct x ; split ; first (by rewrite /CEP.SE.eq eq_refl //) ; last (by reflexivity)).
-        assert (forall x y : CEP.key * def_expr, CEP.eq_key_elt x y -> CEP.eq_key_elt y x)
-              by (destruct x, y ; split ; first (by rewrite /CEP.SE.eq eq_sym (proj1 H0) //) ; last (by symmetry ; apply H0)).
-        assert (forall x y z : CEP.key * def_expr, CEP.eq_key_elt x y -> CEP.eq_key_elt y z -> CEP.eq_key_elt x z)
-              by (destruct x, y, z ; split ; first (by rewrite (proj1 H1) (proj1 H2) /CEP.SE.eq //) ;
-                  last (by apply (eq_trans (proj2 H1) (proj2 H2)))).
-        exact (RelationClasses.Build_Equivalence (CEP.eq_key_elt (elt:=def_expr)) H H0 H1).*)
-  assert (Heqv_key0 : RelationClasses.Equivalence (fun x y : ProdVarOrder.T => x == y)).
+revert H.
+generalize (CEP.elements_3w conn_map) ; intro Hnodup.
+assert (Heqv_key0 : RelationClasses.Equivalence (fun x y : ProdVarOrder.T => x == y)).
         clear.
         assert (forall x y : ProdVarOrder.T, x == y -> y == x)
               by (intros ; rewrite eq_sym //).
         assert (forall x y z : ProdVarOrder.T, x == y -> y == z -> x == z)
               by (intros ; move /eqP : H0 => H0 ; rewrite H0 //).
         exact (RelationClasses.Build_Equivalence (fun x y : ProdVarOrder.T => x == y) (eq_refl (T := ProdVarOrder.T)) H H0).
-  (*assert (subdomain (CEP.Lemmas.P.of_list (List.rev (CEP.elements conn_map))) ct_old).
-        intro ; specialize (H1 k).
-        destruct (CEP.find k ct_old) ; try by trivial.
-        rewrite CEP.Lemmas.P.of_list_1b ;
-               last by apply (SetoidList.NoDupA_rev (CEP.Lemmas.O.eqk_equiv def_expr) H2).
-        rewrite -CEP.Lemmas.P.findA_rev // -CEP.Lemmas.F.elements_o //.
-  clear H1 ; rename H3 into H1.*)
-  apply SetoidList.NoDupA_rev in H2 ; last by apply (CEP.Lemmas.O.eqk_equiv def_expr).
-  revert H0 H1 H2.
-  generalize (List.rev (CEP.elements conn_map)) as conn_map_list.
-  intro ; revert conn_map_list vm_old ct_old conn_map.
-  induction conn_map_list.
-  + unfold List.fold_right.
-    intros.
-    split ; first by apply H4.
-    intro.
-    apply RelationClasses.Equivalence_Symmetric, SetoidList.equivlistA_nil_eq in H3 ;
+apply SetoidList.NoDupA_rev in Hnodup ; last by apply (CEP.Lemmas.O.eqk_equiv def_expr).
+revert vm_old ct_old Hcm_sub_ct Hct_sub_vm Hvm_sub_tm Hcm_sub_tm Hnodup.
+generalize (List.rev (CEP.elements conn_map)) as conn_map_list.
+intro ; revert conn_map_list conn_map.
+induction conn_map_list.
+* unfold List.fold_right.
+  intros conn_map vm_old ct_old Hcm_sub_ct Hct_sub_vm Hvm_sub_tm Hcm_sub_tm Hnodup Hequiv Hsf.
+  split ; first by apply Hsf.
+  intro y.
+  apply RelationClasses.Equivalence_Symmetric, SetoidList.equivlistA_nil_eq in Hequiv ;
           last by exact (CEP.Lemmas.O.eqke_equiv def_expr).
-    apply CEP.Lemmas.P.elements_Empty in H3.
-    apply CEP.Lemmas.Empty_find with (x := y) in H3.
-    simpl Sem_frag_stmts in H4.
-    unfold extend_defined_map_with.
-    rewrite CEP.Lemmas.map2_1bis // H3.
-    symmetry ; apply H4.
-  + destruct a as [k v].
-    simpl List.fold_right.
-    intros until 4.
-    (*destruct (List.fold_right (CEP.Lemmas.P.uncurry helper_connect)
+  apply CEP.Lemmas.P.elements_Empty in Hequiv.
+  apply CEP.Lemmas.Empty_find with (x := y) in Hequiv.
+  simpl Sem_frag_stmts in Hsf.
+  by rewrite /extend_defined_map_with CEP.Lemmas.map2_1bis // Hequiv (proj2 Hsf) //.
+* destruct a as [k v].
+  simpl List.fold_right.
+  intros conn_map vm_old ct_old Hcm_sub_ct Hct_sub_vm Hvm_sub_tm Hcm_sub_tm Hnodup Hequiv.
+   (*destruct (List.fold_right (CEP.Lemmas.P.uncurry helper_connect)
                               (Qnil ProdVarOrder.T) conn_map_list) eqn: Hfold ;
           rewrite Hfold // /CEP.Lemmas.P.uncurry /helper_connect /fst /snd.
     rewrite Hfold in IHconn_map_list.*)
-    inversion H2 ; clear H4 H5 x l.
-    assert (ct_has_fully_inferred_ground_types (CEP.Lemmas.P.of_list conn_map_list)).
+  inversion Hnodup as [|x l Hnotin Hnodup0] ; subst x l.
+  (*assert (ct_has_fully_inferred_ground_types (CEP.Lemmas.P.of_list conn_map_list)).
           intro.
           generalize (CEP.find_2 (m := CEP.Lemmas.P.of_list conn_map_list) (x := k0)) ; intro.
           destruct (CEP.find k0 (CEP.Lemmas.P.of_list conn_map_list)) as [[]|] ; try done.
           specialize (H4 (D_fexpr h) Logic.eq_refl).
           apply (CEP.Lemmas.P.of_list_1 k0 (D_fexpr h) H7), (SetoidList.InA_cons_tl (k, v)),
                 H3, CEP.Lemmas.elements_mapsto_iff, CEP.find_1 in H4.
-          specialize (H0 k0) ; by rewrite H4 // in H0.
-    assert (subdomain (CEP.Lemmas.P.of_list conn_map_list) ct_old).
-          intro.
-          specialize (H1 k0).
-          destruct (CEP.find k0 ct_old) ; first by trivial.
-          apply CEP.Lemmas.not_find_in_iff ; intro.
-          apply CEP.Lemmas.elements_in_iff in H5.
-          destruct H5 as [elt H5].
-          apply CEP.Lemmas.P.of_list_2 in H5 ; last by exact H7.
-          apply (SetoidList.InA_cons_tl (k, v)), H3,
-                (ex_intro (fun elt
-                            => SetoidList.InA (@CEP.Lemmas.O.eqke def_expr)
-                                              (k0, elt) (CEP.elements conn_map))),
-                CEP.Lemmas.elements_in_iff in H5.
-          revert H5.
-          by apply CEP.Lemmas.not_find_in_iff, H1.
-    assert (CEP.find k conn_map = Some v).
-          apply CEP.find_1, CEP.elements_2, H3, SetoidList.InA_cons_hd, CEP.Lemmas.O.eqke_refl.
-    assert (CEP.find k (CEP.Lemmas.P.of_list conn_map_list) = None).
+          specialize (H0 k0) ; by rewrite H4 // in H0.*)
+  assert (Hkinmap: CEP.find k conn_map = Some v).
+          apply CEP.find_1, CEP.elements_2, Hequiv, SetoidList.InA_cons_hd, CEP.Lemmas.O.eqke_refl.
+  assert (Hknotinlist: CEP.find k (CEP.Lemmas.P.of_list conn_map_list) = None).
           apply CEP.Lemmas.not_find_in_iff.
-          contradict H6.
-          destruct H6 as [elt H6].
-          apply CEP.Lemmas.P.of_list_1, (CEP.Lemmas.P.InA_eqke_eqk v (eqxx k)) in H6 ;
+          contradict Hnotin.
+          destruct Hnotin as [elt Hnotin].
+          apply CEP.Lemmas.P.of_list_1, (CEP.Lemmas.P.InA_eqke_eqk v (eqxx k)) in Hnotin ;
                 by assumption.
-    destruct v.
-    - (* D_undefined *)
-      unfold CEP.Lemmas.P.uncurry ; simpl Sem_frag_stmts.
-      intro.
-      specialize (IHconn_map_list vm_old ct_old (CEP.Lemmas.P.of_list conn_map_list)
-                                  H4 H5 H7 (CEP.Lemmas.P.of_list_2 H7) H10).
-      split ; first by apply IHconn_map_list.
-      apply (CEP.Lemmas.Equal_trans (proj2 IHconn_map_list)).
-      intro.
-      unfold extend_map_with.
-      rewrite CEP.Lemmas.map2_1bis // (*CEP.Lemmas.P.of_list_1b //. *)
-              CEP.Lemmas.map2_1bis //.
-      (*
-      specialize (H k).
-      destruct (CEP.find k tmap) as [[gt| |]|] ; try by contradiction.
-      rewrite /size_of_ftype /mkseq in H3 ; simpl in H3.
-      rewrite N.add_0_r -surjective_pairing in H3. *)
-      destruct (y == k) eqn: Hyk.
-      + move /eqP : Hyk => Hyk.
-        rewrite Hyk H8 H9.
-        specialize (H1 k) ; rewrite H8 in H1.
-        by destruct (CEP.find k ct_old) ; by done.
-      + destruct (PVM.find y (CEP.Lemmas.P.of_list conn_map_list)) eqn: Hfind_list.
-        - specialize (H3 (y, d)).
-          destruct H3 as [H3 _].
-          rewrite CEP.Lemmas.P.of_list_1b in Hfind_list ; last by apply H7.
-          apply SetoidList.findA_NoDupA in Hfind_list ;
-                last (by apply H7) ; last by apply Heqv_key0.
-          apply SetoidList.InA_cons_tl with (y := (k, D_undefined)) in Hfind_list.
-          apply H3, CEP.elements_2, CEP.find_1 in Hfind_list.
-          rewrite Hfind_list //.
-        - destruct (PVM.find y conn_map) eqn: Hfind_map.
-          * apply CEP.find_2, CEP.elements_1, H3, SetoidList.InA_cons in Hfind_map.
-            destruct Hfind_map as [Hfind_map|Hfind_map] ;
-                  first (by rewrite /CEP.Lemmas.O.eqke /PVM.SE.eq /fst Hyk in Hfind_map ;
-                            destruct Hfind_map as [Hfind_map _] ; done).
-            rewrite CEP.Lemmas.P.of_list_1b in Hfind_list ; last by exact H7.
-            apply (SetoidList.findA_NoDupA Heqv_key0 ProdVarOrder.eq_dec y d H7) in Hfind_map.
-            by rewrite Hfind_map // in Hfind_list.
-          * by reflexivity.
-    - (* D_invalidated *)
-      simpl Sem_frag_stmts.
-      intro.
-      destruct H10 as [vm' [ct' [[H10 H11] H12]]].
-      assert (CEP.Equal ct' (CEP.add k D_invalidated ct_old)).
-            intro.
-            specialize (H k).
-            destruct (CEP.find k tmap) as [[[gt| |] ori]|] ; try by contradiction.
-            rewrite /size_of_ftype /mkseq in H11 ; simpl in H11.
-            rewrite N.add_0_r -surjective_pairing in H11.
-            destruct ori ; try by contradiction H11.
-            1,2: destruct (y == k) eqn: Hyk.
-            * 1,3: rewrite (CEP.Lemmas.find_add_eq Hyk).
-              1,2: move /eqP : Hyk => Hyk ; subst y.
-              1,2: destruct H11 as [H11 _] ; specialize (H11 0) ; simpl in H11.
-              1,2: by rewrite (proj2 H11) //.
-            * 1,2: rewrite (CEP.Lemmas.find_add_neq (elimT negP (negbT Hyk))).
-              1,2: destruct H11 as [_ H11] ; specialize (H11 y).
-              1,2: rewrite mem_seq1 Hyk in H11.
-              1,2: symmetry ; by exact H11.
-      clear H11 ; rename H13 into H11.
-      assert (subdomain (CEP.Lemmas.P.of_list conn_map_list) ct').
-            apply subdomain_trans with (1 := H5).
-            intro ; specialize (H11 k0).
-            destruct (CEP.find k0 ct') ; first by trivial.
-            destruct (k0 == k) eqn: Hk0k.
-            * by rewrite (CEP.Lemmas.find_add_eq Hk0k) // in H11.
-            * by rewrite H11 (CEP.Lemmas.find_add_neq (elimT negP (negbT Hk0k))) //.
-      specialize (IHconn_map_list vm' ct' (CEP.Lemmas.P.of_list conn_map_list)
-                                  H4 H13 H7 (CEP.Lemmas.P.of_list_2 H7) H12).
-      split ; first by apply (CEP.Lemmas.Equal_trans H10), IHconn_map_list.
-      apply (CEP.Lemmas.Equal_trans (proj2 IHconn_map_list)).
-      intro.
-      rewrite /extend_defined_map_with CEP.Lemmas.map2_1bis // (*CEP.Lemmas.P.of_list_1b //. *)
-              CEP.Lemmas.map2_1bis // H11.
-      destruct (y == k) eqn: Hyk.
-      + rewrite (CEP.Lemmas.find_add_eq Hyk).
-        move /eqP : Hyk => Hyk ; subst y.
-        by rewrite H8 H9 //.
-      + rewrite (CEP.Lemmas.find_add_neq (elimT negP (negbT Hyk))).
-        destruct (PVM.find y (CEP.Lemmas.P.of_list conn_map_list)) eqn: Hfind_list.
-        - rewrite CEP.Lemmas.P.of_list_1b // in Hfind_list.
-          apply SetoidList.findA_NoDupA in Hfind_list ;
-                last (by exact H7) ;
-                last (by exact Heqv_key0).
-          apply (SetoidList.InA_cons_tl (k, D_invalidated)), H3, CEP.elements_2, CEP.find_1 in Hfind_list.
-          by rewrite Hfind_list //.
-        - destruct (PVM.find y conn_map) eqn: Hfind_map ; last by reflexivity.
-          apply CEP.find_2, CEP.elements_1, H3 in Hfind_map.
-          inversion Hfind_map ; subst y0 l.
-          * destruct H15 as [H15 _].
-            by rewrite /PVM.SE.eq /fst Hyk // in H15.
-          * apply CEP.Lemmas.P.of_list_1 in H15 ; last by exact H7.
-            apply CEP.find_1 in H15.
-            by rewrite Hfind_list // in H15.
-    - (* Expressions should not be very difficult... *)
-      simpl Sem_frag_stmts.
-      intro.
-      destruct H10 as [vm' [ct' [H10 H12]]].
-      assert (CEP.Equal vm_old vm' /\ CEP.Equal ct' (CEP.add k (D_fexpr h) ct_old)).
+  assert (Hcmlist_sub_ct: connmap_sub_ct (CEP.Lemmas.P.of_list conn_map_list) ct_old).
+          intro k0.
+          specialize (Hcm_sub_ct k0).
+          (*destruct (k == k0) eqn: Hkk0 ; move /eqP : Hkk0 => Hkk0 ;
+                first by (rewrite -Hkk0 Hknotinlist //).*)
+          destruct (CEP.find k0 (CEP.Lemmas.P.of_list conn_map_list)) as [elt|] eqn: Hfindk0 ;
+                last by trivial.
+          apply CEP.find_2, (CEP.Lemmas.P.of_list_1 _ _ Hnodup0) in Hfindk0.
+          apply (SetoidList.InA_cons_tl (k, v)), Hequiv, CEP.elements_2, CEP.find_1 in Hfindk0.
+          by rewrite Hfindk0 // in Hcm_sub_ct.
+  assert (Hcmlist_sub_tm: connmap_sub_tm (CEP.Lemmas.P.of_list conn_map_list) tmap).
+          intro k0.
+          specialize (Hcm_sub_tm k0).
+          destruct (CEP.find k0 (CEP.Lemmas.P.of_list conn_map_list)) as [elt|] eqn: Hfindk0 ;
+                last by trivial.
+          apply CEP.find_2, (CEP.Lemmas.P.of_list_1 _ _ Hnodup0) in Hfindk0.
+          apply (SetoidList.InA_cons_tl (k, v)), Hequiv, CEP.elements_2, CEP.find_1 in Hfindk0.
+          by rewrite Hfindk0 // in Hcm_sub_tm.
+  destruct v.
+  + (* D_undefined *)
+    unfold CEP.Lemmas.P.uncurry ; simpl Sem_frag_stmts.
+    intro Hsf.
+    specialize (IHconn_map_list (CEP.Lemmas.P.of_list conn_map_list) vm_old ct_old
+                                Hcmlist_sub_ct Hct_sub_vm Hvm_sub_tm Hcmlist_sub_tm Hnodup0 (CEP.Lemmas.P.of_list_2 Hnodup0) Hsf).
+    split ; first by apply IHconn_map_list.
+    apply (CEP.Lemmas.Equal_trans (proj2 IHconn_map_list)).
+    intro y.
+    unfold extend_map_with.
+    rewrite CEP.Lemmas.map2_1bis // (*CEP.Lemmas.P.of_list_1b //. *)
+            CEP.Lemmas.map2_1bis //.
+    destruct (y == k) eqn: Hyk.
+    - move /eqP : Hyk => Hyk.
+      rewrite Hyk Hkinmap Hknotinlist.
+      specialize (Hcm_sub_ct k) ; rewrite Hkinmap in Hcm_sub_ct.
+      by destruct (CEP.find k ct_old) ; done.
+    - destruct (PVM.find y (CEP.Lemmas.P.of_list conn_map_list)) eqn: Hfind_list.
+      * specialize (Hequiv (y, d)).
+        destruct Hequiv as [Hequiv _].
+        apply CEP.find_2, (CEP.Lemmas.P.of_list_1 _ _ Hnodup0) in Hfind_list.
+        apply (SetoidList.InA_cons_tl (k, D_undefined)), Hequiv, CEP.elements_2, CEP.find_1 in Hfind_list.
+        rewrite Hfind_list //.
+      * destruct (PVM.find y conn_map) eqn: Hfind_map ;
+              last by reflexivity.
+        apply CEP.find_2, CEP.elements_1, Hequiv, SetoidList.InA_cons in Hfind_map.
+        destruct Hfind_map as [Hfind_map|Hfind_map] ;
+                first (by rewrite /CEP.Lemmas.O.eqke /PVM.SE.eq /fst Hyk in Hfind_map ;
+                          destruct Hfind_map as [Hfind_map _] ; done).
+        apply (CEP.Lemmas.P.of_list_1 _ _ Hnodup0), CEP.find_1 in Hfind_map.
+        by rewrite Hfind_map // in Hfind_list.
+  + (* D_invalidated *)
+    simpl Sem_frag_stmts.
+    intro Hsf.
+    destruct Hsf as [vm' [ct' [[H10 H11] H12]]].
+    generalize (Hvm_sub_tm k) ; intro Hvm_sub_tmk.
+    destruct (CEP.find k tmap) as [[[gt| |] ori]|] ;
+          last (by contradiction H11).
+    2,3: specialize (Hcm_sub_ct k) ; rewrite Hkinmap in Hcm_sub_ct ;
+         specialize (Hct_sub_vm k) ;
+         destruct (CEP.find k ct_old) as [[| |ct_expr]|] ;
+               last (by contradiction Hcm_sub_ct) ;
+         destruct (CEP.find k vm_old) as [[gt'|gt'|gt'|gt'|gt']|] ;
+               try (by contradiction Hct_sub_vm) ;
+         by discriminate Hvm_sub_tmk.
+    rewrite /size_of_ftype /mkseq /invalidate in H11 ; simpl in H11.
+    rewrite N.add_0_r -surjective_pairing in H11.
+    assert (Hcmlist_sub_ct' : connmap_sub_ct (CEP.Lemmas.P.of_list conn_map_list) ct').
+          intro k0.
+          specialize (Hcmlist_sub_ct k0).
+          destruct (k0 == k) eqn: Hk0k.
+          * move /eqP : Hk0k => Hk0k ; subst k0.
+            destruct H11 as [H11 _].
+            destruct ori ; try by discriminate H11.
+            + move /eqP : H11 => H11 ; by rewrite H11 //.
+            + 1,2: move /andP : H11 => [/eqP H11old /eqP H11'] ;
+                   rewrite H11' ;
+                   destruct (CEP.find k (CEP.Lemmas.P.of_list conn_map_list)) as [[]|] ;
+                   by trivial.
+          * destruct H11 as [_ H11].
+            specialize (H11 k0) ; rewrite mem_seq1 Hk0k in H11.
+            by rewrite -H11 //.
+    assert (Hct'_sub_vm': ct_sub_vm ct' vm' tmap).
+          intro.
+          specialize (Hct_sub_vm k0).
+          rewrite -H10.
+          destruct (k0 == k) eqn: Hk0k.
+          * move /eqP : Hk0k => Hk0k ; subst k0.
+            destruct H11 as [H11 _].
+            destruct ori ; try by discriminate H11.
+            + move /eqP : H11 => H11 ; rewrite H11 //.
+            + 1,2: move /andP : H11 => [/eqP H11old /eqP H11'] ;
+                   rewrite H11' ;
+                   destruct (CEP.find k ct_old) as [[| |ct_expr]|] ;
+                         last (by contradiction H11old) ;
+                         try (by apply Hct_sub_vm) ;
+                   destruct (CEP.find k vm_old) as [[]|] ;
+                         try by trivial ;
+                   by exact Hct_sub_vm.
+          * destruct H11 as [_ H11].
+            specialize (H11 k0) ; rewrite mem_seq1 Hk0k in H11.
+            by rewrite -H11 //.
+    assert (Hvm'_sub_tm: vm_sub_tmap vm' tmap).
+          intro k0.
+          specialize (Hvm_sub_tm k0).
+          by rewrite -H10 //.
+    specialize (IHconn_map_list (CEP.Lemmas.P.of_list conn_map_list) vm' ct'
+                                Hcmlist_sub_ct' Hct'_sub_vm' Hvm'_sub_tm Hcmlist_sub_tm Hnodup0 (CEP.Lemmas.P.of_list_2 Hnodup0) H12).
+    split ; first by apply (CEP.Lemmas.Equal_trans H10), IHconn_map_list.
+    apply (CEP.Lemmas.Equal_trans (proj2 IHconn_map_list)).
+    intro.
+    rewrite /extend_defined_map_with CEP.Lemmas.map2_1bis // (*CEP.Lemmas.P.of_list_1b //. *)
+            CEP.Lemmas.map2_1bis //.
+    destruct (y == k) eqn: Hyk.
+    - move /eqP : Hyk => Hyk ; subst y.
+      rewrite Hkinmap Hknotinlist.
+      destruct H11 as [H11 _].
+      destruct ori ; try by discriminate H11.
+      * (* Now we have to show that (k, D_invalidated) cannot be in connmap
+           because the vertex has a source orientation *)
+        specialize (Hcm_sub_ct k) ; rewrite Hkinmap in Hcm_sub_ct.
+        specialize (Hct_sub_vm k).
+        destruct (CEP.find k ct_old) as [[| |ct_expr]|] ;
+               last (by contradiction Hcm_sub_ct) ;
+        destruct (CEP.find k vm_old) as [[gt'|gt'|gt'|gt'|gt']|] ;
+               by done.
+      * 1,2: move /andP : H11 => [_ /eqP H11] ;
+             rewrite H11 //.
+    - destruct H11 as [_ H11].
+      specialize (H11 y) ; rewrite mem_seq1 Hyk in H11.
+      rewrite H11.
+      destruct (PVM.find y (CEP.Lemmas.P.of_list conn_map_list)) eqn: Hfind_list.
+      - apply CEP.find_2, (CEP.Lemmas.P.of_list_1 _ _ Hnodup0) in Hfind_list.
+        apply (SetoidList.InA_cons_tl (k, D_invalidated)), Hequiv, CEP.elements_2, CEP.find_1 in Hfind_list.
+        by rewrite Hfind_list //.
+      - destruct (PVM.find y conn_map) eqn: Hfind_map ; last by reflexivity.
+        apply CEP.find_2, CEP.elements_1, Hequiv in Hfind_map.
+        inversion Hfind_map as [x l Hyeqk|x l Hyinlist] ; subst x l.
+        * destruct Hyeqk as [Hyeqk _].
+          by rewrite /PVM.SE.eq /fst Hyk // in Hyeqk.
+        * apply (CEP.Lemmas.P.of_list_1 _ _ Hnodup0), CEP.find_1 in Hyinlist.
+          by rewrite Hfind_list // in Hyinlist.
+  + (* Expressions should not be very different from D_invalidated... *)
+Admitted.
+(*
+    simpl Sem_frag_stmts.
+    intro.
+    destruct H10 as [vm' [ct' [H10 H12]]].
+    assert (CEP.Equal vm_old vm' /\ CEP.Equal ct' (CEP.add k (D_fexpr h) ct_old)).
             destruct h eqn: Hexpr ; split ; try (by apply H10) ; destruct H10 as [_ H11].
             1-7: intro.
             5:   specialize (H0 k) ; rewrite H8 in H0 ;
@@ -1151,42 +1351,42 @@ intros until 3.
                 1-4: specialize (H11 y).
                 1-4: rewrite mem_seq1 Hyk mem_seq1 Hyic orFb in H11.
                 1-4: by symmetry ; exact H11.
-      clear H10 ; destruct H11 as [H10 H11].
-      assert (subdomain (CEP.Lemmas.P.of_list conn_map_list) ct').
+    clear H10 ; destruct H11 as [H10 H11].
+    assert (subdomain (CEP.Lemmas.P.of_list conn_map_list) ct').
             apply subdomain_trans with (1 := H5).
             intro ; specialize (H11 k0).
             destruct (CEP.find k0 ct') ; first by trivial.
             destruct (k0 == k) eqn: Hk0k.
             * by rewrite (CEP.Lemmas.find_add_eq Hk0k) // in H11.
             * by rewrite H11 (CEP.Lemmas.find_add_neq (elimT negP (negbT Hk0k))) //.
-      specialize (IHconn_map_list vm' ct' (CEP.Lemmas.P.of_list conn_map_list)
-                                  H4 H13 H7 (CEP.Lemmas.P.of_list_2 H7) H12).
-      split ; first by apply (CEP.Lemmas.Equal_trans H10), IHconn_map_list.
-      apply (CEP.Lemmas.Equal_trans (proj2 IHconn_map_list)).
-      intro.
-      rewrite /extend_defined_map_with CEP.Lemmas.map2_1bis // (*CEP.Lemmas.P.of_list_1b //. *)
+    specialize (IHconn_map_list vm' ct' (CEP.Lemmas.P.of_list conn_map_list)
+                                H4 H13 H7 (CEP.Lemmas.P.of_list_2 H7) H12).
+    split ; first by apply (CEP.Lemmas.Equal_trans H10), IHconn_map_list.
+    apply (CEP.Lemmas.Equal_trans (proj2 IHconn_map_list)).
+    intro.
+    rewrite /extend_defined_map_with CEP.Lemmas.map2_1bis // (*CEP.Lemmas.P.of_list_1b //. *)
               CEP.Lemmas.map2_1bis // H11.
-      destruct (y == k) eqn: Hyk.
-      + rewrite (CEP.Lemmas.find_add_eq Hyk).
-        move /eqP : Hyk => Hyk ; subst y.
-        rewrite H8 H9 //.
-      + rewrite (CEP.Lemmas.find_add_neq (elimT negP (negbT Hyk))).
-        destruct (PVM.find y (CEP.Lemmas.P.of_list conn_map_list)) eqn: Hfind_list.
-        - rewrite CEP.Lemmas.P.of_list_1b // in Hfind_list.
-          apply SetoidList.findA_NoDupA in Hfind_list ;
+    destruct (y == k) eqn: Hyk.
+    - rewrite (CEP.Lemmas.find_add_eq Hyk).
+      move /eqP : Hyk => Hyk ; subst y.
+      rewrite H8 H9 //.
+    - rewrite (CEP.Lemmas.find_add_neq (elimT negP (negbT Hyk))).
+      destruct (PVM.find y (CEP.Lemmas.P.of_list conn_map_list)) eqn: Hfind_list.
+      * rewrite CEP.Lemmas.P.of_list_1b // in Hfind_list.
+        apply SetoidList.findA_NoDupA in Hfind_list ;
                 last (by exact H7) ;
                 last (by exact Heqv_key0).
-          apply (SetoidList.InA_cons_tl (k, D_fexpr h)), H3, CEP.elements_2, CEP.find_1 in Hfind_list.
-          by rewrite Hfind_list //.
-        - destruct (PVM.find y conn_map) eqn: Hfind_map ; last by reflexivity.
-          apply CEP.find_2, CEP.elements_1, H3 in Hfind_map.
-          inversion Hfind_map ; subst y0 l.
-          * destruct H15 as [H15 _].
-            by rewrite /PVM.SE.eq /fst Hyk // in H15.
-          * apply CEP.Lemmas.P.of_list_1 in H15 ; last by exact H7.
-            apply CEP.find_1 in H15.
-            by rewrite Hfind_list // in H15.
-Qed.
+        apply (SetoidList.InA_cons_tl (k, D_fexpr h)), H3, CEP.elements_2, CEP.find_1 in Hfind_list.
+        by rewrite Hfind_list //.
+      * destruct (PVM.find y conn_map) eqn: Hfind_map ; last by reflexivity.
+        apply CEP.find_2, CEP.elements_1, H3 in Hfind_map.
+        inversion Hfind_map ; subst y0 l.
+        + destruct H15 as [H15 _].
+          by rewrite /PVM.SE.eq /fst Hyk // in H15.
+        + apply CEP.Lemmas.P.of_list_1 in H15 ; last by exact H7.
+          apply CEP.find_1 in H15.
+          by rewrite Hfind_list // in H15.
+Qed. *)
 
 Lemma extend_defined_map_with_refl {ct1 ct2 : CEP.t def_expr} :
         CEP.Equal ct1 ct2
@@ -1201,186 +1401,6 @@ intro ; split ; last split.
 1-3: intro ; specialize (H y).
 1-3: rewrite /extend_defined_map_with CEP.Lemmas.map2_1bis // H.
 1-3: destruct (PVM.find y ct2) as [[]|] ; by done.
-Qed.
-
-Definition conn_map_covers_scope
-    (* checks whether the connection map assigns a value to everything in the scope *)
-    (conn_map : CEP.t def_expr)
-    (scope : CEP.t (ftype * HiF.forient))
-:   Prop
-:=  forall k : CEP.key,
-        match CEP.find k scope with
-        | Some (_, HiF.Sink)
-        | Some (_, HiF.Duplex) => CEP.find k conn_map <> None
-        | Some _ => CEP.find k conn_map = None
-        | _ => True
-        end.
-
-Definition scope_sub_connmap
-    (* checks whether the scope and connmap fit together:
-       connmap contains a value for everything in scope (may be undefined),
-       and types are correct *)
-    (scope : CEP.t (ftype * HiF.forient))
-    (connmap : CEP.t def_expr)
-    (tmap : CEP.t (ftype * HiF.forient)) (* tmap is used to check types *)
-:   Prop
-:=  forall k : CEP.key,
-        match CEP.find k scope with
-        | Some (ft_tgt, HiF.Sink) | Some (ft_tgt, HiF.Duplex) =>
-            match CEP.find k connmap with
-            | None => False
-            | Some (D_fexpr expr) =>
-                match type_of_expr expr tmap with
-                | Some (exist ft_src _) => connect_type_compatible false ft_tgt ft_src false
-                | _ => False
-                end
-            | _ => True
-            end
-        | _ => True
-        end.
-
-(* We use the following maps to describe the graph and its values:
-old_scope : CEP.t (ftype * HiF.forient) -- assigns a type to every assignable/usable component
-old_connmap : CEP.t def_expr -- contains new connections
-old_ct : CEP.t def_expr -- contains a value for every assignable component
-old_vm : CEP.t vertex_type -- contains the components in the current graph
-old_tmap : CEP.t (ftype * HiF.forient) -- contains all components in the final graph
-
-Relations between the maps are:
-- scope_sub_connmap scope connmap: connmap assigns to each Sink/Duplex in scope, and the types fit
-- connmap_sub_ct connmap ct: connmap is a subdomain of ct, and the types fit
-- ct_sub_vm ct vm: ct assigns a value exactly to every assignable component
-- vm_sub_tmap vm tmap: tmap types every component in vm correctly
-
-Type correctness is judged according to type_of_expr expr tmap
-
-(Additionally, old_comp contains exactly the definitions of components in vm.)
-*)
-
-Definition connmap_sub_ct
-    (* check whether the connmap and ct fit together:
-       connmap does not assign anything to components outside ct,
-       and types are correct *)
-    (connmap : CEP.t def_expr)
-    (ct : CEP.t def_expr)
-    (tmap : CEP.t (ftype * HiF.forient))
-:   Prop
-:=  forall k : CEP.key,
-        match CEP.find k connmap, CEP.find k ct with
-        | Some (D_fexpr cm_expr), Some (D_fexpr ct_expr) =>
-            match type_of_expr cm_expr tmap, type_of_expr ct_expr tmap with
-            | Some (exist (Gtyp cm_gt) _), Some (exist (Gtyp ct_gt) _) => connect_type_compatible false (Gtyp cm_gt) (Gtyp ct_gt) false
-            | _, _ => False
-            end
-       | Some _, None => False
-       | _, _ => True
-       end.
-
-Definition ct_sub_vm
-    (* check whether the ct/edges and vm/vertices of the module graph fit together:
-       ct assigns a value exactly to every writable component in vm,
-       and types are correct *)
-    (ct : CEP.t def_expr)
-    (vm : CEP.t vertex_type)
-    (tmap : CEP.t (ftype * HiF.forient))
-:   Prop
-:=  forall k : CEP.key,
-        match CEP.find k ct, CEP.find k vm with
-        | Some (D_fexpr expr), Some (OutPort gt)
-        | Some (D_fexpr expr), Some (Register gt _ _ _)
-        | Some (D_fexpr expr), Some (Wire gt) =>
-            match type_of_expr expr tmap with
-            | Some (exist (Gtyp gt_expr) _) => connect_type_compatible false (Gtyp gt) (Gtyp gt_expr) false
-            | _ => False
-            end
-        | Some _, Some (OutPort _)
-        | Some _, Some (Register _ _ _ _)
-        | Some _, Some (Wire _)
-        | None, Some (InPort _)
-        | None, Some (Node _)
-        | None, None => True
-        | _, _ => False
-        end.
-
-Definition vm_sub_tmap
-    (* check whether the vm/vertices of the module graph and the tmap fit together:
-       tmap defines their types and orientation correctly *)
-    (vm : CEP.t vertex_type)
-    (tmap : CEP.t (ftype * HiF.forient))
-:   Prop
-:=  forall k : CEP.key,
-        match CEP.find k vm with
-        | Some (OutPort  gt      ) => CEP.find k tmap = Some (Gtyp gt, HiF.Sink)
-        | Some (InPort   gt      )
-        | Some (Node     gt      ) => CEP.find k tmap = Some (Gtyp gt, HiF.Source)
-        | Some (Register gt _ _ _)
-        | Some (Wire     gt      ) => CEP.find k tmap = Some (Gtyp gt, HiF.Duplex)
-        | None => True
-        end.
-
-Definition scope_sub_vm
-    (* checks whether scope and vm fit together. This separate check is required
-       because connmap and ct do not preserve information about read-only components. *)
-    (scope : CEP.t (ftype * HiF.forient))
-    (vm : CEP.t vertex_type)
-:   Prop
-:=  forall k : CEP.key,
-        match CEP.find k scope, CEP.find k vm with
-        | Some (ft, HiF.Source), Some (Node     gt      )
-        | Some (ft, HiF.Source), Some (InPort   gt      )
-        | Some (ft, HiF.Sink  ), Some (OutPort  gt      )
-        | Some (ft, HiF.Duplex), Some (Register gt _ _ _)
-        | Some (ft, HiF.Duplex), Some (Wire     gt      ) =>
-            ft = Gtyp gt
-        | Some _, _ => False
-        | None, _ => True
-        end.
-
-Definition all_fit_together
-    (scope : CEP.t (ftype * HiF.forient))
-    (connmap : CEP.t def_expr)
-    (ct : CEP.t def_expr)
-    (vm : CEP.t vertex_type)
-    (tmap : CEP.t (ftype * HiF.forient))
-:   Prop
-:=      scope_sub_connmap scope connmap tmap
-    /\
-        connmap_sub_ct connmap ct tmap
-    /\
-        ct_sub_vm ct vm tmap
-    /\
-        vm_sub_tmap vm tmap
-    /\
-        scope_sub_vm scope vm.
-
-Lemma scope_vm_submap_tmap :
-forall (scope : CEP.t (ftype * HiF.forient)) (vm : CEP.t vertex_type) (tmap : CEP.t (ftype * HiF.forient)),
-        scope_sub_vm scope vm
-    ->
-        vm_sub_tmap vm tmap
-    ->
-        CEP.submap scope tmap.
-Proof.
-intros scope vm tmap Hsc_vm Hvm_tm k v Hsc.
-destruct v as [ft ori].
-specialize (Hsc_vm k) ; specialize (Hvm_tm k).
-rewrite Hsc in Hsc_vm.
-destruct ori, (CEP.find k vm) as [[gt|gt|gt|gt|gt]|].
-all: try (by contradiction Hsc_vm).
-all: rewrite Hsc_vm.
-all: by exact Hvm_tm.
-Qed.
-
-Lemma aft_scope_submap_tmap :
-forall (scope : CEP.t (ftype * HiF.forient)) (connmap : CEP.t def_expr)
-       (ct : CEP.t def_expr) (vm : CEP.t vertex_type) (tmap : CEP.t (ftype * HiF.forient)),
-        all_fit_together scope connmap ct vm tmap
-    ->
-        CEP.submap scope tmap.
-Proof.
-intros scope connmap ct vm tmap Haft.
-destruct Haft as [_ [_ [_ [Hvm_tm Hsc_vm]]]].
-exact (scope_vm_submap_tmap scope vm tmap Hsc_vm Hvm_tm).
 Qed.
 
 Lemma Sem_frag_stmts_connect :
@@ -1483,7 +1503,7 @@ induction connmap_list.
       destruct (CEP.find k ct) eqn: Hfind_in_ct ; last by contradiction Hk_in_ct ; clear Hk_in_ct.
       generalize (proj1 (proj2 (proj2 (proj2 Haft))) k) ; intro Hk_in_tmap.
       destruct d, (CEP.find k vm) as [[gt|gt|gt|gt|gt]|] ; try (by contradiction Hk_in_vm).
-      1-9: rewrite Hk_in_tmap /size_of_ftype /mkseq ; simpl map ; rewrite N.add_0_r -surjective_pairing.
+(*      1-9: rewrite Hk_in_tmap /size_of_ftype /mkseq ; simpl map ; rewrite N.add_0_r -surjective_pairing.
       1-9: split ;
             last by (intro v0 ; rewrite mem_seq1 ;
                      destruct (v0 == k) eqn: Hvk ; first (by trivial) ;
@@ -1547,7 +1567,7 @@ induction connmap_list.
           - move /negP : Hkx => Hkx.
             by apply (CEP.remove_2 Hkx), Hlist, SetoidList.InA_cons_tl, Hin.
   + (* D_fexpr: Sfcnct *)
-    admit.
+    admit.*)
 (*
     simpl Sem_frag_stmts.
     exists vm, (CEP.add k (D_fexpr h) ct_old).
@@ -1665,14 +1685,13 @@ forall (vm_for_tmap : CEP.t vertex_type) (tmap : CEP.t (ftype * HiF.forient)),
                 else forall (old_scope : CEP.t (ftype * HiF.forient)) (old_connmap : CEP.t def_expr)
                        (old_ct : CEP.t def_expr) (old_vm : CEP.t vertex_type) (old_tmap: CEP.t (ftype * HiF.forient))
                        (tm_tmap tm_scope : CEP.t (ftype * HiF.forient))
-                       (old_comp : HiFP.hfstmt_seq) (eb_connmap : CEP.t def_expr)
+                       (eb_connmap : CEP.t def_expr)
                        (sf_vm : CEP.t vertex_type) (sf_ct : CEP.t def_expr),
                             all_fit_together old_scope old_connmap old_ct old_vm old_tmap
                         ->
                             stmt_tmap (old_tmap, old_scope) s vm_for_tmap = Some (tm_tmap, tm_scope)
                         ->
-                            ExpandBranch_fun s old_comp old_connmap old_scope =
-                            Some (Qcat old_comp (component_stmt_of s), eb_connmap, tm_scope)
+                            ExpandBranch_fun s old_connmap old_scope = Some (eb_connmap, tm_scope)
                         ->
                             Sem_frag_stmts old_vm old_ct (Qcat (component_stmt_of s)
                                            (convert_to_connect_stmts eb_connmap))
@@ -1690,7 +1709,7 @@ Lemma stmts_tmap_and_ExpandBranches_funs :
 forall (ss : HiFP.hfstmt_seq) (old_scope : CEP.t (ftype * HiF.forient)) (old_connmap : CEP.t def_expr)
        (old_tmap : CEP.t (ftype * HiF.forient))
        (vm_for_tmap : CEP.t vertex_type) (tm_tmap tm_scope : CEP.t (ftype * HiF.forient))
-       (old_comp: HiFP.hfstmt_seq) (eb_connmap : CEP.t def_expr) (eb_scope : CEP.t (ftype * HiF.forient)),
+       (eb_connmap : CEP.t def_expr) (eb_scope : CEP.t (ftype * HiF.forient)),
         tmap_has_fully_inferred_ground_types old_tmap
     ->
         CEP.submap old_scope old_tmap
@@ -1699,15 +1718,17 @@ forall (ss : HiFP.hfstmt_seq) (old_scope : CEP.t (ftype * HiF.forient)) (old_con
     ->
         stmts_tmap (old_tmap, old_scope) ss vm_for_tmap = Some (tm_tmap, tm_scope)
     ->
-        ExpandBranches_funs ss old_comp old_connmap old_scope =
-                            Some (Qcat old_comp (component_stmts_of ss), eb_connmap, eb_scope)
+        ExpandBranches_funs ss old_connmap old_scope =
+                            Some (eb_connmap, eb_scope)
     ->
-        tm_scope = eb_scope
+            tm_scope = eb_scope
+        /\
+            (connmap_sub_tm old_connmap old_tmap -> connmap_sub_tm eb_connmap tm_tmap)
 with stmt_tmap_and_ExpandBranch_fun :
 forall (s : HiFP.hfstmt) (old_scope : CEP.t (ftype * HiF.forient)) (old_connmap : CEP.t def_expr)
        (old_tmap : CEP.t (ftype * HiF.forient))
        (vm_for_tmap : CEP.t vertex_type) (tm_tmap tm_scope : CEP.t (ftype * HiF.forient))
-       (old_comp: HiFP.hfstmt_seq) (eb_connmap : CEP.t def_expr) (eb_scope : CEP.t (ftype * HiF.forient)),
+       (eb_connmap : CEP.t def_expr) (eb_scope : CEP.t (ftype * HiF.forient)),
         tmap_has_fully_inferred_ground_types old_tmap
     ->
         CEP.submap old_scope old_tmap
@@ -1716,42 +1737,47 @@ forall (s : HiFP.hfstmt) (old_scope : CEP.t (ftype * HiF.forient)) (old_connmap 
     ->
         stmt_tmap (old_tmap, old_scope) s vm_for_tmap = Some (tm_tmap, tm_scope)
     ->
-        ExpandBranch_fun s old_comp old_connmap old_scope =
-                            Some (Qcat old_comp (component_stmt_of s), eb_connmap, eb_scope)
+        ExpandBranch_fun s old_connmap old_scope =
+                            Some (eb_connmap, eb_scope)
     ->
-        tm_scope = eb_scope.
+            tm_scope = eb_scope
+        /\
+            (connmap_sub_tm old_connmap old_tmap -> connmap_sub_tm eb_connmap tm_tmap).
 Proof.
 * clear stmts_tmap_and_ExpandBranches_funs.
   rename stmt_tmap_and_ExpandBranch_fun into IHs.
-  induction ss as [|s ss] ; simpl ; intros old_scope old_connmap old_tmap vm_for_tmap tm_tmap tm_scope old_comp eb_connmap eb_scope Htm_inf Hsc_tm Hss_inf Hst Heb.
+  induction ss as [|s ss] ; simpl ; intros old_scope old_connmap old_tmap vm_for_tmap tm_tmap tm_scope eb_connmap eb_scope Htm_inf Hsc_tm Hss_inf Hst Heb.
   + injection Hst ; clear Hst ; intros ; subst tm_tmap tm_scope.
-    rewrite Qcats0 in Heb.
     injection Heb ; clear Heb ; intros ; subst eb_connmap eb_scope.
-    by reflexivity.
+    split ; by done.
   + specialize (IHs s old_scope old_connmap old_tmap vm_for_tmap).
     move /andP : Hss_inf => [Hs_inf Hss_inf].
     generalize (stmt_tmap_preserves_fully_inferred vm_for_tmap old_tmap old_scope s Hs_inf Htm_inf Hsc_tm) ; intro Htm_s_inf.
     generalize (stmt_submap vm_for_tmap s old_tmap old_scope Hsc_tm) ; intro Hsc_tm_s.
     destruct (stmt_tmap (old_tmap, old_scope) s vm_for_tmap) as [[tm_tmap_s tm_scope_s]|] ;
           last by discriminate Hst.
-    specialize (IHs tm_tmap_s tm_scope_s old_comp) with (1 := Htm_inf) (2 := Hsc_tm) (3 := Hs_inf) (4 := Logic.eq_refl).
-    generalize (ExpandBranch_fun_submap s old_comp old_connmap old_scope) ; intro Heb_s.
-    destruct (ExpandBranch_fun s old_comp old_connmap old_scope) as [[[eb_comp_s eb_connmap_s] eb_scope_s]|] ;
+    specialize (IHs tm_tmap_s tm_scope_s) with (1 := Htm_inf) (2 := Hsc_tm) (3 := Hs_inf) (4 := Logic.eq_refl).
+    generalize (ExpandBranch_fun_submap s old_connmap old_scope) ; intro Heb_s.
+    destruct (ExpandBranch_fun s old_connmap old_scope) as [[eb_connmap_s eb_scope_s]|] ;
           last by discriminate Heb.
-    destruct Heb_s as [H Heb_s] ; subst eb_comp_s.
     specialize IHs with (1 := Logic.eq_refl).
-    subst eb_scope_s.
-    rewrite -Qcat_assoc in Heb.
-    exact (IHss tm_scope_s eb_connmap_s tm_tmap_s vm_for_tmap tm_tmap tm_scope
-                     (Qcat old_comp (component_stmt_of s)) eb_connmap eb_scope Htm_s_inf (proj1 Hsc_tm_s) Hss_inf Hst Heb).
+    destruct IHs as [IHs' IHs] ; subst eb_scope_s.
+    specialize (IHss tm_scope_s eb_connmap_s tm_tmap_s vm_for_tmap tm_tmap tm_scope
+                     eb_connmap eb_scope Htm_s_inf (proj1 Hsc_tm_s) Hss_inf Hst Heb).
+    split ; first by apply IHss.
+    destruct IHss as [_ IHss].
+    intro Hcm_sub_tm.
+    by apply IHss, IHs, Hcm_sub_tm.
 * clear stmt_tmap_and_ExpandBranch_fun.
-  induction s as [|var ft|var reg|var mem|var1 var2|var expr|ref expr|ref|cond sst ssf] ; simpl ; intros old_scope old_connmap old_tmap vm_for_tmap tm_tmap tm_scope old_comp eb_connmap eb_scope Htm_inf Hsc_tm Hs_inf Hst Heb.
+  induction s as [|var ft|var reg|var mem|var1 var2|var expr|ref expr|ref|cond sst ssf] ; simpl ; intros old_scope old_connmap old_tmap vm_for_tmap tm_tmap tm_scope eb_connmap eb_scope Htm_inf Hsc_tm Hs_inf Hst Heb.
   + (* Sskip *)
     injection Hst ; clear Hst ; intros ; subst tm_tmap tm_scope.
-    rewrite Qcats0 in Heb ; injection Heb ; clear Heb ; intros ; subst eb_connmap eb_scope.
-    by reflexivity.
+    injection Heb ; clear Heb ; intros ; subst eb_connmap eb_scope.
+    split ; by done.
   + (* Swire *)
     destruct ft as [gt| |] ; try by discriminate Hs_inf.
+    generalize (CEP.Lemmas.submap_none_add (k := var) (Gtyp gt, HiF.Duplex)
+                               (CEP.Lemmas.submap_refl old_tmap)) ; intro Hold_sub_new.
     destruct (CEP.find var old_tmap) ; first by discriminate Hst.
     generalize (fully_inferred_does_not_change gt var vm_for_tmap Hs_inf) ; intro.
     destruct (code_type_find_vm_widths (Gtyp gt) var vm_for_tmap) as [[[gt'| |] _]|] ;
@@ -1760,11 +1786,21 @@ Proof.
           subst gt'.
     injection Hst ; clear Hst ; intros ; subst tm_tmap tm_scope.
     destruct (CEP.find var old_scope) ; first by discriminate Heb.
-    rewrite Qcats1 in Heb.
     injection Heb ; clear Heb ; intros ; subst eb_connmap eb_scope.
-    by reflexivity.
+    split ; first by reflexivity.
+    intros Hcm_sub_tm k ; specialize (Hcm_sub_tm k).
+    destruct (k == var) eqn: Hkvar ;
+          first by rewrite (CEP.Lemmas.find_add_eq Hkvar) (CEP.Lemmas.find_add_eq Hkvar) //.
+    apply negbT in Hkvar ; move /negP : Hkvar => Hkvar.
+    rewrite (CEP.Lemmas.find_add_neq Hkvar) (CEP.Lemmas.find_add_neq Hkvar) //.
+    destruct (CEP.find k old_connmap) as [[| |expr]|] ; try by exact Hcm_sub_tm.
+    generalize (type_of_expr_submap expr _ _ (Hold_sub_new Logic.eq_refl)) ; intro.
+    destruct (type_of_expr expr old_tmap) as [[[gt_expr| |] p]|] ; try by contradiction Hcm_sub_tm.
+    by rewrite H //.
   + (* Sreg should be similar to Swire *)
     destruct (type reg) as [gt| |] ; try by discriminate Hs_inf.
+    generalize (CEP.Lemmas.submap_none_add (k := var) (Gtyp gt, HiF.Duplex)
+                               (CEP.Lemmas.submap_refl old_tmap)) ; intro Hold_sub_new.
     destruct (CEP.find var old_tmap) ; first by discriminate Hst.
     destruct (type_of_expr (clock reg) old_scope) as [_|] ; last by discriminate Hst.
     destruct (reset reg) as [|rst_sig rst_val] ; last first.
@@ -1779,27 +1815,52 @@ Proof.
     2: destruct (type_of_expr rst_val old_scope) as [_|] ; last by discriminate Hst.
     1-3: injection Hst ; clear Hst ; intros ; subst tm_tmap tm_scope.
     1-3: destruct (CEP.find var old_scope) ; first by discriminate Heb.
-    1-3: rewrite Qcats1 in Heb.
     1-3: injection Heb ; clear Heb ; intros ; subst eb_connmap eb_scope.
-    1-3: by reflexivity.
+    1-3: split ; first by reflexivity.
+    1-3: intros Hcm_sub_tm k ; specialize (Hcm_sub_tm k).
+    1-3: destruct (k == var) eqn: Hkvar ;
+               first by (rewrite (CEP.Lemmas.find_add_eq Hkvar) (CEP.Lemmas.find_add_eq Hkvar) ;
+                         simpl type_of_expr ;
+                         rewrite (CEP.Lemmas.find_add_eq (eq_refl var)) ;
+                         destruct gt ; done).
+    1-3: apply negbT in Hkvar ; move /negP : Hkvar => Hkvar.
+    1-3: rewrite (CEP.Lemmas.find_add_neq Hkvar) (CEP.Lemmas.find_add_neq Hkvar) //.
+    1-3: destruct (CEP.find k old_connmap) as [[| |expr]|] ; try by exact Hcm_sub_tm.
+    1-3: generalize (type_of_expr_submap expr _ _ (Hold_sub_new Logic.eq_refl)) ; intro.
+    1-3: destruct (type_of_expr expr old_tmap) as [[[gt_expr| |] p]|] ; try by contradiction Hcm_sub_tm.
+    1-3: by rewrite H //.
   + (* Smem *)
     by discriminate Hst.
   + (* Sinst *)
     by discriminate Hst.
   + (* Snode *)
-    destruct (CEP.find var old_tmap) ; first by discriminate Hst.
+    specialize (@CEP.Lemmas.submap_none_add (ftype * HiF.forient) old_tmap old_tmap var)
+               with (1 := CEP.Lemmas.submap_refl old_tmap) ; intro Hold_sub_new.
+    destruct (CEP.find var old_tmap) eqn: Hfindvar ; first by discriminate Hst.
     (*generalize (type_of_expr_submap expr old_scope old_tmap Hsc_tm) ; intro Hexpr.*)
     destruct (type_of_expr expr old_scope) as [[ft p]|] ; last by discriminate Hst.
     injection Hst ; clear Hst ; intros ; subst tm_tmap tm_scope.
     destruct (CEP.find var old_scope) ; first by discriminate Heb.
-    rewrite (*Hexpr*) Qcats1 in Heb.
     injection Heb ; clear Heb ; intros ; subst eb_connmap eb_scope.
-    by reflexivity.
+    split ; first by reflexivity.
+    intros Hcm_sub_tm k ; specialize (Hcm_sub_tm k).
+    destruct (k == var) eqn: Hkvar.
+    - move /eqP : Hkvar => Hkvar ; subst k.
+      rewrite (CEP.Lemmas.find_add_eq (eq_refl _)) //.
+      rewrite Hfindvar in Hcm_sub_tm.
+      destruct (CEP.find var old_connmap) as [[| |old_expr]|] ; try by exact Hcm_sub_tm.
+      destruct (type_of_expr old_expr old_tmap) as [[[| |]]|] ; by contradiction Hcm_sub_tm.
+    - apply negbT in Hkvar ; move /negP : Hkvar => Hkvar.
+      rewrite (CEP.Lemmas.find_add_neq Hkvar) //.
+      destruct (CEP.find k old_connmap) as [[| |old_expr]|] ; try by exact Hcm_sub_tm.
+      generalize (type_of_expr_submap old_expr _ _ (Hold_sub_new (ft, HiF.Source) Logic.eq_refl)) ; intro.
+      destruct (type_of_expr old_expr old_tmap) as [[[gt_expr| |]]|] ; try by contradiction Hcm_sub_tm.
+      by rewrite H //.
   + (* Sfcnct *)
     destruct ref as [var| | |] ; try by discriminate Heb.
     simpl type_of_ref in Hst.
-    (*generalize (type_of_expr_submap expr old_scope old_tmap Hsc_tm) ; intro Hexpr.
-    specialize (Hsc_tm var).*)
+    generalize (type_of_expr_submap expr old_scope old_tmap Hsc_tm) ; intro Hexpr.
+    specialize (Hsc_tm var).
     destruct (CEP.find var old_scope) as [[[gt| |] [| | | |]]|] ;
           (*last (by discriminate Hst) ;
           specialize Hsc_tm with (1 := Logic.eq_refl) ;
@@ -1818,48 +1879,313 @@ Proof.
                    | Fclock => match gt_expr with | Fclock => true | _ => false end
                    | Freset => false
                    | Fasyncreset => match gt_expr with | Fasyncreset => true | _ => false end
-                   end) ; last by discriminate Heb.
-    1,2: rewrite Qcats0 in Heb.
+                   end) eqn: Hcomp ; last by discriminate Heb.
     1,2: injection Heb ; clear Heb ; intros ; subst eb_connmap eb_scope.
-    1,2: by reflexivity.
+    1,2: split ; first by reflexivity.
+    1,2: intros Hcm_sub_tm k ; specialize (Hcm_sub_tm k).
+    1,2: destruct (k == var) eqn: Hkvar ;
+          first by (move /eqP : Hkvar => Hkvar ; subst k ;
+                    rewrite (CEP.Lemmas.find_add_eq (eq_refl _)) Hexpr
+                            (Hsc_tm _ Logic.eq_refl) //).
+    1,2: apply negbT in Hkvar ; move /negP : Hkvar => Hkvar.
+    1,2: by rewrite (CEP.Lemmas.find_add_neq Hkvar) //.
   + (* Sinvalid *)
     destruct ref as [var| | |] ; try by discriminate Heb.
     simpl type_of_ref in Hst.
-    (*specialize (Hsc_tm var).*)
+    specialize (Hsc_tm var).
     destruct (CEP.find var old_scope) as [[ft [| | | |]]|] ;
           (*last (by discriminate Hst) ;
           specialize Hsc_tm with (1 := Logic.eq_refl) ;
           rewrite Hsc_tm in Heb ;*)
           try by discriminate Heb.
     1,2: injection Hst ; clear Hst ; intros ; subst tm_tmap tm_scope.
-    1,2: rewrite Qcats0 in Heb.
     1,2: injection Heb ; clear Heb ; intros ; subst eb_connmap eb_scope.
-    1,2: by reflexivity.
+    1,2: split ; first by reflexivity.
+    1,2: intros Hcm_sub_tm k ; specialize (Hcm_sub_tm k).
+    1,2: destruct (k == var) eqn: Hkvar ;
+          first by (move /eqP : Hkvar => Hkvar ; subst k ;
+                    rewrite (CEP.Lemmas.find_add_eq (eq_refl _))
+                            (Hsc_tm _ Logic.eq_refl) //).
+    1,2: apply negbT in Hkvar ; move /negP : Hkvar => Hkvar.
+    1,2: by rewrite (CEP.Lemmas.find_add_neq Hkvar) //.
   + (* Swhen *)
+    rename stmts_tmap_and_ExpandBranches_funs into IHsst.
+    generalize (IHsst ssf) ; intro IHssf.
+    specialize (IHsst sst old_scope old_connmap old_tmap vm_for_tmap).
     move /andP : Hs_inf => [/andP [_ Hsst_inf] Hssf_inf].
-    (*generalize (type_of_expr_submap cond old_scope old_tmap Hsc_tm) ; intro Hcond.*)
-    destruct (type_of_expr cond old_scope) as [[[[[|[|]]| | | | | |]| |] (*p*)_]|] ;
+    destruct (type_of_expr cond old_scope) as [[[[[|[|]]| | | | | |]| |] p_cond]|] eqn: Hcond ;
           (*last (by discriminate Hst) ;
           rewrite Hcond in Heb ;*)
           try by discriminate Heb.
-    (*clear p Hcond.*)
-    (* destruct stmts_tmap in both branches: *)
-    destruct (stmts_tmap (old_tmap, old_scope) sst vm_for_tmap) as [[tm_tmap_t tm_scope_t]|] ; last by discriminate Hst.
+    generalize (stmts_tmap_preserves_fully_inferred vm_for_tmap sst old_tmap old_scope Hsst_inf Htm_inf Hsc_tm) ; intro Htm_t_inf.
+    generalize (stmts_submap vm_for_tmap sst old_tmap old_scope Hsc_tm) ; intro Hsc_tm_t.
+    destruct (stmts_tmap (old_tmap, old_scope) sst vm_for_tmap) as [[tm_tmap_t tm_scope_t]|] ;
+          last by discriminate Hst.
+    specialize (IHsst tm_tmap_t tm_scope_t) with (1 := Htm_inf) (2 := Hsc_tm) (3 := Hsst_inf) (4 := Logic.eq_refl).
+    generalize (ExpandBranches_funs_submap sst old_connmap old_scope) ; intro Heb_t.
+    destruct (ExpandBranches_funs sst old_connmap old_scope) as [[eb_connmap_t eb_scope_t]|] ;
+          last by discriminate Heb.
+    specialize IHsst with (1 := Logic.eq_refl).
+    destruct IHsst as [IHsst' IHsst] ; subst eb_scope_t.
+    specialize (IHssf old_scope old_connmap tm_tmap_t vm_for_tmap)
+          with (1 := Htm_t_inf) (2 := CEP.Lemmas.submap_trans (proj2 (proj2 Hsc_tm_t)) (proj1 Hsc_tm_t))
+               (3 := Hssf_inf).
+    generalize (stmts_submap vm_for_tmap ssf tm_tmap_t old_scope (CEP.Lemmas.submap_trans (proj2 (proj2 Hsc_tm_t)) (proj1 Hsc_tm_t))) ; intro Hsc_tm_f.
     destruct (stmts_tmap (tm_tmap_t, old_scope) ssf vm_for_tmap) as [[tm_tmap_f tm_scope_f]|] ; last by discriminate Hst.
+    specialize IHssf with (1 := Logic.eq_refl).
     injection Hst ; clear Hst ; intros ; subst tm_tmap_f tm_scope.
-    (* destruct ExpandBranches_funs in both branches: *)
-    generalize (ExpandBranches_funs_submap sst old_comp old_connmap old_scope) ; intro Heb_t.
-    destruct (ExpandBranches_funs sst old_comp old_connmap old_scope) as [[[eb_comp_t eb_connmap_t] eb_scope_t]|] ;
+    generalize (ExpandBranches_funs_submap ssf old_connmap old_scope) ; intro Heb_f.
+    destruct (ExpandBranches_funs ssf old_connmap old_scope) as [[eb_connmap_f eb_scope_f]|] ;
           last by discriminate Heb.
-    destruct Heb_t as [Heb_t' Heb_t] ; subst eb_comp_t.
-    generalize (ExpandBranches_funs_submap ssf (Qcat old_comp (component_stmts_of sst)) old_connmap old_scope) ; intro Heb_f.
-    destruct (ExpandBranches_funs ssf (Qcat old_comp (component_stmts_of sst)) old_connmap old_scope) as [[[eb_comp_f eb_connmap_f] eb_scope_f]|] ;
-          last by discriminate Heb.
-    destruct Heb_f as [Heb_f' Heb_f] ; subst eb_comp_f.
-    rewrite Qcat_assoc in Heb.
+(*
+  assert (Htm_tm_sub_tm : CEP.submap tm_tmap tmap).
+        intros k v Hfind_k ; specialize (Htm_sub_vm k) ; specialize (Hvm_tm k).
+        rewrite Hfind_k in Htm_sub_vm.
+        destruct v as [ft [| | | |]] ;
+              try (by contradiction Htm_sub_vm) ;
+              destruct (CEP.find k vm_for_tmap) as [[gt|gt|gt|gt|gt]|] ;
+              try (by contradiction Htm_sub_vm) ;
+              subst ft ;
+              exact Hvm_tm.
+  assert (Htmt_sub_tm: CEP.submap tm_tmap_t tmap) by (apply (CEP.Lemmas.submap_trans (proj1 (proj2 Hst_f)) Htm_tm_sub_tm)).
+*)
+    specialize IHssf with (1 := Logic.eq_refl).
+    destruct IHssf as [IHssf' IHssf] ; subst eb_scope_f.
     injection Heb ; clear Heb ; intros ; subst eb_connmap eb_scope.
-    by reflexivity.
+    split ; first by reflexivity.
+    intro Hcm_sub_tm.
+    specialize (IHsst Hcm_sub_tm).
+    assert (IHssf_precondition : connmap_sub_tm old_connmap tm_tmap_t).
+          destruct Hsc_tm_t as [_ [Hsc_tm_t _]].
+          specialize type_of_expr_submap with (1 := Hsc_tm_t) ; intro Hexpr.
+          intro k ; specialize (Hcm_sub_tm k) ; specialize (Hsc_tm_t k).
+          destruct (CEP.find k old_connmap) as [[| |expr]|] ; last by exact Hcm_sub_tm.
+          3: specialize (Hexpr expr) ;
+             destruct (type_of_expr expr old_tmap) as [[[gt_expr| |] ]|] ;
+                   try (by contradiction Hcm_sub_tm) ;
+             rewrite Hexpr //.
+          1-3: destruct (CEP.find k old_tmap) ; last by contradiction Hcm_sub_tm.
+          1-3: rewrite (Hsc_tm_t _ Logic.eq_refl) ; exact Hcm_sub_tm.
+    specialize (IHssf IHssf_precondition) ; clear IHssf_precondition.
+    intro k ; specialize (IHsst k) ; specialize (IHssf k).
+    specialize (Hcm_sub_tm k).
+    rewrite /combine_when_connections CEP.Lemmas.map2_1bis //.
+    destruct (CEP.find k eb_connmap_t) as [[| |expr_t]|].
+    - destruct Hsc_tm_f as [_ [Hsc_tm_f _]] ; specialize (Hsc_tm_f k).
+      by destruct (CEP.find k tm_tmap_t) as [[ft [| | | |]]|] ;
+         try (by contradiction IHsst) ;
+         rewrite (Hsc_tm_f _ Logic.eq_refl) //.
+    - destruct (CEP.find k eb_connmap_f) as [[| |expr_f]|] ; try done.
+      destruct Hsc_tm_f as [_ [Hsc_tm_f _]] ; specialize (Hsc_tm_f k).
+      by destruct (CEP.find k tm_tmap_t) as [[ft [| | | |]]|] ;
+                try (by contradiction IHsst) ;
+                rewrite (Hsc_tm_f _ Logic.eq_refl) //.
+    - generalize (type_of_expr_submap expr_t tm_tmap_t tm_tmap (proj1 (proj2 Hsc_tm_f))) ; intro.
+      destruct (CEP.find k eb_connmap_f) as [[| |expr_f]|] ; try done.
+      * 2: destruct (expr_t == expr_f) ; simpl.
+      * 1,2: destruct (type_of_expr expr_t tm_tmap_t) as [[[gt_expr_t| |] ]|] ; try by contradiction IHsst.
+        1,2: rewrite H.
+        1,2: destruct Hsc_tm_f as [_ [Hsc_tm_f _]] ; specialize (Hsc_tm_f k).
+        1,2: destruct (CEP.find k tm_tmap_t) as [[[gt_ref| |] [| | | |]]|] ;
+                  try (by contradiction IHsst) ;
+             by rewrite (Hsc_tm_f _ Logic.eq_refl) //.
+      * generalize (type_of_expr_submap cond _ _ (CEP.Lemmas.submap_trans (proj2 (proj2 Hsc_tm_f)) (proj1 Hsc_tm_f))) ;
+              intro ; rewrite Hcond in H0 ; rewrite H0 ; clear H0.
+        destruct (type_of_expr expr_t tm_tmap_t) as [[[gt_expr_t| |] ]|] ; try by contradiction IHsst.
+        rewrite H ; clear H.
+        destruct (type_of_expr expr_f tm_tmap) as [[[gt_expr_f| |] ]|] ; try by contradiction IHssf.
+        rewrite /ftype_mux /sval /proj2_sig /ftype_mux' /fgtyp_mux.
+        destruct Hsc_tm_f as [_ [Hsc_tm_f _]] ; specialize (Hsc_tm_f k) ; specialize (Htm_t_inf k).
+        destruct (CEP.find k tm_tmap_t) as [[[gt_ref| |] [| | | |]]|] ;
+              try (by contradiction IHsst) ;
+        rewrite (Hsc_tm_f _ Logic.eq_refl) in IHssf ; rewrite (Hsc_tm_f _ Logic.eq_refl) ;
+        destruct gt_ref, gt_expr_t, gt_expr_f ; done.
+      * destruct Hsc_tm_f as [_ [Hsc_tm_f _]].
+        generalize (type_of_expr_submap expr_t tm_tmap_t tm_tmap Hsc_tm_f) ; intro.
+        destruct (type_of_expr expr_t tm_tmap_t) as [[[gt_expr_t| |] ]|] ; try by contradiction IHsst.
+        rewrite H ; clear H.
+        specialize (Hsc_tm_f k).
+        destruct (CEP.find k tm_tmap_t) as [[[gt_ref| |] [| | | |]]|] ;
+              try (by contradiction IHsst) ;
+        rewrite (Hsc_tm_f _ Logic.eq_refl) //.
+    - destruct (CEP.find k eb_connmap_f) as [[| |expr_f]|] ; by exact IHssf.
 Qed.
+
+Lemma Sem_frag_stmts_component :
+forall (ss : HiFP.hfstmt_seq) (vm_old : CEP.t vertex_type) (ct_old : CEP.t def_expr)
+       (vm_new : CEP.t vertex_type) (ct_new : CEP.t def_expr) (tmap : CEP.t (ftype * HiF.forient)),
+        ct_sub_vm ct_old vm_old tmap
+    ->
+        Sem_frag_stmts vm_old ct_old (component_stmts_of ss) vm_new ct_new tmap
+    ->
+            ct_sub_vm ct_new vm_new tmap
+        /\
+            CEP.submap vm_old vm_new
+        /\
+            CEP.submap ct_old ct_new
+with Sem_frag_stmt_component :
+forall (s : HiFP.hfstmt) (vm_old : CEP.t vertex_type) (ct_old : CEP.t def_expr)
+       (vm_new : CEP.t vertex_type) (ct_new : CEP.t def_expr) (tmap : CEP.t (ftype * HiF.forient)),
+        ct_sub_vm ct_old vm_old tmap
+    ->
+        Sem_frag_stmts vm_old ct_old (component_stmt_of s) vm_new ct_new tmap
+    ->
+            ct_sub_vm ct_new vm_new tmap
+        /\
+            CEP.submap vm_old vm_new
+        /\
+            CEP.submap ct_old ct_new.
+Proof.
+* clear Sem_frag_stmts_component.
+  induction ss as [|s ss] ; simpl ; intros vm_old ct_old vm_new ct_new tmap Hct_sub_vm Hsf.
+  + split.
+    - intro k ; specialize (Hct_sub_vm k).
+      by rewrite (proj1 Hsf) (proj2 Hsf) // in Hct_sub_vm.
+    - split ; by apply CEP.Lemmas.Equal_submap, Hsf.
+  + rename Sem_frag_stmt_component into IHs ; specialize (IHs s).
+    apply Sem_frag_stmts_cat in Hsf.
+    destruct Hsf as [vm_temp [ct_temp [Hsf_s Hsf_ss]]].
+    specialize IHs with (1 := Hct_sub_vm) (2 := Hsf_s).
+    specialize IHss with (1 := proj1 IHs) (2 := Hsf_ss).
+    split.
+    - by apply IHss.
+    split ; destruct IHs as [_ IHs].
+    - by apply (CEP.Lemmas.submap_trans (proj1 IHs)), IHss.
+    - by apply (CEP.Lemmas.submap_trans (proj2 IHs)), IHss.
+* clear Sem_frag_stmt_component.
+  destruct s as [|var ft|var reg|var mem|var1 var2|var expr|ref expr|ref|cond sst ssf] ; simpl ;
+        intros vm_old ct_old vm_new ct_new tmap Hct_sub_vm Hsf.
+  + (* Sskip *)
+    split.
+    - intro k ; specialize (Hct_sub_vm k).
+      by rewrite (proj1 Hsf) (proj2 Hsf) // in Hct_sub_vm.
+    - split ; by apply CEP.Lemmas.Equal_submap, Hsf.
+  + (* Swire *)
+    destruct Hsf as [vm' [ct' [Hsf Heq]]].
+    destruct (CEP.find var tmap) as [[newft [| | | |]]|] ; try by contradiction Hsf.
+    split.
+    - intro k ; specialize (Hct_sub_vm k).
+      destruct (fst k == fst var) eqn: Hfst ; move /eqP : Hfst => Hfst ;
+            last  by (destruct Hsf as [_ [Hsf_vm [Hsf_ct _]]] ;
+                      specialize (Hsf_vm (fst k) (snd k)) ;
+                      specialize (Hsf_ct (fst k) (snd k)) ;
+                      rewrite -surjective_pairing (proj1 Heq) (proj2 Heq) in Hsf_vm, Hsf_ct ;
+                      rewrite Hsf_vm in Hct_sub_vm ; last (by left ; exact Hfst) ;
+                      rewrite Hsf_ct // in Hct_sub_vm ; last (by left ; exact Hfst)).
+      destruct (snd k < snd var) eqn: Hsnd_small ;
+            first by (destruct Hsf as [_ [Hsf_vm [Hsf_ct _]]] ;
+                      specialize (Hsf_vm (fst k) (snd k)) ;
+                      specialize (Hsf_ct (fst k) (snd k)) ;
+                      rewrite -surjective_pairing (proj1 Heq) (proj2 Heq) in Hsf_vm, Hsf_ct ;
+                      rewrite Hsf_vm in Hct_sub_vm ; last (by right ; left ; exact Hsnd_small) ;
+                      rewrite Hsf_ct // in Hct_sub_vm ; last (by right ; left ; exact Hsnd_small)).
+      destruct (size_of_ftype newft + snd var <= snd k) eqn: Hsnd_large ;
+            first by (destruct Hsf as [_ [Hsf_vm [Hsf_ct _]]] ;
+                      specialize (Hsf_vm (fst k) (snd k)) ;
+                      specialize (Hsf_ct (fst k) (snd k)) ;
+                      rewrite -surjective_pairing (proj1 Heq) (proj2 Heq) in Hsf_vm, Hsf_ct ;
+                      rewrite Hsf_vm in Hct_sub_vm ; last (by right ; right ; exact Hsnd_large) ;
+                      rewrite Hsf_ct // in Hct_sub_vm ; last (by right ; right ; exact Hsnd_large)).
+      destruct Hsf as [Hsf_vm [_ [_ Hsf_ct]]].
+      specialize (Hsf_vm (snd k - snd var)) ; specialize (Hsf_ct (snd k - snd var)).
+      generalize (List.nth_error_Some (list_rhs_type_p newft) (snd k - snd var)) ; intro.
+      replace (length (list_rhs_type_p newft)) with (size_of_ftype newft) in H
+            by (rewrite -list_rhs_type_p_size ; reflexivity).
+      rewrite ltnNge in Hsnd_small ; apply negbFE in Hsnd_small.
+      rewrite leqNgt addnC -ltn_subLR // in Hsnd_large ; apply negbFE in Hsnd_large.
+      specialize (Hsf_ct Hsnd_large).
+      destruct H as [_ H] ; specialize (H (simplssrlib.Nats.ltn_lt Hsnd_large)).
+      destruct (List.nth_error (list_rhs_type_p newft) (snd k - snd var)) ; last by contradiction H.
+      rewrite -Hfst subnK // nat_of_binK -surjective_pairing in Hsf_vm, Hsf_ct.
+      by rewrite -(proj1 Heq) -(proj2 Heq) (proj2 Hsf_vm) Hsf_ct //.
+    split.
+    - intros k v H0.
+      destruct (fst k == fst var) eqn: Hfst ; move /eqP : Hfst => Hfst ;
+            last  by (destruct Hsf as [_ [Hsf_vm _]] ;
+                      specialize (Hsf_vm (fst k) (snd k)) ;
+                      rewrite -surjective_pairing (proj1 Heq) in Hsf_vm ;
+                      rewrite -Hsf_vm // ; last (by left ; exact Hfst)).
+      destruct (snd k < snd var) eqn: Hsnd_small ;
+            first by (destruct Hsf as [_ [Hsf_vm _]] ;
+                      specialize (Hsf_vm (fst k) (snd k)) ;
+                      rewrite -surjective_pairing (proj1 Heq) in Hsf_vm ;
+                      rewrite -Hsf_vm // ; last (by right ; left ; exact Hsnd_small)).
+      destruct (size_of_ftype newft + snd var <= snd k) eqn: Hsnd_large ;
+            first by (destruct Hsf as [_ [Hsf_vm _]] ;
+                      specialize (Hsf_vm (fst k) (snd k)) ;
+                      rewrite -surjective_pairing (proj1 Heq) in Hsf_vm ;
+                      rewrite -Hsf_vm // ; last (by right ; right ; exact Hsnd_large)).
+      destruct Hsf as [Hsf_vm _].
+      specialize (Hsf_vm (snd k - snd var)).
+      generalize (List.nth_error_Some (list_rhs_type_p newft) (snd k - snd var)) ; intro.
+      replace (length (list_rhs_type_p newft)) with (size_of_ftype newft) in H
+            by (rewrite -list_rhs_type_p_size ; reflexivity).
+      rewrite ltnNge in Hsnd_small ; apply negbFE in Hsnd_small.
+      rewrite leqNgt addnC -ltn_subLR // in Hsnd_large ; apply negbFE in Hsnd_large.
+      destruct H as [_ H] ; specialize (H (simplssrlib.Nats.ltn_lt Hsnd_large)).
+      destruct (List.nth_error (list_rhs_type_p newft) (snd k - snd var)) ; last by contradiction H.
+      rewrite -Hfst subnK // nat_of_binK -surjective_pairing in Hsf_vm.
+      rewrite H0 in Hsf_vm ; by discriminate (proj1 Hsf_vm).
+    - intros k v H0.
+      destruct (fst k == fst var) eqn: Hfst ; move /eqP : Hfst => Hfst ;
+            last  by (destruct Hsf as [_ [_ [Hsf_ct _]]] ;
+                      specialize (Hsf_ct (fst k) (snd k)) ;
+                      rewrite -surjective_pairing (proj2 Heq) in Hsf_ct ;
+                      rewrite -Hsf_ct // ; last (by left ; exact Hfst)).
+      destruct (snd k < snd var) eqn: Hsnd_small ;
+            first by (destruct Hsf as [_ [_ [Hsf_ct _]]] ;
+                      specialize (Hsf_ct (fst k) (snd k)) ;
+                      rewrite -surjective_pairing (proj2 Heq) in Hsf_ct ;
+                      rewrite -Hsf_ct // ; last (by right ; left ; exact Hsnd_small)).
+      destruct (size_of_ftype newft + snd var <= snd k) eqn: Hsnd_large ;
+            first by (destruct Hsf as [_ [_ [Hsf_ct _]]] ;
+                      specialize (Hsf_ct (fst k) (snd k)) ;
+                      rewrite -surjective_pairing (proj2 Heq) in Hsf_ct ;
+                      rewrite -Hsf_ct // ; last (by right ; right ; exact Hsnd_large)).
+      destruct Hsf as [Hsf_vm _].
+      specialize (Hsf_vm (snd k - snd var)).
+      generalize (List.nth_error_Some (list_rhs_type_p newft) (snd k - snd var)) ; intro.
+      replace (length (list_rhs_type_p newft)) with (size_of_ftype newft) in H
+            by (rewrite -list_rhs_type_p_size ; reflexivity).
+      rewrite ltnNge in Hsnd_small ; apply negbFE in Hsnd_small.
+      rewrite leqNgt addnC -ltn_subLR // in Hsnd_large ; apply negbFE in Hsnd_large.
+      destruct H as [_ H] ; specialize (H (simplssrlib.Nats.ltn_lt Hsnd_large)).
+      destruct (List.nth_error (list_rhs_type_p newft) (snd k - snd var)) ; last by contradiction H.
+      rewrite -Hfst subnK // nat_of_binK -surjective_pairing in Hsf_vm.
+      specialize (Hct_sub_vm k) ; rewrite H0 (proj1 Hsf_vm) in Hct_sub_vm.
+      destruct v ; contradiction Hct_sub_vm.
+  + (* Sreg -- should be similar to Swire *)
+    admit.
+  + (* Smem *)
+    destruct Hsf as [vm' [ct' [Hsf _]]] ; contradiction Hsf.
+  + (* Sinst *)
+    destruct Hsf as [vm' [ct' [Hsf _]]] ; contradiction Hsf.
+  + (* Snode -- should be similar to Swire *)
+    admit.
+  + (* Sfcnct *)
+    split.
+    - intro k ; specialize (Hct_sub_vm k).
+      by rewrite (proj1 Hsf) (proj2 Hsf) // in Hct_sub_vm.
+    - split ; by apply CEP.Lemmas.Equal_submap, Hsf.
+  + (* Sinvalid *)
+    split.
+    - intro k ; specialize (Hct_sub_vm k).
+      by rewrite (proj1 Hsf) (proj2 Hsf) // in Hct_sub_vm.
+    - split ; by apply CEP.Lemmas.Equal_submap, Hsf.
+  + (* Swhen *)
+    apply Sem_frag_stmts_cat in Hsf.
+    destruct Hsf as [vm_true [ct_true [Hsf_t Hsf_f]]].
+    rename Sem_frag_stmts_component into IHsst.
+    generalize (IHsst ssf) ; intro IHssf.
+    specialize (IHsst sst) with (1 := Hct_sub_vm) (2 := Hsf_t).
+    specialize IHssf with (1 := proj1 IHsst) (2 := Hsf_f).
+    split.
+    - by apply IHssf.
+    - destruct IHsst as [_ IHsst], IHssf as [_ IHssf].
+      split.
+      - by apply (CEP.Lemmas.submap_trans (proj1 IHsst)), IHssf.
+      - by apply (CEP.Lemmas.submap_trans (proj2 IHsst)), IHssf.
+Admitted.
 
 Lemma ExpandBranches_funs_and_Sem_frag_stmts :
 forall (vm_for_tmap : CEP.t vertex_type) (tmap : CEP.t (ftype * HiF.forient)),
@@ -1869,7 +2195,7 @@ forall (vm_for_tmap : CEP.t vertex_type) (tmap : CEP.t (ftype * HiF.forient)),
     ->
         forall (ss : HiFP.hfstmt_seq)
                (old_tmap old_scope tm_tmap tm_scope : CEP.t (ftype * HiF.forient))
-               (old_comp : HiFP.hfstmt_seq) (old_connmap : CEP.t def_expr)
+               (old_connmap : CEP.t def_expr)
                (eb_connmap : CEP.t def_expr) (eb_scope : CEP.t (ftype * HiF.forient))
                (old_vm : CEP.t vertex_type) (old_ct : CEP.t def_expr) (vm_comp : CEP.t vertex_type) (ct_comp : CEP.t def_expr),
                 stmts_have_fully_inferred_ground_types ss
@@ -1880,7 +2206,7 @@ forall (vm_for_tmap : CEP.t vertex_type) (tmap : CEP.t (ftype * HiF.forient)),
             ->
                 scope_sub_vm tm_tmap vm_for_tmap
             ->
-                ExpandBranches_funs ss old_comp old_connmap old_scope = Some (Qcat old_comp (component_stmts_of ss), eb_connmap, eb_scope)
+                ExpandBranches_funs ss old_connmap old_scope = Some (eb_connmap, eb_scope)
             ->
                 Sem_frag_stmts old_vm old_ct (component_stmts_of ss) vm_comp ct_comp tmap
             ->
@@ -1895,7 +2221,7 @@ forall (vm_for_tmap : CEP.t vertex_type) (tmap : CEP.t (ftype * HiF.forient)),
     ->
         forall (s : HiFP.hfstmt)
                (old_tmap old_scope tm_tmap tm_scope : CEP.t (ftype * HiF.forient))
-               (old_comp : HiFP.hfstmt_seq) (old_connmap : CEP.t def_expr)
+               (old_connmap : CEP.t def_expr)
                (eb_connmap : CEP.t def_expr) (eb_scope : CEP.t (ftype * HiF.forient))
                (old_vm : CEP.t vertex_type) (old_ct : CEP.t def_expr) (vm_comp : CEP.t vertex_type) (ct_comp : CEP.t def_expr),
                 stmt_has_fully_inferred_ground_types s
@@ -1906,7 +2232,7 @@ forall (vm_for_tmap : CEP.t vertex_type) (tmap : CEP.t (ftype * HiF.forient)),
             ->
                 scope_sub_vm tm_tmap vm_for_tmap
             ->
-                ExpandBranch_fun s old_comp old_connmap old_scope = Some (Qcat old_comp (component_stmt_of s), eb_connmap, eb_scope)
+                ExpandBranch_fun s old_connmap old_scope = Some (eb_connmap, eb_scope)
             ->
                 Sem_frag_stmts old_vm old_ct (component_stmt_of s) vm_comp ct_comp tmap
             ->
@@ -1916,18 +2242,18 @@ forall (vm_for_tmap : CEP.t vertex_type) (tmap : CEP.t (ftype * HiF.forient)),
 Proof.
 * clear ExpandBranches_funs_and_Sem_frag_stmts.
   intros vm_for_tmap tmap Htm_inf Hvm_sub_tm.
-  induction ss as [|s ss] ; simpl ; intros old_tmap old_scope tm_tmap tm_scope old_comp old_connmap eb_connmap eb_scope old_vm old_ct vm_comp ct_comp Hss_inf Hsc_sub_tm Hst Htm_sub_vm Heb Hsf Haft.
+  induction ss as [|s ss] ; simpl ; intros old_tmap old_scope tm_tmap tm_scope old_connmap eb_connmap eb_scope old_vm old_ct vm_comp ct_comp Hss_inf Hsc_sub_tm Hst Htm_sub_vm Heb Hsf Haft.
   + admit.
   + rename ExpandBranch_fun_and_Sem_frag_stmt into IHs ;
     move /andP : Hss_inf => Hss_inf.
     specialize (IHs vm_for_tmap tmap Htm_inf Hvm_sub_tm s old_tmap old_scope)
-               with (old_comp := old_comp) (old_connmap := old_connmap) (old_vm := old_vm) (old_ct := old_ct) (1 := proj1 Hss_inf) (2 := Hsc_sub_tm).
+               with (old_connmap := old_connmap) (old_vm := old_vm) (old_ct := old_ct) (1 := proj1 Hss_inf) (2 := Hsc_sub_tm).
     (* stmt_tmap *)
     generalize (stmt_submap vm_for_tmap s old_tmap old_scope Hsc_sub_tm) ; intro Htm_s.
     specialize (stmt_tmap_and_ExpandBranch_fun s old_scope old_connmap old_tmap vm_for_tmap)
                with (2 := Hsc_sub_tm) (3 := proj1 Hss_inf) ; intro Htm_eb.
     destruct (stmt_tmap (old_tmap, old_scope) s vm_for_tmap) as [[tm_tmap_s tm_scope_s]|] ; last by discriminate Hst.
-    specialize (Htm_eb tm_tmap_s tm_scope_s old_comp) with (2 := Logic.eq_refl).
+    specialize (Htm_eb tm_tmap_s tm_scope_s) with (2 := Logic.eq_refl).
     specialize IHs with (1 := Logic.eq_refl).
     specialize IHss with (1 := proj2 Hss_inf) (2 := proj1 Htm_s) (3 := Hst) (4 := Htm_sub_vm).
     generalize (stmts_submap vm_for_tmap ss tm_tmap_s tm_scope_s (proj1 Htm_s)) ; intro Htm_ss.
@@ -1959,15 +2285,13 @@ Proof.
     specialize Htm_eb with (1 := Hold_tm_inf).
     clear Hst.
     (* ExpandBranch_fun *)
-    generalize (ExpandBranch_fun_submap s old_comp old_connmap old_scope) ; intro Heb_s.
-    destruct (ExpandBranch_fun s old_comp old_connmap old_scope) as [[[eb_comp_s eb_connmap_s] eb_scope_s]|] ; last by discriminate Heb.
-    destruct Heb_s as [Heb_s' Heb_s] ; subst eb_comp_s.
-    specialize Htm_eb with (1 := Logic.eq_refl).
+    generalize (ExpandBranch_fun_submap s old_connmap old_scope) ; intro Heb_s.
+    destruct (ExpandBranch_fun s old_connmap old_scope) as [[eb_connmap_s eb_scope_s]|] ; last by discriminate Heb.
+    specialize Htm_eb with (1 := Logic.eq_refl) ; destruct Htm_eb as [Htm_eb _].
     subst eb_scope_s.
     specialize IHs with (1 := Logic.eq_refl).
-    specialize (IHss (Qcat old_comp (component_stmt_of s)) eb_connmap_s).
-    generalize (ExpandBranches_funs_submap ss (Qcat old_comp (component_stmt_of s)) eb_connmap_s tm_scope_s) ; intro Heb_ss.
-    rewrite -Qcat_assoc in Heb.
+    specialize (IHss eb_connmap_s).
+    generalize (ExpandBranches_funs_submap ss eb_connmap_s tm_scope_s) ; intro Heb_ss.
     rewrite Heb in Heb_ss.
     destruct Heb_ss as [_ Heb_ss].
     specialize IHss with (1 := Heb).
@@ -1981,7 +2305,7 @@ Proof.
 * clear ExpandBranch_fun_and_Sem_frag_stmt.
   intros vm_for_tmap tmap Htm_inf Hvm_sub_tm.
   induction s as [|var ft|var reg|var mem|var1 var2|var expr|ref expr|ref|cond sst ssf] ; simpl ;
-        intros old_tmap old_scope tm_tmap tm_scope old_comp old_connmap eb_connmap eb_scope old_vm old_ct vm_comp ct_comp Hs_inf Hsc_sub_tm Hst Htm_sub_vm Heb Hsf Haft.
+        intros old_tmap old_scope tm_tmap tm_scope old_connmap eb_connmap eb_scope old_vm old_ct vm_comp ct_comp Hs_inf Hsc_sub_tm Hst Htm_sub_vm Heb Hsf Haft.
   + (* Sskip *)
     admit.
   + (* Swire *)
@@ -2004,7 +2328,6 @@ Proof.
           subst gt'.
     injection Hst ; clear Hst ; intros ; subst tm_tmap tm_scope.
     destruct (CEP.find var old_scope) ; first by discriminate Heb.
-    rewrite Qcats1 in Heb.
     injection Heb ; clear Heb ; intros ; subst eb_connmap eb_scope.
     destruct Hsf as [vm_comp' [ct_comp' [Hsf Hcomp]]].
     assert (Hvar_tm: CEP.find var tmap = Some (Gtyp gt, HiF.Duplex)).
@@ -2066,21 +2389,9 @@ Proof.
       intro k ; specialize (Haft k).
       rewrite -(proj2 Hadd k).
       destruct (k == var) eqn: Hkvar.
-      * rewrite (CEP.Lemmas.find_add_eq Hkvar) (CEP.Lemmas.find_add_eq Hkvar) //.
+      * by rewrite (CEP.Lemmas.find_add_eq Hkvar) (CEP.Lemmas.find_add_eq Hkvar) //.
       * apply negbT in Hkvar ; move /negP : Hkvar => Hkvar.
-        rewrite (CEP.Lemmas.find_add_neq Hkvar) (CEP.Lemmas.find_add_neq Hkvar).
-        destruct (PVM.find k old_connmap) as [[| |cm_expr]|] ; try by exact Haft.
-        destruct (CEP.find k old_ct) as [[| |ct_expr]|] ; try by exact Haft.
-        generalize (type_of_expr_submap cm_expr old_tmap (CEP.add var (Gtyp gt, HiF.Duplex) old_tmap)
-                         (CEP.Lemmas.submap_none_add (Gtyp gt, HiF.Duplex) (CEP.Lemmas.submap_refl old_tmap) Hnot_find_var)) ;
-              intro H.
-        destruct (type_of_expr cm_expr old_tmap) as [[[cm_gt| |] cm_p]|] ; try by contradiction Haft.
-        rewrite H ; clear H.
-        generalize (type_of_expr_submap ct_expr old_tmap (CEP.add var (Gtyp gt, HiF.Duplex) old_tmap)
-                         (CEP.Lemmas.submap_none_add (Gtyp gt, HiF.Duplex) (CEP.Lemmas.submap_refl old_tmap) Hnot_find_var)) ;
-              intro H.
-        destruct (type_of_expr ct_expr old_tmap) as [[[ct_gt| |] ct_p]|] ; try by contradiction Haft.
-        by rewrite H //.
+        by rewrite (CEP.Lemmas.find_add_neq Hkvar) (CEP.Lemmas.find_add_neq Hkvar) //.
     destruct Haft as [_ Haft] ; split.
     - destruct Haft as [Haft _].
       intro k ; specialize (Haft k).
@@ -2104,13 +2415,26 @@ Proof.
       * by rewrite (CEP.Lemmas.find_add_eq Hkvar) (CEP.Lemmas.find_add_eq Hkvar) //.
       * apply negbT in Hkvar ; move /negP : Hkvar => Hkvar.
         by rewrite (CEP.Lemmas.find_add_neq Hkvar) (CEP.Lemmas.find_add_neq Hkvar) //.
-    - destruct Haft as [_ Haft].
+    destruct Haft as [_ Haft] ; split.
+    - destruct Haft as [Haft _].
       intro k ; specialize (Haft k).
       rewrite -(proj1 Hadd k).
       destruct (k == var) eqn: Hkvar.
       * by rewrite (CEP.Lemmas.find_add_eq Hkvar) (CEP.Lemmas.find_add_eq Hkvar) //.
       * apply negbT in Hkvar ; move /negP : Hkvar => Hkvar.
         by rewrite (CEP.Lemmas.find_add_neq Hkvar) (CEP.Lemmas.find_add_neq Hkvar) //.
+    - destruct Haft as [_ Haft].
+      intro k ; specialize (Haft k).
+      destruct (k == var) eqn: Hkvar.
+      * rewrite (CEP.Lemmas.find_add_eq Hkvar) (CEP.Lemmas.find_add_eq Hkvar) //.
+      * apply negbT in Hkvar ; move /negP : Hkvar => Hkvar.
+        rewrite (CEP.Lemmas.find_add_neq Hkvar) (CEP.Lemmas.find_add_neq Hkvar).
+        destruct (PVM.find k old_connmap) as [[| |cm_expr]|] ; try by exact Haft.
+        generalize (type_of_expr_submap cm_expr old_tmap (CEP.add var (Gtyp gt, HiF.Duplex) old_tmap)
+                         (CEP.Lemmas.submap_none_add (Gtyp gt, HiF.Duplex) (CEP.Lemmas.submap_refl old_tmap) Hnot_find_var)) ;
+              intro H.
+        destruct (type_of_expr cm_expr old_tmap) as [[[cm_gt| |] cm_p]|] ; try by contradiction Haft.
+        by rewrite H //.
   + (* Sreg *)
     admit.
   + (* Smem *)
@@ -2136,7 +2460,7 @@ Proof.
         | Freset => false
         | Fasyncreset => match gt_expr with | Fasyncreset => true | _ => false end
         end) eqn: Hconn ; last by discriminate Heb.
-    1,2: rewrite Qcats0 in Heb ; injection Heb ; clear Heb ; intros ; subst eb_connmap eb_scope.
+    1,2: injection Heb ; clear Heb ; intros ; subst eb_connmap eb_scope.
     1,2: generalize (proj1 Haft var) ; intro Hvar_cm ; rewrite Hvar_sc in Hvar_cm.
     1,2: generalize Hvar_sc ; intro Hvar_tm ; apply Hsc_sub_tmap in Hvar_tm.
     1,2: generalize (proj1 (proj2 (proj2 (proj2 Haft))) var) ; intro ;
@@ -2166,12 +2490,6 @@ Proof.
         1-3: destruct (CEP.find var old_ct) as [[| |ct_expr]|] ;
                    try (by contradiction Hvar_ct) ;
                    try (by trivial).
-        1-3: rewrite Hexpr_tm //.
-        1-3: destruct (type_of_expr ct_expr old_tmap) as [[ft p_ft]|] ; last by contradiction Hvar_ct.
-        1-3: destruct gt_expr ; try (by discriminate p) ;
-             destruct gt_ref ; try (by discriminate Hconn) ;
-             destruct ft as [[]| |] ; try (by discriminate Hvar_ct) ;
-             try (by discriminate p_ft) ; simpl ; done.
       * 1-3: rewrite (CEP.Lemmas.find_add_neq (elimT negP (negbT Hkvar))) -(proj2 Hsf k) //.
     1-3: destruct Haft as [_ Haft] ; split.
     - 1,3,5: destruct Haft as [Haft _].
@@ -2181,9 +2499,17 @@ Proof.
     - 1,3,5: destruct Haft as [Haft _].
       1-3: intro k ; specialize (Haft k).
       1-3: by rewrite -(proj1 Hsf k) //.
-    - 1-3: destruct Haft as [_ Haft].
+    1-3: destruct Haft as [_ Haft] ; split.
+    - 1,3,5: destruct Haft as [Haft _].
       1-3: intro k ; specialize (Haft k).
       1-3: by rewrite -(proj1 Hsf k) //.
+    - 1-3: destruct Haft as [_ Haft].
+      1-3: intro k ; specialize (Haft k).
+      1-3: destruct (k == var) eqn: Hkvar.
+      * 1,3,5: rewrite (CEP.Lemmas.find_add_eq Hkvar).
+        1-3: move /eqP : Hkvar => Hkvar ; subst k.
+        1-3: rewrite Hexpr_tm Hvar_tm //.
+      * 1-3: rewrite (CEP.Lemmas.find_add_neq (elimT negP (negbT Hkvar))) //.
   + (* Sinvalid should be similar to Sfcnct but simpler *)
     admit.
   + (* Swhen *)
@@ -2191,7 +2517,7 @@ Proof.
     rename ExpandBranches_funs_and_Sem_frag_stmts into IHsst.
     specialize (IHsst vm_for_tmap tmap Htm_inf Hvm_sub_tm).
     generalize (IHsst ssf) ; intro IHssf ; specialize IHssf with (1 := Hssf_inf).
-    specialize (IHsst sst old_tmap old_scope) with (old_comp := old_comp) (old_connmap := old_connmap) (old_vm := old_vm) (old_ct := old_ct)
+    specialize (IHsst sst old_tmap old_scope) with (old_connmap := old_connmap) (old_vm := old_vm) (old_ct := old_ct)
                                 (1 := Hsst_inf) (2 := Hsc_sub_tm).
     destruct (type_of_expr cond old_scope) as [[[[[|[|]]| | | | | |]| |] p_cond]|] eqn: Hcond ; try by discriminate Heb.
     generalize (type_of_expr_submap cond old_scope old_tmap
@@ -2213,28 +2539,40 @@ Proof.
           specialize Htm_f with (1 := Logic.eq_refl) ; rewrite Htm_f // in Htm_sub_vm.
     specialize IHsst with (1 := Htm_t_sub_tm).
     (* ExpandBranches_funs: *)
-    generalize (ExpandBranches_funs_submap sst old_comp old_connmap old_scope) ; intro Heb_t.
-    destruct (ExpandBranches_funs sst old_comp old_connmap old_scope) as [[[eb_comp_t eb_connmap_t] eb_scope_t]|] ; last by discriminate Heb.
-    destruct Heb_t as [Heb_t' Heb_t] ; subst eb_comp_t.
+    generalize (ExpandBranches_funs_submap sst old_connmap old_scope) ; intro Heb_t.
+    destruct (ExpandBranches_funs sst old_connmap old_scope) as [[eb_connmap_t eb_scope_t]|] ; last by discriminate Heb.
     specialize IHsst with (1 := Logic.eq_refl).
-    specialize (IHssf (Qcat old_comp (component_stmts_of sst)) old_connmap).
-    generalize (ExpandBranches_funs_submap ssf (Qcat old_comp (component_stmts_of sst)) old_connmap old_scope) ; intro Heb_f.
-    destruct (ExpandBranches_funs ssf (Qcat old_comp (component_stmts_of sst)) old_connmap old_scope) as [[[eb_comp_f eb_connmap_f] eb_scope_f]|] ; last by discriminate Heb.
-    destruct Heb_f as [Heb_f' Heb_f] ; subst eb_comp_f.
+    specialize (IHssf old_connmap).
+    generalize (ExpandBranches_funs_submap ssf old_connmap old_scope) ; intro Heb_f.
+    destruct (ExpandBranches_funs ssf old_connmap old_scope) as [[eb_connmap_f eb_scope_f]|] ; last by discriminate Heb.
     specialize IHssf with (1 := Logic.eq_refl).
-    rewrite Qcat_assoc in Heb.
     injection Heb ; clear Heb ; intros ; subst eb_connmap eb_scope.
     (* Sem_frag_stmts: *)
     apply Sem_frag_stmts_cat in Hsf.
     destruct Hsf as [vm_comp_t [ct_comp_t Hsf]].
     specialize IHsst with (1 := proj1 Hsf) (2 := Haft).
     specialize IHssf with (1 := proj2 Hsf).
-    assert (Hsf_t : vm_and_ct_compatible old_vm old_ct) by admit.
-           (* should hold because of ct_sub_vm old_ct old_vm.
-              Perhaps change Cem_frag_stmts_component to require this instead of vm_and_ct_compatible? *)
+    assert (Htm_tm_sub_tm : CEP.submap tm_tmap tmap).
+          apply scope_vm_submap_tmap with (vm := vm_for_tmap) ; try by assumption.
+    assert (Htmt_sub_tm: CEP.submap tm_tmap_t tmap) by (apply (CEP.Lemmas.submap_trans (proj1 (proj2 Htm_f)) Htm_tm_sub_tm)).
+    assert (Holdtm_sub_tm: CEP.submap old_tmap tmap) by (apply (CEP.Lemmas.submap_trans (proj1 (proj2 Htm_t)) Htmt_sub_tm)).
+    assert (Hsf_t : ct_sub_vm old_ct old_vm tmap).
+          destruct Haft as [_ [_ [Haft _]]].
+          intro k ; specialize (Haft k).
+          destruct (CEP.find k old_ct) as [[| |expr]|] ; try by exact Haft.
+          destruct (CEP.find k old_vm) as [[gt|gt|gt|gt|gt]|] ; try by exact Haft.
+          1-3: generalize (type_of_expr_submap expr old_tmap tmap Holdtm_sub_tm) ; intro.
+          1-3: destruct (type_of_expr expr old_tmap) as [[[gt_expr| |] ]|] ; try by contradiction Haft.
+          1-3: by rewrite H //.
     apply (Sem_frag_stmts_component) with (2 := proj1 Hsf) in Hsf_t.
-    assert (Hsf_f : vm_and_ct_compatible vm_comp_t ct_comp_t) by admit.
-           (* should hold because ct_sub_vm ct_comp_t vm_comp_t (see IHsst) *)
+    assert (Hsf_f: ct_sub_vm ct_comp_t vm_comp_t tmap).
+          destruct IHsst as [_ [_ [IHsst _]]].
+          intro k ; specialize (IHsst k).
+          destruct (CEP.find k ct_comp_t) as [[| |expr]|] ; try by exact IHsst.
+          destruct (CEP.find k vm_comp_t) as [[gt|gt|gt|gt|gt]|] ; try by exact IHsst.
+          1-3: generalize (type_of_expr_submap expr tm_tmap_t tmap Htmt_sub_tm) ; intro.
+          1-3: destruct (type_of_expr expr tm_tmap_t) as [[[gt_expr| |] ]|] ; try by contradiction IHsst.
+          1-3: by rewrite H //.
     apply (Sem_frag_stmts_component) with (2 := proj2 Hsf) in Hsf_f.
     assert (Haft_f: all_fit_together old_scope old_connmap ct_comp_t vm_comp_t tm_tmap_t).
           split.
@@ -2246,25 +2584,17 @@ Proof.
             1-2: destruct (type_of_expr expr old_tmap) ; last by contradiction Haft.
             1-2: rewrite H //.
           destruct Haft as [_ Haft] ; split.
+          - destruct Haft as [Haft _], Hsf_t as [_ [_ Hsf_t]].
+            intro k ; specialize (Haft k) ; specialize (Hsf_t k).
+            destruct (CEP.find k old_connmap) ; last by trivial.
+            destruct (CEP.find k old_ct) ; last by contradiction Haft.
+            by rewrite (Hsf_t _ Logic.eq_refl) //.
+          destruct Haft as [_ Haft] ; split.
+          - by apply IHsst.
+          destruct Haft as [_ Haft] ; split.
+          - by apply IHsst.
+          destruct Haft as [_ Haft] ; split.
           - destruct Haft as [Haft _].
-            intro k ; specialize (Haft k).
-            specialize (Hsf_t k).
-            destruct (CEP.find k old_connmap) as [[| |cm_expr]|] ; last by trivial.
-            1-3: destruct (CEP.find k old_ct) as [|] ; last by contradiction Haft.
-            1-3: specialize Hsf_t with (1 := Logic.eq_refl).
-            1-3: rewrite Hsf_t ; try done. (* That solves two of the three goals *)
-            destruct d as [| |ct_expr] ; try by exact Haft.
-            generalize (type_of_expr_submap cm_expr old_tmap tm_tmap_t (proj1 (proj2 Htm_t))) ; intro.
-            destruct (type_of_expr cm_expr old_tmap) as [[[cm_gt| |] cm_p]|] ; try by contradiction Haft.
-            rewrite H ; clear H.
-            generalize (type_of_expr_submap ct_expr old_tmap tm_tmap_t (proj1 (proj2 Htm_t))) ; intro.
-            destruct (type_of_expr ct_expr old_tmap) as [[[ct_gt| |] ct_p]|] ; try by contradiction Haft.
-            rewrite H //.
-          destruct Haft as [_ Haft] ; split.
-          - by apply IHsst.
-          destruct Haft as [_ Haft] ; split.
-          - by apply IHsst.
-          - destruct Haft as [_ Haft].
             generalize (proj1 Hsf) ; intro Hvm_comp_t ; apply Sem_frag_stmts_compatible in Hvm_comp_t.
             destruct Hvm_comp_t as [Hvm_comp_t _].
             intro k ; specialize (Haft k) ; specialize (Hvm_comp_t k).
@@ -2274,9 +2604,20 @@ Proof.
                   subst ft ;
                   specialize Hvm_comp_t with (1 := Logic.eq_refl) ;
                   rewrite Hvm_comp_t //.
+          - destruct Haft as [_ Haft].
+            intro k ; specialize (Haft k).
+            destruct Htm_t as [_ [Htm_t _]].
+            destruct (CEP.find k old_connmap) as [[| |expr]|] ; try by exact Haft.
+            * 3: generalize (type_of_expr_submap expr old_tmap tm_tmap_t Htm_t) ; intro ;
+              destruct (type_of_expr expr old_tmap) as [[[gt_expr| |] p]|] ; try (by contradiction Haft) ;
+              rewrite H.
+            1-3: specialize (Htm_t k).
+            1-3: destruct (CEP.find k old_tmap) as [[ft [| | | |]]|] ;
+                         try (by contradiction Haft) ;
+                 rewrite (Htm_t _ Logic.eq_refl) //.
     specialize (IHssf Haft_f) ; clear Haft_f.
     split.
-    - destruct IHsst as [IHsst _] ; destruct IHssf as [IHssf _].
+    - destruct IHsst as [IHsst _], IHssf as [IHssf _].
       intro k ; specialize (IHsst k) ; specialize (IHssf k).
       destruct Heb_t as [_ Heb_t] ; specialize (Heb_t k).
       destruct Heb_f as [_ Heb_f] ; specialize (Heb_f k).
@@ -2316,45 +2657,809 @@ Proof.
            destruct ft_src   as [[| | | | | |]| |] ; try (by discriminate IHsst) ; try (by contradiction p_t) ;
            destruct ft_src_f as [[| | | | | |]| |] ; try (by discriminate IHssf) ; try (by contradiction p_f) ;
            simpl ; done.
-    destruct Haft as [_ Haft] ; destruct IHsst as [_ IHsst] ; destruct IHssf as [_ IHssf] ; split.
-    - destruct IHsst as [IHsst _] ; destruct IHssf as [IHssf _].
+    destruct Haft as [_ Haft], IHsst as [_ IHsst], IHssf as [_ IHssf] ; split.
+    - destruct IHsst as [IHsst _], IHssf as [IHssf _], Hsf_t as [_ [_ Hsf_t]], Hsf_f as [_ [_ Hsf_f]].
       intro k ; specialize (IHsst k) ; specialize (IHssf k) ; specialize (Hsf_t k) ; specialize (Hsf_f k).
       rewrite /combine_when_connections CEP.Lemmas.map2_1bis //.
-      destruct (CEP.find k eb_connmap_t) as [[| |expr_t]|] eqn: Hfind_eb_t,
-               (CEP.find k eb_connmap_f) as [[| |expr_f]|] eqn: Hfind_eb_f,
-               (CEP.find k ct_comp_t) eqn: Hfind_ct_t, (CEP.find k ct_comp) eqn: Hfind_ct_f ; try (by done) ;
+      destruct (CEP.find k eb_connmap_t) as [[| |expr_t]|],
+               (CEP.find k eb_connmap_f) as [[| |expr_f]|],
+               (CEP.find k ct_comp_t), (CEP.find k ct_comp) ; try (by done) ;
                try specialize Hsf_f with (1 := Logic.eq_refl) ; try (by discriminate Hsf_f).
-      1-3: injection Hsf_f ; clear Hsf_f ; intros ; subst d0 ; try (by assumption).
-      2: destruct (expr_t == expr_f) ; last simpl.
-      1-4: destruct d as [| |ct_expr] ; try by trivial.
-      3: generalize (type_of_expr_submap cond old_tmap tm_tmap (CEP.Lemmas.submap_trans (proj1 (proj2 Htm_t)) (proj1 (proj2 Htm_f)))) ;
-         intro ; rewrite Hcond_tm in H ; rewrite H ; clear H.
-      1-4: generalize (type_of_expr_submap expr_t tm_tmap_t tm_tmap (proj1 (proj2 Htm_f))) ; intro.
-      1-4: destruct (type_of_expr expr_t tm_tmap_t) as [[[gt_t| |] p_t]|] ; try by contradiction IHsst.
-      1-4: rewrite H ; clear H.
-      3: destruct (type_of_expr expr_f tm_tmap) as [[[gt_f| |] p_f]|] ; try by contradiction IHssf.
-      1-4: generalize (type_of_expr_submap ct_expr tm_tmap_t tm_tmap (proj1 (proj2 Htm_f))) ; intro.
-      1-4: destruct (type_of_expr ct_expr tm_tmap_t) as [[[ct_gt| |] ct_p]|] ; try by contradiction IHsst.
-      1-4: rewrite H //.
-      rewrite H in IHssf ; clear H.
-      rewrite /ftype_mux /sval /proj2_sig ; simpl ftype_mux'.
-      destruct gt_t ; try (by contradiction p_t) ;
-      destruct ct_gt ; try (by discriminate IHsst) ; (*try (by contradiction p_t) ;*)
-      destruct gt_f ; try (by discriminate IHssf) ; try (by contradiction p_f).
-      * 1,2: by rewrite /Fuint_exp //.
-      * 1,2: by rewrite /Fsint_exp //.
-      * by rewrite /Fclock_exp //.
-      * by rewrite /Fasyncreset_exp //.
-    destruct Haft as [_ Haft] ; destruct IHsst as [_ IHsst] ; destruct IHssf as [_ IHssf] ; split.
+      destruct (expr_t == expr_f) ; by done.
+    destruct Haft as [_ Haft], IHsst as [_ IHsst], IHssf as [_ IHssf] ; split.
     - by apply IHssf.
-    destruct Haft as [_ Haft] ; destruct IHsst as [_ IHsst] ; destruct IHssf as [_ IHssf] ; split.
+    destruct Haft as [_ Haft], IHsst as [_ IHsst], IHssf as [_ IHssf] ; split.
     - by apply IHssf.
-    - destruct IHssf as [_ IHssf].
+    destruct Haft as [_ Haft], IHsst as [_ IHsst], IHssf as [_ IHssf] ; split.
+    - destruct Haft as [Haft _], IHssf as [IHssf _].
       destruct Heb_f as [_ Heb_f].
       intro ; specialize (Heb_f k) ; specialize (IHssf k).
       destruct (CEP.find k old_scope) as [[ft ori]|] ; last by trivial.
       specialize Heb_f with (1 := Logic.eq_refl) ; rewrite Heb_f // in IHssf.
+    - destruct Haft as [_ Haft], IHsst as [_ IHsst], IHssf as [_ IHssf].
+      intro k ; specialize (Haft k) ; specialize (IHsst k) ; specialize (IHssf k).
+      rewrite /combine_when_connections CEP.Lemmas.map2_1bis //.
+      destruct (CEP.find k eb_connmap_t) as [[| |expr_t]|] eqn: Hfind_eb_t,
+               (CEP.find k eb_connmap_f) as [[| |expr_f]|] eqn: Hfind_eb_f ;
+            try (by done) ;
+            try (by destruct Htm_f as [_ [Htm_f _]] ; specialize (Htm_f k) ;
+                    destruct (CEP.find k tm_tmap_t) as [[ft [| | | |]]|] ;
+                          try (by contradiction IHsst) ;
+                    rewrite (Htm_f _ Logic.eq_refl) //).
+      2: destruct (expr_t == expr_f) ;
+         last (simpl ;
+               generalize (type_of_expr_submap cond old_tmap tm_tmap (CEP.Lemmas.submap_trans (proj1 (proj2 Htm_t)) (proj1 (proj2 Htm_f)))) ;
+               intro H ;
+               rewrite Hcond_tm in H ;
+               rewrite H ; clear H).
+      1-4: generalize (type_of_expr_submap expr_t tm_tmap_t tm_tmap (proj1 (proj2 Htm_f))) ;
+           intro H ;
+           destruct (type_of_expr expr_t tm_tmap_t) as [[[gt_expr_t| |] ]|] ;
+                 try (by contradiction IHsst) ;
+           rewrite H ; clear H.
+      1-4: destruct Htm_f as [_ [Htm_f _]] ; specialize (Htm_f k).
+      1-4: destruct (CEP.find k tm_tmap_t) as [[[gt_ref| |] [| | | |]]|] ;
+           try (by contradiction IHsst) ;
+           specialize (Htm_f _ Logic.eq_refl) ;
+           rewrite Htm_f // ;
+           rewrite Htm_f // in IHssf.
+      1-2: specialize (Htm_inf k) ;
+           apply (scope_vm_submap_tmap tm_tmap vm_for_tmap tmap Htm_sub_vm Hvm_sub_tm) in Htm_f ;
+           rewrite Htm_f in Htm_inf.
+      1-2: destruct (type_of_expr expr_f tm_tmap) as [[[gt_expr_f| |] ]|] ;
+                 try (by contradiction IHssf) ;
+           rewrite /ftype_mux /sval /proj2_sig /ftype_mux' /fgtyp_mux.
+      1-2: destruct gt_ref, gt_expr_t, gt_expr_f ; done.
 Admitted.
+
+(* The first part of the lemma is already proven in ModuleGraph_oriented.
+The second part is more something that describes the relation between Sem_frag_stmts and stmts_tmap,
+and that lemma is proven further below.
+Therefore I commented out this (incompletely proven) lemma.
+[Actually the main incompleteness is in the Swhen case.
+Additionally there is an admitted lemma in Sfcnct/Sinvalid,
+which would needed to be proven as a separate induction.]
+
+Lemma Sem_frag_stmts_compatible :
+forall (ss : HiFP.hfstmt_seq) (vm_old : CEP.t vertex_type) (ct_old : CEP.t def_expr)
+       (vm_new : CEP.t vertex_type) (ct_new : CEP.t def_expr) (tmap : CEP.t (ftype * HiF.forient)),
+    Sem_frag_stmts vm_old ct_old ss vm_new ct_new tmap ->
+           CEP.submap vm_old vm_new /\ subdomain ct_old ct_new
+        /\ (   (exists (old_tmap old_scope new_tmap new_scope : CEP.t (ftype * HiF.forient)) (vm_for_tmap : CEP.t vertex_type),
+                       CEP.submap old_scope old_tmap
+                   /\
+                       stmts_tmap (old_tmap, old_scope) ss vm_for_tmap = Some (new_tmap, new_scope)
+                   /\
+                       CEP.submap new_tmap tmap
+                   /\
+                       CEP.submap vm_new vm_for_tmap)
+           ->
+               tmap_has_fully_inferred_ground_types tmap
+           ->
+               stmts_have_fully_inferred_ground_types ss
+           ->
+               all_fit_together (CEP.empty (ftype * HiF.forient)) (CEP.empty def_expr) ct_old vm_old tmap
+           ->
+               all_fit_together (CEP.empty (ftype * HiF.forient)) (CEP.empty def_expr) ct_new vm_new tmap)
+with Sem_frag_stmt_compatible :
+forall (s : HiFP.hfstmt) (vm_old : CEP.t vertex_type) (ct_old : CEP.t def_expr)
+       (vm_new : CEP.t vertex_type) (ct_new : CEP.t def_expr) (tmap : CEP.t (ftype * HiF.forient)),
+    Sem_frag_stmt vm_old ct_old s vm_new ct_new tmap ->
+           CEP.submap vm_old vm_new /\ subdomain ct_old ct_new
+        /\ (   (exists (old_tmap old_scope new_tmap new_scope : CEP.t (ftype * HiF.forient)) (vm_for_tmap : CEP.t vertex_type),
+                       CEP.submap old_scope old_tmap
+                   /\
+                       stmt_tmap (old_tmap, old_scope) s vm_for_tmap = Some (new_tmap, new_scope)
+                   /\
+                       CEP.submap new_tmap tmap
+                   /\
+                       CEP.submap vm_new vm_for_tmap)
+           ->
+               tmap_has_fully_inferred_ground_types tmap
+           ->
+               stmt_has_fully_inferred_ground_types s
+           ->
+               all_fit_together (CEP.empty (ftype * HiF.forient)) (CEP.empty def_expr) ct_old vm_old tmap
+           ->
+               all_fit_together (CEP.empty (ftype * HiF.forient)) (CEP.empty def_expr) ct_new vm_new tmap).
+Proof.
+* clear Sem_frag_stmts_compatible.
+  induction ss as [|s ss] ; simpl Sem_frag_stmts ; intros vm_old ct_old vm_new ct_new tmap Hsf.
+  + split.
+    - intro k ; rewrite (proj1 Hsf k) ; destruct (CEP.find k vm_new) ; done.
+    split.
+    - intro k ; rewrite (proj2 Hsf k) ; destruct (CEP.find k ct_new) ; done.
+    - intros _ _ _ Haft.
+      repeat (split ; first (destruct Haft as [Haft _]) ;
+                      last  (destruct Haft as [_ Haft])) ;
+      intro k ; try by rewrite CEP.Lemmas.empty_o //.
+      * rewrite -(proj1 Hsf) -(proj2 Hsf) ; by apply Haft.
+      * rewrite -(proj1 Hsf) ; by apply Haft.
+  + destruct Hsf as [vm' [ct' [Hsf_s Hsf_ss]]].
+    rename Sem_frag_stmt_compatible into IHs.
+    specialize (IHs s vm_old ct_old vm' ct' tmap Hsf_s).
+    specialize (IHss vm' ct' vm_new ct_new tmap Hsf_ss).
+    split.
+    - apply (CEP.Lemmas.submap_trans (proj1 IHs)), IHss.
+    split.
+    - apply (subdomain_trans ct') ; first by apply IHs.
+      apply IHss.
+    - intros [old_tmap [old_scope [new_tmap [new_scope [vm_for_tmap [Hold_sc_tm Htm_ss]]]]]] Htm_inf Hss_inf Haft.
+      simpl stmts_tmap in Htm_ss.
+      generalize (stmt_submap vm_for_tmap s old_tmap old_scope Hold_sc_tm) ; intro Hs_sc_tm.
+      destruct (stmt_tmap (old_tmap, old_scope) s vm_for_tmap) as [[s_tmap s_scope]|] eqn: Htm_s ;
+             last by discriminate (proj1 Htm_ss).
+      generalize (stmts_submap vm_for_tmap ss s_tmap s_scope (proj1 Hs_sc_tm)) ; intro Hnew_sc_tm.
+      rewrite (proj1 Htm_ss) in Hnew_sc_tm.
+      apply (conj (B := CEP.Lemmas.submap s_tmap tmap /\ CEP.submap vm' vm_for_tmap)) in Htm_s ;
+            last by split ; first (by apply (CEP.Lemmas.submap_trans (proj1 (proj2 Hnew_sc_tm)) (proj1 (proj2 Htm_ss)))) ;
+                            last (by apply (CEP.Lemmas.submap_trans (proj1 IHss) (proj2 (proj2 Htm_ss)))).
+      apply (conj Hold_sc_tm) in Htm_s.
+      apply (ex_intro (fun vm_for_tmap =>     CEP.submap old_scope old_tmap
+                                          /\
+                                              stmt_tmap (old_tmap, old_scope) s vm_for_tmap = Some (s_tmap, s_scope)
+                                          /\
+                                              CEP.Lemmas.submap s_tmap tmap /\ CEP.submap vm' vm_for_tmap)
+                      vm_for_tmap),
+            (ex_intro (fun new_scope =>   exists vm_for_tmap : CEP.t vertex_type,
+                                                  CEP.submap old_scope old_tmap
+                                              /\
+                                                  stmt_tmap (old_tmap, old_scope) s vm_for_tmap = Some (s_tmap, new_scope)
+                                              /\
+                                                  CEP.Lemmas.submap s_tmap tmap /\ CEP.submap vm' vm_for_tmap)
+                      s_scope),
+            (ex_intro (fun new_tmap =>    exists (new_scope : CEP.t (ftype * HiF.forient)) (vm_for_tmap : CEP.t vertex_type),
+                                                  CEP.submap old_scope old_tmap
+                                              /\
+                                                  stmt_tmap (old_tmap, old_scope) s vm_for_tmap = Some (new_tmap, new_scope)
+                                              /\
+                                                  CEP.Lemmas.submap new_tmap tmap /\ CEP.submap vm' vm_for_tmap)
+                      s_tmap),
+            (ex_intro (fun old_scope =>   exists (new_tmap new_scope : CEP.t (ftype * HiF.forient)) (vm_for_tmap : CEP.t vertex_type),
+                                                  CEP.submap old_scope old_tmap
+                                              /\
+                                                  stmt_tmap (old_tmap, old_scope) s vm_for_tmap = Some (new_tmap, new_scope)
+                                              /\
+                                                  CEP.Lemmas.submap new_tmap tmap /\ CEP.submap vm' vm_for_tmap)
+                      old_scope),
+            (ex_intro (fun old_tmap =>    exists (old_scope new_tmap new_scope : CEP.t (ftype * HiF.forient)) (vm_for_tmap : CEP.t vertex_type),
+                                                  CEP.submap old_scope old_tmap
+                                              /\
+                                                  stmt_tmap (old_tmap, old_scope) s vm_for_tmap = Some (new_tmap, new_scope)
+                                              /\
+                                                  CEP.Lemmas.submap new_tmap tmap /\ CEP.submap vm' vm_for_tmap)
+                      old_tmap) in Htm_s.
+      apply (conj (proj1 Hs_sc_tm)) in Htm_ss.
+      apply (ex_intro (fun vm_for_tmap =>     CEP.submap s_scope s_tmap
+                                          /\
+                                              stmts_tmap (s_tmap, s_scope) ss vm_for_tmap = Some (new_tmap, new_scope)
+                                          /\
+                                              CEP.submap new_tmap tmap /\ CEP.submap vm_new vm_for_tmap)
+                      vm_for_tmap),
+            (ex_intro (fun new_scope =>   exists vm_for_tmap : CEP.t vertex_type,
+                                                  CEP.submap s_scope s_tmap
+                                              /\
+                                                  stmts_tmap (s_tmap, s_scope) ss vm_for_tmap = Some (new_tmap, new_scope)
+                                              /\
+                                                  CEP.submap new_tmap tmap /\ CEP.submap vm_new vm_for_tmap)
+                      new_scope),
+            (ex_intro (fun new_tmap =>    exists (new_scope : CEP.t (ftype * HiF.forient)) (vm_for_tmap : CEP.t vertex_type),
+                                                  CEP.submap s_scope s_tmap
+                                              /\
+                                                  stmts_tmap (s_tmap, s_scope) ss vm_for_tmap = Some (new_tmap, new_scope)
+                                              /\
+                                                  CEP.submap new_tmap tmap /\ CEP.submap vm_new vm_for_tmap)
+                      new_tmap),
+            (ex_intro (fun old_scope =>   exists (new_tmap new_scope : CEP.t (ftype * HiF.forient)) (vm_for_tmap : CEP.t vertex_type),
+                                                  CEP.submap old_scope s_tmap
+                                              /\
+                                                  stmts_tmap (s_tmap, old_scope) ss vm_for_tmap = Some (new_tmap, new_scope)
+                                              /\
+                                                  CEP.submap new_tmap tmap /\ CEP.submap vm_new vm_for_tmap)
+                      s_scope),
+            (ex_intro (fun old_tmap =>    exists (old_scope new_tmap new_scope : CEP.t (ftype * HiF.forient)) (vm_for_tmap : CEP.t vertex_type),
+                                                  CEP.submap old_scope old_tmap
+                                              /\
+                                                  stmts_tmap (old_tmap, old_scope) ss vm_for_tmap = Some (new_tmap, new_scope)
+                                              /\
+                                                  CEP.submap new_tmap tmap /\ CEP.submap vm_new vm_for_tmap)
+                      s_tmap) in Htm_ss.
+      simpl stmts_have_fully_inferred_ground_types in Hss_inf ; move /andP : Hss_inf => Hss_inf.
+      destruct IHs  as [_ [_ IHs ]] ; specialize (IHs  Htm_s Htm_inf (proj1 Hss_inf) Haft).
+      destruct IHss as [_ [_ IHss]] ; specialize (IHss Htm_ss Htm_inf (proj2 Hss_inf) IHs).
+      repeat (split ; first (destruct Haft as [Haft _], IHs as [IHs _], IHss as [IHss _]) ;
+                      last  (destruct Haft as [_ Haft], IHs as [_ IHs], IHss as [_ IHss])) ;
+      intro k ; try (by rewrite CEP.Lemmas.empty_o //).
+      * by apply IHss.
+      * by apply IHss.
+* clear Sem_frag_stmt_compatible.
+  induction s as [|var ft|var reg|var mem|var1 var2|var expr|ref expr|ref|cond sst ssf] ; simpl Sem_frag_stmt ;
+  intros vm_old ct_old vm_new ct_new tmap Hsf.
+  + (* Sskip *)
+    split.
+    - intro k.
+      rewrite (proj1 Hsf) ; destruct (CEP.find k vm_new) ; done.
+    split.
+    - intro k.
+      rewrite (proj2 Hsf) ; destruct (CEP.find k ct_new) ; done.
+    - intros _ _ _ Haft.
+      repeat (split ; first (destruct Haft as [Haft _]) ;
+                      last  (destruct Haft as [_ Haft])) ;
+      intro k ; try (by rewrite CEP.Lemmas.empty_o //).
+      * rewrite -(proj1 Hsf) -(proj2 Hsf) ; by apply Haft.
+      * rewrite -(proj1 Hsf) ; by apply Haft.
+  + (* Swire *)
+    split ; last split.
+    1-2: intro k.
+    3: intros [old_tmap [old_scope [new_tmap [new_scope [vm_for_tmap [_ Htm]]]]]] Htm_inf Hss_inf Haft.
+    3: repeat (split ; first (destruct Haft as [Haft _]) ;
+                      last  (destruct Haft as [_ Haft])) ;
+       intro k ; try (by rewrite CEP.Lemmas.empty_o //) ;
+       specialize (Htm_inf var).
+    1-4: destruct (CEP.find var tmap) as [[newft [| | | |]]|] eqn : Hfindk ; try by contradiction Hsf.
+    1-4: destruct (fst k == fst var) eqn: Hfst ; move /eqP : Hfst => Hfst ;
+          last (destruct Hsf as [_ [Hvm [Hct _]]] ;
+                   specialize (Hvm (fst k) (snd k)) ; specialize (Hct (fst k) (snd k)) ;
+                   rewrite -surjective_pairing in Hvm, Hct ;
+                   try (rewrite -Hvm ; last (by left ; done)) ;
+                   try (rewrite -Hct ; last (by left ; done))).
+    2: by destruct (CEP.find k vm_old) ; done.
+    3: by destruct (CEP.find k ct_old) ; done.
+    4,6: by apply Haft.
+    1-4: destruct (snd k < snd var) eqn: Hsnd_small ;
+          first (destruct Hsf as [_ [Hvm [Hct _]]] ;
+                    specialize (Hvm (fst k) (snd k)) ; specialize (Hct (fst k) (snd k)) ;
+                    rewrite Hsnd_small -surjective_pairing in Hvm, Hct ;
+                    try (rewrite -Hvm ; last (by right ; left ; done)) ;
+                    try (rewrite -Hct ; last (by right ; left ; done))).
+    1: by destruct (CEP.find k vm_old) ; done.
+    2: by destruct (CEP.find k ct_old) ; done.
+    3,5: by apply Haft.
+    1-4: destruct (size_of_ftype newft + snd var <= snd k) eqn: Hsnd_large ;
+          first (destruct Hsf as [_ [Hvm [Hct _]]] ;
+                    specialize (Hvm (fst k) (snd k)) ; specialize (Hct (fst k) (snd k)) ;
+                    rewrite Hsnd_small -surjective_pairing in Hvm, Hct ;
+                    try (rewrite -Hvm ; last (by right ; right ; done)) ;
+                    try (rewrite -Hct ; last (by right ; right ; done))).
+    1: by destruct (CEP.find k vm_old) ; done.
+    2: by destruct (CEP.find k ct_old) ; done.
+    3,5: by apply Haft.
+    1-4: destruct Hsf as [Hvm [_ [_ Hct]]].
+    1-4: specialize (Hvm (snd k - snd var)) ; specialize (Hct (snd k - snd var)).
+    1-4: apply negbT in Hsnd_small.
+    1-4: rewrite -leqNgt in Hsnd_small.
+    1-4: apply negbT in Hsnd_large.
+    1-4: rewrite -ltnNge addnC -ltn_subLR // in Hsnd_large.
+    1-4: specialize (Hct Hsnd_large).
+    1-4: rewrite -(list_rhs_type_p_size newft) in Hsnd_large.
+    1-4: move /ltP : Hsnd_large => Hsnd_large.
+    1-4: generalize (proj2 (List.nth_error_Some (list_rhs_type_p newft) (snd k - snd var)) Hsnd_large) ; intro.
+    1-3: destruct (List.nth_error (list_rhs_type_p newft) (snd k - snd var)) ; last by contradiction H.
+    1-3: rewrite -Hfst subnK // nat_of_binK -surjective_pairing in Hvm, Hct.
+    - by rewrite (proj1 Hvm) //.
+    - by rewrite Hct //.
+    - by rewrite (proj2 Hvm) Hct //.
+    - destruct newft as [newgt| |] ; try by contradiction Htm_inf.
+      simpl in Hsnd_large.
+      rewrite Nat.lt_1_r Nat.sub_0_le Nat.le_ngt in Hsnd_large.
+      move /leP : Hsnd_small => Hsnd_small ; apply Nat.le_ngt in Hsnd_small.
+      assert (k = var).
+            destruct (Nat.compare_spec k.2 var.2) ; try contradiction.
+            rewrite (surjective_pairing k) Hfst -(nat_of_binK k.2) H0 nat_of_binK -surjective_pairing //.
+      subst k ; clear Hfst Hsnd_small Hsnd_large H.
+      rewrite subnn add0n nat_of_binK -surjective_pairing in Hvm, Hct.
+      simpl in Hvm.
+      rewrite (proj2 Hvm) //.
+  + (* Sreg *)
+    split ; last split.
+    1-2: intro k.
+    3: intros [old_tmap [old_scope [new_tmap [new_scope [vm_for_tmap [_ Htm]]]]]] Htm_inf Hss_inf Haft.
+    3: repeat (split ; first (destruct Haft as [Haft _]) ;
+                      last  (destruct Haft as [_ Haft])) ;
+       intro k ; try (by rewrite CEP.Lemmas.empty_o //) ;
+       specialize (Htm_inf var).
+    1-4: destruct (CEP.find var tmap) as [[newft [| | | |]]|] eqn : Hfindk ; try by contradiction Hsf.
+    1-4: destruct Hsf as [_ Hsf].
+    1-4: destruct (fst k == fst var) eqn: Hfst ; move /eqP : Hfst => Hfst ;
+          last (destruct Hsf as [_ [_ [_ [Hvm Hct]]]] ;
+                   specialize (Hvm (fst k) (snd k)) ; specialize (Hct (fst k) (snd k)) ;
+                   rewrite -surjective_pairing in Hvm, Hct ;
+                   try (rewrite -Hvm ; last (by left ; done)) ;
+                   try (rewrite -Hct ; last (by left ; done))).
+    2: by destruct (CEP.find k vm_old) ; done.
+    3: by destruct (CEP.find k ct_old) ; done.
+    4, 6: by apply Haft.
+    1-4: destruct (snd k < snd var) eqn: Hsnd_small ;
+          first (destruct Hsf as [_ [_ [_ [Hvm Hct]]]] ;
+                    specialize (Hvm (fst k) (snd k)) ; specialize (Hct (fst k) (snd k)) ;
+                    rewrite Hsnd_small -surjective_pairing in Hvm, Hct ;
+                    try (rewrite -Hvm ; last (by right ; left ; done)) ;
+                    try (rewrite -Hct ; last (by right ; left ; done))).
+    1: by destruct (CEP.find k vm_old) ; done.
+    2: by destruct (CEP.find k ct_old) ; done.
+    3,5: by apply Haft.
+    1-4: destruct (size_of_ftype newft + snd var <= snd k) eqn: Hsnd_large ;
+          first (destruct Hsf as [_ [_ [_ [Hvm Hct]]]] ;
+                    specialize (Hvm (fst k) (snd k)) ; specialize (Hct (fst k) (snd k)) ;
+                    rewrite Hsnd_small -surjective_pairing in Hvm, Hct ;
+                    try (rewrite -Hvm ; last (by right ; right ; done)) ;
+                    try (rewrite -Hct ; last (by right ; right ; done))).
+    1: by destruct (CEP.find k vm_old) ; done.
+    2: by destruct (CEP.find k ct_old) ; done.
+    3,5: by apply Haft.
+    1-4: destruct Hsf as [Hvm [_ [Hct _]]].
+    1-4: specialize (list_rhs_expr_p_size newft (Eref (Eid (var:=ProdVarOrder.T) var))) ; intro.
+    1-4: destruct (list_rhs_expr_p (Eref (Eid (var:=ProdVarOrder.T) var)) newft) eqn: H1 ;
+          simpl in H1 ; rewrite H1 in Hct ; last by contradiction Hct.
+    1-4: specialize (Hvm (snd k - snd var)) ; specialize (Hct (snd k - snd var)).
+    1-4: apply negbT in Hsnd_small.
+    1-4: rewrite -leqNgt in Hsnd_small.
+    1-4: apply negbT in Hsnd_large.
+    1-4: rewrite -ltnNge addnC -ltn_subLR // -H in Hsnd_large.
+    (*specialize (Hct Hsnd_large).
+    rewrite -(list_rhs_type_p_size f) in H.*)
+    1-4: move /ltP : Hsnd_large => Hsnd_large.
+    1-4: generalize (proj2 (List.nth_error_Some l (snd k - snd var)) Hsnd_large) ; intro.
+    1-4: rewrite H -(list_rhs_type_p_size newft) in Hsnd_large.
+    1-4: generalize (proj2 (List.nth_error_Some (list_rhs_type_p newft) (snd k - snd var)) Hsnd_large) ; intro.
+    - 1-2: destruct (List.nth_error (list_rhs_type_p newft) (snd k - snd var)) ; last by done.
+      1-2: destruct (List.nth_error l (snd k - snd var)) as [expr|] ; last by done.
+      1-2: rewrite -Hfst subnK // nat_of_binK -surjective_pairing in Hvm, Hct.
+      1: by rewrite (proj1 Hvm) //.
+      1: by rewrite Hct //.
+    - 1,2: destruct newft as [newgt| |] ; try by contradiction Htm_inf.
+      1,2: simpl in Hsnd_large.
+      1,2: rewrite Nat.lt_1_r Nat.sub_0_le Nat.le_ngt in Hsnd_large.
+      1,2: move /leP : Hsnd_small => Hsnd_small ; apply Nat.le_ngt in Hsnd_small.
+      1,2: assert (k = var) by
+            (destruct (Nat.compare_spec k.2 var.2) ; try contradiction ;
+             rewrite (surjective_pairing k) Hfst -(nat_of_binK k.2) H3 nat_of_binK -surjective_pairing //).
+      1,2: subst k ; clear Hfst Hsnd_small Hsnd_large H0 H2.
+      1,2: rewrite subnn add0n nat_of_binK -surjective_pairing in Hvm, Hct.
+      1,2: simpl in Hvm.
+      1,2: rewrite (proj2 Hvm) // (* this solves the second goal *).
+      injection H1 ; clear H1 ; intro ; subst l.
+      simpl in Hct.
+      rewrite Hct /type_of_expr /type_of_ref Hfindk.
+      destruct newgt ; done.
+  + (* Smem: TBD *)
+    contradiction Hsf.
+  + (* Sinst *)
+    contradiction Hsf.
+  + (* Snode *)
+    split ; last split.
+    1-2: intro k.
+    3: intros [old_tmap [old_scope [new_tmap [new_scope [vm_for_tmap [Holdsc_sub_oldtm Htm]]]]]] Htm_inf Hss_inf Haft.
+    3: repeat (split ; first (destruct Haft as [Haft _]) ;
+                      last  (destruct Haft as [_ Haft])) ;
+       intro k ; try (by rewrite CEP.Lemmas.empty_o //) ;
+       specialize (Htm_inf var).
+    4: generalize (type_of_expr_submap expr old_scope tmap) ; intro Htype_sc.
+    1-4: destruct (type_of_expr expr tmap) as [[newft p]|] ; last by contradiction Hsf.
+    1-4: destruct (fst k == fst var) eqn: Hfst ; move /eqP : Hfst => Hfst ;
+          last (destruct Hsf as [_ [Hvm Hct]] ;
+                specialize (Hvm (fst k) (snd k)) ;
+                rewrite -surjective_pairing in Hvm ;
+                try rewrite -(Hvm (or_introl Hfst)) // ;
+                try rewrite -Hct).
+    3: by destruct (CEP.find k ct_old) ; done.
+    4,6: by apply Haft.
+    1-4: destruct (snd k < snd var) eqn: Hsnd_small ;
+          first (destruct Hsf as [_ [Hvm Hct]] ;
+                 specialize (Hvm (fst k) (snd k)) ;
+                 rewrite -surjective_pairing in Hvm ;
+                 try rewrite -(Hvm (or_intror (or_introl Hsnd_small))) // ;
+                 try rewrite -Hct).
+    2: by destruct (CEP.find k ct_old) ; done.
+    3,5: by apply Haft.
+    1-4: destruct (size_of_ftype newft + snd var <= snd k) eqn: Hsnd_large ;
+          first (destruct Hsf as [_ [Hvm Hct]] ;
+                 specialize (Hvm (fst k) (snd k)) ;
+                 rewrite -surjective_pairing in Hvm ;
+                 try rewrite -(Hvm (or_intror (or_intror Hsnd_large))) // ;
+                 try rewrite -Hct).
+    2: by destruct (CEP.find k ct_old) ; done.
+    3,5: by apply Haft.
+    1-4: destruct Hsf as [Hvm [_ Hct]].
+    1-4: generalize (list_rhs_type_p_size newft) ; intro.
+    1-4: specialize (Hvm (snd k - snd var)).
+    1-4: apply negbT in Hsnd_small.
+    1-4: rewrite -leqNgt in Hsnd_small.
+    1-4: apply negbT in Hsnd_large.
+    1-4: rewrite -ltnNge addnC -ltn_subLR // -H in Hsnd_large.
+    (*specialize (Hct Hsnd_large).*)
+    1-4: move /ltP : Hsnd_large => Hsnd_large.
+    1-4: generalize (proj2 (List.nth_error_Some (list_rhs_type_p newft) (snd k - snd var)) Hsnd_large) ; intro.
+    1-3: destruct (List.nth_error (list_rhs_type_p newft) (snd k - snd var)) ; last by done.
+    1-3: rewrite -Hfst subnK // nat_of_binK -surjective_pairing in Hvm.
+    - by rewrite (proj1 Hvm) //.
+    - by rewrite Hct ; destruct (CEP.find k ct_new) ; done.
+    - specialize (Haft k) ; rewrite (proj1 Hvm) Hct in Haft.
+      by rewrite (proj2 Hvm) //.
+    - simpl in Htm.
+(*     Lemma submap_none_add {m1 m2 : M.t elt} {k : M.key} (e : elt) :
+      submap m1 m2 -> M.find k m1 = None -> submap m1 (M.add k e m2). *)
+      specialize (CEP.Lemmas.submap_none_add (m1 := old_tmap) (m2 := old_tmap) (k := var)) with (1 := CEP.Lemmas.submap_refl _) ;
+            intro Holdsc_sub_tm.
+      destruct (CEP.find var old_tmap) ; first by discriminate (proj1 Htm).
+      destruct (type_of_expr expr old_scope) as [[newft' p']|] ; last by discriminate (proj1 Htm).
+      specialize (Holdsc_sub_tm (newft', HiF.Source) Logic.eq_refl).
+      destruct Htm as [Htm' [Htm _]] ; injection Htm' ; clear Htm' ; intros ; subst new_tmap new_scope.
+      apply (CEP.Lemmas.submap_trans Holdsc_sub_oldtm), CEP.Lemmas.submap_trans with (2 := Htm) in Holdsc_sub_tm.
+      specialize (Htype_sc Holdsc_sub_tm) ; injection Htype_sc ; clear Htype_sc p p' ; intros ; subst newft'.
+      specialize (Htm var) ; rewrite (CEP.Lemmas.find_add_eq (eq_refl _)) in Htm ; specialize (Htm _ Logic.eq_refl).
+      rewrite Htm in Htm_inf ; destruct newft as [newgt| |] ; try by contradiction Htm_inf.
+      simpl in Hsnd_large.
+      rewrite Nat.lt_1_r Nat.sub_0_le Nat.le_ngt in Hsnd_large.
+      move /leP : Hsnd_small => Hsnd_small ; apply Nat.le_ngt in Hsnd_small.
+      assert (k = var).
+            destruct (Nat.compare_spec k.2 var.2) ; try contradiction.
+            rewrite (surjective_pairing k) Hfst -(nat_of_binK k.2) H1 nat_of_binK -surjective_pairing //.
+      subst k ; clear Hfst Hsnd_small Hsnd_large H H0.
+      rewrite subnn add0n nat_of_binK -surjective_pairing in Hvm, Hct.
+      simpl in Hvm.
+      rewrite (proj2 Hvm) //.
+  + (* Sfcnct *)
+    specialize (expr_preserves_fully_inferred tmap) with (expr := expr) ; intro Hexpr_inf.
+    specialize (ref_preserves_fully_inferred tmap) with (ref := ref) ; intro Href_inf.
+    destruct expr.
+    1-6: destruct Hsf as [Hvm Hsf].
+    1-6: split ;
+          first by (apply CEP.Lemmas.Equal_submap, Hvm).
+    1-6: generalize (list_lhs_ref_p_size tmap ref) ; intro.
+    1-6: generalize (list_lhs_ref_p_type tmap ref) ; intro Href_type.
+    1-6: destruct (list_lhs_ref_p ref tmap) as [[input_list [ft_ref []]]|] eqn: Href_list ; try by done.
+    1,2: destruct (type_of_expr (Econst ProdVarOrder.T f b) tmap)
+         as [[ft_expr p_expr]|] eqn: Hexpr_type ; last by done.
+    3,4: destruct (type_of_expr (Ecast u expr) tmap)
+         as [[ft_expr p_expr]|] eqn: Hexpr_type ; last by done.
+    5,6: destruct (type_of_expr (Eprim_unop e expr) tmap)
+         as [[ft_expr p_expr]|] eqn: Hexpr_type ; last by done.
+    7,8: destruct (type_of_expr (Eprim_binop e expr1 expr2) tmap)
+         as [[ft_expr p_expr]|] eqn: Hexpr_type ; last by done.
+    9,10: destruct (type_of_expr (Emux expr1 expr2 expr3) tmap)
+          as [[ft_expr p_expr]|] eqn: Hexpr_type ; last by done.
+    11,12: destruct (type_of_expr (Evalidif expr1 expr2) tmap)
+           as [[ft_expr p_expr]|] eqn: Hexpr_type ; last by done.
+    1-12: destruct Hsf as [Hcomp Hct].
+    1-12: generalize (connect_type_compatible_size _ _ _ _ Hcomp) ; intro Hsizeq.
+    1,2: generalize (list_rhs_expr_p_size ft_expr (Econst ProdVarOrder.T f b)) ; intro ;
+         destruct (list_rhs_expr_p (Econst ProdVarOrder.T f b) ft_expr) as [expr_list|] eqn: Hexpr_list ; last by done.
+    3,4: generalize (list_rhs_expr_p_size ft_expr (Ecast u expr)) ; intro ;
+         destruct (list_rhs_expr_p (Ecast u expr) ft_expr) as [expr_list|] eqn: Hexpr_list ; last by done.
+    5,6: generalize (list_rhs_expr_p_size ft_expr (Eprim_unop e expr)) ; intro ;
+         destruct (list_rhs_expr_p (Eprim_unop e expr) ft_expr) as [expr_list|] eqn: Hexpr_list ; last by done.
+    7,8: generalize (list_rhs_expr_p_size ft_expr (Eprim_binop e expr1 expr2)) ; intro ;
+         destruct (list_rhs_expr_p (Eprim_binop e expr1 expr2) ft_expr) as [expr_list|] eqn: Hexpr_list ; last by done.
+    9,10: generalize (list_rhs_expr_p_size ft_expr (Emux expr1 expr2 expr3)) ; intro ;
+          destruct (list_rhs_expr_p (Emux expr1 expr2 expr3) ft_expr) as [expr_list|] eqn: Hexpr_list ; last by done.
+    11,12: generalize (list_rhs_expr_p_size ft_expr (Evalidif expr1 expr2)) ; intro ;
+           destruct (list_rhs_expr_p (Evalidif expr1 expr2) ft_expr) as [expr_list|] eqn: Hexpr_list ; last by done.
+    1-12: split ; first (intro k) ;
+                  last (intros [old_tmap [old_scope [new_tmap [new_scope [vm_for_tmap [_ Htm]]]]]] Htm_inf Hss_inf Haft ;
+                        repeat (split ; (*first (destruct Haft as [Haft _]) ;*)
+                                        last  (destruct Haft as [_ Haft])) ;
+                        intro k ; try (by rewrite CEP.Lemmas.empty_o //)).
+    1-36: generalize (Hvm k) ; intro Hvm_k ; try rewrite -Hvm_k ; try by apply Haft.
+    1-24: destruct (k \in input_list) eqn: Hv ;
+          last (destruct Hct as [_ Hct] ;
+                specialize (Hct k) ; rewrite Hv in Hct ;
+                rewrite -Hct ; try (by destruct (CEP.find k ct_old) ; done) ;
+                              by apply Haft).
+    1-24: destruct Hct as [Hct _] ;
+          specialize (Hct (index k input_list)).
+    1-24: generalize (nth_index k Hv) ; intro Hnth_index ;
+          rewrite -index_mem in Hv ;
+          move /ltP : Hv => Hv ;
+          generalize (proj2 (List.nth_error_Some input_list (index k input_list)) Hv) ; intro ;
+          rewrite H Hsizeq -H0 in Hv ;
+          apply List.nth_error_Some in Hv.
+    1,3,5,7,9,11,13,15,17,19,21,23: destruct (List.nth_error input_list (index k input_list)) eqn: Hi ; last (by done).
+    1-12: destruct (List.nth_error expr_list (index k input_list)) ; last (by done).
+    1-12: replace k0 with k in Hct
+          by (clear -Hnth_index Hi ;
+              induction input_list ; simpl in Hnth_index ; simpl in Hi ; first (by done) ;
+              destruct (a == k) ; simpl nth in Hnth_index ; simpl List.nth_error in Hi ;
+              first (by rewrite -Hnth_index ; injection Hi ; done) ;
+              last (by apply IHinput_list ; assumption)).
+    1-12: rewrite (proj2 Hct) //. (* This resolves the first 12 goals *)
+
+    1-12: rewrite /stmt_has_fully_inferred_ground_types in Hss_inf ;
+          move /andP : Hss_inf => Hss_inf ;
+          specialize (Hexpr_inf Htm_inf (proj2 Hss_inf)) ;
+          specialize (Href_inf Htm_inf (proj1 Hss_inf)).
+    1-12: destruct ft_expr as [gt_expr| |] ; try by contradiction Hexpr_inf.
+    1-12: destruct (type_of_ref ref tmap) as [[[gt_ref| |] ori]|] ;
+                last (by contradiction Href_type) ;
+                try by contradiction Href_inf.
+    1-12: injection Href_type ; clear Href_type ; intros ; subst ft_ref ori.
+    1-12: simpl in Hexpr_list ; injection Hexpr_list ; clear Hexpr_list ; intro ; subst expr_list.
+    1-12: simpl in H.
+    1-12: destruct input_list as [|ic [|]] ; try by discriminate H.
+    1-12: apply List.nth_error_Some in H1 ; rewrite /length Nat.lt_1_r in H1.
+    1-12: rewrite H1 /nth in Hnth_index ; subst ic.
+    1-12: rewrite H1 in Hct ; simpl in Hct.
+    1-12: rewrite (proj2 Hct).
+    1-12: destruct Haft as [Haft [Hvm_sub_tm _]].
+    1-12: specialize (Haft k) ;
+          destruct (CEP.find k ct_old) ; last by contradiction (proj1 Hct).
+    1-12: destruct (CEP.find k vm_old) as [[gt|gt|gt|gt|gt]|] ;
+          try (destruct d ; by contradiction Haft).
+    1-36: rewrite Hexpr_type //.
+
+    (* The following lemma needs to be proven separately, by induction over the statement sequence.
+       It basically states that there are no aggregate components if all_fit_together is true. *)
+    1-36: assert (Hlist_and_vm: vm_sub_tmap vm_old tmap ->
+                  match list_lhs_ref_p ref tmap with
+                  | Some ([:: var], (Gtyp gt, HiF.Source)) =>
+                      match CEP.find var vm_old with Some (InPort gt') => gt = gt' | _ => False end
+                  | Some ([:: var], (Gtyp gt, HiF.Duplex)) =>
+                      match CEP.find var vm_old with Some (Register gt' _ _ _) | Some (Wire gt') => gt = gt' | _ => False end
+                  | Some ([:: var], (Gtyp gt, HiF.Sink)) =>
+                      match CEP.find var vm_old with Some (OutPort gt') | Some (Node gt') => gt = gt' | _ => False end
+                  | _ => False
+                  end) by admit.
+    1-36: specialize (Hlist_and_vm Hvm_sub_tm) ; rewrite Href_list (Hvm k) -Hvm_k in Hlist_and_vm ;
+          try (by contradiction Hlist_and_vm).
+    1-18: subst gt ; by exact Hcomp.
+    (* The above is probably quite a roundabout way to get to the result
+       but I can't think of a better one right now. *)
+
+    (* Remains the case of a Sfcnct between two references (may be bidirectional) *)
+    destruct Hsf as [Hvm Hct].
+    split ; first by (intro ; rewrite Hvm ; destruct (CEP.find k vm_new) ; done).
+    generalize (list_lhs_ref_p_size tmap ref) ; intro H1.
+    generalize (list_lhs_ref_p_type tmap ref) ; intro H2.
+    destruct (list_lhs_ref_p ref tmap) as [[lst_tgt [ft_tgt [| | | |]]]|] eqn: Hhhh ;
+          last (by contradiction Hct) ;
+          try (by destruct (list_lhs_ref_p h tmap)
+                  as [[_ [_ []]]|]; contradiction Hct).
+    1,2: generalize (list_lhs_ref_p_size tmap h) ; intro H3.
+    1,2: generalize (list_lhs_ref_p_type tmap h) ; intro H4.
+    1,2: destruct (list_lhs_ref_p h tmap) as [[lst_src [ft_src []]]|] eqn: Href_list ; try by contradiction Hct.
+    1-4: destruct Hct as [H0 [H5 H6]].
+    (*apply connect_type_compatible_size in H1.*)
+    (*rewrite H1 -H4 in H2. ?? *)
+    1-4: split ; first (intro k) ;
+                 last (intros [old_tmap [old_scope [new_tmap [new_scope [vm_for_tmap Htm]]]]] Htm_inf Hss_inf Haft ;
+                       repeat (split ; (*first (destruct Haft as [Haft _]) ;*)
+                                       last  (destruct Haft as [_ Haft])) ;
+                       intro k ; try (by rewrite CEP.Lemmas.empty_o //)).
+    1-12: specialize (H6 k).
+    1-12: destruct ((k \in lst_tgt) || (k \in lst_src)) eqn: Hv ; rewrite Hv in H6 ;
+          try rewrite -H6 ; try rewrite -Hvm ;
+          try by (try destruct Haft as [Haft _] ; try specialize (Haft k) ;
+                  destruct (CEP.find k ct_old) as [[]|] ; done).
+    1-8: move /orP : Hv => Hv.
+    1-8: symmetry in H1, H3.
+    1-8: generalize (connect_preserves_compatibility ct_old ct_new ft_tgt ft_src
+                     ref h lst_tgt lst_src true false k H5 H0 H1 H3 Hv) ; intro.
+    - 1,3,5,7: destruct (CEP.find k ct_new) ; first (by done) ;
+                     by apply H ; reflexivity.
+    1-4: rewrite /stmt_has_fully_inferred_ground_types in Hss_inf ;
+         move /andP : Hss_inf => Hss_inf.
+    1-4: clear Hexpr_inf ;
+         specialize (ref_preserves_fully_inferred tmap) with (ref := h) ; intro Hexpr_inf.
+    1-4: specialize (Hexpr_inf Htm_inf (proj2 Hss_inf)) ;
+         specialize (Href_inf Htm_inf (proj1 Hss_inf)).
+    1-4: destruct (type_of_ref ref tmap) as [[[gt_tgt| |] ori]|] ;
+               last (by contradiction H2) ;
+               try (by contradiction Href_inf) ;
+         injection H2 ; clear H2 ; intros ; subst ft_tgt ori.
+    1-4: destruct (type_of_ref h tmap) as [[[gt_src| |] ori]|] eqn: Hexpr_type ;
+               last (by contradiction H4) ;
+               try (by unfold make_ftype_explicit in Hexpr_inf ; contradiction Hexpr_inf) ;
+         injection H4 ; clear H4 ; intros ; subst ft_src ori.
+    1-4: simpl size_of_ftype in H1 ; destruct lst_tgt as [|ic [|]] ; try by discriminate H1.
+    1-4: simpl size_of_ftype in H3 ; destruct lst_src as [|oc [|]] ; try by discriminate H3.
+    1-4: rewrite /connect /connect_fgtyp in H5.
+    1-4: destruct (ic == oc) eqn: Hicoc.
+    - 1,3,5,7: move /eqP : Hicoc => Hicoc ; subst oc.
+    1-8: rewrite mem_seq1 in Hv ; destruct Hv as [Hv|Hv].
+    1-8,9,11,13,15: move /eqP : Hv => Hv ; subst ic.
+    1-12: move /andP : H5 => [/andP [/eqP H5_old /eqP H5_new] _].
+    1-12: rewrite H5_new.
+    1-12: destruct Haft as [Haft [Hvm_sub_tm _]] ; specialize (Haft k) ;
+          destruct (CEP.find k ct_old) ; last by contradiction H5_old.
+
+    1-12: assert (Hlist_and_vm: vm_sub_tmap vm_old tmap ->
+                  match list_lhs_ref_p ref tmap with
+                  | Some ([:: var], (Gtyp gt, HiF.Source)) =>
+                      match CEP.find var vm_old with Some (InPort gt') => gt = gt' | _ => False end
+                  | Some ([:: var], (Gtyp gt, HiF.Duplex)) =>
+                      match CEP.find var vm_old with Some (Register gt' _ _ _) | Some (Wire gt') => gt = gt' | _ => False end
+                  | Some ([:: var], (Gtyp gt, HiF.Sink)) =>
+                      match CEP.find var vm_old with Some (OutPort gt') | Some (Node gt') => gt = gt' | _ => False end
+                  | _ => False
+                  end) by admit.
+
+    1-12: specialize (Hlist_and_vm Hvm_sub_tm) ; rewrite Hhhh in Hlist_and_vm.
+    1-12: destruct (CEP.find k vm_old) as [[gt|gt|gt|gt|gt]|] ;
+                 try (by destruct d ; contradiction Haft) ;
+                 try (by contradiction Hlist_and_vm).
+    1-18: subst gt ; simpl type_of_expr ; rewrite Hexpr_type.
+    1-18: destruct gt_src, gt_tgt ; done.
+    (* The above solves the goals where k == ic.
+       Now we have to solve the goals where k == oc != ic. *)
+    1-4: rewrite mem_seq1 in Hv ; move /eqP : Hv => Hv ; subst oc.
+    1-4: destruct Haft as [Haft _] ; specialize (Haft k).
+    1-4: rewrite orFb in H5 ; move /andP : H5 => [_ /eqP H5] ; rewrite H5 //.
+  + (* Sinvalid *)
+    admit.
+(*
+    destruct H.
+    split ; first by (apply CEP.Lemmas.Equal_submap, H).
+    generalize (list_lhs_ref_p_size tmap h) ; intro.
+    generalize (list_lhs_ref_p_type tmap h) ; intro.
+    destruct (list_lhs_ref_p h tmap) as [[lst_tgt [ft_tgt ori]]|] eqn: Hhhh ;
+          last (by contradiction H0).
+    destruct H0 as [H0 H6].
+    (*apply connect_type_compatible_size in H1.*)
+    (*rewrite H1 -H4 in H2. ?? *)
+    split ; intro ; last (intro k ; specialize (H k) ; specialize (H3 k) ; rewrite -H).
+    1,2: clear H vm_new.
+    1,2: specialize (H6 k).
+    1,2: destruct (k \in lst_tgt) eqn: Hv ; rewrite Hv in H6 ;
+         last by (rewrite -H6 ; destruct (CEP.find k ct_old) ; done).
+    1,2: clear H6.
+    1,2: symmetry in H1.
+    1,2: generalize (invalidate_preserves_compatibility ct_old ct_new ft_tgt
+                     lst_tgt ori k H0 H1 Hv) ; intro.
+    - destruct (CEP.find k ct_new) ; first (by done) ;
+               by apply H ; reflexivity.
+    - destruct (CEP.find k vm_old) as [[]|] ; try apply H, H3 ;
+           by contradict H3 ; apply H, H3. &*)
+  + (* Swhen *)
+    destruct (type_of_expr cond tmap) as [[[[[|[|]]| | | | | |]| |] Hcond_inf]|] eqn: Hcond ; try by contradiction Hsf.
+    destruct Hsf as [vm_true [ct_true [ct_false [Hsf_t [Hsf_f Hct_new]]]]].
+    rename Sem_frag_stmts_compatible into IHsst.
+    generalize (IHsst ssf) ; intro IHssf ; specialize IHssf with (1 := Hsf_f).
+    specialize (IHsst sst vm_old ct_old vm_true ct_true tmap Hsf_t).
+    split ; first by apply (CEP.Lemmas.submap_trans (proj1 IHsst) (proj1 IHssf)).
+    destruct IHsst as [_ IHsst], IHssf as [_ IHssf] ; split.
+    - destruct IHsst as [IHsst _], IHssf as [IHssf _].
+      apply (subdomain_trans _ _ _ IHsst).
+      intro k ; specialize (IHssf k).
+      rewrite Hct_new CEP.Lemmas.map2_1bis // /Swhen_map2_helper.
+      rewrite /extend_map_with CEP.Lemmas.map2_1bis // in IHssf.
+      destruct (CEP.find k ct_true)  as [[| |expr_true ]|],
+               (CEP.find k ct_false) as [[| |expr_false]|] ;
+      try by trivial.
+      destruct (expr_true == expr_false) ; by trivial.
+    - destruct IHsst as [_ IHsst], IHssf as [_ IHssf].
+      intros [old_tmap [old_scope [new_tmap [new_scope [vm_for_tmap [Holdsc_sub_tm [Htm [Hnewtm_sub_tm Hvm_sub_vmtm]]]]]]]] Htm_inf Hss_inf Haft.
+      simpl in Hss_inf ; rewrite -andbA in Hss_inf.
+      move /andP : Hss_inf => [_ /andP Hss_inf].
+      (* destruct stmts_submap in hypothesis Htm *)
+      simpl stmt_tmap in Htm.
+      destruct (type_of_expr cond old_scope) ; last by discriminate Htm.
+      generalize (stmts_submap vm_for_tmap sst old_tmap old_scope Holdsc_sub_tm) ; intro Htm_sub_t.
+      destruct (stmts_tmap (old_tmap, old_scope) sst vm_for_tmap) as [[tmap_t scope_t]|] eqn: Htm_t ; last by discriminate Htm.
+      generalize (stmts_submap vm_for_tmap ssf tmap_t old_scope (CEP.Lemmas.submap_trans Holdsc_sub_tm (proj1 (proj2 Htm_sub_t)))) ; intro Htm_sub_f.
+      destruct (stmts_tmap (tmap_t, old_scope) ssf vm_for_tmap) as [[tmap_f scope_f]|] eqn: Htm_f ; last by discriminate Htm.
+      injection Htm ; clear Htm ; intros ; subst tmap_f new_scope.
+      (* use Hsf_t and Hsf_f to express some properties on vm and ct *)
+      generalize (Sem_frag_stmts_compatible sst _ _ _ _ _ Hsf_t) ; intro Hsf_sub_t.
+      generalize (Sem_frag_stmts_compatible ssf _ _ _ _ _ Hsf_f) ; intro Hsf_sub_f.
+      apply (conj (B := CEP.Lemmas.submap tmap_t tmap /\ CEP.submap vm_true vm_for_tmap)) in Htm_t ;
+            last by apply (conj (CEP.Lemmas.submap_trans (proj1 (proj2 Htm_sub_f)) Hnewtm_sub_tm)
+                                (CEP.Lemmas.submap_trans (proj1 Hsf_sub_f) Hvm_sub_vmtm)).
+      apply (conj (B := CEP.Lemmas.submap new_tmap tmap /\ CEP.submap vm_new vm_for_tmap)) in Htm_f ;
+            last by apply (conj Hnewtm_sub_tm Hvm_sub_vmtm).
+      apply (conj Holdsc_sub_tm) in Htm_t.
+      apply (conj (A := CEP.submap old_scope tmap_t)) in Htm_f ;
+            last by apply (CEP.Lemmas.submap_trans Holdsc_sub_tm (proj1 (proj2 Htm_sub_t))).
+      apply (ex_intro (fun vm_for_tmap =>     CEP.submap old_scope old_tmap
+                                          /\
+                                              stmts_tmap (old_tmap, old_scope) sst vm_for_tmap = Some (tmap_t, scope_t)
+                                          /\
+                                              CEP.Lemmas.submap tmap_t tmap /\ CEP.submap vm_true vm_for_tmap)
+                      vm_for_tmap),
+            (ex_intro (fun new_scope   => exists vm_for_tmap : CEP.t vertex_type,
+                                              CEP.submap old_scope old_tmap
+                                          /\
+                                              stmts_tmap (old_tmap, old_scope) sst vm_for_tmap = Some (tmap_t, new_scope)
+                                          /\
+                                              CEP.Lemmas.submap tmap_t tmap /\ CEP.submap vm_true vm_for_tmap)
+                      scope_t),
+            (ex_intro (fun new_tmap    => exists (new_scope : CEP.t (ftype * HiF.forient)) (vm_for_tmap : CEP.t vertex_type),
+                                              CEP.submap old_scope old_tmap
+                                          /\
+                                              stmts_tmap (old_tmap, old_scope) sst vm_for_tmap = Some (new_tmap, new_scope)
+                                          /\
+                                              CEP.Lemmas.submap new_tmap tmap /\ CEP.submap vm_true vm_for_tmap)
+                      tmap_t),
+            (ex_intro (fun old_scope   => exists (new_tmap new_scope : CEP.t (ftype * HiF.forient)) (vm_for_tmap : CEP.t vertex_type),
+                                              CEP.submap old_scope old_tmap
+                                          /\
+                                              stmts_tmap (old_tmap, old_scope) sst vm_for_tmap = Some (new_tmap, new_scope)
+                                          /\
+                                              CEP.Lemmas.submap new_tmap tmap /\ CEP.submap vm_true vm_for_tmap)
+                      old_scope),
+            (ex_intro (fun old_tmap    => exists (old_scope new_tmap new_scope : CEP.t (ftype * HiF.forient)) (vm_for_tmap : CEP.t vertex_type),
+                                              CEP.submap old_scope old_tmap
+                                          /\
+                                              stmts_tmap (old_tmap, old_scope) sst vm_for_tmap = Some (new_tmap, new_scope)
+                                          /\
+                                              CEP.Lemmas.submap new_tmap tmap /\ CEP.submap vm_true vm_for_tmap)
+                      old_tmap) in Htm_t.
+      specialize (IHsst Htm_t Htm_inf (proj1 Hss_inf) Haft).
+      apply (ex_intro (fun vm_for_tmap =>     CEP.submap old_scope tmap_t
+                                          /\
+                                              stmts_tmap (tmap_t, old_scope) ssf vm_for_tmap = Some (new_tmap, scope_f)
+                                          /\
+                                              CEP.Lemmas.submap new_tmap tmap /\ CEP.submap vm_new vm_for_tmap)
+                      vm_for_tmap),
+            (ex_intro (fun new_scope   => exists vm_for_tmap : CEP.t vertex_type,
+                                              CEP.submap old_scope tmap_t
+                                          /\
+                                              stmts_tmap (tmap_t, old_scope) ssf vm_for_tmap = Some (new_tmap, new_scope)
+                                          /\
+                                              CEP.Lemmas.submap new_tmap tmap /\ CEP.submap vm_new vm_for_tmap)
+                      scope_f),
+            (ex_intro (fun new_tmap    => exists (new_scope : CEP.t (ftype * HiF.forient)) (vm_for_tmap : CEP.t vertex_type),
+                                              CEP.submap old_scope tmap_t
+                                          /\
+                                              stmts_tmap (tmap_t, old_scope) ssf vm_for_tmap = Some (new_tmap, new_scope)
+                                          /\
+                                              CEP.Lemmas.submap new_tmap tmap /\ CEP.submap vm_new vm_for_tmap)
+                      new_tmap),
+            (ex_intro (fun old_scope   => exists (new_tmap new_scope : CEP.t (ftype * HiF.forient)) (vm_for_tmap : CEP.t vertex_type),
+                                              CEP.submap old_scope tmap_t
+                                          /\
+                                              stmts_tmap (tmap_t, old_scope) ssf vm_for_tmap = Some (new_tmap, new_scope)
+                                          /\
+                                              CEP.Lemmas.submap new_tmap tmap /\ CEP.submap vm_new vm_for_tmap)
+                      old_scope),
+            (ex_intro (fun old_tmap    => exists (old_scope new_tmap new_scope : CEP.t (ftype * HiF.forient)) (vm_for_tmap : CEP.t vertex_type),
+                                              CEP.submap old_scope old_tmap
+                                          /\
+                                              stmts_tmap (old_tmap, old_scope) ssf vm_for_tmap = Some (new_tmap, new_scope)
+                                          /\
+                                              CEP.Lemmas.submap new_tmap tmap /\ CEP.submap vm_new vm_for_tmap)
+                      tmap_t) in Htm_f.
+    specialize (IHssf Htm_f Htm_inf (proj2 Hss_inf)).
+    assert (all_fit_together (CEP.empty (ftype * HiF.forient)) (CEP.empty def_expr) (extend_map_with ct_old ct_true) vm_true tmap).
+          repeat (split ; first (destruct Haft as [Haft _], IHsst as [IHsst _]) ;
+                          last  (destruct Haft as [_ Haft], IHsst as [_ IHsst])) ;
+          intro k ;
+          try (by rewrite CEP.Lemmas.empty_o //) ;
+          try (by apply IHsst).
+          rewrite /extend_map_with CEP.Lemmas.map2_1bis //.
+          destruct Hsf_sub_t as [Holdvm_sub_t [Holdct_sub_t Hct_sub_vm_t]].
+          specialize (Haft k) ; specialize (IHsst k) ; specialize (Holdvm_sub_t k).
+          destruct (CEP.find k ct_old) as [[| |expr_old]|],
+                   (CEP.find k vm_old) as [[gt|gt|gt|gt|gt]|] ;
+          try (by done) ;
+          by rewrite (Holdvm_sub_t _ Logic.eq_refl) //.
+    specialize (IHssf H) ; clear H.
+    repeat (split ; first (destruct Haft as [Haft _], IHsst as [IHsst _], IHssf as [IHssf _]) ;
+                    last  (destruct Haft as [_ Haft], IHsst as [_ IHsst], IHssf as [_ IHssf])) ;
+    intro k ;
+    try (by rewrite CEP.Lemmas.empty_o //) ;
+    try (by apply IHssf).
+    rewrite Hct_new CEP.Lemmas.map2_1bis // /Swhen_map2_helper.
+    destruct Hsf_sub_t as [Holdvm_sub_t [Holdct_sub_t Hct_sub_vm_t]].
+    destruct Hsf_sub_f as [Hvmt_sub_new [Hctt_sub_f Hctf_sub_vmn]].
+    specialize (Haft k) ; specialize (Holdvm_sub_t k) ; specialize (Hvmt_sub_new k) ; specialize (IHsst k) ; specialize (IHssf k).
+    destruct (CEP.find k ct_true)  as [[| |expr_t]|] eqn: Hct_t,
+             (CEP.find k ct_false) as [[| |expr_f]|] eqn: Hct_f,
+             (CEP.find k vm_true)  as [[gtt|gtt|gtt|gtt|gtt]|] eqn: Hvm_t ;
+    try (by done) ;
+    try rewrite (Hvmt_sub_new _ Logic.eq_refl) //.
+    all: destruct (expr_t == expr_f) ; try done ;
+         simpl ; rewrite Hcond //.
+    all: destruct (type_of_expr expr_t tmap) as [[[gt_expr_t| |]]|] ; try (by contradiction IHsst).
+    all: destruct (CEP.find k vm_old) as [[gto|gto|gto|gto|gto]|] eqn: Hvm_o ;
+         try (specialize (Holdvm_sub_t _ Logic.eq_refl) ;
+              try (injection Holdvm_sub_t ; intro ; subst gtt)) ;
+         try done.
+Goals 2, 4, 6 have CEP.find k vm_old = None, should not happen.
+   This may be excluded if one properly checks stmts_tmap,
+   as that would not allow a component with identifier k to be defined both in the true as well as in the false branch.
+   But then it makes more sense to have stmts_tmap not hidden in an existential clause.
+Admitted.
+*)
 
 Lemma Sem_frag_stmts_component_Equal :
 forall (ss : HiFP.hfstmt_seq) (vm_old1 vm_old2 : CEP.t vertex_type) (ct_old1 ct_old2 : CEP.t def_expr) (vm_new1 vm_new2 : CEP.t vertex_type) (ct_new : CEP.t def_expr) (tmap1 tmap2 : CEP.t (ftype * HiF.forient)),
@@ -2398,6 +3503,7 @@ Proof.
     - generalize (Sem_frag_stmts_compatible (component_stmt_of h) vm_old1 ct_old1 vm_temp ct_temp tmap1
                                             H4) ; intro.
       destruct H6 as [H6 [_ H7]] ; specialize (H7 H).
+(*
       generalize (Sem_frag_stmts_component ss vm_temp ct_temp vm_new1 ct_new tmap1 H7 H5) ; intro.
       generalize (extend_map_with_submap ct_old2 ct_temp ct_new H8) ; intro.
       apply Sem_frag_stmts_Equal with (vm_old1 := vm_temp) (ct_old1 := extend_map_with ct_old2 ct_temp)
@@ -2548,11 +3654,12 @@ Proof.
                     destruct (CEP.find v ct_old2) ;
                           first (by discriminate) ;
                           last (by contradiction H0)).
+*)
 Admitted.
 
 Lemma ExpandWhen_correct_inductive :
 forall (vm_for_tmap : CEP.t vertex_type) (tmap : CEP.t (ftype * HiF.forient)),
-        tmap_has_fully_inferred_ground_types tmap
+        tmap_has_fully_inferred_ground_types tmap (* perhaps not needed, as it may be included in all_fit_together *)
     ->
         vm_sub_tmap vm_for_tmap tmap
     ->
@@ -2562,14 +3669,14 @@ forall (vm_for_tmap : CEP.t vertex_type) (tmap : CEP.t (ftype * HiF.forient)),
                 forall (old_scope : CEP.t (ftype * HiF.forient)) (old_connmap : CEP.t def_expr)
                        (old_ct : CEP.t def_expr) (old_vm : CEP.t vertex_type) (old_tmap: CEP.t (ftype * HiF.forient))
                        (tm_tmap tm_scope : CEP.t (ftype * HiF.forient))
-                       (old_comp : HiFP.hfstmt_seq) (eb_connmap : CEP.t def_expr)
+                       (eb_connmap : CEP.t def_expr)
                        (sf_vm : CEP.t vertex_type) (sf_ct : CEP.t def_expr),
                             all_fit_together old_scope old_connmap old_ct old_vm old_tmap
                         ->
                             stmt_tmap (old_tmap, old_scope) s vm_for_tmap = Some (tm_tmap, tm_scope)
                         ->
-                            ExpandBranch_fun s old_comp old_connmap old_scope =
-                            Some (Qcat old_comp (component_stmt_of s), eb_connmap, tm_scope)
+                            ExpandBranch_fun s old_connmap old_scope =
+                            Some (eb_connmap, tm_scope)
                         ->
                             Sem_frag_stmts old_vm old_ct (Qcat (component_stmt_of s)
                                            (convert_to_connect_stmts eb_connmap))
@@ -2592,14 +3699,14 @@ forall (vm_for_tmap : CEP.t vertex_type) (tmap : CEP.t (ftype * HiF.forient)),
                 forall (old_scope : CEP.t (ftype * HiF.forient)) (old_connmap : CEP.t def_expr)
                        (old_ct : CEP.t def_expr) (old_vm : CEP.t vertex_type) (old_tmap: CEP.t (ftype * HiF.forient))
                        (tm_tmap tm_scope : CEP.t (ftype * HiF.forient))
-                       (old_comp : HiFP.hfstmt_seq) (eb_connmap : CEP.t def_expr)
+                       (eb_connmap : CEP.t def_expr)
                        (sf_vm : CEP.t vertex_type) (sf_ct : CEP.t def_expr),
                             all_fit_together old_scope old_connmap old_ct old_vm old_tmap
                         ->
                             stmts_tmap (old_tmap, old_scope) ss vm_for_tmap = Some (tm_tmap, tm_scope)
                         ->
-                            ExpandBranches_funs ss old_comp old_connmap old_scope =
-                            Some (Qcat old_comp (component_stmts_of ss), eb_connmap, tm_scope)
+                            ExpandBranches_funs ss old_connmap old_scope =
+                            Some (eb_connmap, tm_scope)
                         ->
                             Sem_frag_stmts old_vm old_ct (Qcat (component_stmts_of ss)
                                            (convert_to_connect_stmts eb_connmap))
@@ -2618,7 +3725,7 @@ Proof.
   (* only Swhen is left *)
   clear Hsimple.
   simpl.
-  intros Hs_inf old_scope old_connmap old_ct old_vm old_tmap tm_tmap tm_scope old_comp eb_connmap sf_vm sf_ct
+  intros Hs_inf old_scope old_connmap old_ct old_vm old_tmap tm_tmap tm_scope eb_connmap sf_vm sf_ct
          Haft Hst Heb Hsf Htm_sub_vm.
   assert (Htm_tm_sub_tm : CEP.submap tm_tmap tmap).
         intros k v Hfind_k ; specialize (Htm_sub_vm k) ; specialize (Hvm_tm k).
@@ -2631,19 +3738,18 @@ Proof.
               exact Hvm_tm.
   specialize (ExpandWhens_correct_inductive vm_for_tmap tmap Htm_inf Hvm_tm).
   move /andP : Hs_inf => [/andP [Hs_inf Hsst_inf] Hssf_inf].
-  generalize (ExpandWhens_correct_inductive ssf Hssf_inf old_scope old_connmap) ; intro IHssf ;
-        specialize IHssf with (old_comp := (Qcat old_comp (component_stmts_of sst))).
+  generalize (ExpandWhens_correct_inductive ssf Hssf_inf old_scope old_connmap) ; intro IHssf.
   specialize (ExpandWhens_correct_inductive sst Hsst_inf old_scope old_connmap old_ct old_vm old_tmap)
-             with (old_comp := old_comp) (1 := Haft) ; rename ExpandWhens_correct_inductive into IHsst.
+             with (1 := Haft) ; rename ExpandWhens_correct_inductive into IHsst.
   (* work further on the induction hypotheses *)
   destruct (type_of_expr cond old_scope) as [[[[[|[|]]| | | | | |]| |] p_cond]|] eqn: Htyp_cond ; try by discriminate Heb.
   (* stmts_tmap: *)
   generalize (aft_scope_submap_tmap _ _ _ _ _ Haft) ; intro Hsc_tm.
   generalize (stmts_submap vm_for_tmap sst old_tmap old_scope Hsc_tm) ; intro Hst_sub_t.
   specialize (stmts_tmap_and_ExpandBranches_funs sst old_scope old_connmap old_tmap vm_for_tmap)
-        with (old_comp := old_comp) (2 := Hsc_tm) (3 := Hsst_inf) ; intro Htm_eb_t.
+        with (2 := Hsc_tm) (3 := Hsst_inf) ; intro Htm_eb_t.
   specialize (ExpandBranches_funs_and_Sem_frag_stmts vm_for_tmap tmap Htm_inf Hvm_tm sst old_tmap old_scope)
-              with (old_comp := old_comp) (old_connmap := old_connmap) (old_vm := old_vm) (old_ct := old_ct)
+              with (old_connmap := old_connmap) (old_vm := old_vm) (old_ct := old_ct)
               (1 := Hsst_inf) (2 := Hsc_tm) ; intro Haft_comp_t.
   destruct (stmts_tmap (old_tmap, old_scope) sst vm_for_tmap) as [[tm_tmap_t tm_scope_t]|] eqn: Hst_t ; last by discriminate Hst.
   specialize IHsst with (1 := Logic.eq_refl).
@@ -2652,12 +3758,16 @@ Proof.
   specialize IHssf with (old_tmap := tm_tmap_t).
   generalize (stmts_submap vm_for_tmap ssf tm_tmap_t old_scope (CEP.Lemmas.submap_trans (proj2 (proj2 Hst_sub_t)) (proj1 Hst_sub_t))) ; intro Hst_f.
   specialize (stmts_tmap_and_ExpandBranches_funs ssf old_scope old_connmap tm_tmap_t vm_for_tmap)
-        with (old_comp := (Qcat old_comp (component_stmts_of sst)))
-        (2 := CEP.Lemmas.submap_trans (proj2 (proj2 Hst_sub_t)) (proj1 Hst_sub_t)) (3 := Hssf_inf) ; intro Htm_eb_f.
+        with (2 := CEP.Lemmas.submap_trans (proj2 (proj2 Hst_sub_t)) (proj1 Hst_sub_t)) (3 := Hssf_inf) ; intro Htm_eb_f.
+  specialize (ExpandBranches_funs_and_Sem_frag_stmts vm_for_tmap tmap Htm_inf Hvm_tm ssf tm_tmap_t old_scope)
+              with (old_connmap := old_connmap)
+              (1 := Hssf_inf) (2 := CEP.Lemmas.submap_trans (proj2 (proj2 Hst_sub_t)) (proj1 Hst_sub_t)) ;
+              intro Haft_comp_f.
   destruct (stmts_tmap (tm_tmap_t, old_scope) ssf vm_for_tmap) as [[tm_tmap_f tm_scope_f]|] ; last by discriminate Hst.
   specialize IHssf with (2 := Logic.eq_refl).
   specialize Htm_eb_f with (2 := Logic.eq_refl).
   injection Hst ; clear Hst ; intros ; subst tm_tmap_f tm_scope.
+  specialize Haft_comp_f with (1 := Logic.eq_refl) (2 := Htm_sub_vm).
   assert (Htm_t_inf: tmap_has_fully_inferred_ground_types tm_tmap_t).
         destruct Hst_f as [_ [Hst_f _]].
         intro k ; specialize (Hst_f k) ; specialize (Htm_inf k).
@@ -2681,26 +3791,35 @@ Proof.
         intro ; rewrite H0 in H ; clear H0.
   rewrite H ; clear H.
   (* ExpandBranches_funs: *)
-  generalize (ExpandBranches_funs_submap sst old_comp old_connmap old_scope) ; intro Heb_t.
-  destruct (ExpandBranches_funs sst old_comp old_connmap old_scope) as [[[eb_comp_t eb_connmap_t] eb_scope_t]|] ; last by discriminate Heb.
-  destruct Heb_t as [H Heb_t] ; subst eb_comp_t.
+  generalize (ExpandBranches_funs_submap sst old_connmap old_scope) ; intro Heb_t.
+  destruct (ExpandBranches_funs sst old_connmap old_scope) as [[eb_connmap_t eb_scope_t]|] ; last by discriminate Heb.
   specialize Htm_eb_t with (1 := Logic.eq_refl).
   specialize Haft_comp_t with (2 := Logic.eq_refl).
-  subst eb_scope_t.
+  destruct Htm_eb_t as [Htm_eb_t' Htm_eb_t] ; subst eb_scope_t.
   specialize IHsst with (1 := Logic.eq_refl).
-  generalize (ExpandBranches_funs_submap ssf (Qcat old_comp (component_stmts_of sst)) old_connmap old_scope) ; intro Heb_f.
-  destruct (ExpandBranches_funs ssf (Qcat old_comp (component_stmts_of sst)) old_connmap old_scope) as [[[eb_comp_f eb_connmap_f] eb_scope_f]|] ; last by discriminate Heb.
-  destruct Heb_f as [H Heb_f] ; subst eb_comp_f.
+  generalize (ExpandBranches_funs_submap ssf old_connmap old_scope) ; intro Heb_f.
+  destruct (ExpandBranches_funs ssf old_connmap old_scope) as [[eb_connmap_f eb_scope_f]|] ; last by discriminate Heb.
   specialize Htm_eb_f with (1 := Logic.eq_refl).
-  subst eb_scope_f.
+  specialize Haft_comp_f with (1 := Logic.eq_refl).
+  destruct Htm_eb_f as [Htm_eb_f' Htm_eb_f] ; subst eb_scope_f.
   specialize IHssf with (2 := Logic.eq_refl).
-  rewrite Qcat_assoc in Heb.
   injection Heb ; clear Heb ; intro ; subst eb_connmap.
   (* Sem_frag_stmts: *)
   apply Sem_frag_stmts_cat in Hsf.
   destruct Hsf as [vm_comp [ct_comp [Hsf_comp Hsf_conn]]].
   apply Sem_frag_stmts_cat in Hsf_comp.
   destruct Hsf_comp as [vm_comp_t [ct_comp_t [Hsf_comp_t Hsf_comp_f]]].
+  assert (Htmt_sub_tm: CEP.submap tm_tmap_t tmap) by (apply (CEP.Lemmas.submap_trans (proj1 (proj2 Hst_f)) Htm_tm_sub_tm)).
+  assert (Holdtm_sub_tm: CEP.submap old_tmap tmap) by (apply (CEP.Lemmas.submap_trans (proj1 (proj2 Hst_sub_t)) Htmt_sub_tm)).
+  assert (Hct_sub_vm_tmap: ct_sub_vm old_ct old_vm tmap).
+        destruct Haft as [_ [_ [Hct_sub_vm _]]].
+        intro k ; specialize (Hct_sub_vm k).
+        destruct (CEP.find k old_ct) as [[| |expr]|] ; try by exact Hct_sub_vm.
+        destruct (CEP.find k old_vm) as [[gt|gt|gt|gt|gt]|] ; try by exact Hct_sub_vm.
+        1-3: generalize (type_of_expr_submap expr old_tmap tmap Holdtm_sub_tm) ; intro.
+        1-3: destruct (type_of_expr expr old_tmap) as [[gt_expr p]|] ; last by contradiction Hct_sub_vm.
+        1-3: rewrite H //.
+  specialize Sem_frag_stmts_component with (1 := Hct_sub_vm_tmap) (2 := Hsf_comp_t) ; intro Hsf_comp_sub_t.
   assert (Hstmt_sub_vm: scope_sub_vm tm_tmap_t vm_for_tmap).
         destruct Hst_f as [_ [Hst_f _]].
         intro k ; specialize (Hst_f k) ; specialize (Htm_sub_vm k).
@@ -2709,6 +3828,46 @@ Proof.
         rewrite Hst_f // in Htm_sub_vm.
   specialize IHsst with (2 := Hstmt_sub_vm).
   specialize Haft_comp_t with (1 := Hstmt_sub_vm) (2 := Hsf_comp_t) (3 := Haft) ; clear Hstmt_sub_vm.
+  specialize Haft_comp_f with (1 := Hsf_comp_f).
+  assert (Haft_comp_f_precondition: all_fit_together old_scope old_connmap ct_comp_t vm_comp_t tm_tmap_t).
+        split.
+        - destruct Haft as [Haft _].
+          intro k ; specialize (Haft k).
+          destruct (CEP.find k old_scope) as [[ft_tgt [| | | |]]|] ; try by exact Haft.
+          1,2: destruct (CEP.find k old_connmap) as [[| |expr]|] ; try by exact Haft.
+          1,2: generalize (type_of_expr_submap expr old_tmap tm_tmap_t (proj1 (proj2 Hst_sub_t))) ; intro.
+          1,2: destruct (type_of_expr expr old_tmap) as [[ft_src ori]|] ; last by contradiction Haft.
+          1,2: rewrite H //.
+        destruct Haft as [_ Haft], Haft_comp_t as [_ Haft_comp_t] ; split.
+        - destruct Haft as [Haft _].
+          intro k ; specialize (Haft k).
+          destruct (CEP.find k old_connmap) ; last by exact Haft.
+          destruct Hsf_comp_sub_t as [_ [_ Hsf_comp_sub_t]] ; specialize (Hsf_comp_sub_t k).
+          destruct (CEP.find k old_ct) ; last by contradiction Haft.
+          by rewrite (Hsf_comp_sub_t _ Logic.eq_refl) //.
+        destruct Haft as [_ Haft], Haft_comp_t as [_ Haft_comp_t] ; split.
+        - by apply Haft_comp_t.
+        destruct Haft as [_ Haft], Haft_comp_t as [_ Haft_comp_t] ; split.
+        - by apply Haft_comp_t.
+        destruct Haft as [_ Haft], Haft_comp_t as [_ Haft_comp_t] ; split.
+        - destruct Haft as [Haft _], Hsf_comp_sub_t as [_ [Hsf_comp_sub_t _]].
+          intro k ; specialize (Haft k) ; specialize (Hsf_comp_sub_t k).
+          destruct (CEP.find k old_scope) as [[ft [| | | |]]|] ; try by exact Haft.
+          1-3: destruct (CEP.find k old_vm) ; last by contradiction Haft.
+          1-3: rewrite (Hsf_comp_sub_t _ Logic.eq_refl) //.
+        - destruct Haft as [_ Haft].
+          intro k ; specialize (Haft k).
+          destruct (CEP.find k old_connmap) as [[| |expr]|] ;
+                try (by exact Haft) ;
+          destruct Hst_sub_t as [_ [Hst_sub_t _]].
+          * 3: generalize (type_of_expr_submap expr old_tmap tm_tmap_t Hst_sub_t) ; intro.
+            3: destruct (type_of_expr expr old_tmap) as [[[gt_expr| |] p]|]; try (by contradiction Haft).
+            3: rewrite H ; clear H.
+          1-3: specialize (Hst_sub_t k).
+          1-3: destruct (CEP.find k old_tmap) as [[ft [| | | |]]|] ;
+                     try (by contradiction Haft) ;
+               by rewrite (Hst_sub_t _ Logic.eq_refl) //.
+  specialize (Haft_comp_f Haft_comp_f_precondition) ; clear Haft_comp_f_precondition.
   assert (Hsf_t : Sem_frag_stmts old_vm old_ct
                         (Qcat (component_stmts_of sst) (convert_to_connect_stmts eb_connmap_t))
                         vm_comp_t (extend_defined_map_with eb_connmap_t ct_comp_t) tmap).
@@ -2717,20 +3876,10 @@ Proof.
         split ; first by exact Hsf_comp_t.
         apply Sem_frag_stmts_connect ; first by exact Htm_inf.
         (* Now we can use Haft_comp_t to prove this *)
-        assert (Htmt_sub_tm: CEP.submap tm_tmap_t tmap) by (apply (CEP.Lemmas.submap_trans (proj1 (proj2 Hst_f)) Htm_tm_sub_tm)).
         split.
         + intro k ; rewrite CEP.Lemmas.empty_o //.
         destruct Haft_comp_t as [_ Haft_comp_t] ; split.
-        + destruct Haft_comp_t as [Haft_comp_t _].
-          intro k ; specialize (Haft_comp_t k).
-          destruct (CEP.find k eb_connmap_t) as [[| |cm_expr]|] ; try by exact Haft_comp_t.
-          destruct (CEP.find k ct_comp_t) as [[| |ct_expr]|] ; try by exact Haft_comp_t.
-          generalize (type_of_expr_submap cm_expr tm_tmap_t tmap Htmt_sub_tm) ; intro.
-          destruct (type_of_expr cm_expr tm_tmap_t) as [[[cm_gt| |] cm_p]|] ; try by contradiction Haft_comp_t.
-          rewrite H // ; clear H.
-          generalize (type_of_expr_submap ct_expr tm_tmap_t tmap Htmt_sub_tm) ; intro.
-          destruct (type_of_expr ct_expr tm_tmap_t) as [[[ct_gt| |] ct_p]|] ; try by contradiction Haft_comp_t.
-          rewrite H //.
+        + by apply Haft_comp_t.
         destruct Haft_comp_t as [_ Haft_comp_t] ; split.
         + destruct Haft_comp_t as [Haft_comp_t _].
           intro k ; specialize (Haft_comp_t k).
@@ -2744,9 +3893,20 @@ Proof.
           intro k ; specialize (Haft_comp_t k).
           destruct (CEP.find k vm_comp_t) as [[gt|gt|gt|gt|gt]|] ; try by exact Haft_comp_t.
           1-5: by apply Htmt_sub_tm, Haft_comp_t.
+        destruct Haft_comp_t as [_ Haft_comp_t] ; split.
         + intro k ; rewrite CEP.Lemmas.empty_o //.
+        + destruct Haft_comp_t as [_ Haft_comp_t].
+          intro k ; specialize (Haft_comp_t k).
+          destruct (CEP.find k eb_connmap_t) as [[| |expr]|] ; try by exact Haft_comp_t.
+          - 3: generalize (type_of_expr_submap expr tm_tmap_t tmap Htmt_sub_tm) ; intro.
+            3: destruct (type_of_expr expr tm_tmap_t) as [[[gt_expr| |] p]|] ; try by contradiction Haft_comp_t.
+            3: rewrite H ; clear H.
+          1-3: specialize (Htmt_sub_tm k).
+          1-3: destruct (CEP.find k tm_tmap_t) as [[[gt_ref| |] [| | | |]]|] ;
+                     try (by contradiction Haft_comp_t) ;
+               by rewrite (Htmt_sub_tm _ Logic.eq_refl) //.
   specialize IHsst with (1 := Hsf_t) ; clear Hsf_t.
-
+  specialize Sem_frag_stmts_component with (1 := proj1 Hsf_comp_sub_t) (2 := Hsf_comp_f) ; intro Hsf_comp_sub_f.
   specialize Sem_frag_stmts_compatible with (1 := proj1 IHsst) ; intro Hsf_sub_t.
   (*assert (Hsf_comp0_f : exists (vm_comp_f : CEP.t vertex_type) (ct_comp_f : CEP.t def_expr),
         Sem_frag_stmts old_vm old_ct (component_stmts_of ssf) vm_comp_f ct_comp_f tmap).
@@ -2763,9 +3923,37 @@ Proof.
         + (* Sem_frag_stmts_component_Equal? *)
           admit.
         + apply Sem_frag_stmts_connect ; first by exact Htm_inf.
-Check Haft_comp_t.
-          admit. (* all should fit together here.
-                    I think we need some property that says somehing about ExpandBranch_stmts and all_fit_togeter. *)
+          split.
+          + intro k ; by rewrite CEP.Lemmas.empty_o //.
+          destruct Haft_comp_f as [_ Haft_comp_f], Haft_comp_t as [_ Haft_comp_t] ; split.
+          + destruct Haft_comp_f as [Haft_comp_f _].
+            intro k ; specialize (Haft_comp_f k).
+            rewrite /extend_defined_map_with CEP.Lemmas.map2_1bis //.
+            destruct (CEP.find k eb_connmap_f) ; last by trivial.
+            destruct (CEP.find k eb_connmap_t) as [[| |cm_expr_t]|] ; try by done.
+            destruct (PVM.find k ct_comp) ; by trivial.
+          destruct Haft_comp_f as [_ Haft_comp_f], Haft_comp_t as [_ Haft_comp_t] ; split.
+          + (* use the last conjunct of Hsf_sub_t, which should be adapted to all_fit_together *)
+            admit.
+          destruct Haft_comp_f as [_ Haft_comp_f], Haft_comp_t as [_ Haft_comp_t] ; split.
+          + destruct Haft_comp_f as [Haft_comp_f _].
+            intro k ; specialize (Haft_comp_f k).
+            destruct (CEP.find k vm_comp) as [[gt|gt|gt|gt|gt]|] ;
+                  last (by trivial) ;
+            apply Htm_tm_sub_tm in Haft_comp_f ;
+            by rewrite Haft_comp_f //.
+          destruct Haft_comp_f as [_ Haft_comp_f], Haft_comp_t as [_ Haft_comp_t] ; split.
+          + intro k ; by rewrite CEP.Lemmas.empty_o //.
+          + destruct Haft_comp_f as [_ Haft_comp_f].
+            intro k ; specialize (Haft_comp_f k).
+            destruct (CEP.find k eb_connmap_f) as [[| |expr]|] ; try by exact Haft_comp_f.
+            * 3: generalize (type_of_expr_submap expr tm_tmap tmap Htm_tm_sub_tm) ; intro.
+              3: destruct (type_of_expr expr tm_tmap) as [[[gt_expr| |] ]|] ; try by contradiction Haft_comp_f.
+              3: rewrite H ; clear H.
+            1-3: specialize (Htm_tm_sub_tm k) ;
+                 destruct (CEP.find k tm_tmap) as [[ft [| | | |]]|] ;
+                       last (by contradiction Haft_comp_f) ;
+                 by rewrite (Htm_tm_sub_tm _ Logic.eq_refl) //.
   specialize IHssf with (2 := Hsf_f) (3 := Htm_sub_vm) ; clear Hsf_f.
   assert (Haft_f: all_fit_together old_scope old_connmap
                 (extend_map_with old_ct (extend_defined_map_with eb_connmap_t ct_comp_t))
@@ -2783,18 +3971,12 @@ Check Haft_comp_t.
         destruct Haft as [_ Haft] ; split.
         + destruct Haft as [Hcm_ct _].
           intro k ; specialize (Hcm_ct k).
-          destruct (CEP.find k old_connmap) as [[| |cm_expr]|] ;
-                try by exact Hcm_ct.
-          1-3: rewrite /extend_map_with CEP.Lemmas.map2_1bis //.
-          1-3: destruct (CEP.find k old_ct) as [[| |ct_expr]|] ;
-                try by exact Hcm_ct.
-          1,2,4: by rewrite /extend_defined_map_with CEP.Lemmas.map2_1bis //.
-          destruct Hst_sub_t as [_ [Hct_expr _]].
-          generalize (type_of_expr_submap cm_expr old_tmap tm_tmap_t Hct_expr) ; intro Hcm_expr.
-          apply (type_of_expr_submap ct_expr) in Hct_expr.
-          destruct (type_of_expr cm_expr old_tmap) as [[[cm_gt| |] cm_p]|] ; try by contradiction Hcm_ct.
-          destruct (type_of_expr ct_expr old_tmap) as [[[ct_gt| |] ct_p]|] ; try by contradiction Hcm_ct.
-          by rewrite Hcm_expr Hct_expr //.
+          destruct (CEP.find k old_connmap) ;
+                last by exact Hcm_ct.
+          rewrite /extend_map_with CEP.Lemmas.map2_1bis //.
+          destruct (CEP.find k old_ct) ;
+                last by contradiction Hcm_ct.
+          by trivial.
         destruct Haft as [_ Haft] ; split.
         + destruct Haft as [Hct_vm _].
           intro k ; specialize (Hct_vm k).
@@ -2811,20 +3993,38 @@ Check Haft_comp_t.
           1-3: by rewrite Hexpr //.
         destruct Haft as [_ Haft] ; split.
         + by apply IHsst.
+        destruct Haft as [_ Haft] ; split.
         + intro k.
           destruct Hst_sub_t as [_ [_ Hst_sub_t]] ; specialize (Hst_sub_t k).
           destruct (CEP.find k old_scope) as [[ft p]|] ; last by trivial.
-          destruct IHsst as [_ [_ [_ [_ [_ IHsst]]]]] ; specialize (IHsst k).
+          destruct IHsst as [_ [_ [_ [_ [_ [IHsst _]]]]]] ; specialize (IHsst k).
           specialize Hst_sub_t with (1 := Logic.eq_refl) ; rewrite Hst_sub_t // in IHsst.
+        + destruct Haft as [_ Haft].
+          intro k ; specialize (Haft k).
+          destruct (CEP.find k old_connmap) as [[| |expr]|] ; try by exact Haft.
+          * 3: generalize (type_of_expr_submap expr old_tmap tm_tmap_t (proj1 (proj2 Hst_sub_t))) ; intro.
+            3: destruct (type_of_expr expr old_tmap) as [[[gt_expr| |] ]|] ; try by contradiction Haft.
+            3: rewrite H // ; clear H.
+          1-3: destruct Hst_sub_t as [_ [Hst_sub_t _]] ; specialize (Hst_sub_t k).
+          1-3: destruct (CEP.find k old_tmap) as [[[gt_ref| |] [| | | |]]|] ;
+                     try (by contradiction Haft) ;
+               by rewrite (Hst_sub_t _ Logic.eq_refl) //.
   specialize IHssf with (1 := Haft_f) ; clear Haft_f.
+(*  assert (all_fit_together (CEP.empty (ftype * HiF.forient))
+                           (combine_when_connections cond eb_connmap_t eb_connmap_f)
+                           ct_comp vm_comp tmap).
+        split.
+        + intro k.
+          rewrite CEP.Lemmas.empty_o //.
+        split.
+        + intro k.
+          rewrite /combine_when_connections CEP.Lemmas.map2_1bis //.*)
+
   split.
   + exists vm_comp_t, (extend_defined_map_with eb_connmap_t ct_comp_t), (extend_defined_map_with eb_connmap_f
              (extend_defined_map_with eb_connmap_t ct_comp)).
-    apply convert_to_connect_stmts_Sem with (1 := Htm_inf) in Hsf_conn ;
-          (* The other preconditions should hold because of all_fit_together.
-             Best to reformulate convert_to_connect_Sem using that definition? *)
-          last (by admit) (* subdomain (combine_when_connections cond eb_connmap_t eb_connmap_f) ct_comp *) ;
-          last (by admit) (* ct_has_fully_inferred_ground_types (combine_when_connections cond eb_connmap_t eb_connmap_f) *).
+    apply convert_to_connect_stmts_Sem in Hsf_conn ;
+          last (by admit) (* all_fit_together ... *).
     split.
     - by apply IHsst.
     split.
@@ -2840,7 +4040,21 @@ Check Haft_comp_t.
 * admit.
 Admitted.
 
-(* The following is an older version of the lemma.
+(* The following is an older version of the main inductive theorem.
+   I leave it in the file only because some lemmas may still be needed.
+
+Definition conn_map_covers_scope
+    (* checks whether the connection map assigns a value to everything in the scope *)
+    (conn_map : CEP.t def_expr)
+    (scope : CEP.t (ftype * HiF.forient))
+:   Prop
+:=  forall k : CEP.key,
+        match CEP.find k scope with
+        | Some (_, HiF.Sink)
+        | Some (_, HiF.Duplex) => CEP.find k conn_map <> None
+        | Some _ => CEP.find k conn_map = None
+        | _ => True
+        end.
 
 Lemma ExpandWhens_correct_inductive_cons :
 forall (ss : HiFP.hfstmt_seq) (old_vm : CEP.t vertex_type) (old_ct : CEP.t def_expr)
