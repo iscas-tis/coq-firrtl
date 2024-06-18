@@ -400,6 +400,32 @@ and replaces conditional statements with multiplexers, respectively.
 %\zhilin{Submitted papers (including resubmissions) must be at most 23 pages in 10 point font. There is no page limit on references. No appendices are allowed on the main paper, instead authors can upload supplementary material with no page or content restrictions, but reviewers may choose to ignore it. }
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{itemize}
+\item sec 2: informal overview of FIRRTL and its transformations
+
+\item sec 3: Formal semantics of FIRRTL
+\begin{itemize}
+\item module graphs
+\item structural semantics of FIRRTL as sets of module graphs
+\end{itemize}
+
+\item G(P): the set of module graphs of  P
+
+-- behavioral semantics for module graphs, interpreter
+
+\item sec 4: functional correctness of compilation passes 
+
+-- correctness of a compilation pass InferWidths: 
+for each high FIRRTL program P, if G(P) is nonempty, then IW(P) succeeds, and G(IW(P)) is the minimum one among G(P)
+
+-- ExpandConnects, ExpandWhens: G(T(P)) = G(P)
+
+\item sec 5: extraction of an OCAML compiler from Coq code
+
+comparison with the official compiler
+\end{itemize}
+
 \section{Introduction}
 
 \input{intro}
