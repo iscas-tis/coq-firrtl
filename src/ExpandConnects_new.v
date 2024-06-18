@@ -3629,7 +3629,7 @@ Lemma expandconnects_sfcnct_eideid_r1r2_atyp_t :
    n0 < size_of_ftype (Atyp gt n) ->
    ft_find (r, bin_of_nat (n0 + o)) ct1 = Some D_undefined). Proof. Admitted.
 
-  Lemma expandconnects_swire_btyp :
+  Lemma expandconnects_swire_btyp : 
     forall vm0 ct0 r o f tmap tomap vm1 ct1,
     Sem_frag_stmts vm0 ct0
     (expand_wire_aux (r, o) (size (ftype_list_all (Btyp f) [::])) 0 tmap HiFP.qnil)
