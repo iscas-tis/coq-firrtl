@@ -19,21 +19,18 @@ with num_ff (ff : ffield) : nat :=
    | Fflips _ _ ft ff' => (num_ref ft) + num_ff ff'
 end.
 
-Fixpoint list_gtypref (v : ProdVarOrder.t) (ft : ftype) (ori : HiF.forient) : seq (ProdVarOrder.t * fgtyp * HiF.forient) :=
+Fixpoint list_gtypref (v : ProdVarOrder.t) (ft : ftype) (ori : bool) : seq (ProdVarOrder.t * fgtyp * bool) :=
 match ft with
    | Gtyp gt => [::(v, gt, ori)]
    | Atyp atyp n => list_gtypref (v.1, N.add v.2 1%num) atyp ori
    | Btyp ff => list_gtypref_ff v ff ori
    end
-with list_gtypref_ff (v : ProdVarOrder.t) (ff : ffield) (ori : HiF.forient) : seq (ProdVarOrder.t * fgtyp * HiF.forient) :=
+with list_gtypref_ff (v : ProdVarOrder.t) (ff : ffield) (ori : bool) : seq (ProdVarOrder.t * fgtyp * bool) :=
    match ff with
    | Fnil => [::]
-   | Fflips _ fl ft ff' => match fl, ori with
-                        | Nflip, _ 
-                        | Flipped, HiF.Duplex => list_gtypref (v.1, N.add v.2 1%num) ft ori ++ list_gtypref_ff (v.1, N.add v.2 (N.of_nat (num_ref ft + 1))) ff' ori
-                        | Flipped, HiF.Sink => list_gtypref (v.1, N.add v.2 1%num) ft HiF.Source ++ list_gtypref_ff (v.1, N.add v.2 (N.of_nat (num_ref ft + 1))) ff' ori
-                        | Flipped, HiF.Source => list_gtypref (v.1, N.add v.2 1%num) ft HiF.Sink ++ list_gtypref_ff (v.1, N.add v.2 (N.of_nat (num_ref ft + 1))) ff' ori
-                        | _, _ => [::]
+   | Fflips _ fl ft ff' => match fl with
+                        | Nflip => list_gtypref (v.1, N.add v.2 1%num) ft ori ++ list_gtypref_ff (v.1, N.add v.2 (N.of_nat (num_ref ft + 1))) ff' ori
+                        | Flipped => list_gtypref (v.1, N.add v.2 1%num) ft (~~ori) ++ list_gtypref_ff (v.1, N.add v.2 (N.of_nat (num_ref ft + 1))) ff' ori
                         end
    end.
 
@@ -46,7 +43,7 @@ Definition make_vx_implicit (v : vertex_type) : vertex_type :=
     | Node gt => Node (fgtyp_add_implicit gt)
     end.
 
-Fixpoint make_gtyp_implicit (vm nvm : CEP.t vertex_type) (tl : seq (ProdVarOrder.t * fgtyp * HiF.forient)) : option (CEP.t vertex_type) := 
+Fixpoint make_gtyp_implicit (vm nvm : CEP.t vertex_type) (tl : seq (ProdVarOrder.t * fgtyp * bool)) : option (CEP.t vertex_type) := 
 match tl with
     | nil => Some vm
     | (pv, gt, _) :: tl => match CEP.find pv vm with
@@ -58,9 +55,9 @@ match tl with
 
 Definition make_p_implicit (vm nvm : CEP.t vertex_type) (p : HiFP.hfport) : option (CEP.t vertex_type) :=
    match p with
-   | Finput v t => let tl := list_gtypref v t HiF.Source in
+   | Finput v t => let tl := list_gtypref v t false in
                    make_gtyp_implicit vm nvm tl
-   | Foutput v t => let tl := list_gtypref v t HiF.Sink in
+   | Foutput v t => let tl := list_gtypref v t false in
                    make_gtyp_implicit vm nvm tl
    end.
 
@@ -77,9 +74,9 @@ Fixpoint make_s_implicit (vm nvm : CEP.t vertex_type) (st : HiFP.hfstmt) : optio
 (* change the vertex of statement st in vm to implicit-width if st defines an implicit-width component *)
    match st with
   | Sskip => Some nvm
-  | Swire v t => let tl := list_gtypref v t HiF.Duplex in
+  | Swire v t => let tl := list_gtypref v t false in
                  make_gtyp_implicit vm nvm tl
-  | Sreg v r => let tl := list_gtypref v (type r) HiF.Duplex in
+  | Sreg v r => let tl := list_gtypref v (type r) false in
                 make_gtyp_implicit vm nvm tl
   | Smem v m => (*TBD*) Some vm
   | Sinst v inst => (*TBD*) Some vm
@@ -109,7 +106,7 @@ Definition make_vm_implicit (F : HiFP.hfmodule) (vm : CEP.t vertex_type) : optio
    | FExmod _ _ _ => Some (CEP.empty vertex_type)
    end.
 
-Fixpoint ft_find_sub (checkt : ftype) (num : N) (ori : HiF.forient) : option (ftype * HiF.forient) :=
+Fixpoint ft_find_sub (checkt : ftype) (num : N) (ori : bool) : option (ftype * bool) :=
   match checkt with
   | Gtyp gt => if num == N0 then Some (checkt, ori) else None
   | Atyp atyp n => if num == N0 then Some (checkt, ori)
@@ -121,189 +118,295 @@ Fixpoint ft_find_sub (checkt : ftype) (num : N) (ori : HiF.forient) : option (ft
   | Btyp ff => if num == N0 then Some (checkt, ori)
                else ft_find_sub_f ff num ori
   end
-with ft_find_sub_f (ff : ffield) (num : N) (ori : HiF.forient) : option (ftype * HiF.forient) :=
-  match ff, ori with
-  | Fflips _ Nflip ft ff', _ 
-  | Fflips _ Flipped ft ff', HiF.Duplex => if num == 1%num (* 找到被更新的标号, 所对应的field *)
+with ft_find_sub_f (ff : ffield) (num : N) (ori : bool) : option (ftype * bool) :=
+  match ff with
+  | Fflips _ Nflip ft ff' => if num == 1%num (* 找到被更新的标号, 所对应的field *)
                               then Some (ft, ori)
                               else if (N.to_nat num) > (num_ref ft) (* 不在该field中, 找下一个field *)
                                   then ft_find_sub_f ff' (N.of_nat ((N.to_nat num) - (num_ref ft))) ori
                               else (* 在field v0中 *)
                                   ft_find_sub ft (N.sub num 1%num) ori
-   | Fflips _ Flipped ft ff', HiF.Source => if num == 1%num (* 找到被更新的标号, 所对应的field *)
-                              then Some (ft, HiF.Sink)
+   | Fflips _ Flipped ft ff' => if num == 1%num (* 找到被更新的标号, 所对应的field *)
+                              then Some (ft, (~~ori))
                               else if (N.to_nat num) > (num_ref ft) (* 不在该field中, 找下一个field *)
-                                  then ft_find_sub_f ff' (N.of_nat ((N.to_nat num) - (num_ref ft))) HiF.Source
+                                  then ft_find_sub_f ff' (N.of_nat ((N.to_nat num) - (num_ref ft))) ori
                               else (* 在field v0中 *)
-                                  ft_find_sub ft (N.sub num 1%num) HiF.Sink
-   | Fflips _ Flipped ft ff', HiF.Sink => if num == 1%num (* 找到被更新的标号, 所对应的field *)
-                              then Some (ft, HiF.Source)
-                              else if (N.to_nat num) > (num_ref ft) (* 不在该field中, 找下一个field *)
-                                  then ft_find_sub_f ff' (N.of_nat ((N.to_nat num) - (num_ref ft))) HiF.Sink
-                              else (* 在field v0中 *)
-                                  ft_find_sub ft (N.sub num 1%num) HiF.Source
-  | _, _ => None
+                                  ft_find_sub ft (N.sub num 1%num) (~~ori)
+   | _ => None
   end.
   
-Definition type_of_ref (v : ProdVarOrder.t) (tmap : CEP.t (ftype * HiF.forient)) : option (ftype * HiF.forient) :=
+Definition type_of_ref (v : ProdVarOrder.t) (tmap : CEP.t (ftype * HiF.forient)) : option (ftype * bool) :=
   match CEP.find (fst v, N0) tmap with
-  | Some (checkt, ori) => ft_find_sub checkt (snd v) ori
+  | Some (checkt, _) => ft_find_sub checkt (snd v) false
   | None => None
   end.
 
-Fixpoint type_of_expr (expr : HiFP.hfexpr) (tmap: CEP.t (ftype * HiF.forient)) : option ftype_explicit :=
+Definition mux_gtyp (t1 : fgtyp) (t2 : fgtyp) : option fgtyp :=
+    match t1, t2 with
+    | Fuint w1, Fuint w2 => Some (Fuint (maxn w1 w2))
+    | Fuint w1, Fuint_implicit w2 
+    | Fuint_implicit w1, Fuint w2
+    | Fuint_implicit w1, Fuint_implicit w2 => Some (Fuint_implicit (maxn w1 w2))
+    | Fsint w1, Fsint w2 => Some (Fsint (maxn w1 w2))
+    | Fsint w1, Fsint_implicit w2 
+    | Fsint_implicit w1, Fsint w2 
+    | Fsint_implicit w1, Fsint_implicit w2 => Some (Fsint_implicit (maxn w1 w2))
+    | Fclock, Fclock => Some (Fclock)
+    | Freset, Freset => Some (Freset)
+    | Fasyncreset, Fasyncreset => Some (Fasyncreset)
+    | _,_ => None
+    end.
+
+Fixpoint mux_types (t1 : ftype) (t2 : ftype) : option ftype :=
+    match t1, t2 with
+    | Gtyp gt1, Gtyp gt2 => match mux_gtyp gt1 gt2 with
+                            | Some gt => Some (Gtyp gt)
+                            | _ => None
+                            end
+    | Atyp t1' n1, Atyp t2' n2 => match n1 == n2, mux_types t1' t2' with
+                                  | true, Some t => Some (Atyp t n1)
+                                  | _, _ => None
+                                  end
+    | Btyp bs1, Btyp bs2 =>
+        match mux_btyps bs1 bs2 with
+        | Some ff => Some (Btyp ff)
+        | None => None
+        end
+    | _, _ => None
+    end
+with mux_btyps (bs1 : ffield) (bs2 : ffield) : option ffield :=
+    match bs1, bs2 with
+    | Fnil, Fnil => Some Fnil
+    | Fflips v1 Nflip t1 fs1, Fflips v2 Nflip t2 fs2 =>
+        if v1 == v2 then match mux_types t1 t2, mux_btyps fs1 fs2 with
+                         | Some t, Some fs => Some (Fflips v1 Nflip t fs)
+                         | _, _ => None
+                         end
+                    else None
+    (* mux types must be passive, so Flipped is not allowed *)
+    | _, _ => None
+  end.
+
+Fixpoint type_of_expr (expr : HiFP.hfexpr) (tmap: CEP.t (ftype * HiF.forient)) : option ftype :=
    (* Find the type of expression expr for reading.
 
-   Similar to type_of_hfexpr in InferWidths *)
-   match expr with
-   | Econst t bs => match t with
-                    | Fuint_implicit w => Some (exist ftype_not_implicit_width (Gtyp (Fuint w)) I)
-                    | Fsint_implicit w => Some (exist ftype_not_implicit_width (Gtyp (Fsint w)) I)
-                    | t => Some (exist ftype_not_implicit_width (Gtyp t) I)
-                    end
-   | Eref (Eid r) => match type_of_ref r tmap with
-               | Some (t, HiF.Source)
-               | Some (t, HiF.Duplex) => Some (make_ftype_explicit t)
-               | _ => None
+   Similar to type_of_expr in InferWidths *)
+  match expr with
+  | Econst t bs => match t with
+               | Fuint_implicit w => Some (Gtyp (Fuint (Nat.max (size bs) w)))
+               | Fsint_implicit w => Some (Gtyp (Fsint (Nat.max (size bs) w)))
+               | t => Some (Gtyp t)
                end
-   | Ecast AsUInt e1 => match type_of_expr e1 tmap with
-                         | Some (exist (Gtyp (Fsint w)) _)
-                         | Some (exist (Gtyp (Fuint w)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fuint w)) I)
-                         | Some (exist (Gtyp Fclock) _)
-                         | Some (exist (Gtyp Freset) _)
-                         | Some (exist (Gtyp Fasyncreset) _) => Some (exist ftype_not_implicit_width (Gtyp (Fuint 1)) I)
-                         | _ => None
-                         end
-   | Ecast AsSInt e1 => match type_of_expr e1 tmap with
-                         | Some (exist (Gtyp (Fsint w)) _)
-                         | Some (exist (Gtyp (Fuint w)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fsint w)) I)
-                         | Some (exist (Gtyp Fclock) _)
-                         | Some (exist (Gtyp Freset) _)
-                         | Some (exist (Gtyp Fasyncreset) _) => Some (exist ftype_not_implicit_width (Gtyp (Fsint 1)) I)
-                         | _ => None
-                         end
-   | Ecast AsClock e1 => match type_of_expr e1 tmap with
-                         | Some (exist (Gtyp _) _) => Some (exist ftype_not_implicit_width (Gtyp Fclock) I)
-                         | _ => None
-                         end
-   | Ecast AsAsync e1 => match type_of_expr e1 tmap with
-                         | Some (exist (Gtyp _) _) => Some (exist ftype_not_implicit_width (Gtyp Fasyncreset) I)
-                         | _ => None
-                         end
-   | Eprim_unop (Upad n) e1 => match type_of_expr e1 tmap with
-                                | Some (exist (Gtyp (Fsint w)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fsint (maxn w n))) I)
-                                | Some (exist (Gtyp (Fuint w)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fuint (maxn w n))) I)
-                                | _ => None
-                                end
-   | Eprim_unop (Ushl n) e1 => match type_of_expr e1 tmap with
-                                | Some (exist (Gtyp (Fsint w)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fsint (w + n))) I)
-                                | Some (exist (Gtyp (Fuint w)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fuint (w + n))) I)
-                                | _ => None
-                                end
-   | Eprim_unop (Ushr n) e1 => match type_of_expr e1 tmap with
-                                | Some (exist (Gtyp (Fsint w)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fsint (maxn (w - n) 1))) I)
-                                | Some (exist (Gtyp (Fuint w)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fuint (maxn (w - n) 0))) I)
-                                | _ => None
-                                end
-   | Eprim_unop Ucvt e1 => match type_of_expr e1 tmap with
-                            | Some (exist (Gtyp (Fsint w)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fsint w)) I)
-                            | Some (exist (Gtyp (Fuint w)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fsint (w + 1))) I)
-                            | _ => None
-                            end
-   | Eprim_unop Uneg e1 => match type_of_expr e1 tmap with
-                            | Some (exist (Gtyp (Fsint w)) _)
-                            | Some (exist (Gtyp (Fuint w)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fsint (w + 1))) I)
-                            | _ => None
-                            end
-   | Eprim_unop Unot e1 => match type_of_expr e1 tmap with
-                            | Some (exist (Gtyp (Fsint w)) _)
-                            | Some (exist (Gtyp (Fuint w)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fuint w)) I)
-                            | _ => None
-                            end
-   | Eprim_unop (Uextr n1 n2) e1 => match type_of_expr e1 tmap with
-                                     | Some (exist (Gtyp (Fsint w)) _)
-                                     | Some (exist (Gtyp (Fuint w)) _) =>
-                                          if (n2 <= n1) && (n1 < w) then Some (exist ftype_not_implicit_width (Gtyp (Fuint (n1 - n2 + 1))) I)
-                                                                    else None
-                                     | _ => None
-                                     end
-   | Eprim_unop (Uhead n) e1 => match type_of_expr e1 tmap with
-                                 | Some (exist (Gtyp (Fsint w)) _)
-                                 | Some (exist (Gtyp (Fuint w)) _) =>
-                                      if n <= w then Some (exist ftype_not_implicit_width (Gtyp (Fuint n)) I)
-                                                else None
-                                 | _ => None
-                                 end
-   | Eprim_unop (Utail n) e1 => match type_of_expr e1 tmap with
-                                 | Some (exist (Gtyp (Fsint w)) _)
-                                 | Some (exist (Gtyp (Fuint w)) _) =>
-                                      if n <= w then Some (exist ftype_not_implicit_width (Gtyp (Fuint (w - n))) I)
-                                                else None
-                                 | _ => None
-                                 end
-   | Eprim_unop _ e1 => match type_of_expr e1 tmap with
-                         | Some (exist (Gtyp (Fsint _)) _)
-                         | Some (exist (Gtyp (Fuint _)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fuint 1)) I)
-                         | _ => None
-                         end
-   | Eprim_binop (Bcomp _) e1 e2 => match type_of_expr e1 tmap, type_of_expr e2 tmap with
-                                     | Some (exist (Gtyp (Fsint _)) _), Some (exist (Gtyp (Fsint _)) _)
-                                     | Some (exist (Gtyp (Fuint _)) _), Some (exist (Gtyp (Fuint _)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fuint 1)) I)
-                                     | _, _ => None
-                                     end
-   | Eprim_binop Badd e1 e2
-   | Eprim_binop Bsub e1 e2 => match type_of_expr e1 tmap, type_of_expr e2 tmap with
-                                | Some (exist (Gtyp (Fuint w1)) _), Some (exist (Gtyp (Fuint w2)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fuint (maxn w1 w2 + 1))) I)
-                                | Some (exist (Gtyp (Fsint w1)) _), Some (exist (Gtyp (Fsint w2)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fsint (maxn w1 w2 + 1))) I)
-                                | _, _ => None
-                                end
-   | Eprim_binop Bmul e1 e2 => match type_of_expr e1 tmap, type_of_expr e2 tmap with
-                                | Some (exist (Gtyp (Fuint w1)) _), Some (exist (Gtyp (Fuint w2)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fuint (w1 + w2))) I)
-                                | Some (exist (Gtyp (Fsint w1)) _), Some (exist (Gtyp (Fsint w2)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fsint (w1 + w2))) I)
-                                | _, _ => None
-                                end
-   | Eprim_binop Bdiv e1 e2  => match type_of_expr e1 tmap, type_of_expr e2 tmap with
-                                 | Some (exist (Gtyp (Fuint w1)) _), Some (exist (Gtyp (Fuint w2)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fuint w1)) I)
-                                 | Some (exist (Gtyp (Fsint w1)) _), Some (exist (Gtyp (Fsint w2)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fsint (w1 + 1))) I)
-                                 | _, _ => None
-                                 end
-   | Eprim_binop Brem e1 e2 => match type_of_expr e1 tmap, type_of_expr e2 tmap with
-                                 | Some (exist (Gtyp (Fuint w1)) _), Some (exist (Gtyp (Fuint w2)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fuint (minn w1 w2))) I)
-                                 | Some (exist (Gtyp (Fsint w1)) _), Some (exist (Gtyp (Fsint w2)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fsint (minn w1 w2))) I)
-                                 | _, _ => None
-                                 end
-   | Eprim_binop Bdshl e1 e2 => match type_of_expr e1 tmap, type_of_expr e2 tmap with
-                                 | Some (exist (Gtyp (Fuint w1)) _), Some (exist (Gtyp (Fuint w2)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fuint (2 ^ w2 + w1 - 1))) I)
-                                 | Some (exist (Gtyp (Fsint w1)) _), Some (exist (Gtyp (Fuint w2)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fsint (2 ^ w2 + w1 - 1))) I)
-                                 | _, _ => None
-                                 end
-   | Eprim_binop Bdshr e1 e2 => match type_of_expr e1 tmap, type_of_expr e2 tmap with
-                                 | Some (exist (Gtyp (Fuint w1)) _), Some (exist (Gtyp (Fuint w2)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fuint w1)) I)
-                                 | Some (exist (Gtyp (Fsint w1)) _), Some (exist (Gtyp (Fuint w2)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fsint w1)) I)
-                                 | _, _ => None
-                                 end
-   | Eprim_binop Bcat e1 e2 => match type_of_expr e1 tmap, type_of_expr e2 tmap with
-                                | Some (exist (Gtyp (Fuint w1)) _), Some (exist (Gtyp (Fuint w2)) _)
-                                | Some (exist (Gtyp (Fsint w1)) _), Some (exist (Gtyp (Fsint w2)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fuint (w1 + w2))) I)
-                                | _, _ => None
-                                end
-   | Eprim_binop Band e1 e2
-   | Eprim_binop Bor e1 e2
-   | Eprim_binop Bxor e1 e2 => match type_of_expr e1 tmap, type_of_expr e2 tmap with
-                                | Some (exist (Gtyp (Fuint w1)) _), Some (exist (Gtyp (Fuint w2)) _)
-                                | Some (exist (Gtyp (Fsint w1)) _), Some (exist (Gtyp (Fsint w2)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fuint (maxn w1 w2))) I)
-                                | _, _ => None
-                                end
-   | Emux c e1 e2 => match type_of_expr c tmap, type_of_expr e1 tmap, type_of_expr e2 tmap with
-                      | Some (exist (Gtyp (Fuint 1)) _), Some t1, Some t2 => ftype_mux t1 t2
-                      | _, _, _ => None
-                      end
-   | Evalidif c e1 => match type_of_expr c tmap with
-                      | Some (exist (Gtyp (Fuint 1)) _) => type_of_expr e1 tmap
+  | Eref (Eid r) => match type_of_ref r tmap with
+                  | Some (t, _) => Some t
+                  | _ => None
+                  end
+  | Eref _ => None
+  | Ecast AsUInt e1 => match type_of_expr e1 tmap with
+                      | Some (Gtyp (Fsint w)) | Some (Gtyp (Fuint w)) => Some (Gtyp (Fuint w))
+                      | Some (Gtyp (Fsint_implicit w)) | Some (Gtyp (Fuint_implicit w)) => Some (Gtyp (Fuint_implicit w))
+                      | Some (Gtyp Fclock) | Some (Gtyp Freset) | Some (Gtyp Fasyncreset) => Some (Gtyp (Fuint 1))
                       | _ => None
                       end
-   | _ => None
-   end.
+  | Ecast AsSInt e1 => match type_of_expr e1 tmap with
+                      | Some (Gtyp (Fsint w)) | Some (Gtyp (Fuint w)) => Some (Gtyp (Fsint w))
+                      | Some (Gtyp (Fsint_implicit w)) | Some (Gtyp (Fuint_implicit w)) => Some (Gtyp (Fsint_implicit w))
+                      | Some (Gtyp Fclock) | Some (Gtyp Freset) | Some (Gtyp Fasyncreset) => Some (Gtyp (Fsint 1))
+                      | _ => None
+                      end
+  | Ecast AsClock e1 => match type_of_expr e1 tmap with
+                        | Some (Gtyp _) => Some (Gtyp Fclock)
+                        | _ => None
+                        end
+  | Ecast AsReset e1 => match type_of_expr e1 tmap with
+                        | Some (Gtyp _) => Some (Gtyp Freset)
+                        | _ => None
+                        end
+  | Eprim_unop (Upad n) e1 => match type_of_expr e1 tmap with
+                              | Some (Gtyp (Fsint w)) => Some (Gtyp (Fsint (maxn w n)))
+                              | Some (Gtyp (Fuint w)) => Some (Gtyp (Fuint (maxn w n)))
+                              | Some (Gtyp (Fsint_implicit w)) => Some (Gtyp (Fsint_implicit (maxn w n)))
+                              | Some (Gtyp (Fuint_implicit w)) => Some (Gtyp (Fuint_implicit (maxn w n)))
+                              | _ => None
+                              end
+  | Eprim_unop (Ushl n) e1 => match type_of_expr e1 tmap with
+                              | Some (Gtyp (Fsint w)) => Some (Gtyp (Fsint (w + n)))
+                              | Some (Gtyp (Fuint w)) => Some (Gtyp (Fuint (w + n)))
+                              | Some (Gtyp (Fsint_implicit w)) => Some (Gtyp (Fsint_implicit (w + n)))
+                              | Some (Gtyp (Fuint_implicit w)) => Some (Gtyp (Fuint_implicit (w + n)))
+                              | _ => None
+                              end
+  | Eprim_unop (Ushr n) e1 => match type_of_expr e1 tmap with
+                              | Some (Gtyp (Fsint w)) => Some (Gtyp (Fsint (maxn (w - n) 1)))
+                              | Some (Gtyp (Fuint w)) => Some (Gtyp (Fuint (maxn (w - n) 1)))
+                              | Some (Gtyp (Fsint_implicit w)) => Some (Gtyp (Fsint_implicit (maxn (w - n) 1)))
+                              | Some (Gtyp (Fuint_implicit w)) => Some (Gtyp (Fuint_implicit (maxn (w - n) 1)))
+                              | _ => None
+                              end
+  | Eprim_unop Ucvt e1 => match type_of_expr e1 tmap with
+                          | Some (Gtyp (Fsint w)) => Some (Gtyp (Fsint w))
+                          | Some (Gtyp (Fuint w)) => Some (Gtyp (Fsint (w + 1)))
+                          | Some (Gtyp (Fsint_implicit w)) => Some (Gtyp (Fsint_implicit w))
+                          | Some (Gtyp (Fuint_implicit w)) => Some (Gtyp (Fsint_implicit (w + 1)))
+                          | _ => None
+                          end
+  | Eprim_unop Uneg e1 => match type_of_expr e1 tmap with
+                          | Some (Gtyp (Fsint w)) | Some (Gtyp (Fuint w)) => Some (Gtyp (Fsint (w + 1)))
+                          | Some (Gtyp (Fsint_implicit w)) | Some (Gtyp (Fuint_implicit w)) => Some (Gtyp (Fsint_implicit (w + 1)))
+                          | _ => None
+                          end
+  | Eprim_unop Unot e1 => match type_of_expr e1 tmap with
+                          | Some (Gtyp (Fsint w)) | Some (Gtyp (Fuint w)) => Some (Gtyp (Fuint w))
+                          | Some (Gtyp (Fsint_implicit w)) | Some (Gtyp (Fuint_implicit w)) => Some (Gtyp (Fuint_implicit w))
+                          | _ => None
+                          end
+  | Eprim_unop (Uextr n1 n2) e1 => match type_of_expr e1 tmap with
+                                  | Some (Gtyp (Fsint w)) | Some (Gtyp (Fuint w))
+                                  | Some (Gtyp (Fsint_implicit w)) | Some (Gtyp (Fuint_implicit w)) =>
+                                        if (n2 <= n1) && (n1 < w) then Some (Gtyp (Fuint (n1 - n2 + 1)))
+                                                                  else None
+                                  | _ => None
+                                  end
+  | Eprim_unop (Uhead n) e1 => match type_of_expr e1 tmap with
+                              | Some (Gtyp (Fsint w)) | Some (Gtyp (Fuint w))
+                              | Some (Gtyp (Fsint_implicit w)) | Some (Gtyp (Fuint_implicit w)) =>
+                                  if n <= w then Some (Gtyp (Fuint n))
+                                            else None
+                              | _ => None
+                              end
+  | Eprim_unop (Utail n) e1 => match type_of_expr e1 tmap with
+                              | Some (Gtyp (Fsint w)) | Some (Gtyp (Fuint w))
+                              | Some (Gtyp (Fsint_implicit w)) | Some (Gtyp (Fuint_implicit w)) =>
+                                  if n <= w then Some (Gtyp (Fuint (w - n)))
+                                            else None
+                              | _ => None
+                              end
+  | Eprim_unop _ e1 => match type_of_expr e1 tmap with
+                      | Some (Gtyp (Fsint _)) | Some (Gtyp (Fuint _))
+                      | Some (Gtyp (Fsint_implicit _)) | Some (Gtyp (Fuint_implicit _)) => Some (Gtyp (Fuint 1))
+                      | _ => None
+                      end
+  | Eprim_binop (Bcomp _) e1 e2 => match type_of_expr e1 tmap, type_of_expr e2 tmap with
+                                  | Some (Gtyp (Fsint _)), Some (Gtyp (Fsint _))
+                                  | Some (Gtyp (Fsint _)), Some (Gtyp (Fsint_implicit _))
+                                  | Some (Gtyp (Fsint_implicit _)), Some (Gtyp (Fsint _))
+                                  | Some (Gtyp (Fsint_implicit _)), Some (Gtyp (Fsint_implicit _))
+                                  | Some (Gtyp (Fuint _)), Some (Gtyp (Fuint _))
+                                  | Some (Gtyp (Fuint _)), Some (Gtyp (Fuint_implicit _))
+                                  | Some (Gtyp (Fuint_implicit _)), Some (Gtyp (Fuint _))
+                                  | Some (Gtyp (Fuint_implicit _)), Some (Gtyp (Fuint_implicit _)) =>
+                                      Some (Gtyp (Fuint 1))
+                                  | _, _ => None
+                                  end
+  | Eprim_binop Badd e1 e2
+  | Eprim_binop Bsub e1 e2 => match type_of_expr e1 tmap, type_of_expr e2 tmap with
+                              | Some (Gtyp (Fuint w1)), Some (Gtyp (Fuint w2)) => Some (Gtyp (Fuint (maxn w1 w2 + 1)))
+                              | Some (Gtyp (Fuint w1)), Some (Gtyp (Fuint_implicit w2))
+                              | Some (Gtyp (Fuint_implicit w1)), Some (Gtyp (Fuint w2))
+                              | Some (Gtyp (Fuint_implicit w1)), Some (Gtyp (Fuint_implicit w2)) =>
+                                  Some (Gtyp (Fuint_implicit (maxn w1 w2 + 1)))
+                              | Some (Gtyp (Fsint w1)), Some (Gtyp (Fsint w2)) => Some (Gtyp (Fsint (maxn w1 w2 + 1)))
+                              | Some (Gtyp (Fsint w1)), Some (Gtyp (Fsint_implicit w2))
+                              | Some (Gtyp (Fsint_implicit w1)), Some (Gtyp (Fsint w2))
+                              | Some (Gtyp (Fsint_implicit w1)), Some (Gtyp (Fsint_implicit w2)) =>
+                                  Some (Gtyp (Fsint_implicit (maxn w1 w2 + 1)))
+                              | _, _ => None
+                              end
+  | Eprim_binop Bmul e1 e2 => match type_of_expr e1 tmap, type_of_expr e2 tmap with
+                              | Some (Gtyp (Fuint w1)), Some (Gtyp (Fuint w2)) => Some (Gtyp (Fuint (w1 + w2)))
+                              | Some (Gtyp (Fuint w1)), Some (Gtyp (Fuint_implicit w2))
+                              | Some (Gtyp (Fuint_implicit w1)), Some (Gtyp (Fuint w2))
+                              | Some (Gtyp (Fuint_implicit w1)), Some (Gtyp (Fuint_implicit w2)) =>
+                                  Some (Gtyp (Fuint_implicit (w1 + w2)))
+                              | Some (Gtyp (Fsint w1)), Some (Gtyp (Fsint w2)) => Some (Gtyp (Fsint (w1 + w2)))
+                              | Some (Gtyp (Fsint w1)), Some (Gtyp (Fsint_implicit w2))
+                              | Some (Gtyp (Fsint_implicit w1)), Some (Gtyp (Fsint w2))
+                              | Some (Gtyp (Fsint_implicit w1)), Some (Gtyp (Fsint_implicit w2)) =>
+                                  Some (Gtyp (Fsint_implicit (w1 + w2)))
+                              | _, _ => None
+                              end
+  | Eprim_binop Bdiv e1 e2  => match type_of_expr e1 tmap, type_of_expr e2 tmap with
+                              | Some (Gtyp (Fuint w1)), Some (Gtyp (Fuint _))
+                              | Some (Gtyp (Fuint w1)), Some (Gtyp (Fuint_implicit _)) => Some (Gtyp (Fuint w1))
+                              | Some (Gtyp (Fuint_implicit w1)), Some (Gtyp (Fuint _))
+                              | Some (Gtyp (Fuint_implicit w1)), Some (Gtyp (Fuint_implicit _)) => Some (Gtyp (Fuint_implicit w1))
+                              | Some (Gtyp (Fsint w1)), Some (Gtyp (Fsint _))
+                              | Some (Gtyp (Fsint w1)), Some (Gtyp (Fsint_implicit _)) => Some (Gtyp (Fsint (w1 + 1)))
+                              | Some (Gtyp (Fsint_implicit w1)), Some (Gtyp (Fsint _))
+                              | Some (Gtyp (Fsint_implicit w1)), Some (Gtyp (Fsint_implicit _)) => Some (Gtyp (Fsint_implicit (w1 + 1)))
+                              | _, _ => None
+                              end
+  | Eprim_binop Brem e1 e2 => match type_of_expr e1 tmap, type_of_expr e2 tmap with
+                              | Some (Gtyp (Fuint w1)), Some (Gtyp (Fuint w2)) => Some (Gtyp (Fuint (minn w1 w2)))
+                              | Some (Gtyp (Fuint w1)), Some (Gtyp (Fuint_implicit w2))
+                              | Some (Gtyp (Fuint_implicit w1)), Some (Gtyp (Fuint w2))
+                              | Some (Gtyp (Fuint_implicit w1)), Some (Gtyp (Fuint_implicit w2)) =>
+                                  Some (Gtyp (Fuint_implicit (minn w1 w2)))
+                              | Some (Gtyp (Fsint w1)), Some (Gtyp (Fsint w2)) => Some (Gtyp (Fsint (minn w1 w2)))
+                              | Some (Gtyp (Fsint w1)), Some (Gtyp (Fsint_implicit w2))
+                              | Some (Gtyp (Fsint_implicit w1)), Some (Gtyp (Fsint w2))
+                              | Some (Gtyp (Fsint_implicit w1)), Some (Gtyp (Fsint_implicit w2)) =>
+                                  Some (Gtyp (Fsint_implicit (minn w1 w2)))
+                              | _, _ => None
+                              end
+  | Eprim_binop Bdshl e1 e2 => match type_of_expr e1 tmap, type_of_expr e2 tmap with
+                              | Some (Gtyp (Fuint w1)), Some (Gtyp (Fuint w2)) => Some (Gtyp (Fuint (w1 + 2 ^ w2 - 1)))
+                              | Some (Gtyp (Fuint w1)), Some (Gtyp (Fuint_implicit w2))
+                              | Some (Gtyp (Fuint_implicit w1)), Some (Gtyp (Fuint w2))
+                              | Some (Gtyp (Fuint_implicit w1)), Some (Gtyp (Fuint_implicit w2)) => Some (Gtyp (Fuint_implicit (w1 + 2 ^ w2 - 1)))
+                              | Some (Gtyp (Fsint w1)), Some (Gtyp (Fuint w2)) => Some (Gtyp (Fsint (w1 + 2 ^ w2 - 1)))
+                              | Some (Gtyp (Fsint w1)), Some (Gtyp (Fsint_implicit w2))
+                              | Some (Gtyp (Fsint_implicit w1)), Some (Gtyp (Fsint w2))
+                              | Some (Gtyp (Fsint_implicit w1)), Some (Gtyp (Fsint_implicit w2)) => Some (Gtyp (Fsint_implicit (w1 + 2 ^ w2 - 1)))
+                              | _, _ => None
+                              end
+  | Eprim_binop Bdshr e1 e2 => match type_of_expr e1 tmap, type_of_expr e2 tmap with
+                              | Some (Gtyp (Fuint w1)), Some (Gtyp (Fuint _))
+                              | Some (Gtyp (Fuint w1)), Some (Gtyp (Fuint_implicit _)) => Some (Gtyp (Fuint w1))
+                              | Some (Gtyp (Fuint_implicit w1)), Some (Gtyp (Fuint _))
+                              | Some (Gtyp (Fuint_implicit w1)), Some (Gtyp (Fuint_implicit _)) => Some (Gtyp (Fuint_implicit w1))
+                              | Some (Gtyp (Fsint w1)), Some (Gtyp (Fuint _))
+                              | Some (Gtyp (Fsint w1)), Some (Gtyp (Fuint_implicit _)) => Some (Gtyp (Fsint w1))
+                              | Some (Gtyp (Fsint_implicit w1)), Some (Gtyp (Fuint _))
+                              | Some (Gtyp (Fsint_implicit w1)), Some (Gtyp (Fuint_implicit _)) => Some (Gtyp (Fsint_implicit w1))
+                              | _, _ => None
+                              end
+  | Eprim_binop Bcat e1 e2 => match type_of_expr e1 tmap, type_of_expr e2 tmap with
+                              | Some (Gtyp (Fuint w1)), Some (Gtyp (Fuint w2))
+                              | Some (Gtyp (Fsint w1)), Some (Gtyp (Fsint w2)) => Some (Gtyp (Fuint (w1 + w2)))
+                              | Some (Gtyp (Fuint w1)), Some (Gtyp (Fuint_implicit w2))
+                              | Some (Gtyp (Fuint_implicit w1)), Some (Gtyp (Fuint w2))
+                              | Some (Gtyp (Fuint_implicit w1)), Some (Gtyp (Fuint_implicit w2))
+                              | Some (Gtyp (Fsint w1)), Some (Gtyp (Fsint_implicit w2))
+                              | Some (Gtyp (Fsint_implicit w1)), Some (Gtyp (Fsint w2))
+                              | Some (Gtyp (Fsint_implicit w1)), Some (Gtyp (Fsint_implicit w2)) =>
+                                  Some (Gtyp (Fuint_implicit (w1 + w2)))
+                              | _, _ => None
+                              end
+  | Eprim_binop Band e1 e2
+  | Eprim_binop Bor e1 e2
+  | Eprim_binop Bxor e1 e2 => match type_of_expr e1 tmap, type_of_expr e2 tmap with
+                              | Some (Gtyp (Fuint w1)), Some (Gtyp (Fuint w2))
+                              | Some (Gtyp (Fuint w1)), Some (Gtyp (Fuint_implicit w2))
+                              | Some (Gtyp (Fuint_implicit w1)), Some (Gtyp (Fuint w2))
+                              | Some (Gtyp (Fuint_implicit w1)), Some (Gtyp (Fuint_implicit w2))
+                              | Some (Gtyp (Fsint w1)), Some (Gtyp (Fsint w2))
+                              | Some (Gtyp (Fsint w1)), Some (Gtyp (Fsint_implicit w2))
+                              | Some (Gtyp (Fsint_implicit w1)), Some (Gtyp (Fsint w2))
+                              | Some (Gtyp (Fsint_implicit w1)), Some (Gtyp (Fsint_implicit w2)) => Some (Gtyp (Fuint (maxn w1 w2)))
+                              | _, _ => None
+                              end
+  | Emux c e1 e2 => match type_of_expr c tmap, type_of_expr e1 tmap, type_of_expr e2 tmap with
+                    | Some (Gtyp (Fuint 1)), Some t1, Some t2
+                    | Some (Gtyp (Fuint_implicit 1)), Some t1, Some t2 =>
+                        mux_types t1 t2
+                    | _, _, _ => None
+                    end
+  | Evalidif c e1 => match type_of_expr c tmap with
+                    | Some (Gtyp (Fuint 1)) | Some (Gtyp (Fuint_implicit 1)) => type_of_expr e1 tmap
+                    | _ => None
+                    end
+  end.
 
 Fixpoint code_type_find_vm_widths (code_t : ftype) (v : ProdVarOrder.T) (vm : CEP.t vertex_type) : option (ftype * N) :=
 (* find the widths of types used in vm for a component that was declared with type code_t in the code.
@@ -407,14 +510,14 @@ match s with
             (* We already complete the type checking of rst_sig here;
                there will be no repeated type check in Sem_frag_stmt. *)
             match type_of_expr rst_sig (snd tmap_scope) with
-            | Some (exist (Gtyp Fasyncreset) _) =>
+            | Some (Gtyp Fasyncreset) =>
                 (* rst_val needs to be constant. At least it cannot be the register itself.
                    Otherwise we do not check whether the value is actually constant. *)
                 match type_of_expr rst_val (snd tmap_scope) with
                 | Some _ => Some (CEP.add v (newt, HiF.Duplex) (fst tmap_scope), CEP.add v (newt, HiF.Duplex) (snd tmap_scope))
                 | None => None (* something undefined or out-of-scope is accessed *)
                 end
-             | Some (exist (Gtyp (Fuint 1)) _) =>
+             | Some (Gtyp (Fuint 1)) =>
                 (* rst_val can be variable. For example, it can be an expression containing the register itself *)
                 match type_of_expr rst_val (CEP.add v (newt, HiF.Duplex) (snd tmap_scope)) with
                 | Some _ => Some (CEP.add v (newt, HiF.Duplex) (fst tmap_scope), CEP.add v (newt, HiF.Duplex) (snd tmap_scope))
@@ -427,7 +530,7 @@ match s with
     end
 | Snode v expr =>
     match CEP.find v (fst tmap_scope), type_of_expr expr (snd tmap_scope) with
-    | None, Some (exist newt _) =>
+    | None, Some newt =>
         Some (CEP.add v (newt, HiF.Source) (fst tmap_scope), CEP.add v (newt, HiF.Source) (snd tmap_scope))
     | _, _ => None (* something undefined or out-of-scope is accessed, or identifier v is used multiple times *)
     end
@@ -482,31 +585,26 @@ Definition connect_fgtyp_compatible (t_tgt t_src : fgtyp) : bool :=
   fgtyp_equiv t_tgt t_src && (if (not_implicit t_tgt) then true
   else (sizeof_fgtyp t_tgt >= sizeof_fgtyp t_src)).
 
-Fixpoint check_connect_non_passive_type (t_tgt t_src : seq (ProdVarOrder.T * fgtyp * HiF.forient)) : bool :=
+Fixpoint check_connect_non_passive_type (t_tgt t_src : seq (ProdVarOrder.T * fgtyp * bool)) : bool :=
   match t_tgt, t_src with
   | nil, nil => true
-  | (_, thd, HiF.Sink) :: ttl, (_, shd, HiF.Source) :: stl 
-  | (_, thd, HiF.Sink) :: ttl, (_, shd, HiF.Duplex) :: stl 
-  | (_, thd, HiF.Duplex) :: ttl, (_, shd, HiF.Duplex) :: stl 
-  | (_, thd, HiF.Duplex) :: ttl, (_, shd, HiF.Source) :: stl => connect_fgtyp_compatible thd shd && check_connect_non_passive_type ttl stl
-  | (_, thd, HiF.Source) :: ttl, (_, shd, HiF.Sink) :: stl 
-  | (_, thd, HiF.Source) :: ttl, (_, shd, HiF.Duplex) :: stl 
-  | (_, thd, HiF.Duplex) :: ttl, (_, shd, HiF.Sink) :: stl => connect_fgtyp_compatible shd thd && check_connect_non_passive_type ttl stl
+  | (_, thd, false) :: ttl, (_, shd, _) :: stl => connect_fgtyp_compatible thd shd && check_connect_non_passive_type ttl stl
+  | (_, thd, true) :: ttl, (_, shd, _) :: stl => connect_fgtyp_compatible shd thd && check_connect_non_passive_type ttl stl
   | _, _ => false
   end.
 
-Fixpoint check_connect_type (t_tgt t_src : seq (ProdVarOrder.T * fgtyp * HiF.forient)) : bool :=
+Fixpoint check_connect_type (t_tgt t_src : seq (ProdVarOrder.T * fgtyp * bool)) : bool :=
   match t_tgt, t_src with
   | nil, nil => true
   | (_, thd, _) :: ttl, (_, shd, _) :: stl => connect_fgtyp_compatible thd shd && check_connect_type ttl stl
   | _, _ => false
   end.
 
-Definition connect_non_passive_type (ref_tgt ref_src : ProdVarOrder.T) (t_tgt t_src : ftype) (ori_tgt ori_src : HiF.forient) : Prop :=
+Definition connect_non_passive_type (ref_tgt ref_src : ProdVarOrder.T) (t_tgt t_src : ftype) (ori_tgt ori_src : bool) : Prop :=
   ftype_equiv t_tgt t_src && check_connect_non_passive_type (list_gtypref ref_tgt t_tgt ori_tgt) (list_gtypref ref_src t_src ori_src). 
 
-Definition connect_type (ref : ProdVarOrder.T) (t_tgt t_src : ftype) (ori_tgt ori_src : HiF.forient) : Prop :=
-  ftype_equiv t_tgt t_src && check_connect_type (list_gtypref ref t_tgt ori_tgt) (list_gtypref (N0, N0) t_src ori_src).
+Definition connect_type (ref : ProdVarOrder.T) (t_tgt t_src : ftype) : Prop :=
+  ftype_equiv t_tgt t_src && check_connect_type (list_gtypref ref t_tgt false) (list_gtypref (N0, N0) t_src false).
 
 Fixpoint Sem_frag_stmt (vm_old : CEP.t vertex_type) (s : HiFP.hfstmt) (vm_new : CEP.t vertex_type) (tmap : CEP.t (ftype * HiF.forient)) : Prop :=
    (* The predicate returns True if vm_new/ct_new can be constructed from vm_old/ct_old by applying s.
@@ -521,13 +619,13 @@ Fixpoint Sem_frag_stmt (vm_old : CEP.t vertex_type) (s : HiFP.hfstmt) (vm_new : 
    | Sfcnct (Eid ref_tgt) (Eref _) => False
    | Sfcnct (Eid ref) expr =>
           match type_of_ref ref tmap, type_of_expr expr tmap with
-          | Some (ft_tgt, ori_tgt), Some (exist ft_src _) => connect_type ref ft_tgt ft_src ori_tgt HiF.Source
+          | Some (ft_tgt, _), Some ft_src => connect_type ref ft_tgt ft_src
           | _, _ => False
           end
    | Sreg v reg =>
        match reset reg with
         | Rst _ rst_val => match CEP.find v tmap, type_of_expr rst_val tmap with
-            | Some (newft, _), Some (exist rst_val_type _) => connect_type v newft rst_val_type HiF.Duplex HiF.Duplex
+            | Some (newft, _), Some rst_val_type => connect_type v newft rst_val_type
             | _, _ => false
             end
         | NRst => True (* type check newft: we only need to verify newft is passive *)
@@ -535,7 +633,7 @@ Fixpoint Sem_frag_stmt (vm_old : CEP.t vertex_type) (s : HiFP.hfstmt) (vm_new : 
    | Smem v mem => False (* ? *)
    | Sinst var1 var2 => False (* ? *)
    | Swhen cond ss_true ss_false =>
-       if type_of_expr cond tmap is Some (exist (Gtyp (Fuint 1)) _)
+       if type_of_expr cond tmap is Some (Gtyp (Fuint 1))
        then exists (vm_true : CEP.t vertex_type),
                    Sem_frag_stmts vm_old ss_true vm_true tmap
                 /\
@@ -593,7 +691,7 @@ Fixpoint combine_mux_expr (c : HiFP.hfexpr) (el1 el2 : seq HiFP.hfexpr) : option
 
 Fixpoint list_gtypexpr (expr_src : HiFP.hfexpr) (t : ftype) : option (seq HiFP.hfexpr) :=
   match expr_src with
-  | Eref (Eid ref) => let refl := list_gtypref ref t HiF.Duplex in 
+  | Eref (Eid ref) => let refl := list_gtypref ref t false in 
                         Some (map (fun tref => (Eref (Eid (fst (fst tref))))) refl)
   | Eref _ => None
   | Emux c e1 e2 => match list_gtypexpr e1 t, list_gtypexpr e2 t with
@@ -603,32 +701,24 @@ Fixpoint list_gtypexpr (expr_src : HiFP.hfexpr) (t : ftype) : option (seq HiFP.h
   | _ => Some [:: expr_src] 
   end.
 
-Fixpoint add_expr_connect_non_passive (el1 el2 : seq (ProdVarOrder.t * fgtyp * HiF.forient)) (var2exprs : CEP.t (seq HiFP.hfexpr)) : option (CEP.t (seq HiFP.hfexpr)) :=
+Fixpoint add_expr_connect_non_passive (el1 el2 : seq (ProdVarOrder.t * fgtyp * bool)) (var2exprs : CEP.t (seq HiFP.hfexpr)) : option (CEP.t (seq HiFP.hfexpr)) :=
   match el1, el2 with
   | nil, nil => Some var2exprs
-  | (ref1, _, HiF.Sink) :: tl1, (ref2, _, HiF.Source) :: tl2 
-  | (ref1, _, HiF.Sink) :: tl1, (ref2, _, HiF.Duplex) :: tl2 
-  | (ref1, _, HiF.Duplex) :: tl1, (ref2, _, HiF.Duplex) :: tl2 
-  | (ref1, _, HiF.Duplex) :: tl1, (ref2, _, HiF.Source) :: tl2 => 
-                match CEP.find ref1 var2exprs with
-                | Some ls => add_expr_connect_non_passive tl1 tl2 (CEP.add ref1 ((Eref (Eid ref2)) :: ls) var2exprs)
-                | None => add_expr_connect_non_passive tl1 tl2 (CEP.add ref1 [::(Eref (Eid ref2))] var2exprs)
+  | (ref1, _, false) :: ttl, (ref2, _, _) :: stl => match CEP.find ref1 var2exprs with
+                | Some ls => add_expr_connect_non_passive ttl stl (CEP.add ref1 ((Eref (Eid ref2)) :: ls) var2exprs)
+                | None => add_expr_connect_non_passive ttl stl (CEP.add ref1 [::(Eref (Eid ref2))] var2exprs)
                 end
-  | (ref1, _, HiF.Source) :: tl1, (ref2, _, HiF.Sink) :: tl2 
-  | (ref1, _, HiF.Duplex) :: tl1, (ref2, _, HiF.Sink) :: tl2 
-  | (ref1, _, HiF.Source) :: tl1, (ref2, _, HiF.Duplex) :: tl2 => 
-                match CEP.find ref2 var2exprs with
-                | Some ls => add_expr_connect_non_passive tl1 tl2 (CEP.add ref2 ((Eref (Eid ref1)) :: ls) var2exprs)
-                | None => add_expr_connect_non_passive tl1 tl2 (CEP.add ref2 [::(Eref (Eid ref1))] var2exprs)
+  | (ref1, _, true) :: ttl, (ref2, _, _) :: stl => match CEP.find ref2 var2exprs with
+                | Some ls => add_expr_connect_non_passive ttl stl (CEP.add ref2 ((Eref (Eid ref1)) :: ls) var2exprs)
+                | None => add_expr_connect_non_passive ttl stl (CEP.add ref2 [::(Eref (Eid ref1))] var2exprs)
                 end
   | _, _ => None
   end.
 
-Fixpoint add_expr_connect (el1 : seq (ProdVarOrder.t * fgtyp * HiF.forient)) (el2 : seq HiFP.hfexpr) (var2exprs : CEP.t (seq HiFP.hfexpr)) : option (CEP.t (seq HiFP.hfexpr)) :=
+Fixpoint add_expr_connect (el1 : seq (ProdVarOrder.t * fgtyp * bool)) (el2 : seq HiFP.hfexpr) (var2exprs : CEP.t (seq HiFP.hfexpr)) : option (CEP.t (seq HiFP.hfexpr)) :=
   match el1, el2 with
   | nil, nil => Some var2exprs
-  | (ref1, _, HiF.Sink) :: tl1, hd2 :: tl2 
-  | (ref1, _, HiF.Duplex) :: tl1, hd2 :: tl2 => 
+  | (ref1, _, _) :: tl1, hd2 :: tl2 => 
                 match CEP.find ref1 var2exprs with
                 | Some ls => add_expr_connect tl1 tl2 (CEP.add ref1 (hd2 :: ls) var2exprs)
                 | None => add_expr_connect tl1 tl2 (CEP.add ref1 [::hd2] var2exprs)
@@ -657,7 +747,7 @@ match s with
     | _, _ => None
     end
 | Sfcnct (Eid ref) expr => match type_of_ref ref tmap, type_of_expr expr tmap with
-    | Some (ft_tgt, ori_tgt), Some (exist ft_src _) =>  match list_gtypref ref ft_tgt ori_tgt, list_gtypexpr expr ft_src with
+    | Some (ft_tgt, ori_tgt), Some ft_src =>  match list_gtypref ref ft_tgt ori_tgt, list_gtypexpr expr ft_src with
         | lhsl, Some rhsl => match add_expr_connect lhsl rhsl emap with
                                 | Some emap' => Some (tmap, emap')
                                 | None => None
@@ -679,7 +769,7 @@ match s with
         match reset reg with
         | NRst => Some (CEP.add v ((type reg), HiF.Duplex) tmap, emap)
         | Rst rst_sig rst_val => match type_of_expr rst_sig tmap, type_of_expr rst_val tmap with
-            | Some _, Some (exist ft_src _) => match list_gtypref v (type reg) HiF.Duplex, list_gtypexpr rst_val ft_src with
+            | Some _, Some ft_src => match list_gtypref v (type reg) false, list_gtypexpr rst_val ft_src with
                 | lhsl, Some rhsl => match add_expr_connect lhsl rhsl emap with
                                 | Some emap' => Some (tmap, emap')
                                 | None => None
@@ -692,7 +782,7 @@ match s with
     | _, _ => None
     end
 | Snode v expr => match CEP.find v tmap, type_of_expr expr tmap with
-                | None, Some (exist newt _) => match list_gtypref v newt HiF.Sink, list_gtypexpr expr newt with
+                | None, Some newt => match list_gtypref v newt false, list_gtypexpr expr newt with
                     | lhsl, Some rhsl => match add_expr_connect lhsl rhsl emap with
                                 | Some emap' => Some (CEP.add v (newt, HiF.Source) tmap, emap')
                                 | None => None
@@ -743,7 +833,7 @@ Fixpoint lsreg_stmt (st : HiFP.hfstmt) : option (seq ProdVarOrder.t) :=
   match st with
   | Sskip => Some nil 
   | Swire v t => Some nil
-  | Sreg v r => Some (map (fun temp => (fst (fst temp))) (list_gtypref v (type r) HiF.Duplex))
+  | Sreg v r => Some (map (fun temp => (fst (fst temp))) (list_gtypref v (type r) false))
   | Smem v m => (*TBD*) Some nil
   | Sinst v inst => (*TBD*) Some nil
   | Snode v e => Some nil
@@ -814,10 +904,10 @@ Fixpoint drawg depandencyls (tmap : CEP.t (ftype * HiF.forient)) (regls : seq Pr
                     end
   end.
 
-Fixpoint fil_ftlist (l : seq (option ftype_explicit)) : option (seq fgtyp) :=
+Fixpoint fil_ftlist (l : seq (option ftype)) : option (seq fgtyp) :=
   match l with
   | nil => Some [::]
-  | (Some (exist (Gtyp gt) _)) :: tl => match fil_ftlist tl with
+  | (Some (Gtyp gt)) :: tl => match fil_ftlist tl with
                       | Some tl' => Some (gt :: tl')
                       | None => None
                       end
@@ -877,7 +967,7 @@ Definition InferWidth_fun (v : ProdVarOrder.t) (el : seq HiFP.hfexpr) (tmap : CE
 (* updates the width of v in tmap so that it is at least the width of the expressions in list el. *)
   match fil_ftlist (map (fun e => type_of_expr e tmap) el) with
   | Some eftl => match CEP.find (fst v, N0) tmap with
-                | Some (init, ori) => match ft_find_sub init (snd v) ori with
+                | Some (init, ori) => match ft_find_sub init (snd v) false with
                               | Some (Gtyp initt, _) => match max_ftlist eftl initt with
                                                         | Some nt => match ft_set_sub init nt (snd v) with
                                                                     | Some nt0 => Some (CEP.add (fst v, N0) (nt0, ori) tmap)
@@ -1036,13 +1126,8 @@ Admitted.
 
 Lemma check_connect_non_passive_type_correct : forall ft te, (forall n, 
   match nth_error ft n, nth_error te n with
-  | Some (_, thd, HiF.Sink), Some (_, shd, HiF.Source)
-  | Some (_, thd, HiF.Sink), Some (_, shd, HiF.Duplex)
-  | Some (_, thd, HiF.Duplex), Some (_, shd, HiF.Duplex)
-  | Some (_, thd, HiF.Duplex), Some (_, shd, HiF.Source) => connect_fgtyp_compatible thd shd
-  | Some (_, thd, HiF.Source), Some (_, shd, HiF.Sink)
-  | Some (_, thd, HiF.Source), Some (_, shd, HiF.Duplex)
-  | Some (_, thd, HiF.Duplex), Some (_, shd, HiF.Sink)=> connect_fgtyp_compatible shd thd
+  | Some (_, thd, false), Some (_, shd, _) => connect_fgtyp_compatible thd shd
+  | Some (_, thd, true), Some (_, shd, _)=> connect_fgtyp_compatible shd thd
   | None, None => true
   |  _, _ => false
   end) -> check_connect_non_passive_type ft te.
@@ -1059,23 +1144,222 @@ Lemma infer_cons_order : forall order1 order2 var2exprs tmap tmap' newtm, InferW
 Proof.
 Admitted.
 
-Lemma split_expr_type_correct : forall expr rhs_expr_ls t_expr newtm (p : ftype_not_implicit_width t_expr), type_of_expr expr newtm = Some (exist ftype_not_implicit_width t_expr p) -> list_gtypexpr expr t_expr = Some rhs_expr_ls ->
-  forall n, match nth_error (list_gtypref (0%num, 0%num) t_expr HiF.Source) n, nth_error rhs_expr_ls n with
-            | Some (_, gt, _), Some texpr => exists p0, type_of_expr texpr newtm = Some (exist ftype_not_implicit_width (Gtyp gt) p0)
-            | _, _ => true
-            end.
+Lemma find_mux_types_n : forall t1 t2 t_expr tt1 tt2 n tte, mux_types t1 t2 = Some t_expr -> nth_error (list_gtypref (0%num, 0%num) t1 false) n = Some tt1 -> 
+  nth_error (list_gtypref (0%num, 0%num) t2 false) n = Some tt2 -> nth_error (list_gtypref (0%num, 0%num) t_expr false) n = Some tte -> mux_gtyp tt1.1.2 tt2.1.2 = Some tte.1.2
+with find_mux_types_n_f : forall t1 t2 t_expr tt1 tt2 n tte, mux_btyps t1 t2 = Some t_expr -> nth_error (list_gtypref_ff (0%num, 0%num) t1 false) n = Some tt1 -> 
+  nth_error (list_gtypref_ff (0%num, 0%num) t2 false) n = Some tt2 -> nth_error (list_gtypref_ff (0%num, 0%num) t_expr false) n = Some tte -> mux_gtyp tt1.1.2 tt2.1.2 = Some tte.1.2.
 Proof.
+Admitted.
+
+Lemma split_expr_type_correct : forall expr newtm(*, match expr with
+  | Eref (Eid ref_src) => (*forall ft ori, type_of_ref ref_src newtm = Some (ft, ori) -> 
+    forall n, match nth_error (list_gtypref ref_src ft ori) n with
+    | Some (ref0, gt, ori0) => type_of_ref ref0 newtm = Some (Gtyp gt, ori0)
+    | _ => true
+    end*) true
+  | Eref _ => true
+  | _ => forall *)rhs_expr_ls t_expr, type_of_expr expr newtm = Some t_expr -> list_gtypexpr expr t_expr = Some rhs_expr_ls ->
+    forall n, match nth_error (list_gtypref (0%num, 0%num) t_expr false) n, nth_error rhs_expr_ls n with
+    | Some (_, gt, _), Some texpr => type_of_expr texpr newtm = Some (Gtyp gt)
+    | _, _ => true
+    end
+  (*end*).
+Proof.
+  (*elim.
+  - (* const *)
+    intros. simpl in H; simpl in H0; inversion H0; clear H0 H2.
+    case Hf : f =>[w|w|w|w|||]; rewrite Hf in H; inversion H; clear H.
+    1,2,5,6,7 : rewrite -Hf in H1; simpl; destruct n as [|n]; simpl.
+    1,3,5,7,9 : done.
+    1,2,3,4,5 : assert (H: (@List.length (ProdVarOrder.t * fgtyp * bool) [::] <= n)%coq_nat) by apply Nat.le_0_l ;
+                     apply List.nth_error_None in H; rewrite H //.
+    1,2 : simpl;  destruct n as [|n]; simpl.
+    1,3 : done.
+    1,2 : assert (H: (@List.length (ProdVarOrder.t * fgtyp * bool) [::] <= n)%coq_nat) by apply Nat.le_0_l ;
+    apply List.nth_error_None in H; rewrite H //.*)
+
+  elim.
+  - (* const *)
+    intros; simpl in H0;inversion H0; clear H0.
+    assert (exists gt_expr, t_expr = Gtyp gt_expr) by
+      (simpl in H; case Hf : f =>[w|w|w|w|||]; try (rewrite Hf in H; inversion H; rewrite -Hf; exists f; done); 
+      try (rewrite Hf in H; inversion H; exists (Fuint (Nat.max (size b) w)); done); try (rewrite Hf in H; inversion H; exists (Fsint (Nat.max (size b) w)); done)).
+    destruct H0 as [gt_expr H0]; rewrite H0; simpl.
+    induction n as [|n]; simpl.
+    simpl in H; rewrite H0 in H; done. 
+    assert (H1: (@List.length (ProdVarOrder.t * fgtyp * bool) [::] <= n)%coq_nat) by apply Nat.le_0_l ;
+    apply List.nth_error_None in H1; rewrite H1 //.
+
+  (* 其他expr case *)
+  admit.
+  admit.
+  admit.
+
+  (* mux case *)
+  intros c Hc s1 Hs1 s2 Hs2.
+  intros tmap rhs_expr_ls t_expr Hte Hsplit.
+  simpl in Hsplit.
+  case Hsplit1 : (list_gtypexpr s1 t_expr) => [el1|]; rewrite Hsplit1 in Hsplit; try discriminate.
+  case Hsplit2 : (list_gtypexpr s2 t_expr) => [el2|]; rewrite Hsplit2 in Hsplit; try discriminate.
+  generalize Hte.
+  simpl in Hte.
+  move => Hte'. 
+  case Hce : (type_of_expr c tmap) => [f|]; rewrite Hce in Hte; try discriminate.
+  case Hcf : f => [cgt||]; rewrite Hcf in Hte; try discriminate.
+  case Hcgt : cgt => [w|w|w||||]; rewrite Hcgt in Hcf Hte; try discriminate.
+  - (* case1 : c 为 uint1 *)
+    case Hw : w => [|n0]; rewrite Hw in Hte; try discriminate.
+    case Hw' : n0; rewrite Hw' in Hte Hw; try discriminate.
+    rewrite Hw in Hcf; clear Hw Hw' Hcgt w n0 cgt.
+    case Hs1e : (type_of_expr s1 tmap) => [t1|]; rewrite Hs1e in Hte; try discriminate.
+    case Hs2e : (type_of_expr s2 tmap) => [t2|]; rewrite Hs2e in Hte; try discriminate.
+    intro n. 
+    case Hrhsn : (nth_error rhs_expr_ls n) => [texpr|]; try done.
+    generalize Hs1e.
+    apply Hs1 with (rhs_expr_ls := el1) (n:= n) in Hs1e; try done.
+    move => Hs1e'.
+    apply Hs2 with (rhs_expr_ls := el2) (n:= n) in Hs2e; try done.
+    case Hs1n : (nth_error (list_gtypref (0%num, 0%num) t1 false) n) => [tt1|]; rewrite Hs1n in Hs1e.
+    case Hs2n : (nth_error (list_gtypref (0%num, 0%num) t2 false) n) => [tt2|]; rewrite Hs2n in Hs2e.
+    (*apply find_mux_types_n with (n := n) (tt1 := tt1) (tt2 := tt2) in Hte; try done.
+    rewrite Hten in Hte; clear Hten.
+    assert (exists e1, nth_error el1 n = Some e1).
+    admit. (* t_expr 和 t1 满足ftype_equiv，由Hs1n 和 Hsplit1知el1的长度小于n *)
+    destruct H as [e1 He1].
+    assert (exists e2, nth_error el2 n = Some e2).
+    admit.
+    destruct H as [e2 He2].
+    rewrite He1 in Hs1e; rewrite He2 in Hs2e.
+    apply combine_mux_expr_n with (n := n) (el1 := el1) (el2 := el2) (e1 := e1) (e2 := e2) in Hsplit; try done.
+    rewrite Hsplit in Hrhsn; clear Hsplit.
+    inversion Hrhsn; clear Hrhsn H0.
+    simpl.
+    rewrite Hce Hcf Hs1e Hs2e.
+    simpl; rewrite Hte; done.
+    admit. (* not None *)
+    admit. (* not None *)
+    specialize ftype_equiv_split_eq with (s := s2) (t1 := t_expr) (t2 := t2); intro.
+    rewrite H in Hsplit2.
+    done.
+    apply mux_expr_type_equiv with (c := c) (s1 := s1) (s2 := s2) (te := t_expr) (te1 := t1) (te2 := t2) in Hte'; try done.
+    move : Hte' => [_ Hte']; done.
+    specialize ftype_equiv_split_eq with (s := s1) (t1 := t_expr) (t2 := t1); intro.
+    rewrite H in Hsplit1.
+    done.
+    apply mux_expr_type_equiv with (c := c) (s1 := s1) (s2 := s2) (te := t_expr) (te1 := t1) (te2 := t2) in Hte'; try done.
+    move : Hte' => [Hte' _]; done.
+  - (* case1 : c 为 uint_implicit1 *)
+    case Hw : w => [|n0]; rewrite Hw in Hte; try discriminate.
+    case Hw' : n0; rewrite Hw' in Hte Hw; try discriminate.
+    rewrite Hw in Hcf; clear Hw Hw' Hcgt w n0 cgt.
+    case Hs1e : (type_of_expr s1 tmap) => [t1|]; rewrite Hs1e in Hte; try discriminate.
+    case Hs2e : (type_of_expr s2 tmap) => [t2|]; rewrite Hs2e in Hte; try discriminate.
+    intro n. 
+    case Hten : (nth_error (list_gtyp t_expr) n) => [gte|]; try done.
+    case Hrhsn : (nth_error rhs_expr_ls n) => [texpr|]; try done.
+    generalize Hs1e.
+    apply Hs1 with (rhs_expr_ls := el1) (n:= n) in Hs1e; try done.
+    move => Hs1e'.
+    apply Hs2 with (rhs_expr_ls := el2) (n:= n) in Hs2e; try done.
+    case Hs1n : (nth_error (list_gtyp t1) n) => [tt1|]; rewrite Hs1n in Hs1e.
+    case Hs2n : (nth_error (list_gtyp t2) n) => [tt2|]; rewrite Hs2n in Hs2e.
+    apply find_mux_types_n with (n := n) (tt1 := tt1) (tt2 := tt2) in Hte; try done.
+    rewrite Hten in Hte; clear Hten.
+    assert (exists e1, nth_error el1 n = Some e1).
+    admit. (* t_expr 和 t1 满足ftype_equiv，由Hs1n 和 Hsplit1知el1的长度小于n *)
+    destruct H as [e1 He1].
+    assert (exists e2, nth_error el2 n = Some e2).
+    admit.
+    destruct H as [e2 He2].
+    rewrite He1 in Hs1e; rewrite He2 in Hs2e.
+    apply combine_mux_expr_n with (n := n) (el1 := el1) (el2 := el2) (e1 := e1) (e2 := e2) in Hsplit; try done.
+    rewrite Hsplit in Hrhsn; clear Hsplit.
+    inversion Hrhsn; clear Hrhsn H0.
+    simpl.
+    rewrite Hce Hcf Hs1e Hs2e.
+    simpl; rewrite Hte; done.
+    admit. (* not None *)
+    admit. (* not None *)
+    specialize ftype_equiv_split_eq with (s := s2) (t1 := t_expr) (t2 := t2); intro.
+    rewrite H in Hsplit2.
+    done.
+    apply mux_expr_type_equiv with (c := c) (s1 := s1) (s2 := s2) (te := t_expr) (te1 := t1) (te2 := t2) in Hte'; try done.
+    move : Hte' => [_ Hte']; done.
+    specialize ftype_equiv_split_eq with (s := s1) (t1 := t_expr) (t2 := t1); intro.
+    rewrite H in Hsplit1.
+    done.
+    apply mux_expr_type_equiv with (c := c) (s1 := s1) (s2 := s2) (te := t_expr) (te1 := t1) (te2 := t2) in Hte'; try done.
+    move : Hte' => [Hte' _]; done.
+
+  (* validif *)
+  admit. (* validif *)
+
+  (* ref *)
+  intros ref.
+  intros rhs_expr_ls t_expr tmap Hte Hsplit.
+  simpl in Hsplit.
+  case Href : ref => [r|||]; rewrite Href in Hsplit; try discriminate.
+  case Hsplit1 : (split_expr r t_expr) => [refl|]; rewrite Hsplit1 in Hsplit; try discriminate.
+  inversion Hsplit; clear Hsplit H0.
+  simpl in Hte; rewrite Href in Hte. 
+  intros n.
+  case Hfind : (nth_error (list_gtyp t_expr) n) => [gt|]; try done.
+  case Hnth : (nth_error [seq Eref (Eid (var:=ProdVarOrder.T) tref) | tref <- refl] n) => [texpr|]; try done.
+  move : Hte Hsplit1 Hnth Hfind.
+  apply split_ref_correct.*)
 Admitted.
 
 Lemma InferWidth_fun_correct : forall pv el tmap newtm, InferWidth_fun pv el tmap = Some newtm -> forall expr, expr \in el -> 
       match CEP.find (fst pv, N0) newtm with
-      | Some (checkt, ori) => match ft_find_sub checkt pv.2 ori, type_of_expr expr newtm with
-                              | Some (Gtyp nt, _), Some (exist (Gtyp te) p) => fgtyp_equiv nt te -> connect_fgtyp_compatible nt te
+      | Some (checkt, ori) => match ft_find_sub checkt pv.2 false, type_of_expr expr newtm with
+                              | Some (Gtyp nt, _), Some (Gtyp te) => fgtyp_equiv nt te -> connect_fgtyp_compatible nt te
                               | _,_ => true
                               end
       | _ => true
       end.
 Proof.
+  intros pv el tmap newtm Hinfer expr Hin.
+  rewrite /InferWidth_fun in Hinfer.
+  (*case Hel : (fil_ftlist [seq type_of_expr e tmap | e <- el]) => [eftl|]; rewrite Hel in Hinfer; try discriminate.
+  case Hinit : (CEP.find (pv.1, 0%num) tmap) => [init|]; rewrite Hinit in Hinfer; try discriminate.
+  case Hinitt : (ft_find_sub init pv.2) => [initt|]; rewrite Hinitt in Hinfer; try discriminate.
+  case Hcheckt : (CEP.find (pv.1, 0%num) newtm) => [checkt|]; try done.
+  case Hnt : (ft_find_sub checkt pv.2) => [nt|]; try done.
+  case Hinitt' : nt => [initt'||]; try done.
+  case Hinitt'' : initt => [initt''||]; rewrite Hinitt'' in Hinfer; try discriminate.
+  case Hte : (type_of_expr expr newtm) => [te|]; try done.
+  case Hgte : te => [gte||]; rewrite Hgte in Hte; try done.
+  intro Heq.
+  case Himpli' : (not_implicit initt''); rewrite Himpli' in Hinfer.
+  inversion Hinfer.
+  rewrite H0 in Hinit; rewrite Hinit in Hcheckt; inversion Hcheckt; rewrite H1 in Hinitt; rewrite Hinitt in Hnt; inversion Hnt; rewrite Hinitt'' Hinitt' in H2.
+  inversion H2; rewrite H3 in Himpli'.
+  rewrite /connect_fgtyp_compatible Himpli'; done.
+  (* case2 *)
+  case Hmax : (max_ftlist eftl initt'') => [tmax|]; rewrite Hmax in Hinfer; try discriminate.
+  case Hset : (ft_set_sub init tmax pv.2) => [nt0|]; rewrite Hset in Hinfer; try discriminate.
+  inversion Hinfer; clear Hinfer.
+  rewrite -H0 in Hte Hcheckt; clear H0.
+  rewrite HiFP.PCELemmas.OP.P.F.add_eq_o in Hcheckt; try apply CEP.SE.eq_refl.
+  inversion Hcheckt; clear Hcheckt.
+  rewrite -H0 in Hnt; clear H0.
+  apply set_find_sub in Hset; try done.
+  rewrite Hset in Hnt; clear Hset.
+  inversion Hnt; clear Hnt.
+  rewrite Hinitt' in H0; inversion H0; rewrite H1 in Hmax; clear H0 H1 tmax Hinitt' nt.
+  generalize Hmax.
+  apply max_ftlist_correct in Hmax; move : Hmax => [Hmax _]; apply Hmax in Himpli'; clear Hmax.
+  move => Hmax.
+  rewrite /connect_type_compatible.
+  simpl.
+  rewrite /connect_fgtyp_compatible.
+  rewrite Himpli'.
+  rewrite type_of_expr_eq in Hte; try done.
+  apply max_compatible with (el := el) (tmap := tmap) (eftl := eftl) (initt := initt'') (expr := expr); try done.
+  apply ft_set_sub_eq with (nt' := tmax) (n := pv.2) (init := initt); try done.
+  rewrite Hinitt''; simpl.
+  apply max_ftlist_correct with (eftl := eftl) (initt := initt'') (tmax := tmax); done.
+Qed.*)
 Admitted.
 
 Lemma list_fsteq : forall ref_tgt tgt v_tgt ori, In v_tgt (list_gtypref ref_tgt tgt ori) -> ref_tgt.1 = v_tgt.1.1.1.
@@ -1094,9 +1378,15 @@ type_of_ref pv newtm = type_of_ref pv tmap /\ (match CEP.find pv var2exprs with
 Proof.
 Admitted.
 
-Lemma preexpr_in: forall ps ss tmap newtm var2exprs ref_tgt t_tgt ori expr texpr t_expr rhs_expr_ls pe n pv0 gt ori0 el, ports_stmts_tmap' ps ss = Some (tmap, var2exprs) -> Qin (Sfcnct (Eid ref_tgt) expr) ss -> type_of_ref ref_tgt newtm = Some (t_tgt, ori) ->
-type_of_expr expr newtm = Some (exist ftype_not_implicit_width t_expr pe) -> list_gtypexpr expr t_expr = Some rhs_expr_ls -> nth_error rhs_expr_ls n = Some texpr -> CEP.find pv0 var2exprs = Some el -> 
-nth_error (list_gtypref ref_tgt t_tgt ori) n = Some (pv0, gt, ori0) -> texpr \in el.
+Lemma preexpr_in: forall ps ss tmap newtm var2exprs ref_tgt t_tgt ori_tgt n pv0 gt ori0 expr, ports_stmts_tmap' ps ss = Some (tmap, var2exprs) -> type_of_ref ref_tgt newtm = Some (t_tgt, ori_tgt) -> 
+  Qin (Sfcnct (Eid ref_tgt) expr) ss -> nth_error (list_gtypref ref_tgt t_tgt ori_tgt) n = Some (pv0, gt, ori0) -> 
+  match expr with
+  | Eref (Eid ref_src) => forall t_src ori_src pv1 gte ori1 el, type_of_ref ref_src newtm = Some (t_src, ori_src) -> nth_error (list_gtypref ref_src t_src ori_src) n = Some (pv1, gte, ori1) -> 
+                          if ori0 then CEP.find pv1 var2exprs = Some el -> (Eref (Eid pv0)) \in el 
+                            else CEP.find pv0 var2exprs = Some el -> (Eref (Eid pv1)) \in el 
+  | Eref _ => true
+  | _ => forall texpr t_expr rhs_expr_ls el, CEP.find pv0 var2exprs = Some el -> type_of_expr expr newtm = Some t_expr -> list_gtypexpr expr t_expr = Some rhs_expr_ls -> nth_error rhs_expr_ls n = Some texpr -> texpr \in el
+  end.
 Proof.
 Admitted.
 
@@ -1109,31 +1399,31 @@ Lemma InferWidths_fun_correct : forall pp ss (inferorder : seq ProdVarOrder.t) (
                                       end 
     | Sfcnct (Eid ref_tgt) (Eref _) => True
     | Sfcnct (Eid ref_tgt) expr_src => match type_of_ref ref_tgt newtm, type_of_expr expr_src newtm with
-                                      | Some (t_tgt, ori), Some (exist t_expr _) => ftype_equiv t_tgt t_expr -> connect_type ref_tgt t_tgt t_expr ori HiF.Source
+                                      | Some (t_tgt, ori), Some t_expr => ftype_equiv t_tgt t_expr -> connect_type ref_tgt t_tgt t_expr
                                       | _, _ => True
                                       end
     | _ => True
     end).
-Proof.
+Proof. 
   intros ps ss inferorder var2exprs tmap newtm Hinfer Hpre hfs Hin.
   case Hs : hfs => [||||||ref expr||]; try done.
   case He : expr => [ct c| c e1 | u e1 | op e1 e2 | c e1 e2 | c e1 | ref0 ]; try done. 
   (* const *)
-  1,2,3,4,5,6 : rewrite -He; clear He; rewrite Hs in Hin; clear Hs hfs;
+  1,2,3,4,5,6 : rewrite -He; rewrite Hs in Hin; clear Hs hfs;
                 case Href : ref => [ref_tgt|||]; try done;
                 case Htr : (type_of_ref ref_tgt newtm) => [[t_tgt ori]|]; try done;
-                case Hte : (type_of_expr expr newtm) => [[t_expr pe]|] ; try done; intro Heq;
+                case Hte : (type_of_expr expr newtm) => [t_expr|] ; try done; intro Heq;
                 rewrite /connect_type;
                 apply rwP with (P := ftype_equiv t_tgt t_expr /\
-    check_connect_type (list_gtypref ref_tgt t_tgt ori)
-    (list_gtypref (0%num, 0%num) t_expr HiF.Source)).
+    check_connect_type (list_gtypref ref_tgt t_tgt false)
+    (list_gtypref (0%num, 0%num) t_expr false)).
   1,3,5,7,9,11 : apply andP.
   1,2,3,4,5,6 : split. 
   1,3,5,7,9,11 : apply Heq. (* hypo *)
-  apply check_connect_type_correct with (ft := list_gtypref ref_tgt t_tgt ori) (te := list_gtypref (0%num, 0%num) t_expr HiF.Source).
+  apply check_connect_type_correct with (ft := list_gtypref ref_tgt t_tgt false) (te := list_gtypref (0%num, 0%num) t_expr false).
   intros n.
-  case Hlhs : (nth_error (list_gtypref ref_tgt t_tgt ori) n) => [[[pv0 gt] ori0]|].
-  case Hrhs : (nth_error (list_gtypref (0%num, 0%num) t_expr HiF.Source) n) => [[[pv1 gte] ori1]|]; try done.
+  case Hlhs : (nth_error (list_gtypref ref_tgt t_tgt false) n) => [[[pv0 gt] ori0]|].
+  case Hrhs : (nth_error (list_gtypref (0%num, 0%num) t_expr false) n) => [[[pv1 gte] ori1]|]; try done.
   rewrite /connect_fgtyp_compatible.
   apply rwP with (P := fgtyp_equiv gt gte /\
     (if not_implicit gt
@@ -1158,8 +1448,18 @@ Proof.
   case Hel : (CEP.find pv0 var2exprs) => [el|]; rewrite Hel in Hinfer2; try done.
   case Hinfer : (InferWidth_fun pv0 el tmap') => [newtm'|]; rewrite Hinfer in Hinfer2; try discriminate.
   case Hsplit : (list_gtypexpr expr t_expr) => [rhs_expr_ls|].
+
   generalize Hte; apply split_expr_type_correct with (rhs_expr_ls := rhs_expr_ls) (n := n) in Hte; try done; rewrite Hrhs in Hte; intro Hte'.
-  case Htexpr : (nth_error rhs_expr_ls n) => [texpr|]; rewrite Htexpr in Hte. destruct Hte as [p0 Hte].
+  case Htexpr : (nth_error rhs_expr_ls n) => [texpr|]; rewrite Htexpr in Hte.
+
+  (*specialize split_expr_type_correct with (expr := expr); intro H0; rewrite He in H0; rewrite -He in H0.
+  generalize Hte; apply H0 with (rhs_expr_ls := rhs_expr_ls) (n := n) in Hte; try done; rewrite Hrhs in Hte; intro Hte'; clear H0.
+  case Htexpr : (nth_error rhs_expr_ls n) => [texpr|]; rewrite Htexpr in Hte.*)
+  assert (Hin' : texpr \in el).
+  rewrite Href in Hin.
+  apply preexpr_in with (ps := ps) (ss := ss) (tmap := tmap) (newtm := newtm) (var2exprs := var2exprs) (expr := expr) in Hlhs; try done.
+  rewrite He in Hlhs; rewrite -He in Hlhs; move : Hel Hte' Hsplit Htexpr; apply Hlhs.
+  admit. (* 一般expr一定是passive *)
   apply InferWidth_fun_correct with (pv := pv0) (el := el) (tmap := tmap') (newtm := newtm') (expr := texpr) in Hinfer; try done.
   generalize Htr; rewrite /type_of_ref in Htr; case Hcheckt : (CEP.find (ref_tgt.1, 0%num) newtm) => [[checkt ori_c]|]; rewrite Hcheckt in Htr; try discriminate; intro Htr'.
   generalize Hlhs; apply nth_error_In in Hlhs; apply list_fsteq in Hlhs; simpl in Hlhs.
@@ -1167,23 +1467,19 @@ Proof.
   intro Hlhs0; rewrite /type_of_ref -Hlhs in Hlhs'. rewrite -Hlhs in Hinfer.
   assert (exists checkt' ori_c', CEP.find (ref_tgt.1, 0%num) newtm' = Some (checkt', ori_c')).
   admit. (* 由 Hcheckt *)
-  destruct H0 as [checkt' [ori_c' Htgt0]]; rewrite Htgt0 in Hinfer.
-  assert (exists nt ori', ft_find_sub checkt' pv0.2 ori_c' = Some (nt, ori')).
-  admit. (* 由 Htr *)
-  destruct H0 as [nt [ori' Hsub0]]; rewrite Hsub0 in Hinfer; rewrite Hcheckt in Hlhs'.
+  destruct H0 as [checkt' [ori_c' Htgt0]]; rewrite Htgt0 in Hinfer; rewrite Hcheckt in Hlhs'.
+  assert (exists nt ori', ft_find_sub checkt' pv0.2 false = Some (nt, ori')).
+  admit. (* 由 Hlhs' *)
+  destruct H0 as [nt [ori' Hsub0]]; rewrite Hsub0 in Hinfer.
   apply infernotin_eq with (var2exprs := var2exprs) (tmap := newtm') (newtm := newtm) in Horder2; try done; move : Horder2 => [Horder2 Horder2'].
   rewrite /type_of_ref -Hlhs Htgt0 Hcheckt in Horder2; rewrite Horder2 in Hlhs'; rewrite Hlhs' in Hsub0; inversion Hsub0; clear Hsub0.
   rewrite -H1 in Hinfer; clear H1 nt H2 ori'.
-  assert (texpr \in el).
-  rewrite Href in Hin; move : Hpre Hin Htr' Hte' Hsplit Htexpr Hel Hlhs0.
-  apply preexpr_in.
-  rewrite Hel in Horder2'; specialize Horder2' with (e := texpr); apply Horder2' in H0; rewrite -H0 Hte in Hinfer; clear Horder2' H0.
+  rewrite Hel in Horder2'; specialize Horder2' with (e := texpr); apply Horder2' in Hin'; rewrite -Hin' Hte in Hinfer; clear Horder2' Hin'.
   assert (fgtyp_equiv gt gte).
   move : Heq Hlhs0 Hrhs; apply listgtyp_eq.
   apply Hinfer in H0; clear Hinfer; rewrite /connect_fgtyp_compatible in H0.
   move /andP : H0 => [_ H0]; rewrite Himpli in H0; done.
-  rewrite Href in Hin; move : Hpre Hin Htr Hte' Hsplit Htexpr Hel Hlhs.
-  apply preexpr_in.
+  admit. (* 一般expr一定是passive *)
   admit. (* 不是None *)
   admit. (* 不是None *)
   admit. (* 不是None *)
@@ -1197,10 +1493,10 @@ Proof.
   admit. (* 5个相同case *)
 
   (* non_passive *)
-  rewrite He in Hs; clear He expr; rewrite Hs in Hin; clear Hs hfs.
+  rewrite He in Hs; rewrite Hs in Hin; clear Hs hfs.
   case Href : ref => [ref_tgt|||]; rewrite Href in Hin; try done.
   case Href0 : ref0 => [ref_src|||]; rewrite Href0 in Hin; clear Href; try done.
-  case Htgt : (type_of_ref ref_tgt newtm) => [[t_tgt ori_tgt]|]; clear Href0 ref ref0; try done.
+  case Htgt : (type_of_ref ref_tgt newtm) => [[t_tgt ori_tgt]|]; try done.
   case Hsrc : (type_of_ref ref_src newtm) => [[t_src ori_src]|]; try done; intro Heq.
   rewrite /connect_non_passive_type.
   apply rwP with (P := ftype_equiv t_tgt t_src /\ check_connect_non_passive_type (list_gtypref ref_tgt t_tgt ori_tgt) (list_gtypref ref_src t_src ori_src)).
@@ -1208,61 +1504,116 @@ Proof.
   split; try done. 
   apply check_connect_non_passive_type_correct.
   intro n.
-
   case Hlhs : (nth_error (list_gtypref ref_tgt t_tgt ori_tgt) n) => [[[pv_tgt gt_tgt] ori_tgt0]|].
   case Hrhs : (nth_error (list_gtypref ref_src t_src ori_src) n) => [[[pv_src gt_src] ori_src0]|].
-  case Hori_tgt : ori_tgt0.
-  (*rewrite /connect_fgtyp_compatible.
-  apply rwP with (P := fgtyp_equiv gt gte /\
-    (if not_implicit gt
-    then true
-    else sizeof_fgtyp gte <= sizeof_fgtyp gt)).
-  apply andP.
-  split. 
-  move : Heq Hlhs Hrhs; apply listgtyp_eq.
-  case Himpli : (not_implicit gt); try done.*)
-  - (* tgt : source *)
-  assert (exists order1 order2, (inferorder = order1 ++ (pv0 :: order2)) /\ (pv0 \notin order1) 
-    /\ (pv0 \notin order2)).
-  admit. (* inferorder 的正确性，是展开时的标号 *)
-  move : H => [order1 [order2 [H [Horder1 Horder2]]]].
-  generalize Hinfer; rewrite H in Hinfer; move => Hinfer'.
-  case Hinfer1 : (InferWidths_fun order1 var2exprs tmap) => [tmap'|].
-  assert (Hinfer2 : InferWidths_fun (pv0 :: order2) var2exprs tmap' = Some newtm).
-  move : Hinfer Hinfer1.
-  apply infer_cons_order.
-  clear Hinfer.
-  simpl in Hinfer2.
-  case Hel : (CEP.find pv0 var2exprs) => [el|]; rewrite Hel in Hinfer2; try done.
-  case Hinfer : (InferWidth_fun pv0 el tmap') => [newtm'|]; rewrite Hinfer in Hinfer2; try discriminate.
-  case Hsplit : (list_gtypexpr expr t_expr) => [rhs_expr_ls|].
-  generalize Hte; apply split_expr_type_correct with (rhs_expr_ls := rhs_expr_ls) (n := n) in Hte; try done; rewrite Hrhs in Hte; intro Hte'.
-  case Htexpr : (nth_error rhs_expr_ls n) => [texpr|]; rewrite Htexpr in Hte. destruct Hte as [p0 Hte].
-  apply InferWidth_fun_correct with (pv := pv0) (el := el) (tmap := tmap') (newtm := newtm') (expr := texpr) in Hinfer; try done.
-  generalize Htr; rewrite /type_of_ref in Htr; case Hcheckt : (CEP.find (ref_tgt.1, 0%num) newtm) => [[checkt ori_c]|]; rewrite Hcheckt in Htr; try discriminate; intro Htr'.
-  generalize Hlhs; apply nth_error_In in Hlhs; apply list_fsteq in Hlhs; simpl in Hlhs.
-  intro Hlhs'; generalize Hlhs'; apply list_typeq with (tmap := newtm) in Hlhs'; try done.
-  intro Hlhs0; rewrite /type_of_ref -Hlhs in Hlhs'. rewrite -Hlhs in Hinfer.
-  assert (exists checkt' ori_c', CEP.find (ref_tgt.1, 0%num) newtm' = Some (checkt', ori_c')).
-  admit. (* 由 Hcheckt *)
-  destruct H0 as [checkt' [ori_c' Htgt0]]; rewrite Htgt0 in Hinfer.
-  assert (exists nt ori', ft_find_sub checkt' pv0.2 ori_c' = Some (nt, ori')).
-  admit. (* 由 Htr *)
-  destruct H0 as [nt [ori' Hsub0]]; rewrite Hsub0 in Hinfer; rewrite Hcheckt in Hlhs'.
-  apply infernotin_eq with (var2exprs := var2exprs) (tmap := newtm') (newtm := newtm) in Horder2; try done; move : Horder2 => [Horder2 Horder2'].
-  rewrite /type_of_ref -Hlhs Htgt0 Hcheckt in Horder2; rewrite Horder2 in Hlhs'; rewrite Hlhs' in Hsub0; inversion Hsub0; clear Hsub0.
-  rewrite -H1 in Hinfer; clear H1 nt H2 ori'.
-  assert (texpr \in el).
-  rewrite Href in Hin; move : Hpre Hin Htr' Hte' Hsplit Htexpr Hel Hlhs0.
-  apply preexpr_in.
-  rewrite Hel in Horder2'; specialize Horder2' with (e := texpr); apply Horder2' in H0; rewrite -H0 Hte in Hinfer; clear Horder2' H0.
-  assert (fgtyp_equiv gt gte).
-  move : Heq Hlhs0 Hrhs; apply listgtyp_eq.
-  apply Hinfer in H0; clear Hinfer; rewrite /connect_fgtyp_compatible in H0.
-  move /andP : H0 => [_ H0]; rewrite Himpli in H0; done.
-  rewrite Href in Hin; move : Hpre Hin Htr Hte' Hsplit Htexpr Hel Hlhs.
-  apply preexpr_in.
-
+  case Hflip : (ori_tgt0).
+  - (* flip *)
+    rewrite /connect_fgtyp_compatible.
+    apply rwP with (P := fgtyp_equiv gt_src gt_tgt /\
+      (if not_implicit gt_src
+      then true
+      else sizeof_fgtyp gt_tgt <= sizeof_fgtyp gt_src)).
+    apply andP.
+    split. 
+    apply fgtyp_equiv_comm; move : Heq Hlhs Hrhs; apply listgtyp_eq.
+    case Himpli : (not_implicit gt_src); try done.
+    assert (exists order1 order2, (inferorder = order1 ++ (pv_src :: order2)) /\ (pv_src \notin order1) 
+      /\ (pv_src \notin order2)).
+    admit. (* inferorder 的正确性，是展开时的标号 *)
+    move : H => [order1 [order2 [H [Horder1 Horder2]]]].
+    generalize Hinfer; rewrite H in Hinfer; move => Hinfer'.
+    case Hinfer1 : (InferWidths_fun order1 var2exprs tmap) => [tmap'|].
+    assert (Hinfer2 : InferWidths_fun (pv_src :: order2) var2exprs tmap' = Some newtm).
+    move : Hinfer Hinfer1.
+    apply infer_cons_order.
+    clear Hinfer.
+    simpl in Hinfer2.
+    case Hel : (CEP.find pv_src var2exprs) => [el|]; rewrite Hel in Hinfer2; try done.
+    case Hinfer : (InferWidth_fun pv_src el tmap') => [newtm'|]; rewrite Hinfer in Hinfer2; try discriminate.
+    assert (Hin' : (Eref (Eid pv_tgt)) \in el).
+    apply preexpr_in with (ps := ps) (ss := ss) (tmap := tmap) (newtm := newtm) (var2exprs := var2exprs) (expr := expr) in Hlhs; try done.
+    rewrite He Href0 in Hlhs; apply Hlhs with (pv1 := pv_src) (gte := gt_src) (ori1 := ori_src0) (el := el) in Hsrc; try done; clear Hlhs. 
+    rewrite Hflip in Hsrc; apply Hsrc in Hel; clear Hsrc; done.
+    rewrite He Href0 //.
+    apply InferWidth_fun_correct with (pv := pv_src) (el := el) (tmap := tmap') (newtm := newtm') (expr := Eref (Eid pv_tgt)) in Hinfer; try done.
+    generalize Hsrc; rewrite /type_of_ref in Hsrc; case Hcheckt : (CEP.find (ref_src.1, 0%num) newtm) => [[checkt ori_c]|]; rewrite Hcheckt in Hsrc; try discriminate; intro Hsrc'.
+    generalize Hrhs; apply nth_error_In in Hrhs; apply list_fsteq in Hrhs; simpl in Hrhs.
+    intro Hrhs'; generalize Hrhs'; apply list_typeq with (tmap := newtm) in Hrhs'; try done.
+    intro Hrhs0; rewrite /type_of_ref -Hrhs in Hrhs'. rewrite -Hrhs in Hinfer.
+    assert (exists checkt' ori_c', CEP.find (ref_src.1, 0%num) newtm' = Some (checkt', ori_c')).
+    admit. (* 由 Hcheckt *)
+    destruct H0 as [checkt' [ori_c' Hsrc0]]; rewrite Hsrc0 in Hinfer; rewrite Hcheckt in Hrhs'.
+    assert (exists nt ori', ft_find_sub checkt' pv_src.2 false = Some (nt, ori')).
+    admit. (* 由 Hrhs' *)
+    destruct H0 as [nt [ori' Hsub0]]; rewrite Hsub0 in Hinfer.
+    apply infernotin_eq with (var2exprs := var2exprs) (tmap := newtm') (newtm := newtm) in Horder2; try done; move : Horder2 => [Horder2 Horder2'].
+    rewrite /type_of_ref -Hrhs Hcheckt Hrhs' Hsrc0 in Horder2; rewrite -Horder2 in Hsub0; inversion Hsub0; clear Hsub0.
+    rewrite -H1 in Hinfer; clear H1 nt H2 ori'.
+    rewrite Hel in Horder2'; specialize Horder2' with (e := Eref (Eid pv_tgt)); apply Horder2' in Hin'; rewrite -Hin' in Hinfer; clear Horder2' Hin'.
+    simpl in Hinfer.
+    generalize Htgt; rewrite /type_of_ref in Htgt; case Hcheckt0 : (CEP.find (ref_tgt.1, 0%num) newtm) => [[checkt0 ori_c0]|]; rewrite Hcheckt0 in Htgt; try discriminate; intro Htgt'.
+    generalize Hlhs; apply nth_error_In in Hlhs; apply list_fsteq in Hlhs; simpl in Hlhs.
+    intro Hlhs'; generalize Hlhs'; apply list_typeq with (tmap := newtm) in Hlhs'; try done; rewrite Hlhs' in Hinfer; intro Hlhs0.
+    assert (fgtyp_equiv gt_src gt_tgt).
+    apply ftype_equiv_comm in Heq; move : Heq Hrhs0 Hlhs0; apply listgtyp_eq.
+    apply Hinfer in H0; clear Hinfer; rewrite /connect_fgtyp_compatible in H0.
+    move /andP : H0 => [_ H0]; rewrite Himpli in H0; done.
+    admit. (* 不是None *)
+  - (* nflip *)
+    rewrite /connect_fgtyp_compatible.
+    apply rwP with (P := fgtyp_equiv gt_tgt gt_src /\
+      (if not_implicit gt_tgt
+      then true
+      else sizeof_fgtyp gt_src <= sizeof_fgtyp gt_tgt)).
+    apply andP.
+    split. 
+    move : Heq Hlhs Hrhs; apply listgtyp_eq.
+    case Himpli : (not_implicit gt_tgt); try done.
+    assert (exists order1 order2, (inferorder = order1 ++ (pv_tgt :: order2)) /\ (pv_tgt \notin order1) 
+      /\ (pv_tgt \notin order2)).
+    admit. (* inferorder 的正确性，是展开时的标号 *)
+    move : H => [order1 [order2 [H [Horder1 Horder2]]]].
+    generalize Hinfer; rewrite H in Hinfer; move => Hinfer'.
+    case Hinfer1 : (InferWidths_fun order1 var2exprs tmap) => [tmap'|].
+    assert (Hinfer2 : InferWidths_fun (pv_tgt :: order2) var2exprs tmap' = Some newtm).
+    move : Hinfer Hinfer1.
+    apply infer_cons_order.
+    clear Hinfer.
+    simpl in Hinfer2.
+    case Hel : (CEP.find pv_tgt var2exprs) => [el|]; rewrite Hel in Hinfer2; try done.
+    case Hinfer : (InferWidth_fun pv_tgt el tmap') => [newtm'|]; rewrite Hinfer in Hinfer2; try discriminate.
+    assert (Hin' : (Eref (Eid pv_src)) \in el).
+    apply preexpr_in with (ps := ps) (ss := ss) (tmap := tmap) (newtm := newtm) (var2exprs := var2exprs) (expr := expr) in Hlhs; try done.
+    rewrite He Href0 in Hlhs; apply Hlhs with (pv1 := pv_src) (gte := gt_src) (ori1 := ori_src0) (el := el) in Hsrc; try done; clear Hlhs. 
+    rewrite Hflip in Hsrc; apply Hsrc in Hel; clear Hsrc; done.
+    rewrite He Href0 //.
+    apply InferWidth_fun_correct with (pv := pv_tgt) (el := el) (tmap := tmap') (newtm := newtm') (expr := Eref (Eid pv_src)) in Hinfer; try done.
+    generalize Htgt; rewrite /type_of_ref in Htgt; case Hcheckt0 : (CEP.find (ref_tgt.1, 0%num) newtm) => [[checkt0 ori_c0]|]; rewrite Hcheckt0 in Htgt; try discriminate; intro Htgt'.
+    generalize Hlhs; apply nth_error_In in Hlhs; apply list_fsteq in Hlhs; simpl in Hlhs.
+    intro Hlhs'; generalize Hlhs'; apply list_typeq with (tmap := newtm) in Hlhs'; try done.
+    intro Hlhs0; rewrite /type_of_ref -Hlhs in Hlhs'. rewrite -Hlhs in Hinfer.
+    assert (exists checkt' ori_c', CEP.find (ref_tgt.1, 0%num) newtm' = Some (checkt', ori_c')).
+    admit. (* 由 Hcheckt0 *)
+    destruct H0 as [checkt' [ori_c' Htgt0]]; rewrite Htgt0 in Hinfer; rewrite Hcheckt0 in Hlhs'.
+    assert (exists nt ori', ft_find_sub checkt' pv_tgt.2 false = Some (nt, ori')).
+    admit. (* 由 Hrhs' *)
+    destruct H0 as [nt [ori' Hsub0]]; rewrite Hsub0 in Hinfer.
+    apply infernotin_eq with (var2exprs := var2exprs) (tmap := newtm') (newtm := newtm) in Horder2; try done; move : Horder2 => [Horder2 Horder2'].
+    rewrite /type_of_ref -Hlhs Hcheckt0 Hlhs' Htgt0 in Horder2; rewrite -Horder2 in Hsub0; inversion Hsub0; clear Hsub0.
+    rewrite -H1 in Hinfer; clear H1 nt H2 ori'.
+    rewrite Hel in Horder2'; specialize Horder2' with (e := Eref (Eid pv_src)); apply Horder2' in Hin'; rewrite -Hin' in Hinfer; clear Horder2' Hin'.
+    simpl in Hinfer.
+    generalize Hsrc; rewrite /type_of_ref in Hsrc; case Hcheckt : (CEP.find (ref_src.1, 0%num) newtm) => [[checkt ori_c]|]; rewrite Hcheckt in Hsrc; try discriminate; intro Hsrc'.
+    generalize Hrhs; apply nth_error_In in Hrhs; apply list_fsteq in Hrhs; simpl in Hrhs.
+    intro Hrhs'; generalize Hrhs'; apply list_typeq with (tmap := newtm) in Hrhs'; try done.
+    rewrite Hrhs' in Hinfer; intro Hrhs0.
+    assert (fgtyp_equiv gt_tgt gt_src).
+    move : Heq Hlhs0 Hrhs0; apply listgtyp_eq.
+    apply Hinfer in H0; clear Hinfer; rewrite /connect_fgtyp_compatible in H0.
+    move /andP : H0 => [_ H0]; rewrite Himpli in H0; done.
+    admit. (* 不是None *)
+    admit. (* 不是None *)
+  case Hrhs : (nth_error (list_gtypref ref_src t_src ori_src) n); try done.
 Admitted.
 
 Lemma InferWidths_trans_correct : forall pp ss nps nss newtm vm' vm'' vm (*pv*), (*InferWidths_stage1 (FInmod pv pp ss) = Some newtm ->*) InferWidths_transps pp newtm = Some nps -> InferWidths_transss ss newtm = Some nss ->
@@ -1279,11 +1630,11 @@ Proof.
     case Htranss : (InferWidths_transss st newtm) => [nst|]; rewrite Htranss in Hss; try discriminate.
     case Himplis : (make_s_implicit vm' (CEP.empty vertex_type) s) => [vm0|]; rewrite Himplis in Himpliss; try discriminate.
     inversion Hss as [Hnss]; clear Hss.
-    case Hss : (stmt_tmap (CEP.empty (ftype * HiF.forient), CEP.empty (ftype * HiF.forient)) s vm) => [tmap_scope'|].
+    case Hss : (stmt_tmap (CEP.empty (ftype * bool), CEP.empty (ftype * bool)) s vm) => [tmap_scope'|].
     case Hsst : (stmts_tmap tmap_scope' st vm) => [[tmap' emap']|].
     (*apply IH with (nps := [::]) (nss := nst) (newtm := newtm) (pv := pv) in Himpliss; try done.
 
-    case Hsp : (stmt_tmap' (CEP.empty (ftype * HiF.forient)) (CEP.empty (seq HiFP.hfexpr)) s) => [[tmap0 emap0]|]; rewrite Hsp in Hinfer; try discriminate.
+    case Hsp : (stmt_tmap' (CEP.empty (ftype * bool)) (CEP.empty (seq HiFP.hfexpr)) s) => [[tmap0 emap0]|]; rewrite Hsp in Hinfer; try discriminate.
     case Hsps : (stmts_tmap' tmap0 emap0 st) => [[tmap' var2exprs]|]; rewrite Hsps in Hinfer; try discriminate.
     case Hrl : (lsreg_stmt s) => [rl|]; rewrite Hrl in Hinfer; try discriminate.
     case Hrls : (lsreg_stmts st) => [rls|]; rewrite Hrls in Hinfer; try discriminate.*)
@@ -1367,8 +1718,8 @@ Proof.
           - case Hval : (type_of_expr rst_val newtm) => [[ft_val p_val]|].
             rewrite /connect_type; apply rwP with (P := ftype_equiv ft ft_val /\
             check_connect_type
-              (list_gtypref (0%num, 0%num) ft HiF.Duplex)
-              (list_gtypref (0%num, 0%num) ft_val HiF.Duplex)). apply andP. split.
+              (list_gtypref (0%num, 0%num) ft false)
+              (list_gtypref (0%num, 0%num) ft_val false)). apply andP. split.
             admit. (* cnct 要求 ftype_equiv *)
             simpl in Hmap; simpl in Himpli.
             case Hfindp : (CEP.find r pmap); rewrite Hfindp in Hmap; try discriminate.
@@ -1381,7 +1732,7 @@ Proof.
             - (* Fuint1 rst *) 
               case Hn1 : n1 => [|n0]; rewrite Hn1 in Hmap; try discriminate.
               destruct n0; try discriminate; clear Hsig Htf Hf1 Hn1 n1 f1 t tf.
-              assert (exists ft_val', type_of_expr rst_val (CEP.add r (newt, HiF.Duplex) pmap) = Some ft_val').
+              assert (exists ft_val', type_of_expr rst_val (CEP.add r (newt, false) pmap) = Some ft_val').
               admit.
               destruct H as [[ft_val' p_val'] Hval']; rewrite Hval' in Hmap; clear Hval' ft_val' p_val'.
               inversion Hmap; clear Hmap.
@@ -1412,7 +1763,7 @@ Proof.
           - (* expr *)
           1,2,3,4,5,6 : rewrite -He; rewrite -He in Hinfer; clear He Hs Hr.
           1,2,3,4,5,6 : case Hreft : (type_of_ref ref newtm) => [[t_tgt ori]|]; rewrite Hreft in Hinfer.
-          1,3,5,7,9,11 : case Hexprt : (type_of_expr e newtm) => [[t_expr p_expr]|]; rewrite Hexprt in Hinfer.
+          1,3,5,7,9,11 : case Hexprt : (type_of_expr e newtm) => [t_expr|]; rewrite Hexprt in Hinfer.
           1,3,5,7,9,11 : apply Hinfer; try done.
           admit. (* Qin_cons *)
           admit. (* Hypo *)
@@ -1482,12 +1833,12 @@ Lemma InferWidths_trans_correct' : forall v vm' t' F' mv ps ss newtm ft ori, CEP
 Proof.
 Admitted.
 
-Lemma geq_conj2mux : forall tmap (gt initt : fgtyp) (el : seq HiFP.hfexpr) eftl (nt : fgtyp), (forall (texpr : HiFP.hfexpr) (te : fgtyp) (p : ftype_not_implicit_width (Gtyp te)), texpr \in el -> type_of_expr texpr tmap = Some (exist ftype_not_implicit_width (Gtyp te) p) -> ((sizeof_fgtyp gt) >= (sizeof_fgtyp te))) ->
+Lemma geq_conj2mux : forall tmap (gt initt : fgtyp) (el : seq HiFP.hfexpr) eftl (nt : fgtyp), (forall (texpr : HiFP.hfexpr) (te : fgtyp), texpr \in el -> type_of_expr texpr tmap = Some (Gtyp te) -> ((sizeof_fgtyp gt) >= (sizeof_fgtyp te))) ->
   fil_ftlist [seq type_of_expr e tmap | e <- el] = Some eftl -> sizeof_fgtyp initt = 0 -> max_ftlist eftl initt = Some nt -> ((sizeof_fgtyp gt) >= (sizeof_fgtyp nt)).
 Proof.
 Admitted.
 
-Fixpoint find_sub_expr4v (pv : ProdVarOrder.t) (lhsl : seq (ProdVarOrder.t * fgtyp * HiF.forient)) (rstl : seq HiFP.hfexpr) : option (seq HiFP.hfexpr) :=
+Fixpoint find_sub_expr4v (pv : ProdVarOrder.t) (lhsl : seq (ProdVarOrder.t * fgtyp * bool)) (rstl : seq HiFP.hfexpr) : option (seq HiFP.hfexpr) :=
   match lhsl, rstl with
   | nil, nil => Some nil
   | (hd, _, _) :: tl, hde :: tle => if (hd == pv) then Some [:: hde]
@@ -1495,17 +1846,12 @@ Fixpoint find_sub_expr4v (pv : ProdVarOrder.t) (lhsl : seq (ProdVarOrder.t * fgt
   | _, _ => None
   end.
 
-Fixpoint find_sub_non_passive4v (pv : ProdVarOrder.t) (lhsl rhsl : seq (ProdVarOrder.t * fgtyp * HiF.forient)) : option (seq HiFP.hfexpr) :=
+Fixpoint find_sub_non_passive4v (pv : ProdVarOrder.t) (lhsl rhsl : seq (ProdVarOrder.t * fgtyp * bool)) : option (seq HiFP.hfexpr) :=
   match lhsl, rhsl with
   | nil, nil => Some nil
-  | (hd, _, HiF.Duplex) :: tl, (hde, _, HiF.Source) :: tle 
-  | (hd, _, HiF.Sink) :: tl, (hde, _, HiF.Source) :: tle 
-  | (hd, _, HiF.Sink) :: tl, (hde, _, HiF.Duplex) :: tle 
-  | (hd, _, HiF.Duplex) :: tl, (hde, _, HiF.Duplex) :: tle => if (hd == pv) then Some [:: (Eref (Eid hde))]
+  | (thd, _, false) :: tl, (shd, _, _) :: tle => if (thd == pv) then Some [:: (Eref (Eid shd))]
                                                             else find_sub_non_passive4v pv tl tle
-  | (hd, _, HiF.Source) :: tl, (hde, _, HiF.Sink) :: tle 
-  | (hd, _, HiF.Source) :: tl, (hde, _, HiF.Duplex) :: tle 
-  | (hd, _, HiF.Duplex) :: tl, (hde, _, HiF.Sink) :: tle => if (hde == pv) then Some [:: (Eref (Eid hd))]
+  | (thd, _, true) :: tl, (shd, _, _) :: tle => if (shd == pv) then Some [:: (Eref (Eid thd))]
                                                             else find_sub_non_passive4v pv tl tle
   | _, _ => None
   end.
@@ -1514,13 +1860,13 @@ Fixpoint find_sub_expr (pv : ProdVarOrder.t) (s : HiFP.hfstmt) (tmap : CEP.t (ft
   match s with
   | Sreg v r => match reset r with
                 | NRst => Some nil
-                | Rst _ rst_val => match list_gtypexpr rst_val (type r), list_gtypref v (type r) HiF.Duplex with
+                | Rst _ rst_val => match list_gtypexpr rst_val (type r), list_gtypref v (type r) false with
                                   | Some rstl, lhsl => find_sub_expr4v pv lhsl rstl
                                   | _, _ => None
                                   end
                 end
   | Snode v e => match type_of_expr e tmap with
-                | Some (exist t _) => match list_gtypexpr e t, list_gtypref v t HiF.Sink with
+                | Some t => match list_gtypexpr e t, list_gtypref v t false with
                             | Some rstl, lhsl => find_sub_expr4v pv lhsl rstl
                             | _, _ => None
                             end
@@ -1537,7 +1883,7 @@ Fixpoint find_sub_expr (pv : ProdVarOrder.t) (s : HiFP.hfstmt) (tmap : CEP.t (ft
   | Sfcnct (Eid ref_tgt) (Eref _) => None
   | Sfcnct (Eid ref_tgt) expr_src =>
                 match type_of_ref ref_tgt tmap, type_of_expr expr_src tmap with
-                | Some (t_tgt, ori_tgt), Some (exist t_src _) =>
+                | Some (t_tgt, ori_tgt), Some t_src =>
                       match list_gtypexpr expr_src t_src, list_gtypref ref_tgt t_tgt ori_tgt with
                       | Some rstl, lhsl => find_sub_expr4v pv lhsl rstl
                       | _, _ => None
@@ -1560,11 +1906,11 @@ with find_sub_exprs (v : ProdVarOrder.t) (ss : HiFP.hfstmt_seq) (tmap : CEP.t (f
   end.
 
 Lemma Sem_wdgeqmax ss : forall vm_old vm_new tmap, Sem_frag_stmts vm_old ss vm_new tmap -> (forall v t el, CEP.find v vm_new = Some t -> 
-  find_sub_exprs v ss tmap = Some el -> (forall e te (p : ftype_not_implicit_width (Gtyp te)), e \in el -> type_of_expr e tmap = Some (exist ftype_not_implicit_width (Gtyp te) p) -> sizeof_fgtyp (type_of_vx t) >= sizeof_fgtyp te)).
+  find_sub_exprs v ss tmap = Some el -> (forall e te , e \in el -> type_of_expr e tmap = Some (Gtyp te) -> sizeof_fgtyp (type_of_vx t) >= sizeof_fgtyp te)).
 Proof.
 Admitted.
 
-Lemma Semgeqinfer : forall pp ss mv vm tmap newtm, Sem (FInmod mv pp ss) vm -> ports_stmts_tmap pp ss vm = Some tmap -> InferWidths_stage1 (FInmod mv pp ss) = Some newtm -> (forall e t0 t1 (p0 : ftype_not_implicit_width (Gtyp t0)) (p1 : ftype_not_implicit_width (Gtyp t1)), type_of_expr e tmap = Some (exist ftype_not_implicit_width (Gtyp t0) p0) -> type_of_expr e newtm = Some (exist ftype_not_implicit_width (Gtyp t1) p1) -> sizeof_fgtyp t0 >= sizeof_fgtyp t1).
+Lemma Semgeqinfer : forall pp ss mv vm tmap newtm, Sem (FInmod mv pp ss) vm -> ports_stmts_tmap pp ss vm = Some tmap -> InferWidths_stage1 (FInmod mv pp ss) = Some newtm -> (forall e t0 t1 , type_of_expr e tmap = Some (Gtyp t0) -> type_of_expr e newtm = Some (Gtyp t1) -> sizeof_fgtyp t0 >= sizeof_fgtyp t1).
 Proof.
 Admitted.
 
@@ -1622,7 +1968,7 @@ Proof.
   rewrite /InferWidth_fun in Hinfer1.
   case Hfil : (fil_ftlist [seq type_of_expr e tmap0 | e <- el]) => [eftl|]; rewrite Hfil in Hinfer1; try done.
   case Hinit : (CEP.find (v.1, 0%num) tmap0) => [[init ori_v]|]; rewrite Hinit in Hinfer1; try discriminate.
-  case Hf : (ft_find_sub init v.2 ori_v) => [[f ori]|]; rewrite Hf in Hinfer1; try discriminate.
+  case Hf : (ft_find_sub init v.2 false) => [[f ori]|]; rewrite Hf in Hinfer1; try discriminate.
   case Hinitt : f => [initt||]; rewrite Hinitt in Hinfer1; try discriminate.
   rewrite Hinitt in Hf; clear Hinitt f.
   assert (Himpli' : not_implicit initt = false). 
@@ -1637,11 +1983,11 @@ Proof.
   destruct Hsem as [vm0 [ct0 [_ Hsems]]]; intro Hsem.
   apply geq_conj2mux with (tmap := tmap0) (initt := initt) (el := el) (eftl := eftl); try done.
   intros.
-  assert (Hte : exists t0 p0, type_of_expr texpr tmap0' = Some (exist ftype_not_implicit_width (Gtyp t0) p0)).
+  assert (Hte : exists t0, type_of_expr texpr tmap0' = Some (Gtyp t0)).
   admit. (* tl中应全为gtyp expr *)
-  destruct Hte as [t0 [p0 Hte]].
-  apply Semgeqinfer with (tmap := tmap0') (newtm := newtm) (e := texpr) (t0 := t0) (t1 := te) (p0 := p0) (p1 := p) in Hsem; try done.
-  apply Sem_wdgeqmax with (v := v) (t := t) (el := el) (e := texpr) (te := t0) (p := p0) in Hsems; try done.
+  destruct Hte as [t0 Hte].
+  apply Semgeqinfer with (tmap := tmap0') (newtm := newtm) (e := texpr) (t0 := t0) (t1 := te) in Hsem; try done.
+  apply Sem_wdgeqmax with (v := v) (t := t) (el := el) (e := texpr) (te := t0) in Hsems; try done.
   move : Hsem Hsems; apply leq_trans.
   generalize Hpre; apply find_sub_exprs_correct with (v := v) in Hpre; try done; rewrite -Hel Hpre.
   move : Hpre0.
@@ -1660,5 +2006,3 @@ Proof.
   admit. (* None则有错 *)
   case Ht : (CEP.find v vm); try done.
 Admitted.
-
-Search (type_of_ref).
