@@ -1122,6 +1122,32 @@ Lemma check_connect_type_correct : forall ft te, (forall n,
   | _, _ => false
   end) -> check_connect_type ft te.
 Proof.
+  elim. 
+  elim.
+  simpl; done.
+  intros; specialize H0 with (n := 0). 
+  assert (H1: (@List.length (ProdVarOrder.t * fgtyp * bool) [::] <= 0)%coq_nat) by apply Nat.le_0_l ;
+  apply List.nth_error_None in H1; rewrite H1 in H0; simpl in H0; discriminate.
+  intros [[pv0 gt0] ori0] tl H. 
+  elim. 
+  intro; specialize H0 with (n := 0); simpl in H0; discriminate. 
+  - (* case *)
+  intros [[pv1 gt1] ori1] tl' H0 IH; clear H0.
+  specialize H with (te := tl').
+  simpl. 
+  apply rwP with (P := connect_fgtyp_compatible gt0 gt1 /\ check_connect_type tl tl').
+  apply andP. split.
+  specialize IH with (n := 0); simpl in IH; done.
+  apply H.
+  intro.
+  specialize IH with (n := n+1).
+  (*assert (nth_error (hd :: tl) (n + 1) = nth_error tl n).
+  rewrite H0.
+  admit.
+  assert (nth_error (hd' :: tl') (n + 1) = nth_error tl' n).
+  admit.
+  rewrite H1 H2 in IH; done.
+  nth_error_app1 *)
 Admitted.
 
 Lemma check_connect_non_passive_type_correct : forall ft te, (forall n, 
@@ -1131,7 +1157,36 @@ Lemma check_connect_non_passive_type_correct : forall ft te, (forall n,
   | None, None => true
   |  _, _ => false
   end) -> check_connect_non_passive_type ft te.
-Proof.
+  Proof.
+  elim.
+  elim.
+  simpl; done.
+  intros; specialize H0 with (n := 0). 
+  assert (H1: (@List.length (ProdVarOrder.t * fgtyp * bool) [::] <= 0)%coq_nat) by apply Nat.le_0_l ;
+  apply List.nth_error_None in H1; rewrite H1 in H0; simpl in H0; discriminate.
+  intros [[pv0 gt0] ori0] tl H. 
+  elim. 
+  intro. specialize H0 with (n := 0); simpl in H0; case Hori : ori0; rewrite Hori in H0; discriminate. 
+  intros [[pv1 gt1] ori1] tl' H0 IH; clear H0.
+  specialize H with (te := tl').
+  simpl.
+  case Hori : ori0; rewrite Hori in IH; clear Hori ori0.
+  - (* flip *) 
+    apply rwP with (P := connect_fgtyp_compatible gt1 gt0 /\ check_connect_non_passive_type tl tl').
+    apply andP. split.
+    specialize IH with (n := 0); simpl in IH; done.
+    apply H.
+    intro.
+    specialize IH with (n := n+1).
+    admit.
+  - (* nflip *) 
+    apply rwP with (P := connect_fgtyp_compatible gt0 gt1 /\ check_connect_non_passive_type tl tl').
+    apply andP. split.
+    specialize IH with (n := 0); simpl in IH; done.
+    apply H.
+    intro.
+    specialize IH with (n := n+1).
+    admit.
 Admitted.
 
 Lemma listgtyp_eq t_tgt t_expr : forall n ref0 ref1 ori0 ori1 ori2 ori3 pv0 pv1 gt gte, ftype_equiv t_tgt t_expr -> nth_error (list_gtypref ref0 t_tgt ori0) n =
@@ -1149,6 +1204,193 @@ Lemma find_mux_types_n : forall t1 t2 t_expr tt1 tt2 n tte, mux_types t1 t2 = So
 with find_mux_types_n_f : forall t1 t2 t_expr tt1 tt2 n tte, mux_btyps t1 t2 = Some t_expr -> nth_error (list_gtypref_ff (0%num, 0%num) t1 false) n = Some tt1 -> 
   nth_error (list_gtypref_ff (0%num, 0%num) t2 false) n = Some tt2 -> nth_error (list_gtypref_ff (0%num, 0%num) t_expr false) n = Some tte -> mux_gtyp tt1.1.2 tt2.1.2 = Some tte.1.2.
 Proof.
+  (*clear find_mux_types_n.
+  elim.
+  intros.
+  case Ht2 : t2 => [gt||]; rewrite Ht2 in H H1; simpl in H; try discriminate.
+  case Hmux : (mux_gtyp f gt) => [gte|]; rewrite Hmux in H; try discriminate.
+  inversion H. 
+  simpl in H0; simpl in H1; simpl.
+  case Hn : n; rewrite Hn in H0 H1.
+  simpl in H0; simpl in H1.
+  inversion H0; clear H0.
+  inversion H1; clear H1.
+  rewrite -H2 -H4 Hmux.
+  simpl; done.
+  admit. (* H0 H1 为None *)
+
+  intros.
+  case Ht2 : t2 => [|atyp na|]; rewrite Ht2 in H0 H2; simpl in H0; try discriminate.
+  case Hn : (n == na); rewrite Hn in H0; try discriminate.
+  case Hmux : (mux_types f atyp) => [natyp|]; rewrite Hmux in H0; try discriminate.
+  inversion H0; clear H0.
+  simpl in H1; simpl in H2; simpl.
+  apply H with (tt1 := tt1) (tt2 := tt2) (n :=n0) in Hmux; try done.
+
+  intros.
+  case Ht2 : t2 => [||btyp]; rewrite Ht2 in H H1; simpl in H; try discriminate.
+  case Hmux : (mux_btyps f btyp) => [ff|]; rewrite Hmux in H; try discriminate.
+  inversion H; clear H H3. 
+  simpl in H0; simpl in H1; simpl.
+  move : Hmux H0 H1.
+  apply find_mux_types_n_f.
+
+  clear find_mux_types_n_f.
+  elim.
+  intros.
+  case Ht2 : t2; rewrite Ht2 in H; simpl in H; try discriminate.
+  simpl in H0.
+  apply nth_error_In in H0.
+  apply List.in_nil in H0; done.
+  intros.
+  case Ht2 : t2 => [|v' f' f0' f1']; rewrite Ht2 in H0 H2; simpl in H0; case Hf : f ;rewrite Hf in H0; try discriminate.
+  case Hf' : f'; rewrite Hf' in H0; try discriminate.
+  case Hv : (v == v'); rewrite Hv in H0; try discriminate.
+  case Hmux : (mux_types f0 f0') => [nt|]; rewrite Hmux in H0; try discriminate.
+  case Hmux' : (mux_btyps f1 f1') => [nf|]; rewrite Hmux' in H0; try discriminate.
+  simpl in H1; simpl in H2.
+  inversion H0; clear H0 H4.
+  simpl.
+  case Hn : (n < length (list_gtyp nt)).
+  assert (nth_error (list_gtyp nt ++ list_gtyp_ff nf) n = nth_error (list_gtyp nt) n).
+  admit. (* nth_error_app1 *)
+  assert (nth_error (list_gtyp f0 ++ list_gtyp_ff f1) n = nth_error (list_gtyp f0) n).
+  admit. (* nth_error_app1 *)
+  assert (nth_error (list_gtyp f0' ++ list_gtyp_ff f1') n = nth_error (list_gtyp f0') n).
+  admit. (* nth_error_app1 *)
+  rewrite H0; rewrite H3 in H1; rewrite H4 in H2.
+  move : Hmux H1 H2.
+  apply find_mux_types_n.
+  assert (nth_error (list_gtyp nt ++ list_gtyp_ff nf) n = nth_error (list_gtyp_ff nf) (n - (length (list_gtyp nt)))).
+  admit. (* nth_error_app2 *)
+  assert (nth_error (list_gtyp f0 ++ list_gtyp_ff f1) n = nth_error (list_gtyp_ff f1) (n - (length (list_gtyp nt)))).
+  admit. (* nth_error_app2 *)
+  assert (nth_error (list_gtyp f0' ++ list_gtyp_ff f1') n = nth_error (list_gtyp_ff f1') (n - (length (list_gtyp nt)))).
+  admit. (* nth_error_app2 *)
+  rewrite H0; rewrite H3 in H1; rewrite H4 in H2.
+  move : Hmux' H1 H2.
+  apply H.*)
+Admitted.
+
+Lemma combine_mux_expr_n : forall el1 el2 rhs_expr_ls n e1 e2 c, combine_mux_expr c el1 el2 = Some rhs_expr_ls -> 
+  nth_error el1 n = Some e1 -> nth_error el2 n = Some e2 -> nth_error rhs_expr_ls n = Some (Emux c e1 e2).
+Proof.
+  elim.
+  intros.
+  apply nth_error_In in H0.
+  apply List.in_nil in H0; done.
+  intros hd tl IH.
+  elim.
+  intros.
+  apply nth_error_In in H1.
+  apply List.in_nil in H1; done.
+  intros hd0 tl0 H; clear H.
+  intros.
+  simpl in H. 
+  case Hcombine : (combine_mux_expr c tl tl0) => [muxl|]; rewrite Hcombine in H; try discriminate.
+  inversion H; clear H.
+  case Hn : n => [|n']; rewrite Hn in H0 H1; simpl in H0; simpl in H1.
+  inversion H0; inversion H1.
+  simpl; done.
+  assert (Emux c hd hd0 :: muxl = [::Emux c hd hd0] ++ muxl).
+  simpl; done.
+  rewrite H; clear H.
+  apply IH with (n := n') (e1 := e1) (e2 := e2) in Hcombine; try done.
+Qed.
+
+Lemma ftype_equiv_split_eq : forall s t1 t2, ftype_equiv t1 t2 -> list_gtypexpr s t1 = list_gtypexpr s t2.
+Proof.
+Admitted.
+
+Lemma mux_types_eq : forall t1 t2 t, mux_types t1 t2 = Some t -> ftype_equiv t1 t2 /\ ftype_equiv t2 t
+with mux_btyps_eq : forall t1 t2 t, mux_btyps t1 t2 = Some t -> fbtyp_equiv t1 t2 /\ fbtyp_equiv t2 t.
+Proof.
+  elim.
+  intros.
+  case Ht2 : t2 => [gt||]; rewrite Ht2 in H; simpl in H; try discriminate.
+  case Hmux : (mux_gtyp f gt) => [gte|]; rewrite Hmux in H; try discriminate.
+  inversion H. 
+  case Hf : f => [w|w|w|w|||]; rewrite Hf in Hmux.
+  case Hgt : gt => [w'|w'|w'|w'|||]; rewrite Hgt in Hmux; simpl in Hmux; try discriminate; inversion Hmux; simpl; done.
+  case Hgt : gt => [w'|w'|w'|w'|||]; rewrite Hgt in Hmux; simpl in Hmux; try discriminate; inversion Hmux; simpl; done.
+  case Hgt : gt => [w'|w'|w'|w'|||]; rewrite Hgt in Hmux; simpl in Hmux; try discriminate; inversion Hmux; simpl; done.
+  case Hgt : gt => [w'|w'|w'|w'|||]; rewrite Hgt in Hmux; simpl in Hmux; try discriminate; inversion Hmux; simpl; done.
+  case Hgt : gt => [w'|w'|w'|w'|||]; rewrite Hgt in Hmux; simpl in Hmux; try discriminate; inversion Hmux; simpl; done.
+  case Hgt : gt => [w'|w'|w'|w'|||]; rewrite Hgt in Hmux; simpl in Hmux; try discriminate; inversion Hmux; simpl; done.
+  case Hgt : gt => [w'|w'|w'|w'|||]; rewrite Hgt in Hmux; simpl in Hmux; try discriminate; inversion Hmux; simpl; done.
+  
+  intros.
+  case Ht2 : t2 => [|atyp na|]; rewrite Ht2 in H0; simpl in H0; try discriminate.
+  case Hn : (n == na); rewrite Hn in H0; try discriminate.
+  case Hmux : (mux_types f atyp) => [gte|]; rewrite Hmux in H0; try discriminate; inversion H0; clear H0.
+  move /eqP : Hn => Hn.
+  simpl.
+  rewrite Hn eq_refl.
+  apply H in Hmux.
+  move : Hmux => [Hmux Hmux'].
+  rewrite Hmux Hmux'; done.
+
+  clear mux_types_eq.
+  intros.
+  case Ht2 : t2 => [||btyp]; rewrite Ht2 in H; simpl in H; try discriminate.
+  case Hmux : (mux_btyps f btyp) => [ff|]; rewrite Hmux in H; try discriminate; inversion H; clear H.
+  simpl.
+  apply mux_btyps_eq in Hmux; done.
+
+  clear mux_btyps_eq.
+  elim.
+  intros.
+  case Ht2 : t2; rewrite Ht2 in H; simpl in H; try discriminate.
+  inversion H.
+  simpl; done.
+  intros.
+  case Ht2 : t2 => [|v' f' f0' f1']; rewrite Ht2 in H0; simpl in H0; case Hf : f; rewrite Hf in H0; try discriminate.
+  case Hf' : f'; rewrite Hf' in H0; try discriminate.
+  case Hv : (v == v'); rewrite Hv in H0; try discriminate.
+  case Hmux : (mux_types f0 f0') => [nt|]; rewrite Hmux in H0; try discriminate.
+  case Hmux' : (mux_btyps f1 f1') => [nf|]; rewrite Hmux' in H0; try discriminate.
+  inversion H0; clear H0.
+  move /eqP : Hv => Hv.
+  simpl.
+  rewrite Hv eq_refl.
+  apply mux_types_eq in Hmux.
+  move : Hmux => [Hmux H0].
+  rewrite Hmux H0.
+  apply H in Hmux'.
+  move : Hmux' => [Hmux' H3].
+  rewrite Hmux' H3; done.
+Qed.
+
+Lemma mux_expr_type_equiv : forall c s1 s2 tmap te te1 te2, type_of_expr (Emux c s1 s2) tmap = Some te -> type_of_expr s1 tmap = Some te1 -> 
+  type_of_expr s2 tmap = Some te2 -> ftype_equiv te te1 /\ ftype_equiv te te2.
+Proof.
+  intros.
+  simpl in H.
+  case Hc : (type_of_expr c tmap) => [f|]; rewrite Hc in H; try discriminate.
+  case Hf : f => [gt||]; rewrite Hf in H; try discriminate.
+  case Hgt : gt => [w|w|w|w|||]; rewrite Hgt in H; try discriminate.
+  case Hw : w => [|n0]; rewrite Hw in H; try discriminate.
+  case Hn0 : n0; rewrite Hn0 in H; try discriminate.
+  rewrite H0 H1 in H.
+  apply mux_types_eq in H.
+  move : H => [H H2].
+  apply ftype_equiv_dlvr with (t1 := te1) (t2 := te2) (t3 := te) in H; try done.
+  split; try apply ftype_equiv_comm; try done.
+  case Hw : w => [|n0]; rewrite Hw in H; try discriminate.
+  case Hn0 : n0; rewrite Hn0 in H; try discriminate.
+  rewrite H0 H1 in H.
+  apply mux_types_eq in H.
+  move : H => [H H2].
+  apply ftype_equiv_dlvr with (t1 := te1) (t2 := te2) (t3 := te) in H; try done.
+  split; try apply ftype_equiv_comm; try done.
+Qed.
+
+Lemma list_gtypref_sndeq: forall ft n pv0 gt ori0, nth_error (list_gtypref (N0,N0) ft false) n = Some (pv0, gt, ori0) -> (forall r, (exists pv, nth_error (list_gtypref r ft false) n = Some (pv, gt, ori0))).
+Proof.
+Admitted.
+
+Lemma list_gtypref_correct : forall r tmap ft ori n pv gt ori0, type_of_ref r tmap = Some (ft, ori) -> nth_error (list_gtypref r ft false) n = Some (pv, gt, ori0) -> type_of_ref pv tmap = Some (Gtyp (gt), ori0).
+Proof.
 Admitted.
 
 Lemma split_expr_type_correct : forall expr newtm(*, match expr with
@@ -1165,19 +1407,6 @@ Lemma split_expr_type_correct : forall expr newtm(*, match expr with
     end
   (*end*).
 Proof.
-  (*elim.
-  - (* const *)
-    intros. simpl in H; simpl in H0; inversion H0; clear H0 H2.
-    case Hf : f =>[w|w|w|w|||]; rewrite Hf in H; inversion H; clear H.
-    1,2,5,6,7 : rewrite -Hf in H1; simpl; destruct n as [|n]; simpl.
-    1,3,5,7,9 : done.
-    1,2,3,4,5 : assert (H: (@List.length (ProdVarOrder.t * fgtyp * bool) [::] <= n)%coq_nat) by apply Nat.le_0_l ;
-                     apply List.nth_error_None in H; rewrite H //.
-    1,2 : simpl;  destruct n as [|n]; simpl.
-    1,3 : done.
-    1,2 : assert (H: (@List.length (ProdVarOrder.t * fgtyp * bool) [::] <= n)%coq_nat) by apply Nat.le_0_l ;
-    apply List.nth_error_None in H; rewrite H //.*)
-
   elim.
   - (* const *)
     intros; simpl in H0;inversion H0; clear H0.
@@ -1216,13 +1445,14 @@ Proof.
     intro n. 
     case Hrhsn : (nth_error rhs_expr_ls n) => [texpr|]; try done.
     generalize Hs1e.
-    apply Hs1 with (rhs_expr_ls := el1) (n:= n) in Hs1e; try done.
+    apply Hs1 with (rhs_expr_ls := el1) (n:= n) in Hs1e; try done; clear Hs1.
     move => Hs1e'.
-    apply Hs2 with (rhs_expr_ls := el2) (n:= n) in Hs2e; try done.
-    case Hs1n : (nth_error (list_gtypref (0%num, 0%num) t1 false) n) => [tt1|]; rewrite Hs1n in Hs1e.
-    case Hs2n : (nth_error (list_gtypref (0%num, 0%num) t2 false) n) => [tt2|]; rewrite Hs2n in Hs2e.
-    (*apply find_mux_types_n with (n := n) (tt1 := tt1) (tt2 := tt2) in Hte; try done.
-    rewrite Hten in Hte; clear Hten.
+    apply Hs2 with (rhs_expr_ls := el2) (n:= n) in Hs2e; try done; clear Hs2.
+    case Hs1n : (nth_error (list_gtypref (0%num, 0%num) t1 false) n) => [[[pv1 tt1] ori1]|]; rewrite Hs1n in Hs1e.
+    case Hs2n : (nth_error (list_gtypref (0%num, 0%num) t2 false) n) => [[[pv2 tt2] ori2]|]; rewrite Hs2n in Hs2e.
+    case Hten : (nth_error (list_gtypref (0%num, 0%num) t_expr false) n) => [[[tpv gte] ori0]|]; try done.
+    apply find_mux_types_n with (n := n) (tt1 := (pv1, tt1, ori1)) (tt2 := (pv2, tt2, ori2)) (tte := (tpv, gte, ori0)) in Hte; try done.
+    simpl in Hte; clear Hc.
     assert (exists e1, nth_error el1 n = Some e1).
     admit. (* t_expr 和 t1 满足ftype_equiv，由Hs1n 和 Hsplit1知el1的长度小于n *)
     destruct H as [e1 He1].
@@ -1248,66 +1478,452 @@ Proof.
     done.
     apply mux_expr_type_equiv with (c := c) (s1 := s1) (s2 := s2) (te := t_expr) (te1 := t1) (te2 := t2) in Hte'; try done.
     move : Hte' => [Hte' _]; done.
-  - (* case1 : c 为 uint_implicit1 *)
-    case Hw : w => [|n0]; rewrite Hw in Hte; try discriminate.
-    case Hw' : n0; rewrite Hw' in Hte Hw; try discriminate.
-    rewrite Hw in Hcf; clear Hw Hw' Hcgt w n0 cgt.
-    case Hs1e : (type_of_expr s1 tmap) => [t1|]; rewrite Hs1e in Hte; try discriminate.
-    case Hs2e : (type_of_expr s2 tmap) => [t2|]; rewrite Hs2e in Hte; try discriminate.
-    intro n. 
-    case Hten : (nth_error (list_gtyp t_expr) n) => [gte|]; try done.
-    case Hrhsn : (nth_error rhs_expr_ls n) => [texpr|]; try done.
-    generalize Hs1e.
-    apply Hs1 with (rhs_expr_ls := el1) (n:= n) in Hs1e; try done.
-    move => Hs1e'.
-    apply Hs2 with (rhs_expr_ls := el2) (n:= n) in Hs2e; try done.
-    case Hs1n : (nth_error (list_gtyp t1) n) => [tt1|]; rewrite Hs1n in Hs1e.
-    case Hs2n : (nth_error (list_gtyp t2) n) => [tt2|]; rewrite Hs2n in Hs2e.
-    apply find_mux_types_n with (n := n) (tt1 := tt1) (tt2 := tt2) in Hte; try done.
-    rewrite Hten in Hte; clear Hten.
-    assert (exists e1, nth_error el1 n = Some e1).
-    admit. (* t_expr 和 t1 满足ftype_equiv，由Hs1n 和 Hsplit1知el1的长度小于n *)
-    destruct H as [e1 He1].
-    assert (exists e2, nth_error el2 n = Some e2).
+    admit. (* not None *)
+  - (* case2 : c 为 uint_implicit1 *)
     admit.
-    destruct H as [e2 He2].
-    rewrite He1 in Hs1e; rewrite He2 in Hs2e.
-    apply combine_mux_expr_n with (n := n) (el1 := el1) (el2 := el2) (e1 := e1) (e2 := e2) in Hsplit; try done.
-    rewrite Hsplit in Hrhsn; clear Hsplit.
-    inversion Hrhsn; clear Hrhsn H0.
-    simpl.
-    rewrite Hce Hcf Hs1e Hs2e.
-    simpl; rewrite Hte; done.
-    admit. (* not None *)
-    admit. (* not None *)
-    specialize ftype_equiv_split_eq with (s := s2) (t1 := t_expr) (t2 := t2); intro.
-    rewrite H in Hsplit2.
-    done.
-    apply mux_expr_type_equiv with (c := c) (s1 := s1) (s2 := s2) (te := t_expr) (te1 := t1) (te2 := t2) in Hte'; try done.
-    move : Hte' => [_ Hte']; done.
-    specialize ftype_equiv_split_eq with (s := s1) (t1 := t_expr) (t2 := t1); intro.
-    rewrite H in Hsplit1.
-    done.
-    apply mux_expr_type_equiv with (c := c) (s1 := s1) (s2 := s2) (te := t_expr) (te1 := t1) (te2 := t2) in Hte'; try done.
-    move : Hte' => [Hte' _]; done.
 
   (* validif *)
-  admit. (* validif *)
+  admit. 
 
   (* ref *)
   intros ref.
-  intros rhs_expr_ls t_expr tmap Hte Hsplit.
+  intros tmap rhs_expr_ls t_expr Hte Hsplit.
   simpl in Hsplit.
   case Href : ref => [r|||]; rewrite Href in Hsplit; try discriminate.
-  case Hsplit1 : (split_expr r t_expr) => [refl|]; rewrite Hsplit1 in Hsplit; try discriminate.
   inversion Hsplit; clear Hsplit H0.
   simpl in Hte; rewrite Href in Hte. 
   intros n.
-  case Hfind : (nth_error (list_gtyp t_expr) n) => [gt|]; try done.
-  case Hnth : (nth_error [seq Eref (Eid (var:=ProdVarOrder.T) tref) | tref <- refl] n) => [texpr|]; try done.
-  move : Hte Hsplit1 Hnth Hfind.
-  apply split_ref_correct.*)
+  case Ht : (type_of_ref r tmap) => [[ft ori]|]; rewrite Ht in Hte; try discriminate; inversion Hte; rewrite H0 in Ht; clear Hte H0 ft.
+  case Hfind : (nth_error (list_gtypref (0%num, 0%num) t_expr false) n) => [[[pv0 gt] ori0]|]; try done.
+  specialize list_gtypref_sndeq with (r := r); intro.
+  apply H in Hfind; clear H; destruct Hfind as [pv Hfind].
+  rewrite nth_error_map Hfind; simpl.
+  apply list_gtypref_correct with (tmap := tmap) (ori := ori) in Hfind; try done; rewrite Hfind //.
 Admitted.
+
+Lemma num_ref_eq : forall checkt nt0, ftype_equiv checkt nt0 -> num_ref checkt = num_ref nt0
+with num_ref_eq_f : forall checkf nf0, fbtyp_equiv checkf nf0 -> num_ff checkf = num_ff nf0.
+Proof.
+  clear num_ref_eq.
+  elim.
+  intros gt nt0 Heq.
+  case Hnt0 : nt0 => [gt0||]; rewrite Hnt0 in Heq; try discriminate.
+  simpl; done.
+
+  intros f H n nt0 Heq.
+  case Hnt0 : nt0 => [|atyp na|]; rewrite Hnt0 in Heq; try discriminate.
+  intros; simpl in Heq; simpl.
+  move /andP : Heq => [H0 Heq].
+  move /eqP : H0 => H0; rewrite H0.
+  apply H in Heq; rewrite Heq; done.
+
+  intros f nt0 Heq. 
+  case Hnt0 : nt0 => [||btyp]; rewrite Hnt0 in Heq; try discriminate.
+  simpl; simpl in Heq.
+  apply num_ref_eq_f in Heq; rewrite Heq; done.
+
+  clear num_ref_eq_f.
+  elim.
+  intros.
+  simpl in H.
+  case Hnf0 : nf0; rewrite Hnf0 in H; try discriminate; try done.
+  intros v fl ft ff H nf0 Heq.
+  case Hnf0 :  nf0 => [|v' fl' ft' ff']; rewrite Hnf0 in Heq; simpl in Heq; case Hf : fl; rewrite Hf in Heq; try discriminate.
+  case Hf' : fl'; rewrite Hf' in Heq; try discriminate.
+  move /andP : Heq => [Heq0 Heq1].
+  move /andP : Heq0 => [_ Heq2].
+  apply num_ref_eq in Heq2.
+  apply H in Heq1.
+  simpl; rewrite Heq1 Heq2; done.
+  case Hf' : fl'; rewrite Hf' in Heq; try discriminate.
+  move /andP : Heq => [Heq0 Heq1].
+  move /andP : Heq0 => [_ Heq2].
+  apply num_ref_eq in Heq2.
+  apply H in Heq1.
+  simpl; rewrite Heq1 Heq2; done.
+Qed.
+
+Lemma num_ref_gt1 : forall ft, 1 <= num_ref ft.
+Proof.
+  elim.
+  intros; simpl; done.
+  intros; simpl; rewrite addn1; apply ltn0Sn.
+  intros; simpl; rewrite addn1; apply ltn0Sn. 
+Qed.
+
+Lemma set_find_sub : forall checkt nt nt0 n b, ft_set_sub checkt nt n = Some nt0 -> ftype_equiv checkt nt0 -> exists b0, ft_find_sub nt0 n b = Some (Gtyp nt, b0)
+with set_find_sub_f : forall checkf nf nf0 n b, ft_set_sub_f checkf nf n = Some nf0 -> fbtyp_equiv checkf nf0 -> exists b0, ft_find_sub_f nf0 n b = Some (Gtyp nf, b0).
+Proof.
+  clear set_find_sub.
+  elim.
+  - (* set gtyp *)
+    intros f nt nt0 n b Hset Heq.
+    simpl in Heq.
+    simpl in Hset.
+    case Ha : (n == 0%num); rewrite Ha in Hset; try discriminate.
+    inversion Hset; clear Hset H0.
+    case Hnt0 : nt0 => [f0||]; rewrite Hnt0 in Heq; try discriminate.
+    simpl; rewrite Ha; exists b; done.
+  - (* set array *)
+    intros f H fn nt nt0 n b Hset Heq.
+    simpl in Hset.
+    case Ha0 : (n == 0%num); rewrite Ha0 in Hset.
+    inversion Hset; clear Hset.
+    case Ht : nt0 => [|atyp na|]; rewrite Ht in Heq; simpl in Heq; try discriminate.
+    simpl; rewrite Ha0.
+    move /andP : Heq => [Heq0 Heq1].
+    generalize Heq1.
+    apply num_ref_eq in Heq1; move /eqP : Heq0 => Heq0; rewrite -Heq0 -Heq1.
+    move => Heq1'.
+    case Ha1 : (num_ref f * fn <= N.to_nat n - 1); rewrite Ha1 in Hset; try discriminate.
+    case Ha : ((N.to_nat n - 1) mod num_ref f == 0).
+    move /eqP : Ha => Ha; rewrite Ha in Hset.
+    case Hset' : (ft_set_sub f nt (N.of_nat 0)) => [natyp|]; rewrite Hset' in Hset; try discriminate.
+    case Hf : f => [gt||]; rewrite Hf in Hset'; simpl in Hset'; try discriminate.
+    inversion Hset'; inversion Hset; clear Hset' Hset.
+    rewrite -H2 -H1 in Ht.
+    inversion Ht; exists b; done.
+    apply H; try done. 
+    case Hset' : (ft_set_sub f nt (N.of_nat ((N.to_nat n - 1) mod num_ref f))) => [natyp|]; 
+      rewrite Hset' in Hset; try discriminate.
+    rewrite Ht in Hset.
+    inversion Hset; clear Hset; done.
+  - (* set btyp *)
+    intros f nt nt0 n b Hset Heq.
+    simpl in Hset.
+    case Ha : (n == 0%num); rewrite Ha in Hset; try discriminate.
+    case Hset' : (ft_set_sub_f f nt n) => [newf|]; rewrite Hset' in Hset; try discriminate.
+    inversion Hset; clear Hset.
+    simpl.
+    rewrite Ha.
+    rewrite -H0 in Heq; simpl in Heq. 
+    move : Hset' Heq; apply set_find_sub_f.
+
+  clear set_find_sub_f.
+  intros checkf.
+  induction checkf.
+  - (* induction case1 *)
+    intros nf nf0 n Hset Heq.
+    simpl in Hset; discriminate.
+  - (* induction case2 *)
+    intros nf nf0 n b Hset Heq.
+    simpl in Hset.
+    case Hnf0 :  nf0 => [|v' fl' ft' ff']; rewrite Hnf0 in Heq; simpl in Heq; case Hf : f; rewrite Hf in Heq; try discriminate.
+    - (* flip *)
+      case Hf' : fl'; rewrite Hf' in Heq; try discriminate.
+      simpl.
+      case Hn : (n == 1%num).
+      - move /eqP : Hn => Hn; rewrite Hn in Hset.
+        assert ((num_ref f0 < N.to_nat 1) = false).
+        apply leq_gtF; apply num_ref_gt1.
+        rewrite H in Hset.
+        rewrite N.sub_diag in Hset.
+        case Hset' : (ft_set_sub f0 nf 0) => [newt'|]; rewrite Hset' in Hset; try discriminate.
+        rewrite Hnf0 in Hset; clear Hnf0; rewrite Hf in Hset; clear Hf f; rewrite Hf' in Hset; clear Hf' fl'.
+        inversion Hset; clear Hset; rewrite H2 in Hset'; clear H2 newt' IHcheckf H1 H3.
+        move /andP : Heq => [Heq _]; move /andP : Heq => [_ Heq].
+        specialize set_find_sub with (checkt := f0) (nt := nf) (nt0 := ft') (n := N0) (b := b).
+        apply set_find_sub in Hset'; try done.
+        destruct Hset' as [b0 Hset'].
+        case Hf0 : f0 => [gt||]; rewrite Hf0 in Heq; simpl in Heq; case Hft' : ft' => [gt'||]; rewrite Hft' in Heq Hset'; simpl in Hset'; try discriminate.
+        inversion Hset'; clear Hset'; exists (~~b0); done.
+      - move /andP : Heq => [Heq0 Heq1]; move /andP : Heq0 => [_ Heq2].
+        generalize Heq2.
+        apply num_ref_eq in Heq2; rewrite -Heq2.
+        move => Heq2'.
+        case Ha : (num_ref f0 < N.to_nat n); rewrite Ha in Hset.
+        - case Hset' : (ft_set_sub_f checkf nf (N.of_nat (N.to_nat n - num_ref f0))) => [newf|]; rewrite Hset' in Hset; try discriminate.
+          rewrite Hnf0 in Hset.
+          inversion Hset; clear Hset.
+          rewrite H3 in Hset'; rewrite -Heq2.
+          move : Hset' Heq1.
+          apply IHcheckf.
+        - case Hset' : (ft_set_sub f0 nf (n - 1)) => [newt'|]; rewrite Hset' in Hset; try discriminate.
+          rewrite Hnf0 in Hset; inversion Hset; clear Hset.
+          rewrite H2 in Hset'.
+          move : Hset' Heq2'.
+          apply set_find_sub.
+    - (* nflip *)
+      case Hf' : fl'; rewrite Hf' in Heq; try discriminate.
+      simpl.
+      case Hn : (n == 1%num).
+      - move /eqP : Hn => Hn; rewrite Hn in Hset.
+        assert ((num_ref f0 < N.to_nat 1) = false).
+        apply leq_gtF; apply num_ref_gt1.
+        rewrite H in Hset.
+        rewrite N.sub_diag in Hset.
+        case Hset' : (ft_set_sub f0 nf 0) => [newt'|]; rewrite Hset' in Hset; try discriminate.
+        rewrite Hnf0 in Hset; clear Hnf0; rewrite Hf in Hset; clear Hf f; rewrite Hf' in Hset; clear Hf' fl'.
+        inversion Hset; clear Hset; rewrite H2 in Hset'; clear H2 newt' IHcheckf H1 H3.
+        move /andP : Heq => [Heq _]; move /andP : Heq => [_ Heq].
+        specialize set_find_sub with (checkt := f0) (nt := nf) (nt0 := ft') (n := N0) (b := b).
+        apply set_find_sub in Hset'; try done.
+        destruct Hset' as [b0 Hset'].
+        case Hf0 : f0 => [gt||]; rewrite Hf0 in Heq; simpl in Heq; case Hft' : ft' => [gt'||]; rewrite Hft' in Heq Hset'; simpl in Hset'; try discriminate.
+        inversion Hset'; clear Hset'; exists (b0); done.
+      - move /andP : Heq => [Heq0 Heq1]; move /andP : Heq0 => [_ Heq2].
+        generalize Heq2.
+        apply num_ref_eq in Heq2; rewrite -Heq2.
+        move => Heq2'.
+        case Ha : (num_ref f0 < N.to_nat n); rewrite Ha in Hset.
+        - case Hset' : (ft_set_sub_f checkf nf (N.of_nat (N.to_nat n - num_ref f0))) => [newf|]; rewrite Hset' in Hset; try discriminate.
+          rewrite Hnf0 in Hset.
+          inversion Hset; clear Hset.
+          rewrite H3 in Hset'; rewrite -Heq2.
+          move : Hset' Heq1.
+          apply IHcheckf.
+        - case Hset' : (ft_set_sub f0 nf (n - 1)) => [newt'|]; rewrite Hset' in Hset; try discriminate.
+          rewrite Hnf0 in Hset; inversion Hset; clear Hset.
+          rewrite H2 in Hset'.
+          move : Hset' Heq2'.
+          apply set_find_sub.
+Qed.
+
+Lemma max_compatible' : forall gte gt tmax, max_fgtyp gte gt = Some tmax -> (sizeof_fgtyp gte <= sizeof_fgtyp tmax) && fgtyp_equiv tmax gte && fgtyp_equiv tmax gt && (sizeof_fgtyp gt <= sizeof_fgtyp tmax).
+Proof.
+  intros.
+  case Hgte : gte => [w'|w'|w'|w'|||]; rewrite Hgte in H.
+  (* gte = Gtyp (uint w') *)
+  - case Hgt : gt => [ow'|ow'|ow'|ow'|||]; rewrite Hgt in H; simpl in Hgt; simpl in H; try discriminate.
+    inversion H; clear H.
+    simpl.
+    rewrite Nat.max_comm.
+    apply rwP with (P := (w' <= Nat.max ow' w') && true && true /\ (ow' <= Nat.max ow' w')).
+    apply andP.
+    split; try apply Nats.le_leq; try apply Nat.le_max_l.
+    apply rwP with (P := (w' <= Nat.max ow' w') && true /\ true).
+    apply andP.
+    split; try done.
+    apply rwP with (P := (w' <= Nat.max ow' w') /\ true).
+    apply andP.
+    split; try done; try apply Nats.le_leq; try apply Nat.le_max_r.
+  - case Hgt : gt => [ow'|ow'|ow'|ow'|||]; rewrite Hgt in H; simpl in Hgt; simpl in H; try discriminate.
+    inversion H; clear H.
+    simpl.
+    rewrite Nat.max_comm.
+    apply rwP with (P := (w' <= Nat.max ow' w') && true && true /\ (ow' <= Nat.max ow' w')).
+    apply andP.
+    split; try apply Nats.le_leq; try apply Nat.le_max_l.
+    apply rwP with (P := (w' <= Nat.max ow' w') && true /\ true).
+    apply andP.
+    split; try done.
+    apply rwP with (P := (w' <= Nat.max ow' w') /\ true).
+    apply andP.
+    split; try done; try apply Nats.le_leq; try apply Nat.le_max_r.
+  - case Hgt : gt => [ow'|ow'|ow'|ow'|||]; rewrite Hgt in H; simpl in Hgt; simpl in H; try discriminate.
+    inversion H; clear H.
+    simpl.
+    rewrite Nat.max_comm.
+    apply rwP with (P := (w' <= Nat.max ow' w') && true && true /\ (ow' <= Nat.max ow' w')).
+    apply andP.
+    split; try apply Nats.le_leq; try apply Nat.le_max_l.
+    apply rwP with (P := (w' <= Nat.max ow' w') && true /\ true).
+    apply andP.
+    split; try done.
+    apply rwP with (P := (w' <= Nat.max ow' w') /\ true).
+    apply andP.
+    split; try done; try apply Nats.le_leq; try apply Nat.le_max_r.
+  - case Hgt : gt => [ow'|ow'|ow'|ow'|||]; rewrite Hgt in H; simpl in Hgt; simpl in H; try discriminate.
+    inversion H; clear H.
+    simpl.
+    rewrite Nat.max_comm.
+    apply rwP with (P := (w' <= Nat.max ow' w') && true && true /\ (ow' <= Nat.max ow' w')).
+    apply andP.
+    split; try apply Nats.le_leq; try apply Nat.le_max_l.
+    apply rwP with (P := (w' <= Nat.max ow' w') && true /\ true).
+    apply andP.
+    split; try done.
+    apply rwP with (P := (w' <= Nat.max ow' w') /\ true).
+    apply andP.
+    split; try done; try apply Nats.le_leq; try apply Nat.le_max_r.
+  - case Hgt : gt => [ow'|ow'|ow'|ow'|||]; rewrite Hgt in H; simpl in Hgt; simpl in H; try discriminate.
+  - case Hgt : gt => [ow'|ow'|ow'|ow'|||]; rewrite Hgt in H; simpl in Hgt; simpl in H; try discriminate.
+  - case Hgt : gt => [ow'|ow'|ow'|ow'|||]; rewrite Hgt in H; simpl in Hgt; simpl in H; try discriminate.
+Qed.
+
+Lemma max_compatible : forall el tmap eftl initt tmax, fil_ftlist (map (fun e => type_of_expr e tmap) el) = Some eftl -> forall expr gte, expr \in el -> type_of_expr expr tmap = Some (Gtyp gte) -> max_ftlist eftl initt = Some tmax -> (sizeof_fgtyp gte <= sizeof_fgtyp tmax) && fgtyp_equiv tmax gte.
+Proof.
+  elim.
+  intros.
+  rewrite in_nil in H0; discriminate.
+  intros hd tl IH tmap eftl initt tmax Hfil expr gte Hin Hgte Hmax.
+  rewrite in_cons in Hin.
+  case Heq : (expr == hd).
+  (* case1 *)
+  move /eqP : Heq => Heq.
+  rewrite Heq in Hgte.
+  simpl in Hfil. 
+  rewrite Hgte in Hfil. 
+  case Hfil' : (fil_ftlist [seq type_of_expr e tmap | e <- tl]) => [eftl'|]; rewrite Hfil' in Hfil; try discriminate.
+  inversion Hfil; clear Hfil.
+  rewrite -H0 in Hmax.
+  simpl in Hmax.
+  case Hmax' : (max_ftlist eftl' initt) => [tmax'|]; rewrite Hmax' in Hmax; try discriminate.
+  specialize max_compatible' with (gte := gte) (gt := tmax') (tmax := tmax); intro.
+  apply H in Hmax; clear H.
+  move /andP : Hmax => [H1 _].
+  move /andP : H1 => [H1 _]; done.
+  (* case2 *)
+  rewrite Heq in Hin.
+  rewrite orb_false_l in Hin; clear Heq.
+  simpl in Hfil.
+  case Hhd : (type_of_expr hd tmap) => [t|]; rewrite Hhd in Hfil;  try discriminate.
+  case Hgt : t =>[gt||]; rewrite Hgt in Hfil; try discriminate.
+  case Hfil' : (fil_ftlist [seq type_of_expr e tmap | e <- tl]) => [eftl'|]; rewrite Hfil' in Hfil; try discriminate.
+  inversion Hfil; clear Hfil.
+  rewrite -H0 in Hmax.
+  simpl in Hmax.
+  case Hmax' : (max_ftlist eftl' initt) => [tmax'|]; rewrite Hmax' in Hmax; try discriminate.
+  apply IH with (initt := initt) (tmax := tmax') (expr := expr) (gte := gte) in Hfil'; try done.
+  move /andP : Hfil' => [H1 H2].
+  apply rwP with (P := (sizeof_fgtyp gte <= sizeof_fgtyp tmax) /\ fgtyp_equiv tmax gte).
+  apply andP.
+  split.
+  specialize max_compatible' with (gte := gt) (gt := tmax') (tmax := tmax); intro H.
+  apply H in Hmax; clear H.
+  move /andP : Hmax => [_ H3].
+  move : H1 H3.
+  apply leq_trans.
+  specialize max_compatible' with (gte := gt) (gt := tmax') (tmax := tmax); intro H.
+  apply H in Hmax; clear H.
+  move /andP : Hmax => [Hmax _].
+  move /andP : Hmax => [_ H3].
+  move : H3 H2.
+  apply fgtyp_equiv_dlvr.
+Qed.
+
+Lemma max_ftlist_correct : forall eftl initt tmax, max_ftlist eftl initt = Some tmax -> (not_implicit initt = false -> not_implicit tmax = false) /\ fgtyp_equiv initt tmax.
+Proof.
+  elim.
+  intros.
+  split.
+  intros.
+  simpl in H. 
+  inversion H.
+  rewrite -H2; done.
+  simpl in H. 
+  inversion H.
+  apply fgtyp_equiv_refl.
+
+  intros hd tl H init nt Hl.
+  split.
+  intro Himpli.
+  simpl in Hl. 
+  case Htl : (max_ftlist tl init) => [nt'|]; rewrite Htl in Hl; try discriminate.
+  apply H in Htl; try done.
+  rewrite /max_fgtyp in Hl.
+  case Hhd : hd; rewrite Hhd in Hl; try discriminate.
+  case Hnt' : nt'; rewrite Hnt' in Hl Htl; try discriminate; inversion Hl; simpl; try done.
+  case Hnt' : nt'; rewrite Hnt' in Hl Htl; try discriminate; inversion Hl; simpl; try done.
+  case Hnt' : nt'; rewrite Hnt' in Hl Htl; try discriminate; inversion Hl; simpl; try done.
+  case Hnt' : nt'; rewrite Hnt' in Hl Htl; try discriminate; inversion Hl; simpl; try done.
+
+  simpl in Hl. 
+  case Htl : (max_ftlist tl init) => [nt'|]; rewrite Htl in Hl; try discriminate.
+  apply H in Htl; try done.
+  move : Htl => [_ Htl].
+  specialize max_compatible' with (gte := hd) (gt := nt') (tmax := nt); intro.
+  apply H0 in Hl; clear H0.
+  move /andP : Hl => [H1 _].
+  move /andP : H1 => [_ H1].
+  assert (fgtyp_equiv nt' nt).
+  apply fgtyp_equiv_comm; done.
+  move : Htl H0.
+  apply fgtyp_equiv_dlvr.
+Qed.
+
+Lemma type_of_expr_eq : forall pv el tmap newtm, InferWidth_fun pv el tmap = Some newtm -> forall expr, expr \in el -> type_of_expr expr tmap = type_of_expr expr newtm.
+Proof.
+Admitted.
+
+Lemma ft_set_sub_eq : forall checkt nt' nt0 n init b b0, ft_find_sub checkt n b = Some (init, b0) -> ftype_equiv init (Gtyp nt') -> ft_set_sub checkt nt' n = Some nt0 -> ftype_equiv checkt nt0
+with ft_set_sub_eq_f : forall checkf nf' nf0 n init b b0, ft_find_sub_f checkf n b = Some (init, b0) -> ftype_equiv init (Gtyp nf') -> ft_set_sub_f checkf nf' n = Some nf0 -> fbtyp_equiv checkf nf0.
+Proof.
+  clear ft_set_sub_eq.
+  elim.
+  - (* set gtyp *)
+    intros f nt nt0 n init b b0 Hfind Heq Hset.
+    simpl in Hset.
+    case Hn : (n == 0%num); rewrite Hn in Hset; try discriminate.
+    inversion Hset; simpl.
+    move /eqP : Hn => Hn; rewrite Hn in Hfind; simpl in Hfind; inversion Hfind; clear Hfind.
+    rewrite -H1 in Heq; simpl in Heq; done.
+  - (* set aggt *)
+    intros f H n0 nt nt0 n init b b0 Hfind Heq Hset.
+    simpl in Hset.
+    simpl in Hfind.
+    case Ha0 : (n == 0%num); rewrite Ha0 in Hset Hfind; try discriminate.
+    case Hn : (num_ref f * n0 <= N.to_nat n - 1); rewrite Hn in Hset Hfind; try discriminate.
+    case Ha : ((N.to_nat n - 1) mod num_ref f == 0); rewrite Ha in Hfind.
+    move /eqP : Ha => Ha; rewrite Ha in Hset.
+    case Hset' : (ft_set_sub f nt (N.of_nat 0)) => [natyp|]; rewrite Hset' in Hset; try discriminate.
+    case Hf : f => [gt||]; rewrite Hf in Hset'; simpl in Hset'; try discriminate.
+    inversion Hset'; inversion Hset; inversion Hfind; clear Hset' Hset Hfind.
+    rewrite -Hf H3 -H1; simpl; rewrite eq_refl Heq //.
+    case Hset' : (ft_set_sub f nt (N.of_nat ((N.to_nat n - 1) mod num_ref f))) => [natyp|]; 
+      rewrite Hset' in Hset; try discriminate.
+    inversion Hset; clear Hset.
+    simpl; rewrite eq_refl.
+    apply H with (init := init) (b := b) (b0 := b0) in Hset'; try done.
+  - (* set btyp *)
+    intros f nt nt0 cnt init b b0 Hfind Heq Hset.
+    simpl in Hfind.
+    simpl in Hset.
+    case Ha : (cnt == 0%num); rewrite Ha in Hfind Hset; try discriminate.
+    case Hset' : (ft_set_sub_f f nt cnt) => [nf|]; rewrite Hset' in Hset; try discriminate.
+    inversion Hset; clear Hset.
+    simpl.
+    move : Hfind Heq Hset'.
+    apply ft_set_sub_eq_f.
+
+  (* field *)
+  clear ft_set_sub_eq_f.
+  induction checkf.
+  - (* Fnil *)
+    intros.
+    simpl in H; discriminate.
+  - (* ffield *)
+    intros nt nf0 cnt init b b0 Hfind Heq Hset.
+    simpl in Hfind.
+    simpl in Hset.
+    case Ha : (cnt == 1%num); rewrite Ha in Hfind.
+    - move /eqP : Ha => Ha; rewrite Ha in Hset. 
+      assert ((num_ref f0 < N.to_nat 1) = false) by (apply leq_gtF; apply num_ref_gt1; rewrite H in Hset; rewrite N.sub_diag in Hset).
+      rewrite H in Hset.
+      rewrite N.sub_diag in Hset.
+      case Hset' : (ft_set_sub f0 nt 0) => [newt'|]; rewrite Hset' in Hset; try discriminate.
+      inversion Hset; clear Hset; simpl.
+      case Hf: f; rewrite Hf in Hfind; inversion Hfind; clear Hfind.
+      - (* flip *)
+        rewrite H2 in Hset' H; rewrite Hf in H1; clear H2 f0 H3 b b0 Hf f.
+        case Hinit : init => [ginit||]; rewrite Hinit in Hset' Heq; simpl in Hset'; simpl in Heq; try discriminate.
+        inversion Hset'; simpl; rewrite eq_refl fbtyp_equiv_refl Heq; done.
+      - (* nflip *)
+        rewrite H2 in Hset' H; rewrite Hf in H1; clear H2 f0 H3 b b0 Hf f.
+        case Hinit : init => [ginit||]; rewrite Hinit in Hset' Heq; simpl in Hset'; simpl in Heq; try discriminate.
+        inversion Hset'; simpl; rewrite eq_refl fbtyp_equiv_refl Heq; done.
+    - case Hn : (num_ref f0 < N.to_nat cnt); rewrite Hn in Hset Hfind.
+      - case Hset' : (ft_set_sub_f checkf nt (N.of_nat (N.to_nat cnt - num_ref f0))) => [newf|]; rewrite Hset' in Hset; try discriminate.
+        inversion Hset; clear Hset.
+        simpl.
+        case Hf: f; rewrite Hf in Hfind; inversion Hfind; clear Hfind.
+        - (* flip *)
+          apply IHcheckf with (init := init) (b := b) (b0 := b0) in Hset'; try done.
+          rewrite eq_refl ftype_equiv_refl Hset'; done.
+        - (* nflip *)
+          apply IHcheckf with (init := init) (b := b) (b0 := b0) in Hset'; try done.
+          rewrite eq_refl ftype_equiv_refl Hset'; done.
+      - case Hset' : (ft_set_sub f0 nt (cnt - 1)) => [newt'|]; rewrite Hset' in Hset; try discriminate.
+        inversion Hset; clear Hset.
+        simpl.
+        case Hf: f; rewrite Hf in Hfind; inversion Hfind; clear Hfind.
+        - (* flip *)
+          apply ft_set_sub_eq with (init := init) (b := ~~b) (b0 := b0) in Hset'; try done.
+          rewrite eq_refl fbtyp_equiv_refl Hset'; done.
+        - (* nflip *)
+          apply ft_set_sub_eq with (init := init) (b := b) (b0 := b0) in Hset'; try done.
+          rewrite eq_refl fbtyp_equiv_refl Hset'; done.
+Qed.
 
 Lemma InferWidth_fun_correct : forall pv el tmap newtm, InferWidth_fun pv el tmap = Some newtm -> forall expr, expr \in el -> 
       match CEP.find (fst pv, N0) newtm with
@@ -1319,47 +1935,34 @@ Lemma InferWidth_fun_correct : forall pv el tmap newtm, InferWidth_fun pv el tma
       end.
 Proof.
   intros pv el tmap newtm Hinfer expr Hin.
-  rewrite /InferWidth_fun in Hinfer.
-  (*case Hel : (fil_ftlist [seq type_of_expr e tmap | e <- el]) => [eftl|]; rewrite Hel in Hinfer; try discriminate.
-  case Hinit : (CEP.find (pv.1, 0%num) tmap) => [init|]; rewrite Hinit in Hinfer; try discriminate.
-  case Hinitt : (ft_find_sub init pv.2) => [initt|]; rewrite Hinitt in Hinfer; try discriminate.
-  case Hcheckt : (CEP.find (pv.1, 0%num) newtm) => [checkt|]; try done.
-  case Hnt : (ft_find_sub checkt pv.2) => [nt|]; try done.
-  case Hinitt' : nt => [initt'||]; try done.
+  generalize Hinfer; rewrite /InferWidth_fun in Hinfer; intro Hinfer'.
+  case Hel : (fil_ftlist [seq type_of_expr e tmap | e <- el]) => [eftl|]; rewrite Hel in Hinfer; try discriminate.
+  case Hinit : (CEP.find (pv.1, 0%num) tmap) => [[init ori]|]; rewrite Hinit in Hinfer; try discriminate.
+  case Hinitt : (ft_find_sub init pv.2 false) => [[initt ori0]|]; rewrite Hinitt in Hinfer; try discriminate.
   case Hinitt'' : initt => [initt''||]; rewrite Hinitt'' in Hinfer; try discriminate.
-  case Hte : (type_of_expr expr newtm) => [te|]; try done.
-  case Hgte : te => [gte||]; rewrite Hgte in Hte; try done.
-  intro Heq.
-  case Himpli' : (not_implicit initt''); rewrite Himpli' in Hinfer.
-  inversion Hinfer.
-  rewrite H0 in Hinit; rewrite Hinit in Hcheckt; inversion Hcheckt; rewrite H1 in Hinitt; rewrite Hinitt in Hnt; inversion Hnt; rewrite Hinitt'' Hinitt' in H2.
-  inversion H2; rewrite H3 in Himpli'.
-  rewrite /connect_fgtyp_compatible Himpli'; done.
-  (* case2 *)
   case Hmax : (max_ftlist eftl initt'') => [tmax|]; rewrite Hmax in Hinfer; try discriminate.
   case Hset : (ft_set_sub init tmax pv.2) => [nt0|]; rewrite Hset in Hinfer; try discriminate.
+  apply type_of_expr_eq with (expr := expr) in Hinfer'; try done; rewrite -Hinfer'; clear Hinfer'.
   inversion Hinfer; clear Hinfer.
-  rewrite -H0 in Hte Hcheckt; clear H0.
-  rewrite HiFP.PCELemmas.OP.P.F.add_eq_o in Hcheckt; try apply CEP.SE.eq_refl.
-  inversion Hcheckt; clear Hcheckt.
-  rewrite -H0 in Hnt; clear H0.
-  apply set_find_sub in Hset; try done.
-  rewrite Hset in Hnt; clear Hset.
-  inversion Hnt; clear Hnt.
-  rewrite Hinitt' in H0; inversion H0; rewrite H1 in Hmax; clear H0 H1 tmax Hinitt' nt.
-  generalize Hmax.
-  apply max_ftlist_correct in Hmax; move : Hmax => [Hmax _]; apply Hmax in Himpli'; clear Hmax.
-  move => Hmax.
-  rewrite /connect_type_compatible.
-  simpl.
-  rewrite /connect_fgtyp_compatible.
-  rewrite Himpli'.
-  rewrite type_of_expr_eq in Hte; try done.
-  apply max_compatible with (el := el) (tmap := tmap) (eftl := eftl) (initt := initt'') (expr := expr); try done.
-  apply ft_set_sub_eq with (nt' := tmax) (n := pv.2) (init := initt); try done.
+  rewrite CEP.Lemmas.find_add_eq; try apply CEP.SE.eq_refl; clear H0 newtm.
+  case Hnt : (ft_find_sub nt0 pv.2 false) => [[nt orin]|]; try done.
+  case Hinitt' : nt => [initt'||]; try done.
+  specialize set_find_sub with (checkt := init) (nt := tmax) (n := pv.2) (nt0 := nt0) (b := false); intro.
+  generalize Hset; apply H in Hset; try done; clear H.
+  destruct Hset as [b0 Hset]; rewrite Hnt in Hset; inversion Hset; clear Hset; intro Hset.
+  rewrite H1 in Hnt; clear H1 orin; rewrite H0 in Hinitt'; inversion Hinitt'; clear Hinitt'.
+  rewrite H0 in Hnt; clear H0 nt; rewrite -H1; clear H1 initt'; rewrite Hinitt'' in Hinitt; clear Hinitt'' initt.
+  assert (Himpli : not_implicit initt'' = false).
+  admit.
+  generalize Hmax; apply max_ftlist_correct in Hmax; move : Hmax => [Hmax _]; apply Hmax in Himpli; clear Hmax; intro Hmax.
+  case Hte : (type_of_expr expr tmap) => [te|]; try done.
+  case Hgt : te => [gt||]; try done.
+  intro; rewrite /connect_fgtyp_compatible Himpli.
+  rewrite Hgt in Hte; clear Hgt te; apply max_compatible with (el := el) (tmap := tmap) (expr := expr) (gte := gt) in Hmax; try done.
+  move /andP : Hmax => [Hmax H1]; rewrite H1 Hmax //. 
+  apply ft_set_sub_eq with (nt' := tmax) (nt0 := nt0) in Hinitt; try done.
   rewrite Hinitt''; simpl.
-  apply max_ftlist_correct with (eftl := eftl) (initt := initt'') (tmax := tmax); done.
-Qed.*)
+  apply max_ftlist_correct in Hmax; move : Hmax => [_ Hmax]; done.
 Admitted.
 
 Lemma list_fsteq : forall ref_tgt tgt v_tgt ori, In v_tgt (list_gtypref ref_tgt tgt ori) -> ref_tgt.1 = v_tgt.1.1.1.
@@ -1918,8 +2521,7 @@ Lemma find_sub_exprs_correct : forall v ps ss tmap var2exprs, ports_stmts_tmap' 
 Proof.
 Admitted.
 
-Lemma set_find_sub : forall checkt nt nt0 n ori ori_v initt, ft_find_sub checkt n ori_v = Some (Gtyp initt, ori) -> ft_set_sub checkt nt n = Some nt0 -> ft_find_sub nt0 n ori_v = Some (Gtyp nt, ori)
-with set_find_sub_f : forall checkf nf nf0 n ori ori_v initt, ft_find_sub_f checkf n ori_v = Some (Gtyp initt, ori) -> ft_set_sub_f checkf nf n = Some nf0 -> ft_find_sub_f nf0 n ori_v = Some (Gtyp nf, ori).
+Lemma ft_find_sub_orieq : forall init v a b nt nt0, ft_find_sub init v false = Some a -> ft_set_sub init nt v = Some nt0 -> ft_find_sub nt0 v false = Some b -> a.2 = b.2.
 Proof.
 Admitted.
 
@@ -1999,9 +2601,14 @@ Proof.
   move : Horder2 Hinfer2'.
   admit.
   rewrite H /type_of_ref -H0 CEP.Lemmas.find_add_eq; clear H; try apply PVM.SE.eq_refl. 
-  move : Hf Hset.
-  apply set_find_sub.
-
+  specialize set_find_sub with (checkt := init) (nt := nt) (n := v.2) (nt0 := nt0) (b := false); intro.
+  generalize Hset; apply H in Hset; clear H; try done.
+  intro Hset'; destruct Hset as [b0 Hset].
+  apply ft_find_sub_orieq with (a := (Gtyp initt, ori)) (b := (Gtyp nt, b0)) in Hset'; try done; simpl in Hset'.
+  rewrite -Hset' in Hset; clear Hset' b0; done.
+  apply ft_set_sub_eq with (nt' := nt) (nt0 := nt0) in Hf; try done.
+  simpl.
+  apply max_ftlist_correct in Hmax; move : Hmax => [_ Hmax]; done.
   admit. (* None则有错 *)
   admit. (* None则有错 *)
   case Ht : (CEP.find v vm); try done.
