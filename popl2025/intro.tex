@@ -20,6 +20,8 @@
 %a subset of register-transfer level (RTL) Verilog programs to netlist level programs for field-programmable gate array (FPGA)~\cite{Loow21,loowphd21},
 %and the extension of CompCert (called Vericert) for compiling %compiling C programs to Verilog programs~\cite{HerklotzPRW21}.
 %a subset of C programs to RTL Verilog programs~\cite{HerklotzPRW21}.
+%
+%
 %Following this promising research direction, in this work, we establish for the first time a framework that formally reasons about programs in FIRRTL~\cite{firrtl-spec} (Flexible Intermediate Representation for RTL) and its lowering transformations (aka compilation passes).
 
 FIRRTL originated from the high-level hardware construction language Chisel~\cite{BachrachVRLWAWA12}.
@@ -37,18 +39,21 @@ and modules so that Chisel programs can easily be translated into FIRRTL.
 %
 High-level synthesis is performed on FIRRTL by a sequence of compilation passes and optimizations,
 resulting in a most restricted form that is close to RTL Verilog, called low FIRRTL (abbreviated as LoFIRRTL).
-For clarity, let us call FIRRTL with high-level constructs \emph{high FIRRTL} (abbreviated as HiFIRRTL).
+For clarity, let us call FIRRTL with high-level constructs \emph{high FIRRTL} (abbreviated as HiFIRRTL). \tl{this is also mentioned later on}
+
+
+
 While FIRRTL was designed to compile Chisel programs, it is not tied to Chisel. Other hardware description languages can also be compiled into FIRRTL and reuse the majority of the FIRRTL compilation passes. For instance, FIRRTL has been integrated into the CIRCT project~\cite{CIRCT} as one of its core dialects.
 
 %%%%%% resolved conflicts
 %%%%%% resolved conflicts
-\hide{
-The FIRRTL intermediate representation was proposed for the compilation of Chisel programs~\cite{IzraelevitzKLLW17},
-analogous to the role of the LLVM IR~\cite{LLVM} for compiling C programs.
-FIRRTL features first-class support for high-level constructs
-such as vector types, bundle types, conditional statements, connects, partial connects,
-and modules so that Chisel programs can easily be translated into FIRRTL.
-}
+%\hide{
+%The FIRRTL intermediate representation was proposed for the compilation of Chisel programs~\cite{IzraelevitzKLLW17},
+%analogous to the role of the LLVM IR~\cite{LLVM} for compiling C programs.
+%FIRRTL features first-class support for high-level constructs
+%such as vector types, bundle types, conditional statements, connects, partial connects,
+%and modules so that Chisel programs can easily be translated into FIRRTL.
+%}
 %%%%%% resolved conflicts
 %%%%%% resolved conflicts
 
@@ -65,20 +70,13 @@ the FIRRTL compiler also suffers from lots of bugs due to its inherent complexit
 %
 Nevertheless, partially due to the fact that Chisel and FIRRTL are relatively new and the ecosystem around them is still evolving, formalization and verification of FIRRTL and its lowering transformations are largely missing, with only an exception, i.e. \cite{HarrisonHA21}. 
 In \cite{HarrisonHA21}, a coinductive denotational semantics for an idealized subset of LoFIRRTL was proposed and formalized in the Agda proof assistant, based on a formalism called device calculus. Nevertheless, while \cite{HarrisonHA21} made some progress in the formalization of LoFIRRTL, a general framework where programs in HiFIRRTL and its lowering transformations can be formally reasoned about is still elusive. The establishment of such a framework would require
-%\begin{itemize}
-%\item
 a mechanized operational semantics of LoFIRRTL,
-%
-%\item
 validation of the conformance of the semantics to the FIRRTL reference interpreter,
-%
-%\item
 formalization of HiFIRRTL and its lowering transformations,
-%
-%\item
 as well as specification and verification of the correctness of its lowering transformations.
-%\end{itemize}
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+ 
 %\smallskip
 %\noindent
 %{\bf Contributions.}
