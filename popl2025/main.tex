@@ -304,33 +304,33 @@
 
 
 \begin{abstract}
-FIRRTL is an intermediate representation for the Chisel hardware construction \tl{description?} language
-and has been intensively used in designing RISC-V CPUs.
-FIRRTL features high-level constructs such as vector and bundle,
-which are then removed by a sequence of lowering transformations,
-resulting in a restricted form referred to as ``low FIRRTL".
-%
-This paper presents Vefirrtl, a framework to formally reason about programs in FIRRTL and its lowering transformations.
-Vefirrtl provides a mechanized formal semantics for low FIRRTL,
-and formalizes the syntax of FIRRTL and its lowering transformations \tl{??}, all in
-the interactive theorem prover Coq.
-%Vefirrtl is built using the Coq interactive theorem prover.
-%It provides a mechanized formal semantics for low FIRRTL,
-%and Moreover, it formalizes the syntax of FIRRTL and its lowering transformations.
-%To validate the formal semantics %for low FIRRTL,
-we extract an OCaml interpreter from the formal semantics which %low FIRRTL  that 
-can execute low FIRRTL programs,
-and empirically check its consistency against Treadle,
-the low FIRRTL reference interpreter,
-on a benchmark suite comprising 120 low FIRRTL programs.
-%
-Experimental results show that our OCaml interpreter is 6.95 times faster than Treadle on average, and
-produces the same outputs as Treadle for almost all the benchmarks
-except for one due to an undefined semantics in low FIRRTL.
-Furthermore, we specify and verify the functional correctness of two key lowering transformations,
-namely ``ExpandConnects'' and ``ExpandWhens'',
-which expands the connect statements for vector and bundle types,
-and replaces conditional statements with multiplexers, respectively.
+%FIRRTL is an intermediate representation for the Chisel hardware construction \tl{description?} language
+%and has been intensively used in designing RISC-V CPUs.
+%FIRRTL features high-level constructs such as vector and bundle,
+%which are then removed by a sequence of lowering transformations,
+%resulting in a restricted form referred to as ``low FIRRTL".
+%%
+%This paper presents Vefirrtl, a framework to formally reason about programs in FIRRTL and its lowering transformations.
+%Vefirrtl provides a mechanized formal semantics for low FIRRTL,
+%and formalizes the syntax of FIRRTL and its lowering transformations \tl{??}, all in
+%the interactive theorem prover Coq.
+%%Vefirrtl is built using the Coq interactive theorem prover.
+%%It provides a mechanized formal semantics for low FIRRTL,
+%%and Moreover, it formalizes the syntax of FIRRTL and its lowering transformations.
+%%To validate the formal semantics %for low FIRRTL,
+%we extract an OCaml interpreter from the formal semantics which %low FIRRTL  that 
+%can execute low FIRRTL programs,
+%and empirically check its consistency against Treadle,
+%the low FIRRTL reference interpreter,
+%on a benchmark suite comprising 120 low FIRRTL programs.
+%%
+%Experimental results show that our OCaml interpreter is 6.95 times faster than Treadle on average, and
+%produces the same outputs as Treadle for almost all the benchmarks
+%except for one due to an undefined semantics in low FIRRTL.
+%Furthermore, we specify and verify the functional correctness of two key lowering transformations,
+%namely ``ExpandConnects'' and ``ExpandWhens'',
+%which expands the connect statements for vector and bundle types,
+%and replaces conditional statements with multiplexers, respectively.
 %
 \end{abstract}
 
@@ -401,34 +401,36 @@ and replaces conditional statements with multiplexers, respectively.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\begin{itemize}
-\item sec 2: informal overview of FIRRTL and its transformations
+%\begin{itemize}
+%\item sec 2: informal overview of FIRRTL and its transformations
+%
+%\item sec 3: Formal semantics of FIRRTL
+%\begin{itemize}
+%\item module graphs
+%\item structural semantics of FIRRTL as sets of module graphs
+%\end{itemize}
+%
+%\item G(P): the set of module graphs of  P
+%
+%-- behavioral semantics for module graphs, interpreter
+%
+%\item sec 4: functional correctness of compilation passes 
+%
+%-- correctness of a compilation pass InferWidths: 
+%for each high FIRRTL program P, if G(P) is nonempty, then IW(P) succeeds, and G(IW(P)) is the minimum one among G(P)
+%
+%-- ExpandConnects, ExpandWhens: G(T(P)) = G(P)
+%
+%\item sec 5: extraction of an OCAML compiler from Coq code
+%
+%comparison with the official compiler
+%\end{itemize}
 
-\item sec 3: Formal semantics of FIRRTL
-\begin{itemize}
-\item module graphs
-\item structural semantics of FIRRTL as sets of module graphs
-\end{itemize}
-
-\item G(P): the set of module graphs of  P
-
--- behavioral semantics for module graphs, interpreter
-
-\item sec 4: functional correctness of compilation passes 
-
--- correctness of a compilation pass InferWidths: 
-for each high FIRRTL program P, if G(P) is nonempty, then IW(P) succeeds, and G(IW(P)) is the minimum one among G(P)
-
--- ExpandConnects, ExpandWhens: G(T(P)) = G(P)
-
-\item sec 5: extraction of an OCAML compiler from Coq code
-
-comparison with the official compiler
-\end{itemize}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \section{Introduction}
 
-\input{intro}
+%\input{intro}
 
 %==================================================================
 \section{FIRRTL IR and Its Transformations}\label{sec-firrtl}
@@ -437,21 +439,13 @@ comparison with the official compiler
 
 %===================================================================
 
-\section{Formalization of Low FIRRTL}\label{sec-form-low-firrtl}
+\section{Formal semantics of FIRRTL}\label{sec-form-low-firrtl}
 
-\subsection{Operational Semantics of LoFIRRTL}\label{sec-lofirrtl-sem}
+%\subsection{Operational Semantics of LoFIRRTL}\label{sec-lofirrtl-sem}
 
-\input{form-firrtl-low}
+%\input{form-firrtl-low}
 
-\subsection{Extraction of the OCaml LoFIRRTL Interpreter}
 
-\input{firrtl-interpret-extraction}
-
-\subsection{Validation of the OCaml LoFIRRTL Interpreter}\label{sec-validate-interpreter}
-
-\input{firrtl-interpret-validation}
-
-%\subsection{Low FIRRTL OCaml Interpreter: Extraction and Validation}
 
 %===================================================================
 
@@ -466,46 +460,27 @@ comparison with the official compiler
 
 \input{form-firrtl-transform}
 
+%functional correctness of compilation passes 
+
 \section{Specification and Verification of Functional Correctness of $\bf ExpandConnects$ and $\bf ExpandWhens$}\label{sec-spec-verif-expand}
 
 \input{verif-firrtl-transform}
 
 
-%\hide{
-%\begin{table}
-%  \caption{Frequency of Special Characters}
-%  \label{tab:freq}
-%  \begin{tabular}{ccl}
-%    \toprule
-%    Non-English or Math&Frequency&Comments\\
-%    \midrule
-%    \O & 1 in 1,000& For Swedish names\\
-%    $\pi$ & 1 in 5& Common in math\\
-%    \$ & 4 in 5 & Used in business\\
-%    $\Psi^2_1$ & 1 in 40,000& Unexplained usage\\
-%  \bottomrule
-%\end{tabular}
-%\end{table}
-%}
+\section{Extraction of the OCaml Compiler} \label{sect:ocamlcompiler}
 
+%\subsection{Extraction of the OCaml LoFIRRTL Interpreter}
 
+%\input{firrtl-interpret-extraction}
 
+%\subsection{Validation of the OCaml LoFIRRTL Interpreter}\label{sec-validate-interpreter}
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%\hide{
-%\begin{figure}[h]
-%  \centering
-%  \includegraphics[width=\linewidth]{sample-franklin}
-%  \caption{1907 Franklin Model D roadster. Photograph by Harris \&
-%    Ewing, Inc. [Public domain], via Wikimedia
-%    Commons. (\url{https://goo.gl/VLCRBB}).}
-%  \Description{A woman and a girl in white dresses sit in an open car.}
-%\end{figure}
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%}
+%\input{firrtl-interpret-validation}
 
+%\subsection{Low FIRRTL OCaml Interpreter: Extraction and Validation}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+ 
 \section{Related work}\label{sec-related-work}
 
 \input{related}
