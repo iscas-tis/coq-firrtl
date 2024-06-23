@@ -1157,7 +1157,7 @@ Lemma check_connect_non_passive_type_correct : forall ft te, (forall n,
   | None, None => true
   |  _, _ => false
   end) -> check_connect_non_passive_type ft te.
-  Proof.
+Proof.
   elim.
   elim.
   simpl; done.
@@ -1199,10 +1199,10 @@ Lemma infer_cons_order : forall order1 order2 var2exprs tmap tmap' newtm, InferW
 Proof.
 Admitted.
 
-Lemma find_mux_types_n : forall t1 t2 t_expr tt1 tt2 n tte, mux_types t1 t2 = Some t_expr -> nth_error (list_gtypref (0%num, 0%num) t1 false) n = Some tt1 -> 
-  nth_error (list_gtypref (0%num, 0%num) t2 false) n = Some tt2 -> nth_error (list_gtypref (0%num, 0%num) t_expr false) n = Some tte -> mux_gtyp tt1.1.2 tt2.1.2 = Some tte.1.2
-with find_mux_types_n_f : forall t1 t2 t_expr tt1 tt2 n tte, mux_btyps t1 t2 = Some t_expr -> nth_error (list_gtypref_ff (0%num, 0%num) t1 false) n = Some tt1 -> 
-  nth_error (list_gtypref_ff (0%num, 0%num) t2 false) n = Some tt2 -> nth_error (list_gtypref_ff (0%num, 0%num) t_expr false) n = Some tte -> mux_gtyp tt1.1.2 tt2.1.2 = Some tte.1.2.
+Lemma find_mux_types_n : forall t1 t2 t_expr tt1 tt2 n tte r1 ori1 r2 ori2, mux_types t1 t2 = Some t_expr -> nth_error (list_gtypref r1 t1 ori1) n = Some tt1 -> 
+  nth_error (list_gtypref r2 t2 ori2) n = Some tt2 -> nth_error (list_gtypref (0%num, 0%num) t_expr false) n = Some tte -> mux_gtyp tt1.1.2 tt2.1.2 = Some tte.1.2
+with find_mux_types_n_f : forall t1 t2 t_expr tt1 tt2 n tte r1 ori1 r2 ori2, mux_btyps t1 t2 = Some t_expr -> nth_error (list_gtypref_ff r1 t1 ori1) n = Some tt1 -> 
+  nth_error (list_gtypref_ff r2 t2 ori2) n = Some tt2 -> nth_error (list_gtypref_ff (0%num, 0%num) t_expr false) n = Some tte -> mux_gtyp tt1.1.2 tt2.1.2 = Some tte.1.2.
 Proof.
   (*clear find_mux_types_n.
   elim.
@@ -1385,27 +1385,31 @@ Proof.
   split; try apply ftype_equiv_comm; try done.
 Qed.
 
-Lemma list_gtypref_sndeq: forall ft n pv0 gt ori0, nth_error (list_gtypref (N0,N0) ft false) n = Some (pv0, gt, ori0) -> (forall r, (exists pv, nth_error (list_gtypref r ft false) n = Some (pv, gt, ori0))).
+Lemma list_gtypref_fsteq: forall r ori1 ft1 ft2 n pv gt1 ori ori', ftype_equiv ft2 ft1 -> nth_error (list_gtypref r ft1 ori) n = Some (pv, gt1, ori1) -> (exists gt2 ori2, nth_error (list_gtypref r ft2 ori') n = Some (pv, gt2, ori2)).
 Proof.
 Admitted.
 
-Lemma list_gtypref_correct : forall r tmap ft ori n pv gt ori0, type_of_ref r tmap = Some (ft, ori) -> nth_error (list_gtypref r ft false) n = Some (pv, gt, ori0) -> type_of_ref pv tmap = Some (Gtyp (gt), ori0).
+(*Lemma list_gtypref_sndeq: forall r1 r2 ori1 ori2 ft n pv0 gt ori0, nth_error (list_gtypref r1 ft ori1) n = Some (pv0, gt, ori0) -> (exists pv ori, nth_error (list_gtypref r2 ft ori2) n = Some (pv, gt, ori)).
 Proof.
+Admitted.*)
+
+Lemma list_gtypref_correct ref_tgt : forall tmap t_tgt ori n pv0 gt ori0, type_of_ref ref_tgt tmap = Some (t_tgt, ori) -> nth_error (list_gtypref ref_tgt t_tgt ori) n = Some (pv0, gt, ori0) -> type_of_ref pv0 tmap = Some (Gtyp gt, ori0).
+Proof. (* 和 list_gtypref_correct 一样！ *)
 Admitted.
 
-Lemma split_expr_type_correct : forall expr newtm(*, match expr with
-  | Eref (Eid ref_src) => (*forall ft ori, type_of_ref ref_src newtm = Some (ft, ori) -> 
+Lemma split_expr_type_correct : forall expr newtm, match expr with
+  | Eref (Eid ref_src) => forall ft ori, type_of_ref ref_src newtm = Some (ft, ori) -> 
     forall n, match nth_error (list_gtypref ref_src ft ori) n with
     | Some (ref0, gt, ori0) => type_of_ref ref0 newtm = Some (Gtyp gt, ori0)
     | _ => true
-    end*) true
+    end
   | Eref _ => true
-  | _ => forall *)rhs_expr_ls t_expr, type_of_expr expr newtm = Some t_expr -> list_gtypexpr expr t_expr = Some rhs_expr_ls ->
+  | _ => forall rhs_expr_ls t_expr, type_of_expr expr newtm = Some t_expr -> list_gtypexpr expr t_expr = Some rhs_expr_ls ->
     forall n, match nth_error (list_gtypref (0%num, 0%num) t_expr false) n, nth_error rhs_expr_ls n with
     | Some (_, gt, _), Some texpr => type_of_expr texpr newtm = Some (Gtyp gt)
     | _, _ => true
     end
-  (*end*).
+  end.
 Proof.
   elim.
   - (* const *)
@@ -1445,60 +1449,178 @@ Proof.
     intro n. 
     case Hrhsn : (nth_error rhs_expr_ls n) => [texpr|]; try done.
     generalize Hs1e.
-    apply Hs1 with (rhs_expr_ls := el1) (n:= n) in Hs1e; try done; clear Hs1.
-    move => Hs1e'.
-    apply Hs2 with (rhs_expr_ls := el2) (n:= n) in Hs2e; try done; clear Hs2.
-    case Hs1n : (nth_error (list_gtypref (0%num, 0%num) t1 false) n) => [[[pv1 tt1] ori1]|]; rewrite Hs1n in Hs1e.
-    case Hs2n : (nth_error (list_gtypref (0%num, 0%num) t2 false) n) => [[[pv2 tt2] ori2]|]; rewrite Hs2n in Hs2e.
-    case Hten : (nth_error (list_gtypref (0%num, 0%num) t_expr false) n) => [[[tpv gte] ori0]|]; try done.
-    apply find_mux_types_n with (n := n) (tt1 := (pv1, tt1, ori1)) (tt2 := (pv2, tt2, ori2)) (tte := (tpv, gte, ori0)) in Hte; try done.
-    simpl in Hte; clear Hc.
-    assert (exists e1, nth_error el1 n = Some e1).
-    admit. (* t_expr 和 t1 满足ftype_equiv，由Hs1n 和 Hsplit1知el1的长度小于n *)
-    destruct H as [e1 He1].
-    assert (exists e2, nth_error el2 n = Some e2).
-    admit.
-    destruct H as [e2 He2].
-    rewrite He1 in Hs1e; rewrite He2 in Hs2e.
-    apply combine_mux_expr_n with (n := n) (el1 := el1) (el2 := el2) (e1 := e1) (e2 := e2) in Hsplit; try done.
-    rewrite Hsplit in Hrhsn; clear Hsplit.
-    inversion Hrhsn; clear Hrhsn H0.
-    simpl.
-    rewrite Hce Hcf Hs1e Hs2e.
-    simpl; rewrite Hte; done.
-    admit. (* not None *)
-    admit. (* not None *)
-    specialize ftype_equiv_split_eq with (s := s2) (t1 := t_expr) (t2 := t2); intro.
-    rewrite H in Hsplit2.
-    done.
-    apply mux_expr_type_equiv with (c := c) (s1 := s1) (s2 := s2) (te := t_expr) (te1 := t1) (te2 := t2) in Hte'; try done.
-    move : Hte' => [_ Hte']; done.
-    specialize ftype_equiv_split_eq with (s := s1) (t1 := t_expr) (t2 := t1); intro.
-    rewrite H in Hsplit1.
-    done.
-    apply mux_expr_type_equiv with (c := c) (s1 := s1) (s2 := s2) (te := t_expr) (te1 := t1) (te2 := t2) in Hte'; try done.
-    move : Hte' => [Hte' _]; done.
-    admit. (* not None *)
+    specialize Hs1 with (newtm := tmap); case He1 : s1 => [|||||| r1 ]; rewrite He1 in Hs1;
+    specialize Hs2 with (newtm := tmap); case He2 : s2 => [|||||| r2 ]; rewrite He2 in Hs2.
+    - (* s1,s2 一般expr *)
+      1,2,3,4,5,6,8,9,10,11,12,13,15,16,17,18,19,20,22,23,24,25,26,27,29,30,31,32,33,34,36,37,38,39,40,41
+       : rewrite -He1; rewrite -He1 in Hs1; rewrite -He2 in Hs2; clear He1 He2;
+      apply Hs1 with (rhs_expr_ls := el1) (n:= n) in Hs1e; try done; clear Hs1.
+      1,3,5,7,9,11,13,15,17,19,21,23,25,27,29,31,33,35,37,39,41,43,45,47,49,51,53,55,57,59,61,63,65,67,69,71 : 
+      move => Hs1e'.
+      1-36 : apply Hs2 with (rhs_expr_ls := el2) (n:= n) in Hs2e; try done; clear Hs2;
+      case Hs1n : (nth_error (list_gtypref (0%num, 0%num) t1 false) n) => [[[pv1 tt1] ori1]|]; rewrite Hs1n in Hs1e.
+      - (* some *)
+        1,5,9,13,17,21,25,29,33,37,41,45,49,53,57,61,65,69,73,77,81,85,89,93,97,101,105,109,113,117,121,125,129,133,137,141 : 
+        case Hs2n : (nth_error (list_gtypref (0%num, 0%num) t2 false) n) => [[[pv2 tt2] ori2]|]; rewrite Hs2n in Hs2e.
+        - (* some *)
+          1,3,5,7,9,11,13,15,17,19,21,23,25,27,29,31,33,35,37,39,41,43,45,47,49,51,53,55,57,59,61,63,65,67,69,71 : 
+          case Hten : (nth_error (list_gtypref (0%num, 0%num) t_expr false) n) => [[[tpv gte] ori0]|]; try done.
+          - (* some *)
+            1-36 : apply find_mux_types_n with (n := n) (r1 := (N0,N0)) (r2 := (N0,N0)) (ori1 := false) (ori2 := false) (tt1 := (pv1, tt1, ori1)) (tt2 := (pv2, tt2, ori2)) (tte := (tpv, gte, ori0)) in Hte; try done;
+            simpl in Hte; clear Hc;
+            assert (exists e1, nth_error el1 n = Some e1) by admit;
+              (* t_expr 和 t1 满足ftype_equiv，由Hs1n 和 Hsplit1知el1的长度小于n *)
+            destruct H as [e1 He1];
+            assert (exists e2, nth_error el2 n = Some e2) by admit;
+            destruct H as [e2 He2];
+            rewrite He1 in Hs1e; rewrite He2 in Hs2e;
+            apply combine_mux_expr_n with (n := n) (el1 := el1) (el2 := el2) (e1 := e1) (e2 := e2) in Hsplit; try done;
+            rewrite Hsplit in Hrhsn; clear Hsplit;
+            inversion Hrhsn; clear Hrhsn H0;
+            simpl;
+            rewrite Hce Hcf Hs1e Hs2e;
+            simpl; rewrite Hte; done.
+          - (* none *)
+            1-36 : admit. (* not None *)
+      - (* none *)
+        1,4,7,10,13,16,19,22,25,28,31,34,37,40,43,46,49,52,55,58,61,64,67,70,73,76,79,82,85,88,91,94,97,100,103,106 : admit. (* not None *)
+      1-72 : assert (ftype_equiv t_expr t2) by (apply mux_expr_type_equiv with (c := c) (s1 := s1) (s2 := s2) (te := t_expr) (te1 := t1) (te2 := t2) in Hte'; try done;
+      move : Hte' => [_ Hte']; done);
+      specialize ftype_equiv_split_eq with (s := s2) (t1 := t_expr) (t2 := t2); intro;
+      rewrite H0 in Hsplit2; try done.
+      1-36 : assert (ftype_equiv t_expr t1) by (apply mux_expr_type_equiv with (c := c) (s1 := s1) (s2 := s2) (te := t_expr) (te1 := t1) (te2 := t2) in Hte'; try done;
+      move : Hte' => [Hte' _]; done);
+      specialize ftype_equiv_split_eq with (s := s1) (t1 := t_expr) (t2 := t1); intro;
+      rewrite H0 in Hsplit1; try done.
+
+    - (* s1 一般expr s2 ref *)
+      1-6 : rewrite -He1; rewrite -He1 in Hs1; clear He1;
+      apply Hs1 with (rhs_expr_ls := el1) (n:= n) in Hs1e; try done; clear Hs1.
+      1,3,5,7,9,11 : 
+      move => Hs1e'.
+      1-6 : generalize Hs2e; rewrite He2 in Hs2e; intro Hs2e'; simpl in Hs2e; case Hr2 : r2 => [ref2|||]; rewrite Hr2 in Hs2e Hs2; try discriminate;
+      case Ht2 : (type_of_ref ref2 tmap) => [[ft2 ori]|]; rewrite Ht2 in Hs2e; try discriminate; inversion Hs2e; clear Hs2e; rewrite H0 in Ht2; clear H0 ft2;
+      apply Hs2 with (n := n) in Ht2; clear Hs2;
+      case Hs1n : (nth_error (list_gtypref (0%num, 0%num) t1 false) n) => [[[pv1 tt1] ori1]|]; rewrite Hs1n in Hs1e.
+      - (* some *)
+        1,3,5,7,9,11 : 
+        case Hs2n : (nth_error (list_gtypref ref2 t2 ori) n) => [[[pv2 tt2] ori2]|]; rewrite Hs2n in Ht2.
+        - (* some *)
+          1,3,5,7,9,11 : 
+          case Hten : (nth_error (list_gtypref (0%num, 0%num) t_expr false) n) => [[[tpv gte] ori0]|]; try done.
+          - (* some *)
+            1-6: apply find_mux_types_n with (n := n) (tt1 := (pv1, tt1, ori1)) (tt2 := (pv2, tt2, ori2)) (r1 := (N0,N0)) (r2 := ref2) (ori1 := false) (ori2 := ori) (tte := (tpv, gte, ori0)) in Hte; try done;
+            simpl in Hte; clear Hc;
+            assert (exists e1, nth_error el1 n = Some e1) by admit;
+              (* t_expr 和 t1 满足ftype_equiv，由Hs1n 和 Hsplit1知el1的长度小于n *)
+            destruct H as [e1 He1];
+            rewrite He1 in Hs1e;
+            rewrite He2 in Hsplit2; simpl in Hsplit2; rewrite Hr2 in Hsplit2; inversion Hsplit2; clear Hsplit2;
+            apply combine_mux_expr_n with (n := n) (el1 := el1) (el2 := el2) (e1 := e1) (e2 := (Eref (Eid pv2))) in Hsplit; try done.
+            1,3,5,7,9,11 : rewrite Hsplit in Hrhsn; clear Hsplit;
+            inversion Hrhsn; clear Hrhsn H0; simpl;
+            rewrite Hce Hcf Hs1e Ht2; simpl; rewrite Hte; done.
+            1-6 : specialize list_gtypref_fsteq with (r := ref2) (ft1 := t2) (ft2 := t_expr) (n := n) (pv := pv2) (gt1 := tt2) (ori := ori) (ori' := false) (ori1 := ori2); intro; apply H in Hs2n; clear H;
+            destruct Hs2n as [gt2 [ori2' Hs2n]].
+            1,3,5,7,9,11 : rewrite -H0 nth_error_map Hs2n; simpl; done.
+            1-6 : apply mux_expr_type_equiv with (c := c) (s1 := s1) (s2 := s2) (te := t_expr) (te1 := t1) (te2 := t2) in Hte'; try done;
+            move : Hte' => [_ Hte']; done.
+          - (* none *) 
+            1-6 : admit. (* not None *)
+        - (* none *)
+          1-6 : admit.
+        1-6 : assert (ftype_equiv t_expr t1) by (apply mux_expr_type_equiv with (c := c) (s1 := s1) (s2 := s2) (te := t_expr) (te1 := t1) (te2 := t2) in Hte'; try done;
+        move : Hte' => [Hte' _]; done);
+        specialize ftype_equiv_split_eq with (s := s1) (t1 := t_expr) (t2 := t1); intro;
+        rewrite H0 in Hsplit1; try done.
+    - (*  s2 一般expr s1 ref *)
+      1-6 : rewrite -He2 in Hs2; clear He2;
+      generalize Hs2e; apply Hs2 with (rhs_expr_ls := el2) (n:= n) in Hs2e; try done; clear Hs2.
+      1,3,5,7,9,11 : 
+      intro Hs2e'; move => Hs1e'; simpl in Hs1e'; case Hr1 : r1 => [ref1|||]; rewrite Hr1 in Hs1e' Hs1; try discriminate;
+      case Ht1 : (type_of_ref ref1 tmap) => [[ft1 ori]|]; rewrite Ht1 in Hs1e'; try discriminate; inversion Hs1e'; clear Hs1e'; rewrite H0 in Ht1; clear H0 ft1;
+      apply Hs1 with (n := n) in Ht1; clear Hs1;
+      case Hs2n : (nth_error (list_gtypref (0%num, 0%num) t2 false) n) => [[[pv2 tt2] ori2]|]; rewrite Hs2n in Hs2e.
+      - (* some *)
+        1,3,5,7,9,11 : 
+        case Hs1n : (nth_error (list_gtypref ref1 t1 ori) n) => [[[pv1 tt1] ori1]|]; rewrite Hs1n in Ht1.
+        - (* some *)
+          1,3,5,7,9,11 : 
+          case Hten : (nth_error (list_gtypref (0%num, 0%num) t_expr false) n) => [[[tpv gte] ori0]|]; try done.
+          - (* some *)
+            1-6: apply find_mux_types_n with (n := n) (tt1 := (pv1, tt1, ori1)) (tt2 := (pv2, tt2, ori2)) (r1 := ref1) (r2 := (N0,N0)) (ori1 := ori) (ori2 := false) (tte := (tpv, gte, ori0)) in Hte; try done;
+            simpl in Hte; clear Hc;
+            assert (exists e2, nth_error el2 n = Some e2) by admit;
+              (* t_expr 和 t1 满足ftype_equiv，由Hs1n 和 Hsplit1知el1的长度小于n *)
+            destruct H as [e2 He2];
+            rewrite He2 in Hs2e;
+            rewrite He1 in Hsplit1; simpl in Hsplit1; rewrite Hr1 in Hsplit1; inversion Hsplit1; clear Hsplit1;
+            apply combine_mux_expr_n with (n := n) (el1 := el1) (el2 := el2) (e1 := (Eref (Eid pv1))) (e2 := e2) in Hsplit; try done.
+            1,3,5,7,9,11 : rewrite Hsplit in Hrhsn; clear Hsplit;
+            inversion Hrhsn; clear Hrhsn H0; simpl;
+            rewrite Hce Hcf Hs2e Ht1; simpl; rewrite Hte; done.
+            1-6 : specialize list_gtypref_fsteq with (r := ref1) (ft1 := t1) (ft2 := t_expr) (n := n) (pv := pv1) (gt1 := tt1) (ori := ori) (ori' := false) (ori1 := ori1); intro; apply H in Hs1n; clear H;
+            destruct Hs1n as [gt1 [ori1' Hs1n]].
+            1,3,5,7,9,11 : rewrite -H0 nth_error_map Hs1n; simpl; done.
+            1-6 : apply mux_expr_type_equiv with (c := c) (s1 := s1) (s2 := s2) (te := t_expr) (te1 := t1) (te2 := t2) in Hte'; try done;
+            move : Hte' => [Hte' _]; done.
+          - (* none *) 
+            1-6 : admit. (* not None *)
+        - (* none *)
+          1-6 : admit.
+        1-6 : assert (ftype_equiv t_expr t2) by (apply mux_expr_type_equiv with (c := c) (s1 := s1) (s2 := s2) (te := t_expr) (te1 := t1) (te2 := t2) in Hte'; try done;
+        move : Hte' => [_ Hte']; done);
+        specialize ftype_equiv_split_eq with (s := s2) (t1 := t_expr) (t2 := t2); intro;
+        rewrite H0 in Hsplit2; try done.
+
+    - (* s1 s2 ref *)
+      move => Hs1e'; generalize Hs2e; rewrite He2 in Hs2e; rewrite He1 in Hs1e; intro Hs2e'; simpl in Hs2e; case Hr2 : r2 => [ref2|||]; rewrite Hr2 in Hs2e Hs2; try discriminate;
+      case Ht2 : (type_of_ref ref2 tmap) => [[ft2 ori2]|]; rewrite Ht2 in Hs2e; try discriminate; inversion Hs2e; clear Hs2e; rewrite H0 in Ht2; clear H0 ft2.
+      apply Hs2 with (n := n) in Ht2; clear Hs2.
+      case Hr1 : r1 => [ref1|||]; rewrite Hr1 in Hs1e Hs1; simpl in Hs1e; try discriminate.
+      case Ht1 : (type_of_ref ref1 tmap) => [[ft1 ori1]|]; rewrite Ht1 in Hs1e; try discriminate; inversion Hs1e; clear Hs1e; rewrite H0 in Ht1; clear H0 ft1.
+      apply Hs1 with (n := n) in Ht1; clear Hs1.
+      case Hs1n : (nth_error (list_gtypref ref1 t1 ori1) n) => [[[pv1 tt1] ori1']|]; rewrite Hs1n in Ht1.
+      - (* some *)
+        case Hs2n : (nth_error (list_gtypref ref2 t2 ori2) n) => [[[pv2 tt2] ori2']|]; rewrite Hs2n in Ht2.
+        - (* some *)
+          case Hten : (nth_error (list_gtypref (0%num, 0%num) t_expr false) n) => [[[tpv gte] ori0]|]; try done.
+          - (* some *)
+            apply find_mux_types_n with (n := n) (tt1 := (pv1, tt1, ori1')) (tt2 := (pv2, tt2, ori2')) (r1 := ref1) (r2 := ref2) (ori1 := ori1) (ori2 := ori2) (tte := (tpv, gte, ori0)) in Hte; try done;
+            simpl in Hte; clear Hc.
+            rewrite He1 in Hsplit1; simpl in Hsplit1; rewrite Hr1 in Hsplit1; inversion Hsplit1; clear Hsplit1.
+            rewrite He2 in Hsplit2; simpl in Hsplit2; rewrite Hr2 in Hsplit2; inversion Hsplit2; clear Hsplit2.
+            apply combine_mux_expr_n with (n := n) (el1 := el1) (el2 := el2) (e1 := (Eref (Eid pv1))) (e2 := (Eref (Eid pv2))) in Hsplit; try done.
+            rewrite Hsplit in Hrhsn; clear Hsplit;
+            inversion Hrhsn; clear Hrhsn H0; simpl.
+            rewrite Hce Hcf Ht1 Ht2; simpl; rewrite Hte; done.
+            specialize list_gtypref_fsteq with (r := ref1) (ft1 := t1) (ft2 := t_expr) (n := n) (pv := pv1) (gt1 := tt1) (ori := ori1) (ori' := false) (ori1 := ori1'); intro; apply H in Hs1n; clear H;
+            destruct Hs1n as [gt1 [ori1'' Hs1n]].
+            rewrite -H0 nth_error_map Hs1n; simpl; done.
+            rewrite -He1 in Hs1e'; apply mux_expr_type_equiv with (c := c) (s1 := s1) (s2 := s2) (te := t_expr) (te1 := t1) (te2 := t2) in Hte'; try done;
+            move : Hte' => [Hte0 Hte']; done.
+            specialize list_gtypref_fsteq with (r := ref2) (ft1 := t2) (ft2 := t_expr) (n := n) (pv := pv2) (gt1 := tt2) (ori := ori2) (ori' := false) (ori1 := ori2'); intro; apply H in Hs2n; clear H;
+            destruct Hs2n as [gt2 [ori2'' Hs2n]].
+            rewrite -H1 nth_error_map Hs2n; simpl; done.
+            rewrite -He1 in Hs1e'; apply mux_expr_type_equiv with (c := c) (s1 := s1) (s2 := s2) (te := t_expr) (te1 := t1) (te2 := t2) in Hte'; try done;
+            move : Hte' => [Hte0 Hte']; done.
+          - (* none *) 
+            admit. (* not None *)
+        - (* none *)
+          admit.
+      - admit.
   - (* case2 : c 为 uint_implicit1 *)
     admit.
 
   (* validif *)
-  admit. 
-
+  admit.
   (* ref *)
-  intros ref.
-  intros tmap rhs_expr_ls t_expr Hte Hsplit.
-  simpl in Hsplit.
-  case Href : ref => [r|||]; rewrite Href in Hsplit; try discriminate.
-  inversion Hsplit; clear Hsplit H0.
-  simpl in Hte; rewrite Href in Hte. 
-  intros n.
-  case Ht : (type_of_ref r tmap) => [[ft ori]|]; rewrite Ht in Hte; try discriminate; inversion Hte; rewrite H0 in Ht; clear Hte H0 ft.
-  case Hfind : (nth_error (list_gtypref (0%num, 0%num) t_expr false) n) => [[[pv0 gt] ori0]|]; try done.
-  specialize list_gtypref_sndeq with (r := r); intro.
-  apply H in Hfind; clear H; destruct Hfind as [pv Hfind].
-  rewrite nth_error_map Hfind; simpl.
-  apply list_gtypref_correct with (tmap := tmap) (ori := ori) in Hfind; try done; rewrite Hfind //.
+  intros ref tmap.
+  case Href : ref => [r|||];try done.
+  intros ft ori Hte n.
+  case Hfind : (nth_error (list_gtypref r ft ori) n) => [[[pv0 gt] ori0]|]; try done.
+  move : Hte Hfind.
+  apply list_gtypref_correct.
 Admitted.
 
 Lemma num_ref_eq : forall checkt nt0, ftype_equiv checkt nt0 -> num_ref checkt = num_ref nt0
@@ -1969,10 +2091,6 @@ Lemma list_fsteq : forall ref_tgt tgt v_tgt ori, In v_tgt (list_gtypref ref_tgt 
 Proof.
 Admitted.
 
-Lemma list_typeq ref_tgt : forall tmap t_tgt ori n pv0 gt ori0, type_of_ref ref_tgt tmap = Some (t_tgt, ori) -> nth_error (list_gtypref ref_tgt t_tgt ori) n = Some (pv0, gt, ori0) -> type_of_ref pv0 tmap = Some (Gtyp gt, ori).
-Proof.
-Admitted.
-
 Lemma infernotin_eq : forall pv inferorder var2exprs tmap newtm, pv \notin inferorder -> InferWidths_fun inferorder var2exprs tmap = Some newtm ->
 type_of_ref pv newtm = type_of_ref pv tmap /\ (match CEP.find pv var2exprs with
                                               | Some el => forall e, e \in el -> type_of_expr e newtm = type_of_expr e tmap
@@ -2052,12 +2170,12 @@ Proof.
   case Hinfer : (InferWidth_fun pv0 el tmap') => [newtm'|]; rewrite Hinfer in Hinfer2; try discriminate.
   case Hsplit : (list_gtypexpr expr t_expr) => [rhs_expr_ls|].
 
-  generalize Hte; apply split_expr_type_correct with (rhs_expr_ls := rhs_expr_ls) (n := n) in Hte; try done; rewrite Hrhs in Hte; intro Hte'.
-  case Htexpr : (nth_error rhs_expr_ls n) => [texpr|]; rewrite Htexpr in Hte.
-
-  (*specialize split_expr_type_correct with (expr := expr); intro H0; rewrite He in H0; rewrite -He in H0.
-  generalize Hte; apply H0 with (rhs_expr_ls := rhs_expr_ls) (n := n) in Hte; try done; rewrite Hrhs in Hte; intro Hte'; clear H0.
+  (*generalize Hte; apply split_expr_type_correct with (rhs_expr_ls := rhs_expr_ls) (n := n) in Hte; try done; rewrite Hrhs in Hte; intro Hte'.
   case Htexpr : (nth_error rhs_expr_ls n) => [texpr|]; rewrite Htexpr in Hte.*)
+
+  specialize split_expr_type_correct with (expr := expr); intro H0; rewrite He in H0; rewrite -He in H0.
+  generalize Hte; apply H0 with (rhs_expr_ls := rhs_expr_ls) (n := n) in Hte; try done; rewrite Hrhs in Hte; intro Hte'; clear H0.
+  case Htexpr : (nth_error rhs_expr_ls n) => [texpr|]; rewrite Htexpr in Hte.
   assert (Hin' : texpr \in el).
   rewrite Href in Hin.
   apply preexpr_in with (ps := ps) (ss := ss) (tmap := tmap) (newtm := newtm) (var2exprs := var2exprs) (expr := expr) in Hlhs; try done.
@@ -2066,7 +2184,7 @@ Proof.
   apply InferWidth_fun_correct with (pv := pv0) (el := el) (tmap := tmap') (newtm := newtm') (expr := texpr) in Hinfer; try done.
   generalize Htr; rewrite /type_of_ref in Htr; case Hcheckt : (CEP.find (ref_tgt.1, 0%num) newtm) => [[checkt ori_c]|]; rewrite Hcheckt in Htr; try discriminate; intro Htr'.
   generalize Hlhs; apply nth_error_In in Hlhs; apply list_fsteq in Hlhs; simpl in Hlhs.
-  intro Hlhs'; generalize Hlhs'; apply list_typeq with (tmap := newtm) in Hlhs'; try done.
+  intro Hlhs'; generalize Hlhs'; apply list_gtypref_correct with (tmap := newtm) in Hlhs'; try done.
   intro Hlhs0; rewrite /type_of_ref -Hlhs in Hlhs'. rewrite -Hlhs in Hinfer.
   assert (exists checkt' ori_c', CEP.find (ref_tgt.1, 0%num) newtm' = Some (checkt', ori_c')).
   admit. (* 由 Hcheckt *)
@@ -2141,7 +2259,7 @@ Proof.
     apply InferWidth_fun_correct with (pv := pv_src) (el := el) (tmap := tmap') (newtm := newtm') (expr := Eref (Eid pv_tgt)) in Hinfer; try done.
     generalize Hsrc; rewrite /type_of_ref in Hsrc; case Hcheckt : (CEP.find (ref_src.1, 0%num) newtm) => [[checkt ori_c]|]; rewrite Hcheckt in Hsrc; try discriminate; intro Hsrc'.
     generalize Hrhs; apply nth_error_In in Hrhs; apply list_fsteq in Hrhs; simpl in Hrhs.
-    intro Hrhs'; generalize Hrhs'; apply list_typeq with (tmap := newtm) in Hrhs'; try done.
+    intro Hrhs'; generalize Hrhs'; apply list_gtypref_correct with (tmap := newtm) in Hrhs'; try done.
     intro Hrhs0; rewrite /type_of_ref -Hrhs in Hrhs'. rewrite -Hrhs in Hinfer.
     assert (exists checkt' ori_c', CEP.find (ref_src.1, 0%num) newtm' = Some (checkt', ori_c')).
     admit. (* 由 Hcheckt *)
@@ -2156,7 +2274,7 @@ Proof.
     simpl in Hinfer.
     generalize Htgt; rewrite /type_of_ref in Htgt; case Hcheckt0 : (CEP.find (ref_tgt.1, 0%num) newtm) => [[checkt0 ori_c0]|]; rewrite Hcheckt0 in Htgt; try discriminate; intro Htgt'.
     generalize Hlhs; apply nth_error_In in Hlhs; apply list_fsteq in Hlhs; simpl in Hlhs.
-    intro Hlhs'; generalize Hlhs'; apply list_typeq with (tmap := newtm) in Hlhs'; try done; rewrite Hlhs' in Hinfer; intro Hlhs0.
+    intro Hlhs'; generalize Hlhs'; apply list_gtypref_correct with (tmap := newtm) in Hlhs'; try done; rewrite Hlhs' in Hinfer; intro Hlhs0.
     assert (fgtyp_equiv gt_src gt_tgt).
     apply ftype_equiv_comm in Heq; move : Heq Hrhs0 Hlhs0; apply listgtyp_eq.
     apply Hinfer in H0; clear Hinfer; rewrite /connect_fgtyp_compatible in H0.
@@ -2193,7 +2311,7 @@ Proof.
     apply InferWidth_fun_correct with (pv := pv_tgt) (el := el) (tmap := tmap') (newtm := newtm') (expr := Eref (Eid pv_src)) in Hinfer; try done.
     generalize Htgt; rewrite /type_of_ref in Htgt; case Hcheckt0 : (CEP.find (ref_tgt.1, 0%num) newtm) => [[checkt0 ori_c0]|]; rewrite Hcheckt0 in Htgt; try discriminate; intro Htgt'.
     generalize Hlhs; apply nth_error_In in Hlhs; apply list_fsteq in Hlhs; simpl in Hlhs.
-    intro Hlhs'; generalize Hlhs'; apply list_typeq with (tmap := newtm) in Hlhs'; try done.
+    intro Hlhs'; generalize Hlhs'; apply list_gtypref_correct with (tmap := newtm) in Hlhs'; try done.
     intro Hlhs0; rewrite /type_of_ref -Hlhs in Hlhs'. rewrite -Hlhs in Hinfer.
     assert (exists checkt' ori_c', CEP.find (ref_tgt.1, 0%num) newtm' = Some (checkt', ori_c')).
     admit. (* 由 Hcheckt0 *)
@@ -2208,7 +2326,7 @@ Proof.
     simpl in Hinfer.
     generalize Hsrc; rewrite /type_of_ref in Hsrc; case Hcheckt : (CEP.find (ref_src.1, 0%num) newtm) => [[checkt ori_c]|]; rewrite Hcheckt in Hsrc; try discriminate; intro Hsrc'.
     generalize Hrhs; apply nth_error_In in Hrhs; apply list_fsteq in Hrhs; simpl in Hrhs.
-    intro Hrhs'; generalize Hrhs'; apply list_typeq with (tmap := newtm) in Hrhs'; try done.
+    intro Hrhs'; generalize Hrhs'; apply list_gtypref_correct with (tmap := newtm) in Hrhs'; try done.
     rewrite Hrhs' in Hinfer; intro Hrhs0.
     assert (fgtyp_equiv gt_tgt gt_src).
     move : Heq Hlhs0 Hrhs0; apply listgtyp_eq.
