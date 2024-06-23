@@ -1,26 +1,26 @@
 %!TEX root = main.tex
 
-Compilers are among the most fundamental and widely-used software, based on which programs in high-level programming languages are translated into low-level code. Well-known open source compilers include GCC~\cite{GCC} and LLVM~\cite{LLVM} for compiling C and C++ programs.
-Compilers for main-stream programming languages like C usually include many compilation passes and optimizations. As a result of their inherent complexity,
-there remain massive bugs in compilers, despite intensive testing efforts~\cite{LeAS14,ZhangSS17}.
-Even worse, compiler bugs could silently entail incorrect executions in low-level programs and lead to catastrophic consequences
-for safety-critical applications, and it is extremely difficult to determine whether
-an execution failure is caused by defects in the programs or
-bugs in compilers. This motivates researchers to apply formal verification techniques to guarantee the correctness of compilers.
-
-Formally verified compilers have been built for several realistic programming languages, such as CompCert for C~\cite{Leroy09,kastner2018compcert,Leroy2006,Leroy-BKSPF-2016,BlazyDL06,Kastner-LBSSF-2017},
-V\'{e}lus for Lustre~\cite{BourkeBDLPR17}, Vellvm~\cite{ZhaoNMZ12,ZhaoNMZ13} and Crellvm~\cite{KangKSLPSKCCHY18} for the LLVM Intermediate Representation,
-and CakeML for ML~\cite{KumarMNO14,LoowKTMNAF19,TanMKFON19,OwensNKMT17}.
-Such compilers come with a mathematical, machine-checked proof
-that compilation passes preserve program semantics,
-hence strengthening the correctness guarantees that can be offered by formal verification of high-level programs to low-level programs.
-
-The success of formally verified compilers on software programming languages has been ported to hardware description languages (HDLs)
-very recently, e.g., the extension of CakeML (called Lutsig) for compiling %register-transfer language Verilog to gate-level netlist
-a subset of register-transfer level (RTL) Verilog programs to netlist level programs for field-programmable gate array (FPGA)~\cite{Loow21,loowphd21},
-and the extension of CompCert (called Vericert) for compiling %compiling C programs to Verilog programs~\cite{HerklotzPRW21}.
-a subset of C programs to RTL Verilog programs~\cite{HerklotzPRW21}.
-Following this promising research direction, in this work, we establish for the first time a framework that formally reasons about programs in FIRRTL~\cite{firrtl-spec} (Flexible Intermediate Representation for RTL) and its lowering transformations (aka compilation passes).
+%Compilers are among the most fundamental and widely-used software, based on which programs in high-level programming languages are translated into low-level code. Well-known open source compilers include GCC~\cite{GCC} and LLVM~\cite{LLVM} for compiling C and C++ programs.
+%Compilers for main-stream programming languages like C usually include many compilation passes and optimizations. As a result of their inherent complexity,
+%there remain massive bugs in compilers, despite intensive testing efforts~\cite{LeAS14,ZhangSS17}.
+%Even worse, compiler bugs could silently entail incorrect executions in low-level programs and lead to catastrophic consequences
+%for safety-critical applications, and it is extremely difficult to determine whether
+%an execution failure is caused by defects in the programs or
+%bugs in compilers. This motivates researchers to apply formal verification techniques to guarantee the correctness of compilers.
+%
+%Formally verified compilers have been built for several realistic programming languages, such as CompCert for C~\cite{Leroy09,kastner2018compcert,Leroy2006,Leroy-BKSPF-2016,BlazyDL06,Kastner-LBSSF-2017},
+%V\'{e}lus for Lustre~\cite{BourkeBDLPR17}, Vellvm~\cite{ZhaoNMZ12,ZhaoNMZ13} and Crellvm~\cite{KangKSLPSKCCHY18} for the LLVM Intermediate Representation,
+%and CakeML for ML~\cite{KumarMNO14,LoowKTMNAF19,TanMKFON19,OwensNKMT17}.
+%Such compilers come with a mathematical, machine-checked proof
+%that compilation passes preserve program semantics,
+%hence strengthening the correctness guarantees that can be offered by formal verification of high-level programs to low-level programs.
+%
+%The success of formally verified compilers on software programming languages has been ported to hardware description languages (HDLs)
+%very recently, e.g., the extension of CakeML (called Lutsig) for compiling %register-transfer language Verilog to gate-level netlist
+%a subset of register-transfer level (RTL) Verilog programs to netlist level programs for field-programmable gate array (FPGA)~\cite{Loow21,loowphd21},
+%and the extension of CompCert (called Vericert) for compiling %compiling C programs to Verilog programs~\cite{HerklotzPRW21}.
+%a subset of C programs to RTL Verilog programs~\cite{HerklotzPRW21}.
+%Following this promising research direction, in this work, we establish for the first time a framework that formally reasons about programs in FIRRTL~\cite{firrtl-spec} (Flexible Intermediate Representation for RTL) and its lowering transformations (aka compilation passes).
 
 FIRRTL originated from the high-level hardware construction language Chisel~\cite{BachrachVRLWAWA12}.
 Chisel is a domain specific language embedded in Scala that comprises a library of special class definitions, predefined objects, and usage conventions for writing highly-parameterized hardware design generators.
@@ -79,47 +79,49 @@ formalization of HiFIRRTL and its lowering transformations,
 as well as specification and verification of the correctness of its lowering transformations.
 %\end{itemize}
 
-\smallskip
-\noindent
-{\bf Contributions.}
-In this work, we fill in this gap and establish a general framework called Vefirrtl for formally reasoning about programs in FIRRTL and its lowering transformations. Specifically, we make the following major contributions.
-\begin{itemize}
-\item Define an operational semantics for LoFIRRTL, mechanized in Coq. The operational semantics is based on a concept of pseudo-single-static-assignment (pseudo-SSA for short) form of LoFIRRTL programs. Pseudo-SSA form enables us to define the operational semantics of LoFIRRTL in a sequentially compositional way, much like those for software. Our formalization covers generic features of LoFIRRTL for digital circuits, but with memories excluded, since their precise semantics is still unclear and under active debate. To avoid the potential inconsistencies, we choose to omit them in this work and focus on the others whose semantics can be made clear. 
-%We introduce the concept of configurations to trace the execution of the operational semantics and to provide evidences for type safe executions.
-%
-\item We extract an OCaml interpreter for LoFIRRTL from the operational semantics and validate it against Treadle, the main-stream FIRRTL reference interpreter, on a benchmark suite comprising 120 LoFIRRTL programs. The benchmarks are  collected from various sources, including the LoFIRRTL programs obtained from compiling the Chisel programs in the Chisel book and LoFIRRTL programs used for testing the Treadle interpreter. We analyze the branch coverage of these benchmarks for testing the OCaml interpreter and design more  LoFIRRTL programs manually to cover the missing branches. The experiments show the consistency of the two interpreters, with only one exception, that is,  the inconsistency between the official specification and Treadle implementation about the semantics of \prettyll{validif} expressions.
-%
-\item Introduce a concept of circuit diagrams and formalize the syntax of HiFIRRTL and its six lowering transformations in Coq, namely, ``InferTypes'', ``InferWidths'', ``InferResets'', ``ExpandConnects'', ``ExpandWhens'', ``LowerTypes''. In circuit diagrams, the information about types and connections of components are extracted and stored explicitly in two mappings, which makes it easier to formalize and verify the lowering transformations.  
-The aforementioned six lowering transformations are believed to be the essential ones for compiling HiFIRRTL programs into LoFIRRTL ones. 
-%The formalization of HiFIRRTL respects the restrictions from the official specification. 
-%The use of circuit diagrams in the formalization helps to update the information of circuits before and after transformations, which is useful for the verifying the functional correctness.
-%
-%% \item Specify and verify the functional correctness of the two most involved lowering transformations \fu{in Coq}, namely ``ExpandConnects'' and ``ExpandWhens''.
-\item Specify and verify the functional correctness of the two most involved and impactful lowering transformations in Coq, namely ``ExpandConnects'' and ``ExpandWhens'', which  make dramatic changes to HiFIRRTL programs, e.g. creating new connect statements.
-%The verification ensures the functional correctness that these transformations preserve the behaviors of the original programs by taking the type equivalence and the (conditional) last connect semantics into account.
-\end{itemize}
-The establishment of the Vefirrtl framework for reasoning about programs in FIRRTL and its lowering transformations lays down a solid foundation towards a fully verified compiler for FIRRTL.
+%\smallskip
+%\noindent
+%{\bf Contributions.}
+%In this work, we fill in this gap and establish a general framework called Vefirrtl for formally reasoning about programs in FIRRTL and its lowering transformations. Specifically, we make the following major contributions.
+%\begin{itemize}
+%\item Define an operational semantics for LoFIRRTL, mechanized in Coq. The operational semantics is based on a concept of pseudo-single-static-assignment (pseudo-SSA for short) form of LoFIRRTL programs. Pseudo-SSA form enables us to define the operational semantics of LoFIRRTL in a sequentially compositional way, much like those for software. Our formalization covers generic features of LoFIRRTL for digital circuits, but with memories excluded, since their precise semantics is still unclear and under active debate. To avoid the potential inconsistencies, we choose to omit them in this work and focus on the others whose semantics can be made clear. 
+%%We introduce the concept of configurations to trace the execution of the operational semantics and to provide evidences for type safe executions.
+%%
+%\item We extract an OCaml interpreter for LoFIRRTL from the operational semantics and validate it against Treadle, the main-stream FIRRTL reference interpreter, on a benchmark suite comprising 120 LoFIRRTL programs. The benchmarks are  collected from various sources, including the LoFIRRTL programs obtained from compiling the Chisel programs in the Chisel book and LoFIRRTL programs used for testing the Treadle interpreter. We analyze the branch coverage of these benchmarks for testing the OCaml interpreter and design more  LoFIRRTL programs manually to cover the missing branches. The experiments show the consistency of the two interpreters, with only one exception, that is,  the inconsistency between the official specification and Treadle implementation about the semantics of \prettyll{validif} expressions.
+%%
+%\item Introduce a concept of circuit diagrams and formalize the syntax of HiFIRRTL and its six lowering transformations in Coq, namely, ``InferTypes'', ``InferWidths'', ``InferResets'', ``ExpandConnects'', ``ExpandWhens'', ``LowerTypes''. In circuit diagrams, the information about types and connections of components are extracted and stored explicitly in two mappings, which makes it easier to formalize and verify the lowering transformations.  
+%The aforementioned six lowering transformations are believed to be the essential ones for compiling HiFIRRTL programs into LoFIRRTL ones. 
+%%The formalization of HiFIRRTL respects the restrictions from the official specification. 
+%%The use of circuit diagrams in the formalization helps to update the information of circuits before and after transformations, which is useful for the verifying the functional correctness.
+%%
+%%% \item Specify and verify the functional correctness of the two most involved lowering transformations \fu{in Coq}, namely ``ExpandConnects'' and ``ExpandWhens''.
+%\item Specify and verify the functional correctness of the two most involved and impactful lowering transformations in Coq, namely ``ExpandConnects'' and ``ExpandWhens'', which  make dramatic changes to HiFIRRTL programs, e.g. creating new connect statements.
+%%The verification ensures the functional correctness that these transformations preserve the behaviors of the original programs by taking the type equivalence and the (conditional) last connect semantics into account.
+%\end{itemize}
+%The establishment of the Vefirrtl framework for reasoning about programs in FIRRTL and its lowering transformations lays down a solid foundation towards a fully verified compiler for FIRRTL.
 
 \smallskip
 \noindent
 {\bf Organization.}
-The rest of this paper is organized as follows. Section~\ref{sec-firrtl} gives an informal introduction to FIRRTL and its lowering transformations. Section~\ref{sec-form-low-firrtl} is devoted to the  operational semantics of LoFIRRTL as well as its validation against Treadle. Section~\ref{sec-hi-firrtl-transform} formalizes HiFIRRTL and its lowering transformations. Section~\ref{sec-spec-verif-expand} specifies and verifies ``ExpandConnects'' and ``ExpandWhens''. We discuss related work in Section~\ref{sec-related-work}
-and conclude this paper in Section~\ref{sec-conc}.
+The rest of this paper is organized as follows. Section~\ref{sec-firrtl} gives an informal introduction to FIRRTL and its lowering transformations. 
+
+%Section~\ref{sec-form-low-firrtl} is devoted to the  operational semantics of LoFIRRTL as well as its validation against Treadle. Section~\ref{sec-hi-firrtl-transform} formalizes HiFIRRTL and its lowering transformations. Section~\ref{sec-spec-verif-expand} specifies and verifies ``ExpandConnects'' and ``ExpandWhens''. 
+We discuss related work in Section~\ref{sec-related-work} and conclude this paper in Section~\ref{sec-conc}.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\hide{
-Surprisingly, a formal operational semantics of FIRRTL is still missing and
-the FIRRTL compiler suffers from lots of bugs due to the complexity of FIRRTL transformations.
-In fact,  there are 649 issues in its github repository, among which
-99 have been labeled as bugs~\cite{FIRRTLissures}.
-For instance, the width of \lstinline!dshl(e1,e2)! inferred by the ``Infer Width'' compilation pass
-is less than the width of \lstinline!e1!,\footnote{\url{https://github.com/chipsalliance/firrtl/issues/2296}} where \lstinline!dshl! is a dynamic shift left operation
-which shifts the bits in \lstinline!e1! towards the
-most significant bit \lstinline!e2! places and \lstinline!e2! zeroes are shifted in to the least significant bits.
-The ``ExpandWhens'' compilation pass may introduce unexpected \lstinline!VOID!, leading to a match error in
-the ``InferTypes'' compilation pass\footnote{\url{https://github.com/chipsalliance/firrtl/issues/852}}.
-}
+%\hide{
+%Surprisingly, a formal operational semantics of FIRRTL is still missing and
+%the FIRRTL compiler suffers from lots of bugs due to the complexity of FIRRTL transformations.
+%In fact,  there are 649 issues in its github repository, among which
+%99 have been labeled as bugs~\cite{FIRRTLissures}.
+%For instance, the width of \lstinline!dshl(e1,e2)! inferred by the ``Infer Width'' compilation pass
+%is less than the width of \lstinline!e1!,\footnote{\url{https://github.com/chipsalliance/firrtl/issues/2296}} where \lstinline!dshl! is a dynamic shift left operation
+%which shifts the bits in \lstinline!e1! towards the
+%most significant bit \lstinline!e2! places and \lstinline!e2! zeroes are shifted in to the least significant bits.
+%The ``ExpandWhens'' compilation pass may introduce unexpected \lstinline!VOID!, leading to a match error in
+%the ``InferTypes'' compilation pass\footnote{\url{https://github.com/chipsalliance/firrtl/issues/852}}.
+%}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
