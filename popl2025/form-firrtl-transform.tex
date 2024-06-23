@@ -1,23 +1,29 @@
 %!TEX root = main.tex
 
 In this section, we show how the lowering transformations of HiFIRRTL, which were described informally in Section~\ref{subsec-lowering-transformations}, are formalized in Coq. Specifically, we consider the formalization of the six lowering transformations, namely, ``InferTypes'', ``InferWidths'', ``InferResets'', ``ExpandConnects'', ``ExpandWhens'', and ``LowerTypes''.
+\tl{to be rewritten}
 
 For simplicity, let us focus on a HiFIRRTL circuit $A$ that contains no \prettyll{inst of} statements, that is, circuit $A$ contains exactly one top-level module $A$.
 
-The formalization utilizes a structure called \emph{circuit diagrams} defined below.
+%The formalization utilizes a structure called \emph{circuit diagrams} defined below.
+%
+%\begin{definition}[Circuit diagrams]\label{def-cd}
+%A \emph{circuit diagram} $D$ is a triple $(ss, ce, cm)$, where $ss$ is a sequence of statements, $ce$ is a component environment that maps each component to its type, and $cm$ is a connect mapping that maps each component to an expression that is connected to it.
+%\end{definition}
+%
+%Note that the types in the range of the component environment $ce$ in Definition~\ref{def-cd} are not necessarily ground types, that is, they are aggregate types in general, since HiFIRRTL may contain high-level constructs, e.g. vectors and bundles. Intuitively, $ss$ is the sequence of statements in a HiFIRRTL program, while $ce$ and $cm$ extract some necessary information from 
+%the sequence $ss$ of statements to facilitate the formalization of the lowering transformations. Specifically, 
+%the component environment $ce$ extracts the type information from the sequence $ss$ of statements and 
+%the connect mapping $cm$ extracts for each component the expression that is connected to the component according to the last-connect semantics. 
 
-\begin{definition}[Circuit diagrams]\label{def-cd}
-A \emph{circuit diagram} $D$ is a triple $(ss, ce, cm)$, where $ss$ is a sequence of statements, $ce$ is a component environment that maps each component to its type, and $cm$ is a connect mapping that maps each component to an expression that is connected to it.
-\end{definition}
-Note that the types in the range of the component environment $ce$ in Definition~\ref{def-cd} are not necessarily ground types, that is, they are aggregate types in general, since HiFIRRTL may contain high-level constructs, e.g. vectors and bundles. Intuitively, $ss$ is the sequence of statements in a HiFIRRTL program, while $ce$ and $cm$ extract some necessary information from 
-the sequence $ss$ of statements to facilitate the formalization of the lowering transformations. Specifically, 
-the component environment $ce$ extracts the type information from the sequence $ss$ of statements and 
-the connect mapping $cm$ extracts for each component the expression that is connected to the component according to the last-connect semantics. 
+
 As we will see later on, the sequence $ss$ of statements will be updated by the ``ExpandConnects'', ``ExpandWhens'', and ``LowerTypes'' passes, 
 and the component environment $ce$ will be modified by the ``InferTypes'', ``InferWidths'', ``InferResets'',  and ``LowerTypes'' passes, 
  while the component environment $cm$ will only be changed by the ``ExpandWhens'' pass, since it is the only pass that deals with the last-connect semantics.
 
 Before applying the lowering transformations, the module $A$ will be first transformed into a circuit diagram $D_A = (ss_0, ce_0, cm_0)$, where $ss_0$ is the sequence of statements in the module  $A$, $ce_0$ is the component environment obtained from the component declarations in the module $A$, possibly with the types of some components missing or partial, and $cm_0$ is the trivial mapping that maps each component to $\bot$. (Intuitively, this means that none of the components have been connected to so far.) The missing or partial types in the component environment $ce_0$ will be completed by the lowering transformations ``InferTypes'' and ``InferWidths''.
+
+\subsection{Formalization of Transformations}
 
 In the sequel, we utilize the concept of circuit diagrams to illustrate how the six lowering transformations are formalized in Coq.
 
@@ -25,7 +31,7 @@ In the sequel, we utilize the concept of circuit diagrams to illustrate how the 
 
 %A description of the formalization of InferTypes, InferWidths, InferResets, ExpandConnects, ExpandWhens, LowerTypes, and RemoveResets.
 
-\subsection{Formalization of InferTypes}
+\subsubsection{Formalization of InferTypes}
 %Initially, the component environment $ce$ of a circuit diagram $D_M$
 %is empty.  The Infer Types pass is then applied to fill $ce$ with
 %all the components that are defined in the statement sequence $ss$,
@@ -75,7 +81,7 @@ the component environment $ce$.
 %After applying the Infer Types pass, types with an
 %implicitly defined width are assigned with 0 in $ce$.
 
-\subsection{Formalization of InferWidths}
+\subsubsection{Formalization of InferWidths}
 %The bit widths of some components may still be missing after applying {\tt infer\_type} to all the statements in $ss$.
 We formalize the ``InferWidths'' pass by defining a Coq function {\tt infer\_width}, which iterates over the statements in the sequence $ss$ and updates 
 the component environment $ce$, so that the bit widths of all the components with undefined bit widths can be determined.
@@ -104,47 +110,47 @@ Finally,  the function {\tt infer\_width} processes the partial connect statemen
 %Note that {\tt infer\_width} does not check the equivalence of the bit widths of the two sides of connect statements.
 
 %%%%%%%%%%%%%%%
-\hide{
-It is allowed to leave the width of a component implicit in HiFIRRTL programs.
-Such unspecified widths are inferred by the Infer Widths pass.
-The general rules are,
-\begin{itemize}
-\item The only allowed width for an explicitly defined width is itself.
-\item An implicitly defined width will be set to the largest width that can
-  be found through connect statements.
-\item The last connection semantics is not considered at this stage,
-  all connect statements are taken into account.
-\end{itemize}
-
-Following the rules, we first introduce an additional map $wm$, which
-maps from variables to types. Then we scan through the statements in $ss$ to
-find components with implicit width and create entries for
-them in $wm$. For a statement that declares a component $v$,
-the {\tt infer\_width} function will update $wm$ by
+%\hide{
+%It is allowed to leave the width of a component implicit in HiFIRRTL programs.
+%Such unspecified widths are inferred by the Infer Widths pass.
+%The general rules are,
+%\begin{itemize}
+%\item The only allowed width for an explicitly defined width is itself.
+%\item An implicitly defined width will be set to the largest width that can
+%  be found through connect statements.
+%\item The last connection semantics is not considered at this stage,
+%  all connect statements are taken into account.
+%\end{itemize}
 %
-  \begin{gather}
-    \inferii[]
-    {\seqq{ce \vdash {\tt infer\_width} (declare\;v, wm) \rightsquigarrow wm'}}
-    {\seqq{ce \vdash {\tt width}(t_v) = 0}} {\seqq{wm':= wm \uplus \{v : t_v\}}}.
-    \end{gather}
-
-The width is inferred according to connect statements.
-Since the last connect semantics is not considered, each
-connection to the element provides a potential width. A function
-named {\tt max\_width} compares the potential widths and outputs
-the maximum one. For a statement which connects an expression $e$
-to a component $v$, the {\tt infer\_width} function will update $wm$ by
-
-After applying {\tt infer\_width} to all the statements in $ss$,
-$wm$ contains the inferred width for every implicitly defined
-component. By merging the information from $wm$ for every entry into $ce$,
-the component environment $ce$ contains the
-result of the inferred width.
-
-Instead of applying {\tt infer\_width} directly on $ce$, the map
-$wm$ contains only type information of the implicit ones that can be
-manipulated more efficiently.
-}
+%Following the rules, we first introduce an additional map $wm$, which
+%maps from variables to types. Then we scan through the statements in $ss$ to
+%find components with implicit width and create entries for
+%them in $wm$. For a statement that declares a component $v$,
+%the {\tt infer\_width} function will update $wm$ by
+%%
+%  \begin{gather}
+%    \inferii[]
+%    {\seqq{ce \vdash {\tt infer\_width} (declare\;v, wm) \rightsquigarrow wm'}}
+%    {\seqq{ce \vdash {\tt width}(t_v) = 0}} {\seqq{wm':= wm \uplus \{v : t_v\}}}.
+%    \end{gather}
+%
+%The width is inferred according to connect statements.
+%Since the last connect semantics is not considered, each
+%connection to the element provides a potential width. A function
+%named {\tt max\_width} compares the potential widths and outputs
+%the maximum one. For a statement which connects an expression $e$
+%to a component $v$, the {\tt infer\_width} function will update $wm$ by
+%
+%After applying {\tt infer\_width} to all the statements in $ss$,
+%$wm$ contains the inferred width for every implicitly defined
+%component. By merging the information from $wm$ for every entry into $ce$,
+%the component environment $ce$ contains the
+%result of the inferred width.
+%
+%Instead of applying {\tt infer\_width} directly on $ce$, the map
+%$wm$ contains only type information of the implicit ones that can be
+%manipulated more efficiently.
+%}
 %%%%%%%%%%%%%%%
 
 %% \begin{description}
@@ -187,7 +193,7 @@ manipulated more efficiently.
 %% Now, wire $c$ has the width as same as $d$, which is 14. The latter connection
 %% from d gives a larger width to the destination $c$.
 
-\subsection{Formalization of InferResets}
+\subsubsection{Formalization of InferResets}
 We formalize the ``InferResets'' pass by defining a Coq function {\tt infer\_reset}, which iterates over the statements in 
 the sequence $ss$ and updates the component environment $ce$, so that the concrete reset types of all abstract reset signals can be inferred.
 %Note that after applying {\tt infer\_type} to all the statements in $ss$, if the bit width of a component is nonzero, that is, a bit width is available in its declaration statement, then its bit width will \emph{not} be changed by  {\tt infer\_width}.
@@ -279,7 +285,7 @@ The resulting $ce$ contains the inferred concrete reset types.
 %%% the original texts written by xiaomu
 %%% the original texts written by xiaomu
 
-\subsection{Formalization of ExpandConnects}
+\subsubsection{Formalization of ExpandConnects}
 The ``ExpandConnects'' pass expands the connections between aggregate types into those between ground types.
 We define two Coq functions {\tt expand\_expr} and {\tt expand\_cnct} that expand the expressions and the connect statements, respectively.
 The rationale behind the functions {\tt expand\_expr} and {\tt expand\_cnct} is to break aggregate types in expressions and connect statements recursively into their fields. 
@@ -364,65 +370,65 @@ The function {\tt expand\_cnct} handles the \prettyll{is invalid} statements in 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\hide{
-The pass focuses on connect statements in $ss$.
-The left-hand side
-of a connection is a reference to a component, while the right-hand side
-is an expression. In order to obtain expanded
-connections, the expression needs to be recursively expanded.
-Only expressions of multiplexers \prettyll{mux},
-\prettyll{validif} and
-references \prettyll{r} can be of aggregate types. The other
-expressions, such as binary operations, only operate and result in
-ground types. Therefore they do not require expanding.
-Expanding a \prettyll{mux} expression is done by,
-  \begin{gather}
-  \label{expand-mux}
-    \infer[]
-    {\seqq{ce\vdash{\tt expand\_expr} (\mbox{mux}(e_c,e_t,e_f)) \rightsquigarrow es_{mux}}}
-    {\seqq{es_{mux}:=[\mbox{mux}(e_c,t,f)\,|\,t \leftarrow {\tt expand\_expr}(e_t),\,f \leftarrow {\tt expand\_expr}(e_f)]}}.
-    \end{gather}
-It takes the conditional expression $e_c$ and the true/false branch
-expressions $e_t$ and $e_f$ from the original \prettyll{mux} expression, and then produces a list $es_{mux}$
-of \prettyll{mux} that combines the lists of expanded $e_t$ and $e_f$
-with the same condition $e_c$.
-Similarly, expanding a \prettyll{validif} expression produces a list of \prettyll{validif} expressions in $es_{validif}$,
-  \begin{gather}
-  \label{expand-validif}
-    \infer[]
-    {\seqq{ce\vdash{\tt expand\_expr} (\mbox{validif}(e_c,e)) \rightsquigarrow es_{validif}}}
-    {\seqq{es_{validif}:=[\mbox{validif}(e_c,t)\,|\,t \leftarrow {\tt expand\_expr}(e)]}}.
-    \end{gather}
-Expanding a references is relatively straightforward.
-It create a list of references to the sub-elements according to the
-type of the component.
-After producing the list of references on the left-hand side and the
-list of expressions on the right-hand side, new connect statements can
-be generated pairwise from the two by
-  \begin{gather}
-  \label{expand-cnct}
-    \infer[]
-    {\seqq{ce\vdash{\tt expand\_cnct} (v <= e) \rightsquigarrow ss_{cnct}}}
-    {\seqq{ ss_{cnct}:=[lhs<=rhs\,|\,lhs \leftarrow {\tt expand\_ref}(v),\,rhs \leftarrow {\tt expand\_expr}(e)]}}.
-    \end{gather}
-
-The \prettyll{is invalid} statement is treat as the same as the connect statement,
-which connects a component with an ``unknown'' signal at this point.
-After processing an \prettyll{is invalid} statement for a component,
-we obtain a list of \prettyll{is invalid} statements for its sub-elements.
-}
+%\hide{
+%The pass focuses on connect statements in $ss$.
+%The left-hand side
+%of a connection is a reference to a component, while the right-hand side
+%is an expression. In order to obtain expanded
+%connections, the expression needs to be recursively expanded.
+%Only expressions of multiplexers \prettyll{mux},
+%\prettyll{validif} and
+%references \prettyll{r} can be of aggregate types. The other
+%expressions, such as binary operations, only operate and result in
+%ground types. Therefore they do not require expanding.
+%Expanding a \prettyll{mux} expression is done by,
+%  \begin{gather}
+%  \label{expand-mux}
+%    \infer[]
+%    {\seqq{ce\vdash{\tt expand\_expr} (\mbox{mux}(e_c,e_t,e_f)) \rightsquigarrow es_{mux}}}
+%    {\seqq{es_{mux}:=[\mbox{mux}(e_c,t,f)\,|\,t \leftarrow {\tt expand\_expr}(e_t),\,f \leftarrow {\tt expand\_expr}(e_f)]}}.
+%    \end{gather}
+%It takes the conditional expression $e_c$ and the true/false branch
+%expressions $e_t$ and $e_f$ from the original \prettyll{mux} expression, and then produces a list $es_{mux}$
+%of \prettyll{mux} that combines the lists of expanded $e_t$ and $e_f$
+%with the same condition $e_c$.
+%Similarly, expanding a \prettyll{validif} expression produces a list of \prettyll{validif} expressions in $es_{validif}$,
+%  \begin{gather}
+%  \label{expand-validif}
+%    \infer[]
+%    {\seqq{ce\vdash{\tt expand\_expr} (\mbox{validif}(e_c,e)) \rightsquigarrow es_{validif}}}
+%    {\seqq{es_{validif}:=[\mbox{validif}(e_c,t)\,|\,t \leftarrow {\tt expand\_expr}(e)]}}.
+%    \end{gather}
+%Expanding a references is relatively straightforward.
+%It create a list of references to the sub-elements according to the
+%type of the component.
+%After producing the list of references on the left-hand side and the
+%list of expressions on the right-hand side, new connect statements can
+%be generated pairwise from the two by
+%  \begin{gather}
+%  \label{expand-cnct}
+%    \infer[]
+%    {\seqq{ce\vdash{\tt expand\_cnct} (v <= e) \rightsquigarrow ss_{cnct}}}
+%    {\seqq{ ss_{cnct}:=[lhs<=rhs\,|\,lhs \leftarrow {\tt expand\_ref}(v),\,rhs \leftarrow {\tt expand\_expr}(e)]}}.
+%    \end{gather}
+%
+%The \prettyll{is invalid} statement is treat as the same as the connect statement,
+%which connects a component with an ``unknown'' signal at this point.
+%After processing an \prettyll{is invalid} statement for a component,
+%we obtain a list of \prettyll{is invalid} statements for its sub-elements.
+%}
 
 
 %%%%%%%% remove resets removed
 %%%%%%%% remove resets removed
-\hide{
-\subsubsection{``Remove Resets''}
-The Remove Resets pass runs after the other passes, and removes
-redundant reset that are synchronous. This is a optimization step that
-can potentially improve the performance by removing unnecessary ones.
-A synchronous reset is considered redundant if it is only used to
-initialize a register.
-}
+%\hide{
+%\subsubsection{``Remove Resets''}
+%The Remove Resets pass runs after the other passes, and removes
+%redundant reset that are synchronous. This is a optimization step that
+%can potentially improve the performance by removing unnecessary ones.
+%A synchronous reset is considered redundant if it is only used to
+%initialize a register.
+%}
 %%%%%%%% remove resets removed
 %%%%%%%% remove resets removed
 %% For example,
@@ -456,7 +462,7 @@ initialize a register.
 %%   is replaced by 3 output ports of ground types.
 %% \end{description}
 
-\subsection{Formalization of ExpandWhens}
+\subsubsection{Formalization of ExpandWhens}
 The ``ExpandWhens'' pass ensures that every component in a module is connected to at most once.
 It reformulates the conditions in the \prettyll{when} statements by multiplex expressions and removes the \prettyll{when} statements. Moreover, for each component, it removes the non-last (redundant) connect statements for the component.
 We define two functions {\tt expand\_branch} and {\tt combine\_branches} to formalize the ``ExpandWhens'' pass.
@@ -565,7 +571,7 @@ Finally, the statement sequence is updated by concatenating the statement sequen
 %similar to the example in Subsection~\ref{subsec-lowering-transformations}.
 If in the end some component is still assigned the value $\bot$ by the connect mapping, an appropriate error message can be generated.
 
-\subsection{Formalization of LowerTypes}
+\subsubsection{Formalization of LowerTypes}
 The ``LowerTypes'' pass flattens each component of an aggregate type into a collection of components of ground types.
 %The pass replaces certain defined components with
 %aggregate types by a new set of components defined with ground types.
