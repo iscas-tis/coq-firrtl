@@ -56,8 +56,11 @@ circuit A :
 
 A FIRRTL \emph{circuit} comprises a list of modules with a designated top-level module that has the same identifier as the circuit.
 Each module represents a hardware block that can
-be instantiated one or more times. For instance, the FIRRTL circuit \prettyll{A} shown in Figure~\ref{fig:example} has two modules \prettyll{A} and \prettyll{B},
+be instantiated one or more times. 
+%
+For instance, the FIRRTL circuit \prettyll{A} shown in Figure~\ref{fig:example} has two modules \prettyll{A} and \prettyll{B},
 where the top-level module of the circuit is the module \prettyll{A}.
+
 A \emph{module} consists of a set of ports and a sequence of statements.
 Each port has an identifier, a direction (either \prettyll{input} or \prettyll{output}), and a data type.
 For instance, the module \prettyll{A} has two input ports \prettyll{clk} and \prettyll{rst} and one output port \prettyll{io}, with
@@ -66,6 +69,8 @@ Each \emph{statement} defines a wire, register, node, connect (\prettyll{<=}), p
 A \emph{type} for specifying the structure of the data can be either a \emph{ground type,} e.g. \prettyll{Clock} (carrying a clock signal) and \prettyll{UInt<1>} (unsigned integer of bit width 1);
 or an \emph{aggregate type}, which is either a \emph{vector type,} e.g. \prettyll{UInt[3]} (a three-element vector of unsigned integers),
 or a \emph{bundle type,} e.g. \prettyll{\{flip enable: UInt<1>, calc: UInt<3>\}} comprising two signals of the ground types \prettyll{UInt<1>} and \prettyll{UInt<3>} respectively.
+
+
 A circuit \emph{component} is a declared element in a FIRRTL circuit that can be referred to by its name or identifier.
 Therefore, a component can be a port, node, wire, register, memory, or instance.
 A declared component can be connected to or from except for input ports that can only be connected from.
@@ -87,10 +92,11 @@ Each \emph{statement} defines a wire, register, node, connect (<=), partial conn
 A \emph{type} can be either a \emph{ground type}, e.g. \begin{lstinline}!UInt<1>!\end{lstinline} (unsigned integer of bit width 1), or an \emph{aggregate type}, which is either a \emph{vector type}, e.g. \begin{lstinline}!UInt[3]!\end{lstinline} (a three element vector of unsigned integers), or a \emph{bundle type} e.g \begin{lstinline}! {flip enable: UInt<1>, calc: UInt<3>} !\end{lstinline} which comprises two signals of the ground types  \begin{lstinline}!UInt<1>!\end{lstinline} and  \begin{lstinline}!UInt<3>!\end{lstinline} respectively. A circuit \emph{component} is an element in a FIRRTL circuit that can be referred to by its name or identifier. Therefore, a component can be a port, node, wire, register, or instance, and so on. \zhilin{component: a double check is needed}
 \end{comment}
 
-The syntactic rules of FIRRTL are given in Figure~\ref{fig-firrtl-synt-simp} in Extended Backus-Naur Form (EBNF), where \{$\cdots$\} denotes repetition (repeating zero or more times)
-and [$\cdots$] denotes option (either included or discarded), moreover, the terminals are doubly quoted by \mbox{\tt ``} and \mbox{\tt ''}. We stress that the syntactic rules of FIRRTL presented here is a simplification of those in the official specification\footnote{\url{https://github.com/chipsalliance/firrtl-spec/blob/main/spec.md}}.
+The syntactic rules of FIRRTL are given in Figure~\ref{fig-firrtl-synt-simp} in Extended Backus-Naur Form (EBNF), where \{$\cdots$\} denotes repetition (repeating zero or more times),
+[$\cdots$] denotes option (either included or discarded),  and the terminals are doubly quoted by \mbox{\tt ``} and \mbox{\tt ''}. We stress that the syntactic rules of FIRRTL presented here is a simplification of those in the official specification.\footnote{\url{https://github.com/chipsalliance/firrtl-spec/blob/main/spec.md}}
+%
 For instance, indent, dedent and newline terminals are omitted for readability;
-moreover, the types and constructs for analog signals are also omitted, since we focus on digital circuits in this work.
+the types and constructs for analog signals are also omitted, since we focus on digital circuits in this work.
 In the syntax, memory is also omitted since its semantics is still under active debate.\footnote{\url{https://github.com/chipsalliance/chisel/issues/3112}}
 
 %\begin{itemize}
@@ -355,14 +361,13 @@ int & ::= & [\mbox{\tt ``-''}] d \{d\} \mid \mbox{\tt ``"b''} [\mbox{\tt ``-''}]
 \end{comment}
 
 According to the syntax, FIRRTL features high-level constructs such as vector types, bundle types, conditional statements, connects, partial connects, and modules.
-These high-level constructs are then gradually removed by a sequence of lowering transformations. During each lowering transformation, the circuit is rewritten into an equivalent circuit using simpler, lower-level
+These high-level constructs are then gradually removed by a sequence of \emph{lowering transformations}. During each lowering transformation, the circuit is rewritten into an equivalent circuit using simpler, lower-level
 constructs. Eventually the circuit is simplified to its most restricted form, resembling a structured netlist,
 which allows for easy translation to an output language (e.g. Verilog).
 This form is given the name lowered FIRRTL (abbreviated as LoFIRRTL) and is a strict subset of the full FIRRTL language.
-For clarity, the original form is called high FIRRTL (HiFIRRTL).
-Besides LoFIRRTL, there is another lowered form of FIRRTL, called MidFIRRTL, which resides between HiFIRRTL and LoFIRRTL.
-Nevertheless, in this work, we do not introduce MidFIRRTL,
-since it can be seen as an internal representation of a FIRRTL compiler that does not interface with the other parts of the Chisel toolchain.
+For clarity, the original form is referred to as high FIRRTL (HiFIRRTL).
+\footnote{Besides LoFIRRTL, there is another lowered form of FIRRTL, referred to as MidFIRRTL, which resides between HiFIRRTL and LoFIRRTL. We do not introduce MidFIRRTL in this work,
+since it can be seen as an internal representation of a FIRRTL compiler that does not interface with the other parts of the Chisel toolchain.}
 
 
 A FIRRTL circuit is a LoFIRRTL circuit if it obeys the following restrictions:
@@ -422,8 +427,7 @@ t & ::= & tg \\
 \label{fig-lofirrtl-synt}
 \end{figure}
 
-
-Note that in Figure~\ref{fig-lofirrtl-synt}, the rules for $f$, $id$, $op$ are the same as those in Figure~\ref{fig-firrtl-synt-simp}, thus omitted to avoid tediousness.
+Note that in Figure~\ref{fig-lofirrtl-synt}, the rules for $f$, $id$, $op$ are the same as those in Figure~\ref{fig-firrtl-synt-simp}  (and thus omitted). %to avoid tediousness.
 In a nutshell, the syntactic rules in Figure~\ref{fig-lofirrtl-synt} are obtained from those in Figure~\ref{fig-firrtl-synt-simp} by replacing $[w]$ with $w$ (so that the width becomes mandatory),
 removing the \prettyll{when} statement and the partial connect statement (\prettyll{<-}) from the rule for $s$,
 and removing the rule for aggregate types $ta$.
@@ -480,28 +484,27 @@ module MyModule :
 In the sequel, we give an informal introduction to the lowering transformations (aka compilation passes) of  FIRRTL. The dependencies between these compilation passes are illustrated in Figure~\ref{fig-c-pass} \tl{redo this}.
 
 
-
-\begin{figure}[htbp]
-\centering
-\includegraphics[width = 0.65\textwidth]{firrtl-compilation-passes}
-\caption{Dependencies between FIRRTL compilation passes}
-\label{fig-c-pass}
-\end{figure}
+%\begin{figure}[htbp]
+%\centering
+%\includegraphics[width = 0.65\textwidth]{firrtl-compilation-passes}
+%\caption{Dependencies between FIRRTL compilation passes}
+%\label{fig-c-pass}
+%\end{figure}
 
 
 %% \paragraph*{ResolveKinds} xxx \zhilin{@Xiaomu, please write an introduction here.}
-
-\paragraph*{InferTypes} The InferTypes pass infers the types of components. For instance, InferTypes infers from the code snippet
-\prettyll{ wire x: UInt   x <= UInt<5>(15) x <= UInt<1>(1) } that the type of the wire $x$ is \prettyll{ UInt}. Note that for a connect statement   \prettyll{ x <= e}, InferTypes only checks that the type of
- the expression $e$ is equivalent to that of the component $x$ (where the bit widths are ignored), and does not update the bit width of $x$ to that of the expression $e$.
+%
+%\paragraph*{InferTypes} The InferTypes pass infers the types of components. For instance, InferTypes infers from the code snippet
+%\prettyll{ wire x: UInt   x <= UInt<5>(15) x <= UInt<1>(1) } that the type of the wire $x$ is \prettyll{ UInt}. Note that for a connect statement   \prettyll{ x <= e}, InferTypes only checks that the type of
+% the expression $e$ is equivalent to that of the component $x$ (where the bit widths are ignored), and does not update the bit width of $x$ to that of the expression $e$.
 
 \paragraph*{InferWidths}
 The InferWidths pass infers the widths of all components whose widths are unknown, after
 the InferTypes pass has been applied. It is a \emph{global} width inference algorithm. Instances of the same module with unknown input port widths will be assigned the largest width of all assignments to each of its instance ports. It infers the smallest width that is larger than all assigned widths to a component. Note that this means that dummy assignments that are overwritten by last-connect semantics can still influence width inference. The last-connect semantics means that the last connect statement for a component will take effects and all the preceding connect statements for it will be ignored  in the end. For instance, InferWidths infers from the code snippet \prettyll{wire x: UInt   x <= UInt<5>(15)    x <= UInt<1>(1)} that the width of the wire $x$ is $5$, but with a value \prettyll{UInt<1>(1)}.
 
 
-\paragraph*{InferResets} %% that infers concrete resets, i.e. AsyncReset or UInt<1>,
-The InferResets pass infers the concrete reset types for the abstract reset type \prettyll{Reset}, namely, asynchronous resets represented by  \prettyll{AsyncReset} or synchronous resets represented by \prettyll{UInt<1>}. For example, in the code snippet \prettyll{ input in: UInt<1>   wire rst: Reset   rst <= in } with an input port \prettyll{in} of type \prettyll{UInt<1>} and a wire \prettyll{rst} of abstract type \prettyll{Reset}, the \prettyll{rst} wire will be inferred as a synchronous reset based on the type of the input port \prettyll{in}. If a component of \prettyll{Reset} type is instantiated with different concrete reset types, then a conflict occurs and an error is reported.
+%\paragraph*{InferResets} %% that infers concrete resets, i.e. AsyncReset or UInt<1>,
+%The InferResets pass infers the concrete reset types for the abstract reset type \prettyll{Reset}, namely, asynchronous resets represented by  \prettyll{AsyncReset} or synchronous resets represented by \prettyll{UInt<1>}. For example, in the code snippet \prettyll{ input in: UInt<1>   wire rst: Reset   rst <= in } with an input port \prettyll{in} of type \prettyll{UInt<1>} and a wire \prettyll{rst} of abstract type \prettyll{Reset}, the \prettyll{rst} wire will be inferred as a synchronous reset based on the type of the input port \prettyll{in}. If a component of \prettyll{Reset} type is instantiated with different concrete reset types, then a conflict occurs and an error is reported.
 
 \paragraph{ExpandConnects} The ExpandConnects pass expands the connect and partial connect statements, after the types of components have been inferred by the InferTypes pass.
 For instance, the ExpandConnects pass transforms the program shown in Figure~\ref{fig-lofirrtl-exmp2}(a) into the one shown in Figure~\ref{fig-lofirrtl-exmp2}(b).
@@ -681,31 +684,31 @@ If a component is only declared under some condition
 it is nevertheless included in the LoFIRRTL result,
 and the condition is ignored; no multiplexer is inserted upon connections.
 
-\paragraph{LowerTypes} The LowerTypes pass flattens bundles and vectors, after the connect and partial connect statements have been expanded by
-the ExpandConnects pass. Nevertheless, LowerTypes does not change the implicit bundles, e.g. module instances. After the application of the LowerTypes pass, a module instance is still a bundle of depth 1 (instance -> port).
+%\paragraph{LowerTypes} The LowerTypes pass flattens bundles and vectors, after the connect and partial connect statements have been expanded by
+%the ExpandConnects pass. Nevertheless, LowerTypes does not change the implicit bundles, e.g. module instances. After the application of the LowerTypes pass, a module instance is still a bundle of depth 1 (instance -> port).
 
 %the type of a memory is still a bundle with depth 2 (mem -> port -> field), see MemPortUtils.memType
 
 
-\hide{
-\paragraph{RemoveReset} The RemoveReset pass removes the synchronous resets. If the register is driven by an asynchronous reset, it will be left unchanged. If it is a synchronous reset, the reset operation defined in the register and the connections to the register will be merged into multiplexer operations. For example, the register \begin{lstinline}!myreg!\end{lstinline} with synchronous reset signal \begin{lstinline}!rst!\end{lstinline} in the program
-\begin{lstlisting}
-  module MyModule :
-    input clk : Clock
-    input rst : UInt<1>
-    input in : UInt<8>
-    input init : UInt<8>
-    reg myreg : UInt<8>, clk with: (reset => (rst, init))
-    myreg <= in
-\end{lstlisting}
-is transformed into
-\begin{lstlisting}
-  module MyModule :
-    input clk : Clock
-    input in : UInt<8>
-    input init : UInt<8>
-    reg myreg : UInt<8>, clk
-    myreg <= mux(``h0'', init, in)
-\end{lstlisting}
-}
+%\hide{
+%\paragraph{RemoveReset} The RemoveReset pass removes the synchronous resets. If the register is driven by an asynchronous reset, it will be left unchanged. If it is a synchronous reset, the reset operation defined in the register and the connections to the register will be merged into multiplexer operations. For example, the register \begin{lstinline}!myreg!\end{lstinline} with synchronous reset signal \begin{lstinline}!rst!\end{lstinline} in the program
+%\begin{lstlisting}
+%  module MyModule :
+%    input clk : Clock
+%    input rst : UInt<1>
+%    input in : UInt<8>
+%    input init : UInt<8>
+%    reg myreg : UInt<8>, clk with: (reset => (rst, init))
+%    myreg <= in
+%\end{lstlisting}
+%is transformed into
+%\begin{lstlisting}
+%  module MyModule :
+%    input clk : Clock
+%    input in : UInt<8>
+%    input init : UInt<8>
+%    reg myreg : UInt<8>, clk
+%    myreg <= mux(``h0'', init, in)
+%\end{lstlisting}
+%}
 
