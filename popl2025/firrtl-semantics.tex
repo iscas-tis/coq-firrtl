@@ -6,8 +6,35 @@
 
 %We introduce a structure called \emph{circuit diagrams} to formalize the syntax of HiFIRRTL, in particular, to represent the high-level constructs of HiFIRRTL.   
 
+% by reading https://github.com/iscas-tis/coq-firrtl/blob/with_implicits/src/ModuleGraph_oriented.v
+
+
+
+%A module graph consists of two things: vertex and edges. 
+%
+%vertex can be output, inport, register, wire, node.  (??)
+%
+%components have types
+
+
+For each module, we have ports
+
+connection: for each input connector of a module graph, there is an associated expression, which is based on the vertices in the module graph. 
+
+Input connectors are identified by a triple of natural numbers:
+- a pair to identify the vertex of the module graph
+- a number to identify the input connector of the vertex.
+
+We fix a set of types $T=\{clock, UInt\}$. 
+
+aggregate type 
+
 \begin{definition}\label{def-mg}
-	A \emph{module graph} $D$ is 
+	A \emph{module graph} $D$ is a tuple $\langle M_1, \cdots, M_n\rangle$ where each $M_i$ has the following components:
+	\begin{itemize}
+		\item a finite set of ports each of which is associated with an identifier and a direction (input or output) and a data type;
+		\item an edge relation 
+	\end{itemize}
 	
 	%a triple $(ss, ce, cm)$, where $ss$ is a sequence of statements, $ce$ is a component environment that maps each component to its type, and $cm$ is a connect mapping that maps each component to an expression that is connected to it. 
 \end{definition}
@@ -20,6 +47,8 @@ A HiFIRRTL module $M$ will be first transformed into a circuit diagram $D_M = (s
 %\subsection{Operational semantics for module graphs}
 
 \subsection{Structural semantics of FIRRTL}
+
+A circuit is mapped to a module graph, where the box 
 
 We define $\mathcal{G}$  G(P): the set of module graphs of  P
 
