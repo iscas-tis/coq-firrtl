@@ -43,7 +43,7 @@ We consider a finite set of \emph{sorts} consisting of port, register, node, mem
 	\begin{itemize}
 		\item a finite set of \emph{vertices} $V_i$, where for each $v\in V_i$, we define the following labelling functions:
 		\begin{itemize}
-			\item {\sort} which assigns a sort to $v_i$;
+			\item {\sort} which assigns a sort to $v_i$; \tl{to decide whether to single out i/o ports}
 			\item {\width} which assigns a nonnegative number to $v_i$;
 			\item  {\datatype} which assigns a type (either ground or aggregate) to $v_i$
 		\end{itemize}%each of which is associated with a sort etc) and a data type. %an identifier and a direction (input or output) and a data type;
@@ -83,6 +83,11 @@ We consider a finite set of \emph{sorts} consisting of port, register, node, mem
 
 A HiFIRRTL program $P$ is mapped to \emph{a set of} module graphs. %, where the box 
 We define $\mathcal{G}(P)$.  % G(P): the set of module graphs of  P
+
+
+We assume a component environment $ce$ which extracts the type information from $P$ %the sequence $ss$ of statements 
+%and 
+%the connect mapping $cm$ extracts for each component the expression that is connected to the component according to the last-connect semantics. 
 
 Recall that a circuit defined by $P$ consists of multiple modules. 
 
