@@ -79,17 +79,22 @@ We consider a finite set of \emph{sorts} consisting of port, register, node, mem
 
 %\subsection{Operational semantics for module graphs}
 
-\subsection{Structural semantics of FIRRTL}
+\subsection{Denotational Semantics of FIRRTL}
 
-A circuit is mapped to a module graph, where the box 
+A HiFIRRTL program $P$ is mapped to \emph{a set of} module graphs. %, where the box 
+We define $\mathcal{G}(P)$.  % G(P): the set of module graphs of  P
 
-We define $\mathcal{G}$  G(P): the set of module graphs of  P
+Recall that a circuit defined by $P$ consists of multiple modules. 
+
+\begin{itemize}
+	\item tg
+\end{itemize} 
 
 
-A HiFIRRTL module $M$ will be first transformed into a circuit diagram $D_M = (ss, ce, cm)$, where $ss$ is the sequence of statements in $M$, $ce$ is the component environment obtained from the variable declarations in $M$, possibly with the types of some variables missing or partial, 
+%A HiFIRRTL module $M$ will be first transformed into a circuit diagram $D_M = (ss, ce, cm)$, where $ss$ is the sequence of statements in $M$, $ce$ is the component environment obtained from the variable declarations in $M$, possibly with the types of some variables missing or partial, 
 
 %and $cm$ is the trivial mapping that maps each component to $\bot$ (Intuitively, this means that the connects of the components have not be determined yet). The missing or partial  types in $ce$ will be completed by the compilation passes during the transformation of $M$ into a LoFIRRTL module. Moreover, the connect mapping $cm$ will be updated by the ExpandWhens compilation pass. Furthermore, the statement sequence $ss$ will be updated by ExpandConnects, ExpandWhens, LowerTypes, and RemoveReset, while they keep unchanged during the other compilation passes.  
 
 
 
-\subsection{Behavioral semantics of modular graphs}
+%\subsection{Behavioral semantics of modular graphs}

@@ -87,7 +87,11 @@ We introduced the concept of \emph{module graphs} which is used to provide the f
 We formalize the compilation pass, i.e., lowering transformations from HiFIRRTL to LoFIRRTL. In particular, we specify and formalize the functional correctness of %the two most involved and impactful 
 lowering transformations in Coq,
 
+\tl{emphasise that HiFIRRTL is underspecification and the transformation can be viewed as a refinement process.}
+
 We extract an OCaml compiler and empirically evaluate its performance against the official compiler. 
+
+
  
 %\begin{itemize}
 %\item Define an operational semantics for LoFIRRTL, mechanized in Coq. The operational semantics is based on a concept of pseudo-single-static-assignment (pseudo-SSA for short) form of LoFIRRTL programs. Pseudo-SSA form enables us to define the operational semantics of LoFIRRTL in a sequentially compositional way, much like those for software. Our formalization covers generic features of LoFIRRTL for digital circuits, but with memories excluded, since their precise semantics is still unclear and under active debate. To avoid the potential inconsistencies, we choose to omit them in this work and focus on the others whose semantics can be made clear. 
