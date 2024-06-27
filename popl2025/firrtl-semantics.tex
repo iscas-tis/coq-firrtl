@@ -32,21 +32,43 @@
 \newcommand{\width}{{\sf width}}
 \newcommand{\datatype}{{\sf type}}
 
-We fix ground types \clock and  \UInt{1}, and aggregate types consisting of vector type and bundle type. Typically, we write \UInt{n}. 
+We fix ground types \clock and  \UInt{n}. 
+%based on the discussion with zhilin, aggregate type is not needed. 
+%, and aggregate types consisting of vector type and bundle type. Typically, we write \UInt{n}. 
 
-We consider a finite set of \emph{sorts} consisting of port, register, node, memory, 
+We consider a finite set of \emph{sorts} consisting of register, node, memory, wire, etc. 
 
+\tl{I propose we introduce the notion of \emph{hierarchical module graph} as the intermediate step for (flattened) module graph}
 
+\begin{definition}[Vertex]
+	A vertex $V$ is a tuple $(IP, OP, \sort, \width, \datatype)$ where $IP$ is a set of input ports and OP is a set of output ports, ...
+   \begin{itemize}
+		\item {\sort} which assigns a sort to $v$; 		
+		\item {\width} which assigns a nonnegative number to $v$;
+		\item  {\datatype} which assigns a ground type to $v$
+	\end{itemize}
+\end{definition} 
+
+\begin{definition}
+	A hierarchical module graph is a tuple $\langle M_1, \cdots, M_n\rangle$ where each module $M_i$ has the following components:
+	\begin{itemize}
+		\item a finite set $V_i$ of vertices;
+		\item a finite set $B_i$ of boxes; ($B_i$ and $V_i$ are all pairwise disjoint)
+		\item a finite set $I_i$ of input ports;
+		\item a finite set $O_i$ of output ports;
+		\item a labeling function $Y_i: V_i \rightarrow \{i+1, \cdots, n\}$ that maps each box of the $i$-th graph to an index grater than $i$. That is, if $Y_i(b)=j$, for a box $b$ of graph $M_i$, then $b$ can be viewed as reference to the definition of the graph $M_j$. 
+	\end{itemize}
+\end{definition}
+
+\tl{to decide later how to proceed}
 
 \begin{definition}\label{def-mg}
 	A \emph{module graph} $D$ is a tuple $\langle M_1, \cdots, M_n\rangle$ where each module $M_i$ has the following components:
 	\begin{itemize}
-		\item a finite set of \emph{vertices} $V_i$, where for each $v\in V_i$, we define the following labelling functions:
-		\begin{itemize}
-			\item {\sort} which assigns a sort to $v_i$; \tl{to decide whether to single out i/o ports}
-			\item {\width} which assigns a nonnegative number to $v_i$;
-			\item  {\datatype} which assigns a type (either ground or aggregate) to $v_i$
-		\end{itemize}%each of which is associated with a sort etc) and a data type. %an identifier and a direction (input or output) and a data type;
+		\item a finite set of \emph{vertices} $V_i$, 
+		\item a finite set of input ports;
+		\item a finite set of output ports; %where for each $v\in V_i$, we define the following labelling functions:
+%each of which is associated with a sort etc) and a data type. %an identifier and a direction (input or output) and a data type;
 		
 %		\item a finite 
 		
@@ -56,10 +78,12 @@ We consider a finite set of \emph{sorts} consisting of port, register, node, mem
 %		
 %		\item register, memory?
 %		
-		\item an edge relation $E_i$. Each edge in $E_i$ is a pair $(u,v)$ with source $u$ and sink $v$. They satisfy
-		\begin{itemize}
-			\item if $u$ is an input port, there is only outgoing (?) edge. 
-		\end{itemize} 
+		\item an edge relation $E_i$. Each edge in $E_i$ is a pair $(u,v)$ with source $u$ and sink $v$, where \tl{??} $u$ and $v$ are input or output ports. 
+		
+%		They satisfy
+%		\begin{itemize}
+%			\item if $u$ is an input port, there is only outgoing (?) edge. 
+%		\end{itemize} 
 %		\begin{itemize}
 %			\item source $u$ either is a vertex of $M_i$ or a pair $(w_1, w_2)$ where $w_i$ is 
 %		\end{itemize}
