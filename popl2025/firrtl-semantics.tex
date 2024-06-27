@@ -25,14 +25,28 @@
 %- a pair to identify the vertex of the module graph
 %- a number to identify the input connector of the vertex.
 
-We fix a set of ground types $T=\{clock, UInt\}$, a set of aggregate type consisting of vector type and bundle type.  
+\newcommand{\clock}{{\tt Clock}\xspace}
+%\newcommand{\UInt}{{\tt UInt}\xspace}
+\newcommand{\UInt}[1]{{\tt UInt}$\langle #1\rangle$\xspace}
+\newcommand{\sort}{{\sf sort}}
+\newcommand{\width}{{\sf width}}
+\newcommand{\datatype}{{\sf type}}
+
+We fix ground types \clock and  \UInt{1}, and aggregate types consisting of vector type and bundle type. Typically, we write \UInt{n}. 
+
+We consider a finite set of \emph{sorts} consisting of port, register, node, memory, 
 
 
 
 \begin{definition}\label{def-mg}
-	A \emph{module graph} $D$ is a tuple $\langle M_1, \cdots, M_n\rangle$ where each $M_i$ has the following components:
+	A \emph{module graph} $D$ is a tuple $\langle M_1, \cdots, M_n\rangle$ where each module $M_i$ has the following components:
 	\begin{itemize}
-		\item a finite set of \emph{vertices} each of which is associated with a sort (port, register, node, memory, etc) and a data type. %an identifier and a direction (input or output) and a data type;
+		\item a finite set of \emph{vertices} $V_i$, where for each $v\in V_i$, we define the following labelling functions:
+		\begin{itemize}
+			\item {\sort} which assigns a sort to $v_i$;
+			\item {\width} which assigns a nonnegative number to $v_i$;
+			\item  {\datatype} which assigns a type (either ground or aggregate) to $v_i$
+		\end{itemize}%each of which is associated with a sort etc) and a data type. %an identifier and a direction (input or output) and a data type;
 		
 %		\item a finite 
 		
@@ -42,14 +56,21 @@ We fix a set of ground types $T=\{clock, UInt\}$, a set of aggregate type consis
 %		
 %		\item register, memory?
 %		
-		\item an edge relation $E_i$. Each edge in $E_i$ is a pair $(u,v)$ with source $u$ and sink $v$. 
+		\item an edge relation $E_i$. Each edge in $E_i$ is a pair $(u,v)$ with source $u$ and sink $v$. They satisfy
+		\begin{itemize}
+			\item if $u$ is an input port, there is only outgoing (?) edge. 
+		\end{itemize} 
 %		\begin{itemize}
 %			\item source $u$ either is a vertex of $M_i$ or a pair $(w_1, w_2)$ where $w_i$ is 
 %		\end{itemize}
 	\end{itemize}
-	
+%
 	%a triple $(ss, ce, cm)$, where $ss$ is a sequence of statements, $ce$ is a component environment that maps each component to its type, and $cm$ is a connect mapping that maps each component to an expression that is connected to it. 
 \end{definition}
+
+\begin{example}
+	Fig. 4
+\end{example}
 %Note that the types in the range of $ce$ in Definition~\ref{def-cd} are not necessarily ground types, that is, they may be aggregate types, since HiFIRRTL may contain high-level constructs, e.g. vectors and bundles.  
 
 
