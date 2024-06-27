@@ -17,30 +17,42 @@
 %components have types
 
 
-For each module, we have ports
+%For each module, we have ports
 
-connection: for each input connector of a module graph, there is an associated expression, which is based on the vertices in the module graph. 
+%connection: for each input connector of a module graph, there is an associated expression, which is based on the vertices in the module graph. 
 
-Input connectors are identified by a triple of natural numbers:
-- a pair to identify the vertex of the module graph
-- a number to identify the input connector of the vertex.
+%Input connectors are identified by a triple of natural numbers:
+%- a pair to identify the vertex of the module graph
+%- a number to identify the input connector of the vertex.
 
-We fix a set of types $T=\{clock, UInt\}$. 
+We fix a set of ground types $T=\{clock, UInt\}$, a set of aggregate type consisting of vector type and bundle type.  
 
-aggregate type 
+
 
 \begin{definition}\label{def-mg}
 	A \emph{module graph} $D$ is a tuple $\langle M_1, \cdots, M_n\rangle$ where each $M_i$ has the following components:
 	\begin{itemize}
-		\item a finite set of ports each of which is associated with an identifier and a direction (input or output) and a data type;
-		\item an edge relation 
+		\item a finite set of \emph{vertices} each of which is associated with a sort (port, register, node, memory, etc) and a data type. %an identifier and a direction (input or output) and a data type;
+		
+%		\item a finite 
+		
+%		\item an indexing function $Y_i: 
+		
+%		\item a finite set of nodes (ports are actually special nodes?)
+%		
+%		\item register, memory?
+%		
+		\item an edge relation $E_i$. Each edge in $E_i$ is a pair $(u,v)$ with source $u$ and sink $v$. 
+%		\begin{itemize}
+%			\item source $u$ either is a vertex of $M_i$ or a pair $(w_1, w_2)$ where $w_i$ is 
+%		\end{itemize}
 	\end{itemize}
 	
 	%a triple $(ss, ce, cm)$, where $ss$ is a sequence of statements, $ce$ is a component environment that maps each component to its type, and $cm$ is a connect mapping that maps each component to an expression that is connected to it. 
 \end{definition}
 %Note that the types in the range of $ce$ in Definition~\ref{def-cd} are not necessarily ground types, that is, they may be aggregate types, since HiFIRRTL may contain high-level constructs, e.g. vectors and bundles.  
 
-A HiFIRRTL module $M$ will be first transformed into a circuit diagram $D_M = (ss, ce, cm)$, where $ss$ is the sequence of statements in $M$, $ce$ is the component environment obtained from the variable declarations in $M$, possibly with the types of some variables missing or partial, and $cm$ is the trivial mapping that maps each component to $\bot$ (Intuitively, this means that the connects of the components have not be determined yet). The missing or partial  types in $ce$ will be completed by the compilation passes during the transformation of $M$ into a LoFIRRTL module. Moreover, the connect mapping $cm$ will be updated by the ExpandWhens compilation pass. Furthermore, the statement sequence $ss$ will be updated by ExpandConnects, ExpandWhens, LowerTypes, and RemoveReset, while they keep unchanged during the other compilation passes.  
+
 
 
 
@@ -51,5 +63,12 @@ A HiFIRRTL module $M$ will be first transformed into a circuit diagram $D_M = (s
 A circuit is mapped to a module graph, where the box 
 
 We define $\mathcal{G}$  G(P): the set of module graphs of  P
+
+
+A HiFIRRTL module $M$ will be first transformed into a circuit diagram $D_M = (ss, ce, cm)$, where $ss$ is the sequence of statements in $M$, $ce$ is the component environment obtained from the variable declarations in $M$, possibly with the types of some variables missing or partial, 
+
+%and $cm$ is the trivial mapping that maps each component to $\bot$ (Intuitively, this means that the connects of the components have not be determined yet). The missing or partial  types in $ce$ will be completed by the compilation passes during the transformation of $M$ into a LoFIRRTL module. Moreover, the connect mapping $cm$ will be updated by the ExpandWhens compilation pass. Furthermore, the statement sequence $ss$ will be updated by ExpandConnects, ExpandWhens, LowerTypes, and RemoveReset, while they keep unchanged during the other compilation passes.  
+
+
 
 \subsection{Behavioral semantics of modular graphs}
