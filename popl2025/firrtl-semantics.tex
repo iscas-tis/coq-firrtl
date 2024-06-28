@@ -51,10 +51,11 @@ We consider a finite set of \emph{sorts} consisting of \register, \node, and \wi
 \begin{definition}[Vertex]
 	A vertex $v$ is a tuple $(\inputport, \outputport, \sort, \width, \datatype)$ where 
    \begin{itemize}
-   		\item $\inputport$ and $\outputport$ are set of input and output ports, respectively; 
-		\item {\sort} specifies the sort of $v$; 		
+   		\item $\inputport$ and $\outputport$ are sets of input and output ports, respectively; 
+		\item {\sort} specifies the sort of component in the circuit $v$ is standing for; 		
 		\item {\width} is a nonnegative number, specifying the bit width of $v$;
-		\item {\datatype} which assigns a ground type to $v$
+		\item {\datatype} specifies the \emph{ground} type of $v$;
+		\item {\expr} is only defined for \emph{nodes}, 
 	\end{itemize}
 \end{definition} 
 
