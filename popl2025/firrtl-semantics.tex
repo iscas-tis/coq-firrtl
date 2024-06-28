@@ -32,22 +32,34 @@
 \newcommand{\width}{{\sf width}}
 \newcommand{\datatype}{{\sf type}}
 
-We fix ground types \clock and  \UInt{n}. 
+\newcommand{\register}{{\sf register}}
+\newcommand{\node}{{\sf node}}
+\newcommand{\wire}{{\sf wire}}
+\newcommand{\expr}{{\sf expr}}
+\newcommand{\inputport}{\mathcal{I}}
+\newcommand{\outputport}{\mathcal{O}}
+
+
+
+We fix ground types \clock and  \UInt{n} where $n$ is a positive integer. 
 %based on the discussion with zhilin, aggregate type is not needed. 
 %, and aggregate types consisting of vector type and bundle type. Typically, we write \UInt{n}. 
 
-We consider a finite set of \emph{sorts} consisting of register, node, memory, wire, etc. 
+We consider a finite set of \emph{sorts} consisting of \register, \node, and \wire. 
+
+
+\begin{definition}[Vertex]
+	A vertex $v$ is a tuple $(\inputport, \outputport, \sort, \width, \datatype)$ where 
+   \begin{itemize}
+   		\item $\inputport$ and $\outputport$ are set of input and output ports, respectively; 
+		\item {\sort} specifies the sort of $v$; 		
+		\item {\width} is a nonnegative number, specifying the bit width of $v$;
+		\item {\datatype} which assigns a ground type to $v$
+	\end{itemize}
+\end{definition} 
 
 \tl{I propose we introduce the notion of \emph{hierarchical module graph} as the intermediate step for (flattened) module graph}
 
-\begin{definition}[Vertex]
-	A vertex $V$ is a tuple $(IP, OP, \sort, \width, \datatype)$ where $IP$ is a set of input ports and OP is a set of output ports, ...
-   \begin{itemize}
-		\item {\sort} which assigns a sort to $v$; 		
-		\item {\width} which assigns a nonnegative number to $v$;
-		\item  {\datatype} which assigns a ground type to $v$
-	\end{itemize}
-\end{definition} 
 
 \begin{definition}
 	A hierarchical module graph is a tuple $\langle M_1, \cdots, M_n\rangle$ where each module $M_i$ has the following components:
@@ -64,6 +76,13 @@ We consider a finite set of \emph{sorts} consisting of register, node, memory, w
 
 %vertices 对应module中的component, wire, register, node等，每个vertex有type, width, input/output ports属性
 %edges从一个vertex的output port连到另外一个vertex的input port
+
+%from David
+%The reset signal, reset value and clock inputs need to be fixed when the register is declared. Only the normal input can be connected (and reconnected) with later statements.
+%
+%So while a register has four inputs, only one of them is handled using the normal connection information.
+%
+%Further, a node can serve as an abbreviation for an expression. While an expression can depend on any number of input signals, none of them is handled using the normal connection information, because the expression is fixed at the time the node is declared.
 
 
 \begin{definition}\label{def-mg}
