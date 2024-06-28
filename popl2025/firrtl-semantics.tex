@@ -51,7 +51,7 @@ We fix ground types \clock and  \UInt{n} where $n$ is a positive integer.
 
 %Let us fix a LoFIRRTL circuit $A$ that is free of \prettyll{inst of} statements. According to the syntax of LoFIRRTL, the top-level module of the circuit must be module $A$.
 
-We first introduce some notations.
+%We first introduce some notations.
 
 
 %A \emph{generalized connect statement} is a statement of the form $z <= e$ or $\mbox{\tt \prettyll{node}}\ z = e$, where $z$ and $e$ are called the \emph{head} and \emph{body} of the generalized connect statement, respectively. Intuitively, a generalized connect statement is either a connect statement $z <= e$ or a node-declaration statement $\mbox{\tt \prettyll{node}}\ z = e$.
@@ -65,11 +65,12 @@ We first introduce some notations.
 %Note that the input ports $\iports(A)$ are not connected to, moreover, the registers may not be connected to, thus they
 %are not included in $\ccpnts(A)$. (If a register is not connected to, then it keeps the current value.)
 
-An \emph{identifier} is a pair $(a, o)$ such that $a \in \Nat$ and $o \in \Nat$. Let $\idset$ denote the set of identifiers. 
+An \emph{identifier} is a pair $(a, o)$ where $a, o \in \Nat$. Let $\idset$ denote the set of identifiers. 
 %
 We denote by $\gtypes$ the set of ground types $(\{\mbox{\prettyll{UInt}}, \mbox{\prettyll{SInt}}\} \times \Nat) \cup \{\mbox{\prettyll{Clock}},
-\mbox{\prettyll{Reset}}, \mbox{\prettyll{AsyncReset}}\}$ and by $\bv$ the set of bit vectors $\{0,1\}^+$.
-For each $t = (\tau, n) \in \{\mbox{\prettyll{UInt}}, \mbox{\prettyll{SInt}}\} \times \Nat$, we define the \emph{width} of $t$, denoted by $wd(t)$, as $n$.
+\mbox{\prettyll{Reset}}, \mbox{\prettyll{AsyncReset}}\}$ and let $\bv=\{0,1\}^+$, i.e., the set of bit vectors.
+%
+For each $t = (\tau, n) \in \{\mbox{\prettyll{UInt}}, \mbox{\prettyll{SInt}}\} \times \Nat$, $n$ is the \emph{width} of $t$, denoted by $wd(t)$.
 
 We consider a finite set of \emph{sorts} consisting of \register, \node, \wire, \inport, and \outport. Let $\sorts = \{ \register, \node, \wire, \inport, \outport\}$.
 
