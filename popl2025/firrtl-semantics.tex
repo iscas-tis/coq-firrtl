@@ -62,6 +62,10 @@ We consider a finite set of \emph{sorts} consisting of register, node, memory, w
 
 \tl{to decide later how to proceed}
 
+%vertices 对应module中的component, wire, register, node等，每个vertex有type, width, input/output ports属性
+%edges从一个vertex的output port连到另外一个vertex的input port
+
+
 \begin{definition}\label{def-mg}
 	A \emph{module graph} $D$ is a tuple $\langle M_1, \cdots, M_n\rangle$ where each module $M_i$ has the following components:
 	\begin{itemize}
@@ -93,7 +97,12 @@ We consider a finite set of \emph{sorts} consisting of register, node, memory, w
 \end{definition}
 
 \begin{example}
-	Fig. 4
+For the program in Fig.~\ref{fig:example}, the module graph is $\langle M_1, M_2\rangle$. 
+
+$M_1=(\{clk, rst\}, \{io\}, ...)$ and 
+
+$M_2=(\{clk,rst\}, \{io\}, \{counter, T_7, T_8\}, ...)$
+where $counter$ is vertex, $T_7$ is a vertex, and $T_8$ is vertex.  
 \end{example}
 %Note that the types in the range of $ce$ in Definition~\ref{def-cd} are not necessarily ground types, that is, they may be aggregate types, since HiFIRRTL may contain high-level constructs, e.g. vectors and bundles.  
 
