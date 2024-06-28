@@ -28,13 +28,16 @@
 \newcommand{\clock}{{\tt Clock}\xspace}
 %\newcommand{\UInt}{{\tt UInt}\xspace}
 \newcommand{\UInt}[1]{{\tt UInt}$\langle #1\rangle$\xspace}
-\newcommand{\sort}{{\sf sort}}
+\newcommand{\sorts}{{\sf Sorts}}
 \newcommand{\width}{{\sf width}}
 \newcommand{\datatype}{{\sf type}}
+\newcommand{\vtypes}{{\sf VTypes}}
 
-\newcommand{\register}{{\sf register}}
-\newcommand{\node}{{\sf node}}
-\newcommand{\wire}{{\sf wire}}
+\newcommand\inport{\sf InPort}
+\newcommand\outport{\sf OutPort}
+\newcommand{\register}{{\sf Register}}
+\newcommand{\node}{{\sf Node}}
+\newcommand{\wire}{{\sf Wire}}
 \newcommand{\expr}{{\sf expr}}
 \newcommand{\inputport}{\mathcal{I}}
 \newcommand{\outputport}{\mathcal{O}}
@@ -45,19 +48,64 @@ We fix ground types \clock and  \UInt{n} where $n$ is a positive integer.
 %based on the discussion with zhilin, aggregate type is not needed. 
 %, and aggregate types consisting of vector type and bundle type. Typically, we write \UInt{n}. 
 
-We consider a finite set of \emph{sorts} consisting of \register, \node, and \wire. 
+
+%Let us fix a LoFIRRTL circuit $A$ that is free of \prettyll{inst of} statements. According to the syntax of LoFIRRTL, the top-level module of the circuit must be module $A$.
+
+We first introduce some notations.
 
 
+%A \emph{generalized connect statement} is a statement of the form $z <= e$ or $\mbox{\tt \prettyll{node}}\ z = e$, where $z$ and $e$ are called the \emph{head} and \emph{body} of the generalized connect statement, respectively. Intuitively, a generalized connect statement is either a connect statement $z <= e$ or a node-declaration statement $\mbox{\tt \prettyll{node}}\ z = e$.
+
+%We denote by $\iports(A)$, $\oports(A)$, $\wires(A)$, $\nodes(A)$
+%and $\registers(A)$ the sets of input ports, output ports, wires, nodes and registers of a module $A$, respectively.
+%Furthermore, we use $\ports(A)$ to denote the set of ports $\iports(A) \uplus \oports(A)$,
+%$\cpnts(A)$ to denote the set of components $\ports(A) \uplus \wires(A) \uplus \nodes(A) \uplus \registers(A)$,
+%and $\ccpnts(A)$ to denote the set of components $\oports(A) \uplus \wires(A) \uplus \nodes(A)$ that must be connected to, % in the module $A$,
+%where a component $z$ is connected to via a generalized connect statement whose head is $z$.
+%Note that the input ports $\iports(A)$ are not connected to, moreover, the registers may not be connected to, thus they
+%are not included in $\ccpnts(A)$. (If a register is not connected to, then it keeps the current value.)
+
+An \emph{identifier} is a pair $(a, o)$ such that $a \in \Nat$ and $o \in \Nat$. Let $\idset$ denote the set of identifiers. 
+%
+We denote by $\gtypes$ the set of ground types $(\{\mbox{\prettyll{UInt}}, \mbox{\prettyll{SInt}}\} \times \Nat) \cup \{\mbox{\prettyll{Clock}},
+\mbox{\prettyll{Reset}}, \mbox{\prettyll{AsyncReset}}\}$ and by $\bv$ the set of bit vectors $\{0,1\}^+$.
+For each $t = (\tau, n) \in \{\mbox{\prettyll{UInt}}, \mbox{\prettyll{SInt}}\} \times \Nat$, we define the \emph{width} of $t$, denoted by $wd(t)$, as $n$.
+
+We consider a finite set of \emph{sorts} consisting of \register, \node, \wire, \inport, and \outport. Let $\sorts = \{ \register, \node, \wire, \inport, \outport\}$.
+
+A \emph{vertex type} is either 
+\begin{itemize}
+\item $(s, t)$ with $s \in \{\inport, \outport, \wire, \node\}$ and $t \in \gtypes$,  
+\item or $(\register, t, c, r, b)$ such that $t \in \gtypes$, $c$ is a clock, $r$ is a reset signal, $i$ is an initial value, $b$ is a Boolean value denoting whether the reset is asynchronous or not.   \zhilin{just an informal description, should be make formal later}
+\end{itemize}
+Let $\vtypes$ denote the set of vertex types. 
+
+A \emph{vertex} is a pair $\idset \times \vtypes$.
+
+\begin{definition}\label{def-mg}
+	A \emph{module graph} $D$ is a pair $(V, C)$ where
+	\begin{itemize}
+		\item $V$ is a set of vertices,  
+		\item $C: V \rightarrow Exprs$ that assigns to each vertex a sequence of expressions.  
+	\end{itemize}
+%
+	%a triple $(ss, ce, cm)$, where $ss$ is a sequence of statements, $ce$ is a component environment that maps each component to its type, and $cm$ is a connect mapping that maps each component to an expression that is connected to it. 
+\end{definition}
+
+\zhilin{stopped here}
+
+\hide{
 \begin{definition}[Vertex]
-	A vertex $v$ is a tuple $(\inputport, \outputport, \sort, \width, \datatype)$ where 
+	A vertex $v$ is a tuple $(\sorts, \width, \datatype)$ where 
    \begin{itemize}
    		\item $\inputport$ and $\outputport$ are sets of input and output ports, respectively; 
-		\item {\sort} specifies the sort of component in the circuit $v$ is standing for; 		
+		\item {\sorts} specifies the sort of component in the circuit $v$ is standing for; 		
 		\item {\width} is a nonnegative number, specifying the bit width of $v$;
 		\item {\datatype} specifies the \emph{ground} type of $v$;
 		\item {\expr} is only defined for \emph{nodes}, 
 	\end{itemize}
 \end{definition} 
+}
 
 \tl{I propose we introduce the notion of \emph{hierarchical module graph} as the intermediate step for (flattened) module graph}
 
@@ -86,35 +134,6 @@ We consider a finite set of \emph{sorts} consisting of \register, \node, and \wi
 %Further, a node can serve as an abbreviation for an expression. While an expression can depend on any number of input signals, none of them is handled using the normal connection information, because the expression is fixed at the time the node is declared.
 
 
-\begin{definition}\label{def-mg}
-	A \emph{module graph} $D$ is a tuple $\langle M_1, \cdots, M_n\rangle$ where each module $M_i$ has the following components:
-	\begin{itemize}
-		\item a finite set of \emph{vertices} $V_i$, 
-		\item a finite set of input ports;
-		\item a finite set of output ports; %where for each $v\in V_i$, we define the following labelling functions:
-%each of which is associated with a sort etc) and a data type. %an identifier and a direction (input or output) and a data type;
-		
-%		\item a finite 
-		
-%		\item an indexing function $Y_i: 
-		
-%		\item a finite set of nodes (ports are actually special nodes?)
-%		
-%		\item register, memory?
-%		
-		\item an edge relation $E_i$. Each edge in $E_i$ is a pair $(u,v)$ with source $u$ and sink $v$, where \tl{??} $u$ and $v$ are input or output ports. 
-		
-%		They satisfy
-%		\begin{itemize}
-%			\item if $u$ is an input port, there is only outgoing (?) edge. 
-%		\end{itemize} 
-%		\begin{itemize}
-%			\item source $u$ either is a vertex of $M_i$ or a pair $(w_1, w_2)$ where $w_i$ is 
-%		\end{itemize}
-	\end{itemize}
-%
-	%a triple $(ss, ce, cm)$, where $ss$ is a sequence of statements, $ce$ is a component environment that maps each component to its type, and $cm$ is a connect mapping that maps each component to an expression that is connected to it. 
-\end{definition}
 
 \begin{example}
 For the program in Fig.~\ref{fig:example}, the module graph is $\langle M_1, M_2\rangle$. 
