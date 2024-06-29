@@ -42,13 +42,15 @@ the FIRRTL compiler suffers from a considerable number of bugs due to its inhere
 %
 %Nevertheless, 
 Partially because Chisel and FIRRTL are relatively new and the ecosystem around them is still evolving, formalization and verification of FIRRTL and its lowering transformations are largely missing. To the best our knowledge,  the only  exception is \cite{HarrisonHA21} where a coinductive denotational semantics for an idealized subset of LoFIRRTL was proposed and formalized in the Agda proof assistant, based on a formalism called device calculus. %Nevertheless, while \cite{HarrisonHA21} made some progress in the formalization of LoFIRRTL, 
-In general, a framework where programs in HiFIRRTL and its lowering transformations can be formally reasoned about is still elusive. %The establishment of 
-Such a framework would require
-a mechanized %operational 
+
+In general, a framework where programs in HiFIRRTL and its lowering transformations can be formally reasoned about 
+%is still elusive. %The establishment of 
+%Such a framework would require
+requires at least (1) a mechanized %operational 
 semantics of both HiFIRRTL and LoFIRRTL,
 %validation of the conformance of the semantics to the FIRRTL reference interpreter,
-formalization of %HiFIRRTL and its 
-the lowering transformations (aka compilation passes) from HiFIRRTL to LoFIRRTL, together with the %as well as 
+(2) formalization of %HiFIRRTL and its 
+the lowering transformations (aka compilation passes) from HiFIRRTL to LoFIRRTL, together with (3) the %as well as 
 specification and verification of the correctness of these %lowering 
 transformations. In this work, we present for the first time such a framework.  %that formally reasons about programs in FIRRTLand its lowering transformations .
 
@@ -57,7 +59,7 @@ transformations. In this work, we present for the first time such a framework.  
 \smallskip
 \noindent
 {\bf Contributions.}
-In this work, we fill in this gap and establish a general framework called Vefirrtl for formally reasoning about programs in FIRRTL and its lowering transformations. Specifically, we make the following major contributions.
+%In this work, we fill in this gap and establish a general framework called Vefirrtl for formally reasoning about programs in FIRRTL and its lowering transformations. Specifically, we make the following major contributions.
 
 We introduced the concept of \emph{module graphs} which is used to provide the formal semantics of FIRRTL. 
 
