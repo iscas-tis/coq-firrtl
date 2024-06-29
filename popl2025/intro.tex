@@ -18,7 +18,7 @@ XiangShan~\cite{xiangshan,Xiangshan-github}.
 %SiFive Core IP portfolio~\cite{SiFive},
 %and Google Edge TPU~\cite{EdgeTPU}.
 
-FIRRTL~\cite{IzraelevitzKLLW17} was proposed  as an intermediate representation (IR) for the compilation of Chisel programs, analogous to the role of LLVM IR~\cite{LLVM} for compiling C programs.
+FIRRTL (Flexible Intermediate Representation for RTL~\cite{IzraelevitzKLLW17,firrtl-spec}) was proposed  as an intermediate representation (IR) for the compilation of Chisel programs, analogous to the role of LLVM IR~\cite{LLVM} for compiling C programs.
 FIRRTL features first-class support for high-level constructs such as vector types, bundle types, conditional statements, connects, partial connects,
 and modules so that Chisel programs can easily be translated into FIRRTL.
 %
@@ -48,8 +48,9 @@ a mechanized %operational
 semantics of both HiFIRRTL and LoFIRRTL,
 %validation of the conformance of the semantics to the FIRRTL reference interpreter,
 formalization of %HiFIRRTL and its 
-the lowering transformations from HiFIRRTL to LoFIRRTL, together with the %as well as 
-specification and verification of the correctness of its lowering transformations.
+the lowering transformations (aka compilation passes) from HiFIRRTL to LoFIRRTL, together with the %as well as 
+specification and verification of the correctness of these %lowering 
+transformations. In this work, we present for the first time such a framework.  %that formally reasons about programs in FIRRTLand its lowering transformations .
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
  
@@ -86,7 +87,7 @@ We extract an OCaml compiler and empirically evaluate its performance against th
 %\end{itemize}
 %The establishment of the Vefirrtl framework for reasoning about programs in FIRRTL and its lowering transformations lays down a solid foundation towards a fully verified compiler for FIRRTL.
 
-In this work, we establish for the first time a framework that formally reasons about programs in FIRRTL~\cite{firrtl-spec} (Flexible Intermediate Representation for RTL) and its lowering transformations (aka compilation passes).
+
 
 \smallskip
 \noindent
