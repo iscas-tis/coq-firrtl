@@ -42,9 +42,13 @@
 \newcommand{\inputport}{\mathcal{I}}
 \newcommand{\outputport}{\mathcal{O}}
 
+\newcommand{\exps}{{\sf Exps}}
+\newcommand{\refs}{{\sf Refs}}
+
+\newcommand{\pfun}{\rightharpoonup}
 
 
-We fix ground types \clock and  \UInt{n} where $n$ is a positive integer. 
+%We fix ground types \clock and  \UInt{n} where $n$ is a positive integer. 
 %based on the discussion with zhilin, aggregate type is not needed. 
 %, and aggregate types consisting of vector type and bundle type. Typically, we write \UInt{n}. 
 
@@ -73,26 +77,38 @@ We denote by $\gtypes$ the set of ground types $(\{\mbox{\prettyll{UInt}}, \mbox
 For each $t = (\tau, n) \in \{\mbox{\prettyll{UInt}}, \mbox{\prettyll{SInt}}\} \times \Nat$, $n$ is the \emph{width} of $t$, denoted by $wd(t)$.
 
 We consider a finite set $\sorts = \{ \register, \node, \wire, \inport, \outport\}$ of \emph{sorts}.
+
+
+Let us use $\exps$ (resp. $\refs$) to denote the set of {\hifirrtl} expressions (resp. references), that is, the set of strings that can be derived from $e$ (resp. $r$) by using the rules in Figure~\ref{fig-firrtl-synt-simp}. 
+
 %consisting of \register, \node, \wire, \inport, and \outport. Let 
 
 A \emph{vertex type} is either 
 \begin{itemize}
 \item $(s, t)$ with $s \in \{\inport, \outport, \wire, \node\}$ and $t \in \gtypes$,  
-\item or $(\register, t, c, r, b)$ such that $t \in \gtypes$, $c$ is a clock, $r$ is a reset signal, $i$ is an initial value, $b$ is a Boolean value denoting whether the reset is asynchronous or not.   \zhilin{just an informal description, should be make formal later}
+\item or $(\register, t, e_1, e_2, e_3, b)$ such that $t \in \gtypes$, $e_1, e_2, e_3 \in \exps$. (Intuitively, $e_1$ represents a clock, $e_2$ represents a reset clock, and $e_3$ represents the reset value, and $b$ is a Boolean value  that denotes whether the reset is asynchronous or not).  
 \end{itemize}
 Let $\vtypes$ denote the set of vertex types. 
 
-A \emph{vertex} is a pair $\idset \times \vtypes$.
+A \emph{vertex map} is a partial function $vm: \idset \pfun \vtypes$ with a finite domain. 
 
-\begin{definition}\label{def-mg}
-	A \emph{module graph} $D$ is a pair $(V, C)$ where
-	\begin{itemize}
-		\item $V$ is a set of vertices,  
-		\item $C: V \rightarrow Exprs$ that assigns to each vertex a sequence of expressions.  
-	\end{itemize}
-%
-	%a triple $(ss, ce, cm)$, where $ss$ is a sequence of statements, $ce$ is a component environment that maps each component to its type, and $cm$ is a connect mapping that maps each component to an expression that is connected to it. 
+A \emph{connection tree} is a partial function $ct: \idset \pfun \exps$ with a finite domain. 
+
+%A \emph{vertex} is a pair $\idset \times \vtypes$.
+
+\begin{definition}[Module graph]\label{def-mg}
+	A \emph{module graph} $M$ is a pair $(vm, ct)$ where $vm$ is a vertex map and $ct$ is a connection tree
+	such that $\dom(vm) = \dom(ct)$. 
 \end{definition}
+Intuitively, a module graph is is a representation of a module, where the focus is on the components of ground types, all implicit widths are concretized, $vm$ records the declarations of components, and $ct$ records for each component an expression that is generated from its connect statements according to the last-connect semantics. 
+
+\begin{example}
+An example of module graphs here
+\end{example}
+
+semantics of {\hifirrtl} module. 
+
+Let $A$ be a {\hifirrtl} module and $M$ is a module graph. 
 
 \zhilin{stopped here}
 
