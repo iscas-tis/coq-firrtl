@@ -199,21 +199,21 @@ Let $M$ be a {\hifirrtl} module and $G$ be a module graph. We define how $G=(vm,
 \end{definition} 
 }
 
-\tl{I propose we introduce the notion of \emph{hierarchical module graph} as the intermediate step for (flattened) module graph}
-
-
-\begin{definition}
-	A hierarchical module graph is a tuple $\langle M_1, \cdots, M_n\rangle$ where each module $M_i$ has the following components:
-	\begin{itemize}
-		\item a finite set $V_i$ of vertices;
-		\item a finite set $B_i$ of boxes; ($B_i$ and $V_i$ are all pairwise disjoint)
-		\item a finite set $I_i$ of input ports;
-		\item a finite set $O_i$ of output ports;
-		\item a labeling function $Y_i: V_i \rightarrow \{i+1, \cdots, n\}$ that maps each box of the $i$-th graph to an index grater than $i$. That is, if $Y_i(b)=j$, for a box $b$ of graph $M_i$, then $b$ can be viewed as reference to the definition of the graph $M_j$. 
-	\end{itemize}
-\end{definition}
-
-\tl{to decide later how to proceed}
+%\tl{I propose we introduce the notion of \emph{hierarchical module graph} as the intermediate step for (flattened) module graph}
+%
+%
+%\begin{definition}
+%	A hierarchical module graph is a tuple $\langle M_1, \cdots, M_n\rangle$ where each module $M_i$ has the following components:
+%	\begin{itemize}
+%		\item a finite set $V_i$ of vertices;
+%		\item a finite set $B_i$ of boxes; ($B_i$ and $V_i$ are all pairwise disjoint)
+%		\item a finite set $I_i$ of input ports;
+%		\item a finite set $O_i$ of output ports;
+%		\item a labeling function $Y_i: V_i \rightarrow \{i+1, \cdots, n\}$ that maps each box of the $i$-th graph to an index grater than $i$. That is, if $Y_i(b)=j$, for a box $b$ of graph $M_i$, then $b$ can be viewed as reference to the definition of the graph $M_j$. 
+%	\end{itemize}
+%\end{definition}
+%
+%\tl{to decide later how to proceed}
 
 %vertices 对应module中的component, wire, register, node等，每个vertex有type, width, input/output ports属性
 %edges从一个vertex的output port连到另外一个vertex的input port
@@ -242,6 +242,8 @@ where $counter$ is vertex, $T_7$ is a vertex, and $T_8$ is vertex.
 
 
 %\subsection{Operational semantics for module graphs}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \subsection{Denotational Semantics of FIRRTL}
 
