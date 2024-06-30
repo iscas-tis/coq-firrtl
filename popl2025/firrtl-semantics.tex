@@ -69,14 +69,24 @@
 %Note that the input ports $\iports(A)$ are not connected to, moreover, the registers may not be connected to, thus they
 %are not included in $\ccpnts(A)$. (If a register is not connected to, then it keeps the current value.)
 
-An \emph{identifier} is a pair $(a, o)$ where $a, o \in \Nat$. Let $\idset$ denote the set of identifiers. 
+Let us fix a {\hifirrtl} module $A$. 
+
+For convenience, we define an \emph{identifier} as a pair $(a, o) \in \Nat \times \Nat$. Let $\idset$ denote the set of identifiers. Intuitively, 
+an identifier $(a, o)$ is assigned for each component $cnt$ of ground type in $A$, where
+\begin{itemize}
+\item if the component $cnt$ is a sub-component of some other component $cnt'$ of aggregate type, then $a \in \Nat$ is the identifier of $cnt'$ and $o$ represents the offset of $cnt$ in $cnt'$, 
+\item otherwise, $a \in \Nat$ is the identifier of $cnt$ and $o = 0$.
+\end{itemize}
+For instance, for the aggregate type \prettyll{output io : {flip enable : UInt<1>, calc : UInt<3>}}, the offsets of \prettyll{enable} and \prettyll{calc} are $0$ and $1$ respectively.  
+Moreover, for the components where aggregate types are nested, the offsets of the components of ground types are determined by the traversal order of a depth-first search.
+
 %
 We denote by $\gtypes$ the set of ground types $(\{\mbox{\prettyll{UInt}}, \mbox{\prettyll{SInt}}\} \times \Nat) \cup \{\mbox{\prettyll{Clock}},
 \mbox{\prettyll{Reset}}, \mbox{\prettyll{AsyncReset}}\}$ and let $\bv=\{0,1\}^+$, i.e., the set of bit vectors.
 %
 For each $t = (\tau, n) \in \{\mbox{\prettyll{UInt}}, \mbox{\prettyll{SInt}}\} \times \Nat$, $n$ is the \emph{width} of $t$, denoted by $wd(t)$.
 
-We consider a finite set $\sorts = \{ \register, \node, \wire, \inport, \outport\}$ of \emph{sorts}.
+We consider a finite set $\sorts = \{ \inport, \outport, \wire, \node, \register\}$ of \emph{sorts}.
 
 
 Let us use $\exps$ (resp. $\refs$) to denote the set of {\hifirrtl} expressions (resp. references), that is, the set of strings that can be derived from $e$ (resp. $r$) by using the rules in Figure~\ref{fig-firrtl-synt-simp}. 
@@ -100,7 +110,7 @@ A \emph{connection tree} is a partial function $ct: \idset \pfun \exps$ with a f
 	A \emph{module graph} $M$ is a pair $(vm, ct)$ where $vm$ is a vertex map and $ct$ is a connection tree
 	such that $\dom(vm) = \dom(ct)$. 
 \end{definition}
-Intuitively, a module graph is is a representation of a module, where the focus is on the components of ground types, all implicit widths are concretized, $vm$ records the declarations of components, and $ct$ records for each component an expression that is generated from its connect statements according to the last-connect semantics. 
+Intuitively, a module graph is a representation of a module, where the focus is on the components of ground types, all implicit widths are concretized, $vm$ records the declarations of components, and $ct$ records for each component an expression that is generated from its connect statements according to the last-connect semantics. 
 
 \begin{example}
 An example of module graphs here
