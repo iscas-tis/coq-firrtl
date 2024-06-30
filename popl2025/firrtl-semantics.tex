@@ -69,22 +69,25 @@
 %Note that the input ports $\iports(A)$ are not connected to, moreover, the registers may not be connected to, thus they
 %are not included in $\ccpnts(A)$. (If a register is not connected to, then it keeps the current value.)
 
-Let us fix a {\hifirrtl} module $M$. 
-
-For convenience, we define an \emph{identifier} as a pair $(a, o) \in \Nat \times \Nat$. Let $\idset$ denote the set of identifiers. Intuitively, 
-an identifier $(a, o)$ is assigned for each component $cnt$ of ground type in $M$, where
-\begin{itemize}
-\item if the component $cnt$ is a sub-component of some other component $cnt'$ of aggregate type, then $a \in \Nat$ is the identifier of $cnt'$ and $o$ represents the offset of $cnt$ in $cnt'$, 
-\item otherwise, $a \in \Nat$ is the identifier of $cnt$ and $o = 0$.
-\end{itemize}
-For instance, for the aggregate type \prettyll{output io : {flip enable : UInt<1>, calc : UInt<3>}}, the offsets of \prettyll{enable} and \prettyll{calc} are $0$ and $1$ respectively.  
-Moreover, for the components where aggregate types are nested, the offsets of the components of ground types are determined by the traversal order of a depth-first search.
-
 %
 We denote by $\gtypes$ the set of ground types $(\{\mbox{\prettyll{UInt}}, \mbox{\prettyll{SInt}}\} \times \Nat) \cup \{\mbox{\prettyll{Clock}},
 \mbox{\prettyll{Reset}}, \mbox{\prettyll{AsyncReset}}\}$ and let $\bv=\{0,1\}^+$, i.e., the set of bit vectors.
 %
 For each $t = (\tau, n) \in \{\mbox{\prettyll{UInt}}, \mbox{\prettyll{SInt}}\} \times \Nat$, $n$ is the \emph{width} of $t$, denoted by $wd(t)$.
+
+Let us fix a {\hifirrtl} module $M$. For convenience, we define an \emph{identifier} as a pair $(a, o) \in \Nat \times \Nat$. %where intuitively $a$ refers to ... and $o$ refers to ... . 
+Let $\idset$ denote the set of identifiers. Intuitively, 
+each component $cnt$ of ground type in $M$ is associated with an identifier $(a, o)$, where
+\begin{itemize}
+\item if $cnt$ is a sub-component of some other component $cnt'$ of an aggregate type, then $a \in \Nat$ is the identifier of $cnt'$ \tl{there is a bit issue here as the identifier of $cnt'$ is a pair?} and $o$ represents the offset of $cnt$ in $cnt'$, 
+\item otherwise, $a \in \Nat$ is the identifier of $cnt$ and $o = 0$.
+\end{itemize}
+
+For instance, for the aggregate type \prettyll{output io : {flip enable : UInt<1>, calc : UInt<3>}}, the offsets of \prettyll{enable} and \prettyll{calc} are $0$ and $1$ respectively.  
+
+Moreover, for the components where aggregate types are nested, the offsets of the components of ground types are determined by the traversal order of a depth-first search. \tl{to be improved.}
+
+
 
 We consider a finite set $\sorts = \{ \inport, \outport, \wire, \node, \register\}$ of \emph{sorts}.
 
@@ -96,7 +99,7 @@ Let us use $\exps$ (resp. $\refs$) to denote the set of {\hifirrtl} expressions 
 A \emph{vertex type} is either 
 \begin{itemize}
 \item $(s, t)$ with $s \in \{\inport, \outport, \wire, \node\}$ and $t \in \gtypes$,  
-\item or $(\register, t, e_1, e_2, e_3, b)$ such that $t \in \gtypes$, $e_1, e_2, e_3 \in \exps$. (Intuitively, $e_1$ represents a clock, $e_2$ represents a reset clock, and $e_3$ represents the reset value, and $b$ is a Boolean value  that denotes whether the reset is asynchronous or not).  
+\item or $(\register, t, e_1, e_2, e_3, b)$ such that $t \in \gtypes$, $e_1, e_2, e_3 \in \exps$ and $b\in \{0,1\}$. (Intuitively, $e_1$ represents a clock, $e_2$ represents a reset clock, and $e_3$ represents the reset value, and $b$ is a Boolean value  that denotes whether the reset is asynchronous or not).  
 \end{itemize}
 Let $\vtypes$ denote the set of vertex types. 
 
