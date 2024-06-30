@@ -120,6 +120,68 @@ semantics of {\hifirrtl} module.
 
 Let $M$ be a {\hifirrtl} module and $G$ be a module graph. We define how $G=(vm, ct)$ \emph{matches} $M$ as follows: We define the relations $(vm, ct) \xrightarrow{s} (vm', ct')$, where $s$ is a statement. Then $G$ matches $M$ if $(vm_{emp}, ct_{emp}) \xrightarrow{ss} (vm, ct)$, where $ss$ is the statement sequence of $M$. 
 
+\zhilin{this table to be cleaned}
+\begin{table}[t]
+  \small
+  \begin{gather*}
+    \infer[skip]
+    {\seqq{(te, s, rs) \xrightarrow{\mbox{skip}} (te, s, rs)}}
+    {\seqq{-}}
+    \quad
+    \inferii[wire]
+%    {\seqq{}}
+    {\seqq{(te, s, rs) \xrightarrow{\mbox{wire } v: t} (te', s', rs)}}
+   {\seqq{te' = te [t/v]}} {\seqq{s' = s [\bot/v]}}
+    \\[1ex]
+    \inferiii[reg: $\bot$]
+    {\seqq{(te, s, rs) \xrightarrow{\mbox{reg } r: t, c} (te', s', rs)}}
+   {\seqq{rs(r) = \bot}} {\seqq{te' = te [t/r]}} {\seqq{s' = s[\bot/r]}}
+    \quad
+    \inferii[reg: $\neq\bot$]
+    {\seqq{(te, s, rs) \xrightarrow{\mbox{reg } r: t, c} (te, s', rs)}}
+   {\seqq{rs(r) \neq \bot}} {\seqq{s' = s[rs(r)/r]}}
+    \\[1ex]
+    \inferiv[reg with reset: $\bot$, false]
+    {\seqq{(te, s, rs) \xrightarrow{\mbox{reg } r: t, c \mbox{ with: reset => }(e_1, e_2)} (te', s', rs)}}
+   {\seqq{rs(r) = \bot}} {\seqq{ s(e_1)= false}}  {\seqq{te' = te [t/r]}} {\seqq{s' = s[\bot/r]}}
+    \\[1ex]
+    \inferv[reg with reset: $\bot$, true]
+    {\seqq{(te, s, rs) \xrightarrow{\mbox{reg } r: t, c \mbox{ with: reset => }(e_1, e_2)} (te', s', rs')}}
+   {\seqq{rs(r) = \bot}} {\seqq{ s(e_1)= true}}  {\seqq{te' = te [t/r]}} {\seqq{s' = s[\bot/r]}} {\seqq{rs' = s[s(e_2)/r]}}
+    \\[1ex]
+    \inferiii[reg with reset: $\neq\bot$, false]
+    {\seqq{(te, s, rs) \xrightarrow{\mbox{reg } r: t, c \mbox{ with: reset => }(e_1, e_2)} (te, s', rs)}}
+   {\seqq{rs(r) \neq \bot}} {\seqq{ s(e_1)= false}} {\seqq{s' = s[rs(r)/r]}}
+    \\[1ex]
+    \inferiv[reg with reset: $\neq\bot$, true]
+    {\seqq{(te, s, rs) \xrightarrow{\mbox{reg } r: t, c \mbox{ with: reset => }(e_1, e_2)} (te, s', rs')}}
+   {\seqq{rs(r) \neq \bot}} {\seqq{ s(e_1)= true}} {\seqq{s' = s[rs(r)/r]}} {\seqq{rs' = rs[s(e_2)/r]}}
+    \\[1ex]
+    \inferii[node]
+    {\seqq{(te, s, rs) \xrightarrow{\mbox{node } v = e} (te', s', rs)}}
+   {\seqq{te' = te[te(e)/v]}} {\seqq{s' = s[s(e)/v]}}
+    \quad
+    \inferii[connect: non-register]
+    {\seqq{(te, s, rs) \xrightarrow{v <= e} (te, s', rs)}}
+   {\seqq{v \not \in \registers(A)}} {\seqq{s' = s[s(e)/v]}}
+    \\[1ex]
+    \inferii[connect: register]
+    {\seqq{(te, s, rs) \xrightarrow{v <= e} (te, s, rs')}}
+   {\seqq{v \in \registers(A)}} {\seqq{rs' = rs[s(e)/v]}}
+  \quad
+    \infer[invalid]
+    {\seqq{(te, s, rs) \xrightarrow{v \mbox{ is invalid}} (te, s', rs)}}
+%   {\seqq{rs(v) \neq \bot}} {\seqq{rs' = rs[s(e)/v]}}
+   {\seqq{s' = s[0^{wd(te(v))}/v]}}
+  \end{gather*}
+%  \vspace{-4mm}
+  \caption{Operational semantics of LoFIRRTL statements.}
+  \label{tab:lofirrtl-sem}
+  \vspace{-6mm}
+\end{table}
+
+
+
 \zhilin{stopped here}
 
 \hide{
