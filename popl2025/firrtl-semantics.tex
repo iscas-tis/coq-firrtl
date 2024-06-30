@@ -112,6 +112,8 @@ A \emph{connection tree} is a partial function $ct: \idset \pfun \exps$ with a f
 	A \emph{module graph} $G$ is a pair $(vm, ct)$ where $vm$ is a vertex map and $ct$ is a connection tree
 	such that $\dom(vm) = \dom(ct)$. 
 \end{definition}
+\tl{this def has little to do with graph!?}
+
 Intuitively, a module graph is a representation of a module, where the focus is on the components of ground types, all implicit widths are concretized, $vm$ records the declarations of components, and $ct$ records for each component an expression that is generated from its connect statements according to the last-connect semantics. 
 
 \begin{example}
@@ -186,18 +188,18 @@ Let $M$ be a {\hifirrtl} module and $G$ be a module graph. We define how $G=(vm,
 
 \zhilin{stopped here}
 
-\hide{
-\begin{definition}[Vertex]
-	A vertex $v$ is a tuple $(\sorts, \width, \datatype)$ where 
-   \begin{itemize}
-   		\item $\inputport$ and $\outputport$ are sets of input and output ports, respectively; 
-		\item {\sorts} specifies the sort of component in the circuit $v$ is standing for; 		
-		\item {\width} is a nonnegative number, specifying the bit width of $v$;
-		\item {\datatype} specifies the \emph{ground} type of $v$;
-		\item {\expr} is only defined for \emph{nodes}, 
-	\end{itemize}
-\end{definition} 
-}
+%\hide{
+%\begin{definition}[Vertex]
+%	A vertex $v$ is a tuple $(\sorts, \width, \datatype)$ where 
+%   \begin{itemize}
+%   		\item $\inputport$ and $\outputport$ are sets of input and output ports, respectively; 
+%		\item {\sorts} specifies the sort of component in the circuit $v$ is standing for; 		
+%		\item {\width} is a nonnegative number, specifying the bit width of $v$;
+%		\item {\datatype} specifies the \emph{ground} type of $v$;
+%		\item {\expr} is only defined for \emph{nodes}, 
+%	\end{itemize}
+%\end{definition} 
+%}
 
 %\tl{I propose we introduce the notion of \emph{hierarchical module graph} as the intermediate step for (flattened) module graph}
 %
@@ -227,14 +229,14 @@ Let $M$ be a {\hifirrtl} module and $G$ be a module graph. We define how $G=(vm,
 
 
 
-\begin{example}
-For the program in Fig.~\ref{fig:example}, the module graph is $\langle M_1, M_2\rangle$. 
-
-$M_1=(\{clk, rst\}, \{io\}, ...)$ and 
-
-$M_2=(\{clk,rst\}, \{io\}, \{counter, T_7, T_8\}, ...)$
-where $counter$ is vertex, $T_7$ is a vertex, and $T_8$ is vertex.  
-\end{example}
+%\begin{example}
+%For the program in Fig.~\ref{fig:example}, the module graph is $\langle M_1, M_2\rangle$. 
+%
+%$M_1=(\{clk, rst\}, \{io\}, ...)$ and 
+%
+%$M_2=(\{clk,rst\}, \{io\}, \{counter, T_7, T_8\}, ...)$
+%where $counter$ is vertex, $T_7$ is a vertex, and $T_8$ is vertex.  
+%\end{example}
 %Note that the types in the range of $ce$ in Definition~\ref{def-cd} are not necessarily ground types, that is, they may be aggregate types, since HiFIRRTL may contain high-level constructs, e.g. vectors and bundles.  
 
 
