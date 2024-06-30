@@ -90,13 +90,12 @@ Moreover, for the components where aggregate types are nested, the offsets of th
 
 
 We consider a finite set $\sorts = \{ \inport, \outport, \wire, \node, \register\}$ of \emph{sorts}.
-
-
-Let us use $\exps$ (resp. $\refs$) to denote the set of {\hifirrtl} expressions (resp. references), that is, the set of strings that can be derived from $e$ (resp. $r$) by using the rules in Figure~\ref{fig-firrtl-synt-simp}. 
+$\exps$ (resp. $\refs$) denotes the set of {\hifirrtl} expressions (resp. references), that is, %the set of strings that can be 
+those derived  by the rules from $e$ (resp. $r$) in Figure~\ref{fig-firrtl-synt-simp}. 
 
 %consisting of \register, \node, \wire, \inport, and \outport. Let 
 
-A \emph{vertex type} is either 
+A \emph{vertex type} is either \tl{the name "type" is overloaded, can be change to something else?}
 \begin{itemize}
 \item $(s, t)$ with $s \in \{\inport, \outport, \wire, \node\}$ and $t \in \gtypes$,  
 \item or $(\register, t, e_1, e_2, e_3, b)$ such that $t \in \gtypes$, $e_1, e_2, e_3 \in \exps$ and $b\in \{0,1\}$. (Intuitively, $e_1$ represents a clock, $e_2$ represents a reset clock, and $e_3$ represents the reset value, and $b$ is a Boolean value  that denotes whether the reset is asynchronous or not).  
