@@ -1,88 +1,32 @@
 %!TEX root = main.tex
 
+Since each component $cnt$ in $M$ is declared, $cnt$ has a type, say $type(cnt)$. Note that $type(cnt)$ may involve implicit widths.  
+On the other hand, all the widths $vm$ are explicit. We can construct a function $tmap$ that assigns to each identifier $v \in \range{id}$ a type where all the widths are explicit, by utilizing the information in $vm$ to instantiate the implicit widths in $type(cnt)$ for components $cnt$ in $M$. More precisely, for each $v \in \range{id}$, $tmap(v)$ is of one of the following forms, 
+\begin{itemize}
+\item $(ground, t)$ such that $t \in \gtypes$, 
+%
+\item $(vector, t[n])$ such that $t$ is a type where all widths are explicit, 
+%
+\item $(bundle, f)$ such that $f$ is a field where all widths are explicit. 
+\end{itemize}
+
+In the sequel, we first assume that $tmap$ is already constructed and show how to define the semantics of $M$. Later on, we show how to construct $tmap$ from $M$ and $vm$. 
+
+%Let $G= (vm, ct)$ be a module graph. 
+The semantics of a statement $s$ in $M$ is defined by a relation $(vm, ct) \xrightarrow[tmap]{s} (vm', ct')$, where $s$ is seen as a modifier of module graphs. Moreover, the relation can be easily extended to sequences of statements, that is, $(vm, ct) \xrightarrow[tmap]{ss} (vm', ct')$, where $ss$ is a sequence of statements. 
 
 \zhilin{stopped here}
 
-tmap is constructed from pp, ss, vm as follows. 
-
-For a statement $\kappa\ v: t$ where $\kappa =\mbox{\prettyll{input},\prettyll{output},\prettyll{wire}}$, 
-
-We define a mapping $tmap$ that assigns to each identifier from $\range{id}$ a type where all widths are explicit.    
-For each $v \in \dom(id)$, 
-\begin{itemize}
-\item if $v$ is declared in a statement $p \equiv \{\mbox{\prettyll{input}} v: t$, then 
-\begin{itemize}
-\item if $t = \theta$ with $\theta \in \{\mbox{\prettyll{Clock}}, \mbox{\prettyll{Reset}} \mbox{\prettyll{AsyncReset}}\}$ and $vm((id(v),0)) = (\inport, \theta)$, then $tmap(id(v)) = (gt, \theta)$, 
-%
-\item if $t = \theta$ with $\theta \in \{\mbox{\prettyll{UInt}}, \mbox{\prettyll{SInt}}\}$ and $vm((id(v), 0)) = (\inport, (\theta, n))$, then $tmap(id(v)) = (gt, \theta \langle n \rangle)$, 
-%
-\item if $t = \theta\langle n \rangle$ with $\theta \in \{\mbox{\prettyll{UInt}}, \mbox{\prettyll{SInt}}\} $ and $vm((id(v),0)) = (\inport, (\theta, n))$, then $tmap(id(v)) = (gt, \theta \langle n \rangle)$, 
-%
-\item if $t = t'[n]$ and $vm((id(v),n)) = (\inport, )$, then $tmap(id(v)) = (gt, \theta \langle n \rangle)$
-\end{itemize}
-\item if $v$ is declared in a statement $p \equiv \{\mbox{\prettyll{output}} v: t$, then $tmap(id(v))$ is defined similarly to the case $p \equiv \{\mbox{\prettyll{input}} v: t$, except that $\inport$ is replaced by $\outport$, 
-%   
-\item if $v$ is declared in a statement $s \equiv \mbox{\prettyll{wire} } v: t$, then 
-\begin{itemize}
-\item if $v$ is declared in a statement $p \equiv \{\mbox{\prettyll{input}} v: t$, then 
-\begin{itemize}
-\item if $t = \theta$ with $\theta \in \{\mbox{\prettyll{Clock}}, \mbox{\prettyll{Reset}} \mbox{\prettyll{AsyncReset}}\}$ and $vm(id(v)) = (\inport, \theta)$, then $tmap(id(v)) = (gt, \theta)$, 
-%
-\item if $t = \theta$ with $\theta \in \{\mbox{\prettyll{UInt}}, \mbox{\prettyll{SInt}}\}$ and $vm(id(v)) = (\inport, (\theta, n))$, then $tmap(id(v)) = (gt, \theta \langle n \rangle)$. 
-\end{itemize}
-\end{itemize}
-\end{itemize}
-
-Let $G= (vm, ct)$ be a module graph. 
-
-
-
-For a statement $\kappa\ v: t$ where $\kappa =\mbox{\prettyll{input},\prettyll{output},\prettyll{wire}}$, 
-we define $type_{vm, v}(t)$ inductively as follows.
-\begin{itemize}
-\item $type_{vm,v}(\tau) = \tau$ for each $\tau \in \{\mbox{\prettyll{Clock}}, \mbox{\prettyll{Reset}}, \mbox{\prettyll{AsyncReset}}\}$, 
-%
-\item $type_{vm, v}(\mbox{\prettyll{UInt}}) = \mbox{\prettyll{UInt}}(vm(id(v)))$ and $type_{vm,v}(\mbox{\prettyll{SInt}}) = \mbox{\prettyll{SInt}}(vm(id(v)))$.
-\end{itemize}
-
-We shall construct from $pp, ss, vm$ a function $tmap$ that assigns to each component (including the components of aggregate types) an $ftype$ where all the widths are explicit.
-
-\begin{table}[ht]
-  \small
-  \begin{gather*}
-    \infer[skip]
-    {\seqq{(te, s, rs) \xrightarrow{\mbox{skip}} (te, s, rs)}}
-    {\seqq{-}}
-    \quad
-    \infer[wire]
-%    {\seqq{}}
-    {\seqq{tmap \xrightarrow{\mbox{wire } v: t} tmap'}}
-   {\seqq{tmap' = tmap [type_{vm,v}(t)/id(v)]}}
-    \\[1ex]
-  \end{gather*}
-\end{table}
-
-%\paragraph*{The definition of ${\tt type\_of\_expr}(e)$ }%\zhilin{@Xiaomu, please add the definition here}
-
-
-
-semantics of {\hifirrtl} module. 
-
-Let $M$ be a {\hifirrtl} module and $G$ be a module graph. We define how $G=(vm, ct)$ \emph{matches} $M$ as follows: We define the relations $(vm, ct) \xrightarrow[tmap]{s} (vm', ct')$, where $s$ is a statement. Then $G$ matches $M$ if $(vm_{emp}, ct_{emp}) \xrightarrow[tmap]{ss} (vm, ct)$, where $ss$ is the statement sequence of $M$. 
+%Let $M$ be a {\hifirrtl} module and $G$ be a module graph. We define how $G = (vm, ct)$ \emph{matches} $M$ as follows: We define the relations $(vm, ct) \xrightarrow[tmap]{s} (vm', ct')$, where $s$ is a statement. Then $G$ matches $M$ if $(vm_{emp}, ct_{emp}) \xrightarrow[tmap]{ss} (vm, ct)$, where $ss$ is the statement sequence of $M$. 
 
 \zhilin{this table to be cleaned}
 \begin{table}[t]
   \small
   \begin{gather*}
     \infer[skip]
-    {\seqq{(te, s, rs) \xrightarrow{\mbox{skip}} (te, s, rs)}}
+    {\seqq{(vm, ct) \xrightarrow[tmap]{\mbox{skip}} (vm, ct)}}
     {\seqq{-}}
     \quad
-    \inferii[wire]
-%    {\seqq{}}
-    {\seqq{(te, s, rs) \xrightarrow{\mbox{wire } v: t} (te', s', rs)}}
-   {\seqq{te' = te [t/v]}} {\seqq{s' = s [\bot/v]}}
-    \\[1ex]
     \inferiii[reg: $\bot$]
     {\seqq{(te, s, rs) \xrightarrow{\mbox{reg } r: t, c} (te', s', rs)}}
    {\seqq{rs(r) = \bot}} {\seqq{te' = te [t/r]}} {\seqq{s' = s[\bot/r]}}
@@ -125,14 +69,41 @@ Let $M$ be a {\hifirrtl} module and $G$ be a module graph. We define how $G=(vm,
    {\seqq{s' = s[0^{wd(te(v))}/v]}}
   \end{gather*}
 %  \vspace{-4mm}
-  \caption{Operational semantics of LoFIRRTL statements.}
+  \caption{Denotational Semantics of {\hifirrtl} statements}
   \label{tab:lofirrtl-sem}
   \vspace{-6mm}
 \end{table}
 
 
+\hide{
+For a statement $\kappa\ v: t$ where $\kappa =\mbox{\prettyll{input},\prettyll{output},\prettyll{wire}}$, 
+We define a mapping $tmap$ that assigns to each identifier from $\range{id}$ a type where all widths are explicit.    
+For each $v \in \dom(id)$, 
+\begin{itemize}
+\item if $v$ is declared in a statement $p \equiv \{\mbox{\prettyll{input}} v: t$, then 
+\begin{itemize}
+\item if $t = \theta$ with $\theta \in \{\mbox{\prettyll{Clock}}, \mbox{\prettyll{Reset}} \mbox{\prettyll{AsyncReset}}\}$ and $vm((id(v),0)) = (\inport, \theta)$, then $tmap(id(v)) = (gt, \theta)$, 
+%
+\item if $t = \theta$ with $\theta \in \{\mbox{\prettyll{UInt}}, \mbox{\prettyll{SInt}}\}$ and $vm((id(v), 0)) = (\inport, (\theta, n))$, then $tmap(id(v)) = (gt, \theta \langle n \rangle)$, 
+%
+\item if $t = \theta\langle n \rangle$ with $\theta \in \{\mbox{\prettyll{UInt}}, \mbox{\prettyll{SInt}}\} $ and $vm((id(v),0)) = (\inport, (\theta, n))$, then $tmap(id(v)) = (gt, \theta \langle n \rangle)$, 
+%
+\item if $t = t'[n]$ and $vm((id(v),n)) = (\inport, )$, then $tmap(id(v)) = (gt, \theta \langle n \rangle)$
+\end{itemize}
+\item if $v$ is declared in a statement $p \equiv \{\mbox{\prettyll{output}} v: t$, then $tmap(id(v))$ is defined similarly to the case $p \equiv \{\mbox{\prettyll{input}} v: t$, except that $\inport$ is replaced by $\outport$, 
+%   
+\item if $v$ is declared in a statement $s \equiv \mbox{\prettyll{wire} } v: t$, then 
+\begin{itemize}
+\item if $v$ is declared in a statement $p \equiv \{\mbox{\prettyll{input}} v: t$, then 
+\begin{itemize}
+\item if $t = \theta$ with $\theta \in \{\mbox{\prettyll{Clock}}, \mbox{\prettyll{Reset}} \mbox{\prettyll{AsyncReset}}\}$ and $vm(id(v)) = (\inport, \theta)$, then $tmap(id(v)) = (gt, \theta)$, 
+%
+\item if $t = \theta$ with $\theta \in \{\mbox{\prettyll{UInt}}, \mbox{\prettyll{SInt}}\}$ and $vm(id(v)) = (\inport, (\theta, n))$, then $tmap(id(v)) = (gt, \theta \langle n \rangle)$. 
+\end{itemize}
+\end{itemize}
+\end{itemize}
+}
 
-\zhilin{stopped here}
 
 
 
