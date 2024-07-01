@@ -75,19 +75,34 @@ We denote by $\gtypes$ the set of ground types $(\{\mbox{\prettyll{UInt}}, \mbox
 %
 For each $t = (\tau, n) \in \{\mbox{\prettyll{UInt}}, \mbox{\prettyll{SInt}}\} \times \Nat$, $n$ is the \emph{width} of $t$, denoted by $wd(t)$.
 
-Let us fix a {\hifirrtl} module $M$. For convenience, we define an \emph{identifier} as a pair $(a, o) \in \Nat \times \Nat$. %where intuitively $a$ refers to ... and $o$ refers to ... . 
-Let $\idset$ denote the set of identifiers. Intuitively, 
-each component $cnt$ of ground type in $M$ is associated with an identifier $(a, o)$, where
+Let us fix a {\hifirrtl} module $M$. We assume that $M = (pp, ss)$, where $pp$ is a sequence of port declarations and $ss$ is a sequence of statements. 
+Moreover, for convenience, we assume that an \emph{identifier function} $id$ exists, which maps from the name of a component in $M$ to a natural number. Note that $id$ is an injective function. Later on, we always use identifiers (instead of names) to refer to the components in $M$. 
+
+In the sequel, we define a concept of \emph{module graphs} to define the semantics of {\hifirrtl} programs. Intuitively, a module graph $G$ for $M$ represents an instantiation of $M$, where all the implicit widths are made explicit. Moreover, the vertices of $G$ represent the components of ground type that are obtained from $M$ by flattening the components of aggregate type. 
+
+As a result, the vertices of a module graph for $M$ are of the form $(a, o) \in \Nat \times \Nat$, where  
+$(a, o)$ is one of the following forms, 
+%each component $cnt$ of ground type in $M$ is associated with an identifier $(a, o)$, where
 \begin{itemize}
-\item if $cnt$ is a sub-component of some other component $cnt'$ of an aggregate type, then $a \in \Nat$ is the identifier of $cnt'$ \tl{there is a bit issue here as the identifier of $cnt'$ is a pair?} and $o$ represents the offset of $cnt$ in $cnt'$, 
-\item otherwise, $a \in \Nat$ is the identifier of $cnt$ and $o = 0$.
+\item $a = id(cnt)$ such that $cnt$ is a component of vector type, and $o$ is an index in the vector, 
+% 
+\item $a = id(cnt)$ such that $cnt$ is a component of bundle type, and $o$ is the offset of a field of $cnt$ of ground type, (For a component of bundle type, the offsets of its fields of ground type are obtained by a depth-first search over its fields. For instance, for the bundle type \prettyll{output io : {flip enable : UInt<1>, calc : UInt<3>}}, the offsets of \prettyll{enable} and \prettyll{calc} are $0$ and $1$ respectively.)
+%is a sub-component of some other component $cnt'$ of an aggregate type, then $a \in \Nat$ is the identifier of $cnt'$ \tl{there is a bit issue here as the identifier of $cnt'$ is a pair?} and $o$ represents the offset of $cnt$ in $cnt'$, 
+\item $a = id(cnt)$ such that $cnt$ is a component of ground type, and $o = 0$.
 \end{itemize}
 
-For instance, for the aggregate type \prettyll{output io : {flip enable : UInt<1>, calc : UInt<3>}}, the offsets of \prettyll{enable} and \prettyll{calc} are $0$ and $1$ respectively.  
+Let $\idset_M$ denote the set of pairs $(a, o)$ that is obtained from $M$. 
 
-Moreover, for the components where aggregate types are nested, the offsets of the components of ground types are determined by the traversal order of a depth-first search. \tl{to be improved.}
+%For convenience, we define an \emph{identifier} as a pair $(a, o) \in \Nat \times \Nat$. %where intuitively $a$ refers to ... and $o$ refers to ... . 
+%Let $\idset$ denote the set of identifiers. Intuitively, 
+%each component $cnt$ of ground type in $M$ is associated with an identifier $(a, o)$, where
+%\begin{itemize}
+%\item if $cnt$ is a sub-component of some other component $cnt'$ of an aggregate type, then $a \in \Nat$ is the identifier of $cnt'$ \tl{there is a bit issue here as the identifier of $cnt'$ is a pair?} and $o$ represents the offset of $cnt$ in $cnt'$, 
+%\item otherwise, $a \in \Nat$ is the identifier of $cnt$ and $o = 0$.
+%\end{itemize}
 
 
+%Moreover, for the components where aggregate types are nested, the offsets of the components of ground types are determined by the traversal order of a depth-first search. \tl{to be improved.}
 
 We consider a finite set $\sorts = \{ \inport, \outport, \wire, \node, \register\}$ of \emph{sorts}.
 $\exps$ (resp. $\refs$) denotes the set of {\hifirrtl} expressions (resp. references), that is, %the set of strings that can be 
@@ -102,27 +117,63 @@ A \emph{vertex type} is either \tl{the name "type" is overloaded, can be change 
 \end{itemize}
 Let $\vtypes$ denote the set of vertex types. 
 
-A \emph{vertex map} is a partial function $vm: \idset \pfun \vtypes$ with a finite domain. 
+A \emph{vertex map} is a function $vm: \idset_M \rightarrow \vtypes$ with a finite domain. 
 
-A \emph{connection tree} is a partial function $ct: \idset \pfun \exps$ with a finite domain. 
+A \emph{connection tree} is a function $ct: \idset_M \rightarrow \exps$ with a finite domain. 
 
 %A \emph{vertex} is a pair $\idset \times \vtypes$.
 
 \begin{definition}[Module graph]\label{def-mg}
-	A \emph{module graph} $G$ is a pair $(vm, ct)$ where $vm$ is a vertex map and $ct$ is a connection tree
-	such that $\dom(vm) = \dom(ct)$. 
+	A \emph{module graph} $G$ is a pair $(vm, ct)$ where $vm$ is a vertex map and $ct$ is a connection tree. 
 \end{definition}
-\tl{this def has little to do with graph!?}
+\tl{this def has little to do with graph!?}\zhilin{if $ct(id)$ is a component of ground type, then it is analogous to the graph edges, otherwise, $ct(id)$ may involve multiple identifiers, somehow it can be seen as an edge in a supergraph. May changed to module diagram}
 
-Intuitively, a module graph is a representation of a module, where the focus is on the components of ground types, all implicit widths are concretized, $vm$ records the declarations of components, and $ct$ records for each component an expression that is generated from its connect statements according to the last-connect semantics. 
+%Intuitively, a module graph is a representation of a module, where the focus is on the components of ground types, all implicit widths are concretized, $vm$ records the declarations of components, and $ct$ records for each component an expression that is generated from its connect statements according to the last-connect semantics. 
 
 \begin{example}
 An example of module graphs here
 \end{example}
 
+\zhilin{stopped here}
+
+tmap is constructed from pp, ss, vm
+
+Let $G= (vm, ct)$ be a module graph. 
+
+
+
+For a statement $\kappa\ v: t$ where $\kappa =\mbox{\prettyll{input},\prettyll{output},\prettyll{wire}}$, 
+we define $type_{vm, v}(t)$ inductively as follows.
+\begin{itemize}
+\item $type_{vm,v}(\tau) = \tau$ for each $\tau \in \{\mbox{\prettyll{Clock}}, \mbox{\prettyll{Reset}}, \mbox{\prettyll{AsyncReset}}\}$, 
+%
+\item $type_{vm, v}(\mbox{\prettyll{UInt}}) = \mbox{\prettyll{UInt}}(vm(id(v)))$ and $type_{vm,v}(\mbox{\prettyll{SInt}}) = \mbox{\prettyll{SInt}}(vm(id(v)))$.
+\end{itemize}
+
+We shall construct from $pp, ss, vm$ a function $tmap$ that assigns to each component (including the components of aggregate types) an $ftype$ where all the widths are explicit.
+
+\begin{table}[ht]
+  \small
+  \begin{gather*}
+    \infer[skip]
+    {\seqq{(te, s, rs) \xrightarrow{\mbox{skip}} (te, s, rs)}}
+    {\seqq{-}}
+    \quad
+    \infer[wire]
+%    {\seqq{}}
+    {\seqq{tmap \xrightarrow{\mbox{wire } v: t} tmap'}}
+   {\seqq{tmap' = tmap [type_{vm,v}(t)/id(v)]}}
+    \\[1ex]
+  \end{gather*}
+\end{table}
+
+%\paragraph*{The definition of ${\tt type\_of\_expr}(e)$ }%\zhilin{@Xiaomu, please add the definition here}
+
+
+
 semantics of {\hifirrtl} module. 
 
-Let $M$ be a {\hifirrtl} module and $G$ be a module graph. We define how $G=(vm, ct)$ \emph{matches} $M$ as follows: We define the relations $(vm, ct) \xrightarrow{s} (vm', ct')$, where $s$ is a statement. Then $G$ matches $M$ if $(vm_{emp}, ct_{emp}) \xrightarrow{ss} (vm, ct)$, where $ss$ is the statement sequence of $M$. 
+Let $M$ be a {\hifirrtl} module and $G$ be a module graph. We define how $G=(vm, ct)$ \emph{matches} $M$ as follows: We define the relations $(vm, ct) \xrightarrow[tmap]{s} (vm', ct')$, where $s$ is a statement. Then $G$ matches $M$ if $(vm_{emp}, ct_{emp}) \xrightarrow[tmap]{ss} (vm, ct)$, where $ss$ is the statement sequence of $M$. 
 
 \zhilin{this table to be cleaned}
 \begin{table}[t]
