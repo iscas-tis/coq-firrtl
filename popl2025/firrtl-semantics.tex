@@ -70,13 +70,14 @@
 %are not included in $\ccpnts(A)$. (If a register is not connected to, then it keeps the current value.)
 
 %
-We denote by $\gtypes$ the set of ground types $(\{\mbox{\prettyll{UInt}}, \mbox{\prettyll{SInt}}\} \times \Nat) \cup \{\mbox{\prettyll{Clock}},
+We denote by $\gtypes$ the set of ground types, i.e., $(\{\mbox{\prettyll{UInt}}, \mbox{\prettyll{SInt}}\} \times \Nat) \cup \{\mbox{\prettyll{Clock}},
 \mbox{\prettyll{Reset}}, \mbox{\prettyll{AsyncReset}}\}$ and let $\bv=\{0,1\}^+$, i.e., the set of bit vectors.
 %
-For each $t = (\tau, n) \in \{\mbox{\prettyll{UInt}}, \mbox{\prettyll{SInt}}\} \times \Nat$, $n$ is the \emph{width} of $t$, denoted by $wd(t)$.
+For a ground type $t = (\tau, n) \in \{\mbox{\prettyll{UInt}}, \mbox{\prettyll{SInt}}\} \times \Nat$, $n$ is the \emph{width} of $t$, denoted by $wd(t)$.
 
-Let us fix a {\hifirrtl} module $M$. We assume that $M = (pp, ss)$, where $pp$ is a sequence of port declarations and $ss$ is a sequence of statements. 
-Moreover, for convenience, we assume that an \emph{identifier function} $id$ exists, which maps from the name of a component in $M$ to a natural number. Note that $id$ is an injective function. Later on, we always use identifiers (instead of names) to refer to the components in $M$. 
+Fix a {\hifirrtl} module $M$ where we assume that $M$ consists of a sequence of port declarations followed by statements. %$M = (pp, ss)$, where $pp$ is a sequence of port declarations and $ss$ is a sequence of statements. 
+Moreover, for convenience, we assume an \emph{injective} identifier function $id$, which maps from the name of a component (e.g., wire, node, register) in $M$ to a natural number. %Note that $id$ is an injective function. Later on, 
+We shall use identifiers (instead of names) to refer to the components in $M$. 
 
 In the sequel, we define a concept of \emph{module graphs} to define the semantics of {\hifirrtl} programs. Intuitively, a module graph $G$ for $M$ represents an instantiation of $M$, where all the implicit widths are made explicit. Moreover, the vertices of $G$ represent the components of ground type that are obtained from $M$ by flattening the components of aggregate type. 
 
@@ -84,14 +85,19 @@ As a result, the vertices of a module graph for $M$ are of the form $(a, o) \in 
 $(a, o)$ is one of the following forms, 
 %each component $cnt$ of ground type in $M$ is associated with an identifier $(a, o)$, where
 \begin{itemize}
-\item $a = id(cnt)$ such that $cnt$ is a component of vector type, and $o$ is an index in the vector, 
+\item $a = id(cnt)$ where $cnt$ is a component of vector type, and $o$ is an index in the vector, 
 % 
-\item $a = id(cnt)$ such that $cnt$ is a component of bundle type, and $o$ is the offset of a field of $cnt$ of ground type, (For a component of bundle type, the offsets of its fields of ground type are obtained by a depth-first search over its fields. For instance, for the bundle type \prettyll{output io : {flip enable : UInt<1>, calc : UInt<3>}}, the offsets of \prettyll{enable} and \prettyll{calc} are $0$ and $1$ respectively.)
+\item $a = id(cnt)$ where $cnt$ is a component of bundle type, and $o$ is the offset of a field of $cnt$ of ground type,
 %is a sub-component of some other component $cnt'$ of an aggregate type, then $a \in \Nat$ is the identifier of $cnt'$ \tl{there is a bit issue here as the identifier of $cnt'$ is a pair?} and $o$ represents the offset of $cnt$ in $cnt'$, 
-\item $a = id(cnt)$ such that $cnt$ is a component of ground type, and $o = 0$.
+\item $a = id(cnt)$ where $cnt$ is a component of ground type, and $o = 0$.
 \end{itemize}
 
-Let $\idset_M$ denote the set of pairs $(a, o)$ that is obtained from $M$. 
+For a component of bundle type, the offsets of its fields of ground type are obtained by a depth-first search over its fields. For instance, for the bundle type 
+ 
+ \prettyll{output io : {flip enable : UInt<1>, calc : UInt<3>}}, the offsets of \prettyll{enable} and \prettyll{calc} are $0$ and $1$ respectively.
+
+Let $\idset_M$ denote the set of all vertices %pairs $(a, o)$ that is obtained 
+from $M$. 
 
 %For convenience, we define an \emph{identifier} as a pair $(a, o) \in \Nat \times \Nat$. %where intuitively $a$ refers to ... and $o$ refers to ... . 
 %Let $\idset$ denote the set of identifiers. Intuitively, 
