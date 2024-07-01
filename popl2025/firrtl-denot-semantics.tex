@@ -1,0 +1,160 @@
+%!TEX root = main.tex
+
+
+\zhilin{stopped here}
+
+tmap is constructed from pp, ss, vm as follows. 
+
+For a statement $\kappa\ v: t$ where $\kappa =\mbox{\prettyll{input},\prettyll{output},\prettyll{wire}}$, 
+
+We define a mapping $tmap$ that assigns to each identifier from $\range{id}$ a type where all widths are explicit.    
+For each $v \in \dom(id)$, 
+\begin{itemize}
+\item if $v$ is declared in a statement $p \equiv \{\mbox{\prettyll{input}} v: t$, then 
+\begin{itemize}
+\item if $t = \theta$ with $\theta \in \{\mbox{\prettyll{Clock}}, \mbox{\prettyll{Reset}} \mbox{\prettyll{AsyncReset}}\}$ and $vm((id(v),0)) = (\inport, \theta)$, then $tmap(id(v)) = (gt, \theta)$, 
+%
+\item if $t = \theta$ with $\theta \in \{\mbox{\prettyll{UInt}}, \mbox{\prettyll{SInt}}\}$ and $vm((id(v), 0)) = (\inport, (\theta, n))$, then $tmap(id(v)) = (gt, \theta \langle n \rangle)$, 
+%
+\item if $t = \theta\langle n \rangle$ with $\theta \in \{\mbox{\prettyll{UInt}}, \mbox{\prettyll{SInt}}\} $ and $vm((id(v),0)) = (\inport, (\theta, n))$, then $tmap(id(v)) = (gt, \theta \langle n \rangle)$, 
+%
+\item if $t = t'[n]$ and $vm((id(v),n)) = (\inport, )$, then $tmap(id(v)) = (gt, \theta \langle n \rangle)$
+\end{itemize}
+\item if $v$ is declared in a statement $p \equiv \{\mbox{\prettyll{output}} v: t$, then $tmap(id(v))$ is defined similarly to the case $p \equiv \{\mbox{\prettyll{input}} v: t$, except that $\inport$ is replaced by $\outport$, 
+%   
+\item if $v$ is declared in a statement $s \equiv \mbox{\prettyll{wire} } v: t$, then 
+\begin{itemize}
+\item if $v$ is declared in a statement $p \equiv \{\mbox{\prettyll{input}} v: t$, then 
+\begin{itemize}
+\item if $t = \theta$ with $\theta \in \{\mbox{\prettyll{Clock}}, \mbox{\prettyll{Reset}} \mbox{\prettyll{AsyncReset}}\}$ and $vm(id(v)) = (\inport, \theta)$, then $tmap(id(v)) = (gt, \theta)$, 
+%
+\item if $t = \theta$ with $\theta \in \{\mbox{\prettyll{UInt}}, \mbox{\prettyll{SInt}}\}$ and $vm(id(v)) = (\inport, (\theta, n))$, then $tmap(id(v)) = (gt, \theta \langle n \rangle)$. 
+\end{itemize}
+\end{itemize}
+\end{itemize}
+
+Let $G= (vm, ct)$ be a module graph. 
+
+
+
+For a statement $\kappa\ v: t$ where $\kappa =\mbox{\prettyll{input},\prettyll{output},\prettyll{wire}}$, 
+we define $type_{vm, v}(t)$ inductively as follows.
+\begin{itemize}
+\item $type_{vm,v}(\tau) = \tau$ for each $\tau \in \{\mbox{\prettyll{Clock}}, \mbox{\prettyll{Reset}}, \mbox{\prettyll{AsyncReset}}\}$, 
+%
+\item $type_{vm, v}(\mbox{\prettyll{UInt}}) = \mbox{\prettyll{UInt}}(vm(id(v)))$ and $type_{vm,v}(\mbox{\prettyll{SInt}}) = \mbox{\prettyll{SInt}}(vm(id(v)))$.
+\end{itemize}
+
+We shall construct from $pp, ss, vm$ a function $tmap$ that assigns to each component (including the components of aggregate types) an $ftype$ where all the widths are explicit.
+
+\begin{table}[ht]
+  \small
+  \begin{gather*}
+    \infer[skip]
+    {\seqq{(te, s, rs) \xrightarrow{\mbox{skip}} (te, s, rs)}}
+    {\seqq{-}}
+    \quad
+    \infer[wire]
+%    {\seqq{}}
+    {\seqq{tmap \xrightarrow{\mbox{wire } v: t} tmap'}}
+   {\seqq{tmap' = tmap [type_{vm,v}(t)/id(v)]}}
+    \\[1ex]
+  \end{gather*}
+\end{table}
+
+%\paragraph*{The definition of ${\tt type\_of\_expr}(e)$ }%\zhilin{@Xiaomu, please add the definition here}
+
+
+
+semantics of {\hifirrtl} module. 
+
+Let $M$ be a {\hifirrtl} module and $G$ be a module graph. We define how $G=(vm, ct)$ \emph{matches} $M$ as follows: We define the relations $(vm, ct) \xrightarrow[tmap]{s} (vm', ct')$, where $s$ is a statement. Then $G$ matches $M$ if $(vm_{emp}, ct_{emp}) \xrightarrow[tmap]{ss} (vm, ct)$, where $ss$ is the statement sequence of $M$. 
+
+\zhilin{this table to be cleaned}
+\begin{table}[t]
+  \small
+  \begin{gather*}
+    \infer[skip]
+    {\seqq{(te, s, rs) \xrightarrow{\mbox{skip}} (te, s, rs)}}
+    {\seqq{-}}
+    \quad
+    \inferii[wire]
+%    {\seqq{}}
+    {\seqq{(te, s, rs) \xrightarrow{\mbox{wire } v: t} (te', s', rs)}}
+   {\seqq{te' = te [t/v]}} {\seqq{s' = s [\bot/v]}}
+    \\[1ex]
+    \inferiii[reg: $\bot$]
+    {\seqq{(te, s, rs) \xrightarrow{\mbox{reg } r: t, c} (te', s', rs)}}
+   {\seqq{rs(r) = \bot}} {\seqq{te' = te [t/r]}} {\seqq{s' = s[\bot/r]}}
+    \quad
+    \inferii[reg: $\neq\bot$]
+    {\seqq{(te, s, rs) \xrightarrow{\mbox{reg } r: t, c} (te, s', rs)}}
+   {\seqq{rs(r) \neq \bot}} {\seqq{s' = s[rs(r)/r]}}
+    \\[1ex]
+    \inferiv[reg with reset: $\bot$, false]
+    {\seqq{(te, s, rs) \xrightarrow{\mbox{reg } r: t, c \mbox{ with: reset => }(e_1, e_2)} (te', s', rs)}}
+   {\seqq{rs(r) = \bot}} {\seqq{ s(e_1)= false}}  {\seqq{te' = te [t/r]}} {\seqq{s' = s[\bot/r]}}
+    \\[1ex]
+    \inferv[reg with reset: $\bot$, true]
+    {\seqq{(te, s, rs) \xrightarrow{\mbox{reg } r: t, c \mbox{ with: reset => }(e_1, e_2)} (te', s', rs')}}
+   {\seqq{rs(r) = \bot}} {\seqq{ s(e_1)= true}}  {\seqq{te' = te [t/r]}} {\seqq{s' = s[\bot/r]}} {\seqq{rs' = s[s(e_2)/r]}}
+    \\[1ex]
+    \inferiii[reg with reset: $\neq\bot$, false]
+    {\seqq{(te, s, rs) \xrightarrow{\mbox{reg } r: t, c \mbox{ with: reset => }(e_1, e_2)} (te, s', rs)}}
+   {\seqq{rs(r) \neq \bot}} {\seqq{ s(e_1)= false}} {\seqq{s' = s[rs(r)/r]}}
+    \\[1ex]
+    \inferiv[reg with reset: $\neq\bot$, true]
+    {\seqq{(te, s, rs) \xrightarrow{\mbox{reg } r: t, c \mbox{ with: reset => }(e_1, e_2)} (te, s', rs')}}
+   {\seqq{rs(r) \neq \bot}} {\seqq{ s(e_1)= true}} {\seqq{s' = s[rs(r)/r]}} {\seqq{rs' = rs[s(e_2)/r]}}
+    \\[1ex]
+    \inferii[node]
+    {\seqq{(te, s, rs) \xrightarrow{\mbox{node } v = e} (te', s', rs)}}
+   {\seqq{te' = te[te(e)/v]}} {\seqq{s' = s[s(e)/v]}}
+    \quad
+    \inferii[connect: non-register]
+    {\seqq{(te, s, rs) \xrightarrow{v <= e} (te, s', rs)}}
+   {\seqq{v \not \in \registers(A)}} {\seqq{s' = s[s(e)/v]}}
+    \\[1ex]
+    \inferii[connect: register]
+    {\seqq{(te, s, rs) \xrightarrow{v <= e} (te, s, rs')}}
+   {\seqq{v \in \registers(A)}} {\seqq{rs' = rs[s(e)/v]}}
+  \quad
+    \infer[invalid]
+    {\seqq{(te, s, rs) \xrightarrow{v \mbox{ is invalid}} (te, s', rs)}}
+%   {\seqq{rs(v) \neq \bot}} {\seqq{rs' = rs[s(e)/v]}}
+   {\seqq{s' = s[0^{wd(te(v))}/v]}}
+  \end{gather*}
+%  \vspace{-4mm}
+  \caption{Operational semantics of LoFIRRTL statements.}
+  \label{tab:lofirrtl-sem}
+  \vspace{-6mm}
+\end{table}
+
+
+
+\zhilin{stopped here}
+
+
+
+A HiFIRRTL program $P$ is mapped to \emph{a set of} module graphs. %, where the box 
+We define $\mathcal{G}(P)$.  % G(P): the set of module graphs of  P
+
+
+We assume a component environment $ce$ which extracts the type information from $P$ %the sequence $ss$ of statements 
+%and 
+%the connect mapping $cm$ extracts for each component the expression that is connected to the component according to the last-connect semantics. 
+
+Recall that a circuit defined by $P$ consists of multiple modules. 
+
+\begin{itemize}
+	\item tg
+\end{itemize} 
+
+
+%A HiFIRRTL module $M$ will be first transformed into a circuit diagram $D_M = (ss, ce, cm)$, where $ss$ is the sequence of statements in $M$, $ce$ is the component environment obtained from the variable declarations in $M$, possibly with the types of some variables missing or partial, 
+
+%and $cm$ is the trivial mapping that maps each component to $\bot$ (Intuitively, this means that the connects of the components have not be determined yet). The missing or partial  types in $ce$ will be completed by the compilation passes during the transformation of $M$ into a LoFIRRTL module. Moreover, the connect mapping $cm$ will be updated by the ExpandWhens compilation pass. Furthermore, the statement sequence $ss$ will be updated by ExpandConnects, ExpandWhens, LowerTypes, and RemoveReset, while they keep unchanged during the other compilation passes.  
+
+
+
+%\subsection{Behavioral semantics of modular graphs}
