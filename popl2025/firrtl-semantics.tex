@@ -121,7 +121,7 @@ A \emph{vertex type} is either \tl{the name "type" is overloaded, can be change 
 \item $(s, t)$ with $s \in \{\inport, \outport, \wire, \node\}$ and $t \in \gtypes$,  
 \item or $(\register, t, e_1, e_2, e_3, b)$ such that $t \in \gtypes$, $e_1, e_2, e_3 \in \exps$ and $b\in \{0,1\}$. (Intuitively, $e_1$ represents a clock, $e_2$ represents a reset clock, and $e_3$ represents the reset value, and $b$ is a Boolean value  that denotes whether the reset is asynchronous or not).  
 \end{itemize}
-Let $\vtypes$ denote the set of vertex types. 
+Let $\vtypes$ denote the set of vertex types. Moreover, for convenience, we assume that $\vtypes$ includes two additional elements, i.e. $none$ and $undefined$. 
 
 A \emph{vertex map} is a function $vm: \idset_M \rightarrow \vtypes$ with a finite domain. 
 
