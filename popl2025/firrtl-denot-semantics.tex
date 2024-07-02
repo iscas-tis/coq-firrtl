@@ -78,12 +78,22 @@ Before defining the semantics, let us introduce several (recursive) definitions,
     \\[1ex]    
     \infer[vm\_match]
     {\seqq{vm\_match(v, ft, vm, vm')}}
-    {\seqq{\forall n.\ 0 \le n < size\_of\_ftype(ft) \Rightarrow vm(v, n) = none \wedge vm'(v,n) = list\_gtype(ft)[n]}}
+    {\seqq{
+    \begin{array}{c}
+    \forall n.\ 0 \le n < size\_of\_ftype(ft) \Rightarrow vm(v, n) = none \wedge vm'(v,n) = list\_gtype(ft)[n] \\
+    \forall n.\ n \ge size\_of\_ftype(ft) \Rightarrow vm(v, n) =  vm'(v,n)
+    \end{array}
+    }}
     \quad
     \\[1ex]    
     \infer[ct\_match]
     {\seqq{ct\_match(v, ft, vm, vm')}}
-    {\seqq{\forall n.\ 0 \le n < size\_of\_ftype(ft) \Rightarrow ct(v, n) = none \wedge ct'(v,n) = undefined}}
+    {\seqq{
+    \begin{array}{c}
+    \forall n.\ 0 \le n < size\_of\_ftype(ft) \Rightarrow ct(v, n) = none \wedge ct'(v,n) = undefined \\
+    \forall n.\ n \ge size\_of\_ftype(ft) \Rightarrow ct(v, n) =  ct'(v,n)
+    \end{array}
+    }}
     \quad
   \end{gather*}
 %  \vspace{-4mm}
@@ -100,9 +110,15 @@ Before defining the semantics, let us introduce several (recursive) definitions,
     {\seqq{(vm, ct) \xrightarrow[tmap]{\mbox{skip}} (vm, ct)}}
     {\seqq{-}}
     \quad
+    \\[1ex]
     \inferiii[wire]
     {\seqq{(vm, ct) \xrightarrow[tmap]{\mbox{wire } x: t} (vm', ct')}}
-   {tmap(id(x))=(newft, Duplex)} {vm\_match(id(x), newft, vm, vm')} {ct\_match(id(x), newft, ct, ct')}
+   {tmap(id(x))= newft} {vm\_match(id(x), newft, vm, vm')} {ct\_match(id(x), newft, ct, ct')}
+    \quad
+    \\[1ex]
+    \inferiii[node]
+    {\seqq{(vm, ct) \xrightarrow[tmap]{\mbox{node } x = e} (vm', ct')}}
+   {tmap(e)= newft} {vm\_match(id(x), newft, vm, vm')} {ct\_match(id(x), newft, ct, ct')}
     \quad
     \\[1ex]
     \inferii[reg: $\neq\bot$]
