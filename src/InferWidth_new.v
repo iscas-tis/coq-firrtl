@@ -3593,14 +3593,14 @@ Definition legal_module F vm vm': Prop := match F with
 Theorem InferWidths_correct :
   forall (F : HiFP.hfmodule) (vm' : CEP.t vertex_type),
     match InferWidths_m F, make_vm_implicit F vm' with
-    | Some (F', _), Some vm => legal_module F vm vm' -> Sem F' vm' -> Sem F vm
+    | Some (F', _), Some vm => Sem F' vm' -> Sem F vm
     | _, _ => True
     end.
 Proof.
   intros.
   case Hinfer : (InferWidths_m F) => [[F' t]|]; try done.
   case Himplivm : (make_vm_implicit F vm') => [vm|]; try done.
-  rewrite /Sem; rewrite /InferWidths_m in Hinfer.
+  rewrite {2}/Sem; rewrite /InferWidths_m in Hinfer.
   case Hinfer1 : (InferWidths_stage1 F) => [newtm|]; rewrite Hinfer1 in Hinfer; try discriminate.
   case Hinfer2 : (InferWidths_stage2 F newtm) => [nm|]; rewrite Hinfer2 in Hinfer; try discriminate.
   inversion Hinfer; clear Hinfer.
@@ -3611,16 +3611,16 @@ Proof.
   inversion Hinfer2; clear Hinfer2 H0 F' HF.
   rewrite /make_vm_implicit in Himplivm.
   case Himplips : (make_ps_implicit vm' (CEP.empty vertex_type) pp) => [vm''|]; rewrite Himplips in Himplivm; try discriminate.
-  intros Hlegal Hps.
-  case Hps' : (ports_stmts_tmap nps nss vm') => [tmap|]; rewrite Hps' in Hps; try done.
+  intros Hsem.
+  assert (Hlegal : legal_module (FInmod (v0, v1) pp ss) vm vm').
+    move : Hinfer1 Htransp Htranss Himplips Himplivm Hsem.
+    admit.
   rewrite /legal_module in Hlegal; move : Hlegal => [Hlegal [Hlegal1 [Hlegal2 [Hlegal3 Hlegal4]]]].
   (*assert (exists tmap', ports_stmts_tmap pp ss vm = Some tmap').
   admit. (* 由 Hps' *) *)
-  destruct Hps as [vm0 [ct0 [Hports Hstmts]]].
   destruct Hlegal as [tmap' Hps]; rewrite Hps.
   generalize Htransp; apply InferWidths_trans_correct with (ss := ss) (nss := nss) (vm' := vm') (vm'' := vm'') (vm := vm) in Htransp; try done.
   rewrite Hps in Htransp; inversion Htransp; clear Htransp; rewrite H0 in Hps; clear H0 tmap'; intro Htransp.
-  clear Hports Hstmts vm0 ct0 Hps' tmap. (* vm'全为expli，不包括任何前提 *)
   specialize (Hlegal1 _ _ Himplips Hinfer1); destruct Hlegal1 as [ct' Hlegal1].
   exists vm''; exists (ct'). (* 先不check任何关于connection *)
   split; try done; clear Hlegal1.
@@ -3761,29 +3761,39 @@ Proof.
   simpl in H. 
   case Hpre : (ports_stmts_tmap ps ss vm) => [tmap|]; rewrite Hpre in H; try done.
   destruct H as [vm' [ct [_ H]]]; clear ct mv.
-
-  (* TBD *)
-  induction ss.
+  move : H0 H1 H2 H3 H4 H5 Hpre H. 
+  move : ss v ps vm t tmap' var2exprs el order1 tmap0 e gt tmap vm'.
+  
+  elim.
   - (* nil *) 
-    simpl in H; simpl in Hpre; simpl in H1; simpl in H2; inversion H2; clear H2.
+    intros. simpl in H; simpl in Hpre; simpl in H1; simpl in H2; inversion H2; clear H2.
     rewrite -H7 in H4; rewrite in_nil in H4; discriminate.
+  - (* cons *)
+    intros hd tl IH; intros.
+    simpl in H; destruct H as [vm0 [Hsem0 Hsem]].
+    rewrite /ports_stmts_tmap' in H1; case Hps' : (ports_tmap' ps) => [pmap|]; rewrite Hps' in H1; try discriminate.
+    simpl in H1; case Hss' : (stmt_tmap' pmap (CEP.empty (seq HiFP.hfexpr)) hd) => [[tmap1 emap1]|]; rewrite Hss' in H1; try discriminate.
+    simpl in H2; case Hfind : (find_sub_expr v hd tmap') => [e0|]; rewrite Hfind in H2; try discriminate.
+    case Hfinds : (find_sub_exprs v tl tmap') => [el0|]; rewrite Hfinds in H2; try discriminate.
+    rewrite /ports_stmts_tmap in Hpre. case Hps : (ports_tmap ps vm) => [pmap0|]; rewrite Hps in Hpre; try discriminate.
+    case Hss : (stmts_tmap (pmap0, pmap0) (Qcons hd tl) vm) => [[tmap2 emap2]|]; rewrite Hss in Hpre; try discriminate.
+    inversion Hpre; clear Hpre; rewrite H6 in Hss; clear H6 tmap2.
+    simpl in Hss; case Hss0 : (stmt_tmap (pmap0, pmap0) hd vm) => [tmap3|]; rewrite Hss0 in Hss; try discriminate.
+    move :  Hsem. (* 要把ports_stmts_tmap'拆开 *)
+    (*apply IH.
+    intros v t el Hv Hfinde e te Hin Hte. 
+    simpl in Hfinde.
+    case Hfinde0 : (find_sub_expr v h tmap) => [e0|]; rewrite Hfinde0  in Hfinde; try discriminate.
+    case Hfinde1 : (find_sub_exprs v ss tmap) => [e1|]; rewrite Hfinde1 in Hfinde; try discriminate.
+    inversion Hfinde; clear Hfinde.
+    rewrite -H0 in Hin; clear H0 el.
+    rewrite mem_cat in Hin.
+    case Hin0 : (e \in e0); rewrite Hin0 in Hin. 
+    clear Hin Hsem Hfinde1. 
 
-  (*intros vm_old ct_old vm_new ct_new tmap Hsem.
-  simpl in Hsem.
-  destruct Hsem as [vm' [ct' [Hsem0 Hsem]]].
-  intros v t el Hv Hfinde e te Hin Hte. 
-  simpl in Hfinde.
-  case Hfinde0 : (find_sub_expr v h tmap) => [e0|]; rewrite Hfinde0  in Hfinde; try discriminate.
-  case Hfinde1 : (find_sub_exprs v ss tmap) => [e1|]; rewrite Hfinde1 in Hfinde; try discriminate.
-  inversion Hfinde; clear Hfinde.
-  rewrite -H0 in Hin; clear H0 el.
-  rewrite mem_cat in Hin.
-  case Hin0 : (e \in e0); rewrite Hin0 in Hin. 
-  clear Hin Hsem Hfinde1. 
-
-  admit.
-  clear Hin0; rewrite orb_false_l in Hin.
-  apply IHss with (v := v) (t := t) (el := e1) (e := e) (te := te) in Hsem; try done.*)
+    admit.
+    clear Hin0; rewrite orb_false_l in Hin.
+    apply IHss with (v := v) (t := t) (el := e1) (e := e) (te := te) in Hsem; try done.*)
 Admitted. (* Sem_wdgeqmax *)
 
 Lemma geq_conj2mux : forall tmap (gt initt : fgtyp) (el : seq HiFP.hfexpr) eftl (nt : fgtyp), (forall (texpr : HiFP.hfexpr) (te : fgtyp), texpr \in el -> type_of_expr texpr tmap = Some (Gtyp te) -> ((sizeof_fgtyp gt) >= (sizeof_fgtyp te))) ->
