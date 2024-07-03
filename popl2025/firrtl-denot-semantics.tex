@@ -3,7 +3,7 @@
 Since each component $cnt$ in $M$ is declared, $cnt$ has a type, say $type(cnt)$. Note that $type(cnt)$ may involve implicit widths.  
 On the other hand, all the widths $vm$ are explicit. We can construct a function $tmap$ that assigns to each identifier $v \in \range{id}$ a type where all the widths are explicit, by utilizing the information in $vm$ to instantiate the implicit widths in $type(cnt)$ for components $cnt$ in $M$. More precisely, for each $v \in \range{id}$, $tmap(v)$ is of one of the following forms, 
 \begin{itemize}
-\item $(ground, t)$ such that $t \in \gtypes$, 
+\item $(ground, b, t)$ such that $b$ is a Boolean value denoting whether it is flipped or not and $t \in \gtypes$, 
 %
 \item $(vector, t[n])$ such that $t$ is a type where all widths are explicit, 
 %
@@ -27,7 +27,7 @@ Before defining the semantics, let us introduce several (recursive) definitions,
   \begin{gather*}
    \infer[size\_of\_ftype: ground]
     {\seqq{size\_of\_ftype(ft) = 1}}
-    {\seqq{ft = (ground, gt)}}
+    {\seqq{ft = (ground, b, gt)}}
     \quad
     \\[1ex]
    \inferii[size\_of\_ftype: vector]
@@ -47,12 +47,12 @@ Before defining the semantics, let us introduce several (recursive) definitions,
     \\[1ex]
    \inferiii[size\_of\_fields: $\neq$ nil]
     {\seqq{size\_of\_fields(ff) = m+n}}
-    {\seqq{f f = \_\ \_\ ft' ff'}} {\seqq{m = size\_of\_ftype(ft')}} {\seqq{n = size\_of\_fields(ff')}}
+    {\seqq{f f = (\_, \_, ft', ff')}} {\seqq{m = size\_of\_ftype(ft')}} {\seqq{n = size\_of\_fields(ff')}}
     \quad
     \\
     \infer[list\_gtype: ground]
     {\seqq{list\_gtype(ft) = [gt]}}
-    {\seqq{ft = (ground, gt)}}
+    {\seqq{ft = (ground, b, gt)}}
     \quad
     \\[1ex]
     \inferii[list\_gtype: vector]
@@ -72,7 +72,7 @@ Before defining the semantics, let us introduce several (recursive) definitions,
     \\[1ex]
     \inferiii[list\_gtype\_fields: $\neq$ nil]
     {\seqq{list\_gtype\_fields(ff) = l'\ {++}\ l''}}
-    {\seqq{f f = \_\ \_\ ft'\ ff'}} 
+    {\seqq{f f = (\_, \_, ft', ff')}} 
     {\seqq{list\_gtype(ft') = l'}} {\seqq{list\_gtype\_fields(ff') = l''}}
     \quad
   \end{gather*}
@@ -88,7 +88,7 @@ Before defining the semantics, let us introduce several (recursive) definitions,
   \begin{gather*}
    \infer[size\_of\_ftype: ground]
     {\seqq{size\_of\_ftype(ft) = 1}}
-    {\seqq{ft = (ground, gt)}}
+    {\seqq{ft = (ground, b, gt)}}
     \quad
     \\[1ex]
    \inferii[size\_of\_ftype: vector]
@@ -167,12 +167,14 @@ Before defining the semantics, let us introduce several (recursive) definitions,
     }
     \\[1ex]
     \infer[update\_ct\_ref]
-    {update\_ct\_ref(id, ct, ft, ls, ft', ls', ct')}
+    {update\_ct\_ref(ct, id, ft, ls, id', ft', ls', ct')}
     {
     \begin{array}{r l l}
-    \multicolumn{3}{c}{id = (v, m) \wedge size\_of\_ftype(ft) = sz} \\
-    \forall n.\ 0 \le n < sz & \Rightarrow & ct'(v, m+n) = ls[n] \\
-    \forall v', n.\ (v' \neq v \vee n' < m \vee n' \ge m+sz) & \Rightarrow & ct(v', n') = ct'(v', n') \\
+    \multicolumn{3}{c}{id = (v, m) \wedge id' = (v', m') \wedge size\_of\_ftype(ft) = sz \wedge ls\_gtype(ft) = lgt} \\
+    \forall n.\ 0 \le n < sz \wedge lgt[n] = (\_, false, \_) & \Rightarrow & ct(v, m+n) \neq none \wedge ct'(v, m+n) = ls'[n]\ \wedge  \\
+    & & ((v',m') \neq (v, m)  \rightarrow ct'(v', m' + n) = ct(v', m'+n)) \\ 
+    \forall n.\ 0 \le n < sz \wedge lgt[n] = (\_,true, \_) & \Rightarrow & ct(v', m'+n) \neq none \wedge ct'(v', m'+n) = ls[n]\ \wedge  \\
+    & & ((v, m) \neq (v', m')  \rightarrow ct'(v, m + n) = ct(v, m+n)) \\ 
     \end{array}
     }
   \end{gather*}
@@ -180,6 +182,153 @@ Before defining the semantics, let us introduce several (recursive) definitions,
   \label{tab:update-vm-ct}
 \end{table}
 
+\begin{table}[t]
+  \small
+  \begin{gather*}
+    \infer[type\_compatible: exp-gt]
+    {type\_compatible(ft, ft', flipped)}
+    {
+    \begin{array}{c}
+    	ft = (ground, b, t) \wedge ft' = (ground, b, t)\ \wedge \\
+	 t \in \{UInt, SInt\} \times \Nat \cup \{Clock, Reset, AsyncReset\}
+    \end{array}
+    }
+    \\[1ex]
+    \infer[type\_compatible: imp-gt-1]
+    {type\_compatible(ft, ft', flipped)}
+    {
+    \begin{array}{c}
+    	ft = (ground, b, t) \wedge ft' = (ground, b, t')\ \wedge \\
+	((t = (UIntImp, n) \wedge t = (UInt, n')) \vee (t = (SIntImp, n) \wedge t = (SInt, n')))\ \wedge \\
+	( flipped = false \rightarrow n \ge n') 
+    \end{array}
+    }
+    \\[1ex]
+    \infer[type\_compatible: imp-gt-2]
+    {type\_compatible(ft, ft', flipped)}
+    {
+    \begin{array}{c}
+    	ft = (ground, b, t) \wedge ft' = (ground, b, t')\ \wedge \\
+	((t = (UInt, n) \wedge t = (UIntImp, n')) \vee (t = (SInt, n) \wedge t = (SIntImp, n')))\ \wedge \\
+	( flipped = true \rightarrow n \le n') 
+    \end{array}
+    }
+    \\[1ex]
+    \infer[type\_compatible: imp-gt-3]
+    {type\_compatible(ft, ft', flipped)}
+    {
+    \begin{array}{c}
+    	ft = (ground, b, t) \wedge ft' = (ground, b, t')\ \wedge \\
+	((t = (UIntImp, n) \wedge t = (UIntImp, n')) \vee (t = (SIntImp, n) \wedge t = (SIntImp, n')))\ \wedge \\
+	((flipped = false \wedge n \ge n') \vee (flipped = true \wedge n \le n'))
+    \end{array}
+    }
+    \\[1ex]
+    \infer[type\_compatible: vector]
+    {type\_compatible(ft, ft', flipped)}
+    {
+    \begin{array}{c}
+    	ft = (vector, t[n]) \wedge ft' = (vector, t'[n])\ \wedge \\
+	type\_compatible(t, t', flipped)
+    \end{array}
+    }
+    \\[1ex]
+    \infer[type\_compatible: bundle]
+    {type\_compatible(ft, ft', flipped)}
+    {
+    \begin{array}{c}
+    	ft = (bundle, f) \wedge ft' = (bundle, f')\ \wedge \\
+	type\_compatible\_fields(f, f', flipped)
+    \end{array}
+    }
+    \\[1ex]
+    \infer[type\_compatible\_fields: nil]
+    {type\_compatible\_fields(ff, ff', flipped)}
+    {
+    \begin{array}{c}
+    	ff =nil \wedge ff' = nil
+    \end{array}
+    }
+    \\[1ex]
+    \infer[type\_compatible\_fields: $\neq$-nil-false]
+    {type\_compatible\_fields(ff, ff', flipped)}
+    {
+    \begin{array}{c}
+    	ff = (f, b, t, ff1) \wedge ff' = (f', b, t', ff1') \wedge b = false\ \wedge \\
+	type\_compatible(t, t', flipped)\ \wedge \\
+	type\_compatible\_fields(ff1, ff1', flipped)
+    \end{array}
+    }
+    \\[1ex]
+    \infer[type\_compatible\_fields: $\neq$-nil-true]
+    {type\_compatible\_fields(ff, ff', flipped)}
+    {
+    \begin{array}{c}
+    	ff = (f, b, t, ff1) \wedge ff' = (f', b, t', ff1') \wedge b = true\ \wedge \\
+	type\_compatible(t, t', \neg flipped)\ \wedge \\
+	type\_compatible\_fields(ff1, ff1', flipped)
+    \end{array}
+    }
+  \end{gather*}
+  \caption{$type\_compatible$ and $type\_compatible\_fields$}
+  \label{tab:type-compatible}
+\end{table}
+
+\begin{table}[t]
+  \small
+  \begin{gather*}
+    \infer[list\_gexp: ground]
+    {list\_gexp(e, ft) = l}
+    {
+    \begin{array}{c}
+    	ft = (ground, b, t) \wedge l = [e]
+    \end{array}
+    }
+    \\[1ex]
+    \infer[list\_gexp: mux]
+    {list\_gexp(e, ft) = l}
+    {
+    \begin{array}{c}
+    	e = mux(c, e1, e2) \wedge list\_gexp(e1, ft) = l1 \wedge list\_gexp(e1, ft) = l2\  \wedge\\
+	size(l1) = size(l2) \wedge l = mux(c, l1, l2)
+    \end{array}
+    }
+    \\[1ex]
+    \infer[list\_gexp: vector]
+    {list\_gexp(e, ft) = l}
+    {
+    \begin{array}{c}
+    	 ft = (vector, t[n]) \wedge l = list\_gexp(e[0], t) = l0 ++ \cdots ++ list\_gexp(e[n-1], t)
+    \end{array}
+    }
+    \\[1ex]
+    \infer[list\_gexp: bundle]
+    {list\_gexp(e, ft) = l}
+    {
+    \begin{array}{c}
+    	 ft = (bundle, ff) \wedge l = list\_gexp\_fields(e, ff)
+    \end{array}
+    }
+    \\[1ex]
+    \infer[list\_gexp\_fields: nil]
+    {list\_gexp\_fields(e, ff) = l}
+    {
+    \begin{array}{c}
+    	 ff = nil \wedge l = []
+    \end{array}
+    }
+   \\[1ex]
+    \infer[list\_gexp\_fields: $\neq$nil]
+    {list\_gexp\_fields(e, ff) = l}
+    {
+    \begin{array}{c}
+    	 ff = (f, false, t, ff1) \wedge l = list\_gexp(e.f, t)\ ++\ list\_gexp\_fields(e, ff1)
+    \end{array}
+    }
+  \end{gather*}
+  \caption{$list\_gexp$ and $list\_gexp\_fields$}
+  \label{tab:list-gexp}
+\end{table}
 
 \zhilin{this table to be cleaned}
 \begin{table}[t]
@@ -218,9 +367,9 @@ Before defining the semantics, let us introduce several (recursive) definitions,
     {\seqq{(vm, ct) \xrightarrow[tmap]{r <= e} (vm', ct')}}
     {
     \begin{array}{c}
-    vm = vm' \wedge id(r)=(v, m) \wedge type\_of\_ref(r, tmap)= rft \ \wedge \\
+    vm = vm' \wedge id(r)=(v, m) \wedge type\_of\_exp(r, tmap)= rft \ \wedge \\
      size\_of\_ftype(rft) = sz \wedge type\_of\_exp(e, tmap)= eft \\
-    connect\_type\_compatible(rft, eft, false) \\
+    type\_compatible(rft, eft, false) \\
     \forall n.\ 0 \le n < sz \Rightarrow ct(v, m+n) \neq none \\
 %    \forall n.\ n \ge size\_of\_ftype(ft) \Rightarrow vm(v, n) =  vm'(v,n)\\
 %    \forall n.\ 0 \le n < size\_of\_ftype(ft) \Rightarrow ct(v, n) = none \wedge ct'(v,n) = undefined \\
@@ -233,14 +382,15 @@ Before defining the semantics, let us introduce several (recursive) definitions,
     {\seqq{(vm, ct) \xrightarrow[tmap]{r <= r'} (vm', ct')}}
     {
     \begin{array}{c}
-    vm = vm' \wedge id(r)=(v, m) \wedge type\_of\_ref(r, tmap)= ft \ \wedge \\
-     size\_of\_ftype(ft) = sz \wedge type\_of\_ref(r', tmap)= ft'\ \wedge \\
-     list\_ref(r, tmap) = ls \wedge  list\_ref(r', tmap) = ls' \ \wedge \\
-    connect\_type\_compatible(ft, ft', false) \\
-    \forall n.\ 0 \le n < sz \Rightarrow ct(v, m+n) \neq none \\
+    vm = vm' \wedge id(r)=(v, m) \wedge  id(r')=(v', m') \wedge type\_of\_exp(r, tmap)= ft \ \wedge \\
+     size\_of\_ftype(ft) = sz \wedge type\_of\_exp(r', tmap)= ft'\ \wedge \\
+     list\_gexp(r, ft) = ls \wedge  list\_gexp(r', ft') = ls'  \\
+    type\_compatible(ft, ft', false) \\
 %    \forall n.\ n \ge size\_of\_ftype(ft) \Rightarrow vm(v, n) =  vm'(v,n)\\
 %    \forall n.\ 0 \le n < size\_of\_ftype(ft) \Rightarrow ct(v, n) = none \wedge ct'(v,n) = undefined \\
-     update\_ct\_ref((v, m), ct, ft, ls, ft', ls', ct')
+     update\_ct\_ref(ct, (v, m), ft, ls, (v', m'), ft', ls', ct') \\
+    \forall v'', n''.\ (v'' \neq v \vee n'' < m \vee n'' \ge m+sz) \wedge (v'' \neq v' \vee n'' < m' \vee n'' \ge m'+sz)  \Rightarrow \\
+    ct'(v'', n'') = ct(v'', n'') 
     \end{array}    
     }
   \end{gather*}

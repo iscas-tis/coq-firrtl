@@ -70,10 +70,12 @@
 %are not included in $\ccpnts(A)$. (If a register is not connected to, then it keeps the current value.)
 
 %
-We denote by $\gtypes$ the set of ground types, i.e., $(\{\mbox{\prettyll{UInt}}, \mbox{\prettyll{SInt}}\} \times \Nat) \cup \{\mbox{\prettyll{Clock}},
-\mbox{\prettyll{Reset}}, \mbox{\prettyll{AsyncReset}}\}$ and let $\bv=\{0,1\}^+$, i.e., the set of bit vectors.
+We denote by $\gtypes$ the set of ground types, i.e., $(\{UInt, SInt, UIntImp, SIntImp\} \times \Nat) \cup \{Clock,
+Reset, AsyncReset\}$. 
+Note in $\gtypes$, $UIntImp$ and $SIntImp$ are introduced to denote the explicit ground types that are instantiated from the implicit ground types.
+Let $\bv=\{0,1\}^+$, i.e., the set of bit vectors.
 %
-For a ground type $t = (\tau, n) \in \{\mbox{\prettyll{UInt}}, \mbox{\prettyll{SInt}}\} \times \Nat$, $n$ is the \emph{width} of $t$, denoted by $wd(t)$.
+%For a ground type $t = (\tau, n) \in \{UInt, SInt\} \times \Nat$, $n$ is the \emph{width} of $t$, denoted by $wd(t)$.
 
 Fix a {\hifirrtl} module $M$ where we assume that $M$ consists of a sequence of port declarations followed by statements. %$M = (pp, ss)$, where $pp$ is a sequence of port declarations and $ss$ is a sequence of statements. 
 Moreover, for convenience, we assume an \emph{injective} identifier function $id$, which maps from the name of a component (e.g., wire, node, register) in $M$ to a natural number. %Note that $id$ is an injective function. Later on, 
