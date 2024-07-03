@@ -3,11 +3,11 @@
 Since each component $cnt$ in $M$ is declared, $cnt$ has a type, say $type(cnt)$. Note that $type(cnt)$ may involve implicit widths.  
 On the other hand, all the widths $vm$ are explicit. We can construct a function $tmap$ that assigns to each identifier $v \in \range{id}$ a type where all the widths are explicit, by utilizing the information in $vm$ to instantiate the implicit widths in $type(cnt)$ for components $cnt$ in $M$. More precisely, for each $v \in \range{id}$, $tmap(v)$ is of one of the following forms, 
 \begin{itemize}
-\item $(ground, b, t)$ such that $b$ is a Boolean value denoting whether it is flipped or not and $t \in \gtypes$, 
+\item $(ori, ground, t)$ such that $ori$ is a Boolean value denoting the orientation of $v$ and $t \in \gtypes$, 
 %
-\item $(vector, t[n])$ such that $t$ is a type where all widths are explicit, 
+\item $(ori, vector, t[n])$ such that $ori$ is a Boolean value denoting the orientation of $v$ and $t$ is a type where all widths are explicit, 
 %
-\item $(bundle, f)$ such that $f$ is a field where all widths are explicit. 
+\item $(ori, bundle, f)$ such that $ori$ is a Boolean value denoting the orientation of $v$ and $f$ is a field where all widths are explicit. 
 \end{itemize}
 
 In the sequel, we first assume that $tmap$ is already constructed and show how to define the semantics of $M$. Later on, we show how to construct $tmap$ from $M$ and $vm$. 
@@ -16,8 +16,6 @@ In the sequel, we first assume that $tmap$ is already constructed and show how t
 The semantics of a statement $s$ in $M$ is defined by a relation $(vm, ct) \xrightarrow[tmap]{s} (vm', ct')$, where $s$ is seen as a modifier of module graphs. Moreover, the relation can be easily extended to sequences of statements, that is, $(vm, ct) \xrightarrow[tmap]{ss} (vm', ct')$, where $ss$ is a sequence of statements. 
 
 Before defining the semantics, let us introduce several (recursive) definitions, $vm\_match(v, ft, vm, vm')$ (see Table~\ref{tab:vm-match}) and $ct\_match(v, ft, ct, ct')$. 
-
-\zhilin{stopped here}
        
 %Let $M$ be a {\hifirrtl} module and $G$ be a module graph. We define how $G = (vm, ct)$ \emph{matches} $M$ as follows: We define the relations $(vm, ct) \xrightarrow[tmap]{s} (vm', ct')$, where $s$ is a statement. Then $G$ matches $M$ if $(vm_{emp}, ct_{emp}) \xrightarrow[tmap]{ss} (vm, ct)$, where $ss$ is the statement sequence of $M$. 
 
@@ -27,17 +25,17 @@ Before defining the semantics, let us introduce several (recursive) definitions,
   \begin{gather*}
    \infer[size\_of\_ftype: ground]
     {\seqq{size\_of\_ftype(ft) = 1}}
-    {\seqq{ft = (ground, b, gt)}}
+    {\seqq{ft = (ori, ground, gt)}}
     \quad
     \\[1ex]
    \inferii[size\_of\_ftype: vector]
     {\seqq{size\_of\_ftype(ft) = m*n}}
-    {\seqq{ft = (vector, ft'[m])}} {\seqq{n = size\_of\_ftype(ft')}}
+    {\seqq{ft = (ori, vector, ft'[m])}} {\seqq{n = size\_of\_ftype(ft')}}
     \quad
     \\[1ex]
    \inferii[size\_of\_ftype: bundle]
     {\seqq{size\_of\_ftype(ft) = n}}
-    {\seqq{ft = (bundle, ff)}} {\seqq{n = size\_of\_fields(ff)}}
+    {\seqq{ft = (ori, bundle, ff)}} {\seqq{n = size\_of\_fields(ff)}}
     \quad
     \\[1ex]
    \infer[size\_of\_fields: nil]
@@ -52,17 +50,17 @@ Before defining the semantics, let us introduce several (recursive) definitions,
     \\
     \infer[list\_gtype: ground]
     {\seqq{list\_gtype(ft) = [gt]}}
-    {\seqq{ft = (ground, b, gt)}}
+    {\seqq{ft = (ori, ground, gt)}}
     \quad
     \\[1ex]
     \inferii[list\_gtype: vector]
     {\seqq{list\_gtype(ft) = \underbrace{l'\ ++\ \cdots\ ++\ l'}_{m}}}
-    {\seqq{ft = (vector, ft'[m])}}    {\seqq{l' = list\_gtype(ft')}}
+    {\seqq{ft = (ori, vector, ft'[m])}}    {\seqq{l' = list\_gtype(ft')}}
     \quad
     \\[1ex]
     \inferii[list\_gtype: bundle]
     {\seqq{list\_gtype(ft) = l'}}
-    {\seqq{ft = (bundle, ff)}}    {\seqq{l' = list\_gtype\_fields(ff)}}
+    {\seqq{ft = (ori, bundle, ff)}}    {\seqq{l' = list\_gtype\_fields(ff)}}
     \quad
     \\[1ex]    
     \infer[list\_gtype\_fields: nil]
@@ -81,69 +79,55 @@ Before defining the semantics, let us introduce several (recursive) definitions,
   \label{tab:size-list-ftype-fields}
 \end{table}
 
-
-\hide{
 \begin{table}[htbp]
   \small
   \begin{gather*}
-   \infer[size\_of\_ftype: ground]
-    {\seqq{size\_of\_ftype(ft) = 1}}
-    {\seqq{ft = (ground, b, gt)}}
+   \inferii[type\_of\_ref: id]
+    {\seqq{type\_of\_ref(r, tmap) = (ft, ori)}}
+    {\seqq{r = x}} {\seqq{tmap(id(x), tmap) = (ori, \_, ft)}}
     \quad
     \\[1ex]
-   \inferii[size\_of\_ftype: vector]
-    {\seqq{size\_of\_ftype(ft) = m*n}}
-    {\seqq{ft = (vector, ft'[m])}} {\seqq{n = size\_of\_ftype(ft')}}
+   \inferiii[type\_of\_ref: vector-1]
+    {\seqq{type\_of\_ref(r, tmap) = (t, ori)}}
+    {\seqq{r = r'[n]}} {\seqq{type\_of\_ref(r', tmap) = (ori, vector, t[m])}} {\seqq{n < m}}
     \quad
     \\[1ex]
-   \inferii[size\_of\_ftype: bundle]
-    {\seqq{size\_of\_ftype(ft) = n}}
-    {\seqq{ft = (bundle, ff)}} {\seqq{n = size\_of\_fields(ff)}}
+   \inferiii[type\_of\_ref: vector-2]
+    {\seqq{type\_of\_ref(r, tmap) = none}}
+    {\seqq{r = r'[n]}} {\seqq{type\_of\_ref(r', tmap) = (ori, vector, t[m])}} {\seqq{n \ge m}}
     \quad
     \\[1ex]
-   \infer[size\_of\_fields: nil]
-    {\seqq{size\_of\_fields(ff) = 0}}
+   \inferiii[type\_of\_ref: field]
+    {\seqq{type\_of\_ref(r, tmap) = ft}}
+    {\seqq{r = r'.f}} {\seqq{type\_of\_ref(r', tmap) = (ori, bundle, ft')}} {\seqq{ft = type\_of\_field(f, ft')}}
+    \\[1ex]
+   \infer[type\_of\_field]
+    {\seqq{type\_of\_field(f, ff, ori) = none}}
     {\seqq{f f = nil}}
-    \quad
     \\[1ex]
-   \inferiii[size\_of\_fields: $\neq$ nil]
-    {\seqq{size\_of\_fields(ff) = m+n}}
-    {\seqq{f f = \_\ \_\ ft' ff'}} {\seqq{m = size\_of\_ftype(ft')}} {\seqq{n = size\_of\_fields(ff')}}
-    \quad
-    \\
-    \infer[list\_gtype: ground]
-    {\seqq{list\_gtype(ft) = [gt]}}
-    {\seqq{ft = (ground, gt)}}
-    \quad
+   \inferiii[type\_of\_field: neq]
+    {\seqq{type\_of\_field(f, ff, ori) = (ft, ori')}}
+    {\seqq{f f = (f', flipped, t, ff')}} {\seqq{f \neq f'}} {\seqq{(ft, ori') = type\_of\_field(f, ff')}}
     \\[1ex]
-    \inferii[list\_gtype: vector]
-    {\seqq{list\_gtype(ft) = \underbrace{l'\ ++\ \cdots\ ++\ l'}_{m}}}
-    {\seqq{ft = (vector, ft'[m])}}    {\seqq{l' = list\_gtype(ft')}}
-    \quad
+   \inferiii[type\_of\_field: eq-1]
+    {\seqq{type\_of\_field(f, ff, ori) = (t, ori)}}
+    {\seqq{f f = (f', flipped, t, ff')}} {\seqq{f = f'}} {\seqq{flipped = false \vee (flipped = true \wedge ori = duplex)}}
     \\[1ex]
-    \inferii[list\_gtype: bundle]
-    {\seqq{list\_gtype(ft) = l'}}
-    {\seqq{ft = (bundle, ff)}}    {\seqq{l' = list\_gtype\_fields(ff)}}
-    \quad
-    \\[1ex]    
-    \infer[list\_gtype\_fields: nil]
-    {\seqq{list\_gtype\_fields(ff) = []}}
-    {\seqq{f f = nil}}
-    \quad
+   \inferiii[type\_of\_field: eq-2]
+    {\seqq{type\_of\_field(f, ff, ori) = (t, sink)}}
+    {\seqq{f f = (f', flipped, t, ff')}} {\seqq{f = f'}} {\seqq{flipped = true \wedge ori = source}}
     \\[1ex]
-    \inferiii[list\_gtype\_fields: $\neq$ nil]
-    {\seqq{list\_gtype\_fields(ff) = l'\ {++}\ l''}}
-    {\seqq{f f = \_\ \_\ ft'\ ff'}} 
-    {\seqq{list\_gtype(ft') = l'}} {\seqq{list\_gtype\_fields(ff') = l''}}
-    \quad
+   \inferiii[type\_of\_field: eq-3]
+    {\seqq{type\_of\_field(f, ff, ori) = (t, source)}}
+    {\seqq{f f = (f', flipped, t, ff')}} {\seqq{f = f'}} {\seqq{flipped = true \wedge ori = sink}}
   \end{gather*}
 %  \vspace{-4mm}
-  \caption{$type\_of\_expr$}
-  \label{tab:type-expr}
+  \caption{$type\_of\_ref$, $type\_of\_field$, and $type\_of\_exp$}
+  \label{tab:type-expr-ref}
 \end{table}
-}
 
-\begin{table}[t]
+
+\begin{table}[htbp]
   \small
   \begin{gather*}
     \infer[update\_vm]
@@ -208,14 +192,14 @@ Before defining the semantics, let us introduce several (recursive) definitions,
   \label{tab:update-vm-ct}
 \end{table}
 
-\begin{table}[t]
+\begin{table}[htbp]
   \small
   \begin{gather*}
     \infer[type\_compatible: exp-gt]
     {type\_compatible(ft, ft', flipped)}
     {
     \begin{array}{c}
-    	ft = (ground, b, t) \wedge ft' = (ground, b, t)\ \wedge \\
+    	ft = (ori, ground, t) \wedge ft' = (ori, ground, t)\ \wedge \\
 	 t \in \{UInt, SInt\} \times \Nat \cup \{Clock, Reset, AsyncReset\}
     \end{array}
     }
@@ -224,7 +208,7 @@ Before defining the semantics, let us introduce several (recursive) definitions,
     {type\_compatible(ft, ft', flipped)}
     {
     \begin{array}{c}
-    	ft = (ground, b, t) \wedge ft' = (ground, b, t')\ \wedge \\
+    	ft = (ori, ground, t) \wedge ft' = (ori, ground, t')\ \wedge \\
 	((t = (UIntImp, n) \wedge t = (UInt, n')) \vee (t = (SIntImp, n) \wedge t = (SInt, n')))\ \wedge \\
 	( flipped = false \rightarrow n \ge n') 
     \end{array}
@@ -234,7 +218,7 @@ Before defining the semantics, let us introduce several (recursive) definitions,
     {type\_compatible(ft, ft', flipped)}
     {
     \begin{array}{c}
-    	ft = (ground, b, t) \wedge ft' = (ground, b, t')\ \wedge \\
+    	ft = (ori, ground, t) \wedge ft' = (ori, ground, t')\ \wedge \\
 	((t = (UInt, n) \wedge t = (UIntImp, n')) \vee (t = (SInt, n) \wedge t = (SIntImp, n')))\ \wedge \\
 	( flipped = true \rightarrow n \le n') 
     \end{array}
@@ -244,7 +228,7 @@ Before defining the semantics, let us introduce several (recursive) definitions,
     {type\_compatible(ft, ft', flipped)}
     {
     \begin{array}{c}
-    	ft = (ground, b, t) \wedge ft' = (ground, b, t')\ \wedge \\
+    	ft = (ori, ground, t) \wedge ft' = (ori, ground, t')\ \wedge \\
 	((t = (UIntImp, n) \wedge t = (UIntImp, n')) \vee (t = (SIntImp, n) \wedge t = (SIntImp, n')))\ \wedge \\
 	((flipped = false \wedge n \ge n') \vee (flipped = true \wedge n \le n'))
     \end{array}
@@ -254,7 +238,7 @@ Before defining the semantics, let us introduce several (recursive) definitions,
     {type\_compatible(ft, ft', flipped)}
     {
     \begin{array}{c}
-    	ft = (vector, t[n]) \wedge ft' = (vector, t'[n])\ \wedge \\
+    	ft = (ori, vector, t[n]) \wedge ft' = (ori, vector, t'[n])\ \wedge \\
 	type\_compatible(t, t', flipped)
     \end{array}
     }
@@ -263,7 +247,7 @@ Before defining the semantics, let us introduce several (recursive) definitions,
     {type\_compatible(ft, ft', flipped)}
     {
     \begin{array}{c}
-    	ft = (bundle, f) \wedge ft' = (bundle, f')\ \wedge \\
+    	ft = (ori, bundle, f) \wedge ft' = (ori, bundle, f')\ \wedge \\
 	type\_compatible\_fields(f, f', flipped)
     \end{array}
     }
@@ -300,14 +284,14 @@ Before defining the semantics, let us introduce several (recursive) definitions,
   \label{tab:type-compatible}
 \end{table}
 
-\begin{table}[t]
+\begin{table}[htbp]
   \small
   \begin{gather*}
     \infer[list\_gexp: ground]
     {list\_gexp(e, ft) = l}
     {
     \begin{array}{c}
-    	ft = (ground, b, t) \wedge l = [e]
+    	ft = (ori, ground, t) \wedge l = [e]
     \end{array}
     }
     \\[1ex]
@@ -324,7 +308,7 @@ Before defining the semantics, let us introduce several (recursive) definitions,
     {list\_gexp(e, ft) = l}
     {
     \begin{array}{c}
-    	 ft = (vector, t[n]) \wedge l = list\_gexp(e[0], t) = l0 ++ \cdots ++ list\_gexp(e[n-1], t)
+    	 ft = (ori, vector, t[n]) \wedge l = list\_gexp(e[0], t) = l0 ++ \cdots ++ list\_gexp(e[n-1], t)
     \end{array}
     }
     \\[1ex]
@@ -332,7 +316,7 @@ Before defining the semantics, let us introduce several (recursive) definitions,
     {list\_gexp(e, ft) = l}
     {
     \begin{array}{c}
-    	 ft = (bundle, ff) \wedge l = list\_gexp\_fields(e, ff)
+    	 ft = (ori, bundle, ff) \wedge l = list\_gexp\_fields(e, ff)
     \end{array}
     }
     \\[1ex]
@@ -356,7 +340,7 @@ Before defining the semantics, let us introduce several (recursive) definitions,
   \label{tab:list-gexp}
 \end{table}
 
-\begin{table}[t]
+\begin{table}[htbp]
   \small
   \begin{gather*}
     \infer[skip]
