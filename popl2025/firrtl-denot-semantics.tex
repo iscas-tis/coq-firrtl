@@ -177,8 +177,34 @@ Before defining the semantics, let us introduce several (recursive) definitions,
     & & ((v, m) \neq (v', m')  \rightarrow ct'(v, m + n) = ct(v, m+n)) \\ 
     \end{array}
     }
+    \\[1ex]
+    \infer[invalidate]
+    {invalidate(ct, id, ft, ori, ct')}
+    {
+    \begin{array}{c}
+    id = (v, m) \wedge size\_of\_ftype(ft) = sz \wedge ls\_gtype(ft) = lgt \\
+    \forall n.\ 0 \le n < sz \wedge 
+    \left(
+    \begin{array}{l}
+    (lgt[n] = (\_, false, \_) \wedge ori = false)\ \vee\\
+     (lgt[n] = (\_, true, \_) \wedge ori = true)
+     \end{array}
+    \right) \Rightarrow\\
+    \hspace{1cm}  ct(v, m+n) \neq none \wedge ct'(v, m+n) = invalidated  \\
+    \forall n.\ 0 \le n < sz \wedge 
+    \left(
+    \begin{array}{l}
+    (lgt[n] = (\_, false, \_) \wedge ori = true) \vee \\
+     (lgt[n] = (\_, true, \_) \wedge ori = false)
+     \end{array}
+    \right)  
+    \Rightarrow\\
+    \hspace{1cm}  ct'(v, m+n) = ct(v, m+n)  \\
+    \forall v', n'.\ (v' \neq v \vee (n' < m  \vee n' \ge m+sz))  \rightarrow ct'(v', n') = ct(v', n')
+    \end{array}
+    }
   \end{gather*}
-  \caption{$update\_vm$, $update\_ct$, and $update\_ct\_ref$}
+  \caption{$update\_vm$, $update\_ct$, $update\_ct\_ref$, and $invalidate$}
   \label{tab:update-vm-ct}
 \end{table}
 
@@ -330,7 +356,6 @@ Before defining the semantics, let us introduce several (recursive) definitions,
   \label{tab:list-gexp}
 \end{table}
 
-\zhilin{this table to be cleaned}
 \begin{table}[t]
   \small
   \begin{gather*}
@@ -394,9 +419,10 @@ Before defining the semantics, let us introduce several (recursive) definitions,
     {\seqq{(vm, ct) \xrightarrow[tmap]{r <= r'} (vm', ct')}}
     {
     \begin{array}{c}
-    vm = vm' \wedge id(r)=(v, m) \wedge  id(r')=(v', m') \wedge type\_of\_exp(r, tmap)= ft \ \wedge \\
-     size\_of\_ftype(ft) = sz \wedge type\_of\_exp(r', tmap)= ft'\ \wedge \\
-     list\_gexp(r, ft) = ls \wedge  list\_gexp(r', ft') = ls'  \\
+    vm = vm' \wedge id(r)=(v, m) \wedge  id(r')=(v', m') \wedge type\_of\_ref(r, tmap)= (ft, ori) \ \wedge \\
+     size\_of\_ftype(ft) = sz \wedge type\_of\_ref(r', tmap)= (ft', ori')\ \wedge \\
+     list\_gexp(r, ft) = ls \wedge  list\_gexp(r', ft') = ls'\ \wedge  \\
+    (ori = duplex \vee ori = sink) \wedge (ori' = duplex \vee ori = source) \\
     type\_compatible(ft, ft', false) \\
 %    \forall n.\ n \ge size\_of\_ftype(ft) \Rightarrow vm(v, n) =  vm'(v,n)\\
 %    \forall n.\ 0 \le n < size\_of\_ftype(ft) \Rightarrow ct(v, n) = none \wedge ct'(v,n) = undefined \\
@@ -410,7 +436,8 @@ Before defining the semantics, let us introduce several (recursive) definitions,
     {\seqq{(vm, ct) \xrightarrow[tmap]{r \mbox{ is invalid}} (vm', ct')}}
     {
     \begin{array}{c}
-    vm = vm' \wedge \ \wedge
+    vm = vm' \wedge id(r) = (v, m) \wedge type\_of\_ref(r, tmap) = (ft, ori)\\
+    invalidate(ct, (v,m), ft, ori, ct')
     \end{array}    
     }
     \\[1ex]
