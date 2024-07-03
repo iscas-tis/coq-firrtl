@@ -180,6 +180,7 @@ Before defining the semantics, let us introduce several (recursive) definitions,
   \label{tab:update-vm-ct}
 \end{table}
 
+
 \zhilin{this table to be cleaned}
 \begin{table}[t]
   \small
@@ -233,12 +234,13 @@ Before defining the semantics, let us introduce several (recursive) definitions,
     {
     \begin{array}{c}
     vm = vm' \wedge id(r)=(v, m) \wedge type\_of\_ref(r, tmap)= ft \ \wedge \\
-     size\_of\_ftype(ft) = sz \wedge type\_of\_ref(r', tmap)= ft' \\
+     size\_of\_ftype(ft) = sz \wedge type\_of\_ref(r', tmap)= ft'\ \wedge \\
+     list\_ref(r, tmap) = ls \wedge  list\_ref(r', tmap) = ls' \ \wedge \\
     connect\_type\_compatible(ft, ft', false) \\
     \forall n.\ 0 \le n < sz \Rightarrow ct(v, m+n) \neq none \\
 %    \forall n.\ n \ge size\_of\_ftype(ft) \Rightarrow vm(v, n) =  vm'(v,n)\\
 %    \forall n.\ 0 \le n < size\_of\_ftype(ft) \Rightarrow ct(v, n) = none \wedge ct'(v,n) = undefined \\
-     update\_ct\_ref((v, m), ct, ft, list\_ref(r, tmap), ft', list\_ref(r', tmap), ct')
+     update\_ct\_ref((v, m), ct, ft, ls, ft', ls', ct')
     \end{array}    
     }
   \end{gather*}
