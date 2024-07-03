@@ -70,9 +70,9 @@
 %are not included in $\ccpnts(A)$. (If a register is not connected to, then it keeps the current value.)
 
 %
-We denote by $\gtypes$ the set of ground types, i.e., $(\{UInt, SInt, UIntImp, SIntImp\} \times \Nat) \cup \{Clock,
-Reset, AsyncReset\}$. 
-Note in $\gtypes$, $UIntImp$ and $SIntImp$ are introduced to denote the explicit ground types that are instantiated from the implicit ground types.
+We denote by $\gtypes:= (\{UInt, SInt, UIntImp, SIntImp\} \times \Nat) \cup \{Clock,
+Reset, AsyncReset\}$ the set of ground types. 
+Note that $UIntImp$ and $SIntImp$ are introduced to denote the explicit ground types that are instantiated from the implicit ground types.
 Let $\bv=\{0,1\}^+$, i.e., the set of bit vectors.
 %
 %For a ground type $t = (\tau, n) \in \{UInt, SInt\} \times \Nat$, $n$ is the \emph{width} of $t$, denoted by $wd(t)$.
@@ -81,17 +81,17 @@ Fix a {\hifirrtl} module $M$ where we assume that $M$ consists of a sequence of 
 Moreover, for convenience, we assume an \emph{injective} identifier function $id$, which maps from the name of a component (e.g., wire, node, register) in $M$ to a natural number. %Note that $id$ is an injective function. Later on, 
 We shall use identifiers (instead of names) to refer to the components in $M$. 
 
-In the sequel, we define a concept of \emph{module graphs} to define the semantics of {\hifirrtl} programs. Intuitively, a module graph $G$ for $M$ represents an instantiation of $M$, where all the implicit widths are made explicit. Moreover, the vertices of $G$ represent the components of ground type that are obtained from $M$ by flattening the components of aggregate type. 
+We introduce a concept of \emph{module graphs} to define the semantics of {\hifirrtl} programs. Intuitively, a module graph $G$ for $M$ represents a possible instantiation of $M$, where (1) the vertices of $G$ represent the components of ground type that are obtained from $M$ by flattening the components of aggregate type therein and (2) all the implicit widths are made explicit.  
 
-As a result, the vertices of a module graph for $M$ are of the form $(a, o) \in \Nat \times \Nat$, where  
-$(a, o)$ is one of the following forms, 
+As a result, the vertices of a module graph for $M$ are of the form $(a, o) \in \Nat \times \Nat$, each of which is corresponding to a component $cnt$ of $M$ with $a = id(cnt)$ and   
+%$(a, o)$ is one of the following forms, 
 %each component $cnt$ of ground type in $M$ is associated with an identifier $(a, o)$, where
 \begin{itemize}
-\item $a = id(cnt)$ where $cnt$ is a component of vector type, and $o$ is an index in the vector, 
+\item In case $cnt$ is of vector type: $o$ is an index in the vector;
 % 
-\item $a = id(cnt)$ where $cnt$ is a component of bundle type, and $o$ is the offset of a field of $cnt$ of ground type,
+\item In case $cnt$ is of bundle type: $o$ is the offset of a field of $cnt$ of ground type;
 %is a sub-component of some other component $cnt'$ of an aggregate type, then $a \in \Nat$ is the identifier of $cnt'$ \tl{there is a bit issue here as the identifier of $cnt'$ is a pair?} and $o$ represents the offset of $cnt$ in $cnt'$, 
-\item $a = id(cnt)$ where $cnt$ is a component of ground type, and $o = 0$.
+\item In case $cnt$ is of ground type: $o = 0$.
 \end{itemize}
 
 For a component of bundle type, the offsets of its fields of ground type are obtained by a depth-first search over its fields. For instance, for the bundle type 
@@ -112,30 +112,33 @@ from $M$.
 
 %Moreover, for the components where aggregate types are nested, the offsets of the components of ground types are determined by the traversal order of a depth-first search. \tl{to be improved.}
 
-We consider a finite set $\sorts = \{ \inport, \outport, \wire, \node, \register\}$ of \emph{sorts}.
+%We consider a finite set $\sorts = \{ \inport, \outport, \wire, \node, \register\}$ of \emph{sorts}.
 $\exps$ (resp. $\refs$) denotes the set of {\hifirrtl} expressions (resp. references), that is, %the set of strings that can be 
 those derived  by the rules from $e$ (resp. $r$) in Figure~\ref{fig-firrtl-synt-simp}. 
 Moreover, for convenience, we assume that $\exps$ contains two special elements, $none$ and $undefined$. 
 
 %consisting of \register, \node, \wire, \inport, and \outport. Let 
 
-A \emph{vertex type} is either \tl{the name "type" is overloaded, can be change to something else?}
+A \emph{vertex sort} is either %\tl{the name "type" is overloaded, can be change to something else?}
 \begin{itemize}
 \item $(s, t)$ with $s \in \{\inport, \outport, \wire, \node\}$ and $t \in \gtypes$,  
 \item or $(\register, t, e_1, e_2, e_3, b)$ such that $t \in \gtypes$, $e_1, e_2, e_3 \in \exps$ and $b\in \{0,1\}$. (Intuitively, $e_1$ represents a clock, $e_2$ represents a reset clock, and $e_3$ represents the reset value, and $b$ is a Boolean value  that denotes whether the reset is asynchronous or not).  
 \end{itemize}
-Let $\vtypes$ denote the set of vertex types. Moreover, for convenience, we assume that $\vtypes$ includes two additional elements, i.e. $none$ and $undefined$. 
 
-A \emph{vertex map} is a function $vm: \idset_M \rightarrow \vtypes$ with a finite domain. 
+Let $\vtypes$ denote the set of vertex sorts. Moreover, for convenience, we assume that $\vtypes$ includes two additional elements, i.e. $none$ and $undefined$. \tl{the same as before}
 
-A \emph{connection tree} is a function $ct: \idset_M \rightarrow \exps$ with a finite domain. 
+
 
 %A \emph{vertex} is a pair $\idset \times \vtypes$.
 
 \begin{definition}[Module graph]\label{def-mg}
 	A \emph{module graph} $G$ is a pair $(vm, ct)$ where $vm$ is a vertex map and $ct$ is a connection tree. 
+	
+	A \emph{vertex map} is a function $vm: \idset_M \rightarrow \vtypes$ with a finite domain. 
+	
+	A \emph{connection tree} is a function $ct: \idset_M \rightarrow \exps$ with a finite domain. 
 \end{definition}
-\tl{this def has little to do with graph!?}\zhilin{if $ct(id)$ is a component of ground type, then it is analogous to the graph edges, otherwise, $ct(id)$ may involve multiple identifiers, somehow it can be seen as an edge in a supergraph. May changed to module diagram}
+%\tl{this def has little to do with graph!?}\zhilin{if $ct(id)$ is a component of ground type, then it is analogous to the graph edges, otherwise, $ct(id)$ may involve multiple identifiers, somehow it can be seen as an edge in a supergraph. May changed to module diagram}
 
 %Intuitively, a module graph is a representation of a module, where the focus is on the components of ground types, all implicit widths are concretized, $vm$ records the declarations of components, and $ct$ records for each component an expression that is generated from its connect statements according to the last-connect semantics. 
 
