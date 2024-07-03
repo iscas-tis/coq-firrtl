@@ -363,6 +363,18 @@ Before defining the semantics, let us introduce several (recursive) definitions,
     }
     \quad
     \\[1ex]
+    \infer[register]
+    {\seqq{(vm, ct) \xrightarrow[tmap]{\mbox{reg } x : t\ e\ with:\ reset => (rsig, rval)} (vm', ct')}}
+    {
+    \begin{array}{c}
+   id(x) = v \wedge tmap(v)= ft \wedge size\_of\_ftype(ft) = sz \wedge  rft = type\_of\_exp(rval)\ \wedge \\
+   type\_compatible(ft, rft, false) \\
+    \forall n.\ 0 \le n < sz  \Rightarrow  vm(v, n) = none \wedge ct(v, n) = none \\
+   update\_vm((v,0), vm, ft, vm') \wedge update\_ct((v, 0), ct, ft, list\_gexp(x, ft), ct')
+    \end{array}    
+    }
+    \quad
+    \\[1ex]
     \infer[connect: exp]
     {\seqq{(vm, ct) \xrightarrow[tmap]{r <= e} (vm', ct')}}
     {
@@ -391,6 +403,24 @@ Before defining the semantics, let us introduce several (recursive) definitions,
      update\_ct\_ref(ct, (v, m), ft, ls, (v', m'), ft', ls', ct') \\
     \forall v'', n''.\ (v'' \neq v \vee n'' < m \vee n'' \ge m+sz) \wedge (v'' \neq v' \vee n'' < m' \vee n'' \ge m'+sz)  \Rightarrow \\
     ct'(v'', n'') = ct(v'', n'') 
+    \end{array}    
+    }
+    \\[1ex]
+    \infer[invalid]
+    {\seqq{(vm, ct) \xrightarrow[tmap]{r \mbox{ is invalid}} (vm', ct')}}
+    {
+    \begin{array}{c}
+    vm = vm' \wedge \ \wedge
+    \end{array}    
+    }
+    \\[1ex]
+    \infer[when]
+    {\seqq{(vm, ct) \xrightarrow[tmap]{\mbox{when } e: ss1 \mbox{ else}: ss2 } (vm', ct')}}
+    {
+    \begin{array}{c}
+    type\_of\_exp(e, tmap) = (ground, b, (UInt, 1)) \ \wedge\\
+    \exists vmt, ctt, ctf.\ (vm, ct) \xrightarrow[tmap]{ss1} (vmt, ctt) \wedge (vmt, extend_{ctt}(ct)) \xrightarrow[tmap]{ss2} (vm', ctf) \wedge
+    ct' = mux(e, ctt, ctf)
     \end{array}    
     }
   \end{gather*}
