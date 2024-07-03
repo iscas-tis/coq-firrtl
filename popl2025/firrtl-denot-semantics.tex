@@ -1,7 +1,12 @@
 %!TEX root = main.tex
 
 Since each component $cnt$ in $M$ is declared, $cnt$ has a type, say $type(cnt)$. Note that $type(cnt)$ may involve implicit widths.  
-On the other hand, all the widths $vm$ are explicit. We can construct a function $tmap$ that assigns to each identifier $v \in \range{id}$ a type where all the widths are explicit, by utilizing the information in $vm$ to instantiate the implicit widths in $type(cnt)$ for components $cnt$ in $M$. More precisely, for each $v \in \range{id}$, $tmap(v)$ is of one of the following forms, 
+On the other hand, all the widths $vm$ are explicit. 
+
+
+We can construct a function $tmap$ that assigns to each identifier $v \in \range{id}$ \tl{where is this defined?} a type where all the widths are explicit, by utilizing the information in $vm$ to instantiate the implicit widths in $type(cnt)$ for components $cnt$ in $M$. 
+
+More precisely, for each $v \in \range{id}$, $tmap(v)$ is of one of the following forms, \tl{what is orientation?}
 \begin{itemize}
 \item $(ori, ground, t)$ such that $ori$ is a Boolean value denoting the orientation of $v$ and $t \in \gtypes$, 
 %
