@@ -1,9 +1,11 @@
 %!TEX root = main.tex
 
-Since each component $cnt$ in $M$ is declared, $cnt$ has a type, say $type(cnt)$. Note that $type(cnt)$ may involve implicit widths.  
-On the other hand, all the widths in $vm$ are explicit. 
-
-Let us define $\ftypes$ as the set of pairs of one of the following forms, 
+For each component $cnt$ declared in $M$, the width usually is not given explicitly. % is , $cnt$ has a type, say $type(cnt)$. Note that $type(cnt)$ may involve implicit widths.  
+On the other hand, all the widths in %$vm$ are 
+the semantics definition (in particular, the vertex map) should be made explicit. To fill this gap, 
+%
+we introduce a set $\ftypes$ where each member is %as the set of pairs of 
+one of the following forms, 
 \begin{itemize}
 \item $(\gtype, t)$ such that $t \in \gtypes$, 
 %
@@ -12,8 +14,12 @@ Let us define $\ftypes$ as the set of pairs of one of the following forms,
 \item $(\btype, f)$ such that $f$ is a field. 
 \end{itemize}
 
-We can construct a function $tmap$ that assigns to each identifier $v \in \range{id}$ \tl{where is this defined?} a type where all the widths are explicit, by utilizing the information in $vm$ to instantiate the implicit widths in $type(cnt)$ for components $cnt$ in $M$. 
-More precisely, for each $v \in \range{id}$, $tmap(v) = (ft, ori)$ such that $ft \in \ftypes$ where all widths are explicit and $ori \in \{\duplex, \sink, \source\}$.
+%$type: \idset_M \rightarrow \ftypes$
+
+%We can construct a function $tmap$ that assigns to each identifier $v \in \range{id}$ \tl{where is this defined?} a type where all the widths are explicit, by utilizing the information in $vm$ to instantiate the implicit widths in $type(cnt)$ for components $cnt$ in $M$. 
+%More precisely, 
+
+For each $v \in \range{id}$, $tmap(v) = (ft, ori)$ such that $ft \in \ftypes$ %where all widths are explicit and $ori \in \{\duplex, \sink, \source\}$.
 %\begin{itemize}
 %\item $(ori, ground, t)$ such that $ori$ is a Boolean value denoting the orientation of $v$ and $t \in \gtypes$, 
 %
@@ -22,10 +28,11 @@ More precisely, for each $v \in \range{id}$, $tmap(v) = (ft, ori)$ such that $ft
 %\item $(ori, bundle, f)$ such that $ori$ is a Boolean value denoting the orientation of $v$ and $f$ is a field where all widths are explicit. 
 %\end{itemize}
 
-In the sequel, we first assume that $tmap$ is already constructed and show how to define the semantics of $M$. Later on, we show how to construct $tmap$ from $M$ and $vm$. 
+%In the sequel, we first assume that $tmap$ is already constructed and show how to define the semantics of $M$. Later on, we show how to construct $tmap$ from $M$ and $vm$. 
 
 %Let $G= (vm, ct)$ be a module graph. 
-The semantics of a statement $s$ in $M$ is defined by a relation $(vm, ct) \xrightarrow[tmap]{s} (vm', ct')$, where $s$ is seen as a modifier of module graphs. Moreover, the relation can be easily extended to sequences of statements, that is, $(vm, ct) \xrightarrow[tmap]{ss} (vm', ct')$, where $ss$ is a sequence of statements. 
+Given $tmap$, the semantics of a statement $s$ in $M$ is defined by a relation $(vm, ct) \xrightarrow[tmap]{s} (vm', ct')$. %, where $s$ is seen as a modifier of module graphs. 
+Moreover, the relation can be easily extended to sequences of statements, that is, $(vm, ct) \xrightarrow[tmap]{ss} (vm', ct')$, where $ss$ is a sequence of statements. 
        
 %Let $M$ be a {\hifirrtl} module and $G$ be a module graph. We define how $G = (vm, ct)$ \emph{matches} $M$ as follows: We define the relations $(vm, ct) \xrightarrow[tmap]{s} (vm', ct')$, where $s$ is a statement. Then $G$ matches $M$ if $(vm_{emp}, ct_{emp}) \xrightarrow[tmap]{ss} (vm, ct)$, where $ss$ is the statement sequence of $M$. 
 
@@ -696,19 +703,19 @@ For each $v \in \dom(id)$,
 
 
 
-A HiFIRRTL program $P$ is mapped to \emph{a set of} module graphs. %, where the box 
-We define $\mathcal{G}(P)$.  % G(P): the set of module graphs of  P
+%A HiFIRRTL program $P$ is mapped to \emph{a set of} module graphs. %, where the box 
+%We define $\mathcal{G}(P)$.  % G(P): the set of module graphs of  P
 
 
-We assume a component environment $ce$ which extracts the type information from $P$ %the sequence $ss$ of statements 
+%We assume a component environment $ce$ which extracts the type information from $P$ %the sequence $ss$ of statements 
 %and 
 %the connect mapping $cm$ extracts for each component the expression that is connected to the component according to the last-connect semantics. 
 
-Recall that a circuit defined by $P$ consists of multiple modules. 
-
-\begin{itemize}
-	\item tg
-\end{itemize} 
+%Recall that a circuit defined by $P$ consists of multiple modules. 
+%
+%\begin{itemize}
+%	\item tg
+%\end{itemize} 
 
 
 %A HiFIRRTL module $M$ will be first transformed into a circuit diagram $D_M = (ss, ce, cm)$, where $ss$ is the sequence of statements in $M$, $ce$ is the component environment obtained from the variable declarations in $M$, possibly with the types of some variables missing or partial, 

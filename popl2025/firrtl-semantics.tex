@@ -1,6 +1,6 @@
 %!TEX root = main.tex
 
-\subsection{Module graphs}
+%\subsection{Module graphs}
 
 %For simplicity, let us focus on a HiFIRRTL circuit $A$ that contains no ``inst of'' statements, that is, circuit $A$ contains exactly one module $A$.
 
@@ -72,18 +72,22 @@
 %
 We denote by $\gtypes:= (\{UInt, SInt, UIntImp, SIntImp\} \times \Nat) \cup \{Clock,
 Reset, AsyncReset\}$ the set of ground types. 
-Note that $UIntImp$ and $SIntImp$ are introduced to denote the explicit ground types that are instantiated from the implicit ground types.
+Note that $UIntImp$ and $SIntImp$ are introduced to denote the explicit ground types that are instantiated from the implicit ground types. \tl{to explain why this is needed.}
 Let $\bv=\{0,1\}^+$, i.e., the set of bit vectors.
 %
 %For a ground type $t = (\tau, n) \in \{UInt, SInt\} \times \Nat$, $n$ is the \emph{width} of $t$, denoted by $wd(t)$.
 
-Fix a {\hifirrtl} module $M$ where we assume that $M$ consists of a sequence of port declarations followed by statements. %$M = (pp, ss)$, where $pp$ is a sequence of port declarations and $ss$ is a sequence of statements. 
-Moreover, for convenience, we assume an \emph{injective} identifier function $id$, which maps from the name of a component (e.g., wire, node, register) in $M$ to a natural number. %Note that $id$ is an injective function. Later on, 
+Fix a {\hifirrtl} module $M$ which consists of a sequence of port declarations followed by statements. %$M = (pp, ss)$, where $pp$ is a sequence of port declarations and $ss$ is a sequence of statements. 
+
+
+\paragraph{Identifier.} For convenience, we assume an \emph{injective} identifier function $id$, which maps from the name of a component (e.g., wire, node, register) in $M$ to a natural number. %Note that $id$ is an injective function. Later on, 
 We shall use identifiers (instead of names) to refer to the components in $M$. 
-
-We introduce a concept of \emph{module graphs} to define the semantics of {\hifirrtl} programs. Intuitively, a module graph $G$ for $M$ represents a possible instantiation of $M$, where (1) the vertices of $G$ represent the components of ground type that are obtained from $M$ by flattening the components of aggregate type therein and (2) all the implicit widths are made explicit.  
-
-As a result, the vertices of a module graph for $M$ are of the form $(a, o) \in \Nat \times \Nat$, each of which is corresponding to a component $cnt$ of $M$ with $a = id(cnt)$ and   
+%
+%We introduce a concept of \emph{module graphs} to define the semantics of {\hifirrtl} programs. Intuitively, a module graph $G$ for $M$ represents a possible instantiation of $M$, where (1) the vertices of $G$ represent the components of ground type that are obtained from $M$ by flattening the components of aggregate type therein and (2) all the implicit widths are made explicit.  
+%
+%As a result, the vertices of a module graph for $M$ are 
+Each component $cnt$ is associated with a pair of the form $(a, o) \in \Nat \times \Nat$, %each of which is corresponding to a component $cnt$ of $M$ with 
+where $a = id(cnt)$ and   
 %$(a, o)$ is one of the following forms, 
 %each component $cnt$ of ground type in $M$ is associated with an identifier $(a, o)$, where
 \begin{itemize}
@@ -113,38 +117,41 @@ from $M$.
 %Moreover, for the components where aggregate types are nested, the offsets of the components of ground types are determined by the traversal order of a depth-first search. \tl{to be improved.}
 
 %We consider a finite set $\sorts = \{ \inport, \outport, \wire, \node, \register\}$ of \emph{sorts}.
+\paragraph{Expressions.}
 $\exps$ (resp. $\refs$) denotes the set of {\hifirrtl} expressions (resp. references), that is, %the set of strings that can be 
 those derived  by the rules from $e$ (resp. $r$) in Figure~\ref{fig-firrtl-synt-simp}. 
 Moreover, for convenience, we assume that $\exps$ contains two special elements, $none$ and $undefined$. 
 
 %consisting of \register, \node, \wire, \inport, and \outport. Let 
 
-A \emph{vertex sort} is either %\tl{the name "type" is overloaded, can be change to something else?}
+%A \emph{vertex sort} is either %\tl{the name "type" is overloaded, can be change to something else?}
+
+Let $\vtypes$ denote %the set of vertex sorts.
 \begin{itemize}
 \item $(s, t)$ with $s \in \{\inport, \outport, \wire, \node\}$ and $t \in \gtypes$,  
 \item or $(\register, t, e_1, e_2, e_3, b)$ such that $t \in \gtypes$, $e_1, e_2, e_3 \in \exps$ and $b\in \{0,1\}$. (Intuitively, $e_1$ represents a clock, $e_2$ represents a reset clock, and $e_3$ represents the reset value, and $b$ is a Boolean value  that denotes whether the reset is asynchronous or not).  
 \end{itemize}
 
-Let $\vtypes$ denote the set of vertex sorts. Moreover, for convenience, we assume that $\vtypes$ includes two additional elements, i.e. $none$ and $undefined$. \tl{the same as before}
+ Moreover, for convenience, we assume that $\vtypes$ includes two additional elements, i.e. $none$ and $undefined$. \tl{the same as before}
 
 
 
 %A \emph{vertex} is a pair $\idset \times \vtypes$.
 
-\begin{definition}[Module graph]\label{def-mg}
-	A \emph{module graph} $G$ is a pair $(vm, ct)$ where $vm$ is a vertex map and $ct$ is a connection tree. 
+%\begin{definition}[Module graph]\label{def-mg}
+%	A \emph{module graph} $G$ is a pair $(vm, ct)$ where $vm$ is a vertex map and $ct$ is a connection tree. 
 	
-	A \emph{vertex map} is a function $vm: \idset_M \rightarrow \vtypes$ with a finite domain. 
+	A \emph{vertex map} is a function $vm: \idset_M \rightarrow \vtypes$. % with a finite domain. 
 	
-	A \emph{connection tree} is a function $ct: \idset_M \rightarrow \exps$ with a finite domain. 
-\end{definition}
+	A \emph{connection tree} is a function $ct: \idset_M \rightarrow \exps$. %with a finite domain. 
+%\end{definition}
 %\tl{this def has little to do with graph!?}\zhilin{if $ct(id)$ is a component of ground type, then it is analogous to the graph edges, otherwise, $ct(id)$ may involve multiple identifiers, somehow it can be seen as an edge in a supergraph. May changed to module diagram}
 
 %Intuitively, a module graph is a representation of a module, where the focus is on the components of ground types, all implicit widths are concretized, $vm$ records the declarations of components, and $ct$ records for each component an expression that is generated from its connect statements according to the last-connect semantics. 
 
-\begin{example}
-An example of module graphs here
-\end{example}
+%\begin{example}
+%An example of module graphs here
+%\end{example}
 
 %\hide{
 %\begin{definition}[Vertex]
@@ -205,6 +212,6 @@ An example of module graphs here
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\subsection{Denotational Semantics of FIRRTL}
+%\subsection{Denotational Semantics of FIRRTL}
 
 \input{firrtl-denot-semantics}
