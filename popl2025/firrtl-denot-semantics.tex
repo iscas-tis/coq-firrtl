@@ -58,7 +58,7 @@ The semantics of a statement $s$ in $M$ is defined by a relation $(vm, ct) \xrig
     {\seqq{f f = (\_, \_, ft', ff')}} {\seqq{m = size\_of\_ftype(ft')}} {\seqq{n = size\_of\_fields(ff')}}
   \end{gather*}
 %  \vspace{-4mm}
-  \caption{$size\_of\_ftype$, $size\_of\_fields$, $list\_gtype$, and $list\_gtype\_fields$}
+  \caption{$size\_of\_ftype$ and $size\_of\_fields$}
   \label{tab:size-list-ftype-fields}
 \end{table}
 
@@ -147,52 +147,153 @@ The semantics of a statement $s$ in $M$ is defined by a relation $(vm, ct) \xrig
   \label{tab:size-list-ftype-fields}
 \end{table}
 
+
 \begin{table}[htbp]
   \small
   \begin{gather*}
-   \inferii[type\_of\_ref: id]
-    {\seqq{type\_of\_ref(r, tmap) = (ft, ori)}}
-    {\seqq{r = x}} {\seqq{tmap(id(x)) = (ft, ori)}}
-    \quad
+    \infer[update\_vm]
+    {update\_vm(vm, id, ft) = vm'}
+    {
+    \begin{array}{r l l}
+    \multicolumn{3}{c}{id = (v, m) \wedge size\_of\_ftype(ft) = sz \wedge list\_gtype(ft) = ls} \\
+    \forall n.\ 0 \le n < sz & \Rightarrow & vm'(v, m+n) = ls[n] \\
+    \forall v', n'.\ (v' \neq v \vee n' < m \vee n' \ge m+sz) & \Rightarrow & vm'(v', n') = vm(v', n')  \\
+    \end{array}
+    }
     \\[1ex]
-   \inferiii[type\_of\_ref: vector-1]
-    {\seqq{type\_of\_ref(r, tmap) = (t, ori)}}
-    {\seqq{r = r'[n]}} {\seqq{type\_of\_ref(r', tmap) =  (t[m], ori)}} {\seqq{n < m}}
-    \quad
+    \infer[update\_ct]
+    {update\_ct(ct, id, ft, ls) = ct'}
+    {
+    \begin{array}{r l l}
+    \multicolumn{3}{c}{id = (v, m) \wedge size\_of\_ftype(ft) = sz} \\
+    \forall n.\ 0 \le n < sz & \Rightarrow & ct'(v, m+n) = ls[n] \\
+    \forall v', n.\ (v' \neq v \vee n' < m \vee n' \ge m+sz) & \Rightarrow & ct(v', n') = ct'(v', n') \\
+    \end{array}
+    }
     \\[1ex]
-   \inferiii[type\_of\_ref: vector-2]
-    {\seqq{type\_of\_ref(r, tmap) = none}}
-    {\seqq{r = r'[n]}} {\seqq{type\_of\_ref(r', tmap) = (t[m], ori)}} {\seqq{n \ge m}}
-    \quad
+    \infer[update\_ct\_ref]
+    {update\_ct\_ref(ct, id, ft, ls, id', ft', ls', ct')}
+    {
+    \begin{array}{c}
+    id = (v, m) \wedge id' = (v', m') \wedge size\_of\_ftype(ft) = sz\ \wedge \\
+    ls\_gtype\_ref(ft', false) = lgt \\
+    \forall n, ori'.\ 0 \le n < sz \wedge lgt[n] = (\_, false) \Rightarrow \\
+    \left(
+    \begin{array}{l}
+    ct(v, m+n) \neq none \wedge ct'(v, m+n) = ls'[n]\ \wedge  \\
+    ((v',m') \neq (v, m)  \rightarrow ct'(v', m' + n) = ct(v', m'+n)) 
+    \end{array}
+    \right)
+    \\ 
+    \forall n.\ 0 \le n < sz \wedge lgt[n] = (\_, true) \Rightarrow \\
+    \left(
+    \begin{array}{l}
+    ct(v', m'+n) \neq none \wedge ct'(v', m'+n) = ls[n]\ \wedge  \\
+    ((v, m) \neq (v', m')  \rightarrow ct'(v, m + n) = ct(v, m+n))
+    \end{array}
+    \right)
+     \\
+     \forall v'', n''.\ 
+     \left(
+     \begin{array}{l}
+     (v'' \neq v \vee n'' < m \vee n'' \ge m+sz)\ \wedge \\
+     (v'' \neq v' \vee n'' < m' \vee n'' \ge m'+sz)
+     \end{array}
+     \right)
+       \Rightarrow \\
+    ct'(v'', n'') = ct(v'', n'') 
+    \end{array}
+    }
     \\[1ex]
-   \inferiii[type\_of\_ref: field]
-    {\seqq{type\_of\_ref(r, tmap) = (ft, ori)}}
-    {\seqq{r = r'.f}} {\seqq{type\_of\_ref(r', tmap) = (ft', ori')}} {\seqq{type\_of\_field(f, ft', ori') = (ft, ori)}}
-    \\[1ex]
-   \infer[type\_of\_field]
-    {\seqq{type\_of\_field(f, ff, ori) = none}}
-    {\seqq{f f = nil}}
-    \\[1ex]
-   \inferiii[type\_of\_field: neq]
-    {\seqq{type\_of\_field(f, ff, ori) = (ft, ori')}}
-    {\seqq{f f = (f', flipped, t, ff')}} {\seqq{f \neq f'}} {\seqq{type\_of\_field(f, ff', ori) = (ft, ori')}}
-    \\[1ex]
-   \inferiii[type\_of\_field: eq-1]
-    {\seqq{type\_of\_field(f, ff, ori) = (t, ori)}}
-    {\seqq{f f = (f', flipped, t, ff')}} {\seqq{f = f'}} {\seqq{flipped = false \vee (flipped = true \wedge ori = \duplex)}}
-    \\[1ex]
-   \inferiii[type\_of\_field: eq-2]
-    {\seqq{type\_of\_field(f, ff, ori) = (t, \sink)}}
-    {\seqq{f f = (f', flipped, t, ff')}} {\seqq{f = f'}} {\seqq{flipped = true \wedge ori = \source}}
-    \\[1ex]
-   \inferiii[type\_of\_field: eq-3]
-    {\seqq{type\_of\_field(f, ff, ori) = (t, \source)}}
-    {\seqq{f f = (f', flipped, t, ff')}} {\seqq{f = f'}} {\seqq{flipped = true \wedge ori = \sink}}
+    \infer[invalidate]
+    {invalidate(ct, id, ft, ori) = ct'}
+    {
+    \begin{array}{c}
+    id = (v, m) \wedge size\_of\_ftype(ft) = sz \wedge ls\_gtype\_ref(ft, false) = lgt \\
+    \forall n.\ 0 \le n < sz \wedge 
+    \left(
+    \begin{array}{l}
+    (lgt[n] = (\_, false) \wedge (ori = \sink \vee ori = \duplex))\ \vee \\
+    (lgt[n] = (\_, true) \wedge (ori = \source \vee ori = \duplex))
+     \end{array}
+    \right) \Rightarrow\\
+    \hspace{1cm}  ct(v, m+n) \neq none \wedge ct'(v, m+n) = invalidated  \\
+    \forall n.\ 0 \le n < sz \wedge 
+    \left(
+    \begin{array}{l}
+    (lgt[n] = (\_, false) \wedge ori = \source)\ \vee \\
+     (lgt[n] = (\_, true) \wedge ori = \sink)
+     \end{array}
+    \right)  
+    \Rightarrow\\
+    \hspace{1cm}  ct'(v, m+n) = ct(v, m+n)  \\
+    \forall v', n'.\ (v' \neq v \vee n' < m  \vee n' \ge m+sz)  \rightarrow ct'(v', n') = ct(v', n')
+    \end{array}
+    }
   \end{gather*}
-%  \vspace{-4mm}
-  \caption{$type\_of\_ref$ and $type\_of\_field$}
-  \label{tab:type-expr-ref}
+  \caption{$update\_vm$, $update\_ct$, $update\_ct\_ref$, and $invalidate$}
+  \label{tab:update-vm-ct}
 \end{table}
+
+
+\begin{table}[htbp]
+  \small
+  \begin{gather*}
+    \infer[list\_gexp: ground]
+    {list\_gexp(e, ft) = l}
+    {
+    \begin{array}{c}
+    	ft = (ground, t) \wedge l = [e]
+    \end{array}
+    }
+    \\[1ex]
+    \infer[list\_gexp: mux]
+    {list\_gexp(e, ft) = l}
+    {
+    \begin{array}{c}
+    	e = mux(c, e1, e2) \wedge list\_gexp(e1, ft) = l1 \wedge list\_gexp(e1, ft) = l2\  \wedge\\
+	size(l1) = size(l2) \wedge l = mux(c, l1, l2)
+    \end{array}
+    }
+    \\[1ex]
+    \infer[list\_gexp: vector]
+    {list\_gexp(e, ft) = l}
+    {
+    \begin{array}{c}
+    	 e= r[n] \wedge type\_of\_ref(r) = (ft', ori)\ \wedge \\
+	  size\_of\_ftype(ft) = sz \wedge l = list\_gexp(r, ft')[sz* n, sz*(n+1)-1]
+    \end{array}
+    }
+    \\[1ex]
+    \infer[list\_gexp: bundle]
+    {list\_gexp(e, ft) = l}
+    {
+    \begin{array}{c}
+    	 ft = (bundle, ff) \wedge l = list\_gexp\_fields(e, ff)
+    \end{array}
+    }
+    \\[1ex]
+    \infer[list\_gexp\_fields: nil]
+    {list\_gexp\_fields(e, ff) = l}
+    {
+    \begin{array}{c}
+    	 ff = nil \wedge l = []
+    \end{array}
+    }
+   \\[1ex]
+    \infer[list\_gexp\_fields: $\neq$nil]
+    {list\_gexp\_fields(e, ff) = l}
+    {
+    \begin{array}{c}
+    	 ff = (f, b, t, ff1) \wedge l = list\_gexp(e.f, t)\ ++\ list\_gexp\_fields(e, ff1)
+    \end{array}
+    }
+  \end{gather*}
+  \caption{$list\_gexp$ and $list\_gexp\_fields$}
+  \label{tab:list-gexp}
+\end{table}
+
+
 
 \begin{table}[htbp]
   \small
@@ -290,145 +391,80 @@ The semantics of a statement $s$ in $M$ is defined by a relation $(vm, ct) \xrig
 \begin{table}[htbp]
   \small
   \begin{gather*}
-    \infer[update\_vm]
-    {update\_vm(vm, id, ft) = vm'}
-    {
-    \begin{array}{r l l}
-    \multicolumn{3}{c}{id = (v, m) \wedge size\_of\_ftype(ft) = sz \wedge list\_gtype(ft) = ls} \\
-    \forall n.\ 0 \le n < sz & \Rightarrow & vm'(v, m+n) = ls[n] \\
-    \forall v', n'.\ (v' \neq v \vee n' < m \vee n' \ge m+sz) & \Rightarrow & vm'(v', n') = vm(v', n')  \\
-    \end{array}
-    }
+   \inferii[type\_of\_ref: id]
+    {\seqq{type\_of\_ref(r, tmap) = (ft, ori)}}
+    {\seqq{r = x}} {\seqq{tmap(id(x)) = (ft, ori)}}
+    \quad
     \\[1ex]
-    \infer[update\_ct]
-    {update\_ct(ct, id, ft, ls) = ct'}
-    {
-    \begin{array}{r l l}
-    \multicolumn{3}{c}{id = (v, m) \wedge size\_of\_ftype(ft) = sz} \\
-    \forall n.\ 0 \le n < sz & \Rightarrow & ct'(v, m+n) = ls[n] \\
-    \forall v', n.\ (v' \neq v \vee n' < m \vee n' \ge m+sz) & \Rightarrow & ct(v', n') = ct'(v', n') \\
-    \end{array}
-    }
+   \inferiii[type\_of\_ref: vector-1]
+    {\seqq{type\_of\_ref(r, tmap) = (t, ori)}}
+    {\seqq{r = r'[n]}} {\seqq{type\_of\_ref(r', tmap) =  (t[m], ori)}} {\seqq{n < m}}
+    \quad
     \\[1ex]
-    \infer[update\_ct\_ref]
-    {update\_ct\_ref(ct, id, ft, ls, id', ft', ls', ct')}
+   \inferiii[type\_of\_ref: vector-2]
+    {\seqq{type\_of\_ref(r, tmap) = none}}
+    {\seqq{r = r'[n]}} {\seqq{type\_of\_ref(r', tmap) = (t[m], ori)}} {\seqq{n \ge m}}
+    \quad
+    \\[1ex]
+   \infer[type\_of\_ref: field]
+    {\seqq{type\_of\_ref(r, tmap) = (ft, ori)}}
     {
     \begin{array}{c}
-    id = (v, m) \wedge id' = (v', m') \wedge size\_of\_ftype(ft) = sz\ \wedge \\
-    ls\_gtype\_ref(ft', false) = lgt \\
-    \forall n, ori'.\ 0 \le n < sz \wedge lgt[n] = (\_, false) \Rightarrow \\
-    \left(
-    \begin{array}{l}
-    ct(v, m+n) \neq none \wedge ct'(v, m+n) = ls'[n]\ \wedge  \\
-    ((v',m') \neq (v, m)  \rightarrow ct'(v', m' + n) = ct(v', m'+n)) 
-    \end{array}
-    \right)
-    \\ 
-    \forall n.\ 0 \le n < sz \wedge lgt[n] = (\_, true) \Rightarrow \\
-    \left(
-    \begin{array}{l}
-    ct(v', m'+n) \neq none \wedge ct'(v', m'+n) = ls[n]\ \wedge  \\
-    ((v, m) \neq (v', m')  \rightarrow ct'(v, m + n) = ct(v, m+n))
-    \end{array}
-    \right)
-     \\
-     \forall v'', n''.\ 
-     \left(
-     \begin{array}{l}
-     (v'' \neq v \vee n'' < m \vee n'' \ge m+sz)\ \wedge \\
-     (v'' \neq v' \vee n'' < m' \vee n'' \ge m'+sz)
-     \end{array}
-     \right)
-       \Rightarrow \\
-    ct'(v'', n'') = ct(v'', n'') 
+    r = r'.f \\
+    type\_of\_ref(r', tmap) = (ft', ori') \\
+    type\_of\_field(f, ft', ori') = (ft, ori)
     \end{array}
     }
+    \quad
+%    \seqq{r = r'.f}} {\seqq{type\_of\_ref(r', tmap) = (ft', ori')}} {\seqq{type\_of\_field(f, ft', ori') = (ft, ori)}}
     \\[1ex]
-    \infer[invalidate]
-    {invalidate(ct, id, ft, ori) = ct'}
+   \infer[type\_of\_field]
+    {\seqq{type\_of\_field(f, ff, ori) = none}}
+    {\seqq{f f = nil}}
+    \quad
+    \\[1ex]
+   \infer[type\_of\_field: neq]
+    {\seqq{type\_of\_field(f, ff, ori) = (ft, ori')}}
     {
     \begin{array}{c}
-    id = (v, m) \wedge size\_of\_ftype(ft) = sz \wedge ls\_gtype\_ref(ft, false) = lgt \\
-    \forall n.\ 0 \le n < sz \wedge 
-    \left(
-    \begin{array}{l}
-    (lgt[n] = (\_, false) \wedge (ori = \sink \vee ori = \duplex))\ \vee \\
-    (lgt[n] = (\_, true) \wedge (ori = \source \vee ori = \duplex))
-     \end{array}
-    \right) \Rightarrow\\
-    \hspace{1cm}  ct(v, m+n) \neq none \wedge ct'(v, m+n) = invalidated  \\
-    \forall n.\ 0 \le n < sz \wedge 
-    \left(
-    \begin{array}{l}
-    (lgt[n] = (\_, false) \wedge ori = \source)\ \vee \\
-     (lgt[n] = (\_, true) \wedge ori = \sink)
-     \end{array}
-    \right)  
-    \Rightarrow\\
-    \hspace{1cm}  ct'(v, m+n) = ct(v, m+n)  \\
-    \forall v', n'.\ (v' \neq v \vee n' < m  \vee n' \ge m+sz)  \rightarrow ct'(v', n') = ct(v', n')
+    f f = (f', flipped, t, ff')\wedge f \neq f'\\
+    type\_of\_field(f, ff', ori) = (ft, ori')
+    \end{array}
+    }
+    \quad
+    \\[1ex]
+   \infer[type\_of\_field: eq-1]
+    {\seqq{type\_of\_field(f, ff, ori) = (t, ori)}}
+    {
+    \begin{array}{c}
+    f f = (f', flipped, t, ff') \wedge f = f' \\
+    flipped = false \vee (flipped = true \wedge ori = \duplex)
+    \end{array}
+    }
+    \quad
+    \\[1ex]
+   \infer[type\_of\_field: eq-2]
+    {\seqq{type\_of\_field(f, ff, ori) = (t, \sink)}}
+    {
+    \begin{array}{c}
+    f f = (f', flipped, t, ff') \wedge f = f' \\
+    flipped = true \wedge ori = \source
+    \end{array}
+    }
+    \quad
+    \\[1ex]
+   \infer[type\_of\_field: eq-3]
+    {\seqq{type\_of\_field(f, ff, ori) = (t, \source)}}
+    {
+    \begin{array}{c}
+    f f = (f', flipped, t, ff') \wedge f = f' \\
+    flipped = true \wedge ori = \sink
     \end{array}
     }
   \end{gather*}
-  \caption{$update\_vm$, $update\_ct$, $update\_ct\_ref$, and $invalidate$}
-  \label{tab:update-vm-ct}
-\end{table}
-
-\begin{table}[htbp]
-  \small
-  \begin{gather*}
-    \infer[list\_gexp: ground]
-    {list\_gexp(e, ft) = l}
-    {
-    \begin{array}{c}
-    	ft = (ground, t) \wedge l = [e]
-    \end{array}
-    }
-    \\[1ex]
-    \infer[list\_gexp: mux]
-    {list\_gexp(e, ft) = l}
-    {
-    \begin{array}{c}
-    	e = mux(c, e1, e2) \wedge list\_gexp(e1, ft) = l1 \wedge list\_gexp(e1, ft) = l2\  \wedge\\
-	size(l1) = size(l2) \wedge l = mux(c, l1, l2)
-    \end{array}
-    }
-    \\[1ex]
-    \infer[list\_gexp: vector]
-    {list\_gexp(e, ft) = l}
-    {
-    \begin{array}{c}
-    	 e= r[n] \wedge type\_of\_ref(r) = (ft', ori)\ \wedge \\
-	  size\_of\_ftype(ft) = sz \wedge l = list\_gexp(r, ft')[sz* n, sz*(n+1)-1]
-    \end{array}
-    }
-    \\[1ex]
-    \infer[list\_gexp: bundle]
-    {list\_gexp(e, ft) = l}
-    {
-    \begin{array}{c}
-    	 ft = (bundle, ff) \wedge l = list\_gexp\_fields(e, ff)
-    \end{array}
-    }
-    \\[1ex]
-    \infer[list\_gexp\_fields: nil]
-    {list\_gexp\_fields(e, ff) = l}
-    {
-    \begin{array}{c}
-    	 ff = nil \wedge l = []
-    \end{array}
-    }
-   \\[1ex]
-    \infer[list\_gexp\_fields: $\neq$nil]
-    {list\_gexp\_fields(e, ff) = l}
-    {
-    \begin{array}{c}
-    	 ff = (f, b, t, ff1) \wedge l = list\_gexp(e.f, t)\ ++\ list\_gexp\_fields(e, ff1)
-    \end{array}
-    }
-  \end{gather*}
-  \caption{$list\_gexp$ and $list\_gexp\_fields$}
-  \label{tab:list-gexp}
+%  \vspace{-4mm}
+  \caption{$type\_of\_ref$ and $type\_of\_field$}
+  \label{tab:type-expr-ref}
 \end{table}
 
 \begin{table}[htbp]
@@ -443,7 +479,7 @@ The semantics of a statement $s$ in $M$ is defined by a relation $(vm, ct) \xrig
     {\seqq{(vm, ct) \xrightarrow[tmap]{\mbox{wire } x: t} (vm', ct')}}
    {
     \begin{array}{c}
-    id(x) = v \wedge tmap(v)= ft \wedge size\_of\_ftype(ft) = sz \\
+    id(x) = v \wedge tmap(v)= (ft, ori) \wedge size\_of\_ftype(ft) = sz \\
     \forall n.\ 0 \le n < sz \Rightarrow vm(v, n) = none \wedge ct(v, n) = none  \\
 %    \forall n.\ n \ge size\_of\_ftype(ft) \Rightarrow vm(v, n) =  vm'(v,n)\\
 %    \forall n.\ 0 \le n < size\_of\_ftype(ft) \Rightarrow ct(v, n) = none \wedge ct'(v,n) = undefined \\
@@ -467,7 +503,7 @@ The semantics of a statement $s$ in $M$ is defined by a relation $(vm, ct) \xrig
     {\seqq{(vm, ct) \xrightarrow[tmap]{\mbox{reg } x : t\ e\ with:\ reset => (rsig, rval)} (vm', ct')}}
     {
     \begin{array}{c}
-   id(x) = v \wedge tmap(v)= ft \wedge size\_of\_ftype(ft) = sz \wedge  rft = type\_of\_exp(rval)\ \wedge \\
+   id(x) = v \wedge tmap(v)= (ft, ori) \wedge size\_of\_ftype(ft) = sz \wedge  rft = type\_of\_exp(rval, tmap)\ \wedge \\
    type\_compatible(ft, rft, false) \\
     \forall n.\ 0 \le n < sz  \Rightarrow  vm(v, n) = none \wedge ct(v, n) = none \\
    update\_vm((v,0), vm, ft, vm') \wedge update\_ct((v, 0), ct, ft, list\_gexp(x, ft), ct')
