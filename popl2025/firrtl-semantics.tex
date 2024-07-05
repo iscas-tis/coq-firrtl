@@ -57,7 +57,11 @@ We shall represent {\lofirrtl} programs by a data structure called \emph{module 
 %
 \item Then, to decide whether $(vm, ct)$ conforms to $M$, we utilize $tmap$ and the statements in $M$ to construct a module graph $G'$ from the empty module graph and finally check whether $G' = G$.
 \end{itemize}
+
+Equipped with this definition of formal semantics of {\hifirrtl} programs, we are able to formalize and prove that the lowering transformations preserve the semantics of {\hifirrtl} programs, that is, prove that the set of module graphs of {\hifirrtl} programs are unchanged during the lowering transformations. 
+
 In the sequel, we first define the concept of module graphs, then show how to construct $tmap$ from $vm$ and $M$, as well as how to construct a module graph from the empty graph by using $tmap$ and $M$. 
+
 
 %We fix ground types \clock and  \UInt{n} where $n$ is a positive integer. 
 %based on the discussion with zhilin, aggregate type is not needed. 
