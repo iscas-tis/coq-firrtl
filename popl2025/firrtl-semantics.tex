@@ -25,7 +25,7 @@
 %- a pair to identify the vertex of the module graph
 %- a number to identify the input connector of the vertex.
 
-\newcommand{\clock}{{\tt Clock}\xspace}
+%\newcommand{\clock}{{\tt Clock}\xspace}
 %\newcommand{\UInt}{{\tt UInt}\xspace}
 \newcommand{\UInt}[1]{{\tt UInt}$\langle #1\rangle$\xspace}
 \newcommand{\sorts}{{\sf Sorts}}
@@ -112,10 +112,10 @@ various semantics preservation properties in Section~\ref{sec-hi-firrtl-transfor
 
 Fix a {\hifirrtl} module $M$ which consists of a sequence of port declarations followed by statements. %$M = (pp, ss)$, where $pp$ is a sequence of port declarations and $ss$ is a sequence of statements. 
 %
-We denote by $\gtypes:= (\{UInt, SInt, UIntImp, SIntImp\} \times \Nat) \cup \{Clock,
-Reset, AsyncReset\}$ the set of \emph{ground types}. 
-Note that $UIntImp$ and $SIntImp$ are introduced to denote the explicit ground types that are instantiated from the implicit ground types. 
-In particular, $\gtypes$ is able to model types of implicit width. For instance, a type $UInt$ where the width is implicit is taken as $(UIntImp, 0)$. Similarly for $SInt$. 
+We denote by $\gtypes:= (\{\uint, \sint, \uintimp, \sintimp\} \times \Nat) \cup \{\clock,
+\reset, \asyncreset\}$ the set of \emph{ground types}. 
+Note that $\uintimp$ and $\sintimp$ are introduced to denote the explicit ground types that are instantiated from the implicit ground types. 
+In particular, $\gtypes$ is able to model types of implicit width. For instance, a type $\uint$ where the width is implicit is taken as $(\uintimp, 0)$. Similarly for $\sint$. 
 Let $\bv=\{0,1\}^+$, i.e., the set of bit vectors.
 %
 %For a ground type $t = (\tau, n) \in \{UInt, SInt\} \times \Nat$, $n$ is the \emph{width} of $t$, denoted by $wd(t)$.
