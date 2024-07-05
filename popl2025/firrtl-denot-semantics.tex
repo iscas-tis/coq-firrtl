@@ -580,26 +580,224 @@ $tmap$ is constructed from $pp, ss, vm$ as follows.
 \begin{table}[htbp]
   \small
   \begin{gather*}
-    \inferii[made\_explicit: ground]
-    {\seqq{ports\_tmap(ft, v, vm) = (newt, newn)}}
+   \infer[type\_eq]
+    {\seqq{type\_eq(cgt, ggt) = res}}
+    {
+     \begin{array}{c}
+     res =
+     ((cgt = (UInt, n) \wedge ggt = (UInt, n))\ \vee \\
+     (cgt = (SInt, n) \wedge ggt = (SInt, n))\ \vee \\
+     (cgt = (UIntImp, \_) \wedge ggt = (UIntImp, \_))\ \vee \\
+     (cgt = (SIntImp, \_) \wedge ggt = (SIntImp, \_))\ \vee \\
+     (cgt = Clock  \wedge ggt = Clock)\ \vee \\
+     (cgt = Reset \wedge ggt = (UInt, 1))\ \vee \\
+     (cgt = Reset \wedge ggt = AsyncReset)\ \vee \\
+     (cgt = AsyncReset \wedge ggt = AsyncReset))
+     \end{array}
+    }
+    \quad
+    \\[1ex]  
+    \infer[made\_explicit: ground]
+    {\seqq{made\_explicit(ft, id, vm) = (newt, newn)}}
     {
     \begin{array}{c}
-    ft = (ground, gt)\ \wedge \\
-    ports\_tmap(pp', vm) = tmap'
+    ft = (ground, gt) \wedge id = (v, m) \\
+    vm(id) = (\_, t)  \wedge type\_eq(gt, t)\\
+    newt = t \wedge newn = m + 1
     \end{array}
     }
+    \quad
+    \\[1ex]
+    \infer[made\_explicit: vector]
+    {\seqq{made\_explicit(ft, id, vm) = (newt, newn)}}
     {
     \begin{array}{c}
-    made\_explicit(t, v, vm) = (newt, \_)\ \wedge \\
-    tmap'(v) = none\ \wedge \\
-    tmap = add((v, (newt, \source)), tmap')
+    ft = (vector, t[n]) \wedge id = (v, m) \\
+    made\_explicit(t, id, vm) = (t', m') \wedge elsize = m' -  m \\
+    \forall 0 \le i < ((n-1)*elsize) \Rightarrow vm(m+i) = vm(m'+i) \\
+    newt = (vector, t'[n]) \wedge newn = m + n*elsize 
+    \end{array}
+    }
+   \quad
+   \\[1ex]
+    \infer[made\_explicit: bundle]
+    {\seqq{made\_explicit(ft, id, vm) = (newt, newn)}}
+    {
+    \begin{array}{c}
+    ft = (bundle, ff) \wedge
+    made\_explicit\_fields(ff, id, vm) =(newt, newn) 
+    \end{array}
+    }
+    \quad
+    \\[1ex]
+    \infer[made\_explicit\_fields: nil]
+    {\seqq{made\_explicit\_fields(ff, id, vm) = (newt, newn)}}
+    {
+    \begin{array}{c}
+    ff = nil \wedge id = (v, m) \wedge
+    newt = (bundle, nil) \wedge newn = m  
+    \end{array}
+    }
+    \quad
+   \\[1ex]
+    \infer[made\_explicit\_fields: $\neq$nil]
+    {\seqq{made\_explicit\_fields(ff, id, vm) = (newt, newn)}}
+    {
+    \begin{array}{c}
+    ff = (f, b, t, ff') \wedge id = (v, m) \\
+    made\_explicit(t, id, vm) = (t', m') \\ 
+    made\_explicit\_fields(ff', (v, m'), vm) = (ff'', m'') \\
+    newt = (f, b, t', ff'') \wedge newn = m''  
     \end{array}
     }
   \end{gather*}
 %  \vspace{-4mm}
-  \caption{$made\_explicit$}
+  \caption{$type\_eq$, $made\_explicit$, $made\_explicit\_fields$}
   \label{tab:made-explicit}
 \end{table}
+
+\begin{table}[htbp]
+  \small
+  \begin{gather*}
+    \inferii[stmt\_tmap: skip]
+    {\seqq{stmt\_tmap((tmap, scope), s, vm) = (tmap', scope')}}
+    {\seqq{s = skip}}
+    {\seqq{tmap' = tmap \wedge scope' = scope}}
+   \quad
+   \\[1ex]
+%    \infer[stmt\_tmap: connect-none]
+%    {\seqq{stmt\_tmap((tmap, scope), s, vm) = none}}
+%    {
+%    \begin{array}{c}
+%      s = r <= e \\
+%      type\_of\_ref(r, scope) = none \vee type\_of\_exp(e, scope) = none
+%     \end{array}
+%    }
+%   \quad
+%   \\[1ex]
+    \infer[stmt\_tmap: connect-normal]
+    {\seqq{stmt\_tmap((tmap, scope), s, vm) = (tmap', scope')}}
+    {
+    \begin{array}{c}
+      s = r <= e \\
+      type\_of\_ref(r, scope) \neq none  \\
+      type\_of\_exp(e, scope) \neq none \\ 
+      (tmap', scope') = (tmap, scope)
+     \end{array}
+    }
+   \quad
+   \\[1ex]
+%    \infer[stmt\_tmap: invalid-none]
+%    {\seqq{stmt\_tmap((tmap, scope), s, vm) = none}}
+%    {
+%    \begin{array}{c}
+%      s = r \mbox{ is invalid} \wedge type\_of\_ref(r, scope) = none
+%     \end{array}
+%    }
+%   \quad
+%   \\[1ex]
+    \infer[stmt\_tmap: invalid-normal]
+    {\seqq{stmt\_tmap((tmap, scope), s, vm) = (tmap', scope')}}
+    {
+    \begin{array}{c}
+      s = r \mbox{ is invalid} \\
+      type\_of\_ref(r, scope) \neq none \\
+      (tmap', scope') = (tmap, scope)
+     \end{array}
+    }
+   \quad
+   \\[1ex]
+%    \infer[stmt\_tmap: wire-none]
+%    {\seqq{stmt\_tmap((tmap, scope), s, vm) = none}}
+%    {
+%    \begin{array}{c}
+%      s = \mbox{wire } x: t \wedge 
+%      (tmap(id(x)) \neq none \vee made\_explicit(t, (id(x),0), vm) = none)
+%     \end{array}
+%    }
+%   \quad
+%   \\[1ex]
+    \infer[stmt\_tmap: wire-normal]
+    {\seqq{stmt\_tmap((tmap, scope), s, vm) = (tmap', scope')}}
+    {
+    \begin{array}{c}
+      s = \mbox{wire } x: t \wedge tmap(id(x)) = none  \\
+      made\_explicit(t, (id(x),0), vm) = (newt, \_) \\
+      tmap' = add((id(x), (newt, \duplex)), tmap) \\
+      scope' = add((id(x), (newt, \duplex)), scope)
+     \end{array}
+    }
+   \quad
+   \\[1ex]
+%    \infer[stmt\_tmap: node-none]
+%    {\seqq{stmt\_tmap((tmap, scope), s, vm) = none}}
+%    {
+%    \begin{array}{c}
+%      s = \mbox{node } x = e \wedge 
+%      (tmap(id(x)) \neq none \vee type\_of\_exp(e, scope) = none)
+%     \end{array}
+%    }
+%   \quad
+%   \\[1ex]
+    \infer[stmt\_tmap: node-normal]
+    {\seqq{stmt\_tmap((tmap, scope), s, vm) = (tmap', scope')}}
+    {
+    \begin{array}{c}
+      s = \mbox{node } x = e \wedge tmap(id(x)) = none  \\
+      type\_of\_exp(e, scope) = newt \\
+      tmap' = add((id(x), (newt, \source)), tmap) \\
+      scope' = add((id(x), (newt, \source)), scope)
+     \end{array}
+    }
+   \quad
+   \\[1ex]
+    \infer[stmt\_tmap: register-normal-asyncreset]
+    {\seqq{stmt\_tmap((tmap, scope), s, vm) = (tmap', scope')}}
+    {
+    \begin{array}{c}
+      s = \mbox{reg } x: t \ clk \mbox{ with: reset =>} (rsig, rval)  \\
+      tmap(id(x)) = none \wedge type\_of\_exp(clk, scope) \neq none  \\
+      made\_explicit(t, (id(x),0), vm) = newt \\
+      type\_of\_exp(rsig, scope) = (ground, AsyncReset) \\
+      type\_of\_exp(rval, scope) \neq none \\
+      tmap' = add((id(x), (newt, \duplex)), tmap) \\
+      scope' = add((id(x), (newt, \duplex)), scope)
+     \end{array}
+    }
+   \quad
+   \\[1ex]
+    \infer[stmt\_tmap: register-normal-reset]
+    {\seqq{stmt\_tmap((tmap, scope), s, vm) = (tmap', scope')}}
+    {
+    \begin{array}{c}
+      s = \mbox{reg } x: t \ clk \mbox{ with: reset =>} (rsig, rval)  \\
+      tmap(id(x)) = none \wedge type\_of\_exp(clk, scope) \neq none  \\
+      made\_explicit(t, (id(x),0), vm) = newt \\
+      type\_of\_exp(rsig, scope) = (ground, (UInt, 1)) \\
+      scope' = add((id(x), (newt, \duplex)), scope) \\
+      type\_of\_exp(rval, scope') \neq none \\
+      tmap' = add((id(x), (newt, \duplex)), tmap)
+     \end{array}
+    }
+   \quad
+   \\[1ex]
+   \infer[stmt\_tmap: when-normal]
+    {\seqq{stmt\_tmap((tmap, scope), s, vm) = (tmap', scope')}}
+    {
+    \begin{array}{c}
+      s = \mbox{when } c: sst \mbox{ else }: ssf  \\
+      type\_of\_exp(e, scope) \neq none \\
+      stmts\_tmap((tmap, scope), sst, vm) = (tmapt, \_) \\
+      stmts\_tmap((tmapt, scope), ssf, vm) = (tmapf, \_) \\
+      tmap' = tmapf \wedge scope' = scope
+     \end{array}
+    }
+  \end{gather*}
+%  \vspace{-4mm}
+  \caption{$stmt\_tmap$}
+  \label{tab:stmts-tmap}
+\end{table}
+
 
 \begin{table}[htbp]
   \small
@@ -608,15 +806,15 @@ $tmap$ is constructed from $pp, ss, vm$ as follows.
     {\seqq{ports\_tmap(pp, vm) = tmap}}
     {
     \begin{array}{c}
-    p p= input\ v: t\ pp'\ \wedge\\
+    p p= input\ x: t\ pp'\ \wedge\\
     ports\_tmap(pp', vm) = tmap'
     \end{array}
     }
     {
     \begin{array}{c}
-    made\_explicit(t, v, vm) = (newt, \_)\ \wedge \\
-    tmap'(v) = none\ \wedge \\
-    tmap = add((v, (newt, \source)), tmap')
+    made\_explicit(t, (id(x),0), vm) = (newt, \_)\ \wedge \\
+    tmap'(id(x)) = none\ \wedge \\
+    tmap = add((id(x), (newt, \source)), tmap')
     \end{array}
     }
     \quad
@@ -626,47 +824,42 @@ $tmap$ is constructed from $pp, ss, vm$ as follows.
     {\seqq{ports\_tmap(pp, vm) = tmap}}
     {
     \begin{array}{c}
-    p p= output\ v: t\ pp'\ \wedge\\
+    p p= output\ x: t\ pp'\ \wedge\\
     ports\_tmap(pp', vm) = tmap'
     \end{array}
     }
     {
     \begin{array}{c}
-    made\_explicit(t, v, vm) = (newt, \_)\ \wedge \\
-    tmap'(v) = none\ \wedge \\
-    tmap = add((v, (newt, \sink)),tmap')
+    made\_explicit(t, (id(x), 0), vm) = (newt, \_)\ \wedge \\
+    tmap'(id(x)) = none\ \wedge \\
+    tmap = add((id(x), (newt, \sink)),tmap')
     \end{array}
     }    
-  \end{gather*}
-%  \vspace{-4mm}
-  \caption{$ports\_tmap$}
-  \label{tab:ports-tmap}
-\end{table}
-
-\begin{table}[htbp]
-  \small
-  \begin{gather*}
+    \quad
+   \\[1ex]
+    \infer[stmts\_tmap: $\neq$nil]
+    {\seqq{stmts\_tmap((tmap, scope), ss, vm) = (tmap', scope')}}
+    {
+    \begin{array}{c}
+      (tmap'', scope'') = stmt\_tmap(s, vm) \\
+      (tmap', scope') = stmts\_tmap((tmap'', scope''), ss', vm)
+    \end{array}
+    }
+    \quad
+    \\[1ex]
+    \inferii[stmts\_tmap: nil]
+    {\seqq{stmts\_tmap((tmap, scope), ss, vm) = (tmap', scope')}}
+    {\seqq{s s = nil}}
+    {\seqq{tmap' = tmap \wedge scope' = scope}}
+    \quad
+    \\[1ex]
     \inferii
     {\seqq{ports\_stmts\_tmap(pp, ss, vm) = tmap}}
     {\seqq{ports\_tmap(pp, vm) = pmap}}
     {\seqq{stmts\_tmap((pmap, pmap), ss, vm) = (tmap, \_)}}
   \end{gather*}
 %  \vspace{-4mm}
-  \caption{$stmts\_tmap$}
-  \label{tab:stmts-tmap}
-\end{table}
-
-
-\begin{table}[htbp]
-  \small
-  \begin{gather*}
-    \inferii
-    {\seqq{ports\_stmts\_tmap(pp, ss, vm) = tmap}}
-    {\seqq{ports\_tmap(pp, vm) = pmap}}
-    {\seqq{stmts\_tmap((pmap, pmap), ss, vm) = (tmap, \_)}}
-  \end{gather*}
-%  \vspace{-4mm}
-  \caption{$ports\_stmts\_tmap$}
+  \caption{$ports\_tmap$, $stmts\_tmap$, and $ports\_stmts\_tmap$}
   \label{tab:ports-stmts-tmap}
 \end{table}
 
