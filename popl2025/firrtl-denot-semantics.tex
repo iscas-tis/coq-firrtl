@@ -33,6 +33,8 @@ For each $v \in \range{id}$, $tmap(v) = (ft, ori)$ such that $ft \in \ftypes$ %w
 %Let $G= (vm, ct)$ be a module graph. 
 Given $tmap$, the semantics of a statement $s$ in $M$ is defined by a relation $(vm, ct) \xrightarrow[tmap]{s} (vm', ct')$. %, where $s$ is seen as a modifier of module graphs. 
 Moreover, the relation can be easily extended to sequences of statements, that is, $(vm, ct) \xrightarrow[tmap]{ss} (vm', ct')$, where $ss$ is a sequence of statements. 
+
+In the sequel, we present the rules for defining the semantics of statements. Note that we only present the rules for the normal situations and ignore those rules for the abnormal ones, to avoid tediousness. 
        
 %Let $M$ be a {\hifirrtl} module and $G$ be a module graph. We define how $G = (vm, ct)$ \emph{matches} $M$ as follows: We define the relations $(vm, ct) \xrightarrow[tmap]{s} (vm', ct')$, where $s$ is a statement. Then $G$ matches $M$ if $(vm_{emp}, ct_{emp}) \xrightarrow[tmap]{ss} (vm, ct)$, where $ss$ is the statement sequence of $M$. 
 
