@@ -1,6 +1,7 @@
 %!TEX root = main.tex
 
-The components in a {\hifirrtl} program may not be of ground types. They can be of vector types or bundle types. Let us use $\ftypes$ to denote the set of these types, that is, $\ftypes$ comprises the elements of one of the following forms, 
+The components in a {\hifirrtl} program may %not be of ground types. They can 
+be of vector types or bundle types. Let us use $\ftypes$ to denote the set of these types, that is, $\ftypes$ comprises the elements of one of the following forms, 
 \begin{itemize}
 \item $(\gtype, t)$ such that $t \in \gtypes$, 
 %
@@ -30,7 +31,9 @@ For each $v \in \range{id}$, $tmap(v) = (ft, ori)$ such that $ft \in \ftypes$ wh
 
 %$tmap$ is constructed from $pp, ss, vm$ as follows. 
 
-The mapping $tmap$ is constructed by calling the procedure $ports\_stmts\_tmap(pp, ss, vm)$ (see Table~\ref{tab:ports-stmts-tmap}), which then calls the procedures $ports\_tmap(pp, vm)$ and $stmts\_tmap((pmap, pmap), ss, vm)$ respectively. Intuitively, $ports\_tmap(pp, vm)$ constructs a mapping from $vm$ and the port declarations $pp$, and $stmts\_tmap((pmap, pmap), ss, vm)$ constructs from $(pmap, pmap)$, the statement sequence $ss$, and $vm$, a pair $(tmap, scope)$. Note that $scope$ is introduced to check that the component references in $ss$ do not violate the scoping constraint introduced by \prettyll{when} statements. For instance, in the following {\hifirrtl} program, there is a scoping error, since $z$ is declared in the scope of the \prettyll{when} statement, but it is referred outside it (Line 7). 
+The mapping $tmap$ is constructed by calling the procedure $ports\_stmts\_tmap(pp, ss, vm)$ (see Table~\ref{tab:ports-stmts-tmap}), which then calls the procedures $ports\_tmap(pp, vm)$ and $stmts\_tmap((pmap, pmap), ss, vm)$ respectively. 
+
+Intuitively, $ports\_tmap(pp, vm)$ constructs a mapping from $vm$ and the port declarations $pp$, and $stmts\_tmap((pmap, pmap), ss, vm)$ constructs from $(pmap, pmap)$, the statement sequence $ss$, and $vm$, a pair $(tmap, scope)$. Note that $scope$ is introduced to check that the component references in $ss$ do not violate the scoping constraint introduced by \prettyll{when} statements. For instance, in the following {\hifirrtl} program, there is a scoping error, since $z$ is declared in the scope of the \prettyll{when} statement, but it is referred outside it (Line 7). 
 \begin{figure*}[h]
 \centering
 \begin{tabular}{c}

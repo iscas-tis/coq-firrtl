@@ -120,7 +120,7 @@ Let $\bv=\{0,1\}^+$, i.e., the set of bit vectors.
 
 
 
-\paragraph{Identifier.} For convenience, we assume an \emph{injective} identifier function $id$, which maps from the name of a component (e.g., wire, node, register) in $M$ to a natural number. %Note that $id$ is an injective function. Later on, 
+\paragraph*{Identifier.} For convenience, we assume an \emph{injective} identifier function $id$, which maps from the name of a component (e.g., wire, node, register) in $M$ to a natural number. %Note that $id$ is an injective function. Later on, 
 We shall use identifiers (instead of names) to refer to the components in $M$. 
 %
 %We introduce a concept of \emph{module graphs} to define the semantics of {\hifirrtl} programs. Intuitively, a module graph $G$ for $M$ represents a possible instantiation of $M$, where (1) the vertices of $G$ represent the components of ground type that are obtained from $M$ by flattening the components of aggregate type therein and (2) all the implicit widths are made explicit.  
@@ -135,12 +135,17 @@ where $a = id(cnt)$ and
 % 
 \item In case $cnt$ is of bundle type: $o$ is the offset of a field of $cnt$ of ground type;
 %is a sub-component of some other component $cnt'$ of an aggregate type, then $a \in \Nat$ is the identifier of $cnt'$ \tl{there is a bit issue here as the identifier of $cnt'$ is a pair?} and $o$ represents the offset of $cnt$ in $cnt'$, 
+
+
+
 \item In case $cnt$ is of ground type: $o = 0$.
 \end{itemize}
 
 For a component of bundle type, the offsets of its fields of ground type are obtained by a depth-first search over its fields. For instance, for the bundle type 
  
  \prettyll{output io : {flip enable : UInt<1>, calc : UInt<3>}}, the offsets of \prettyll{enable} and \prettyll{calc} are $0$ and $1$ respectively.
+ 
+\tl{I am a bit confused here: in this example, cnt=io is of a bundle type, but the "o" is defined for its fields?}
 
 Let $\idset_M$ denote the set of all vertices %pairs $(a, o)$ that is obtained 
 from $M$. 
@@ -157,7 +162,7 @@ from $M$.
 %Moreover, for the components where aggregate types are nested, the offsets of the components of ground types are determined by the traversal order of a depth-first search. \tl{to be improved.}
 
 %We consider a finite set $\sorts = \{ \inport, \outport, \wire, \node, \register\}$ of \emph{sorts}.
-\paragraph{Expressions.}
+\paragraph*{Expressions.}
 $\exps$ (resp. $\refs$) denotes the set of {\hifirrtl} expressions (resp. references), that is, %the set of strings that can be 
 those derived  by the rules from $e$ (resp. $r$) in Figure~\ref{fig-firrtl-synt-simp}. 
 Moreover, for convenience, we assume that $\exps$ contains two special elements, $none$ and $undefined$. 
