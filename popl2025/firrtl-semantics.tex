@@ -51,7 +51,7 @@ In this section, we define the formal semantics of {\hifirrtl} programs. Since a
 the formal semantics is essentially to specify which low-level RTL circuits conform to a given {\hifirrtl} program. 
 
 Technically, a {\hifirrtl} program is %\emph{nondeterministic} 
-a under-specification in the sense that bit widths of some of its components are not determined. As a result, the formal semantics of a given {\hifirrtl} program is defined as the set of (low-level) {\lofirrtl} programs that conform to it, where all components are of ground types, the widths in ground types are all explicit, and each component is connected at most once. 
+a under-specification in the sense that bit widths of some of its components are not determined. As a result, the formal semantics of a given {\hifirrtl} program is defined as the set of (low-level) {\lofirrtl} programs that conform to it, where all components are of ground types, whose bit widths are all explicit given, and each component is connected at most once. 
 
 We shall represent {\lofirrtl} programs by a data structure called \emph{module graphs}. A module graph $G = (vm, ct)$ represents a module in {\hifirrtl} programs, where $vm$ records the typing information of ground-type components in the module and $ct$ records the connections between these components.  For a {\hifirrtl} module $M$, \emph{the semantics of $M$ is defined as the set of module graphs that conform to it}. Moreover, a module graph $G= (vm, ct)$ \emph{conforms to} a {\hifirrtl} module $M$ is defined as follows: 
 \begin{itemize}
