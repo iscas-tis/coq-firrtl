@@ -47,6 +47,17 @@
 
 \newcommand{\pfun}{\rightharpoonup}
 
+Our goal in this section is to define the formal semantics of {\hifirrtl} programs. Since a {\hifirrtl} program provides a \emph{high-level} description of \emph{low-level} RTL circuits, the main idea of the formal semantics is to specify how a \emph{low-level} RTL circuit conforms to a given {\hifirrtl} program. 
+%
+Because a {\hifirrtl} program is \emph{nondeterministic} since the bit widths of some components in it may not be specified, we define the formal semantics of a given {\hifirrtl} program as the set of low-level programs that conform to it. Note there by low-level programs, we mean {\lofirrtl} programs, where all components are of ground types, the widths in ground types are all explicit, and each component is connected at most once. 
+
+We shall represent {\lofirrtl} programs by a data structure called \emph{module graphs}. A module graph $G = (vm, ct)$ represents a module in {\hifirrtl} programs, where $vm$ records the typing information of ground-type components in the module and $ct$ records the connections between these components.  For a {\hifirrtl} module $M$, \emph{the semantics of $M$ is defined as the set of module graphs that conform to it}. Moreover, a module graph $G= (vm, ct)$ \emph{conforms to} a {\hifirrtl} module $M$ is defined as follows: 
+\begin{itemize}
+\item At first, $vm$ is used to determine the implicit bit widths in $M$ and build a type mapping $tmap$, which records the typing information for all the components in $M$, so that all the widths in it are explicit. (Note that the components of $M$ may not be of ground types. ) 
+%
+\item Then, to decide whether $(vm, ct)$ conforms to $M$, we utilize $tmap$ and the statements in $M$ to construct a module graph $G'$ from the empty module graph and finally check whether $G' = G$.
+\end{itemize}
+In the sequel, we first define the concept of module graphs, then show how to construct $tmap$ from $vm$ and $M$, as well as how to construct a module graph from the empty graph by using $tmap$ and $M$. 
 
 %We fix ground types \clock and  \UInt{n} where $n$ is a positive integer. 
 %based on the discussion with zhilin, aggregate type is not needed. 
@@ -70,6 +81,9 @@
 %are not included in $\ccpnts(A)$. (If a register is not connected to, then it keeps the current value.)
 
 %
+
+\subsection{Module graphs}
+
 We denote by $\gtypes:= (\{UInt, SInt, UIntImp, SIntImp\} \times \Nat) \cup \{Clock,
 Reset, AsyncReset\}$ the set of ground types. 
 Note that $UIntImp$ and $SIntImp$ are introduced to denote the explicit ground types that are instantiated from the implicit ground types. \tl{to explain why this is needed.}
@@ -212,6 +226,10 @@ Let $\vtypes$ denote %the set of vertex sorts.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%\subsection{Denotational Semantics of FIRRTL}
+\subsection{Constructing $tmap$ from $vm$ and $M$}
 
-\input{firrtl-denot-semantics}
+\input{construct-tmap}
+
+\subsection{Constructing a module graph from $tmap$ and $M$}
+
+\input{construct-module-graph}
