@@ -1,0 +1,727 @@
+%!TEX root = main.tex
+
+For each component $cnt$ declared in $M$, the width usually is not given explicitly. % is , $cnt$ has a type, say $type(cnt)$. Note that $type(cnt)$ may involve implicit widths.  
+On the other hand, all the widths in %$vm$ are 
+the semantics definition (in particular, the vertex map) should be made explicit. To fill this gap, 
+%
+we introduce a set $\ftypes$ where each member is %as the set of pairs of 
+one of the following forms, 
+\begin{itemize}
+\item $(\gtype, t)$ such that $t \in \gtypes$, 
+%
+\item $(\vtype, t[n])$ such that $t$ is a type and $n \in \Nat$, 
+%
+\item $(\btype, f)$ such that $f$ is a field. 
+\end{itemize}
+
+%$type: \idset_M \rightarrow \ftypes$
+
+%We can construct a function $tmap$ that assigns to each identifier $v \in \range{id}$ \tl{where is this defined?} a type where all the widths are explicit, by utilizing the information in $vm$ to instantiate the implicit widths in $type(cnt)$ for components $cnt$ in $M$. 
+%More precisely, 
+
+For each $v \in \range{id}$, $tmap(v) = (ft, ori)$ such that $ft \in \ftypes$ %where all widths are explicit and $ori \in \{\duplex, \sink, \source\}$.
+%\begin{itemize}
+%\item $(ori, ground, t)$ such that $ori$ is a Boolean value denoting the orientation of $v$ and $t \in \gtypes$, 
+%
+%\item $(ori, vector, t[n])$ such that $ori$ is a Boolean value denoting the orientation of $v$ and $t$ is a type where all widths are explicit, 
+%
+%\item $(ori, bundle, f)$ such that $ori$ is a Boolean value denoting the orientation of $v$ and $f$ is a field where all widths are explicit. 
+%\end{itemize}
+
+%In the sequel, we first assume that $tmap$ is already constructed and show how to define the semantics of $M$. Later on, we show how to construct $tmap$ from $M$ and $vm$. 
+
+%Let $G= (vm, ct)$ be a module graph. 
+Given $tmap$, the semantics of a statement $s$ in $M$ is defined by a relation $(vm, ct) \xrightarrow[tmap]{s} (vm', ct')$. %, where $s$ is seen as a modifier of module graphs. 
+Moreover, the relation can be easily extended to sequences of statements, that is, $(vm, ct) \xrightarrow[tmap]{ss} (vm', ct')$, where $ss$ is a sequence of statements. 
+       
+%Let $M$ be a {\hifirrtl} module and $G$ be a module graph. We define how $G = (vm, ct)$ \emph{matches} $M$ as follows: We define the relations $(vm, ct) \xrightarrow[tmap]{s} (vm', ct')$, where $s$ is a statement. Then $G$ matches $M$ if $(vm_{emp}, ct_{emp}) \xrightarrow[tmap]{ss} (vm, ct)$, where $ss$ is the statement sequence of $M$. 
+
+%%%%% vm_match
+\begin{table}[htbp]
+  \small
+  \begin{gather*}
+   \infer[size\_of\_ftype: ground]
+    {\seqq{size\_of\_ftype(ft) = 1}}
+    {\seqq{ft = (ground, gt)}}
+    \quad
+    \\[1ex]
+   \inferii[size\_of\_ftype: vector]
+    {\seqq{size\_of\_ftype(ft) = m*n}}
+    {\seqq{ft = (vector, ft'[m])}} {\seqq{n = size\_of\_ftype(ft')}}
+    \quad
+    \\[1ex]
+   \inferii[size\_of\_ftype: bundle]
+    {\seqq{size\_of\_ftype(ft) = n}}
+    {\seqq{ft = (bundle, ff)}} {\seqq{n = size\_of\_fields(ff)}}
+    \quad
+    \\[1ex]
+   \infer[size\_of\_fields: nil]
+    {\seqq{size\_of\_fields(ff) = 0}}
+    {\seqq{f f = nil}}
+    \quad
+    \\[1ex]
+   \inferiii[size\_of\_fields: $\neq$ nil]
+    {\seqq{size\_of\_fields(ff) = m+n}}
+    {\seqq{f f = (\_, \_, ft', ff')}} {\seqq{m = size\_of\_ftype(ft')}} {\seqq{n = size\_of\_fields(ff')}}
+  \end{gather*}
+%  \vspace{-4mm}
+  \caption{$size\_of\_ftype$ and $size\_of\_fields$}
+  \label{tab:size-list-ftype-fields}
+\end{table}
+
+\begin{table}[htbp]
+  \small
+  \begin{gather*}
+    \infer[list\_gtype: ground]
+    {\seqq{list\_gtype(ft) = [gt]}}
+    {\seqq{ft = (ground, gt)}}
+    \quad
+    \\[1ex]
+    \inferii[list\_gtype: vector]
+    {\seqq{list\_gtype(ft) = \underbrace{l'\ ++\ \cdots\ ++\ l'}_{m}}}
+    {\seqq{ft = (vector, ft'[m])}}    {\seqq{l' = list\_gtype(ft')}}
+    \quad
+    \\[1ex]
+    \inferii[list\_gtype: bundle]
+    {\seqq{list\_gtype(ft) = l'}}
+    {\seqq{ft = (bundle, ff)}}    {\seqq{l' = list\_gtype\_fields(ff)}}
+    \quad
+    \\[1ex]    
+    \infer[list\_gtype\_fields: nil]
+    {\seqq{list\_gtype\_fields(ff) = []}}
+    {\seqq{f f = nil}}
+    \quad
+    \\[1ex]
+    \inferiii[list\_gtype\_fields: $\neq$ nil]
+    {\seqq{list\_gtype\_fields(ff) = l'\ {++}\ l''}}
+    {\seqq{f f = (\_, \_, ft', ff')}} 
+    {\seqq{list\_gtype(ft') = l'}} {\seqq{list\_gtype\_fields(ff') = l''}}  
+    \quad
+    \\[1ex]
+    \infer[list\_gtype\_ref: ground]
+    {\seqq{list\_gtype\_ref(ft, flipped) = [(gt, flipped)]}}
+    {\seqq{ft = (ground, gt)}}
+    \quad
+    \\[1ex]
+    \inferii[list\_gtype\_ref: vector]
+    {\seqq{list\_gtype\_ref(ft, flipped) = \underbrace{l'\ ++\ \cdots\ ++\ l'}_{m}}}
+    {\seqq{ft = (vector, ft'[m])}}    {\seqq{l' = list\_gtype\_ref(ft', flipped)}}
+    \quad
+    \\[1ex]
+    \inferii[list\_gtype\_ref: bundle]
+    {\seqq{list\_gtype\_ref(ft, flipped) = l'}}
+    {\seqq{ft = (bundle, ff)}}    {\seqq{l' = list\_gtype\_ref\_fields(ff, flipped)}}
+    \quad
+    \\[1ex]    
+    \infer[list\_gtype\_ref\_fields: nil]
+    {\seqq{list\_gtype\_ref\_fields(ff, flipped) = []}}
+    {\seqq{f f = nil}}
+    \quad
+    \\[1ex]
+    \inferii[list\_gtype\_ref\_fields: $\neq$nil-1]
+    {\seqq{list\_gtype\_ref\_fields(ff, flipped) = l'\ {++}\ l''}}
+    {
+    \begin{array}{c}
+    	f f = (\_, flipped', ft', ff')\ \wedge\\
+	 flipped' = false
+    \end{array}
+    }
+    {
+    \begin{array}{c}
+    	list\_gtype\_ref(ft', flipped) = l'\ \wedge \\
+    	list\_gtype\_ref\_fields(ff', flipped) = l''
+    \end{array}
+    } 
+    \quad
+    \\[1ex]
+    \inferii[list\_gtype\_ref\_fields: $\neq$nil-2]
+    {\seqq{list\_gtype\_ref\_fields(ff, flipped) = l'\ {++}\ l''}}
+    {
+    \begin{array}{c}
+    	f f = (\_, flipped', ft', ff')\ \wedge\\
+	 flipped' = true
+    \end{array}
+    }
+    {
+    \begin{array}{c}
+    	list\_gtype\_ref(ft', \neg flipped) = l'\ \wedge \\
+    	list\_gtype\_ref\_fields(ff', flipped) = l''
+    \end{array}
+    } 
+  \end{gather*}
+%  \vspace{-4mm}
+  \caption{$list\_gtype$, $list\_gtype\_fields$, $list\_gtype\_ref$, and $list\_gtype\_ref\_fields$}
+  \label{tab:size-list-ftype-fields}
+\end{table}
+
+
+\begin{table}[htbp]
+  \small
+  \begin{gather*}
+    \infer[update\_vm]
+    {update\_vm(vm, id, ft) = vm'}
+    {
+    \begin{array}{r l l}
+    \multicolumn{3}{c}{id = (v, m) \wedge size\_of\_ftype(ft) = sz \wedge list\_gtype(ft) = ls} \\
+    \forall n.\ 0 \le n < sz & \Rightarrow & vm'(v, m+n) = ls[n] \\
+    \forall v', n'.\ (v' \neq v \vee n' < m \vee n' \ge m+sz) & \Rightarrow & vm'(v', n') = vm(v', n')  \\
+    \end{array}
+    }
+    \\[1ex]
+    \infer[update\_ct]
+    {update\_ct(ct, id, ft, ls) = ct'}
+    {
+    \begin{array}{r l l}
+    \multicolumn{3}{c}{id = (v, m) \wedge size\_of\_ftype(ft) = sz} \\
+    \forall n.\ 0 \le n < sz & \Rightarrow & ct'(v, m+n) = ls[n] \\
+    \forall v', n.\ (v' \neq v \vee n' < m \vee n' \ge m+sz) & \Rightarrow & ct(v', n') = ct'(v', n') \\
+    \end{array}
+    }
+    \\[1ex]
+    \infer[update\_ct\_ref]
+    {update\_ct\_ref(ct, id, ft, ls, id', ft', ls', ct')}
+    {
+    \begin{array}{c}
+    id = (v, m) \wedge id' = (v', m') \wedge size\_of\_ftype(ft) = sz\ \wedge \\
+    ls\_gtype\_ref(ft', false) = lgt \\
+    \forall n, ori'.\ 0 \le n < sz \wedge lgt[n] = (\_, false) \Rightarrow \\
+    \left(
+    \begin{array}{l}
+    ct(v, m+n) \neq none \wedge ct'(v, m+n) = ls'[n]\ \wedge  \\
+    ((v',m') \neq (v, m)  \rightarrow ct'(v', m' + n) = ct(v', m'+n)) 
+    \end{array}
+    \right)
+    \\ 
+    \forall n.\ 0 \le n < sz \wedge lgt[n] = (\_, true) \Rightarrow \\
+    \left(
+    \begin{array}{l}
+    ct(v', m'+n) \neq none \wedge ct'(v', m'+n) = ls[n]\ \wedge  \\
+    ((v, m) \neq (v', m')  \rightarrow ct'(v, m + n) = ct(v, m+n))
+    \end{array}
+    \right)
+     \\
+     \forall v'', n''.\ 
+     \left(
+     \begin{array}{l}
+     (v'' \neq v \vee n'' < m \vee n'' \ge m+sz)\ \wedge \\
+     (v'' \neq v' \vee n'' < m' \vee n'' \ge m'+sz)
+     \end{array}
+     \right)
+       \Rightarrow \\
+    ct'(v'', n'') = ct(v'', n'') 
+    \end{array}
+    }
+    \\[1ex]
+    \infer[invalidate]
+    {invalidate(ct, id, ft, ori) = ct'}
+    {
+    \begin{array}{c}
+    id = (v, m) \wedge size\_of\_ftype(ft) = sz \wedge ls\_gtype\_ref(ft, false) = lgt \\
+    \forall n.\ 0 \le n < sz \wedge 
+    \left(
+    \begin{array}{l}
+    (lgt[n] = (\_, false) \wedge (ori = \sink \vee ori = \duplex))\ \vee \\
+    (lgt[n] = (\_, true) \wedge (ori = \source \vee ori = \duplex))
+     \end{array}
+    \right) \Rightarrow\\
+    \hspace{1cm}  ct(v, m+n) \neq none \wedge ct'(v, m+n) = invalidated  \\
+    \forall n.\ 0 \le n < sz \wedge 
+    \left(
+    \begin{array}{l}
+    (lgt[n] = (\_, false) \wedge ori = \source)\ \vee \\
+     (lgt[n] = (\_, true) \wedge ori = \sink)
+     \end{array}
+    \right)  
+    \Rightarrow\\
+    \hspace{1cm}  ct'(v, m+n) = ct(v, m+n)  \\
+    \forall v', n'.\ (v' \neq v \vee n' < m  \vee n' \ge m+sz)  \rightarrow ct'(v', n') = ct(v', n')
+    \end{array}
+    }
+  \end{gather*}
+  \caption{$update\_vm$, $update\_ct$, $update\_ct\_ref$, and $invalidate$}
+  \label{tab:update-vm-ct}
+\end{table}
+
+
+\begin{table}[htbp]
+  \small
+  \begin{gather*}
+    \infer[list\_gexp: ground]
+    {list\_gexp(e, ft) = l}
+    {
+    \begin{array}{c}
+    	ft = (ground, t) \wedge l = [e]
+    \end{array}
+    }
+    \\[1ex]
+    \infer[list\_gexp: mux]
+    {list\_gexp(e, ft) = l}
+    {
+    \begin{array}{c}
+    	e = mux(c, e1, e2) \wedge list\_gexp(e1, ft) = l1 \wedge list\_gexp(e1, ft) = l2\  \wedge\\
+	size(l1) = size(l2) \wedge l = mux(c, l1, l2)
+    \end{array}
+    }
+    \\[1ex]
+    \infer[list\_gexp: vector]
+    {list\_gexp(e, ft) = l}
+    {
+    \begin{array}{c}
+    	 e= r[n] \wedge type\_of\_ref(r) = (ft', ori)\ \wedge \\
+	  size\_of\_ftype(ft) = sz \wedge l = list\_gexp(r, ft')[sz* n, sz*(n+1)-1]
+    \end{array}
+    }
+    \\[1ex]
+    \infer[list\_gexp: bundle]
+    {list\_gexp(e, ft) = l}
+    {
+    \begin{array}{c}
+    	 ft = (bundle, ff) \wedge l = list\_gexp\_fields(e, ff)
+    \end{array}
+    }
+    \\[1ex]
+    \infer[list\_gexp\_fields: nil]
+    {list\_gexp\_fields(e, ff) = l}
+    {
+    \begin{array}{c}
+    	 ff = nil \wedge l = []
+    \end{array}
+    }
+   \\[1ex]
+    \infer[list\_gexp\_fields: $\neq$nil]
+    {list\_gexp\_fields(e, ff) = l}
+    {
+    \begin{array}{c}
+    	 ff = (f, b, t, ff1) \wedge l = list\_gexp(e.f, t)\ ++\ list\_gexp\_fields(e, ff1)
+    \end{array}
+    }
+  \end{gather*}
+  \caption{$list\_gexp$ and $list\_gexp\_fields$}
+  \label{tab:list-gexp}
+\end{table}
+
+
+
+\begin{table}[htbp]
+  \small
+  \begin{gather*}
+    \infer[type\_compatible: exp-gt]
+    {type\_compatible(ft, ft', flipped)}
+    {
+    \begin{array}{c}
+    	ft = (ground, t) \wedge ft' = (ground, t) \\
+	 t \in \{UInt, SInt\} \times \Nat \cup \{Clock, Reset, AsyncReset\}
+    \end{array}
+    }
+    \\[1ex]
+    \infer[type\_compatible: imp-gt-1]
+    {type\_compatible(ft, ft', flipped)}
+    {
+    \begin{array}{c}
+    	ft = (ground, t) \wedge ft' = (ground, t') \\
+	(t = (UIntImp, n) \wedge t' = (UInt, n')) \vee (t = (SIntImp, n) \wedge t' = (SInt, n')) \\
+	flipped = false \rightarrow n \ge n'
+    \end{array}
+    }
+    \\[1ex]
+    \infer[type\_compatible: imp-gt-2]
+    {type\_compatible(ft, ft', flipped)}
+    {
+    \begin{array}{c}
+    	ft = (ground, t) \wedge ft' = (ground, t') \\
+	(t = (UInt, n) \wedge t' = (UIntImp, n')) \vee (t = (SInt, n) \wedge t' = (SIntImp, n')) \\
+	flipped = true \rightarrow n \le n'
+    \end{array}
+    }
+    \\[1ex]
+    \infer[type\_compatible: imp-gt-3]
+    {type\_compatible(ft, ft', flipped)}
+    {
+    \begin{array}{c}
+    	ft = (ground, t) \wedge ft' = (ground, t') \\
+	(t = (UIntImp, n) \wedge t' = (UIntImp, n')) \vee (t = (SIntImp, n) \wedge t' = (SIntImp, n')) \\
+	(flipped = false \wedge n \ge n') \vee (flipped = true \wedge n \le n')
+    \end{array}
+    }
+    \\[1ex]
+    \infer[type\_compatible: vector]
+    {type\_compatible(ft, ft', flipped)}
+    {
+    \begin{array}{c}
+    	ft = (vector, t[n]) \wedge ft' = (vector, t'[n]) \\
+	type\_compatible(t, t', flipped)
+    \end{array}
+    }
+    \\[1ex]
+    \infer[type\_compatible: bundle]
+    {type\_compatible(ft, ft', flipped)}
+    {
+    \begin{array}{c}
+    	ft = (bundle, ff) \wedge ft' = (bundle, ff') \\
+	type\_compatible\_fields(ff, ff', flipped)
+    \end{array}
+    }
+    \\[1ex]
+    \infer[type\_compatible\_fields: nil]
+    {type\_compatible\_fields(ff, ff', flipped)}
+    {
+    \begin{array}{c}
+    	ff =nil \wedge ff' = nil
+    \end{array}
+    }
+    \\[1ex]
+    \infer[type\_compatible\_fields: $\neq$-nil-false]
+    {type\_compatible\_fields(ff, ff', flipped)}
+    {
+    \begin{array}{c}
+    	ff = (f, b, t, ff1) \wedge ff' = (f', b, t', ff1') \wedge b = false \\
+	type\_compatible(t, t', flipped) \\
+	type\_compatible\_fields(ff1, ff1', flipped)
+    \end{array}
+    }
+    \\[1ex]
+    \infer[type\_compatible\_fields: $\neq$-nil-true]
+    {type\_compatible\_fields(ff, ff', flipped)}
+    {
+    \begin{array}{c}
+    	ff = (f, b, t, ff1) \wedge ff' = (f', b, t', ff1') \wedge b = true \\
+	type\_compatible(t, t', \neg flipped) \\
+	type\_compatible\_fields(ff1, ff1', flipped)
+    \end{array}
+    }
+  \end{gather*}
+  \caption{$type\_compatible$ and $type\_compatible\_fields$}
+  \label{tab:type-compatible}
+\end{table}
+
+
+\begin{table}[htbp]
+  \small
+  \begin{gather*}
+   \inferii[type\_of\_ref: id]
+    {\seqq{type\_of\_ref(r, tmap) = (ft, ori)}}
+    {\seqq{r = x}} {\seqq{tmap(id(x)) = (ft, ori)}}
+    \quad
+    \\[1ex]
+   \inferiii[type\_of\_ref: vector-1]
+    {\seqq{type\_of\_ref(r, tmap) = (t, ori)}}
+    {\seqq{r = r'[n]}} {\seqq{type\_of\_ref(r', tmap) =  (t[m], ori)}} {\seqq{n < m}}
+    \quad
+    \\[1ex]
+   \inferiii[type\_of\_ref: vector-2]
+    {\seqq{type\_of\_ref(r, tmap) = none}}
+    {\seqq{r = r'[n]}} {\seqq{type\_of\_ref(r', tmap) = (t[m], ori)}} {\seqq{n \ge m}}
+    \quad
+    \\[1ex]
+   \infer[type\_of\_ref: field]
+    {\seqq{type\_of\_ref(r, tmap) = (ft, ori)}}
+    {
+    \begin{array}{c}
+    r = r'.f \\
+    type\_of\_ref(r', tmap) = (ft', ori') \\
+    type\_of\_field(f, ft', ori') = (ft, ori)
+    \end{array}
+    }
+    \quad
+%    \seqq{r = r'.f}} {\seqq{type\_of\_ref(r', tmap) = (ft', ori')}} {\seqq{type\_of\_field(f, ft', ori') = (ft, ori)}}
+    \\[1ex]
+   \infer[type\_of\_field]
+    {\seqq{type\_of\_field(f, ff, ori) = none}}
+    {\seqq{f f = nil}}
+    \quad
+    \\[1ex]
+   \infer[type\_of\_field: neq]
+    {\seqq{type\_of\_field(f, ff, ori) = (ft, ori')}}
+    {
+    \begin{array}{c}
+    f f = (f', flipped, t, ff')\wedge f \neq f'\\
+    type\_of\_field(f, ff', ori) = (ft, ori')
+    \end{array}
+    }
+    \quad
+    \\[1ex]
+   \infer[type\_of\_field: eq-1]
+    {\seqq{type\_of\_field(f, ff, ori) = (t, ori)}}
+    {
+    \begin{array}{c}
+    f f = (f', flipped, t, ff') \wedge f = f' \\
+    flipped = false \vee (flipped = true \wedge ori = \duplex)
+    \end{array}
+    }
+    \quad
+    \\[1ex]
+   \infer[type\_of\_field: eq-2]
+    {\seqq{type\_of\_field(f, ff, ori) = (t, \sink)}}
+    {
+    \begin{array}{c}
+    f f = (f', flipped, t, ff') \wedge f = f' \\
+    flipped = true \wedge ori = \source
+    \end{array}
+    }
+    \quad
+    \\[1ex]
+   \infer[type\_of\_field: eq-3]
+    {\seqq{type\_of\_field(f, ff, ori) = (t, \source)}}
+    {
+    \begin{array}{c}
+    f f = (f', flipped, t, ff') \wedge f = f' \\
+    flipped = true \wedge ori = \sink
+    \end{array}
+    }
+  \end{gather*}
+%  \vspace{-4mm}
+  \caption{$type\_of\_ref$ and $type\_of\_field$}
+  \label{tab:type-expr-ref}
+\end{table}
+
+\begin{table}[htbp]
+  \small
+  \begin{gather*}
+    \infer[skip]
+    {\seqq{(vm, ct) \xrightarrow[tmap]{\mbox{skip}} (vm, ct)}}
+    {\seqq{-}}
+    \quad
+    \\[1ex]
+    \infer[wire]
+    {\seqq{(vm, ct) \xrightarrow[tmap]{\mbox{wire } x: t} (vm', ct')}}
+   {
+    \begin{array}{c}
+    id(x) = v \wedge tmap(v)= (ft, ori) \wedge size\_of\_ftype(ft) = sz \\
+    \forall n.\ 0 \le n < sz \Rightarrow vm(v, n) = none \wedge ct(v, n) = none  \\
+%    \forall n.\ n \ge size\_of\_ftype(ft) \Rightarrow vm(v, n) =  vm'(v,n)\\
+%    \forall n.\ 0 \le n < size\_of\_ftype(ft) \Rightarrow ct(v, n) = none \wedge ct'(v,n) = undefined \\
+    update\_vm((v, 0), vm, ft, vm') \wedge update\_ct((v, 0), ct, ft, [\underbrace{undefined, \ldots, undefined}_{m}], ct')
+    \end{array}
+   }
+    \quad
+    \\[1ex]
+    \infer[node]
+    {\seqq{(vm, ct) \xrightarrow[tmap]{\mbox{node } x = e} (vm', ct')}}
+    {
+    \begin{array}{c}
+   id(x) = v \wedge type\_of\_exp(e, tmap)= ft \wedge size\_of\_ftype(ft) = sz \wedge list\_gexp(e, ft) = ls \\
+    \forall n.\ 0 \le n < sz  \Rightarrow  vm(v, n) = none \wedge ct(v, n) = none \\
+    update\_vm((v, 0), vm, ft, vm') \wedge update\_ct((v, 0), ct, ft, ls, ct')
+    \end{array}    
+    }
+    \quad
+    \\[1ex]
+    \infer[register]
+    {\seqq{(vm, ct) \xrightarrow[tmap]{\mbox{reg } x : t\ e\ with:\ reset => (rsig, rval)} (vm', ct')}}
+    {
+    \begin{array}{c}
+   id(x) = v \wedge tmap(v)= (ft, ori) \wedge size\_of\_ftype(ft) = sz \wedge  rft = type\_of\_exp(rval, tmap)\ \wedge \\
+   type\_compatible(ft, rft, false) \\
+    \forall n.\ 0 \le n < sz  \Rightarrow  vm(v, n) = none \wedge ct(v, n) = none \\
+   update\_vm((v,0), vm, ft, vm') \wedge update\_ct((v, 0), ct, ft, list\_gexp(x, ft), ct')
+    \end{array}    
+    }
+    \quad
+    \\[1ex]
+    \infer[connect: exp]
+    {\seqq{(vm, ct) \xrightarrow[tmap]{r <= e} (vm', ct')}}
+    {
+    \begin{array}{c}
+    vm = vm' \wedge id(r)=(v, m) \wedge type\_of\_ref(r, tmap)= (rft, ori) \ \wedge \\
+     (ori = duplex \vee ori = sink) \wedge size\_of\_ftype(rft) = sz \wedge type\_of\_exp(e, tmap)= eft \\
+    type\_compatible(rft, eft, false) \\
+    \forall n.\ 0 \le n < sz \Rightarrow ct(v, m+n) \neq none \\
+%    \forall n.\ n \ge size\_of\_ftype(ft) \Rightarrow vm(v, n) =  vm'(v,n)\\
+%    \forall n.\ 0 \le n < size\_of\_ftype(ft) \Rightarrow ct(v, n) = none \wedge ct'(v,n) = undefined \\
+     update\_ct(ct, (v, m), rft, list\_gexp(e, eft)) = ct'
+    \end{array}    
+    }
+    \quad
+    \\[1ex]
+    \infer[connect: ref]
+    {\seqq{(vm, ct) \xrightarrow[tmap]{r <= r'} (vm', ct')}}
+    {
+    \begin{array}{c}
+    vm = vm' \wedge id(r)=(v, m) \wedge  id(r')=(v', m') \wedge type\_of\_ref(r, tmap)= (ft, ori) \ \wedge \\
+     size\_of\_ftype(ft) = sz \wedge type\_of\_ref(r', tmap)= (ft', ori')\ \wedge \\
+     list\_gexp(r, ft) = ls \wedge  list\_gexp(r', ft') = ls'\ \wedge  \\
+    (ori = duplex \vee ori = sink) \wedge (ori' = duplex \vee ori' = source) \\
+    type\_compatible(ft, ft', false) \\
+%    \forall n.\ n \ge size\_of\_ftype(ft) \Rightarrow vm(v, n) =  vm'(v,n)\\
+%    \forall n.\ 0 \le n < size\_of\_ftype(ft) \Rightarrow ct(v, n) = none \wedge ct'(v,n) = undefined \\
+     update\_ct\_ref(ct, (v, m), ft, ls, (v', m'), ft', ls', ct')
+%    \forall v'', n''.\ (v'' \neq v \vee n'' < m \vee n'' \ge m+sz) \wedge (v'' \neq v' \vee n'' < m' \vee n'' \ge m'+sz)  \Rightarrow \\
+%    ct'(v'', n'') = ct(v'', n'') 
+    \end{array}    
+    }
+    \\[1ex]
+    \infer[invalid]
+    {\seqq{(vm, ct) \xrightarrow[tmap]{r \mbox{ is invalid}} (vm', ct')}}
+    {
+    \begin{array}{c}
+    vm = vm' \wedge id(r) = (v, m) \wedge type\_of\_ref(r, tmap) = (ft, ori)\\
+    invalidate(ct, (v,m), ft, ori, ct')
+    \end{array}    
+    }
+    \\[1ex]
+    \infer[when]
+    {\seqq{(vm, ct) \xrightarrow[tmap]{\mbox{when } e: ss1 \mbox{ else}: ss2 } (vm', ct')}}
+    {
+    \begin{array}{c}
+    type\_of\_exp(e, tmap) = (ground, b, (UInt, 1))\\
+    \exists vmt, ctt, ctf.\ (vm, ct) \xrightarrow[tmap]{ss1} (vmt, ctt) \wedge (vmt, extend_{ctt}(ct)) \xrightarrow[tmap]{ss2} (vm', ctf) \wedge
+    ct' = mux(e, ctt, ctf)
+    \end{array}    
+    }
+  \end{gather*}
+%  \vspace{-4mm}
+  \caption{Denotational Semantics of {\hifirrtl} statements}
+  \label{tab:firrtl-sem}
+\end{table}
+
+
+$tmap$ is constructed from $pp, ss, vm$ as follows. 
+
+\begin{table}[htbp]
+  \small
+  \begin{gather*}
+    \inferii[made\_explicit: ground]
+    {\seqq{ports\_tmap(ft, v, vm) = (newt, newn)}}
+    {
+    \begin{array}{c}
+    ft = (ground, gt)\ \wedge \\
+    ports\_tmap(pp', vm) = tmap'
+    \end{array}
+    }
+    {
+    \begin{array}{c}
+    made\_explicit(t, v, vm) = (newt, \_)\ \wedge \\
+    tmap'(v) = none\ \wedge \\
+    tmap = add((v, (newt, \source)), tmap')
+    \end{array}
+    }
+  \end{gather*}
+%  \vspace{-4mm}
+  \caption{$made\_explicit$}
+  \label{tab:made-explicit}
+\end{table}
+
+\begin{table}[htbp]
+  \small
+  \begin{gather*}
+    \inferii[ports\_tmap: input]
+    {\seqq{ports\_tmap(pp, vm) = tmap}}
+    {
+    \begin{array}{c}
+    p p= input\ v: t\ pp'\ \wedge\\
+    ports\_tmap(pp', vm) = tmap'
+    \end{array}
+    }
+    {
+    \begin{array}{c}
+    made\_explicit(t, v, vm) = (newt, \_)\ \wedge \\
+    tmap'(v) = none\ \wedge \\
+    tmap = add((v, (newt, \source)), tmap')
+    \end{array}
+    }
+    \quad
+    \\[1ex]
+    %
+    \inferii[ports\_tmap: output]
+    {\seqq{ports\_tmap(pp, vm) = tmap}}
+    {
+    \begin{array}{c}
+    p p= output\ v: t\ pp'\ \wedge\\
+    ports\_tmap(pp', vm) = tmap'
+    \end{array}
+    }
+    {
+    \begin{array}{c}
+    made\_explicit(t, v, vm) = (newt, \_)\ \wedge \\
+    tmap'(v) = none\ \wedge \\
+    tmap = add((v, (newt, \sink)),tmap')
+    \end{array}
+    }    
+  \end{gather*}
+%  \vspace{-4mm}
+  \caption{$ports\_tmap$}
+  \label{tab:ports-tmap}
+\end{table}
+
+\begin{table}[htbp]
+  \small
+  \begin{gather*}
+    \inferii
+    {\seqq{ports\_stmts\_tmap(pp, ss, vm) = tmap}}
+    {\seqq{ports\_tmap(pp, vm) = pmap}}
+    {\seqq{stmts\_tmap((pmap, pmap), ss, vm) = (tmap, \_)}}
+  \end{gather*}
+%  \vspace{-4mm}
+  \caption{$stmts\_tmap$}
+  \label{tab:stmts-tmap}
+\end{table}
+
+
+\begin{table}[htbp]
+  \small
+  \begin{gather*}
+    \inferii
+    {\seqq{ports\_stmts\_tmap(pp, ss, vm) = tmap}}
+    {\seqq{ports\_tmap(pp, vm) = pmap}}
+    {\seqq{stmts\_tmap((pmap, pmap), ss, vm) = (tmap, \_)}}
+  \end{gather*}
+%  \vspace{-4mm}
+  \caption{$ports\_stmts\_tmap$}
+  \label{tab:ports-stmts-tmap}
+\end{table}
+
+
+\hide{
+For a statement $\kappa\ v: t$ where $\kappa =\mbox{\prettyll{input},\prettyll{output},\prettyll{wire}}$, 
+We define a mapping $tmap$ that assigns to each identifier from $\range{id}$ a type where all widths are explicit.    
+For each $v \in \dom(id)$, 
+\begin{itemize}
+\item if $v$ is declared in a statement $p \equiv \{\mbox{\prettyll{input}} v: t$, then 
+\begin{itemize}
+\item if $t = \theta$ with $\theta \in \{\mbox{\prettyll{Clock}}, \mbox{\prettyll{Reset}} \mbox{\prettyll{AsyncReset}}\}$ and $vm((id(v),0)) = (\inport, \theta)$, then $tmap(id(v)) = (gt, \theta)$, 
+%
+\item if $t = \theta$ with $\theta \in \{\mbox{\prettyll{UInt}}, \mbox{\prettyll{SInt}}\}$ and $vm((id(v), 0)) = (\inport, (\theta, n))$, then $tmap(id(v)) = (gt, \theta \langle n \rangle)$, 
+%
+\item if $t = \theta\langle n \rangle$ with $\theta \in \{\mbox{\prettyll{UInt}}, \mbox{\prettyll{SInt}}\} $ and $vm((id(v),0)) = (\inport, (\theta, n))$, then $tmap(id(v)) = (gt, \theta \langle n \rangle)$, 
+%
+\item if $t = t'[n]$ and $vm((id(v),n)) = (\inport, )$, then $tmap(id(v)) = (gt, \theta \langle n \rangle)$
+\end{itemize}
+\item if $v$ is declared in a statement $p \equiv \{\mbox{\prettyll{output}} v: t$, then $tmap(id(v))$ is defined similarly to the case $p \equiv \{\mbox{\prettyll{input}} v: t$, except that $\inport$ is replaced by $\outport$, 
+%   
+\item if $v$ is declared in a statement $s \equiv \mbox{\prettyll{wire} } v: t$, then 
+\begin{itemize}
+\item if $v$ is declared in a statement $p \equiv \{\mbox{\prettyll{input}} v: t$, then 
+\begin{itemize}
+\item if $t = \theta$ with $\theta \in \{\mbox{\prettyll{Clock}}, \mbox{\prettyll{Reset}} \mbox{\prettyll{AsyncReset}}\}$ and $vm(id(v)) = (\inport, \theta)$, then $tmap(id(v)) = (gt, \theta)$, 
+%
+\item if $t = \theta$ with $\theta \in \{\mbox{\prettyll{UInt}}, \mbox{\prettyll{SInt}}\}$ and $vm(id(v)) = (\inport, (\theta, n))$, then $tmap(id(v)) = (gt, \theta \langle n \rangle)$. 
+\end{itemize}
+\end{itemize}
+\end{itemize}
+}
+
+
+
+
+%A HiFIRRTL program $P$ is mapped to \emph{a set of} module graphs. %, where the box 
+%We define $\mathcal{G}(P)$.  % G(P): the set of module graphs of  P
+
+
+%We assume a component environment $ce$ which extracts the type information from $P$ %the sequence $ss$ of statements 
+%and 
+%the connect mapping $cm$ extracts for each component the expression that is connected to the component according to the last-connect semantics. 
+
+%Recall that a circuit defined by $P$ consists of multiple modules. 
+%
+%\begin{itemize}
+%	\item tg
+%\end{itemize} 
+
+
+%A HiFIRRTL module $M$ will be first transformed into a circuit diagram $D_M = (ss, ce, cm)$, where $ss$ is the sequence of statements in $M$, $ce$ is the component environment obtained from the variable declarations in $M$, possibly with the types of some variables missing or partial, 
+
+%and $cm$ is the trivial mapping that maps each component to $\bot$ (Intuitively, this means that the connects of the components have not be determined yet). The missing or partial  types in $ce$ will be completed by the compilation passes during the transformation of $M$ into a LoFIRRTL module. Moreover, the connect mapping $cm$ will be updated by the ExpandWhens compilation pass. Furthermore, the statement sequence $ss$ will be updated by ExpandConnects, ExpandWhens, LowerTypes, and RemoveReset, while they keep unchanged during the other compilation passes.  
+
+
+
+%\subsection{Behavioral semantics of modular graphs}
