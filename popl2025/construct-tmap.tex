@@ -1,25 +1,23 @@
 %!TEX root = main.tex
 
-For each component $cnt$ declared in $M$, the width usually is not given explicitly. % is , $cnt$ has a type, say $type(cnt)$. Note that $type(cnt)$ may involve implicit widths.  
-On the other hand, all the widths in %$vm$ are 
-the semantics definition (in particular, the vertex map) should be made explicit. To fill this gap, 
-%
-we introduce a set $\ftypes$ where each member is %as the set of pairs of 
-one of the following forms, 
+The components in a {\hifirrtl} program may not be of ground types. They can be of vector types or bundle types. Let us use $\ftypes$ to denote the set of these types, that is, $\ftypes$ comprises the elements of one of the following forms, 
 \begin{itemize}
 \item $(\gtype, t)$ such that $t \in \gtypes$, 
 %
-\item $(\vtype, t[n])$ such that $t$ is a type and $n \in \Nat$, 
+\item $(\vtype, t[n])$ such that $t \in \ftypes$ and $n \in \Nat$, 
 %
 \item $(\btype, f)$ such that $f$ is a field. 
 \end{itemize}
 
+For each component $cnt$ declared in $M$, the width usually is not given explicitly. % is , $cnt$ has a type, say $type(cnt)$. Note that $type(cnt)$ may involve implicit widths.  
+On the other hand, all the widths in %$vm$ are 
+the semantics definition (in particular, the vertex map) should be made explicit. 
 %$type: \idset_M \rightarrow \ftypes$
 
 %We can construct a function $tmap$ that assigns to each identifier $v \in \range{id}$ \tl{where is this defined?} a type where all the widths are explicit, by utilizing the information in $vm$ to instantiate the implicit widths in $type(cnt)$ for components $cnt$ in $M$. 
 %More precisely, 
 
-For each $v \in \range{id}$, $tmap(v) = (ft, ori)$ such that $ft \in \ftypes$ %where all widths are explicit and $ori \in \{\duplex, \sink, \source\}$.
+For each $v \in \range{id}$, $tmap(v) = (ft, ori)$ such that $ft \in \ftypes$ where all widths are explicit and $ori \in \{\duplex, \sink, \source\}$.
 %\begin{itemize}
 %\item $(ori, ground, t)$ such that $ori$ is a Boolean value denoting the orientation of $v$ and $t \in \gtypes$, 
 %
@@ -30,34 +28,102 @@ For each $v \in \range{id}$, $tmap(v) = (ft, ori)$ such that $ft \in \ftypes$ %w
 
 %In the sequel, we first assume that $tmap$ is already constructed and show how to define the semantics of $M$. Later on, we show how to construct $tmap$ from $M$ and $vm$. 
 
-$tmap$ is constructed from $pp, ss, vm$ as follows. 
+%$tmap$ is constructed from $pp, ss, vm$ as follows. 
+
+The mapping $tmap$ is constructed by calling the procedure $ports\_stmts\_tmap(pp, ss, vm)$ (see Table~\ref{tab:ports-stmts-tmap}), which then calls the procedures $ports\_tmap(pp, vm)$ and $stmts\_tmap((pmap, pmap), ss, vm)$ respectively. Intuitively, $ports\_tmap(pp, vm)$ constructs a mapping from $vm$ and the port declarations $pp$, and $stmts\_tmap((pmap, pmap), ss, vm)$ constructs from $(pmap, pmap)$, the statement sequence $ss$, and $vm$, a pair $(tmap, scope)$. Note that $scope$ is introduced to check that the component references in $ss$ do not violate the scoping constraint introduced by \prettyll{when} statements. For instance, in the following {\hifirrtl} program, there is a scoping error, since $z$ is declared in the scope of the \prettyll{when} statement, but it is referred outside it (Line 7). 
+\begin{figure*}[h]
+\centering
+\begin{tabular}{c}
+%[basicstyle=\footnotesize\ttfamily]
+\begin{lstlisting}
+    input c: UInt<1>
+    wire x: SInt<4>
+    wire y: SInt<4>
+    when c
+      wire z: SInt
+      z <= x
+    z <= y
+\end{lstlisting}
+\end{tabular}
+%\label{fig:example}
+\end{figure*}
+
+The procedures $ports\_tmap(pp, vm)$ and $stmts\_tmap((pmap, pmap), ss, vm)$ are defined by the rules in Table~\ref{tab:ports-stmts-tmap}.
+To help the readers understand these rules, let us explain the rules ports\_tmap: input and stmts\_tmap: $\neq$nil. 
+\begin{itemize}
+\item In the rule {ports\_tmap: input}, suppose $pp = input\ x: t\ pp'$. Then $made\_explicit$ is called to instantiate $t$ into $newt$ by $vm$, where all the bit widths are explicit. (The definition of $made\_explicit$ will be given in Table~\ref{tab:made-explicit}.) Let $tmap'$ be the mapping that is obtained by recursively calling $ports\_tmap$ on $(pp', vm)$. Then it is required that $tmap'(id(x)) = none$, that is, $x$ is not declared in $pp'$. Finally, $tmap$ is obtained from $tmap'$ by assigning $(newt, \source)$ to $id(x)$.  
+%
+\item In the rule {stmts\_tmap: $\neq$nil}, suppose $ss = s\ ss'$. Then $stmt\_tmap(s, vm)$ is called to compute $(tmap'', scope'')$. Moreover, $stmts\_tmap$ is recursively called on $((tmap'', scope''), ss', vm)$ to compute $(tmap', scope')$. 
+\end{itemize}
+Note that to avoid the tediousness, we omit some rules for $ports\_tmap$ and $stmts\_tmap$ in Table~\ref{tab:ports-stmts-tmap}.  For instance, if $tmap'(id(x)) = none$ in the rule {ports\_tmap: input} is changed to $tmap'(id(x)) \neq none$, then $ports\_tmap(pp, vm) = none$. Intuitively, we omit the rules corresponding to the abnormal situations where the result is $none$. 
 
 \begin{table}[htbp]
   \small
   \begin{gather*}
-   \infer[type\_eq]
-    {\seqq{type\_eq(cgt, ggt) = res}}
+    \inferii
+    {\seqq{ports\_stmts\_tmap(pp, ss, vm) = tmap}}
+    {\seqq{ports\_tmap(pp, vm) = pmap}}
+    {\seqq{stmts\_tmap((pmap, pmap), ss, vm) = (tmap, \_)}}
+   \quad
+   \\[1ex]
+    \infer[ports\_tmap: input]
+    {\seqq{ports\_tmap(pp, vm) = tmap}}
     {
-     \begin{array}{c}
-     res =
-     ((cgt = (UInt, n) \wedge ggt = (UInt, n))\ \vee \\
-     (cgt = (SInt, n) \wedge ggt = (SInt, n))\ \vee \\
-     (cgt = (UIntImp, \_) \wedge ggt = (UIntImp, \_))\ \vee \\
-     (cgt = (SIntImp, \_) \wedge ggt = (SIntImp, \_))\ \vee \\
-     (cgt = Clock  \wedge ggt = Clock)\ \vee \\
-     (cgt = Reset \wedge ggt = (UInt, 1))\ \vee \\
-     (cgt = Reset \wedge ggt = AsyncReset)\ \vee \\
-     (cgt = AsyncReset \wedge ggt = AsyncReset))
-     \end{array}
+    \begin{array}{c}
+    p p= input\ x: t\ pp' \wedge made\_explicit(t, (id(x),0), vm) = (newt, \_) \\
+    ports\_tmap(pp', vm) = tmap' \wedge tmap'(id(x)) = none \\
+    tmap = add((id(x), (newt, \source)), tmap')
+    \end{array}
     }
     \quad
-    \\[1ex]  
+    \\[1ex]
+    %
+    \infer[ports\_tmap: output]
+    {\seqq{ports\_tmap(pp, vm) = tmap}}
+    {
+    \begin{array}{c}
+    p p= output\ x: t\ pp' \wedge made\_explicit(t, (id(x), 0), vm) = (newt, \_) \\
+    ports\_tmap(pp', vm) = tmap' \wedge tmap'(id(x)) = none \\
+    tmap = add((id(x), (newt, \sink)),tmap')
+    \end{array}
+    }    
+    \quad
+   \\[1ex]
+    \inferii[stmts\_tmap: nil]
+    {\seqq{stmts\_tmap((tmap, scope), ss, vm) = (tmap', scope')}}
+    {\seqq{s s = nil}}
+    {\seqq{tmap' = tmap \wedge scope' = scope}}
+    \quad
+   \\[1ex]
+    \infer[stmts\_tmap: $\neq$nil]
+    {\seqq{stmts\_tmap((tmap, scope), ss, vm) = (tmap', scope')}}
+    {
+    \begin{array}{c}
+      ss = s\ ss' \\
+      (tmap'', scope'') = stmt\_tmap(s, vm) \\
+      (tmap', scope') = stmts\_tmap((tmap'', scope''), ss', vm)
+    \end{array}
+    }
+  \end{gather*}
+%  \vspace{-4mm}
+  \caption{$ports\_stmts\_tmap$, $ports\_tmap$, and $stmts\_tmap$}
+  \label{tab:ports-stmts-tmap}
+  \vspace{-6mm}
+\end{table}
+
+Let us also explain some rules of $made\_explicit$. Intuitively, $made\_explicit(ft, id, vm)$ uses $vm$ to determine the implicit widths in $ft$ and obtain $newt$. Moreover, it computes a new identifier $(v, m')$ that is obtained from $id = (v, m)$  by traversing all the ground types in $ft$. 
+
+\zhilin{Explain {made\_explicit: vector}, {type\_eq}, {made\_explicit\_fields: $\neq$nil}: to be done}
+
+\begin{table}[htbp]
+\vspace{-4mm}
+  \small
+  \begin{gather*}
     \infer[made\_explicit: ground]
     {\seqq{made\_explicit(ft, id, vm) = (newt, newn)}}
     {
     \begin{array}{c}
-    ft = (ground, gt) \wedge id = (v, m) \\
-    vm(id) = (\_, t)  \wedge type\_eq(gt, t)\\
+    ft = (ground, gt) \wedge id = (v, m) \wedge vm(id) = (\_, t)  \wedge type\_eq(gt, t)\\
     newt = t \wedge newn = m + 1
     \end{array}
     }
@@ -85,6 +151,19 @@ $tmap$ is constructed from $pp, ss, vm$ as follows.
     }
     \quad
     \\[1ex]
+   \infer[type\_eq]
+    {\seqq{type\_eq(cgt, ggt) = res}}
+    {
+     \begin{array}{c}
+     res =
+     \big((cgt = (UInt, n) \wedge ggt = (UInt, n)) \vee (cgt = (SInt, n) \wedge ggt = (SInt, n))\ \vee \\
+     (cgt = (UIntImp, \_) \wedge ggt = (UIntImp, \_)) \vee (cgt = (SIntImp, \_) \wedge ggt = (SIntImp, \_))\ \vee \\
+     (cgt = Clock  \wedge ggt = Clock) \vee (cgt = Reset \wedge ggt = (UInt, 1))\ \vee \\
+     (cgt = Reset \wedge ggt = AsyncReset) \vee (cgt = AsyncReset \wedge ggt = AsyncReset) \big)
+     \end{array}
+    }
+    \quad
+    \\[1ex]  
     \infer[made\_explicit\_fields: nil]
     {\seqq{made\_explicit\_fields(ff, id, vm) = (newt, newn)}}
     {
@@ -99,15 +178,13 @@ $tmap$ is constructed from $pp, ss, vm$ as follows.
     {\seqq{made\_explicit\_fields(ff, id, vm) = (newt, newn)}}
     {
     \begin{array}{c}
-    ff = (f, b, t, ff') \wedge id = (v, m) \\
-    made\_explicit(t, id, vm) = (t', m') \\ 
+    ff = (f, b, t, ff') \wedge id = (v, m) \wedge made\_explicit(t, id, vm) = (t', m') \\ 
     made\_explicit\_fields(ff', (v, m'), vm) = (ff'', m'') \\
     newt = (f, b, t', ff'') \wedge newn = m''  
     \end{array}
     }
   \end{gather*}
-%  \vspace{-4mm}
-  \caption{$type\_eq$, $made\_explicit$, $made\_explicit\_fields$}
+  \caption{$made\_explicit$, $type\_eq$, and $made\_explicit\_fields$}
   \label{tab:made-explicit}
 \end{table}
 
@@ -254,69 +331,6 @@ $tmap$ is constructed from $pp, ss, vm$ as follows.
 \end{table}
 
 
-\begin{table}[htbp]
-  \small
-  \begin{gather*}
-    \inferii[ports\_tmap: input]
-    {\seqq{ports\_tmap(pp, vm) = tmap}}
-    {
-    \begin{array}{c}
-    p p= input\ x: t\ pp'\ \wedge\\
-    ports\_tmap(pp', vm) = tmap'
-    \end{array}
-    }
-    {
-    \begin{array}{c}
-    made\_explicit(t, (id(x),0), vm) = (newt, \_)\ \wedge \\
-    tmap'(id(x)) = none\ \wedge \\
-    tmap = add((id(x), (newt, \source)), tmap')
-    \end{array}
-    }
-    \quad
-    \\[1ex]
-    %
-    \inferii[ports\_tmap: output]
-    {\seqq{ports\_tmap(pp, vm) = tmap}}
-    {
-    \begin{array}{c}
-    p p= output\ x: t\ pp'\ \wedge\\
-    ports\_tmap(pp', vm) = tmap'
-    \end{array}
-    }
-    {
-    \begin{array}{c}
-    made\_explicit(t, (id(x), 0), vm) = (newt, \_)\ \wedge \\
-    tmap'(id(x)) = none\ \wedge \\
-    tmap = add((id(x), (newt, \sink)),tmap')
-    \end{array}
-    }    
-    \quad
-   \\[1ex]
-    \infer[stmts\_tmap: $\neq$nil]
-    {\seqq{stmts\_tmap((tmap, scope), ss, vm) = (tmap', scope')}}
-    {
-    \begin{array}{c}
-      (tmap'', scope'') = stmt\_tmap(s, vm) \\
-      (tmap', scope') = stmts\_tmap((tmap'', scope''), ss', vm)
-    \end{array}
-    }
-    \quad
-    \\[1ex]
-    \inferii[stmts\_tmap: nil]
-    {\seqq{stmts\_tmap((tmap, scope), ss, vm) = (tmap', scope')}}
-    {\seqq{s s = nil}}
-    {\seqq{tmap' = tmap \wedge scope' = scope}}
-    \quad
-    \\[1ex]
-    \inferii
-    {\seqq{ports\_stmts\_tmap(pp, ss, vm) = tmap}}
-    {\seqq{ports\_tmap(pp, vm) = pmap}}
-    {\seqq{stmts\_tmap((pmap, pmap), ss, vm) = (tmap, \_)}}
-  \end{gather*}
-%  \vspace{-4mm}
-  \caption{$ports\_tmap$, $stmts\_tmap$, and $ports\_stmts\_tmap$}
-  \label{tab:ports-stmts-tmap}
-\end{table}
 
 
 \hide{

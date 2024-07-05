@@ -90,7 +90,8 @@ In the sequel, we first define the concept of module graphs, then show how to co
 
 We denote by $\gtypes:= (\{UInt, SInt, UIntImp, SIntImp\} \times \Nat) \cup \{Clock,
 Reset, AsyncReset\}$ the set of ground types. 
-Note that $UIntImp$ and $SIntImp$ are introduced to denote the explicit ground types that are instantiated from the implicit ground types. \tl{to explain why this is needed.}
+Note that $UIntImp$ and $SIntImp$ are introduced to denote the explicit ground types that are instantiated from the implicit ground types. 
+In particular, $\gtypes$ is able to model types of implicit width. For instance, a type $UInt$ where the width is implicit is taken as $(UIntImp, 0)$. Similarly for $SInt$. 
 Let $\bv=\{0,1\}^+$, i.e., the set of bit vectors.
 %
 %For a ground type $t = (\tau, n) \in \{UInt, SInt\} \times \Nat$, $n$ is the \emph{width} of $t$, denoted by $wd(t)$.
