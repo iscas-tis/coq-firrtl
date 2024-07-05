@@ -60,9 +60,11 @@ A {\hifirrtl} module %$M$, \emph{the semantics of $M$ is defined as
 is interpreted as the set of such pairs that conform to it. 
 
 
-Moreover, a module graph $G= (vm, ct)$ \emph{conforms to} a {\hifirrtl} module $M$ is defined as follows: \tl{to see how to improve this.}
+Hence, the crux of the semantics definition is to define %a module graph 
+$(vm, ct)$ \emph{conforms to} a {\hifirrtl} module $M$ ($(vm,ct)\models M$). To this end,  %is defined as follows: \tl{to see how to improve this.}
 \begin{itemize}
-	\item At first, $vm$ is used to determine the implicit bit widths in $M$ and build a type mapping $tmap$, which records the typing information for all the components in $M$, so that all the widths in it are explicit. (Note that the components of $M$ may not be of ground types. ) 
+	\item %At first, $vm$ is used to determine 
+	we first define a type mapping $tmap$ from $vm$ the implicit bit widths in $M$ and build , which records the typing information for all the components in $M$, so that all the widths in it are explicit. (Note that the components of $M$ may not be of ground types. ) 
 	%
 	\item Then, to decide whether $(vm, ct)$ conforms to $M$, we utilize $tmap$ and the statements in $M$ to construct a module graph $G'$ from the empty module graph and finally check whether $G' = G$.
 \end{itemize}
