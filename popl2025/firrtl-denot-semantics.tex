@@ -675,7 +675,7 @@ $tmap$ is constructed from $pp, ss, vm$ as follows.
 %    }
 %   \quad
 %   \\[1ex]
-    \infer[stmt\_tmap: connect-normal]
+    \infer[stmt\_tmap: connect]
     {\seqq{stmt\_tmap((tmap, scope), s, vm) = (tmap', scope')}}
     {
     \begin{array}{c}
@@ -696,7 +696,7 @@ $tmap$ is constructed from $pp, ss, vm$ as follows.
 %    }
 %   \quad
 %   \\[1ex]
-    \infer[stmt\_tmap: invalid-normal]
+    \infer[stmt\_tmap: invalid]
     {\seqq{stmt\_tmap((tmap, scope), s, vm) = (tmap', scope')}}
     {
     \begin{array}{c}
@@ -717,7 +717,7 @@ $tmap$ is constructed from $pp, ss, vm$ as follows.
 %    }
 %   \quad
 %   \\[1ex]
-    \infer[stmt\_tmap: wire-normal]
+    \infer[stmt\_tmap: wire]
     {\seqq{stmt\_tmap((tmap, scope), s, vm) = (tmap', scope')}}
     {
     \begin{array}{c}
@@ -739,7 +739,7 @@ $tmap$ is constructed from $pp, ss, vm$ as follows.
 %    }
 %   \quad
 %   \\[1ex]
-    \infer[stmt\_tmap: node-normal]
+    \infer[stmt\_tmap: node]
     {\seqq{stmt\_tmap((tmap, scope), s, vm) = (tmap', scope')}}
     {
     \begin{array}{c}
@@ -751,7 +751,7 @@ $tmap$ is constructed from $pp, ss, vm$ as follows.
     }
    \quad
    \\[1ex]
-    \infer[stmt\_tmap: register-normal-asyncreset]
+    \infer[stmt\_tmap: register-asyncreset]
     {\seqq{stmt\_tmap((tmap, scope), s, vm) = (tmap', scope')}}
     {
     \begin{array}{c}
@@ -766,7 +766,7 @@ $tmap$ is constructed from $pp, ss, vm$ as follows.
     }
    \quad
    \\[1ex]
-    \infer[stmt\_tmap: register-normal-reset]
+    \infer[stmt\_tmap: register-reset]
     {\seqq{stmt\_tmap((tmap, scope), s, vm) = (tmap', scope')}}
     {
     \begin{array}{c}
@@ -781,7 +781,7 @@ $tmap$ is constructed from $pp, ss, vm$ as follows.
     }
    \quad
    \\[1ex]
-   \infer[stmt\_tmap: when-normal]
+   \infer[stmt\_tmap: when]
     {\seqq{stmt\_tmap((tmap, scope), s, vm) = (tmap', scope')}}
     {
     \begin{array}{c}
