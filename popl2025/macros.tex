@@ -652,37 +652,45 @@
   \DisplayProof
 }
 
-\newcommand{\uint}[1]
-{
-\mbox{\prettyll{UInt}}\mbox{<}#1\mbox{>}
-}
+%\newcommand{\uint}[1]
+%{
+%\mbox{\prettyll{UInt}}\mbox{<}#1\mbox{>}
+%}
 
-\newcommand{\sint}[1]
-{
-\mbox{\prettyll{SInt}}\mbox{<}#1\mbox{>}
-}
+%\newcommand{\sint}[1]
+%{
+%\mbox{\prettyll{SInt}}\mbox{<}#1\mbox{>}
+%}
 
 \newcommand{\bwidth}[1]
 {
 \mbox{<} #1 \mbox{>}
 }
 
-\newcommand\iports{\sf InPorts}
-\newcommand\oports{\sf OutPorts}
-\newcommand\sports{\sf SubPorts}
-\newcommand\siports{\sf SubInPorts}
-\newcommand\soports{\sf SubOutPorts}
-\newcommand\ports{\sf Ports}
-\newcommand\wires{\sf Wires}
-\newcommand\nodes{\sf Nodes}
-\newcommand\registers{\sf Regs}
-\newcommand\varset{\sf Vars}
-\newcommand\cpnts{\sf Cpnts}
-\newcommand\ccpnts{\sf CCpnts}
-\newcommand\gtypes{\sf GTypes}
-\newcommand\ftypes{\sf FTypes}
-\newcommand\bv{\sf BitVec}
+\newcommand\iports{{\sf InPorts}}
+\newcommand\oports{{\sf OutPorts}}
+\newcommand\sports{{\sf SubPorts}}
+\newcommand\siports{{\sf SubInPorts}}
+\newcommand\soports{{\sf SubOutPorts}}
+\newcommand\ports{{\sf Ports}}
+\newcommand\wires{{\sf Wires}}
+\newcommand\nodes{{\sf Nodes}}
+\newcommand\registers{{\sf Regs}}
+\newcommand\varset{{\sf Vars}}
+\newcommand\cpnts{{\sf Cpnts}}
+\newcommand\ccpnts{{\sf CCpnts}}
+\newcommand\gtypes{{\sf GTypes}}
+\newcommand\ftypes{{\sf FTypes}}
+\newcommand\bv{{\sf BitVec}}
 \newcommand\modinst{MI}
+
+\newcommand\uint{{\sf UInt}}
+\newcommand\sint{{\sf SInt}}
+\newcommand\uintimp{{\sf UIntImp}}
+\newcommand\sintimp{{\sf SIntImp}}
+\newcommand\clock{{\sf Clock}}
+\newcommand\reset{{\sf Reset}}
+\newcommand\asyncreset{{\sf AsyncReset}}
 
 \newcommand\duplex{{\sf duplex}}
 \newcommand\sink{{\sf sink}}

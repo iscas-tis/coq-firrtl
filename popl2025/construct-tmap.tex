@@ -1,7 +1,7 @@
 %!TEX root = main.tex
 
 The components in a {\hifirrtl} program may %not be of ground types. They can 
-be of vector types or bundle types. Let us use $\ftypes$ to denote the set of these types, that is, $\ftypes$ comprises the elements of one of the following forms, 
+be of ground types, vector types or bundle types. Let us use $\ftypes$ to denote the set of these types, that is, $\ftypes$ comprises the elements of one of the following forms, 
 \begin{itemize}
 \item $(\gtype, t)$ such that $t \in \gtypes$, 
 %
@@ -9,6 +9,7 @@ be of vector types or bundle types. Let us use $\ftypes$ to denote the set of th
 %
 \item $(\btype, f)$ such that $f$ is a field. 
 \end{itemize}
+Recall that the types where the bit widths are implicit are captured by $(\uintimp, 0)$ or $(\sintimp, 0)$. 
 
 For each component $cnt$ declared in $M$, the width usually is not given explicitly. % is , $cnt$ has a type, say $type(cnt)$. Note that $type(cnt)$ may involve implicit widths.  
 On the other hand, all the widths in %$vm$ are 
