@@ -8,37 +8,7 @@ In the sequel, we present the rules for defining the semantics of statements. No
 %Let $M$ be a {\hifirrtl} module and $G$ be a module graph. We define how $G = (vm, ct)$ \emph{matches} $M$ as follows: We define the relations $(vm, ct) \xrightarrow[tmap]{s} (vm', ct')$, where $s$ is a statement. Then $G$ matches $M$ if $(vm_{emp}, ct_{emp}) \xrightarrow[tmap]{ss} (vm, ct)$, where $ss$ is the statement sequence of $M$. 
 
 %%%%% vm_match
-\begin{table}[htbp]
-  \small
-  \begin{gather*}
-   \infer[size\_of\_ftype: ground]
-    {\seqq{size\_of\_ftype(ft) = 1}}
-    {\seqq{ft = (ground, gt)}}
-    \quad
-    \\[1ex]
-   \inferii[size\_of\_ftype: vector]
-    {\seqq{size\_of\_ftype(ft) = m*n}}
-    {\seqq{ft = (vector, ft'[m])}} {\seqq{n = size\_of\_ftype(ft')}}
-    \quad
-    \\[1ex]
-   \inferii[size\_of\_ftype: bundle]
-    {\seqq{size\_of\_ftype(ft) = n}}
-    {\seqq{ft = (bundle, ff)}} {\seqq{n = size\_of\_fields(ff)}}
-    \quad
-    \\[1ex]
-   \infer[size\_of\_fields: nil]
-    {\seqq{size\_of\_fields(ff) = 0}}
-    {\seqq{f f = nil}}
-    \quad
-    \\[1ex]
-   \inferiii[size\_of\_fields: $\neq$ nil]
-    {\seqq{size\_of\_fields(ff) = m+n}}
-    {\seqq{f f = (\_, \_, ft', ff')}} {\seqq{m = size\_of\_ftype(ft')}} {\seqq{n = size\_of\_fields(ff')}}
-  \end{gather*}
-%  \vspace{-4mm}
-  \caption{$size\_of\_ftype$ and $size\_of\_fields$}
-  \label{tab:size-list-ftype-fields}
-\end{table}
+
 
 \begin{table}[htbp]
   \small
