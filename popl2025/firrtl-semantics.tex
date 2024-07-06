@@ -126,13 +126,15 @@ In the definition of $tm$,  the ground types is annotated with component sort (e
 \end{itemize}
 We also assume   $\svnone,\svundefined \in \egtypes$.
 
-Besides ground types, the components in $M$ can be of aggregate types. We use $\ftypes$ to denote these types. More precisely, we define $\ftypes$ to be the set of elements of one of the following forms, 
+%Besides ground types, 
+The components in $M$ can be of aggregate types, the collection of which is denoted by $\ftypes$. % to denote these types. More precisely, we define $\ftypes$ to be the set of elements of one of the following forms,
+Namely, it comprises  
 \begin{itemize}
 \item $(\gtype, t)$ such that $t \in \gtypes$, 
 %
-\item $(\vtype, t[n])$ such that $t \in \ftypes$ and $n \in \Nat$, 
+\item $(\vtype, t[n])$ such that $t \in \ftypes$ and $n \in \Nat$, \tl{is this typo GTypes, or indeed a recursive definition?}
 %
-\item $(\btype, ff)$ such that $ff$ is a sequence of fields. 
+\item $(\btype, ff)$ such that $ff$ is a sequence of fields. \tl{can we use $\vec{f}$ rather than this ff?}
 \end{itemize}
 %Recall that the types where the bit widths are implicit are captured by $(\uintimp, 0)$ or $(\sintimp, 0)$. 
 
