@@ -102,7 +102,7 @@ In the rest of this section, we first show how to construct $tmap$ from $tm$ and
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-\paragraph*{Expressions.}
+\noindent\textbf{Expressions.}
 $\exps$ (resp. $\refs$) denotes the set of {\hifirrtl} expressions (resp. references), that is, %the set of strings that can be 
 those derived  by the rules from $e$ (resp. $r$) in Figure~\ref{fig-firrtl-synt-simp}. 
 For convenience, we assume two special symbols $\svnone,\svundefined \in \exps$. 
@@ -111,13 +111,15 @@ Moreover, we use $\fieldseq$ to denote the set of field sequences, that is, $\ve
 For convenience, we denote each field $f_i$ by a triple $(x, b, t)$, where $x$ is the name of the field, $b$ is a Boolean value to denote whether the field is flipped or not, and $t$ is a type.  
 %contains two special elements,   $$. 
 
-\paragraph*{Types}
+\noindent\textbf{Types.}
 We denote by $\gtypes:= (\{\uint, \sint, \uintimp, \sintimp\} \times \Nat) \cup \{\clock,
 \reset, \asyncreset\}$ the set of \emph{ground types}. 
-Note that $\uintimp$ and $\sintimp$ are introduced to denote the explicit ground types that are instantiated from the implicit ground types. \tl{then why not use unitexp !?}
+Note that $\uintimp$ and $\sintimp$ are introduced to denote the %explicit 
+ground types that are instantiated from the implicit ground types. %\tl{then why not use unitexp !?}
 %
-In particular, $\gtypes$ can model types of implicit width in $M$. For instance, $\uint$ where the width is implicit is captured by $(\uintimp, 0)$. \tl{so it is sugar?} 
-\zhilin{UIntImp is used to check the compatibility between tm and tmap later on.}
+In particular, $\gtypes$ can model types of implicit width in $M$. For instance, $\uint$ where the width is implicit is captured by $(\uintimp, 0)$. 
+%\tl{so it is sugar?} 
+%\zhilin{UIntImp is used to check the compatibility between tm and tmap later on.}
 %Similarly for $\sint$. 
 %Let $\bv=\{0,1\}^+$, i.e., the set of bit vectors.
 %
@@ -133,11 +135,12 @@ We also assume $\svnone,\svundefined \in \egtypes$.
 
 %Besides ground types, 
 The components in $M$ can be of aggregate types, the collection of which is denoted by $\ftypes$. % to denote these types. More precisely, we define $\ftypes$ to be the set of elements of one of the following forms,
-Formally, $\ftypes$ is recursively defined as follows.
+Formally, $\ftypes$ is defined inductively as follows.
 \begin{itemize}
 \item If $t \in \gtypes$, then $(\gtype, t) \in \ftypes$. 
 %
-\item If $t \in \ftypes$ and $n \in \Nat$, then $(\vtype, t[n]) \in \ftypes$, \tl{is this typo GTypes, or indeed a recursive definition?}\zhilin{Yes, a recursive definition}
+\item If $t \in \ftypes$ and $n \in \Nat$, then $(\vtype, t[n]) \in \ftypes$, 
+%\tl{is this typo GTypes, or indeed a recursive definition?}\zhilin{Yes, a recursive definition}
 %
 \item If $\vec{f} \in \fieldseq$, then $(\btype, \vec{f}) \in \ftypes$.
 \end{itemize}
@@ -178,7 +181,7 @@ for the bundle type
 \prettyll{output a: \{flip b: \{d: UInt<1>, e: UInt<2>\}, c: UInt<2>\}}, 
 \end{center}
 %
-the ground-type fields are \prettyll{a}, \prettyll{c}, \prettyll{d}, \prettyll{e} \tl{why there is no b?} \zhilin{because $b$ is not of ground type}, and a depth-first search gives us an order $a, d, e, c$. As a result, the offsets of $a, d, e, c$ are $0, 1, 2, 3$ respectively. Note that during the depth-first search, the fields in the same level are traversed according to the order of occurrences in $M$. Moreover, the field $b$ is omitted here since it is \emph{not} of ground type. 
+the ground-type fields are \prettyll{a}, \prettyll{c}, \prettyll{d}, \prettyll{e} \tl{why there is no b?} \zhilin{because $b$ is not of ground type} \tl{but a is not of groud type either?}, and a depth-first search gives us an order $a, d, e, c$. As a result, the offsets of $a, d, e, c$ are $0, 1, 2, 3$ respectively. Note that during the depth-first search, the fields in the same level are traversed according to the order of occurrences in $M$. Moreover, the field $b$ is omitted here since it is \emph{not} of ground type. 
  
 %\tl{I am a bit confused here: in this example, cnt=io is of a bundle type, but the "o" is defined for its fields?}
 
