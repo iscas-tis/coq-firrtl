@@ -29,29 +29,37 @@
 %\newcommand{\UInt}{{\tt UInt}\xspace}
 
 
-In this section, we define the formal semantics of {\hifirrtl} programs. Since a {\hifirrtl} program provides a high-level description of low-level RTL circuits, %the main idea of 
+%In this section, we present a formal semantics of {\hifirrtl}. 
+As a {\hifirrtl} program provides a high-level description of low-level RTL circuits, %the main idea of 
 the formal semantics is essentially to specify which low-level RTL circuits conform to a given {\hifirrtl} program. 
 
 Technically, a {\hifirrtl} program is %\emph{nondeterministic} 
-a under-specification in the sense that bit widths of some of its components are not determined. As a result, the formal semantics of a given {\hifirrtl} program is defined as the set of (low-level) {\lofirrtl} programs that conform to it, where all components are of ground types, whose bit widths are all explicit given, there are no \prettyll{when} statements, and each component is connected at most once. 
+a under-specification in the sense that the bit widths of its components are not fully determined. %As a result, the formal 
+We define the semantics of a given {\hifirrtl} program as the set of (low-level) {\lofirrtl} programs that conform to it, where (1) all components are of ground types, whose bit widths are all explicit given, (2) there are no \prettyll{when} statements, and (3) each component is connected at most once. 
 
 We shall represent {\lofirrtl} programs %by a data structure called \emph{module graphs}. A module graph $G = (vm, ct)$ represents a module in {\hifirrtl} programs, 
 as a pair $(tm, cm)$ where $tm$ is a \emph{type mapping} that records the typing information of ground-type components in the module and $cm$ is a \emph{connection mapping} that records the connections between these components.  
 %
-A {\hifirrtl} module %$M$, \emph{the semantics of $M$ is defined as 
-is interpreted as the set of such pairs that conform to it. 
-
-
-Hence, the crux of the semantics definition is to define %a module graph 
+%A {\hifirrtl} module %$M$, \emph{the semantics of $M$ is defined as 
+%is interpreted as the set of such pairs that conform to it. 
+%
+%Hence, 
+The crux of the semantics definition is to define %a module graph 
 that $(tm, cm)$ \emph{conforms to} a {\hifirrtl} module $M$ (denoted by $(tm, cm)\models M$). 
-To this end,  %is defined as follows: \tl{to see how to improve this.}
+To this end,  intuitively, %is defined as follows: \tl{to see how to improve this.}
 \begin{itemize}
 	\item %At first, $vm$ is used to determine 
-	we first utilize $tm$ to determine the missing widths of components of $M$ and build a type mapping $tmap$, which records the typing information for all the components in $M$,  (Note that the components of $M$ may not be of ground types. ) 
+	we first utilize $tm$ to determine all the bit widths of components of $M$ and build a type mapping $tmap$, which records the typing information for all the components in $M$ (note that they may not be of ground types. ) 
 	%
-	\item to decide whether $(tm, cm) \models M$, we utilize $tmap$ and the statements in $M$ to construct a pair $(tm', cm')$, and check whether $(tm, cm) = (tm', cm')$ (If it is the case, then $(tm, cm) \models M$ holds.), moreover, during the construction of $(tm', cm')$, the references to the components in $M$ are checked to be well-scoped with respect to its \prettyll{when} statements. 
+	\item %to decide whether $(tm, cm) \models M$, 
+	we then utilize $tmap$, together with the statements in $M$,  
+	to construct a pair $(tm', cm')$ which is meaningful (e.g., the references to the components in $M$ are well-scoped with respect to its \prettyll{when} statements) and $(tm', cm') \models M$. Clearly $(tm, cm) \models M$ if $(tm, cm) = (tm', cm')$. 
+	%moreover, during the construction of $(tm', cm')$,  
 \end{itemize}
-The main technical difficulty for checking $(tm, cm)\models M$ arises from the gap between $(tm, cm)$ and $M$: While $(tm, cm)$ is low-level, $M$ is high-level and may contain aggregate types (e.g. vectors and bundles) as well as \prettyll{when} statements. As a result, when checking $(tm, cm)\models M$, it is necessary to bridge this gap, in particular, to find a match between the ground types in $tm$ and aggregate types in $M$. 
+
+The main technical difficulty for defining $(tm, cm)\models M$ arises from the gap between $(tm, cm)$ and $M$: while $(tm, cm)$ is low-level, $M$ is at high level which may contain aggregate types (e.g. vectors and bundles) as well as \prettyll{when} statements. As a result, %when checking $(tm, cm)\models M$, 
+it is necessary to %bridge this gap, in particular, to 
+find a match between the ground types in $tm$ and aggregate types in $M$. 
 
 %We shall represent {\lofirrtl} programs by a data structure called \emph{module graphs}. A module graph $G = (vm, ct)$ represents a module in {\hifirrtl} programs, where $vm$ records the typing information of ground-type components in the module and $cm$ records the connections between these components.  For a {\hifirrtl} module $M$, \emph{the semantics of $M$ is defined as the set of module graphs that conform to it}. Moreover, a module graph $G= (vm, ct)$ \emph{conforms to} a {\hifirrtl} module $M$ is defined as follows: 
 %\begin{itemize}
