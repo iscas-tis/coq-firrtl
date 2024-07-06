@@ -16,8 +16,126 @@ The rational behind the orientations of components and references in $M$ are,
 \item the orientation of a reference $x.f$ (where $f$ is a field) can be determined from the orientation of $x$ and the flipping status of the field $f$.  
 \end{itemize}   
 
+To tackle the mismatch between $tm$ and $tmap$, we introduce a function $\madeexplicit$ (see Fig.~\ref{fig:made-explicit}). The arguments of $\madeexplicit$ are $(ft, id, tm)$, where $ft \in \ftypes$, $id \in \gidset_M$, and $tm$ is a type mapping. Intuitively, $\madeexplicit$ utilizes $id$ and $tm$ to determine the missing bit widths in $ft$ (i.e. the widths for the ground types $(\uintimp, 0)$ and $(\sintimp, 0)$), resulting into a new type $newt$ where all the widths are explicit (i.e. non-zero). The function $\madeexplicit$ calls a function $\sizeofftype$ to calculate the number of ground types included in a type (see Fig.~\ref{fig:size-list-ftype-fields} for its definition). Moreover, it also calls a function $\typeeq$ to check the equivalence between two ground types, one from $M$ and the other one from $tm$. For instance, in $\typeeq$, two types $(\uintimp, n_1)$ and $(\uintimp, n_2)$ are seen as equivalent, no matter whether $n_1 = n_2$ or not, and the (abstract) $\reset$ type from $M$ is seen as equivalent to both $(\uint, 1)$ and $\asyncreset$ from $tm$. (Note that according to the syntax of {\lofirrtl} in Fig.~\ref{fig-lofirrtl-synt}, the $\reset$ type does not appear in {\lofirrtl}. )
+
+\zhilin{explain two rules: vector and bundle}
+
+\begin{figure}[htbp]
+  \begin{gather*}
+    \inferiii[\madeexplicit: \gtype]
+    {\seqq{\madeexplicit(ft, id, tm) = newt}}
+    {\seqq{ft = (\gtype, gt)}}
+    {
+    \begin{array}{c}
+    tm(id) = (\_, newt)\ \vee \\
+    tm(id) = (\register, (newt, \_, \_, \_))
+    \end{array}
+    }
+    {\seqq{\typeeq(gt, newt)}}
+    \quad
+    \\[1ex]
+   \infer[\typeeq]
+    {\seqq{\typeeq(prgt, tmgt) = res}}
+    {
+     \begin{array}{c}
+     res = \\
+     \big((prgt = (\uint, n) \wedge tmgt = (\uint, n)) \vee (prgt = (\sint, n) \wedge tmgt = (\sint, n)) \ \vee \\
+     (prgt = (\uintimp, \_) \wedge tmgt = (\uintimp, \_))\ \vee \\
+     (prgt = (\sintimp, \_) \wedge tmgt = (\sintimp, \_))\ \vee \\
+     (prgt = \clock  \wedge tmgt = \clock) \vee (prgt = \reset \wedge tmgt = (\uint, 1))\ \vee \\
+     (prgt = \reset \wedge tmgt = \asyncreset) \vee (prgt = \asyncreset \wedge tmgt = \asyncreset) \big)
+     \end{array}
+    }
+    \quad
+    \\[1ex]  
+    \infer[\madeexplicit: \vtype]
+    {\seqq{\madeexplicit(ft, id, tm) = newt}}
+    {
+    \begin{array}{c}
+    ft = (\vtype, t[n]) \wedge id = (v, m) \\
+    \madeexplicit(t, id, tm) = t' \wedge \sizeofftype(t) = sz \\
+    \forall 0 \le i < ((n-1)*sz) \Rightarrow tm(v, m+i) = tm(v, m+sz + i) \\
+    newt = (\vtype, t'[n]) 
+    \end{array}
+    }
+   \quad
+   \\[1ex]
+   \def\defaultHypSeparation{\hskip 5pt}
+    \inferii[\madeexplicit: \btype]
+    {\seqq{\madeexplicit(ft, id, tm) = newt}}
+    {
+        \seqq{ft = (\btype, \vec{f})}
+    }
+    {
+       \seqq{\madeexplicitfields(\vec{f}, id, tm) = newt}
+    }
+%    {
+%    \begin{array}{c}
+%    ft = (\btype, \vec{f}) \wedge
+%    \madeexplicitfields(\vec{f}, id, tm) = newt 
+%    \end{array}
+%    }
+    \quad
+    \\[1ex]
+    \def\defaultHypSeparation{\hskip 10pt}
+    \inferii[\madeexplicitfields: \nil]
+    {\seqq{\madeexplicitfields(\vec{f}, id, tm) = newt}}
+    {\seqq{\vec{f} = \nil}}
+    {\seqq{newt = (\btype, \nil)}}
+    \quad
+   \\[1ex]
+    \infer[\madeexplicitfields: $\neq$\nil]
+    {\seqq{\madeexplicitfields(\vec{f}, id, tm) = newt}}
+    {
+    \begin{array}{c}
+    \vec{f} = (x, b, t)\ \myvec{f'} \wedge id = (v, m) \wedge m' = m+\sizeofftype(t) \\
+     \madeexplicit(t, id, tm) = t' \wedge 
+    \madeexplicitfields(\myvec{f'}, (v, m'), tm) = \myvec{f''} \\
+    newt = (x, b, t')\ \myvec{f''}
+    \end{array}
+    }
+  \end{gather*}
+  \caption{\madeexplicit, \typeeq, and \madeexplicitfields}
+  \label{fig:made-explicit}
+\end{figure}
+
+\zhilin{explain two rules: sizeofftype, vector and bundle}
+  
+\begin{figure}[htbp]
+  \small
+  \begin{gather*}
+   \infer[\sizeofftype: \gtype]
+    {\seqq{\sizeofftype(ft) = 1}}
+    {\seqq{ft = (\gtype, gt)}}
+    \quad
+    \\[1ex]
+   \inferii[\sizeofftype: \vtype]
+    {\seqq{\sizeofftype(ft) = m*n}}
+    {\seqq{ft = (\vtype, t'[m])}} {\seqq{n = \sizeofftype(t')}}
+    \quad
+    \\[1ex]
+   \inferii[\sizeofftype: \btype]
+    {\seqq{\sizeofftype(ft) = n}}
+    {\seqq{ft = (\btype, \vec{f})}} {\seqq{n = \sizeoffields(\vec{f})}}
+    \quad
+    \\[1ex]
+   \infer[\sizeoffields: \nil]
+    {\seqq{\sizeoffields(\vec{f}) = 0}}
+    {\seqq{\vec{f} = \nil}}
+    \quad
+    \\[1ex]
+   \inferiii[\sizeoffields: $\neq$\nil]
+    {\seqq{\sizeoffields(\vec{f}) = m+n}}
+    {\seqq{\vec{f} = (\_, \_, t')\ \myvec{f'}}} {\seqq{m = \sizeofftype(t')}} {\seqq{n = \sizeoffields(\myvec{f'})}}
+  \end{gather*}
+%  \vspace{-4mm}
+  \caption{$\sizeofftype$ and $\sizeoffields$}
+  \label{fig:size-list-ftype-fields}
+\end{figure}
+
 
 \zhilin{stopped here}
+
 
 
 The mapping $tmap$ is constructed by calling the procedure $ports\_stmts\_tmap(pp, ss, tm)$ (see Table~\ref{tab:ports-stmts-tmap}), which then calls the procedures $ports\_tmap(pp, tm)$ and $stmts\_tmap((pmap, pmap), ss, tm)$ respectively. 
@@ -106,109 +224,7 @@ Let us also explain some rules of $made\_explicit$. Intuitively, $made\_explicit
 
 \zhilin{Explain {made\_explicit: vector}, {type\_eq}, {made\_explicit\_fields: $\neq$nil}: to be done}
 
-\begin{table}[htbp]
-  \small
-  \begin{gather*}
-    \infer[made\_explicit: ground]
-    {\seqq{made\_explicit(ft, id, tm) = (newt, newn)}}
-    {
-    \begin{array}{c}
-    ft = (ground, gt) \wedge id = (v, m) \wedge tm(id) = (\_, t)  \wedge type\_eq(gt, t)\\
-    newt = t \wedge newn = m + 1
-    \end{array}
-    }
-    \quad
-    \\[1ex]
-    \infer[made\_explicit: vector]
-    {\seqq{made\_explicit(ft, id, tm) = (newt, newn)}}
-    {
-    \begin{array}{c}
-    ft = (vector, t[n]) \wedge id = (v, m) \\
-    made\_explicit(t, id, tm) = (t', m') \wedge elsize = m' -  m \\
-    \forall 0 \le i < ((n-1)*elsize) \Rightarrow tm(m+i) = tm(m'+i) \\
-    newt = (vector, t'[n]) \wedge newn = m + n*elsize 
-    \end{array}
-    }
-   \quad
-   \\[1ex]
-    \infer[made\_explicit: bundle]
-    {\seqq{made\_explicit(ft, id, tm) = (newt, newn)}}
-    {
-    \begin{array}{c}
-    ft = (bundle, ff) \wedge
-    made\_explicit\_fields(ff, id, tm) =(newt, newn) 
-    \end{array}
-    }
-    \quad
-    \\[1ex]
-   \infer[type\_eq]
-    {\seqq{type\_eq(cgt, ggt) = res}}
-    {
-     \begin{array}{c}
-     res =
-     \big((cgt = (UInt, n) \wedge ggt = (UInt, n)) \vee (cgt = (SInt, n) \wedge ggt = (SInt, n))\ \vee \\
-     (cgt = (UIntImp, \_) \wedge ggt = (UIntImp, \_)) \vee (cgt = (SIntImp, \_) \wedge ggt = (SIntImp, \_))\ \vee \\
-     (cgt = Clock  \wedge ggt = Clock) \vee (cgt = Reset \wedge ggt = (UInt, 1))\ \vee \\
-     (cgt = Reset \wedge ggt = AsyncReset) \vee (cgt = AsyncReset \wedge ggt = AsyncReset) \big)
-     \end{array}
-    }
-    \quad
-    \\[1ex]  
-    \infer[made\_explicit\_fields: nil]
-    {\seqq{made\_explicit\_fields(ff, id, tm) = (newt, newn)}}
-    {
-    \begin{array}{c}
-    ff = nil \wedge id = (v, m) \wedge
-    newt = (bundle, nil) \wedge newn = m  
-    \end{array}
-    }
-    \quad
-   \\[1ex]
-    \infer[made\_explicit\_fields: $\neq$nil]
-    {\seqq{made\_explicit\_fields(ff, id, tm) = (newt, newn)}}
-    {
-    \begin{array}{c}
-    ff = (f, b, t, ff') \wedge id = (v, m) \wedge made\_explicit(t, id, tm) = (t', m') \\ 
-    made\_explicit\_fields(ff', (v, m'), tm) = (ff'', m'') \\
-    newt = (f, b, t', ff'') \wedge newn = m''  
-    \end{array}
-    }
-  \end{gather*}
-  \caption{$made\_explicit$, $type\_eq$, and $made\_explicit\_fields$}
-  \label{tab:made-explicit}
-\end{table}
 
-\begin{table}[htbp]
-  \small
-  \begin{gather*}
-   \infer[size\_of\_ftype: ground]
-    {\seqq{size\_of\_ftype(ft) = 1}}
-    {\seqq{ft = (ground, gt)}}
-    \quad
-    \\[1ex]
-   \inferii[size\_of\_ftype: vector]
-    {\seqq{size\_of\_ftype(ft) = m*n}}
-    {\seqq{ft = (vector, ft'[m])}} {\seqq{n = size\_of\_ftype(ft')}}
-    \quad
-    \\[1ex]
-   \inferii[size\_of\_ftype: bundle]
-    {\seqq{size\_of\_ftype(ft) = n}}
-    {\seqq{ft = (bundle, ff)}} {\seqq{n = size\_of\_fields(ff)}}
-    \quad
-    \\[1ex]
-   \infer[size\_of\_fields: nil]
-    {\seqq{size\_of\_fields(ff) = 0}}
-    {\seqq{f f = nil}}
-    \quad
-    \\[1ex]
-   \inferiii[size\_of\_fields: $\neq$ nil]
-    {\seqq{size\_of\_fields(ff) = m+n}}
-    {\seqq{f f = (\_, \_, ft', ff')}} {\seqq{m = size\_of\_ftype(ft')}} {\seqq{n = size\_of\_fields(ff')}}
-  \end{gather*}
-%  \vspace{-4mm}
-  \caption{$size\_of\_ftype$ and $size\_of\_fields$}
-  \label{tab:size-list-ftype-fields}
-\end{table}
 
 \begin{table}[htbp]
   \small

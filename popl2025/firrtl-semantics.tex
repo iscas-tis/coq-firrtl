@@ -127,7 +127,7 @@ In particular, $\gtypes$ can model types of implicit width in $M$. For instance,
 In the definition of $tm$,  the ground types is annotated with component sort (e.g. input and output ports, wires, etc), so we define extended ground types $\egtypes$ as %the set of vertex sorts.
 \begin{itemize}
 \item $(s, t)$ with $s \in \{\inport, \outport, \wire, \node\}$ and $t \in \gtypes$,  
-\item or $(\register, t, clk, rsig, rval, b)$ such that $t \in \gtypes$, $clk, rsig, rval \in \exps$ and $b\in \{0,1\}$. (Intuitively, $clk$ represents a clock, $rsig$ represents a reset signal, and $rval$ represents a reset value, and $b$ is a Boolean value that denotes whether the reset is asynchronous or not).  
+\item or $(\register, (t, clk, rsig, rval, b))$ such that $t \in \gtypes$, $clk, rsig, rval \in \exps$ and $b\in \{0,1\}$. (Intuitively, $clk$ represents a clock, $rsig$ represents a reset signal, and $rval$ represents a reset value, and $b$ is a Boolean value that denotes whether the reset is asynchronous or not).  
 \end{itemize}
 We also assume $\svnone,\svundefined \in \egtypes$.
 
