@@ -40,7 +40,7 @@ a {\hifirrtl} program
 is interpreted as the set of (low-level) {\lofirrtl} programs that conform to it, where (1) all components are of ground types, whose bit widths are all explicit given, (2) there are no \prettyll{when} statements, and (3) each component is connected at most once. 
 As a result, the semantics definition is essentially to specify which low-level RTL circuits conform to a given {\hifirrtl} program. 
 
-We shall represent a {\lofirrtl} module $M$ %by a data structure called \emph{module graphs}. A module graph $G = (vm, ct)$ represents a module in {\hifirrtl} programs, 
+Fix a {\hifirrtl} module $M$ which consists of a sequence of port declarations followed by statements. We shall represent a {\lofirrtl} module  %by a data structure called \emph{module graphs}. A module graph $G = (vm, ct)$ represents a module in {\hifirrtl} programs, 
 as a pair $(tm, cm)$ where $tm$ is a \emph{type mapping} that records the typing information of ground-type components in $M$, and $cm$ is a \emph{connection mapping} that records the connections between these components.  
 %
 %A {\hifirrtl} module %$M$, \emph{the semantics of $M$ is defined as 
@@ -84,9 +84,7 @@ find a match between the ground types in $tm$ and aggregate types in $M$.
 
 
 %Let us fix a LoFIRRTL circuit $A$ that is free of \prettyll{inst of} statements. According to the syntax of LoFIRRTL, the top-level module of the circuit must be module $A$.
-
-%We first introduce some notations.
-
+ 
 
 %A \emph{generalized connect statement} is a statement of the form $z <= e$ or $\mbox{\tt \prettyll{node}}\ z = e$, where $z$ and $e$ are called the \emph{head} and \emph{body} of the generalized connect statement, respectively. Intuitively, a generalized connect statement is either a connect statement $z <= e$ or a node-declaration statement $\mbox{\tt \prettyll{node}}\ z = e$.
 
@@ -99,15 +97,8 @@ find a match between the ground types in $tm$ and aggregate types in $M$.
 %Note that the input ports $\iports(A)$ are not connected to, moreover, the registers may not be connected to, thus they
 %are not included in $\ccpnts(A)$. (If a register is not connected to, then it keeps the current value.)
 
-%
 
-%\subsection{Module graphs}
-
-In the rest of this section, we first show how to construct $tmap$ from $tm$ and $M$ (see Section~\ref{sec-construct-tmap}), then show how to construct $(tm', cm')$ from $tmap$ and $M$ (see Section~\ref{sec-construct-graph}).
-
-Fix a {\hifirrtl} module $M$ which consists of a sequence of port declarations followed by statements.
-
-Let us introduce some notations.
+In the rest of this section, we first show how to construct $tmap$ from $tm$ and $M$ (see Section~\ref{sec-construct-tmap}), then show how to construct $(tm', cm')$ from $tmap$ and $M$ (see Section~\ref{sec-construct-graph}). We start with some notations.
 
 \paragraph*{Types}
 We denote by $\gtypes:= (\{\uint, \sint, \uintimp, \sintimp\} \times \Nat) \cup \{\clock,
