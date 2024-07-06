@@ -1,8 +1,8 @@
 %!TEX root = main.tex
 
 Our goal is to construct from the type mapping $tm$ and $M$ a mapping $tmap$ that records the typing information for the components in $M$. 
-Nevertheless, there is a mismatch between the types in $tm$ and those in $tmap$: While the types in $tm$ are from $\gtypes$, the types in $tmap$ are from $\ftypes$. 
-In the sequel, we shall explain how to tackle this mismatch in the construction of $tmap$. 
+%Nevertheless, there is a mismatch between the types in $tm$ and those in $tmap$: While the types in $tm$ are from $\gtypes$, the types in $tmap$ are from $\ftypes$. 
+%In the sequel, we shall explain how to tackle this mismatch in the construction of $tmap$. 
 
 We shall construct a function $tmap$ from $\range{id}$ to $\ftypes \times \{\duplex, \source, \sink\}$, where in addition to the typing information, the orientations of components are also recorded. The orientations are related to the connect statements. 
 There are three types of orientations, \duplex, \source, and \sink. 
