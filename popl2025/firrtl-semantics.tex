@@ -30,12 +30,15 @@
 
 
 %In this section, we present a formal semantics of {\hifirrtl}. 
-As a {\hifirrtl} program provides a high-level description of low-level RTL circuits, %the main idea of 
-the formal semantics is essentially to specify which low-level RTL circuits conform to a given {\hifirrtl} program. 
-
-Technically, a {\hifirrtl} program is %\emph{nondeterministic} 
+As a {\hifirrtl} program provides a high-level description of low-level RTL circuits. %the main idea of 
+%
+To a certain extent, a {\hifirrtl} program is %\emph{nondeterministic} 
 a under-specification in the sense that the bit widths of its components are not fully determined. %As a result, the formal 
-We define the semantics of a given {\hifirrtl} program as the set of (low-level) {\lofirrtl} programs that conform to it, where (1) all components are of ground types, whose bit widths are all explicit given, (2) there are no \prettyll{when} statements, and (3) each component is connected at most once. 
+%define 
+The semantics we present is denotational, i.e.,  %of a given 
+a {\hifirrtl} program 
+is interpreted as the set of (low-level) {\lofirrtl} programs that conform to it, where (1) all components are of ground types, whose bit widths are all explicit given, (2) there are no \prettyll{when} statements, and (3) each component is connected at most once. 
+As a result, the formal semantics is essentially to specify which low-level RTL circuits conform to a given {\hifirrtl} program. 
 
 We shall represent {\lofirrtl} programs %by a data structure called \emph{module graphs}. A module graph $G = (vm, ct)$ represents a module in {\hifirrtl} programs, 
 as a pair $(tm, cm)$ where $tm$ is a \emph{type mapping} that records the typing information of ground-type components in the module and $cm$ is a \emph{connection mapping} that records the connections between these components.  
