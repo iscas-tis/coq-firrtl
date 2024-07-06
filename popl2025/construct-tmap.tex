@@ -7,18 +7,22 @@ $tm$ and $M$ a mapping $tmap: \range{id}\rightarrow\ftypes \times \{\duplex, \so
 %
 %We shall construct a function $tmap$ from $\range{id}$ to $\ftypes \times \{\duplex, \source, \sink\}$, where 
 Here, in addition to the typing information, the \emph{orientation} of components is also specified. 
-There are three types of orientations, \duplex, \source, and \sink. The orientations are related to the connect statements. 
+There are three types of orientations, i.e., \duplex, \source, and \sink. %The orientations are related to the connect statements. 
 In each connect statement $r <= e$, $r$ is a reference and its orientation should be {\duplex} or \sink.
-The rational behind the orientations of components and references in $M$ are, 
+%The rational behind 
+The orientations of components and references in $M$ are, 
 \begin{itemize}
 \item the orientations of wires and registers are $\duplex$, 
 \item the orientations of inputs and nodes are \source, 
 \item the orientations of outputs are \sink, 
 \item the orientation of a reference $t[n]$ are the same as that of $t$, 
-\item the orientation of a reference $x.f$ (where $f$ is a field) can be determined from the orientation of $x$ and the flipping status of the field $f$.  
+\item the orientation of a reference $x.f$ (where $f$ is a field) is  determined from the orientation of $x$ and the flipping status of the field $f$.  
 \end{itemize}   
 
-To tackle the mismatch between $tm$ and $tmap$, we introduce a function $\madeexplicit$ (see Fig.~\ref{fig:made-explicit}). The arguments of $\madeexplicit$ are $(ft, id, tm)$, where $ft \in \ftypes$, $id \in \gidset_M$, and $tm$ is a type mapping. Intuitively, $\madeexplicit$ utilizes $id$ and $tm$ to determine the missing bit widths in $ft$ (i.e. the widths for the ground types $(\uintimp, 0)$ and $(\sintimp, 0)$), resulting into a new type $newt$ where all the widths are explicit (i.e. non-zero). The function $\madeexplicit$ calls a function $\sizeofftype$ to calculate the number of ground types included in a type (see Fig.~\ref{fig:size-list-ftype-fields} for its definition). Moreover, it also calls a function $\typeeq$ to check the equivalence between two ground types, one from $M$ and the other one from $tm$. For instance, in $\typeeq$, two types $(\uintimp, n_1)$ and $(\uintimp, n_2)$ are seen as equivalent, no matter whether $n_1 = n_2$ or not, and the (abstract) $\reset$ type from $M$ is seen as equivalent to both $(\uint, 1)$ and $\asyncreset$ from $tm$. (Note that according to the syntax of {\lofirrtl} in Fig.~\ref{fig-lofirrtl-synt}, the $\reset$ type does not appear in {\lofirrtl}. )
+To tackle the mismatch between $tm$ and $tmap$, we introduce a function $\madeexplicit$ (see Fig.~\ref{fig:made-explicit}). $\madeexplicit$ takes three arguments $(ft, id, tm)$, where $ft \in \ftypes$, $id \in \gidset_M$, and $tm$ is a type mapping and %Intuitively, $\madeexplicit$ utilizes $id$ and $tm$ to determine 
+prescribes the bit widths in $ft$ (i.e. the widths for the ground types $(\uintimp, 0)$ and $(\sintimp, 0)$), resulting in a new type $newt$ where all the widths are explicit (i.e. non-zero). 
+
+To this end, $\madeexplicit$ calls a function $\sizeofftype$ to calculate the number of ground types included in a type (see Fig.~\ref{fig:size-list-ftype-fields} for its definition) \tl{to see how to improve this}. It also calls a function $\typeeq$ to check the equivalence between two ground types, one from $M$ and the other one from $tm$. For instance, in $\typeeq$, two types $(\uintimp, n_1)$ and $(\uintimp, n_2)$ are equivalent regardless of $n_1$ and  $n_2$, and the (abstract) $\reset$ type from $M$ is equivalent to both $(\uint, 1)$ and $\asyncreset$ from $tm$. (Note that according to the syntax of {\lofirrtl} in Fig.~\ref{fig-lofirrtl-synt}, the $\reset$ type does not appear in {\lofirrtl}. )
 
 \zhilin{explain two rules: vector and bundle}
 
