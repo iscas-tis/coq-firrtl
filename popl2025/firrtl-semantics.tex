@@ -100,23 +100,31 @@ find a match between the ground types in $tm$ and aggregate types in $M$.
 
 In the rest of this section, we first show how to construct $tmap$ from $tm$ and $M$ (see Section~\ref{sec-construct-tmap}), then show how to construct $(tm', cm')$ from $tmap$ and $M$ (see Section~\ref{sec-construct-graph}). We start with some notations.
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\paragraph*{Expressions.}
+$\exps$ (resp. $\refs$) denotes the set of {\hifirrtl} expressions (resp. references), that is, %the set of strings that can be 
+those derived  by the rules from $e$ (resp. $r$) in Figure~\ref{fig-firrtl-synt-simp}. 
+For convenience, we assume two special symbols $\svnone,\svundefined \in \exps$. %contains two special elements,   $$. 
+\tl{to check whether refs is used later.}
+
 \paragraph*{Types}
 We denote by $\gtypes:= (\{\uint, \sint, \uintimp, \sintimp\} \times \Nat) \cup \{\clock,
 \reset, \asyncreset\}$ the set of \emph{ground types}. 
-Note that $\uintimp$ and $\sintimp$ are introduced to denote the explicit ground types that are instantiated from the implicit ground types. 
-In particular, $\gtypes$ is able to model types of implicit width in $M$. For instance, a type $\uint$ where the width is implicit is captured by $(\uintimp, 0)$. Similarly for $\sint$. 
+Note that $\uintimp$ and $\sintimp$ are introduced to denote the explicit ground types that are instantiated from the implicit ground types. \tl{then why not use unitexp !?}
+%
+In particular, $\gtypes$ can model types of implicit width in $M$. For instance, $\uint$ where the width is implicit is captured by $(\uintimp, 0)$. \tl{so it is sugar?} %Similarly for $\sint$. 
 %Let $\bv=\{0,1\}^+$, i.e., the set of bit vectors.
 %
 %For a ground type $t = (\tau, n) \in \{UInt, SInt\} \times \Nat$, $n$ is the \emph{width} of $t$, denoted by $wd(t)$.
 %
 
-In the definition of $tm$,  the ground types will be extended with the kinds of components, e.g. input and output ports, wires, etc. As a result, we define $\egtypes$, the set of extended ground types, as %the set of vertex sorts.
+In the definition of $tm$,  the ground types is annotated with component sort (e.g. input and output ports, wires, etc), so we define extended ground types $\egtypes$ as %the set of vertex sorts.
 \begin{itemize}
 \item $(s, t)$ with $s \in \{\inport, \outport, \wire, \node\}$ and $t \in \gtypes$,  
 \item or $(\register, t, clk, rsig, rval, b)$ such that $t \in \gtypes$, $clk, rsig, rval \in \exps$ and $b\in \{0,1\}$. (Intuitively, $clk$ represents a clock, $rsig$ represents a reset signal, and $rval$ represents a reset value, and $b$ is a Boolean value that denotes whether the reset is asynchronous or not).  
 \end{itemize}
-Moreover, for convenience, we assume that $\egtypes$ includes two additional elements, i.e. $\svnone$ and $\svundefined$.
-% \tl{the same as before}
+We also assume   $\svnone,\svundefined \in \egtypes$.
 
 Besides ground types, the components in $M$ can be of aggregate types. We use $\ftypes$ to denote these types. More precisely, we define $\ftypes$ to be the set of elements of one of the following forms, 
 \begin{itemize}
@@ -173,10 +181,7 @@ the ground-type fields in it are \prettyll{a}, \prettyll{c}, \prettyll{d}, \pret
 %Moreover, for the components where aggregate types are nested, the offsets of the components of ground types are determined by the traversal order of a depth-first search. \tl{to be improved.}
 
 %We consider a finite set $\sorts = \{ \inport, \outport, \wire, \node, \register\}$ of \emph{sorts}.
-\paragraph*{Expressions.}
-Let us use $\exps$ (resp. $\refs$) to denote the set of {\hifirrtl} expressions (resp. references), that is, %the set of strings that can be 
-those derived  by the rules from $e$ (resp. $r$) in Figure~\ref{fig-firrtl-synt-simp}. 
-Moreover, for convenience, we assume that $\exps$ contains two special elements, $\svnone$ and $\svundefined$. 
+
 
 \medskip
 
