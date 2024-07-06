@@ -22,7 +22,24 @@ The orientations of components and references in $M$ are,
 To tackle the mismatch between $tm$ and $tmap$, we introduce a function $\madeexplicit$ (see Fig.~\ref{fig:made-explicit}). $\madeexplicit$ takes three arguments $(ft, id, tm)$, where $ft \in \ftypes$, $id \in \gidset_M$, and $tm$ is a type mapping and %Intuitively, $\madeexplicit$ utilizes $id$ and $tm$ to determine 
 prescribes the bit widths in $ft$ (i.e. the widths for the ground types $(\uintimp, 0)$ and $(\sintimp, 0)$), resulting in a new type $newt$ where all the widths are explicit (i.e. non-zero). 
 
-To this end, $\madeexplicit$ calls a function $\sizeofftype$ to calculate the number of ground types included in a type (see Fig.~\ref{fig:size-list-ftype-fields} for its definition) \tl{to see how to improve this}. It also calls a function $\typeeq$ to check the equivalence between two ground types, one from $M$ and the other one from $tm$. For instance, in $\typeeq$, two types $(\uintimp, n_1)$ and $(\uintimp, n_2)$ are equivalent regardless of $n_1$ and  $n_2$, and the (abstract) $\reset$ type from $M$ is equivalent to both $(\uint, 1)$ and $\asyncreset$ from $tm$. (Note that according to the syntax of {\lofirrtl} in Fig.~\ref{fig-lofirrtl-synt}, the $\reset$ type does not appear in {\lofirrtl}. )
+To this end, $\madeexplicit$ calls a function $\sizeofftype$ to calculate the number of ground types included in a type (see Fig.~\ref{fig:size-list-ftype-fields} for its definition) \tl{to see how to improve this}. 
+
+%It also calls a function $\typeeq$ to check the equivalence between two ground types, one from $M$ and the other one from $tm$. For instance, in $\typeeq$, two types $(\uintimp, n_1)$ and $(\uintimp, n_2)$ are equivalent regardless of $n_1$ and  $n_2$, and the (abstract) $\reset$ type from $M$ is equivalent to both $(\uint, 1)$ and $\asyncreset$ from $tm$. (Note that according to the syntax of {\lofirrtl} in Fig.~\ref{fig-lofirrtl-synt}, the $\reset$ type does not appear in {\lofirrtl}. )
+
+We also define a relation $\typeeq$ to specify the equivalence between two ground types, one from $M$ and the other one from $tm$. 
+%
+%For instance, in $\typeeq$, two types $(\uintimp, n_1)$ and $(\uintimp, n_2)$ are equivalent regardless of $n_1$ and  $n_2$, and the (abstract) $\reset$ type from $M$ is equivalent to both $(\uint, 1)$ and $\asyncreset$ from $tm$. (Note that according to the syntax of {\lofirrtl} in Fig.~\ref{fig-lofirrtl-synt}, the $\reset$ type does not appear in {\lofirrtl}. )
+%
+\typeeq:=
+\[\left\{ ((\uintimp, \_), (\uintimp, \_)),  
+%		
+((\sintimp, \_) , (\sintimp, \_)),  
+%		
+(\reset, (\uint, 1)), 
+(\reset,\asyncreset)\right\}
+\]   
+
+
 
 \zhilin{explain two rules: vector and bundle}
 
@@ -33,26 +50,26 @@ To this end, $\madeexplicit$ calls a function $\sizeofftype$ to calculate the nu
     {\seqq{ft = (\gtype, gt)}}
     {
     \begin{array}{c}
-    tm(id) = (\_, newt)\ \vee \\
-    tm(id) = (\register, (newt, \_, \_, \_))
+    tm(id) = (\_, newt)\ \mbox{or} \\
+    (\register, (newt, \_, \_, \_))
     \end{array}
     }
     {\seqq{\typeeq(gt, newt)}}
     \quad
-    \\[1ex]
-   \infer[\typeeq]
-    {\seqq{\typeeq(prgt, tmgt) = res}}
-    {
-     \begin{array}{c}
-     res = \\
-     \big((prgt = (\uint, n) \wedge tmgt = (\uint, n)) \vee (prgt = (\sint, n) \wedge tmgt = (\sint, n)) \ \vee \\
-     (prgt = (\uintimp, \_) \wedge tmgt = (\uintimp, \_))\ \vee \\
-     (prgt = (\sintimp, \_) \wedge tmgt = (\sintimp, \_))\ \vee \\
-     (prgt = \clock  \wedge tmgt = \clock) \vee (prgt = \reset \wedge tmgt = (\uint, 1))\ \vee \\
-     (prgt = \reset \wedge tmgt = \asyncreset) \vee (prgt = \asyncreset \wedge tmgt = \asyncreset) \big)
-     \end{array}
-    }
-    \quad
+ %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%   
+%   \infer[\typeeq]
+%    {\seqq{\typeeq(prgt, tmgt) = res}}
+%    {
+%     \begin{array}{c}
+%     res = \\
+%     \big((prgt = (\uint, n) \wedge tmgt = (\uint, n)) \vee (prgt = (\sint, n) \wedge tmgt = (\sint, n)) \ \vee \\
+%     (prgt = (\uintimp, \_) \wedge tmgt = (\uintimp, \_))\ \vee \\
+%     (prgt = (\sintimp, \_) \wedge tmgt = (\sintimp, \_))\ \vee \\
+%     (prgt = \clock  \wedge tmgt = \clock) \vee (prgt = \reset \wedge tmgt = (\uint, 1))\ \vee \\
+%     (prgt = \reset \wedge tmgt = \asyncreset) \vee (prgt = \asyncreset \wedge tmgt = \asyncreset) \big)
+%     \end{array}
+%    }
+ %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%   
     \\[1ex]  
     \infer[\madeexplicit: \vtype]
     {\seqq{\madeexplicit(ft, id, tm) = newt}}
