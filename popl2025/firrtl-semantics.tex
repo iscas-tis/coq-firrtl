@@ -180,9 +180,12 @@ Moreover, for convenience, we assume that $\exps$ contains two special elements,
 
 \smallskip
 
-We are ready to define $(tm, cm)$ formally. 	
-A \emph{type mapping} is a function $tm: \gidset_M \rightarrow \egtypes$. % with a finite domain. 
-A \emph{connection mapping} is a function $cm: \gidset_M \rightarrow \exps$. %with a finite domain. 
+We are ready to define $(tm, cm)$, the representation of {\lofirrtl} programs, formally. 	
+\begin{definition}[Low-level RTL circuits]
+A low-level RTL circuit is defined as a pair $(tm, cm)$, where $tm$ is a function from $\gidset_M$ to $\egtypes$  
+and $cm$ is function from $\gidset_M$ to $\exps$. %with a finite domain. 
+For convenience, $tm$ is called a type mapping and $cm$ is called a connection mapping. 
+\end{definition}
 %\end{definition}
 %\tl{this def has little to do with graph!?}\zhilin{if $ct(id)$ is a component of ground type, then it is analogous to the graph edges, otherwise, $ct(id)$ may involve multiple identifiers, somehow it can be seen as an edge in a supergraph. May changed to module diagram}
 
