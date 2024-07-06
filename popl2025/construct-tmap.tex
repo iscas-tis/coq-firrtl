@@ -22,7 +22,16 @@ The orientations of components and references in $M$ are,
 To tackle the mismatch between $tm$ and $tmap$, we introduce a function $\madeexplicit$ (see Fig.~\ref{fig:made-explicit}). $\madeexplicit$ takes three arguments $(ft, id, tm)$, where $ft \in \ftypes$, $id \in \gidset_M$, and $tm$ is a type mapping and %Intuitively, $\madeexplicit$ utilizes $id$ and $tm$ to determine 
 prescribes the bit widths in $ft$ (i.e. the widths for the ground types $(\uintimp, 0)$ and $(\sintimp, 0)$), resulting in a new type $newt$ where all the widths are explicit (i.e. non-zero). 
 
-To this end, $\madeexplicit$ calls a function $\sizeofftype$ to calculate the number of ground types included in a type (see Fig.~\ref{fig:size-list-ftype-fields} for its definition) \tl{to see how to improve this}. 
+To this end, $\madeexplicit$ uses a function $\sizeofftype$ to calculate the number of ground types included in a type %(see Fig.~\ref{fig:size-list-ftype-fields} for its definition) 
+\tl{to see how to improve this}. 
+%
+\begin{align*}
+	\sizeofftype ((\gtype, gt)) & =1\\
+	\sizeofftype ((\vtype, t'[m])) & =  \sizeofftype(t')*m\\
+	\sizeofftype ((\btype, \vec{f})) & =  \sizeofftype(\vec{f})\\
+	\sizeofftype (\nil) & = 0 \\
+	\sizeofftype((\_, \_, t')\vec{f}') & = \sizeofftype(t')+ \sizeofftype(\vec{f}') 
+\end{align*}
 
 %It also calls a function $\typeeq$ to check the equivalence between two ground types, one from $M$ and the other one from $tm$. For instance, in $\typeeq$, two types $(\uintimp, n_1)$ and $(\uintimp, n_2)$ are equivalent regardless of $n_1$ and  $n_2$, and the (abstract) $\reset$ type from $M$ is equivalent to both $(\uint, 1)$ and $\asyncreset$ from $tm$. (Note that according to the syntax of {\lofirrtl} in Fig.~\ref{fig-lofirrtl-synt}, the $\reset$ type does not appear in {\lofirrtl}. )
 
@@ -37,6 +46,8 @@ We also define a relation $\typeeq$ to specify the equivalence between two groun
 (\reset,\asyncreset)\right\}
 \]   
 Intuitively, two types $(\uintimp, n_1)$ and $(\uintimp, n_2)$ are equivalent regardless of $n_1$ and  $n_2$, and the (abstract) $\reset$ type from $M$ is equivalent to both $(\uint, 1)$ and $\asyncreset$ from $tm$. (Note that according to the syntax of {\lofirrtl} in Fig.~\ref{fig-lofirrtl-synt}, the $\reset$ type does not appear in {\lofirrtl}. )
+
+
 
 
 \zhilin{explain two rules: vector and bundle}
@@ -116,43 +127,48 @@ Intuitively, two types $(\uintimp, n_1)$ and $(\uintimp, n_2)$ are equivalent re
     \end{array}
     }
   \end{gather*}
-  \caption{\madeexplicit, \typeeq, and \madeexplicitfields}
+  \caption{\madeexplicit and  \madeexplicitfields}
   \label{fig:made-explicit}
 \end{figure}
 
 \zhilin{explain two rules: sizeofftype, vector and bundle}
-  
-\begin{figure}[htbp]
-  \small
-  \begin{gather*}
-   \infer[\sizeofftype: \gtype]
-    {\seqq{\sizeofftype(ft) = 1}}
-    {\seqq{ft = (\gtype, gt)}}
-    \quad
-    \\[1ex]
-   \inferii[\sizeofftype: \vtype]
-    {\seqq{\sizeofftype(ft) = m*n}}
-    {\seqq{ft = (\vtype, t'[m])}} {\seqq{n = \sizeofftype(t')}}
-    \quad
-    \\[1ex]
-   \inferii[\sizeofftype: \btype]
-    {\seqq{\sizeofftype(ft) = n}}
-    {\seqq{ft = (\btype, \vec{f})}} {\seqq{n = \sizeoffields(\vec{f})}}
-    \quad
-    \\[1ex]
-   \infer[\sizeoffields: \nil]
-    {\seqq{\sizeoffields(\vec{f}) = 0}}
-    {\seqq{\vec{f} = \nil}}
-    \quad
-    \\[1ex]
-   \inferiii[\sizeoffields: $\neq$\nil]
-    {\seqq{\sizeoffields(\vec{f}) = m+n}}
-    {\seqq{\vec{f} = (\_, \_, t')\ \myvec{f'}}} {\seqq{m = \sizeofftype(t')}} {\seqq{n = \sizeoffields(\myvec{f'})}}
-  \end{gather*}
-%  \vspace{-4mm}
-  \caption{$\sizeofftype$ and $\sizeoffields$}
-  \label{fig:size-list-ftype-fields}
-\end{figure}
+ 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%  
+%\begin{figure}[htbp]
+%  \small
+%  \begin{gather*}
+%   \infer[\sizeofftype: \gtype]
+%    {\seqq{\sizeofftype(ft) = 1}}
+%    {\seqq{ft = (\gtype, gt)}}
+%    \quad
+%    \\[1ex]
+%   \inferii[\sizeofftype: \vtype]
+%    {\seqq{\sizeofftype(ft) = m*n}}
+%    {\seqq{ft = (\vtype, t'[m])}} {\seqq{n = \sizeofftype(t')}}
+%    \quad
+%    \\[1ex]
+%   \inferii[\sizeofftype: \btype]
+%    {\seqq{\sizeofftype(ft) = n}}
+%    {\seqq{ft = (\btype, \vec{f})}} {\seqq{n = \sizeoffields(\vec{f})}}
+%    \quad
+%    \\[1ex]
+%   \infer[\sizeoffields: \nil]
+%    {\seqq{\sizeoffields(\vec{f}) = 0}}
+%    {\seqq{\vec{f} = \nil}}
+%    \quad
+%    \\[1ex]
+%   \inferiii[\sizeoffields: $\neq$\nil]
+%    {\seqq{\sizeoffields(\vec{f}) = m+n}}
+%    {\seqq{\vec{f} = (\_, \_, t')\ \myvec{f'}}} {\seqq{m = \sizeofftype(t')}} {\seqq{n = \sizeoffields(\myvec{f'})}}
+%  \end{gather*}
+%%  \vspace{-4mm}
+%  \caption{$\sizeofftype$ and $\sizeoffields$}
+%  \label{fig:size-list-ftype-fields}
+%\end{figure}
+
+
 
 
 \zhilin{stopped here}
