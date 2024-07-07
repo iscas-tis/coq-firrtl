@@ -208,13 +208,13 @@ For instance, in the rule {\madeexplicit: \vtype}, if the $n$ ground-type sequen
 		%    {\seqq{stmts\_tmap((pmap, pmap), ss, tm) = (tmap, \_)}}
 		%   \quad
 		%   \\[1ex]
-		\infer[\portstmap: \nil]
-		{\seqq{\portstmap(pp, tm) = {\sf emp}}}
-		{
-			\begin{array}{c}
-				p p= \nil
-			\end{array}
-		}
+		\infernone[\portstmap: \nil]
+		{\seqq{\portstmap(\nil, tm) = {\sf emp}}}
+%		{
+%			\begin{array}{c}
+%				p p= \nil
+%			\end{array}
+%		}
 		\quad
 		\\[1ex]
 		\infer[\portstmap: input]
