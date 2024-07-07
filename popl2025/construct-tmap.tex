@@ -1,5 +1,6 @@
 %!TEX root = main.tex
 
+Let us assume that $M$ comprises a pair $(pp, ss)$, where $pp$ is a sequence of port declarations and $ss$ is a sequence of statements. 
 Our goal is to construct from %the type mapping 
 $tm$ and $M$ a mapping $tmap: \range{id}\rightarrow\ftypes \times \{\duplex, \source, \sink\}$. %that records the typing information for the components in $M$. 
 %Nevertheless, there is a mismatch between the types in $tm$ and those in $tmap$: While the types in $tm$ are from $\gtypes$, the types in $tmap$ are from $\ftypes$. 
@@ -144,8 +145,6 @@ Note that the rules in Fig.~\ref{fig:made-explicit} are chosen to be incomplete 
   \caption{\madeexplicit and  \madeexplicitfields}
   \label{fig:made-explicit}
 \end{figure}
-
-\zhilin{explain two rules: sizeofftype, vector and bundle}
  
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -183,15 +182,7 @@ Note that the rules in Fig.~\ref{fig:made-explicit} are chosen to be incomplete 
 %\end{figure}
 
 
-
-
-\zhilin{stopped here}
-
-
-
-The mapping $tmap$ is constructed by calling the procedure $ports\_stmts\_tmap(pp, ss, tm)$ (see Table~\ref{tab:ports-stmts-tmap}), which then calls the procedures $ports\_tmap(pp, tm)$ and $stmts\_tmap((pmap, pmap), ss, tm)$ respectively. 
-
-Intuitively, $ports\_tmap(pp, tm)$ constructs a mapping from $tm$ and the port declarations $pp$, and $stmts\_tmap((pmap, pmap), ss, tm)$ constructs from $(pmap, pmap)$, the statement sequence $ss$, and $tm$, a pair $(tmap, scope)$. Note that $scope$ is introduced to check that the component references in $ss$ do not violate the scoping constraint introduced by \prettyll{when} statements. For instance, in the following {\hifirrtl} program, there is a scoping error, since $z$ is declared in the scope of the \prettyll{when} statement, but it is referred outside it (Line 7). 
+The mapping $tmap$ is constructed by the procedure $\portsstmtstmap(pp, ss, tm)$, which calls the procedure $\portstmap(pp, tm)$ to compute $pmap$, then calls $\stmtstmap((pmap, pmap), ss, tm)$ to get $tmap$ (see Figure~\ref{fig:ports-stmts-tmap}). Intuitively, $\portstmap(pp, tm)$ constructs a mapping from the port declarations $pp$ and $tm$, and $stmts\_tmap((pmap, pmap), ss, tm)$ constructs a pair $(tmap, scope)$ from $(pmap, pmap)$, the statement sequence $ss$, and $tm$. Note that $scope$ is introduced to check that the component references in $ss$ do not violate the scoping constraints brought upon by the \prettyll{when} statements in it. For instance, in the following {\hifirrtl} program, there is a scoping error, since $z$ is declared in the scope of the \prettyll{when} statement, but it is referred outside it (Line 7). 
 \begin{figure*}[h]
 \centering
 \begin{tabular}{c}
@@ -209,16 +200,16 @@ Intuitively, $ports\_tmap(pp, tm)$ constructs a mapping from $tm$ and the port d
 %\label{fig:example}
 \end{figure*}
 
-The procedures $ports\_tmap(pp, tm)$ and $stmts\_tmap((pmap, pmap), ss, tm)$ are defined by the rules in Table~\ref{tab:ports-stmts-tmap}.
-To help the readers understand these rules, let us explain the rules ports\_tmap: input and stmts\_tmap: $\neq$nil. 
+The procedures $\portstmap(pp, tm)$ and $\stmtstmap((pmap, pmap), ss, tm)$ are defined by the rules in Fig.~\ref{fig:ports-stmts-tmap}.
+To help the readers understand these rules, let us explain the rules {\portstmap: input} and {\stmtstmap: $\neq$\nil}. 
 \begin{itemize}
-\item In the rule {ports\_tmap: input}, suppose $pp = input\ x: t\ pp'$. Then $made\_explicit$ is called to instantiate $t$ into $newt$ by $tm$, where all the bit widths are explicit. (The definition of $made\_explicit$ will be given in Table~\ref{tab:made-explicit}.) Let $tmap'$ be the mapping that is obtained by recursively calling $ports\_tmap$ on $(pp', tm)$. Then it is required that $tmap'(id(x)) = none$, that is, $x$ is not declared in $pp'$. Finally, $tmap$ is obtained from $tmap'$ by assigning $(newt, \source)$ to $id(x)$.  
+\item In the rule {ports\_tmap: input}, suppose $pp = input\ x: t\ pp'$. Then $made\_explicit$ is called to instantiate $t$ into $newt$ by $tm$, where all the bit widths are explicit. (The definition of $made\_explicit$ will be given in Fig.~\ref{fig:made-explicit}.) Let $tmap'$ be the mapping that is obtained by recursively calling $ports\_tmap$ on $(pp', tm)$. Then it is required that $tmap'(id(x)) = none$, that is, $x$ is not declared in $pp'$. Finally, $tmap$ is obtained from $tmap'$ by assigning $(newt, \source)$ to $id(x)$.  
 %
 \item In the rule {stmts\_tmap: $\neq$nil}, suppose $ss = s\ ss'$. Then $stmt\_tmap(s, tm)$ is called to compute $(tmap'', scope'')$. Moreover, $stmts\_tmap$ is recursively called on $((tmap'', scope''), ss', tm)$ to compute $(tmap', scope')$. 
 \end{itemize}
-Note that to avoid the tediousness, we omit some rules for $ports\_tmap$ and $stmts\_tmap$ in Table~\ref{tab:ports-stmts-tmap}.  For instance, if $tmap'(id(x)) = none$ in the rule {ports\_tmap: input} is changed to $tmap'(id(x)) \neq none$, then $ports\_tmap(pp, tm) = none$. Intuitively, we omit the rules corresponding to the abnormal situations where the result is $none$. 
+Note that to avoid the tediousness, we omit some rules for $ports\_tmap$ and $stmts\_tmap$ in Fig.~\ref{fig:ports-stmts-tmap}.  For instance, if $tmap'(id(x)) = none$ in the rule {ports\_tmap: input} is changed to $tmap'(id(x)) \neq none$, then $ports\_tmap(pp, tm) = none$. Intuitively, we omit the rules corresponding to the abnormal situations where the result is $none$. 
 
-\begin{table}[htbp]
+\begin{figure}[htbp]
   \small
   \begin{gather*}
     \inferii
@@ -268,12 +259,11 @@ Note that to avoid the tediousness, we omit some rules for $ports\_tmap$ and $st
   \end{gather*}
 %  \vspace{-4mm}
   \caption{$ports\_stmts\_tmap$, $ports\_tmap$, and $stmts\_tmap$}
-  \label{tab:ports-stmts-tmap}
-\end{table}
+  \label{fig:ports-stmts-tmap}
+\end{figure}
 
-Let us also explain some rules of $made\_explicit$. Intuitively, $made\_explicit(ft, id, tm)$ uses $tm$ to determine the implicit widths in $ft$ and obtain $newt$. Moreover, it computes a new identifier $(v, m')$ that is obtained from $id = (v, m)$  by traversing all the ground types in $ft$. 
 
-\zhilin{Explain {made\_explicit: vector}, {type\_eq}, {made\_explicit\_fields: $\neq$nil}: to be done}
+\zhilin{stopped here}
 
 
 
