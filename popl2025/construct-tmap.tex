@@ -136,10 +136,14 @@ For instance, in the rule {\madeexplicit: \vtype}, if the $n$ ground-type sequen
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     \\[1ex]
     \def\defaultHypSeparation{\hskip 10pt}
-    \inferii[\madeexplicitfields: \nil]
-    {\seqq{\madeexplicitfields(\nil, id, tm) =  (\btype, \nil)}}
-    {\seqq{}}%\vec{f} = \nil}}
-    {\seqq{newt = (\btype, \nil) latex}}
+    %
+    \infernone[\madeexplicitfields: \nil]
+     {\seqq{\madeexplicitfields(\nil, id, tm) =  (\btype, \nil)}}
+%    
+%    \inferii[\madeexplicitfields: \nil]
+%    {\seqq{\madeexplicitfields(\nil, id, tm) =  (\btype, \nil)}}
+%    {\seqq{}}%\vec{f} = \nil}}
+%    {\seqq{newt = (\btype, \nil) latex}}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
    \\[1ex]
     \infer[\madeexplicitfields: $\neq$\nil]

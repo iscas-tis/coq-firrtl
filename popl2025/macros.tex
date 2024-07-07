@@ -605,6 +605,14 @@
 
 \newcommand{\ruleName}[1]{\textrm{#1}}
 
+
+\newcommand{\infernone}[2][]{%
+	\AxiomC{}
+	\ifx#1\relax\else\LeftLabel{\ruleName{#1}}\fi
+	\UnaryInfC{$#2$}
+	\DisplayProof
+}
+
 \newcommand{\infer}[3][]{%
   \AxiomC{$#3$}
   \ifx#1\relax\else\LeftLabel{\ruleName{#1}}\fi
