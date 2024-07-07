@@ -61,17 +61,22 @@ equate some ground types, i.e., %one from $M$ and the other one from $tm$. Namel
 %It is easy to observe that $\typeeq$ is not symmetric, thus not an equivalence relation.  As a result, the aforementioned  ``equivalence'' in $\typeeq$ is just an intuitive way of saying the compatibility between the two ground types,  
 Note that in $\typeeq$, two types $(\uintimp, n_1)$ and $(\uintimp, n_2)$ are equivalent regardless of $n_1$ and  $n_2$. Moreover, the (abstract) $\reset$ type from $M$ is equivalent to both $(\uint, 1)$ and $\asyncreset$ from $tm$. (Recall that the $\reset$ type does not appear in {\lofirrtl} according to the syntax of {\lofirrtl} in Fig.~\ref{fig-lofirrtl-synt}.)
 
-The function $\madeexplicit(ft, id, tm)$ are defined by the rules in Fig.~\ref{fig:made-explicit}. 
+The function $\madeexplicit(ft, id, tm)$ is defined by the rules in Fig.~\ref{fig:made-explicit}. 
 \begin{itemize}
-\item The rule {\madeexplicit: \gtype} deals with the case $ft = (\gtype, gt)$. In this case, $\madeexplicit$ simply returns the ground type in $tm(id)$. 
+\item The rule {\madeexplicit: \gtype} deals with the case $ft = (\gtype, gt)$, which  simply returns the ground type in $tm(id)$. 
 %
 \item The rule {\madeexplicit: \vtype} deals with the case $ft = (\vtype, t[n])$. In this case, $\madeexplicit$ first computes $t' = \madeexplicit(t, id, tm)$, then returns $t'[n]$. Moreover, it checks that in $vm$, the $n$ ground-type sequences in $tm$ corresponding to the $n$ copies of $t'$ are all equal, that is, let $id = (v,m)$ and $sz = \sizeofftype(t')$, then $(tm(v, m+0), \ldots, tm(v, m+sz-1)) = (tm(v, m+sz), \ldots, tm(v, m+2sz-1)) = \cdots = (tm(v, m+(n-1)sz), \ldots, tm(v, m+nsz-1))$. 
 %
-\item The rule {\madeexplicit: \btype} deals with the case $ft = (\btype, \vec{f})$. In this case, $\madeexplicit$ calls $\madeexplicitfields(\vec{f}, id, tm)$ and returns its output.  
-\end{itemize}
-The function $\madeexplicitfields(\vec{f}, id, tm)$ recursively computes the output as follows. If $\vec{f} = \nil$, then it returns $(\btype, \nil)$. Otherwise, let $\vec{f} = (x, b, t)\ \myvec{f'}$. Then it calls $\madeexplicit(t, id, tm)$ to get $t'$ and recursively calls $\madeexplicitfields(\myvec{f'}, id, tm)$ to get $\myvec{f''}$. Finally, it returns $newt = (x, b, t')\ \myvec{f''}$. 
+\item The rule {\madeexplicit: \btype} deals with the case $ft = (\btype, \vec{f})$. In this case, $\madeexplicit$ calls $\madeexplicitfields(\vec{f}, id, tm)$ and returns its output. $\madeexplicitfields(\vec{f}, id, tm)$ %recursively computes the output as follows. 
+processes the fields sequentially. 
+For the field $(x,b,t)$, (recursive) call to $\madeexplicit(t, id, tm)$ returns $t'$ and thus we obtain $(x,b,t')$. 
+%If $\vec{f} = \nil$, then it returns $(\btype, \nil)$. Otherwise, let $\vec{f} = (x, b, t)\ \myvec{f'}$. Then it calls $\madeexplicit(t, id, tm)$ to get $t'$ and recursively calls $\madeexplicitfields(\myvec{f'}, id, tm)$ to get $\myvec{f''}$. Finally, it returns $newt = (x, b, t')\ \myvec{f''}$. 
 
-\tl{rewrite} Note that the rules in Fig.~\ref{fig:made-explicit} are chosen to be incomplete in purpose to avoid the tediousness. For instance, in the rule {\madeexplicit: \vtype}, if the $n$ ground-type sequences in $tm$ corresponding to the $n$ copies of $t'$ are not equal, then $\madeexplicit$ returns the special value $\svnone$. 
+\end{itemize}
+
+Note that %the rules in 
+Fig.~\ref{fig:made-explicit} only present the most important rules, for simplicity. % are chosen to be incomplete in purpose to avoid the tediousness. 
+For instance, in the rule {\madeexplicit: \vtype}, if the $n$ ground-type sequences in $tm$ corresponding to the $n$ copies of $t'$ are not equal, then $\madeexplicit$ returns the special value $\svnone$. 
 
 \begin{figure}[htbp]
   \begin{gather*}
@@ -111,7 +116,7 @@ The function $\madeexplicitfields(\vec{f}, id, tm)$ recursively computes the out
     newt = (\vtype, t'[n]) 
     \end{array}
     }
-   \quad
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
    \\[1ex]
    \def\defaultHypSeparation{\hskip 5pt}
     \inferii[\madeexplicit: \btype]
@@ -128,14 +133,14 @@ The function $\madeexplicitfields(\vec{f}, id, tm)$ recursively computes the out
 %    \madeexplicitfields(\vec{f}, id, tm) = newt 
 %    \end{array}
 %    }
-    \quad
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     \\[1ex]
     \def\defaultHypSeparation{\hskip 10pt}
     \inferii[\madeexplicitfields: \nil]
-    {\seqq{\madeexplicitfields(\vec{f}, id, tm) = newt}}
-    {\seqq{\vec{f} = \nil}}
-    {\seqq{newt = (\btype, \nil)}}
-    \quad
+    {\seqq{\madeexplicitfields(\nil, id, tm) =  (\btype, \nil)}}
+    {\seqq{}}%\vec{f} = \nil}}
+    {\seqq{newt = (\btype, \nil) latex}}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
    \\[1ex]
     \infer[\madeexplicitfields: $\neq$\nil]
     {\seqq{\madeexplicitfields(\vec{f}, id, tm) = newt}}
