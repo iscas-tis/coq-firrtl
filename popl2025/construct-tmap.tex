@@ -211,55 +211,54 @@ To help the readers understand these rules, let us explain the rules {\portstmap
 Note that to avoid the tediousness, we omit some rules for $ports\_tmap$ and $stmts\_tmap$ in Fig.~\ref{fig:ports-stmts-tmap}.  For instance, if $tmap'(id(x)) = none$ in the rule {ports\_tmap: input} is changed to $tmap'(id(x)) \neq none$, then $ports\_tmap(pp, tm) = none$. Intuitively, we omit the rules corresponding to the abnormal situations where the result is $none$. 
 
 \begin{figure}[htbp]
-  \small
   \begin{gather*}
-    \inferii
-    {\seqq{ports\_stmts\_tmap(pp, ss, tm) = tmap}}
-    {\seqq{ports\_tmap(pp, tm) = pmap}}
-    {\seqq{stmts\_tmap((pmap, pmap), ss, tm) = (tmap, \_)}}
-   \quad
-   \\[1ex]
-    \infer[ports\_tmap: input]
-    {\seqq{ports\_tmap(pp, tm) = tmap}}
+%    \inferii
+%    {\seqq{ports\_stmts\_tmap(pp, ss, tm) = tmap}}
+%    {\seqq{ports\_tmap(pp, tm) = pmap}}
+%    {\seqq{stmts\_tmap((pmap, pmap), ss, tm) = (tmap, \_)}}
+%   \quad
+%   \\[1ex]
+    \infer[\portstmap: input]
+    {\seqq{\portstmap(pp, tm) = tmap}}
     {
     \begin{array}{c}
-    p p= input\ x: t\ pp' \wedge made\_explicit(t, (id(x),0), tm) = (newt, \_) \\
-    ports\_tmap(pp', tm) = tmap' \wedge tmap'(id(x)) = none \\
+    p p= input\ x: t\ pp' \wedge \madeexplicit(t, (id(x),0), tm) = newt \\
+    \portstmap(pp', tm) = tmap' \wedge tmap'(id(x)) = \svnone \\
     tmap = add((id(x), (newt, \source)), tmap')
     \end{array}
     }
     \quad
     \\[1ex]
     %
-    \infer[ports\_tmap: output]
-    {\seqq{ports\_tmap(pp, tm) = tmap}}
+    \infer[\portstmap: output]
+    {\seqq{\portstmap(pp, tm) = tmap}}
     {
     \begin{array}{c}
-    p p= output\ x: t\ pp' \wedge made\_explicit(t, (id(x), 0), tm) = (newt, \_) \\
-    ports\_tmap(pp', tm) = tmap' \wedge tmap'(id(x)) = none \\
+    p p= output\ x: t\ pp' \wedge \madeexplicit(t, (id(x), 0), tm) = newt \\
+    \portstmap(pp', tm) = tmap' \wedge tmap'(id(x)) = \svnone \\
     tmap = add((id(x), (newt, \sink)),tmap')
     \end{array}
     }    
     \quad
    \\[1ex]
-    \inferii[stmts\_tmap: nil]
-    {\seqq{stmts\_tmap((tmap, scope), ss, tm) = (tmap', scope')}}
-    {\seqq{s s = nil}}
+    \inferii[\stmtstmap: \nil]
+    {\seqq{\stmtstmap((tmap, scope), ss, tm) = (tmap', scope')}}
+    {\seqq{s s = \nil}}
     {\seqq{tmap' = tmap \wedge scope' = scope}}
     \quad
    \\[1ex]
-    \infer[stmts\_tmap: $\neq$nil]
-    {\seqq{stmts\_tmap((tmap, scope), ss, tm) = (tmap', scope')}}
+    \infer[\stmtstmap: $\neq$nil]
+    {\seqq{\stmtstmap((tmap, scope), ss, tm) = (tmap', scope')}}
     {
     \begin{array}{c}
       ss = s\ ss' \\
-      (tmap'', scope'') = stmt\_tmap(s, tm) \\
-      (tmap', scope') = stmts\_tmap((tmap'', scope''), ss', tm)
+      (tmap'', scope'') = \stmtstmap(s, tm) \\
+      (tmap', scope') = \stmtstmap((tmap'', scope''), ss', tm)
     \end{array}
     }
   \end{gather*}
 %  \vspace{-4mm}
-  \caption{$ports\_stmts\_tmap$, $ports\_tmap$, and $stmts\_tmap$}
+  \caption{$\portstmap$ and $\stmtstmap$}
   \label{fig:ports-stmts-tmap}
 \end{figure}
 
