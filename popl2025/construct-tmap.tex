@@ -62,13 +62,13 @@ equate some ground types, i.e., %one from $M$ and the other one from $tm$. Namel
 (Note that $\typeeq$ contains identity relation which we omit.)
 
 %It is easy to observe that $\typeeq$ is not symmetric, thus not an equivalence relation.  As a result, the aforementioned  ``equivalence'' in $\typeeq$ is just an intuitive way of saying the compatibility between the two ground types,  
-Note that in $\typeeq$, two types $(\uintimp, n_1)$ and $(\uintimp, n_2)$ are equivalent regardless of $n_1$ and  $n_2$. Moreover, the (abstract) $\reset$ type from $M$ is equivalent to both $(\uint, 1)$ and $\asyncreset$ from $tm$. (Recall that the $\reset$ type does not appear in {\lofirrtl} according to the syntax of {\lofirrtl} in Fig.~\ref{fig-lofirrtl-synt}.)
+In $\typeeq$, two types $(\uintimp, n_1)$ and $(\uintimp, n_2)$ are equivalent regardless of $n_1$ and  $n_2$. Moreover, the (abstract) $\reset$ type from $M$ is equivalent to both $(\uint, 1)$ and $\asyncreset$ from $tm$. (Recall that the $\reset$ type does not appear in {\lofirrtl} according to the syntax of {\lofirrtl} in Fig.~\ref{fig-lofirrtl-synt}.)
 
-The function $\madeexplicit(ft, id, tm)$ is defined by the rules in Fig.~\ref{fig:made-explicit}. 
+The function $\madeexplicit(ft, id, tm)$ is defined  in Fig.~\ref{fig:made-explicit}. 
 \begin{itemize}
 \item The rule {\madeexplicit: \gtype} deals with the case $ft = (\gtype, gt)$, which  simply returns the ground type in $tm(id)$. 
 %
-\item The rule {\madeexplicit: \vtype} deals with the case $ft = (\vtype, t[n])$. In this case, $\madeexplicit$ first computes $t' = \madeexplicit(t, id, tm)$, then returns $t'[n]$. Moreover, it checks that in $vm$, the $n$ ground-type sequences in $tm$ corresponding to the $n$ copies of $t'$ are all equal, that is, let $id = (v,m)$ and $sz = \sizeofftype(t')$, then $(tm(v, m+0), \ldots, tm(v, m+sz-1)) = (tm(v, m+sz), \ldots, tm(v, m+2sz-1)) = \cdots = (tm(v, m+(n-1)sz), \ldots, tm(v, m+nsz-1))$. 
+\item The rule {\madeexplicit: \vtype} deals with the case $ft = (\vtype, t[n])$. In this case, $\madeexplicit$  computes $t' = \madeexplicit(t, id, tm)$ and  returns $t'[n]$. Moreover, it checks that in $vm$ \tl{where is this defined?}, the $n$ ground-type sequences in $tm$ corresponding to the $n$ copies of $t'$ are all equal, that is, let $id = (v,m)$ and $sz = \sizeofftype(t')$, then $(tm(v, m+0), \ldots, tm(v, m+sz-1)) = (tm(v, m+sz), \ldots, tm(v, m+2sz-1)) = \cdots = (tm(v, m+(n-1)sz), \ldots, tm(v, m+nsz-1))$. \tl{to see how to improve this.}
 %
 \item The rule {\madeexplicit: \btype} deals with the case $ft = (\btype, \vec{f})$. In this case, $\madeexplicit$ calls $\madeexplicitfields(\vec{f}, id, tm)$ and returns its output. $\madeexplicitfields(\vec{f}, id, tm)$ %recursively computes the output as follows. 
 processes the fields sequentially. 
@@ -203,7 +203,7 @@ For instance, in the rule {\madeexplicit: \vtype}, if the $n$ ground-type sequen
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
-The mapping $tmap$ is defined by the procedure $\portsstmtstmap(pp, ss, tm)$, which calls the procedure $\portstmap(pp, tm)$ to compute $pmap$, then calls $\stmtstmap((pmap, pmap), ss, tm)$ to get $tmap$ (see Figure~\ref{fig:ports-stmts-tmap}). 
+The mapping $tmap$ is defined by the procedure $\portsstmtstmap(pp, ss, tm)$, which calls the procedure $\portstmap(pp, tm)$ to compute $pmap$, then calls $\stmtstmap((pmap, pmap), ss, tm)$ \tl{to check} to get $tmap$ (see Figure~\ref{fig:ports-stmts-tmap}). 
 %
 Intuitively, $\portstmap(pp, tm)$ defines a mapping based on the port declarations $pp$ and $tm$, and $\stmtstmap((pmap, pmap), ss, tm)$ defines a pair $(tmap, scope)$ from $(pmap, pmap)$, the statement sequence $ss$, and $tm$.
 \begin{wrapfigure}{r}{0.3\textwidth} 
@@ -222,6 +222,7 @@ Intuitively, $\portstmap(pp, tm)$ defines a mapping based on the port declaratio
 %\end{tabular}
 %\label{fig:example}
 \end{wrapfigure}
+\tl{this scope thing makes the semantics less focused, but is it really important? Can we simply rule it out at the syntax level?}
 Note that $scope$ is introduced to check that the component references in $ss$ do not violate the scoping constraints brought upon by the \prettyll{when} statements. For instance, in the following {\hifirrtl} program, there is a scoping error, since $z$ is declared in the scope of the \prettyll{when} statement, but it is referred outside it (Line 7). 
 %
 %The procedures $\portstmap$ and $\stmtstmap$ are defined by the rules in Fig.~\ref{fig:ports-stmts-tmap}.
