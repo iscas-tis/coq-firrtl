@@ -140,7 +140,7 @@ Note that the rules in Fig.~\ref{fig:made-explicit} are chosen to be incomplete 
     \end{array}
     }
   \end{gather*}
-  \caption{\madeexplicit and  \madeexplicitfields}
+  \caption{The procedures \madeexplicit and  \madeexplicitfields}
   \label{fig:made-explicit}
 \end{figure}
  
@@ -180,7 +180,7 @@ Note that the rules in Fig.~\ref{fig:made-explicit} are chosen to be incomplete 
 %\end{figure}
 
 
-The mapping $tmap$ is constructed by the procedure $\portsstmtstmap(pp, ss, tm)$, which calls the procedure $\portstmap(pp, tm)$ to compute $pmap$, then calls $\stmtstmap((pmap, pmap), ss, tm)$ to get $tmap$ (see Figure~\ref{fig:ports-stmts-tmap}). Intuitively, $\portstmap(pp, tm)$ constructs a mapping from the port declarations $pp$ and $tm$, and $stmts\_tmap((pmap, pmap), ss, tm)$ constructs a pair $(tmap, scope)$ from $(pmap, pmap)$, the statement sequence $ss$, and $tm$. Note that $scope$ is introduced to check that the component references in $ss$ do not violate the scoping constraints brought upon by the \prettyll{when} statements in it. For instance, in the following {\hifirrtl} program, there is a scoping error, since $z$ is declared in the scope of the \prettyll{when} statement, but it is referred outside it (Line 7). 
+The mapping $tmap$ is constructed by the procedure $\portsstmtstmap(pp, ss, tm)$, which calls the procedure $\portstmap(pp, tm)$ to compute $pmap$, then calls $\stmtstmap((pmap, pmap), ss, tm)$ to get $tmap$ (see Figure~\ref{fig:ports-stmts-tmap}). Intuitively, $\portstmap(pp, tm)$ constructs a mapping from the port declarations $pp$ and $tm$, and $\stmtstmap((pmap, pmap), ss, tm)$ constructs a pair $(tmap, scope)$ from $(pmap, pmap)$, the statement sequence $ss$, and $tm$. Note that $scope$ is introduced to check that the component references in $ss$ do not violate the scoping constraints brought upon by the \prettyll{when} statements in it. For instance, in the following {\hifirrtl} program, there is a scoping error, since $z$ is declared in the scope of the \prettyll{when} statement, but it is referred outside it (Line 7). 
 \begin{figure*}[h]
 \centering
 \begin{tabular}{c}
@@ -198,17 +198,13 @@ The mapping $tmap$ is constructed by the procedure $\portsstmtstmap(pp, ss, tm)$
 %\label{fig:example}
 \end{figure*}
 
-\zhilin{stopped here}
-
-
-The procedures $\portstmap(pp, tm)$ and $\stmtstmap((pmap, pmap), ss, tm)$ are defined by the rules in Fig.~\ref{fig:ports-stmts-tmap}.
-To help the readers understand these rules, let us explain the rules {\portstmap: input} and {\stmtstmap: $\neq$\nil}. 
+The procedures $\portstmap$ and $\stmtstmap$ are defined by the rules in Fig.~\ref{fig:ports-stmts-tmap}.
 \begin{itemize}
-\item In the rule {ports\_tmap: input}, suppose $pp = input\ x: t\ pp'$. Then $made\_explicit$ is called to instantiate $t$ into $newt$ by $tm$, where all the bit widths are explicit. (The definition of $made\_explicit$ will be given in Fig.~\ref{fig:made-explicit}.) Let $tmap'$ be the mapping that is obtained by recursively calling $ports\_tmap$ on $(pp', tm)$. Then it is required that $tmap'(id(x)) = none$, that is, $x$ is not declared in $pp'$. Finally, $tmap$ is obtained from $tmap'$ by assigning $(newt, \source)$ to $id(x)$.  
-%
-\item In the rule {stmts\_tmap: $\neq$nil}, suppose $ss = s\ ss'$. Then $stmt\_tmap(s, tm)$ is called to compute $(tmap'', scope'')$. Moreover, $stmts\_tmap$ is recursively called on $((tmap'', scope''), ss', tm)$ to compute $(tmap', scope')$. 
+\item The procedure $\portstmap(pp, tm)$ constructs $tmap$ from the port declarations in $pp$. If $pp = input\ x: t\ pp'$, then it calls $\madeexplicit(t, (id(x), 0), tm)$ to construct $newt$. Moreover, it recursively calls $\portstmap(pp', tm)$ to obtain $tmap'$. Then it checks that $tmap'(id(x)) = \svnone$.  If it is the case, then the output $tmap$ is obtained by adding the pair $(id(x), (newt, \source))$ to $tmap'$. The case $pp = output\ x: t\ pp'$ is dealt with similarly, with $\source$ replaced by $\sink$. Furthermore, if $pp = \nil$, then the empty map $\sf emp$ is returned. 
+
+\item The procedure $\stmtstmap((tmap, scope), ss, tm)$ constructs $tmap$ from the statements in $ss$. If $ss = \nil$, then it simply returns $(tmap, scope)$. Otherwise, let $ss = s\ ss'$, where $s$ is a statement. Then it calls $\stmttmap(s, tm)$ to compute $(tmap'', scope'')$ from $s$ (see Figure~\ref{fig:stmts-tmap} for its definition). Finally, it recursively calls $\stmtstmap((tmap'', scope''), ss', tm)$ to compute the return value $(tmap', scope')$. 
 \end{itemize}
-Note that to avoid the tediousness, we omit some rules for $ports\_tmap$ and $stmts\_tmap$ in Fig.~\ref{fig:ports-stmts-tmap}.  For instance, if $tmap'(id(x)) = none$ in the rule {ports\_tmap: input} is changed to $tmap'(id(x)) \neq none$, then $ports\_tmap(pp, tm) = none$. Intuitively, we omit the rules corresponding to the abnormal situations where the result is $none$. 
+Similarly, to avoid the tediousness, we omit some rules for $\portstmap$ and $\stmtstmap$ in Fig.~\ref{fig:ports-stmts-tmap}.  For instance, if $tmap'(id(x)) \neq \svnone$ in the rule {\portstmap: input}, then $\portstmap(pp, tm) = \svnone$.
 
 \begin{figure}[htbp]
   \begin{gather*}
@@ -218,13 +214,22 @@ Note that to avoid the tediousness, we omit some rules for $ports\_tmap$ and $st
 %    {\seqq{stmts\_tmap((pmap, pmap), ss, tm) = (tmap, \_)}}
 %   \quad
 %   \\[1ex]
+    \infer[\portstmap: \nil]
+    {\seqq{\portstmap(pp, tm) = {\sf emp}}}
+    {
+    \begin{array}{c}
+    p p= \nil
+    \end{array}
+    }
+    \quad
+    \\[1ex]
     \infer[\portstmap: input]
     {\seqq{\portstmap(pp, tm) = tmap}}
     {
     \begin{array}{c}
     p p= input\ x: t\ pp' \wedge \madeexplicit(t, (id(x),0), tm) = newt \\
     \portstmap(pp', tm) = tmap' \wedge tmap'(id(x)) = \svnone \\
-    tmap = add((id(x), (newt, \source)), tmap')
+    tmap = \fadd((id(x), (newt, \source)), tmap')
     \end{array}
     }
     \quad
@@ -236,43 +241,61 @@ Note that to avoid the tediousness, we omit some rules for $ports\_tmap$ and $st
     \begin{array}{c}
     p p= output\ x: t\ pp' \wedge \madeexplicit(t, (id(x), 0), tm) = newt \\
     \portstmap(pp', tm) = tmap' \wedge tmap'(id(x)) = \svnone \\
-    tmap = add((id(x), (newt, \sink)),tmap')
+    tmap = \fadd((id(x), (newt, \sink)),tmap')
     \end{array}
     }    
     \quad
    \\[1ex]
+    \def\defaultHypSeparation{\hskip 10pt}
     \inferii[\stmtstmap: \nil]
     {\seqq{\stmtstmap((tmap, scope), ss, tm) = (tmap', scope')}}
     {\seqq{s s = \nil}}
     {\seqq{tmap' = tmap \wedge scope' = scope}}
     \quad
    \\[1ex]
-    \infer[\stmtstmap: $\neq$nil]
+    \infer[\stmtstmap: $\neq$\nil]
     {\seqq{\stmtstmap((tmap, scope), ss, tm) = (tmap', scope')}}
     {
     \begin{array}{c}
       ss = s\ ss' \\
-      (tmap'', scope'') = \stmtstmap(s, tm) \\
+      (tmap'', scope'') = \stmttmap(s, tm) \\
       (tmap', scope') = \stmtstmap((tmap'', scope''), ss', tm)
     \end{array}
     }
   \end{gather*}
 %  \vspace{-4mm}
-  \caption{$\portstmap$ and $\stmtstmap$}
+  \caption{The procedures $\portstmap$ and $\stmtstmap$}
   \label{fig:ports-stmts-tmap}
 \end{figure}
 
-
 \zhilin{stopped here}
 
+skip: simply return the input 
+
+connect: check the scope
+
+invalid: check the scope
+
+wire: call madeexplicit, add a pair to both tmap and scope, with orientation duplex
+
+node: typeofexp(e) neq none, add a pair to tmap and scope, with orientation source
+
+reg: reg x: t clk rsig rval: check clk, rsig, rval are well scoped, madeexplicit(t, tm) to compute newt, add a pair to tmap and scope, with orientation duplex
+async: typeofexp(rsig) = (ground, asyncreset)
+sync: typeofexp(rsig) = (ground, uint<1>)
+
+when: tmap is updated, but scope is not changed
+
+whether reset can be matched to (UIntImp, 1) ?
 
 
-\begin{table}[htbp]
-  \small
+
+\begin{figure}[htbp]
   \begin{gather*}
-    \inferii[stmt\_tmap: skip]
-    {\seqq{stmt\_tmap((tmap, scope), s, tm) = (tmap', scope')}}
-    {\seqq{s = skip}}
+    \def\defaultHypSeparation{\hskip 10pt}
+    \inferii[\stmttmap: skip]
+    {\seqq{\stmttmap((tmap, scope), s, tm) = (tmap', scope')}}
+    {\seqq{s = \mbox{skip}}}
     {\seqq{tmap' = tmap \wedge scope' = scope}}
    \quad
    \\[1ex]
@@ -286,13 +309,18 @@ Note that to avoid the tediousness, we omit some rules for $ports\_tmap$ and $st
 %    }
 %   \quad
 %   \\[1ex]
-    \infer[stmt\_tmap: connect]
-    {\seqq{stmt\_tmap((tmap, scope), s, tm) = (tmap', scope')}}
+%    \def\defaultHypSeparation{\hskip 5pt}
+    \inferii[\stmttmap: connect]
+    {\seqq{\stmttmap((tmap, scope), s, tm) = (tmap', scope')}}
     {
     \begin{array}{c}
-      s = r <= e \\
-      type\_of\_ref(r, scope) \neq none  \\
-      type\_of\_exp(e, scope) \neq none \\ 
+      s = r <= e
+     \end{array}
+    }
+    {
+    \begin{array}{c}
+      \typeofref(r, scope) \neq \svnone\ \wedge  \\
+      \typeofexp(e, scope) \neq \svnone\ \wedge \\ 
       (tmap', scope') = (tmap, scope)
      \end{array}
     }
@@ -307,12 +335,16 @@ Note that to avoid the tediousness, we omit some rules for $ports\_tmap$ and $st
 %    }
 %   \quad
 %   \\[1ex]
-    \infer[stmt\_tmap: invalid]
-    {\seqq{stmt\_tmap((tmap, scope), s, tm) = (tmap', scope')}}
+    \inferii[\stmttmap: invalid]
+    {\seqq{\stmttmap((tmap, scope), s, tm) = (tmap', scope')}}
     {
     \begin{array}{c}
       s = r \mbox{ is invalid} \\
-      type\_of\_ref(r, scope) \neq none \\
+     \end{array}
+    }
+    {
+    \begin{array}{c}
+      \typeofref(r, scope) \neq \svnone\ \wedge \\
       (tmap', scope') = (tmap, scope)
      \end{array}
     }
@@ -328,14 +360,17 @@ Note that to avoid the tediousness, we omit some rules for $ports\_tmap$ and $st
 %    }
 %   \quad
 %   \\[1ex]
-    \infer[stmt\_tmap: wire]
-    {\seqq{stmt\_tmap((tmap, scope), s, tm) = (tmap', scope')}}
+    \inferii[\stmttmap: wire]
+    {\seqq{\stmttmap((tmap, scope), s, tm) = (tmap', scope')}}
+    {      
+    \seqq{s = \mbox{wire } x: t} 
+    }
     {
     \begin{array}{c}
-      s = \mbox{wire } x: t \wedge tmap(id(x)) = none  \\
-      made\_explicit(t, (id(x),0), tm) = (newt, \_) \\
-      tmap' = add((id(x), (newt, \duplex)), tmap) \\
-      scope' = add((id(x), (newt, \duplex)), scope)
+      tmap(id(x)) = \svnone\  \wedge  \\
+      \madeexplicit(t, (id(x),0), tm) = newt\ \wedge \\
+      tmap' = \fadd((id(x), (newt, \duplex)), tmap)\ \wedge \\
+      scope' = \fadd((id(x), (newt, \duplex)), scope)
      \end{array}
     }
    \quad
@@ -350,64 +385,64 @@ Note that to avoid the tediousness, we omit some rules for $ports\_tmap$ and $st
 %    }
 %   \quad
 %   \\[1ex]
-    \infer[stmt\_tmap: node]
-    {\seqq{stmt\_tmap((tmap, scope), s, tm) = (tmap', scope')}}
+    \inferii[\stmttmap: node]
+    {\seqq{\stmttmap((tmap, scope), s, tm) = (tmap', scope')}}
+    {\seqq{s = \mbox{node }} }
     {
     \begin{array}{c}
-      s = \mbox{node } x = e \wedge tmap(id(x)) = none  \\
-      type\_of\_exp(e, scope) = newt \\
-      tmap' = add((id(x), (newt, \source)), tmap) \\
-      scope' = add((id(x), (newt, \source)), scope)
+      tmap(id(x)) = \svnone  \wedge \typeofexp(e, scope) = newt\ \wedge \\
+      tmap' = \fadd((id(x), (newt, \source)), tmap)\ \wedge \\
+      scope' = \fadd((id(x), (newt, \source)), scope)
      \end{array}
     }
    \quad
    \\[1ex]
-    \infer[stmt\_tmap: register-asyncreset]
-    {\seqq{stmt\_tmap((tmap, scope), s, tm) = (tmap', scope')}}
+    \infer[\stmttmap: register-asyncreset]
+    {\seqq{\stmttmap((tmap, scope), s, tm) = (tmap', scope')}}
     {
     \begin{array}{c}
       s = \mbox{reg } x: t \ clk \mbox{ with: reset =>} (rsig, rval)  \\
-      tmap(id(x)) = none \wedge type\_of\_exp(clk, scope) \neq none  \\
-      made\_explicit(t, (id(x),0), tm) = newt \\
-      type\_of\_exp(rsig, scope) = (ground, AsyncReset) \\
-      type\_of\_exp(rval, scope) \neq none \\
-      tmap' = add((id(x), (newt, \duplex)), tmap) \\
-      scope' = add((id(x), (newt, \duplex)), scope)
+      tmap(id(x)) = \svnone \wedge \typeofexp(clk, scope) \neq \svnone  \\
+      \madeexplicit(t, (id(x),0), tm) = newt \\
+      \typeofexp(rsig, scope) = (\gtype, \asyncreset) \\
+      \typeofexp(rval, scope) \neq \svnone \\
+      tmap' = \fadd((id(x), (newt, \duplex)), tmap) \\
+      scope' = \fadd((id(x), (newt, \duplex)), scope)
      \end{array}
     }
    \quad
    \\[1ex]
-    \infer[stmt\_tmap: register-reset]
-    {\seqq{stmt\_tmap((tmap, scope), s, tm) = (tmap', scope')}}
+    \infer[\stmttmap: register-reset]
+    {\seqq{\stmttmap((tmap, scope), s, tm) = (tmap', scope')}}
     {
     \begin{array}{c}
       s = \mbox{reg } x: t \ clk \mbox{ with: reset =>} (rsig, rval)  \\
-      tmap(id(x)) = none \wedge type\_of\_exp(clk, scope) \neq none  \\
-      made\_explicit(t, (id(x),0), tm) = newt \\
-      type\_of\_exp(rsig, scope) = (ground, (UInt, 1)) \\
-      scope' = add((id(x), (newt, \duplex)), scope) \\
-      type\_of\_exp(rval, scope') \neq none \\
-      tmap' = add((id(x), (newt, \duplex)), tmap)
+      tmap(id(x)) = \svnone \wedge \typeofexp(clk, scope) \neq \svnone  \\
+      \madeexplicit(t, (id(x),0), tm) = newt \\
+      \typeofexp(rsig, scope) = (\gtype, (\uint, 1)) \\
+      scope' = \fadd((id(x), (newt, \duplex)), scope) \\
+      \typeofexp(rval, scope') \neq \svnone \\
+      tmap' = \fadd((id(x), (newt, \duplex)), tmap)
      \end{array}
     }
    \quad
    \\[1ex]
-   \infer[stmt\_tmap: when]
-    {\seqq{stmt\_tmap((tmap, scope), s, tm) = (tmap', scope')}}
+   \inferii[\stmttmap: when]
+    {\seqq{\stmttmap((tmap, scope), s, tm) = (tmap', scope')}}
+    {\seqq{s = \mbox{when } c: sst \mbox{ else }: ssf }}
     {
     \begin{array}{c}
-      s = \mbox{when } c: sst \mbox{ else }: ssf  \\
-      type\_of\_exp(e, scope) \neq none \\
-      stmts\_tmap((tmap, scope), sst, tm) = (tmapt, \_) \\
-      stmts\_tmap((tmapt, scope), ssf, tm) = (tmapf, \_) \\
+      \typeofexp(e, scope) \neq \svnone \\
+      \stmtstmap((tmap, scope), sst, tm) = (tmapt, \_) \\
+      \stmtstmap((tmapt, scope), ssf, tm) = (tmapf, \_) \\
       tmap' = tmapf \wedge scope' = scope
      \end{array}
     }
   \end{gather*}
 %  \vspace{-4mm}
-  \caption{$stmt\_tmap$}
-  \label{tab:stmts-tmap}
-\end{table}
+  \caption{The procedure $\stmttmap$}
+  \label{fig:stmts-tmap}
+\end{figure}
 
 
 
