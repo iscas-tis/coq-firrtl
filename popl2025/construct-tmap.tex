@@ -65,8 +65,6 @@ The function $\madeexplicitfields(\vec{f}, id, tm)$ recursively computes the out
 
 Note that the rules in Fig.~\ref{fig:made-explicit} are chosen to be incomplete in purpose to avoid the tediousness. For instance, in the rule {\madeexplicit: \vtype}, if the $n$ ground-type sequences in $tm$ corresponding to the $n$ copies of $t'$ are not equal, then $\madeexplicit$ returns the special value $\svnone$. 
 
-\zhilin{explain two rules: vector and bundle}
-
 \begin{figure}[htbp]
   \begin{gather*}
     \inferiii[\madeexplicit: \gtype]
@@ -199,6 +197,9 @@ The mapping $tmap$ is constructed by the procedure $\portsstmtstmap(pp, ss, tm)$
 \end{tabular}
 %\label{fig:example}
 \end{figure*}
+
+\zhilin{stopped here}
+
 
 The procedures $\portstmap(pp, tm)$ and $\stmtstmap((pmap, pmap), ss, tm)$ are defined by the rules in Fig.~\ref{fig:ports-stmts-tmap}.
 To help the readers understand these rules, let us explain the rules {\portstmap: input} and {\stmtstmap: $\neq$\nil}. 
