@@ -1,6 +1,6 @@
 %!TEX root = main.tex
 
-Recall that $M$ comprises a pair $(pp, ss)$, where $pp$ is a sequence of port declarations and $ss$ is a sequence of statements. 
+Recall that $M$ comprises a pair $(pp, ss)$, where $pp$ (resp.\ $ss$) is a sequence of port declarations (resp. statements). 
 Our goal is to %construct from %the type mapping 
 %$tm$ and $M$ 
 define a mapping $tmap: \range{id}\rightarrow\ftypes \times \{\duplex, \source, \sink\}$. %that records the typing information for the components in $M$. 
@@ -8,8 +8,7 @@ define a mapping $tmap: \range{id}\rightarrow\ftypes \times \{\duplex, \source, 
 %In the sequel, we shall explain how to tackle this mismatch in the construction of $tmap$. 
 %
 %We shall construct a function $tmap$ from $\range{id}$ to $\ftypes \times \{\duplex, \source, \sink\}$, where 
-Here, in addition to the typing information, the \emph{orientation} of components is also specified. 
-There are three types of orientations, i.e., \duplex, \source, and \sink. %The orientations are related to the connect statements. 
+Note that, in addition to the typing information, the \emph{orientation} of components (i.e., \duplex, \source, and \sink) is also specified.   %The orientations are related to the connect statements. 
 %In each connect statement $r <= e$ where $r$ is a reference, its orientation should be {\duplex} or \sink.
 %The rational behind 
 The orientation of components and references is defined as follows.  
@@ -22,21 +21,25 @@ The orientation of components and references is defined as follows.
 \end{itemize}   
 
 %To tackle the mismatch between $tm$ and $tmap$, 
-To make the bit width in $tm$ explicit, we introduce a function $\madeexplicit$ (see Fig.~\ref{fig:made-explicit}), which takes three arguments $(ft, id, tm)$ where $ft \in \ftypes$, $id \in \gidset_M$ and $tm$ is a type mapping, and %Intuitively, $\madeexplicit$ utilizes $id$ and $tm$ to determine 
+To make the bit width %in $tm$ 
+explicit, we introduce a function $\madeexplicit$ (see Fig.~\ref{fig:made-explicit}), which takes three arguments $(ft, id, tm)$ where $ft \in \ftypes$, $id \in \gidset_M$ and $tm$ is a type mapping, and %Intuitively, $\madeexplicit$ utilizes $id$ and $tm$ to determine 
 prescribes the bit widths in $ft$. 
-
+%
 % (i.e. the widths for the ground types $(\uintimp, 0)$ and $(\sintimp, 0)$), resulting in a new type $newt$ where all the widths are explicit (i.e. non-zero). 
-
+%
 To this end, $\madeexplicit$ uses a function $\sizeofftype:\ftypes\rightarrow \nat$ to calculate the number of ground types included in a type or a sequence of fields. %(see Fig.~\ref{fig:size-list-ftype-fields} for its definition) 
 Formally, $\sizeofftype$ is recursively defined as follows. 
 \tl{to see how to improve this}. 
 %
 \begin{align*}
-    \sizeoffields (\nil) & = 0 \\
-	\sizeofftype ((\gtype, gt)) & =1\\
+   	\sizeofftype ((\gtype, gt)) & =1\\
 	\sizeofftype ((\vtype, t'[m])) & =  \sizeofftype(t')*m\\
-	\sizeofftype ((\btype, \vec{f})) & =  \sizeoffields(\vec{f})\\
-	\sizeoffields((\_, \_, t')\ \vec{f}') & = \sizeofftype(t')+ \sizeoffields(\vec{f}') 
+	\sizeofftype ((\btype, (\_, \_, t_1), \cdots, (\_, \_, t_n))) & = \sum_{i=1}^n\sizeofftype(t_i)
+%	
+%	\sizeofftype ((\btype, \vec{f})) & =  \sizeoffields(\vec{f})\\
+%	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%	 \sizeoffields (\nil) & = 0 \\
+%	\sizeoffields((\_, \_, t')\ \vec{f}') & = \sizeofftype(t')+ \sizeoffields(\vec{f}') 
 \end{align*}
 
 %It also calls a function $\typeeq$ to check the equivalence between two ground types, one from $M$ and the other one from $tm$. For instance, in $\typeeq$, two types $(\uintimp, n_1)$ and $(\uintimp, n_2)$ are equivalent regardless of $n_1$ and  $n_2$, and the (abstract) $\reset$ type from $M$ is equivalent to both $(\uint, 1)$ and $\asyncreset$ from $tm$. (Note that according to the syntax of {\lofirrtl} in Fig.~\ref{fig-lofirrtl-synt}, the $\reset$ type does not appear in {\lofirrtl}. )
