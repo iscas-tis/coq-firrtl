@@ -29,9 +29,9 @@ Formally, $\sizeofftype$ is recursively defined as follows.
 \begin{align*}
 	\sizeofftype ((\gtype, gt)) & =1\\
 	\sizeofftype ((\vtype, t'[m])) & =  \sizeofftype(t')*m\\
-	\sizeofftype ((\btype, \vec{f})) & =  \sizeofftype(\vec{f})\\
-	\sizeofftype (\nil) & = 0 \\
-	\sizeofftype((\_, \_, t')\ \vec{f}') & = \sizeofftype(t')+ \sizeofftype(\vec{f}') 
+	\sizeofftype ((\btype, \vec{f})) & =  \sizeoffields(\vec{f})\\
+	\sizeoffields (\nil) & = 0 \\
+	\sizeoffields((\_, \_, t')\ \vec{f}') & = \sizeofftype(t')+ \sizeoffields(\vec{f}') 
 \end{align*}
 
 %It also calls a function $\typeeq$ to check the equivalence between two ground types, one from $M$ and the other one from $tm$. For instance, in $\typeeq$, two types $(\uintimp, n_1)$ and $(\uintimp, n_2)$ are equivalent regardless of $n_1$ and  $n_2$, and the (abstract) $\reset$ type from $M$ is equivalent to both $(\uint, 1)$ and $\asyncreset$ from $tm$. (Note that according to the syntax of {\lofirrtl} in Fig.~\ref{fig-lofirrtl-synt}, the $\reset$ type does not appear in {\lofirrtl}. )
@@ -52,8 +52,17 @@ We also define a relation $\typeeq$ to specify the equivalence between two groun
 It is easy to observe that $\typeeq$ is not symmetric, thus not an equivalence relation.  As a result, the aforementioned  ``equivalence'' in $\typeeq$ is just an intuitive way of saying the compatibility between the two ground types,  
 Note that in $\typeeq$, two types $(\uintimp, n_1)$ and $(\uintimp, n_2)$ are equivalent regardless of $n_1$ and  $n_2$. Moreover, the (abstract) $\reset$ type from $M$ is equivalent to both $(\uint, 1)$ and $\asyncreset$ from $tm$. (Recall that the $\reset$ type does not appear in {\lofirrtl} according to the syntax of {\lofirrtl} in Fig.~\ref{fig-lofirrtl-synt}.)
 
+The function $\madeexplicit(ft, id, tm)$ are defined by the rules in Fig.~\ref{fig:made-explicit}. 
+\begin{itemize}
+\item The rule {\madeexplicit: \gtype} deals with the case $ft = (\gtype, gt)$. In this case, $\madeexplicit$ simply returns the ground type in $tm(id)$. 
+%
+\item The rule {\madeexplicit: \vtype} deals with the case $ft = (\vtype, t[n])$. In this case, $\madeexplicit$ first computes $t' = \madeexplicit(t, id, tm)$, then returns $t'[n]$. Moreover, it checks that in $vm$, the $n$ ground-type sequences in $tm$ corresponding to the $n$ copies of $t'$ are all equal, that is, let $id = (v,m)$ and $sz = \sizeofftype(t')$, then $(tm(v, m+0), \ldots, tm(v, m+sz-1)) = (tm(v, m+sz), \ldots, tm(v, m+2sz-1)) = \cdots = (tm(v, m+(n-1)sz), \ldots, tm(v, m+nsz-1))$. 
+%
+\item The rule {\madeexplicit: \btype} deals with the case $ft = (\btype, \vec{f})$. In this case, $\madeexplicit$ calls $\madeexplicitfields(\vec{f}, id, tm)$ and returns its output.  
+\end{itemize}
+The function $\madeexplicitfields(\vec{f}, id, tm)$ recursively computes the output as follows. If $\vec{f} = \nil$, then it returns $(\btype, \nil)$. Otherwise, let $\vec{f} = (x, b, t)\ \myvec{f'}$. Then it calls $\madeexplicit(t, id, tm)$ to get $t'$ and recursively calls $\madeexplicitfields(\myvec{f'}, id, tm)$ to get $\myvec{f''}$. Finally, it returns $newt = (x, b, t')\ \myvec{f''}$. 
 
-
+Note that the rules in Fig.~\ref{fig:made-explicit} are chosen to be incomplete in purpose to avoid the tediousness. For instance, in the rule {\madeexplicit: \vtype}, if the $n$ ground-type sequences in $tm$ corresponding to the $n$ copies of $t'$ are not equal, then $\madeexplicit$ returns the special value $\svnone$. 
 
 \zhilin{explain two rules: vector and bundle}
 
