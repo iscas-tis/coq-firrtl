@@ -1,17 +1,18 @@
 %!TEX root = main.tex
 
-Let us assume that $M$ comprises a pair $(pp, ss)$, where $pp$ is a sequence of port declarations and $ss$ is a sequence of statements. 
-Our goal is to construct from %the type mapping 
-$tm$ and $M$ a mapping $tmap: \range{id}\rightarrow\ftypes \times \{\duplex, \source, \sink\}$. %that records the typing information for the components in $M$. 
+Recall that $M$ comprises a pair $(pp, ss)$, where $pp$ is a sequence of port declarations and $ss$ is a sequence of statements. 
+Our goal is to %construct from %the type mapping 
+%$tm$ and $M$ 
+define a mapping $tmap: \range{id}\rightarrow\ftypes \times \{\duplex, \source, \sink\}$. %that records the typing information for the components in $M$. 
 %Nevertheless, there is a mismatch between the types in $tm$ and those in $tmap$: While the types in $tm$ are from $\gtypes$, the types in $tmap$ are from $\ftypes$. 
 %In the sequel, we shall explain how to tackle this mismatch in the construction of $tmap$. 
 %
 %We shall construct a function $tmap$ from $\range{id}$ to $\ftypes \times \{\duplex, \source, \sink\}$, where 
 Here, in addition to the typing information, the \emph{orientation} of components is also specified. 
 There are three types of orientations, i.e., \duplex, \source, and \sink. %The orientations are related to the connect statements. 
-In each connect statement $r <= e$, $r$ is a reference and its orientation should be {\duplex} or \sink.
+%In each connect statement $r <= e$ where $r$ is a reference, its orientation should be {\duplex} or \sink.
 %The rational behind 
-The orientations of components and references in $M$ are, 
+The orientation of components and references is defined as follows.  
 \begin{itemize}
 \item the orientations of wires and registers are $\duplex$, 
 \item the orientations of inputs and nodes are \source, 
@@ -20,24 +21,28 @@ The orientations of components and references in $M$ are,
 \item the orientation of a reference $x.f$ (where $f$ is a field) is  determined from the orientation of $x$ and the flipping status of the field $f$.  
 \end{itemize}   
 
-To tackle the mismatch between $tm$ and $tmap$, we introduce a function $\madeexplicit$ (see Fig.~\ref{fig:made-explicit}). $\madeexplicit$ takes three arguments $(ft, id, tm)$, where $ft \in \ftypes$, $id \in \gidset_M$, and $tm$ is a type mapping and %Intuitively, $\madeexplicit$ utilizes $id$ and $tm$ to determine 
-prescribes the bit widths in $ft$ (i.e. the widths for the ground types $(\uintimp, 0)$ and $(\sintimp, 0)$), resulting in a new type $newt$ where all the widths are explicit (i.e. non-zero). 
+%To tackle the mismatch between $tm$ and $tmap$, 
+To make the bit width in $tm$ explicit, we introduce a function $\madeexplicit$ (see Fig.~\ref{fig:made-explicit}), which takes three arguments $(ft, id, tm)$ where $ft \in \ftypes$, $id \in \gidset_M$ and $tm$ is a type mapping, and %Intuitively, $\madeexplicit$ utilizes $id$ and $tm$ to determine 
+prescribes the bit widths in $ft$. 
 
-To this end, $\madeexplicit$ uses a function $\sizeofftype$ to calculate the number of ground types included in a type or a sequence of fields. %(see Fig.~\ref{fig:size-list-ftype-fields} for its definition) 
+% (i.e. the widths for the ground types $(\uintimp, 0)$ and $(\sintimp, 0)$), resulting in a new type $newt$ where all the widths are explicit (i.e. non-zero). 
+
+To this end, $\madeexplicit$ uses a function $\sizeofftype:\ftypes\rightarrow \nat$ to calculate the number of ground types included in a type or a sequence of fields. %(see Fig.~\ref{fig:size-list-ftype-fields} for its definition) 
 Formally, $\sizeofftype$ is recursively defined as follows. 
 \tl{to see how to improve this}. 
 %
 \begin{align*}
+    \sizeoffields (\nil) & = 0 \\
 	\sizeofftype ((\gtype, gt)) & =1\\
 	\sizeofftype ((\vtype, t'[m])) & =  \sizeofftype(t')*m\\
 	\sizeofftype ((\btype, \vec{f})) & =  \sizeoffields(\vec{f})\\
-	\sizeoffields (\nil) & = 0 \\
 	\sizeoffields((\_, \_, t')\ \vec{f}') & = \sizeofftype(t')+ \sizeoffields(\vec{f}') 
 \end{align*}
 
 %It also calls a function $\typeeq$ to check the equivalence between two ground types, one from $M$ and the other one from $tm$. For instance, in $\typeeq$, two types $(\uintimp, n_1)$ and $(\uintimp, n_2)$ are equivalent regardless of $n_1$ and  $n_2$, and the (abstract) $\reset$ type from $M$ is equivalent to both $(\uint, 1)$ and $\asyncreset$ from $tm$. (Note that according to the syntax of {\lofirrtl} in Fig.~\ref{fig-lofirrtl-synt}, the $\reset$ type does not appear in {\lofirrtl}. )
 
-We also define a relation $\typeeq$ to specify the equivalence between two ground types, one from $M$ and the other one from $tm$. Namely, 
+We also define a relation $\typeeq\subseteq \gtypes\times \gtypes$ to %specify the equivalence between two 
+equate some ground types, i.e., %one from $M$ and the other one from $tm$. Namely, 
 %
 \[
 \begin{array}{l c l}
@@ -46,11 +51,14 @@ We also define a relation $\typeeq$ to specify the equivalence between two groun
 %		
 && \{((\sintimp, n_1), (\sintimp, n_2)) \mid n_1, n_2 \in \Nat\}\ \cup  \\
 %		
-&&  \{(\clock, \clock)\} \cup \{(\reset, (\uint, 1)), (\reset,\asyncreset)\}\ \cup \\
-& & \{(\asyncreset,\asyncreset)\}.
+&&  %\{ (\clock, \clock)\} 
+  \{(\reset, (\uint, 1)), (\reset,\asyncreset)\} 
+%& & \{(\asyncreset,\asyncreset)\}.
 \end{array}
 \]   
-It is easy to observe that $\typeeq$ is not symmetric, thus not an equivalence relation.  As a result, the aforementioned  ``equivalence'' in $\typeeq$ is just an intuitive way of saying the compatibility between the two ground types,  
+(Note that $\typeeq$ contains identity relation which we omit.)
+
+%It is easy to observe that $\typeeq$ is not symmetric, thus not an equivalence relation.  As a result, the aforementioned  ``equivalence'' in $\typeeq$ is just an intuitive way of saying the compatibility between the two ground types,  
 Note that in $\typeeq$, two types $(\uintimp, n_1)$ and $(\uintimp, n_2)$ are equivalent regardless of $n_1$ and  $n_2$. Moreover, the (abstract) $\reset$ type from $M$ is equivalent to both $(\uint, 1)$ and $\asyncreset$ from $tm$. (Recall that the $\reset$ type does not appear in {\lofirrtl} according to the syntax of {\lofirrtl} in Fig.~\ref{fig-lofirrtl-synt}.)
 
 The function $\madeexplicit(ft, id, tm)$ are defined by the rules in Fig.~\ref{fig:made-explicit}. 
@@ -63,7 +71,7 @@ The function $\madeexplicit(ft, id, tm)$ are defined by the rules in Fig.~\ref{f
 \end{itemize}
 The function $\madeexplicitfields(\vec{f}, id, tm)$ recursively computes the output as follows. If $\vec{f} = \nil$, then it returns $(\btype, \nil)$. Otherwise, let $\vec{f} = (x, b, t)\ \myvec{f'}$. Then it calls $\madeexplicit(t, id, tm)$ to get $t'$ and recursively calls $\madeexplicitfields(\myvec{f'}, id, tm)$ to get $\myvec{f''}$. Finally, it returns $newt = (x, b, t')\ \myvec{f''}$. 
 
-Note that the rules in Fig.~\ref{fig:made-explicit} are chosen to be incomplete in purpose to avoid the tediousness. For instance, in the rule {\madeexplicit: \vtype}, if the $n$ ground-type sequences in $tm$ corresponding to the $n$ copies of $t'$ are not equal, then $\madeexplicit$ returns the special value $\svnone$. 
+\tl{rewrite} Note that the rules in Fig.~\ref{fig:made-explicit} are chosen to be incomplete in purpose to avoid the tediousness. For instance, in the rule {\madeexplicit: \vtype}, if the $n$ ground-type sequences in $tm$ corresponding to the $n$ copies of $t'$ are not equal, then $\madeexplicit$ returns the special value $\svnone$. 
 
 \begin{figure}[htbp]
   \begin{gather*}
@@ -140,7 +148,7 @@ Note that the rules in Fig.~\ref{fig:made-explicit} are chosen to be incomplete 
     \end{array}
     }
   \end{gather*}
-  \caption{The procedures \madeexplicit and  \madeexplicitfields}
+  \caption{The procedures {\madeexplicit} and  {\madeexplicitfields}}
   \label{fig:made-explicit}
 \end{figure}
  
@@ -179,10 +187,77 @@ Note that the rules in Fig.~\ref{fig:made-explicit} are chosen to be incomplete 
 %  \label{fig:size-list-ftype-fields}
 %\end{figure}
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-The mapping $tmap$ is constructed by the procedure $\portsstmtstmap(pp, ss, tm)$, which calls the procedure $\portstmap(pp, tm)$ to compute $pmap$, then calls $\stmtstmap((pmap, pmap), ss, tm)$ to get $tmap$ (see Figure~\ref{fig:ports-stmts-tmap}). Intuitively, $\portstmap(pp, tm)$ constructs a mapping from the port declarations $pp$ and $tm$, and $\stmtstmap((pmap, pmap), ss, tm)$ constructs a pair $(tmap, scope)$ from $(pmap, pmap)$, the statement sequence $ss$, and $tm$. Note that $scope$ is introduced to check that the component references in $ss$ do not violate the scoping constraints brought upon by the \prettyll{when} statements in it. For instance, in the following {\hifirrtl} program, there is a scoping error, since $z$ is declared in the scope of the \prettyll{when} statement, but it is referred outside it (Line 7). 
-\begin{figure*}[h]
-\centering
+\begin{figure}[htbp]
+	\begin{gather*}
+		%    \inferii
+		%    {\seqq{ports\_stmts\_tmap(pp, ss, tm) = tmap}}
+		%    {\seqq{ports\_tmap(pp, tm) = pmap}}
+		%    {\seqq{stmts\_tmap((pmap, pmap), ss, tm) = (tmap, \_)}}
+		%   \quad
+		%   \\[1ex]
+		\infer[\portstmap: \nil]
+		{\seqq{\portstmap(pp, tm) = {\sf emp}}}
+		{
+			\begin{array}{c}
+				p p= \nil
+			\end{array}
+		}
+		\quad
+		\\[1ex]
+		\infer[\portstmap: input]
+		{\seqq{\portstmap(pp, tm) = tmap}}
+		{
+			\begin{array}{c}
+				p p= input\ x: t\ pp' \wedge \madeexplicit(t, (id(x),0), tm) = newt \\
+				\portstmap(pp', tm) = tmap' \wedge tmap'(id(x)) = \svnone \\
+				tmap = \fadd((id(x), (newt, \source)), tmap')
+			\end{array}
+		}
+		\quad
+		\\[1ex]
+		%
+		\infer[\portstmap: output]
+		{\seqq{\portstmap(pp, tm) = tmap}}
+		{
+			\begin{array}{c}
+				p p= output\ x: t\ pp' \wedge \madeexplicit(t, (id(x), 0), tm) = newt \\
+				\portstmap(pp', tm) = tmap' \wedge tmap'(id(x)) = \svnone \\
+				tmap = \fadd((id(x), (newt, \sink)),tmap')
+			\end{array}
+		}    
+		\quad
+		\\[1ex]
+		\def\defaultHypSeparation{\hskip 10pt}
+		\inferii[\stmtstmap: \nil]
+		{\seqq{\stmtstmap((tmap, scope), ss, tm) = (tmap', scope')}}
+		{\seqq{s s = \nil}}
+		{\seqq{tmap' = tmap \wedge scope' = scope}}
+		\quad
+		\\[1ex]
+		\infer[\stmtstmap: $\neq$\nil]
+		{\seqq{\stmtstmap((tmap, scope), ss, tm) = (tmap', scope')}}
+		{
+			\begin{array}{c}
+				ss = s\ ss' \\
+				(tmap'', scope'') = \stmttmap(s, tm) \\
+				(tmap', scope') = \stmtstmap((tmap'', scope''), ss', tm)
+			\end{array}
+		}
+	\end{gather*}
+	%  \vspace{-4mm}
+	\caption{The procedures $\portstmap$ and $\stmtstmap$}
+	\label{fig:ports-stmts-tmap}
+\end{figure}
+
+The mapping $tmap$ is defined by the procedure $\portsstmtstmap(pp, ss, tm)$, which calls the procedure $\portstmap(pp, tm)$ to compute $pmap$, then calls $\stmtstmap((pmap, pmap), ss, tm)$ to get $tmap$ (see Figure~\ref{fig:ports-stmts-tmap}). 
+%
+Intuitively, $\portstmap(pp, tm)$ constructs a mapping from the port declarations $pp$ and $tm$, and $\stmtstmap((pmap, pmap), ss, tm)$ constructs a pair $(tmap, scope)$ from $(pmap, pmap)$, 
+\begin{wrapfigure}{r}{0.4\textwidth} 
+%\centering
 \begin{tabular}{c}
 %[basicstyle=\footnotesize\ttfamily]
 \begin{lstlisting}
@@ -196,77 +271,19 @@ The mapping $tmap$ is constructed by the procedure $\portsstmtstmap(pp, ss, tm)$
 \end{lstlisting}
 \end{tabular}
 %\label{fig:example}
-\end{figure*}
-
-The procedures $\portstmap$ and $\stmtstmap$ are defined by the rules in Fig.~\ref{fig:ports-stmts-tmap}.
+\end{wrapfigure}
+the statement sequence $ss$, and $tm$. Note that $scope$ is introduced to check that the component references in $ss$ do not violate the scoping constraints brought upon by the \prettyll{when} statements in it. For instance, in the following {\hifirrtl} program, there is a scoping error, since $z$ is declared in the scope of the \prettyll{when} statement, but it is referred outside it (Line 7). 
+%
+%The procedures $\portstmap$ and $\stmtstmap$ are defined by the rules in Fig.~\ref{fig:ports-stmts-tmap}.
 \begin{itemize}
 \item The procedure $\portstmap(pp, tm)$ constructs $tmap$ from the port declarations in $pp$. If $pp = input\ x: t\ pp'$, then it calls $\madeexplicit(t, (id(x), 0), tm)$ to construct $newt$. Moreover, it recursively calls $\portstmap(pp', tm)$ to obtain $tmap'$. Then it checks that $tmap'(id(x)) = \svnone$.  If it is the case, then the output $tmap$ is obtained by adding the pair $(id(x), (newt, \source))$ to $tmap'$. The case $pp = output\ x: t\ pp'$ is dealt with similarly, with $\source$ replaced by $\sink$. Furthermore, if $pp = \nil$, then the empty map $\sf emp$ is returned. 
 
 \item The procedure $\stmtstmap((tmap, scope), ss, tm)$ constructs $tmap$ from the statements in $ss$. If $ss = \nil$, then it simply returns $(tmap, scope)$. Otherwise, let $ss = s\ ss'$, where $s$ is a statement. Then it calls $\stmttmap(s, tm)$ to compute $(tmap'', scope'')$ from a $s$ (see Figure~\ref{fig:stmts-tmap} for its definition). Finally, it recursively calls $\stmtstmap((tmap'', scope''), ss', tm)$ to compute the return value $(tmap', scope')$. 
 \end{itemize}
-Similarly, to avoid the tediousness, we omit some rules for $\portstmap$ and $\stmtstmap$ in Fig.~\ref{fig:ports-stmts-tmap}.  For instance, if $tmap'(id(x)) \neq \svnone$ in the rule {\portstmap: input}, then $\portstmap(pp, tm) = \svnone$.
 
-\begin{figure}[htbp]
-  \begin{gather*}
-%    \inferii
-%    {\seqq{ports\_stmts\_tmap(pp, ss, tm) = tmap}}
-%    {\seqq{ports\_tmap(pp, tm) = pmap}}
-%    {\seqq{stmts\_tmap((pmap, pmap), ss, tm) = (tmap, \_)}}
-%   \quad
-%   \\[1ex]
-    \infer[\portstmap: \nil]
-    {\seqq{\portstmap(pp, tm) = {\sf emp}}}
-    {
-    \begin{array}{c}
-    p p= \nil
-    \end{array}
-    }
-    \quad
-    \\[1ex]
-    \infer[\portstmap: input]
-    {\seqq{\portstmap(pp, tm) = tmap}}
-    {
-    \begin{array}{c}
-    p p= input\ x: t\ pp' \wedge \madeexplicit(t, (id(x),0), tm) = newt \\
-    \portstmap(pp', tm) = tmap' \wedge tmap'(id(x)) = \svnone \\
-    tmap = \fadd((id(x), (newt, \source)), tmap')
-    \end{array}
-    }
-    \quad
-    \\[1ex]
-    %
-    \infer[\portstmap: output]
-    {\seqq{\portstmap(pp, tm) = tmap}}
-    {
-    \begin{array}{c}
-    p p= output\ x: t\ pp' \wedge \madeexplicit(t, (id(x), 0), tm) = newt \\
-    \portstmap(pp', tm) = tmap' \wedge tmap'(id(x)) = \svnone \\
-    tmap = \fadd((id(x), (newt, \sink)),tmap')
-    \end{array}
-    }    
-    \quad
-   \\[1ex]
-    \def\defaultHypSeparation{\hskip 10pt}
-    \inferii[\stmtstmap: \nil]
-    {\seqq{\stmtstmap((tmap, scope), ss, tm) = (tmap', scope')}}
-    {\seqq{s s = \nil}}
-    {\seqq{tmap' = tmap \wedge scope' = scope}}
-    \quad
-   \\[1ex]
-    \infer[\stmtstmap: $\neq$\nil]
-    {\seqq{\stmtstmap((tmap, scope), ss, tm) = (tmap', scope')}}
-    {
-    \begin{array}{c}
-      ss = s\ ss' \\
-      (tmap'', scope'') = \stmttmap(s, tm) \\
-      (tmap', scope') = \stmtstmap((tmap'', scope''), ss', tm)
-    \end{array}
-    }
-  \end{gather*}
-%  \vspace{-4mm}
-  \caption{The procedures $\portstmap$ and $\stmtstmap$}
-  \label{fig:ports-stmts-tmap}
-\end{figure}
+\tl{rewrite} Similarly, to avoid the tediousness, we omit some rules for $\portstmap$ and $\stmtstmap$ in Fig.~\ref{fig:ports-stmts-tmap}.  For instance, if $tmap'(id(x)) \neq \svnone$ in the rule {\portstmap: input}, then $\portstmap(pp, tm) = \svnone$.
+
+
 
 The procedure $\stmttmap$ is defined by the rules in Fig.~\ref{fig:stmts-tmap}. Let us explain the intuitions behind these rules for $\stmttmap$. 
 \begin{itemize}
