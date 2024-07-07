@@ -335,54 +335,53 @@ In the sequel, we present the rules for defining the semantics of statements. No
   \label{tab:type-compatible}
 \end{table}
 
-
-\begin{table}[htbp]
+\begin{figure}[htbp]
   \small
   \begin{gather*}
-   \inferii[type\_of\_ref: id]
-    {\seqq{type\_of\_ref(r, tmap) = (ft, ori)}}
+   \inferii[\typeofref: id]
+    {\seqq{\typeofref(r, tmap) = (ft, ori)}}
     {\seqq{r = x}} {\seqq{tmap(id(x)) = (ft, ori)}}
     \quad
     \\[1ex]
-   \inferiii[type\_of\_ref: vector-1]
-    {\seqq{type\_of\_ref(r, tmap) = (t, ori)}}
-    {\seqq{r = r'[n]}} {\seqq{type\_of\_ref(r', tmap) =  (t[m], ori)}} {\seqq{n < m}}
+   \inferiii[\typeofref: vector-1]
+    {\seqq{\typeofref(r, tmap) = (t, ori)}}
+    {\seqq{r = r'[n]}} {\seqq{\typeofref(r', tmap) =  (t[m], ori)}} {\seqq{n < m}}
     \quad
     \\[1ex]
-   \inferiii[type\_of\_ref: vector-2]
-    {\seqq{type\_of\_ref(r, tmap) = none}}
-    {\seqq{r = r'[n]}} {\seqq{type\_of\_ref(r', tmap) = (t[m], ori)}} {\seqq{n \ge m}}
+   \inferiii[\typeofref: vector-2]
+    {\seqq{\typeofref(r, tmap) = none}}
+    {\seqq{r = r'[n]}} {\seqq{\typeofref(r', tmap) = (t[m], ori)}} {\seqq{n \ge m}}
     \quad
     \\[1ex]
-   \infer[type\_of\_ref: field]
-    {\seqq{type\_of\_ref(r, tmap) = (ft, ori)}}
+   \infer[\typeofref: field]
+    {\seqq{\typeofref(r, tmap) = (ft, ori)}}
     {
     \begin{array}{c}
     r = r'.f \\
-    type\_of\_ref(r', tmap) = (ft', ori') \\
-    type\_of\_field(f, ft', ori') = (ft, ori)
+    \typeofref(r', tmap) = (ft', ori') \\
+    \typeoffield(f, ft', ori') = (ft, ori)
     \end{array}
     }
     \quad
 %    \seqq{r = r'.f}} {\seqq{type\_of\_ref(r', tmap) = (ft', ori')}} {\seqq{type\_of\_field(f, ft', ori') = (ft, ori)}}
     \\[1ex]
-   \infer[type\_of\_field]
-    {\seqq{type\_of\_field(f, ff, ori) = none}}
-    {\seqq{f f = nil}}
+   \infer[\typeoffield: \nil]
+    {\seqq{\typeoffield(f, ff, ori) = none}}
+    {\seqq{f f = \nil}}
     \quad
     \\[1ex]
-   \infer[type\_of\_field: neq]
-    {\seqq{type\_of\_field(f, ff, ori) = (ft, ori')}}
+   \infer[\typeoffield: neq]
+    {\seqq{\typeoffield(f, ff, ori) = (ft, ori')}}
     {
     \begin{array}{c}
     f f = (f', flipped, t, ff')\wedge f \neq f'\\
-    type\_of\_field(f, ff', ori) = (ft, ori')
+    \typeoffield(f, ff', ori) = (ft, ori')
     \end{array}
     }
     \quad
     \\[1ex]
-   \infer[type\_of\_field: eq-1]
-    {\seqq{type\_of\_field(f, ff, ori) = (t, ori)}}
+   \infer[\typeoffield: eq-1]
+    {\seqq{\typeoffield(f, ff, ori) = (t, ori)}}
     {
     \begin{array}{c}
     f f = (f', flipped, t, ff') \wedge f = f' \\
@@ -391,8 +390,8 @@ In the sequel, we present the rules for defining the semantics of statements. No
     }
     \quad
     \\[1ex]
-   \infer[type\_of\_field: eq-2]
-    {\seqq{type\_of\_field(f, ff, ori) = (t, \sink)}}
+   \infer[\typeoffield: eq-2]
+    {\seqq{\typeoffield(f, ff, ori) = (t, \sink)}}
     {
     \begin{array}{c}
     f f = (f', flipped, t, ff') \wedge f = f' \\
@@ -401,8 +400,8 @@ In the sequel, we present the rules for defining the semantics of statements. No
     }
     \quad
     \\[1ex]
-   \infer[type\_of\_field: eq-3]
-    {\seqq{type\_of\_field(f, ff, ori) = (t, \source)}}
+   \infer[\typeoffield: eq-3]
+    {\seqq{\typeoffield(f, ff, ori) = (t, \source)}}
     {
     \begin{array}{c}
     f f = (f', flipped, t, ff') \wedge f = f' \\
@@ -411,9 +410,10 @@ In the sequel, we present the rules for defining the semantics of statements. No
     }
   \end{gather*}
 %  \vspace{-4mm}
-  \caption{$type\_of\_ref$ and $type\_of\_field$}
-  \label{tab:type-expr-ref}
-\end{table}
+  \caption{The procedures $\typeofref$ and $\typeoffield$}
+  \label{fig:type-ref}
+\end{figure}
+
 
 \begin{table}[htbp]
   \small
