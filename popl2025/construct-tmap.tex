@@ -394,7 +394,7 @@ some (less important) rules for $\portstmap$ and $\stmtstmap$ are omitted in Fig
 		\quad
 		\\[1ex]
 		\inferii[\stmttmap: connect]
-		{\seqq{\stmttmap((tmap, scope), s, tm) = (tmap', scope')}}
+		{\seqq{\stmttmap((tmap, scope), s, tm) = (tmap, scope)}}
 		{
 			\begin{array}{c}
 				s = r <= e
@@ -403,8 +403,7 @@ some (less important) rules for $\portstmap$ and $\stmtstmap$ are omitted in Fig
 		{
 			\begin{array}{c}
 				\typeofexp(r, scope) \neq \svnone\ \wedge  \\
-				\typeofexp(e, scope) \neq \svnone\ \wedge \\ 
-				(tmap', scope') = (tmap, scope)
+				\typeofexp(e, scope) \neq \svnone 
 			\end{array}
 		}
 		\quad
@@ -419,29 +418,24 @@ some (less important) rules for $\portstmap$ and $\stmtstmap$ are omitted in Fig
 		%   \quad
 		%   \\[1ex]
 		\inferii[\stmttmap: invalid]
-		{\seqq{\stmttmap((tmap, scope), s, tm) = (tmap', scope')}}
+		{\seqq{\stmttmap((tmap, scope), s, tm) = (tmap, scope)}}
 		{
-			\begin{array}{c}
-				s = r \mbox{ is invalid} \\
-			\end{array}
+			s = r \mbox{ is invalid}   
 		}
 		{
-			\begin{array}{c}
-				\typeofexp(r, scope) \neq \svnone\ \wedge \\
-				(tmap', scope') = (tmap, scope)
-			\end{array}
+			\typeofexp(r, scope) \neq \svnone 
 		}
 		\quad
 		\\[1ex]
 		\inferii[\stmttmap: when]
-		{\seqq{\stmttmap((tmap, scope), s, tm) = (tmap', scope')}}
+		{\seqq{\stmttmap((tmap, scope), s, tm) = (tmap', scope)}}
 		{\seqq{s = \mbox{when } c\mbox{: } sst \mbox{ else: } ssf }}
 		{
 			\begin{array}{c}
 				\typeofexp(e, scope) \neq \svnone \\
 				\stmtstmap((tmap, scope), sst, tm) = (tmapt, \_) \\
 				\stmtstmap((tmapt, scope), ssf, tm) = (tmapf, \_) \\
-				tmap' = tmapf \wedge scope' = scope
+				tmap' = tmapf  
 			\end{array}
 		}
 	\end{gather*}
