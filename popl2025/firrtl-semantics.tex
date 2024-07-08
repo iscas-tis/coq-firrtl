@@ -52,43 +52,31 @@ We define %a module graph
 that $(tm, cm)$ conforms to $M$ (denoted by $(tm, cm)\models M$) 
 as follows. Intuitively, %is defined as follows: \tl{to see how to improve this.}
 \begin{itemize}
-	\item %At first, $vm$ is used to determine 
-	we first utilize $tm$ to determine all the bit widths of components of $M$ and build a mapping $tmap$ that records the typing information of the (not necessarily ground-type) components in $M$, moreover, during the construction of $tmap$, we check that the types in $tm$ and $M$ are compatible and the component references in $M$ are well-scoped with respect to its \prettyll{when} statements),
+\item %At first, $vm$ is used to determine 
+we first utilize $tm$ to determine all the bit-widths of the components in $M$ and build a mapping $tmap$ that records the typing information of the (not necessarily ground-type) components in $M$. During the construction of $tmap$, we check that the types in $tm$ and $M$ are compatible and the component references in $M$ are well-scoped with respect to its \prettyll{when} statements),
 	%
-	\item %to decide whether $(tm, cm) \models M$, 
-	we then utilize $tmap$, together with the statements in $M$,  
+\item %to decide whether $(tm, cm) \models M$, 
+	we then utilize $tmap$ %together with the statements in $M$,  
 	to construct a connection mapping $cm'$.
 	%moreover, during the construction of $(tm', cm')$,  
 \end{itemize}
 Clearly $(tm, cm) \models M$ if $tmap$ and $cm'$ are successfully constructed and $cm = cm'$. 
 
 The main technical difficulty %for defining $(tm, cm)\models M$ 
-arises from the gap between $(tm, cm)$ and $M$: while $(tm, cm)$ is low-level, $M$ is at high level which may contain aggregate types (e.g., vectors and bundles) as well as \prettyll{when} statements. As a result, %when checking $(tm, cm)\models M$, 
+arises from the gap between $(tm, cm)$ and $M$: while $(tm, cm)$ is of low-level, $M$ is at high level which may contain aggregate types (e.g., vectors and bundles) as well as \prettyll{when} statements. As a result, %when checking $(tm, cm)\models M$, 
 it is necessary to %bridge this gap, in particular, to 
-find a match between the ground types in $tm$ and aggregate types in $M$ and find a match between $cm$ and the connect statements in $M$ by expanding the \prettyll{when} statements in $M$.  
-
-%We shall represent {\lofirrtl} programs by a data structure called \emph{module graphs}. A module graph $G = (vm, ct)$ represents a module in {\hifirrtl} programs, where $vm$ records the typing information of ground-type components in the module and $cm$ records the connections between these components.  For a {\hifirrtl} module $M$, \emph{the semantics of $M$ is defined as the set of module graphs that conform to it}. Moreover, a module graph $G= (vm, ct)$ \emph{conforms to} a {\hifirrtl} module $M$ is defined as follows: 
-%\begin{itemize}
-%\item At first, $vm$ is used to determine the implicit bit widths in $M$ and build a type mapping $tmap$, which records the typing information for all the components in $M$, so that all the widths in it are explicit. (Note that the components of $M$ may not be of ground types. ) 
-%%
-%\item Then, to decide whether $(vm, ct)$ conforms to $M$, we utilize $tmap$ and the statements in $M$ to construct a module graph $G'$ from the empty module graph and finally check whether $G' = G$.
-%\end{itemize}
-
-
-
+find a match between the ground types in $tm$ and aggregate types in $M$, as well as a match between $cm$ and the connect statements in $M$, which requires ``expanding" the \prettyll{when} statements in $M$.  
+%
 %In the sequel, we first define the concept of module graphs, then show how to construct $tmap$ from $vm$ and $M$, as well as how to construct a module graph from the empty graph by using $tmap$ and $M$. 
-
-
+%
 %We fix ground types \clock and  \UInt{n} where $n$ is a positive integer. 
 %based on the discussion with zhilin, aggregate type is not needed. 
 %, and aggregate types consisting of vector type and bundle type. Typically, we write \UInt{n}. 
-
-
+%
 %Let us fix a LoFIRRTL circuit $A$ that is free of \prettyll{inst of} statements. According to the syntax of LoFIRRTL, the top-level module of the circuit must be module $A$.
- 
-
+%
 %A \emph{generalized connect statement} is a statement of the form $z <= e$ or $\mbox{\tt \prettyll{node}}\ z = e$, where $z$ and $e$ are called the \emph{head} and \emph{body} of the generalized connect statement, respectively. Intuitively, a generalized connect statement is either a connect statement $z <= e$ or a node-declaration statement $\mbox{\tt \prettyll{node}}\ z = e$.
-
+%
 %We denote by $\iports(A)$, $\oports(A)$, $\wires(A)$, $\nodes(A)$
 %and $\registers(A)$ the sets of input ports, output ports, wires, nodes and registers of a module $A$, respectively.
 %Furthermore, we use $\ports(A)$ to denote the set of ports $\iports(A) \uplus \oports(A)$,
@@ -97,9 +85,7 @@ find a match between the ground types in $tm$ and aggregate types in $M$ and fin
 %where a component $z$ is connected to via a generalized connect statement whose head is $z$.
 %Note that the input ports $\iports(A)$ are not connected to, moreover, the registers may not be connected to, thus they
 %are not included in $\ccpnts(A)$. (If a register is not connected to, then it keeps the current value.)
-
-
-In the rest of this section, we first show how to construct $tmap$ from $tm$ and $M$ (see Section~\ref{sec-construct-tmap}), then show how to construct $ cm'$ from $tmap$ and $M$ (see Section~\ref{sec-construct-graph}). We start with some notations.
+Section~\ref{sec-construct-tmap} shows how to construct $tmap$ from $tm$ and $M$ and Section~\ref{sec-construct-graph} shows how to construct $cm'$ from $tmap$ and $M$. We start with some notations.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -109,9 +95,9 @@ those derived  by the rules from $e$ (resp. $r$) in Figure~\ref{fig-firrtl-synt-
 For convenience, we assume three special symbols $\svnone,\svundefined, \svinvalid \in \exps$. 
 %\tl{to check whether refs is used later.} \zhilin{it is used}
 
-Moreover, we use $\fieldseq$ to denote the set of field sequences, that is, $\vec{f} = f_1 \ldots f_k$ such that each $f_i$ is defined by the rule from $f$ in Figure~\ref{fig-firrtl-synt-simp}. 
+We use $\fieldseq$ to denote the set of field sequences, that is, $\vec{f} = f_1 \ldots f_k$ such that each $f_i$ is defined by the rule from $f$ in Figure~\ref{fig-firrtl-synt-simp}. 
 %For convenience, we denote 
-Each field $f_i$ is a triple $(x, b, t)$, where $x$ is the name of the field, $b$ is a Boolean value to denote whether the field is flipped or not, and $t$ is a type.  
+Each field $f_i$ is a triple $(x, b, t)$, where $x$ is the name of the field, $b$ is a Boolean value to denote whether the field is flipped or not, and $t$ is the type. Occasionally, an empty sequence is denoted by $\nil$. 
 %contains two special elements,   $$. 
 
 \noindent\textbf{Types.}
@@ -129,7 +115,7 @@ In particular, $\gtypes$ can model types of implicit width in $M$. For instance,
 %For a ground type $t = (\tau, n) \in \{UInt, SInt\} \times \Nat$, $n$ is the \emph{width} of $t$, denoted by $wd(t)$.
 %
 
-In the definition of $tm$,  the ground types is annotated with component sort (e.g. input and output ports, wires, etc), so we define extended ground types $\egtypes$ as %the set of vertex sorts.
+In the definition of $tm$,  the ground types is annotated with component sort (e.g., input and output ports, wires, etc). To accommodate this, we define \emph{extended ground types} $\egtypes$ as %the set of vertex sorts.
 \begin{itemize}
 \item $(s, t)$ with $s \in \{\inport, \outport, \wire, \node\}$ and $t \in \gtypes$,  
 \item or $(\register, (t, clk, rsig, rval, b))$ such that $t \in \gtypes$, $clk, rsig, rval \in \exps$ and $b\in \{0,1\}$. (Intuitively, $clk$ represents a clock, $rsig$ represents a reset signal, and $rval$ represents a reset value, and $b$ is a Boolean value that denotes whether the reset is asynchronous or not).  
@@ -137,8 +123,9 @@ In the definition of $tm$,  the ground types is annotated with component sort (e
 We also assume $\svnone,\svundefined \in \egtypes$.
 
 %Besides ground types, 
-The components in $M$ can be of aggregate types, the collection of which is denoted by $\ftypes$. \tl{why use F in the name?} \zhilin{F means Firrtl} % to denote these types. More precisely, we define $\ftypes$ to be the set of elements of one of the following forms,
-Formally, $\ftypes$ is defined inductively as follows.
+The types for the components in $M$ (which may be of aggregate types) are referred to \emph{FIRRTL types}, which is denoted by $\ftypes$ and  % to denote these types. More precisely, we define $\ftypes$ to be the set of elements of one of the following forms,
+%Formally, $\ftypes$ is 
+defined inductively as follows.
 \begin{itemize}
 \item If $t \in \gtypes$, then $(\gtype, t) \in \ftypes$. 
 %
@@ -176,7 +163,7 @@ As a result, for an identifier $(v, m)$,
 \end{itemize}
 Let $\gidset_M$ denote the set of such identifiers $(v,m)$. 
 
-The fields of a bundle-type component can be naturally represented as a tree, and thus the offsets of its ground-type fields are obtained by a preorder traversal, which will be formally given in Section~\ref{sec-construct-tmap}. As an example,  %depth-first search over its fields. 
+The fields of a bundle-type component can be naturally represented as \emph{leaves} a tree, and thus the offsets of its ground-type fields can be determined by a preorder traversal, which will be formally given in Section~\ref{sec-construct-tmap}. As an example,  %depth-first search over its fields. 
 %
 %For instance, 
 for the bundle type 
