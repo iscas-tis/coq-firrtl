@@ -156,12 +156,14 @@ Intuitively, an identifier $(v, m)$ in $tm$ is used to refer to the ground-type 
 \end{itemize}
 Let $\gidset_M$ denote the set of such identifiers $(v,m)$. 
 
-The bundle-type component can be naturally represented as a tree where its (ground-type) fields are leaves. The offsets of these fields can be determined by a preorder traversal, which will be formally given in Section~\ref{sec-construct-tmap}. As an example, for the bundle type 
+The bundle-type component can be naturally represented as a tree where its (ground-type) fields are leaves. The offsets of these fields can be determined by a preorder traversal, which will be formally defined in Section~\ref{sec-construct-tmap}. As an example, for the bundle type 
 \begin{center}
 \prettyll{output a: \{flip b: \{d: UInt<1>, e: UInt<2>\}, c: UInt<2>\}}, 
 \end{center}
 %
-the ground-type fields are \prettyll{c}, \prettyll{d}, \prettyll{e}, and a depth-first search gives us an order $d, e, c$. As a result, the offsets of $d, e, c$ are $0, 1, 2$ respectively. Note that during the depth-first search, the fields in the same level are traversed according to the order of occurrences in $M$. Moreover, the field $b$ is omitted here since it is \emph{not} of ground type. 
+the ground-type fields are \prettyll{c}, \prettyll{d}, \prettyll{e}, and a preorder traversal gives an order $d, e, c$. As a result, the offsets of $d, e, c$ are $0, 1, 2$ respectively. Note that %during the depth-first search, 
+the fields at the same level are visited %traversed 
+according to the order of occurrence in $M$. %Moreover, the field $b$ is omitted here since it is \emph{not} of ground type. 
  
 %\tl{I am a bit confused here: in this example, cnt=io is of a bundle type, but the "o" is defined for its fields?}
 
