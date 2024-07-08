@@ -53,18 +53,19 @@ that $(tm, cm)$ conforms to $M$ (denoted by $(tm, cm)\models M$)
 as follows. Intuitively, %is defined as follows: \tl{to see how to improve this.}
 \begin{itemize}
 	\item %At first, $vm$ is used to determine 
-	we first utilize $tm$ to determine all the bit widths of components of $M$ and build a type mapping $tmap$, which records the typing information for all the components in $M$ (note that they may not be of ground types. ) 
+	we first utilize $tm$ to determine all the bit widths of components of $M$ and build a mapping $tmap$ that records the typing information of the (not necessarily ground-type) components in $M$, moreover, during the construction of $tmap$, we check that the types in $tm$ and $M$ are compatible and the component references in $M$ are well-scoped with respect to its \prettyll{when} statements),
 	%
 	\item %to decide whether $(tm, cm) \models M$, 
 	we then utilize $tmap$, together with the statements in $M$,  
-	to construct a pair $(tm', cm')$ which is meaningful (e.g., the references to the components in $M$ are well-scoped with respect to its \prettyll{when} statements) and $(tm', cm') \models M$. Clearly $(tm, cm) \models M$ if $(tm, cm) = (tm', cm')$. 
+	to construct a connection mapping $cm'$.
 	%moreover, during the construction of $(tm', cm')$,  
 \end{itemize}
+Clearly $(tm, cm) \models M$ if $tmap$ and $cm'$ are successfully constructed and $cm = cm'$. 
 
 The main technical difficulty %for defining $(tm, cm)\models M$ 
 arises from the gap between $(tm, cm)$ and $M$: while $(tm, cm)$ is low-level, $M$ is at high level which may contain aggregate types (e.g., vectors and bundles) as well as \prettyll{when} statements. As a result, %when checking $(tm, cm)\models M$, 
 it is necessary to %bridge this gap, in particular, to 
-find a match between the ground types in $tm$ and aggregate types in $M$. 
+find a match between the ground types in $tm$ and aggregate types in $M$ and find a match between $cm$ and the connect statements in $M$ by expanding the \prettyll{when} statements in $M$.  
 
 %We shall represent {\lofirrtl} programs by a data structure called \emph{module graphs}. A module graph $G = (vm, ct)$ represents a module in {\hifirrtl} programs, where $vm$ records the typing information of ground-type components in the module and $cm$ records the connections between these components.  For a {\hifirrtl} module $M$, \emph{the semantics of $M$ is defined as the set of module graphs that conform to it}. Moreover, a module graph $G= (vm, ct)$ \emph{conforms to} a {\hifirrtl} module $M$ is defined as follows: 
 %\begin{itemize}
@@ -98,7 +99,7 @@ find a match between the ground types in $tm$ and aggregate types in $M$.
 %are not included in $\ccpnts(A)$. (If a register is not connected to, then it keeps the current value.)
 
 
-In the rest of this section, we first show how to construct $tmap$ from $tm$ and $M$ (see Section~\ref{sec-construct-tmap}), then show how to construct $(tm', cm')$ from $tmap$ and $M$ (see Section~\ref{sec-construct-graph}). We start with some notations.
+In the rest of this section, we first show how to construct $tmap$ from $tm$ and $M$ (see Section~\ref{sec-construct-tmap}), then show how to construct $ cm'$ from $tmap$ and $M$ (see Section~\ref{sec-construct-graph}). We start with some notations.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -136,7 +137,7 @@ In the definition of $tm$,  the ground types is annotated with component sort (e
 We also assume $\svnone,\svundefined \in \egtypes$.
 
 %Besides ground types, 
-The components in $M$ can be of aggregate types, the collection of which is denoted by $\ftypes$. \tl{why use F in the name?} % to denote these types. More precisely, we define $\ftypes$ to be the set of elements of one of the following forms,
+The components in $M$ can be of aggregate types, the collection of which is denoted by $\ftypes$. \tl{why use F in the name?} \zhilin{F means Firrtl} % to denote these types. More precisely, we define $\ftypes$ to be the set of elements of one of the following forms,
 Formally, $\ftypes$ is defined inductively as follows.
 \begin{itemize}
 \item If $t \in \gtypes$, then $(\gtype, t) \in \ftypes$. 
@@ -183,7 +184,7 @@ for the bundle type
 \prettyll{output a: \{flip b: \{d: UInt<1>, e: UInt<2>\}, c: UInt<2>\}}, 
 \end{center}
 %
-the ground-type fields are \prettyll{a}, \prettyll{c}, \prettyll{d}, \prettyll{e} \tl{why there is no b?} \zhilin{because $b$ is not of ground type} \tl{but a is not of ground type either? this program does not seem have the correct syntax? ;-) }, and a depth-first search gives us an order $a, d, e, c$. As a result, the offsets of $a, d, e, c$ are $0, 1, 2, 3$ respectively. Note that during the depth-first search, the fields in the same level are traversed according to the order of occurrences in $M$. Moreover, the field $b$ is omitted here since it is \emph{not} of ground type. 
+the ground-type fields are \prettyll{c}, \prettyll{d}, \prettyll{e}, and a depth-first search gives us an order $d, e, c$. As a result, the offsets of $d, e, c$ are $0, 1, 2$ respectively. Note that during the depth-first search, the fields in the same level are traversed according to the order of occurrences in $M$. Moreover, the field $b$ is omitted here since it is \emph{not} of ground type. 
  
 %\tl{I am a bit confused here: in this example, cnt=io is of a bundle type, but the "o" is defined for its fields?}
 
