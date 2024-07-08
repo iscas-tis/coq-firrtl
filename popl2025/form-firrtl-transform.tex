@@ -96,6 +96,7 @@ the component environment $ce$.
 %implicitly defined width are assigned with 0 in $ce$.
 
 \subsubsection{Formalization of InferWidths}
+%% \input{form-firrtl-transform-inferwidths}
 %The bit widths of some components may still be missing after applying {\tt infer\_type} to all the statements in $ss$.
 We formalize the ``InferWidths'' pass by defining a Coq function {\tt infer\_width}, which iterates over the statements in the sequence $ss$ and updates 
 the component environment $ce$, so that the bit widths of all the components with undefined bit widths can be determined.

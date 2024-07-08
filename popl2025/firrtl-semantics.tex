@@ -56,7 +56,7 @@ as follows. Intuitively, %is defined as follows: \tl{to see how to improve this.
 we first utilize $tm$ to determine all the bit-widths of the components in $M$ and build a mapping $tmap$ that records the typing information of the (not necessarily ground-type) components in $M$. During the construction of $tmap$, we check that the types in $tm$ and $M$ are compatible and the component references in $M$ are well-scoped with respect to its \prettyll{when} statements),
 	%
 \item %to decide whether $(tm, cm) \models M$, 
-	we then utilize $tmap$ %together with the statements in $M$,  
+	we then utilize $tm$ and $tmap$ %together with the statements in $M$,  
 	to construct a connection mapping $cm'$.
 	%moreover, during the construction of $(tm', cm')$,  
 \end{itemize}
@@ -263,6 +263,6 @@ For convenience, $tm$ is called a type mapping and $cm$ is called a connection m
 
 \input{construct-tmap}
 
-\subsection{Constructing a low-level RTL circuit from $tmap$ and $M$}\label{sec-construct-graph}
+\subsection{Constructing a connection mapping from $tmap$ and $M$}\label{sec-construct-graph}
 
 \input{construct-module-graph}
