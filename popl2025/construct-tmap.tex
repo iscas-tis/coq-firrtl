@@ -212,7 +212,7 @@ For instance, in the rule {\madeexplicit: \vtype}, if the $n$ ground-type sequen
 
 The mapping $tmap$ is defined by the procedure $\portsstmtstmap(pp, ss, tm)$, which calls the procedure $\portstmap(pp, tm)$ to compute $pmap$, then calls $\stmtstmap((pmap, pmap), ss, tm)$ \tl{to check} to get $tmap$ (see Figure~\ref{fig:ports-stmts-tmap}). 
 %
-Intuitively, $\portstmap(pp, tm)$ defines a mapping based on the port declarations $pp$ and $tm$, and $\stmtstmap((pmap, pmap), ss, tm)$ defines a pair $(tmap, scope)$ from $(pmap, pmap)$, the statement sequence $ss$, and $tm$.
+Intuitively, $\portstmap(pp, tm)$ defines a mapping based on the port declarations $pp$ and $tm$, and $\stmtstmap((pmap, pmap), ss, tm)$ defines a pair $(tmap, scope)$ from $(pmap, pmap)$, the statement sequence $ss$, and $tm$. Note that $scope$ is introduced to check 
 \begin{wrapfigure}{r}{0.3\textwidth} 
 %\centering
 %\begin{tabular}{c}
@@ -230,11 +230,23 @@ Intuitively, $\portstmap(pp, tm)$ defines a mapping based on the port declaratio
 %\label{fig:example}
 \end{wrapfigure}
 \tl{this scope thing makes the semantics less focused, but is it really important? Can we simply rule it out at the syntax level?}
-Note that $scope$ is introduced to check that the component references in $ss$ do not violate the scoping constraints brought upon by the \prettyll{when} statements. For instance, in the following {\hifirrtl} program, there is a scoping error, since $z$ is declared in the scope of the \prettyll{when} statement, but it is referred outside it (Line 7). 
+that the component references in $ss$ do not violate the scoping constraints brought upon by the \prettyll{when} statements. For instance, the presented {\hifirrtl} program contains a scoping error, since $z$ is declared in the scope of the \prettyll{when} statement, but is referred outside  (cf.\ Line 7). 
 %
 %The procedures $\portstmap$ and $\stmtstmap$ are defined by the rules in Fig.~\ref{fig:ports-stmts-tmap}.
 
-$\portstmap(pp, tm)$ defines $tmap$ from the port declarations. If $pp = input\ x: t\ pp'$, then it calls $\madeexplicit(t, (id(x), 0), tm)$ to construct $newt$. Moreover, it recursively calls $\portstmap(pp', tm)$ to obtain $tmap'$. Then it checks that $tmap'(id(x)) = \svnone$.  If it is the case, then the output $tmap$ is obtained by adding the pair $(id(x), (newt, \source))$ to $tmap'$. The case $pp = output\ x: t\ pp'$ is dealt with similarly, with $\source$ replaced by $\sink$. Furthermore, if $pp = \nil$, then the empty map $\sf emp$ is returned. 
+$\portstmap(pp, tm)$ defines $tmap$ from the port declarations. In a nutshell, for $input\ x: t$ it calls $\madeexplicit(t, (id(x), 0), tm)$ which returns $newt$, and makes sure that $x$ is not defined elsewhere. %Moreover, it recursively calls $\portstmap(pp', tm)$ to obtain $tmap'$. Then it checks that $tmap'(id(x)) = \svnone$.  If it is the case, then 
+As such, $tmap$ sets %obtained by adding the pair 
+$(id(x), (newt, \source))$. %to $tmap'$. The case $pp = 
+$output\ x: t$ is almost the same %dealt with similarly, with 
+except $\source$ being replaced by $\sink$. 
+
+%Furthermore, if $pp = \nil$, then the empty map $\sf emp$ is returned. 
+
+
+
+%
+%If $pp = input\ x: t\ pp'$, then it calls $\madeexplicit(t, (id(x), 0), tm)$ to construct $newt$. Moreover, it recursively calls $\portstmap(pp', tm)$ to obtain $tmap'$. Then it checks that $tmap'(id(x)) = \svnone$.  If it is the case, then the output $tmap$ is obtained by adding the pair $(id(x), (newt, \source))$ to $tmap'$. The case $pp = output\ x: t\ pp'$ is dealt with similarly, with $\source$ replaced by $\sink$. 
+%%Furthermore, if $pp = \nil$, then the empty map $\sf emp$ is returned. 
 
 $\stmtstmap((tmap, scope), ss, tm)$ defines $tmap$ from the statements in $ss$. If $ss = \nil$, then it simply returns $(tmap, scope)$. Otherwise, let $ss = s\ ss'$, where $s$ is a statement. Then it calls $\stmttmap(s, tm)$ to compute $(tmap'', scope'')$ from a $s$ (see Figure~\ref{fig:stmts-tmap} for its definition). Finally, it recursively calls $\stmtstmap((tmap'', scope''), ss', tm)$ to compute the return value $(tmap', scope')$. 
  
