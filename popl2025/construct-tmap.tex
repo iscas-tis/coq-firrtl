@@ -11,14 +11,21 @@ define a mapping $tmap: \range{id}\rightarrow\ftypes \times \{\duplex, \source, 
 Note that, in addition to the typing information, the \emph{orientation} of components (i.e., \duplex, \source, and \sink) is also specified.   %The orientations are related to the connect statements. 
 %In each connect statement $r <= e$ where $r$ is a reference, its orientation should be {\duplex} or \sink.
 %The rational behind 
-The orientation of components and references is defined as follows.  
-\begin{itemize}
-\item the orientations of wires and registers are $\duplex$, 
-\item the orientations of inputs and nodes are \source, 
-\item the orientations of outputs are \sink, 
-\item the orientation of a reference $t[n]$ are the same as that of $t$, 
-\item the orientation of a reference $x.f$ (where $f$ is a field) is  determined from the orientation of $x$ and the flipping status of the field $f$.  
-\end{itemize}   
+The orientation of components and references is defined: 
+(1) wires and registers: $\duplex$, (2) 
+inputs and nodes:\source, (3) outputs: \sink, 
+(4) reference $t[n]$: the same as that of $t$, (5) reference $x.f$ (where $f$ is a field): determined by the orientation of $x$ and the flipping status of the field $f$.  
+ 
+
+
+  
+%\begin{itemize}
+%\item the orientations of wires and registers are $\duplex$, 
+%\item the orientations of inputs and nodes are \source, 
+%\item the orientations of outputs are \sink, 
+%\item the orientation of a reference $t[n]$ are the same as that of $t$, 
+%\item the orientation of a reference $x.f$ (where $f$ is a field) is  determined from the orientation of $x$ and the flipping status of the field $f$.  
+%\end{itemize}   
 
 %To tackle the mismatch between $tm$ and $tmap$, 
 To make the bit width %in $tm$ 
