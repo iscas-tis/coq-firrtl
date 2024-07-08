@@ -137,23 +137,16 @@ defined inductively as follows.
 %Recall that the types where the bit widths are implicit are captured by $(\uintimp, 0)$ or $(\sintimp, 0)$. 
 
 
-\noindent\textbf{Identifiers.} For convenience, we assume an \emph{injective} identifier function $id$, which maps from the name of a component (e.g., wire, node, register) in $M$ to a natural number; %Note that $id$ is an injective function. 
+\noindent\textbf{Identifiers.} For convenience, we assume an \emph{injective} identifier function $id$, which maps from the name of a component (e.g., wire, node, register) to a natural number; %Note that $id$ is an injective function. 
 $\range{id}$ denotes the range of $id$. 
-We shall use identifiers (instead of names) to refer to the components in $M$. 
-%
-%We introduce a concept of \emph{module graphs} to define the semantics of {\hifirrtl} programs. Intuitively, a module graph $G$ for $M$ represents a possible instantiation of $M$, where (1) the vertices of $G$ represent the components of ground type that are obtained from $M$ by flattening the components of aggregate type therein and (2) all the implicit widths are made explicit.  
-%
-%As a result, the vertices of a module graph for $M$ are 
-On the other hand, %since $tm$ records the typing information for ground-type components, we define the 
+We shall use identifiers (instead of names) to refer to the components in $M$. On the other hand, %since $tm$ records the typing information for ground-type components, we define the 
 the identifiers in $tm$ are defined as $(v, m) \in \Nat \times \Nat$, which should be %aiming at linking them to 
 ``linked" to the identifiers in $M$. 
 %Each component $cnt$ is associated with a pair of the form $(a, o) \in \Nat \times \Nat$, %each of which is corresponding to a component $cnt$ of $M$ with 
 %where $a = id(cnt)$ and   
 %$(a, o)$ is one of the following forms, 
 %each component $cnt$ of ground type in $M$ is associated with an identifier $(a, o)$, where
-Intuitively, an identifier $(v, m)$ in $tm$ is used to refer to the ground-type components that are obtained by flattening the aggregate-type components in $M$. 
-
-As a result, for an identifier $(v, m)$, 
+Intuitively, an identifier $(v, m)$ in $tm$ is used to refer to the ground-type components that are obtained by flattening the aggregate-type components in $M$. For an identifier $(v, m)$, 
 \begin{itemize}
 \item either $v$ is the identifier of a ground-type component and $m = 0$,
 %
@@ -163,10 +156,7 @@ As a result, for an identifier $(v, m)$,
 \end{itemize}
 Let $\gidset_M$ denote the set of such identifiers $(v,m)$. 
 
-The fields of a bundle-type component can be naturally represented as \emph{leaves} a tree, and thus the offsets of its ground-type fields can be determined by a preorder traversal, which will be formally given in Section~\ref{sec-construct-tmap}. As an example,  %depth-first search over its fields. 
-%
-%For instance, 
-for the bundle type 
+The bundle-type component can be naturally represented as a tree where its (ground-type) fields are leaves. The offsets of these fields can be determined by a preorder traversal, which will be formally given in Section~\ref{sec-construct-tmap}. As an example, for the bundle type 
 \begin{center}
 \prettyll{output a: \{flip b: \{d: UInt<1>, e: UInt<2>\}, c: UInt<2>\}}, 
 \end{center}
