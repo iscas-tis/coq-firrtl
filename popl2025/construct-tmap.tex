@@ -70,9 +70,9 @@ Two types $(\uintimp, n_1)$ and $(\uintimp, n_2)$ are equivalent regardless of $
 
 The function $\madeexplicit(ft, id, tm)$ is defined  in Fig.~\ref{fig:made-explicit}. 
 \begin{itemize}
-\item The rule {\madeexplicit: \gtype} deals with the case $ft = (\gtype, gt)$, which  simply returns the ground type in $tm(id)$. 
+\item The rule {\madeexplicit: \gtype} deals with $ft = (\gtype, gt)$, which  simply returns the ground type in $tm(id)$. 
 %
-\item The rule {\madeexplicit: \vtype} deals with the case $ft = (\vtype, t[n])$, where $\madeexplicit$  computes $t' = \madeexplicit(t, id, tm)$ and  returns $t'[n]$. Moreover, it checks that the $n$ ground-type sequences in $tm$ corresponding to the $n$ copies of $t'$ are all equal, that is, let $id = (v,m)$ and $sz = \sizeofftype(t')$, then $(tm(v, m+0), \ldots, tm(v, m+sz-1)) = (tm(v, m+sz), \ldots, tm(v, m+2sz-1)) = \cdots = (tm(v, m+(n-1)sz), \ldots, tm(v, m+nsz-1))$. \tl{to see how to improve this.}
+\item The rule {\madeexplicit: \vtype} deals with $ft = (\vtype, t[n])$, where $\madeexplicit$  computes $t' = \madeexplicit(t, id, tm)$ and  returns $t'[n]$. Moreover, it checks that the $n$ ground-type sequences in $tm$ corresponding to the $n$ copies of $t'$ are all equal, that is, let $id = (v,m)$ and $sz = \sizeofftype(t')$, then $(tm(v, m+0), \ldots, tm(v, m+sz-1)) = (tm(v, m+sz), \ldots, tm(v, m+2sz-1)) = \cdots = (tm(v, m+(n-1)sz), \ldots, tm(v, m+nsz-1))$. \tl{to see how to improve this.}
 %
 \item The rule {\madeexplicit: \btype} deals with the case $ft = (\btype, \vec{f})$, where $\madeexplicit$ %calls $\madeexplicitfields(\vec{f}, id, tm)$ and returns its output. 
 uses $\madeexplicitfields(\vec{f}, id, tm)$ %recursively computes the output as follows. 
