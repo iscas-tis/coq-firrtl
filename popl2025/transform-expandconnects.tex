@@ -1,0 +1,109 @@
+The ``ExpandConnects'' pass expands the connections between aggregate
+types into those between ground types. It also flattens the elements
+in aggregate types to their corresponding ground types in declaration
+statements. To expand the objects of aggregate types in a Firrtl
+module, the process involves two phases. The first phase is to record
+the types along with orientations and flipping information of the
+objects, which helps determine the actual connection directions. For
+example, if there is an input port of aggregate types with a field
+marked as ``flip'', the ``flip'' mark will recursively apply to all the
+atomic elements in that field. Since it is an input port, the
+orientation is record as ``source''. The second phase is to expand the statements
+sequentially. For declaration statements, ground-typed elements are
+generated corresponding to the original aggregate types. For
+connection statements, the connection directions are determined by the
+orientations and flipping information from the first phase. For
+subfields, there are two kinds of connections allowed for HiFirrtl
+programs. One is to set connections between elements of equivalent
+aggregate types. In such bundled connections, individual subfield
+connections can be of different directions. The other kind is to
+connect subfields separately, in which case the direction should
+comply with the orientation of the subfield elements.
+
+
+At the beginning of a Firrtl module, ports are declared first. When
+ports are defined with flip sub-fields, the expansion process will
+change those fields of input ports into output ports, and vice
+versa. As a result, their orientations are changed between ``source''
+and ``sink''.
+ \begin{gather*}
+   \label{expand-input}
+   \infer[]
+         {\seqq{{\tt expand\_connect} (\mbox{\prettyll{input v}}) = ss}}
+         {\begin{array}{c}
+             \seqq{{\tt expand\_ref \;v} = [v_0, v_1,\dots v_n]}\\
+             \seqq{ s s= {\tt map}\; (fun\; v_x \Rightarrow if\;{\tt is\_flipped}(v_x)\;then\; \mbox{\prettyll{output}} {\tt v_x}\;else\; \mbox{\prettyll{input}} {\tt v_x})\, [v_0, v_1,\dots v_n]}
+           \end{array}
+         }
+ \end{gather*}
+
+Elements such as wires and registers have duplex
+orientation. Regardless of the flip sub-fields in the original
+aggregate types, the resulting orientations will remain duplex. To
+expand registers in aggregate types, we also need to expand the reset
+values of the registers. Expanding wires is relatively simple and is
+omitted here.
+\begin{gather*}
+  \label{expand-reg}
+  \infer[]
+        {\seqq{{\tt expand\_connect} (\mbox{\prettyll{reg v : t clk with : (reset => rst, rv)}}) = ss}}
+        {\begin{array}{c}
+            \seqq{{\tt expand\_ref \;}v = [v_0,\dots v_n]}\\
+            \seqq{{\tt expand\_expr \;}rv = [rv_0,\dots rv_n]}\\
+            \seqq{ s s= {\tt map}\; (fun\; v_x\; rv_x \Rightarrow \mbox{\prettyll{reg v_x: t clk with:(reset=> rst,rv_x)}})}
+            %% \rightline{
+              \seqq{[v_0,\dots v_n], [rv_0,\dots rv_n]}
+          \end{array}
+        }
+\end{gather*}
+
+Nodes are also ``source'' elements. They are only allowed to be declared
+with passive aggregate types, which means no flip sub-fields. During
+the expansion of node declarations, the passive type is checked;
+otherwise, the result will be an empty sequence.
+\begin{gather*}
+  \label{expand-node}
+  \infer[]
+        {\seqq{{\tt expand\_connect} (\mbox{\prettyll{node v e}}) = ss}}
+        {\begin{array}{c}
+            \seqq{{\tt expand\_ref}\; v = [v_0, v_1,\dots v_n]}\\
+            \seqq{{\tt expand\_expr}\; e = [e_0, e_1,\dots e_n]}\\
+            \seqq{ s s= if\;{\tt is\_passive}(v_x)\; then\; {\tt map}\; (fun\; v_x\;e_x \Rightarrow \; \mbox{\prettyll{node}} {\tt v_x}\;{\tt e_x})\,[v_0, v_1,\dots v_n]\,[e_0, e_1,\dots e_n] else\; [::]}
+          \end{array}
+        } 
+\end{gather*}
+
+To expand \prettyll{is invalid} statements, we
+select only the ``sink'' and ``duplex'' elements to produce the sequence of
+invalidations.
+In HiFirrtl, it is allowed to have ``source'' sub-elements in a bundle be
+invalidated. The result of expansion will omit them.
+\begin{gather*}
+  \label{expand-invalid}
+  \infer[]
+        {\seqq{{\tt expand\_connect} (\mbox{\prettyll{v is invalid}}) = ss}}
+        {\begin{array}{c}
+            \seqq{{\tt expand\_ref \;}v = [v_0, v_1,\dots v_n]}\\
+            \seqq{vs = {\tt filter}\; (fun\; v_x \Rightarrow orient (v_x) \neq source) [v_0, v_1,\dots v_n]}\\
+            \seqq{ s s = {\tt map}\; (fun\; v_x \Rightarrow {\tt v_x}\;\mbox{\prettyll{is invalid}})\, vs}
+          \end{array}
+        } 
+\end{gather*}
+
+Connections between bundled elements contain a set of connections for
+individual sub-fields. According to the indicated ``flip'' for a sub-field, the
+connection direction may differ from the original.
+\begin{gather*}
+   \label{expand-invalid}
+   \infer[]
+         {\seqq{{\tt expand\_connect} (\mbox{\prettyll{l <= r}}) = ss}}
+         {\begin{array}{c}
+             \seqq{{\tt expand\_ref }\; l = [l_0,\dots l_n]}\\
+             \seqq{{\tt expand\_expr}\; r = [r_0,\dots r_n]}\\
+             \seqq{ s s = {\tt map}\; (fun\; l_x\;r_x \Rightarrow if\;{\tt is\_flipped}(l_x)\; then\;\mbox{\prettyll{r_x <= l_x}}\; else\mbox{\prettyll{l_x <= r_x}})\,[l_0,\dots l_n]\,[r_0,\dots r_n]}
+           \end{array}
+         }
+\end{gather*}
+
+
+
