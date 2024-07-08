@@ -16,9 +16,6 @@ The orientation of components and references is defined:
 inputs and nodes:\source, (3) outputs: \sink, 
 (4) reference $t[n]$: the same as that of $t$, (5) reference $x.f$ (where $f$ is a field): determined by the orientation of $x$ and the flipping status of the field $f$.  
  
-
-
-  
 %\begin{itemize}
 %\item the orientations of wires and registers are $\duplex$, 
 %\item the orientations of inputs and nodes are \source, 
@@ -36,7 +33,6 @@ prescribes the bit widths in $ft$.
 %
 To this end, $\madeexplicit$ uses a function $\sizeofftype:\ftypes\rightarrow \nat$ to calculate the number of ground types included in a type or a sequence of fields. %(see Fig.~\ref{fig:size-list-ftype-fields} for its definition) 
 Formally, $\sizeofftype$ is recursively defined as follows. 
-\tl{to see how to improve this}. 
 %
 \begin{align*}
    	\sizeofftype ((\gtype, gt)) & =1\\
@@ -48,7 +44,6 @@ Formally, $\sizeofftype$ is recursively defined as follows.
 %	 \sizeoffields (\nil) & = 0 \\
 %	\sizeoffields((\_, \_, t')\ \vec{f}') & = \sizeofftype(t')+ \sizeoffields(\vec{f}') 
 \end{align*}
-
 %It also calls a function $\typeeq$ to check the equivalence between two ground types, one from $M$ and the other one from $tm$. For instance, in $\typeeq$, two types $(\uintimp, n_1)$ and $(\uintimp, n_2)$ are equivalent regardless of $n_1$ and  $n_2$, and the (abstract) $\reset$ type from $M$ is equivalent to both $(\uint, 1)$ and $\asyncreset$ from $tm$. (Note that according to the syntax of {\lofirrtl} in Fig.~\ref{fig-lofirrtl-synt}, the $\reset$ type does not appear in {\lofirrtl}. )
 
 We also define a relation $\typeeq\subseteq \gtypes\times \gtypes$ to %specify the equivalence between two 
@@ -90,6 +85,9 @@ and obtains $(x,b,t')$.
 Fig.~\ref{fig:made-explicit} only presents the most important rules. % are chosen to be incomplete in purpose to avoid the tediousness. 
 For instance, in the rule {\madeexplicit: \vtype}, if the $n$ ground-type sequences in $tm$ corresponding to the $n$ copies of $t'$ are not equal, then $\madeexplicit$ returns the special value $\svnone$.) 
 
+ 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \begin{figure}[htbp]
   \begin{gather*}
     \inferiii[\madeexplicit: \gtype]
