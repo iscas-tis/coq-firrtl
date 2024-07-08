@@ -1,0 +1,11 @@
+\begin{itemize}
+    \item If G (P) is nonempty, then IW (P) succeeds, and G (IW (P)) is among G (P)
+
+The bit widths of all vertices in G (IW (P)) remain unchanged for explicit defined vertices, aligning with the corresponding vertices in elements in G (P). For implicit widths vertices, the outcome widths depends on the calculations within IW. In IW calculations, only implicit widths are considered, each vertex's width is updated sequentially with the bit widths of all connected expressions, always selecting the larger value. The resulting bit widths ensures it is equal to or exceeds the bit width of any connected expression, which indicates G (IW (P)) is among G (P).
+
+    \item G(IW(P)) is the minimum one
+    
+Being the minimum one among G(P) means that G(IW(P)) have the same domain as any element in G(P) and the bit width of any vertex in G(IW(P)) is the minimum of the widths of the corresponding vertex in element of G(P).
+For vertices with explicit widths, it keeps the same before and after IW(P). For all vertices with implicit widths, the bit width of any vertex after IW equals to the maximum bit width among all connected expressions. Meanwhile, each element in G(P) must ensure that the bit width of any implicit widths vertex is at least as large as the bit width of any connected expression, including the expression with the maximum bit width. Hence, G(IW(P)) is the smallest among G(P).
+    
+\end{itemize}

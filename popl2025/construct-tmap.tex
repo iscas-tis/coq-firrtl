@@ -11,14 +11,21 @@ define a mapping $tmap: \range{id}\rightarrow\ftypes \times \{\duplex, \source, 
 Note that, in addition to the typing information, the \emph{orientation} of components (i.e., \duplex, \source, and \sink) is also specified.   %The orientations are related to the connect statements. 
 %In each connect statement $r <= e$ where $r$ is a reference, its orientation should be {\duplex} or \sink.
 %The rational behind 
-The orientation of components and references is defined as follows.  
-\begin{itemize}
-\item the orientations of wires and registers are $\duplex$, 
-\item the orientations of inputs and nodes are \source, 
-\item the orientations of outputs are \sink, 
-\item the orientation of a reference $t[n]$ are the same as that of $t$, 
-\item the orientation of a reference $x.f$ (where $f$ is a field) is  determined from the orientation of $x$ and the flipping status of the field $f$.  
-\end{itemize}   
+The orientation of components and references is defined: 
+(1) wires and registers: $\duplex$, (2) 
+inputs and nodes:\source, (3) outputs: \sink, 
+(4) reference $t[n]$: the same as that of $t$, (5) reference $x.f$ (where $f$ is a field): determined by the orientation of $x$ and the flipping status of the field $f$.  
+ 
+
+
+  
+%\begin{itemize}
+%\item the orientations of wires and registers are $\duplex$, 
+%\item the orientations of inputs and nodes are \source, 
+%\item the orientations of outputs are \sink, 
+%\item the orientation of a reference $t[n]$ are the same as that of $t$, 
+%\item the orientation of a reference $x.f$ (where $f$ is a field) is  determined from the orientation of $x$ and the flipping status of the field $f$.  
+%\end{itemize}   
 
 %To tackle the mismatch between $tm$ and $tmap$, 
 To make the bit width %in $tm$ 
@@ -60,26 +67,28 @@ equate some ground types, i.e., %one from $M$ and the other one from $tm$. Namel
 \end{array}
 \]   
 (Note that $\typeeq$ contains identity relation which we omit.)
-
+%
 %It is easy to observe that $\typeeq$ is not symmetric, thus not an equivalence relation.  As a result, the aforementioned  ``equivalence'' in $\typeeq$ is just an intuitive way of saying the compatibility between the two ground types,  
-In $\typeeq$, two types $(\uintimp, n_1)$ and $(\uintimp, n_2)$ are equivalent regardless of $n_1$ and  $n_2$. Moreover, the (abstract) $\reset$ type from $M$ is equivalent to both $(\uint, 1)$ and $\asyncreset$ from $tm$. (Recall that the $\reset$ type does not appear in {\lofirrtl} according to the syntax of {\lofirrtl} in Fig.~\ref{fig-lofirrtl-synt}.)
+Two types $(\uintimp, n_1)$ and $(\uintimp, n_2)$ are equivalent regardless of $n_1$ and  $n_2$. Moreover, the (abstract) $\reset$ type from $M$ is equivalent to both $(\uint, 1)$ and $\asyncreset$ from $tm$. 
+%
+%(Recall that the $\reset$ type does not appear in {\lofirrtl} according to the syntax of {\lofirrtl} in Fig.~\ref{fig-lofirrtl-synt}.)
 
 The function $\madeexplicit(ft, id, tm)$ is defined  in Fig.~\ref{fig:made-explicit}. 
 \begin{itemize}
 \item The rule {\madeexplicit: \gtype} deals with the case $ft = (\gtype, gt)$, which  simply returns the ground type in $tm(id)$. 
 %
-\item The rule {\madeexplicit: \vtype} deals with the case $ft = (\vtype, t[n])$. In this case, $\madeexplicit$  computes $t' = \madeexplicit(t, id, tm)$ and  returns $t'[n]$. Moreover, it checks that the $n$ ground-type sequences in $tm$ corresponding to the $n$ copies of $t'$ are all equal, that is, let $id = (v,m)$ and $sz = \sizeofftype(t')$, then $(tm(v, m+0), \ldots, tm(v, m+sz-1)) = (tm(v, m+sz), \ldots, tm(v, m+2sz-1)) = \cdots = (tm(v, m+(n-1)sz), \ldots, tm(v, m+nsz-1))$. \tl{to see how to improve this.}
+\item The rule {\madeexplicit: \vtype} deals with the case $ft = (\vtype, t[n])$, where $\madeexplicit$  computes $t' = \madeexplicit(t, id, tm)$ and  returns $t'[n]$. Moreover, it checks that the $n$ ground-type sequences in $tm$ corresponding to the $n$ copies of $t'$ are all equal, that is, let $id = (v,m)$ and $sz = \sizeofftype(t')$, then $(tm(v, m+0), \ldots, tm(v, m+sz-1)) = (tm(v, m+sz), \ldots, tm(v, m+2sz-1)) = \cdots = (tm(v, m+(n-1)sz), \ldots, tm(v, m+nsz-1))$. \tl{to see how to improve this.}
 %
-\item The rule {\madeexplicit: \btype} deals with the case $ft = (\btype, \vec{f})$. In this case, $\madeexplicit$ calls $\madeexplicitfields(\vec{f}, id, tm)$ and returns its output. $\madeexplicitfields(\vec{f}, id, tm)$ %recursively computes the output as follows. 
-processes the fields sequentially. 
-For the field $(x,b,t)$, (recursive) call to $\madeexplicit(t, id, tm)$ returns $t'$ and thus we obtain $(x,b,t')$. 
+\item The rule {\madeexplicit: \btype} deals with the case $ft = (\btype, \vec{f})$, where $\madeexplicit$ %calls $\madeexplicitfields(\vec{f}, id, tm)$ and returns its output. 
+uses $\madeexplicitfields(\vec{f}, id, tm)$ %recursively computes the output as follows. 
+to process the fields sequentially, which,  
+for each field $(x,b,t)$, (recursive) calls $t':=\madeexplicit(t, id, tm)$ %returns $t'$ and thus we 
+and obtains $(x,b,t')$. 
 %If $\vec{f} = \nil$, then it returns $(\btype, \nil)$. Otherwise, let $\vec{f} = (x, b, t)\ \myvec{f'}$. Then it calls $\madeexplicit(t, id, tm)$ to get $t'$ and recursively calls $\madeexplicitfields(\myvec{f'}, id, tm)$ to get $\myvec{f''}$. Finally, it returns $newt = (x, b, t')\ \myvec{f''}$. 
-
 \end{itemize}
-
-Note that for simplicity %the rules in 
-Fig.~\ref{fig:made-explicit} only present the most important rules. % are chosen to be incomplete in purpose to avoid the tediousness. 
-For instance, in the rule {\madeexplicit: \vtype}, if the $n$ ground-type sequences in $tm$ corresponding to the $n$ copies of $t'$ are not equal, then $\madeexplicit$ returns the special value $\svnone$. 
+(Note that for simplicity %the rules in 
+Fig.~\ref{fig:made-explicit} only presents the most important rules. % are chosen to be incomplete in purpose to avoid the tediousness. 
+For instance, in the rule {\madeexplicit: \vtype}, if the $n$ ground-type sequences in $tm$ corresponding to the $n$ copies of $t'$ are not equal, then $\madeexplicit$ returns the special value $\svnone$.) 
 
 \begin{figure}[htbp]
   \begin{gather*}
@@ -227,7 +236,7 @@ Note that $scope$ is introduced to check that the component references in $ss$ d
 %
 %The procedures $\portstmap$ and $\stmtstmap$ are defined by the rules in Fig.~\ref{fig:ports-stmts-tmap}.
 
-$\portstmap(pp, tm)$ defines $tmap$ from the port declarations in $pp$. If $pp = input\ x: t\ pp'$, then it calls $\madeexplicit(t, (id(x), 0), tm)$ to construct $newt$. Moreover, it recursively calls $\portstmap(pp', tm)$ to obtain $tmap'$. Then it checks that $tmap'(id(x)) = \svnone$.  If it is the case, then the output $tmap$ is obtained by adding the pair $(id(x), (newt, \source))$ to $tmap'$. The case $pp = output\ x: t\ pp'$ is dealt with similarly, with $\source$ replaced by $\sink$. Furthermore, if $pp = \nil$, then the empty map $\sf emp$ is returned. 
+$\portstmap(pp, tm)$ defines $tmap$ from the port declarations. If $pp = input\ x: t\ pp'$, then it calls $\madeexplicit(t, (id(x), 0), tm)$ to construct $newt$. Moreover, it recursively calls $\portstmap(pp', tm)$ to obtain $tmap'$. Then it checks that $tmap'(id(x)) = \svnone$.  If it is the case, then the output $tmap$ is obtained by adding the pair $(id(x), (newt, \source))$ to $tmap'$. The case $pp = output\ x: t\ pp'$ is dealt with similarly, with $\source$ replaced by $\sink$. Furthermore, if $pp = \nil$, then the empty map $\sf emp$ is returned. 
 
 $\stmtstmap((tmap, scope), ss, tm)$ defines $tmap$ from the statements in $ss$. If $ss = \nil$, then it simply returns $(tmap, scope)$. Otherwise, let $ss = s\ ss'$, where $s$ is a statement. Then it calls $\stmttmap(s, tm)$ to compute $(tmap'', scope'')$ from a $s$ (see Figure~\ref{fig:stmts-tmap} for its definition). Finally, it recursively calls $\stmtstmap((tmap'', scope''), ss', tm)$ to compute the return value $(tmap', scope')$. 
  

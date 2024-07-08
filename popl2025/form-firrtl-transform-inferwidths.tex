@@ -1,0 +1,581 @@
+\subsubsection{Formalization of InferWidths}
+%By Keyin
+We formalize the ``InferWidths'' pass by defining a Coq function {\tt InferWidths\_m}, which contains two process. The first process {\tt InferWidths\_stage1} iterates over the topological sorted order of module's implicit widths ground type components and updates the type map, so that the bit widths of all the components with undefined bit widths can be determined. Then the second process {\tt InferWidths\_stage2} produce a new module with inferred bit widths and explicit widths instead of implicit widths in the original module.
+
+The rationale behind the {\tt InferWidth\_m} function is stated as follows: The function  {\tt InferWidths\_stage1} always chooses the maximum width of the expressions that are connected to the component $x$. 
+
+The behavior of the function {\tt inferwidths\_m} on a module contains the folowing steps :\\
+Record the original type map and the connection map according to ports sequecnse and statement sequence in the module. The Coq function {\tt ports\_stmts\_tmap}, given ports list and statements list in the module, generates two corresponding maps, maps from aggregate level components to types and ground type level components to expressions. Note that aggregate connections are not expanded yet so that flip field should be considered when generating the connection map.
+
+\begin{table}[htbp]
+  \small
+  \begin{gather*}
+     \inferii
+    {\seqq{ports\_stmts\_tmap'(pp, ss) = (tmap', var2exprs)}}
+    {\seqq{ports\_tmap'(pp) = pmap'}}
+    {\seqq{stmts\_tmap'(pmap', ss) = (tmap', var2exprs)}}
+   \quad
+   \\[1ex]
+    \infer[ports\_tmap': input]
+    {\seqq{ports\_tmap'(pp) = pmap'}}
+    {
+    \begin{array}{c}
+    p p= input\ x: t\ pp' \wedge ports\_tmap'(pp') = pmap \wedge pmap(id(x)) = none \\
+    pmap' = add((id(x), (t, \source)), pmap)
+    \end{array}
+    }
+    \quad
+    \\[1ex]
+    \infer[ports\_tmap': output]
+    {\seqq{ports\_tmap'(pp) = pmap'}}
+    {
+    \begin{array}{c}
+    p p= input\ x: t\ pp' \wedge ports\_tmap'(pp') = pmap \wedge pmap(id(x)) = none \\
+    pmap' = add((id(x), (t, \sink)), pmap)
+    \end{array}
+    }
+    \quad
+    \\[1ex]
+    \inferii[stmts\_tmap': nil]
+    {\seqq{stmts\_tmap'((tmap, var2exprs), ss) = (tmap', var2exprs')}}
+    {\seqq{s s = nil}}
+    {\seqq{tmap' = tmap \wedge var2exprs' = var2exprs}}
+    \quad
+    \\[1ex]
+    \infer[stmts\_tmap: $\neq$ nil]
+    {\seqq{stmts\_tmap'((tmap, var2exprs), ss) = (tmap', var2exprs')}}
+    {
+    \begin{array}{c}
+      ss = s\ ss' \\
+      (tmap'', var2exprs'') = stmt\_tmap((tmap, var2exprs), s) \\
+      (tmap', var2exprs') = stmts\_tmap((tmap'', var2exprs''), ss')
+    \end{array}
+    }
+  \end{gather*}
+%  \vspace{-4mm}
+  \caption{$ports\_stmts\_tmap'$, $ports\_tmap'$, and $stmts\_tmap'$}
+  \label{tab:ports_stmts_tmap'}
+\end{table}
+
+\begin{table}[htbp]
+  \small
+  \begin{gather*}
+   \infer[add\_expr\_connect: find\_some]
+    {\seqq{add\_expr\_connect(lhsl, rhsl, var2exprs) = var2exprs'}}
+    {
+    \begin{array}{c}
+    lhsl = (ref1, \_, \_) \ ltl \wedge rhsl = ehd \ etl \\
+    var2exprs(ref1) = Some el \wedge var2exprs'' = add(ref1, ehd :: el, var2exprs) \\
+    var2exprs' = add\_expr\_connect(ltl, etl, var2exprs'')
+    \end{array}
+    }
+    \quad
+    \\[1ex]
+    \infer[add\_expr\_connect: find\_none]
+    {\seqq{add\_expr\_connect(lhsl, rhsl, var2exprs) = var2exprs'}}
+    {
+    \begin{array}{c}
+    lhsl = (ref1, \_, \_) \ ltl \wedge rhsl = ehd \ etl \\
+    var2exprs(ref1) = none \wedge var2exprs'' = add(ref1, [::ehd], var2exprs) \\
+    var2exprs' = add\_expr\_connect(ltl, etl, var2exprs'')
+    \end{array}
+    }
+     \quad
+    \\[1ex]
+    \infer[add\_expr\_connect\_non\_passive: non-flip, find\_some]
+    {\seqq{add\_expr\_connect\_non\_passive(lhsl, rhsl, var2exprs) = var2exprs'}}
+    {
+    \begin{array}{c}
+    lhsl = (ref1, \_, false) \ ltl \wedge rhsl = (ref2, \_, \_) \ rtl \\
+    var2exprs(ref1) = Some el \wedge var2exprs'' = add(ref1, (Eref ref2) :: el, var2exprs) \\
+    var2exprs' = add\_expr\_connect\_non\_passive(ltl, rtl, var2exprs'')
+    \end{array}
+    }
+     \quad
+    \\[1ex]
+    \infer[add\_expr\_connect\_non\_passive: non-flip, find\_none]
+    {\seqq{add\_expr\_connect\_non\_passive(lhsl, rhsl, var2exprs) = var2exprs'}}
+    {
+    \begin{array}{c}
+    lhsl = (ref1, \_, false) \ ltl \wedge rhsl = (ref2, \_, \_) \ rtl \\
+    var2exprs(ref1) = none \wedge var2exprs'' = add(ref1, [::(Eref ref2)], var2exprs) \\
+    var2exprs' = add\_expr\_connect\_non\_passive(ltl, rtl, var2exprs'')
+    \end{array}
+    }
+    \quad
+    \\[1ex]
+    \infer[add\_expr\_connect\_non\_passive: flip, find\_some]
+    {\seqq{add\_expr\_connect\_non\_passive(lhsl, rhsl, var2exprs) = var2exprs'}}
+    {
+    \begin{array}{c}
+    lhsl = (ref1, \_, true) \ ltl \wedge rhsl = (ref2, \_, \_) \ rtl \\
+    var2exprs(ref2) = Some el \wedge var2exprs'' = add(ref2, (Eref ref1) :: el, var2exprs) \\
+    var2exprs' = add\_expr\_connect\_non\_passive(ltl, rtl, var2exprs'')
+    \end{array}
+    }
+    \quad
+    \\[1ex]
+    \infer[add\_expr\_connect\_non\_passive: non-flip, find\_some]
+    {\seqq{add\_expr\_connect\_non\_passive(lhsl, rhsl, var2exprs) = var2exprs'}}
+    {
+    \begin{array}{c}
+    lhsl = (ref1, \_, false) \ ltl \wedge rhsl = (ref2, \_, \_) \ rtl \\
+    var2exprs(ref1) = Some el \wedge var2exprs'' = add(ref1, (Eref ref2) :: el, var2exprs) \\
+    var2exprs' = add\_expr\_connect\_non\_passive(ltl, rtl, var2exprs'')
+    \end{array}
+    }
+  \end{gather*}
+\caption{$add\_expr\_connect\_non\_passive$ and $add\_expr\_connect$}
+  \label{tab : add_expr_connect}
+\end{table}
+
+
+\begin{table}[htbp]
+  \small
+   \begin{gather*}
+    \inferii[stmt\_tmap': skip]
+    {\seqq{stmt\_tmap'((tmap, var2exprs), s) = (tmap', var2exprs')}}
+    {\seqq{s = skip}}
+    {\seqq{tmap' = tmap \wedge var2exprs' = var2exprs}}
+   \quad
+   \\[1ex]
+    \infer[stmt\_tmap': connect-ref]
+    {\seqq{stmt\_tmap'((tmap, var2exprs), s) = (tmap', var2exprs')}}
+    {
+    \begin{array}{c}
+      s = r <= ref \\
+      type\_of\_ref'(r, tmap) = (t\_tgt, flip\_tgt)  \\
+      type\_of\_ref'(ref, tmap) = (t\_src, flip\_src) \\ 
+      lhsl = list\_gtypref (r, t\_tgt, flip\_tgt) \\
+      rhsl = list\_gtypref (ref, t\_src, flip\_src) \\
+      var2exprs' = add\_expr\_connect\_non\_passive (lhsl, rhsl) var2exprs \\
+      tmap' = tmap
+     \end{array}
+    }
+   \quad
+   \\[1ex]
+    \infer[stmt\_tmap': connect-expr]
+    {\seqq{stmt\_tmap'((tmap, var2exprs), s) = (tmap', var2exprs')}}
+    {
+    \begin{array}{c}
+      s = r <= exp \\
+      type\_of\_ref'(r, tmap) = (t\_tgt, \_)  \\
+      type\_of\_exp(exp, tmap) = t\_src \\ 
+      lhsl = list\_gtypref (r, t\_tgt, flip\_tgt) \\
+      rhsl = list_gtypexpr (exp, t_src)\\
+      var2exprs' = add\_expr\_connect (lhsl, rhsl) var2exprs \\
+      tmap' = tmap
+     \end{array}
+    }
+   \quad
+   \\[1ex]
+    \infer[stmt\_tmap': invalid]
+    {\seqq{stmt\_tmap'((tmap, var2exprs), s) = (tmap', var2exprs')}}
+    {
+    \begin{array}{c}
+      s = r \mbox{ is invalid} \\
+      type\_of\_ref(r, tmap) \neq none \\
+      (tmap', var2exprs') = (tmap, var2exprs)
+     \end{array}
+    }
+   \quad
+   \\[1ex]
+    \infer[stmt\_tmap': wire]
+    {\seqq{stmt\_tmap'((tmap, var2exprs), s) = (tmap', var2exprs')}}
+    {
+    \begin{array}{c}
+      s = \mbox{wire } x: t \wedge tmap(id(x)) = none  \\
+      tmap' = add((id(x), (t, \duplex)), tmap) \\
+      var2exprs' = var2exprs
+     \end{array}
+    }
+   \quad
+   \\[1ex]
+    \infer[stmt\_tmap': node]
+    {\seqq{stmt\_tmap'((tmap, var2exprs), s) = (tmap', var2exprs')}}
+    {
+    \begin{array}{c}
+      s = \mbox{node } x = e \wedge tmap(id(x)) = none  \\
+      type\_of\_exp(e, tmap) = t_src \\
+      tmap' = add((id(x), (t_src, \source)), tmap) \\
+      lhsl = list\_gtypref (x, t\_src, false) \\
+      rhsl = list_gtypexpr (e, t_src)\\
+      var2exprs' = add\_expr\_connect (lhsl, rhsl) var2exprs 
+     \end{array}
+    }
+   \quad
+   \\[1ex]
+       \end{gather*}
+%  \vspace{-4mm}
+  \caption{$stmt\_tmap' (part 1)$}
+  \label{tab:stmts-tmap'}
+\end{table}
+
+\begin{table}[htbp]
+  \small
+   \begin{gather*}
+    \infer[stmt\_tmap': register-reset]
+    {\seqq{stmt\_tmap'((tmap, var2exprs), s) = (tmap', var2exprs')}}
+    {
+    \begin{array}{c} 
+      s = \mbox{reg } x: t \ clk \mbox{ with: reset =>} (rsig, rval)  \\
+      tmap(id(x)) = none \wedge type\_of\_exp(clk, tmap) \neq none  \\
+      tmap' = add((id(x), (t, \duplex)), tmap) \\
+      lhsl = list\_gtypref (x, t, false) \\
+      rhsl = list_gtypexpr (rval, t)\\
+      var2exprs' = add\_expr\_connect (lhsl, rhsl) var2exprs 
+     \end{array}
+    }
+   \quad
+   \\[1ex]
+    \infer[stmt\_tmap': register-non-reset]
+    {\seqq{stmt\_tmap'((tmap, var2exprs), s) = (tmap', var2exprs')}}
+    {
+    \begin{array}{c}
+      s = \mbox{reg } x: t \ clk \\
+      tmap(id(x)) = none \wedge type\_of\_exp(clk, tmap) \neq none  \\
+      tmap' = add((id(x), (t, \duplex)), tmap) \\
+      var2exprs' = var2exprs
+     \end{array}
+    }
+   \quad
+   \\[1ex]
+   \infer[stmt\_tmap': when]
+    {\seqq{stmt\_tmap'((tmap, var2exprs), s) = (tmap', var2exprs')}}
+    {
+    \begin{array}{c}
+      s = \mbox{when } c: sst \mbox{ else }: ssf  \\
+      type\_of\_exp(c, scope) \neq none \\
+      stmts\_tmap'((tmap, var2exprs), sst) = (tmap'', var2exprs'') \\
+      stmts\_tmap'((tmap'', var2exprs''), ssf) = (tmap', var2exprs')
+     \end{array}
+    }
+    \end{gather*}
+%  \vspace{-4mm}
+  \caption{$stmt\_tmap' (part 2)$}
+  \label{tab:stmts-tmap-2}
+\end{table}
+
+\begin{table}[htbp]
+  \small
+  \begin{gather*}
+   \inferii[type\_of\_ref': id]
+    {\seqq{type\_of\_ref'(r, tmap) = (ft, false)}}
+    {\seqq{r = x}} {\seqq{tmap(id(x)) = (ft, \_)}}
+    \quad
+    \\[1ex]
+   \inferiii[type\_of\_ref': vector-1]
+    {\seqq{type\_of\_ref'(r, tmap) = (t, flip)}}
+    {\seqq{r = r'[n]}} {\seqq{type\_of\_ref'(r', tmap) =  (t[m], flip)}} {\seqq{n < m}}
+    \quad
+    \\[1ex]
+   \inferiii[type\_of\_ref': vector-2]
+    {\seqq{type\_of\_ref'(r, tmap) = none}}
+    {\seqq{r = r'[n]}} {\seqq{type\_of\_ref'(r', tmap) = (t[m], flip)}} {\seqq{n \ge m}}
+    \quad
+    \\[1ex]
+   \infer[type\_of\_ref': field]
+    {\seqq{type\_of\_ref'(r, tmap) = (ft, flip)}}
+    {
+    \begin{array}{c}
+    r = r'.f \\
+    type\_of\_ref'(r', tmap) = (ft', flip') \\
+    type\_of\_field'(f, ft', flip') = (ft, ori)
+    \end{array}
+    }
+    \quad
+    \\[1ex]
+   \infer[type\_of\_field']
+    {\seqq{type\_of\_field'(f, ff, flip) = none}}
+    {\seqq{f f = nil}}
+    \quad
+    \\[1ex]
+   \infer[type\_of\_field': neq]
+    {\seqq{type\_of\_field'(f, ff, flip) = (ft, flip')}}
+    {
+    \begin{array}{c}
+    f f = (f', flipped, t, ff')\wedge f \neq f'\\
+    type\_of\_field'(f, ff', flip) = (ft, flip')
+    \end{array}
+    }
+    \quad
+    \\[1ex]
+   \infer[type\_of\_field': eq-1]
+    {\seqq{type\_of\_field'(f, ff, flip) = (t, flip)}}
+    {
+    \begin{array}{c}
+    f f = (f', flipped, t, ff') \wedge f = f' \\
+    flipped = false
+    \end{array}
+    }
+    \quad
+    \\[1ex]
+   \infer[type\_of\_field': eq-2]
+    {\seqq{type\_of\_field'(f, ff, flip) = (t, \sim flip)}}
+    {
+    \begin{array}{c}
+    f f = (f', flipped, t, ff') \wedge f = f' \\
+    flipped = true
+    \end{array}
+    }
+  \end{gather*}
+%  \vspace{-4mm}
+  \caption{$type\_of\_ref'$ and $type\_of\_field'$}
+  \label{tab:type-ref'}
+\end{table}
+
+For a statement that declares a component $v$ with ftype \{flip a : UInt, b : SInt\},
+the {\tt ports\_stmts\_tmap'} function will update $tmap$ by
+ $$ {tmap':= tmap \uplus \{v : \{flip \  a : UInt, b : SInt\}\}} $$
+\\For a statement that connects $v$ to another component $w$ with ftype \{ flip a : UInt, b : SInt \},
+the {\tt ports\_stmts\_tmap'} function will update $var2exprs$ by
+ $$ {var2exprs':= var2exprs \uplus \{v.a : \{w.a\} \} \uplus \{v.b : \{w.b\} \}} $$
+
+Draw the dependency graph according to the connection map. The Coq function {\tt drawg}, given elements in the connection map, generates the dependency graph by adding edges from every component in a expression to the target component. To make the calculation simpler, only components with uninferred implicit width are involved in the dependency graph,
+
+\begin{table}[htbp]
+  \small
+  \begin{gather*}
+    \inferii[drawg: nil]
+    {\seqq{drawg(elements \ var2exprs, tmap) = (vertices, g)}}
+    {\seqq{elements \ var2exprs = nil}}
+    {\seqq{vertices = [::] \wedge g = emptyg}}
+    \quad
+   \\[1ex]
+    \infer[drawg: $\neq$ nil, explicit]
+    {\seqq{drawg(elements \ var2exprs, tmap, vertices, g) = (vertices', g')}}
+    {
+    \begin{array}{c}
+      elements \ var2exprs = v : el\ tl \\
+      type_of_ref(v, tmap) = (t, \_) \wedge not_implict t \\
+      (vertices', g') = drawg (tl, tmap, vertices, g)
+    \end{array}
+    }
+    \quad
+   \\[1ex]
+    \infer[drawg: $\neq$ nil, implicit]
+    {\seqq{drawg(elements \ var2exprs, tmap, vertices, g) = (vertices', g')}}
+    {
+    \begin{array}{c}
+      elements \ var2exprs = v : el\ tl \\
+      type_of_ref(v, tmap) = (t, \_) \wedge not_implict t = false \\
+      (vertices'', g'') = drawel(v, el, vertices, g) \\
+      (vertices', g') = drawg (tl, tmap, vertices'', g'')
+    \end{array}
+    }
+    \quad
+   \\[1ex]
+    \inferii[drawel: nil]
+    {\seqq{drawel(v, el, vertices, g) = (vertices', g')}}
+    {\seqq{vertices' = vertices \wedge g' = g}}
+    \quad
+   \\[1ex]
+    \infer[drawel: $\neq$ nil]
+    {\seqq{drawel(v, el, vertices, g) = (vertices', g')}}
+    {
+    \begin{array}{c}
+      el = e\ tl \\
+      vl = expr2varlist e \\
+      vertices'' = vertices ++ vl \\
+      g'' = fold\_left (fun tv tg => add(v, tv :: tg(v), tg)) vl g\\
+      (vertices', g') = drawel(v, tl, vertices'', g'')
+    \end{array}
+    }
+    \quad
+    \\[1ex]
+    \inferii[expr2varlist: const]
+    {\seqq{expr2varlist(e) = vl}}
+    {\seqq{e = const}}
+    {\seqq{vl = nil}}
+   \quad
+   \\[1ex]
+    \inferii[expr2varlist: ref]
+    {\seqq{expr2varlist(e) = vl}}
+    {\seqq{e = ref}}
+    {\seqq{vl = [::ref]}}
+   \quad
+   \\[1ex]
+    \inferii[expr2varlist: cast]
+    {\seqq{expr2varlist(e) = vl}}
+    {\seqq{e = cast(e0)}}
+    {\seqq{vl = expr2varlist(e0)}}
+   \quad
+   \\[1ex]
+    \inferii[expr2varlist: unop]
+    {\seqq{expr2varlist(e) = vl}}
+    {\seqq{e = unop(e0)}}
+    {\seqq{vl = expr2varlist(e0)}}
+   \quad
+   \\[1ex]
+    \inferii[expr2varlist: binop]
+    {\seqq{expr2varlist(e) = vl}}
+    {\seqq{e = binop(e0, e1)}}
+    {\seqq{vl = expr2varlist(e0) ++ expr2varlist(e1)}}
+    \quad
+   \\[1ex]
+    \inferii[expr2varlist: mux]
+    {\seqq{expr2varlist(e) = vl}}
+    {\seqq{e = mux(e0, e1, e2)}}
+    {\seqq{vl = expr2varlist(e0) ++ expr2varlist(e1) ++ expr2varlist(e2)}}
+  \end{gather*}
+%  \vspace{-4mm}
+  \caption{$drawg$, $drawel$, and $expr2varlist$}
+  \label{tab:ports-stmts-tmap}
+  \vspace{-6mm}
+\end{table}
+
+Generate the topological order of all the uninferred ground type components. Given the vertices set and the graph, the correctness of sorting algorithm {\tt topo\_sort} is certified. Because the module components depends on each other through connections and operations, implicit widths should be inferred sequentially in the order of topological order,
+
+Finally, compares the widths of each expression connected to the same component, and chooses the larger width. Since the last connect semantics is not considered, each connection to the component provides a potential width. A function named {\tt max\_ftlist} compares the potential widths and outputs the maximum one. 
+the Coq function {\tt InferWidths\_fun} calls {\tt InferWidth\_fun} on the list of topological order, where the widths are inferred according to connect statements. 
+
+\begin{table}[htbp]
+  \small
+  \begin{gather*}
+    \inferii[InferWidths\_fun: nil]
+    {\seqq{InferWidths\_fun(order, var2exprs, tmap) = tmap'}}
+    {\seqq{order = nil}}
+    {\seqq{tmap' = tmap}}
+    \quad
+   \\[1ex]
+    \infer[InferWidths\_fun: $\neq$ nil]
+    {\seqq{InferWidths\_fun(order, var2exprs, tmap) = tmap'}}
+    {
+    \begin{array}{c}
+      order = v\ tl \\
+      el = var2exprs(v) \\
+      tmap'' = InferWidth\_fun(v, el, tmap) \\
+      tmap' = InferWidths\_fun (tl, var2exprs, tmap'')
+    \end{array}
+    }
+    \quad
+   \\[1ex]
+    \infer[InferWidth\_fun]
+    {\seqq{InferWidth\_fun(v, el, tmap) = tmap'}}
+    {
+    \begin{array}{c}
+      type\_of\_ref(v, tmap) = (initt, \_) \\
+      newt = max\_ftlist(initt, map (type\_of\_expr tmap) el) \\
+      tmap' = add(v, newt, tmap)
+    \end{array}
+    }
+    \quad
+   \\[1ex]
+    \inferii[max\_ftlist: nil]
+    {\seqq{max\_ftlist(initt, tel) = newt}}
+    {\seqq{tel = nil}}
+    {\seqq{newt = initt}}
+    \quad
+   \\[1ex]
+    \infer[max\_ftlist: $\neq$ nil]
+    {\seqq{max\_ftlist(initt, tel) = newt}}
+    {
+    \begin{array}{c}
+      tel = gt \ tl
+      newt' = max\_fgtyp(initt, gt) \\
+      newt = max\_ftlist(newt', tl) 
+    \end{array}
+    }
+    \quad
+   \\[1ex]
+    \inferii[max\_fgtyp: fuint\_implicit]
+    {\seqq{max\_fgtyp(initt, te) = newt}}
+    {\seqq{initt = fuint\_implicit \ w}}
+    {\seqq{newt = fuint\_implicit \ max(w, sizeof\_fgtyp te)}}
+    \quad
+   \\[1ex]
+    \inferii[max\_fgtyp: fsint\_implicit]
+    {\seqq{max\_fgtyp(initt, te) = newt}}
+    {\seqq{initt = fsint\_implicit \ w}}
+    {\seqq{newt = fsint\_implicit \ max(w, sizeof\_fgtyp te)}}
+  \end{gather*}
+ \vspace{-4mm}
+  \caption{$InferWidths\_fun$, $InferWidth\_fun$, $max\_ftlist$ and $max\_fgtyp$}
+  \label{tab:InferWidths-fun}
+  \vspace{-6mm}
+\end{table}
+
+
+%%%%%%%%%%%%%%%
+%\hide{
+%It is allowed to leave the width of a component implicit in HiFIRRTL programs.
+%Such unspecified widths are inferred by the Infer Widths pass.
+%The general rules are,
+%\begin{itemize}
+%\item The only allowed width for an explicitly defined width is itself.
+%\item An implicitly defined width will be set to the largest width that can
+%  be found through connect statements.
+%\item The last connection semantics is not considered at this stage,
+%  all connect statements are taken into account.
+%\end{itemize}
+%
+%Following the rules, we first introduce an additional map $wm$, which
+%maps from variables to types. Then we scan through the statements in $ss$ to
+%find components with implicit width and create entries for
+%them in $wm$. For a statement that declares a component $v$,
+%the {\tt infer\_width} function will update $wm$ by
+%%
+%  \begin{gather}
+%    \inferii[]
+%    {\seqq{ce \vdash {\tt infer\_width} (declare\;v, wm) \rightsquigarrow wm'}}
+%    {\seqq{ce \vdash {\tt width}(t_v) = 0}} {\seqq{wm':= wm \uplus \{v : t_v\}}}.
+%    \end{gather}
+%
+%The width is inferred according to connect statements.
+%Since the last connect semantics is not considered, each
+%connection to the element provides a potential width. A function
+%named {\tt max\_width} compares the potential widths and outputs
+%the maximum one. For a statement which connects an expression $e$
+%to a component $v$, the {\tt infer\_width} function will update $wm$ by
+%
+%After applying {\tt infer\_width} to all the statements in $ss$,
+%$wm$ contains the inferred width for every implicitly defined
+%component. By merging the information from $wm$ for every entry into $ce$,
+%the component environment $ce$ contains the
+%result of the inferred width.
+%
+%Instead of applying {\tt infer\_width} directly on $ce$, the map
+%$wm$ contains only type information of the implicit ones that can be
+%manipulated more efficiently.
+%}
+%%%%%%%%%%%%%%%
+
+%% \begin{description}
+%% \item[The input] of InferWidth takes the statments and the component
+%%   environment $ce$ that passed from the InferType.  In $ce$ the
+%%   unspecified widths are recorded by zero width .  The statements
+%%   are assumed to contain only legal connections, which means the two
+%%   sides of the connection have equivalent type (mentioned?) and the
+%%   flow is from a smaller width to a lager one.
+%% \item[The output] of InferWidth give a new component environment $ce'$
+%%   where all unspecified types have been infered.  Still it is possible
+%%   that after this pass, signals are infered to zero width.  The overall
+%%   compilation will use other passes to deal with zero width, which is
+%%   not concerned here.
+%% \end{description}
+
+%% To state the correctness of InferWidth that implement in Coq, we first
+%% recall the semantics of width infering.  There are statements that
+%% declare new component, or the statements that define connections. For
+%% those components declared with explicit widths, we state that the
+%% widths will be kept unchange after the pass.  The implicit width
+%% declarations will be collected and await to be assigned to a proper width.
+%% The connections give hints to the infering process. For example,
+%% \begin{lstlisting}
+%%   wire c: SInt
+%%   c <= shl(SInt("b-100101100101"), 1)
+%% \end{lstlisting}
+%% the width of wire $c$ is implicit defined. The connection from an
+%% shift-left expression to $c$ will provide the protential width for $c$.
+%% According to the rules, the width of c now is 13, because the
+%% shift-left expression is of type \lstinline!SInt<13>!. Before applying last
+%% connect semantics, the module may contain more than one connections to
+%% one target. For example,
+%% \begin{lstlisting}
+%%   wire c: SInt
+%%   wire d: SInt<14>
+%%   c <= shl(SInt("b-100101100101"), 1)
+%%   c <= d
+%% \end{lstlisting}
+%% Now, wire $c$ has the width as same as $d$, which is 14. The latter connection
+%% from d gives a larger width to the destination $c$.
