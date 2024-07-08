@@ -42,7 +42,7 @@ Record the original type map and the connection map according to ports sequecnse
     {\seqq{tmap' = tmap \wedge var2exprs' = var2exprs}}
     \quad
     \\[1ex]
-    \infer[stmts\_tmap: \neq nil]
+    \infer[stmts\_tmap: $\neq$ nil]
     {\seqq{stmts\_tmap'((tmap, var2exprs), ss) = (tmap', var2exprs')}}
     {
     \begin{array}{c}
@@ -60,7 +60,7 @@ Record the original type map and the connection map according to ports sequecnse
 \begin{table}[htbp]
   \small
   \begin{gather*}
-   \infer[add\_expr\_connect: find_some]
+   \infer[add\_expr\_connect: find\_some]
     {\seqq{add\_expr\_connect(lhsl, rhsl, var2exprs) = var2exprs'}}
     {
     \begin{array}{c}
@@ -71,7 +71,7 @@ Record the original type map and the connection map according to ports sequecnse
     }
     \quad
     \\[1ex]
-    \infer[add\_expr\_connect: find_none]
+    \infer[add\_expr\_connect: find\_none]
     {\seqq{add\_expr\_connect(lhsl, rhsl, var2exprs) = var2exprs'}}
     {
     \begin{array}{c}
@@ -82,7 +82,7 @@ Record the original type map and the connection map according to ports sequecnse
     }
      \quad
     \\[1ex]
-    \infer[add\_expr\_connect\_non\_passive: non-flip, find_some]
+    \infer[add\_expr\_connect\_non\_passive: non-flip, find\_some]
     {\seqq{add\_expr\_connect\_non\_passive(lhsl, rhsl, var2exprs) = var2exprs'}}
     {
     \begin{array}{c}
@@ -93,7 +93,7 @@ Record the original type map and the connection map according to ports sequecnse
     }
      \quad
     \\[1ex]
-    \infer[add\_expr\_connect\_non\_passive: non-flip, find_nont]
+    \infer[add\_expr\_connect\_non\_passive: non-flip, find\_none]
     {\seqq{add\_expr\_connect\_non\_passive(lhsl, rhsl, var2exprs) = var2exprs'}}
     {
     \begin{array}{c}
@@ -104,7 +104,7 @@ Record the original type map and the connection map according to ports sequecnse
     }
     \quad
     \\[1ex]
-    \infer[add\_expr\_connect\_non\_passive: flip, find_some]
+    \infer[add\_expr\_connect\_non\_passive: flip, find\_some]
     {\seqq{add\_expr\_connect\_non\_passive(lhsl, rhsl, var2exprs) = var2exprs'}}
     {
     \begin{array}{c}
@@ -115,7 +115,7 @@ Record the original type map and the connection map according to ports sequecnse
     }
     \quad
     \\[1ex]
-    \infer[add\_expr\_connect\_non\_passive: non-flip, find_some]
+    \infer[add\_expr\_connect\_non\_passive: non-flip, find\_some]
     {\seqq{add\_expr\_connect\_non\_passive(lhsl, rhsl, var2exprs) = var2exprs'}}
     {
     \begin{array}{c}
@@ -125,13 +125,14 @@ Record the original type map and the connection map according to ports sequecnse
     \end{array}
     }
   \end{gather*}
-  \caption{$add\_expr\_connect\_non\_passive$ and $add\_expr\_connect$}
+\caption{$add\_expr\_connect\_non\_passive$ and $add\_expr\_connect$}
   \label{tab : add_expr_connect}
 \end{table}
 
+
 \begin{table}[htbp]
   \small
-  \begin{gather*}
+   \begin{gather*}
     \inferii[stmt\_tmap': skip]
     {\seqq{stmt\_tmap'((tmap, var2exprs), s) = (tmap', var2exprs')}}
     {\seqq{s = skip}}
@@ -204,6 +205,15 @@ Record the original type map and the connection map according to ports sequecnse
     }
    \quad
    \\[1ex]
+       \end{gather*}
+%  \vspace{-4mm}
+  \caption{$stmt\_tmap' (part 1)$}
+  \label{tab:stmts-tmap'}
+\end{table}
+
+\begin{table}[htbp]
+  \small
+   \begin{gather*}
     \infer[stmt\_tmap': register-reset]
     {\seqq{stmt\_tmap'((tmap, var2exprs), s) = (tmap', var2exprs')}}
     {
@@ -240,10 +250,10 @@ Record the original type map and the connection map according to ports sequecnse
       stmts\_tmap'((tmap'', var2exprs''), ssf) = (tmap', var2exprs')
      \end{array}
     }
-  \end{gather*}
+    \end{gather*}
 %  \vspace{-4mm}
-  \caption{$stmt\_tmap'$}
-  \label{tab:stmts-tmap'}
+  \caption{$stmt\_tmap' (part 2)$}
+  \label{tab:stmts-tmap-2}
 \end{table}
 
 \begin{table}[htbp]
@@ -332,7 +342,7 @@ Draw the dependency graph according to the connection map. The Coq function {\tt
     {\seqq{vertices = [::] \wedge g = emptyg}}
     \quad
    \\[1ex]
-    \infer[drawg: \neq nil, explicit]
+    \infer[drawg: $\neq$ nil, explicit]
     {\seqq{drawg(elements \ var2exprs, tmap, vertices, g) = (vertices', g')}}
     {
     \begin{array}{c}
@@ -343,7 +353,7 @@ Draw the dependency graph according to the connection map. The Coq function {\tt
     }
     \quad
    \\[1ex]
-    \infer[drawg: \neq nil, implicit]
+    \infer[drawg: $\neq$ nil, implicit]
     {\seqq{drawg(elements \ var2exprs, tmap, vertices, g) = (vertices', g')}}
     {
     \begin{array}{c}
@@ -360,7 +370,7 @@ Draw the dependency graph according to the connection map. The Coq function {\tt
     {\seqq{vertices' = vertices \wedge g' = g}}
     \quad
    \\[1ex]
-    \infer[drawel: \neq nil]
+    \infer[drawel: $\neq$ nil]
     {\seqq{drawel(v, el, vertices, g) = (vertices', g')}}
     {
     \begin{array}{c}
@@ -414,10 +424,10 @@ Draw the dependency graph according to the connection map. The Coq function {\tt
   \vspace{-6mm}
 \end{table}
 
-Generate the topological order of all the uninferred ground type components. Given the vertices set and the graph, the correctness of sorting algorithm {\tt topo_sort} is certified. Because the module components depends on each other through connections and operations, implicit widths should be inferred sequentially in the order of topological order,
+Generate the topological order of all the uninferred ground type components. Given the vertices set and the graph, the correctness of sorting algorithm {\tt topo\_sort} is certified. Because the module components depends on each other through connections and operations, implicit widths should be inferred sequentially in the order of topological order,
 
 Finally, compares the widths of each expression connected to the same component, and chooses the larger width. Since the last connect semantics is not considered, each connection to the component provides a potential width. A function named {\tt max\_ftlist} compares the potential widths and outputs the maximum one. 
-the Coq function {\tt InferWidths\_fun} calls {\tt InferWidth_fun} on the list of topological order, where the widths are inferred according to connect statements. 
+the Coq function {\tt InferWidths\_fun} calls {\tt InferWidth\_fun} on the list of topological order, where the widths are inferred according to connect statements. 
 
 \begin{table}[htbp]
   \small
@@ -428,7 +438,7 @@ the Coq function {\tt InferWidths\_fun} calls {\tt InferWidth_fun} on the list o
     {\seqq{tmap' = tmap}}
     \quad
    \\[1ex]
-    \infer[InferWidths\_fun: \neq nil]
+    \infer[InferWidths\_fun: $\neq$ nil]
     {\seqq{InferWidths\_fun(order, var2exprs, tmap) = tmap'}}
     {
     \begin{array}{c}
@@ -457,13 +467,13 @@ the Coq function {\tt InferWidths\_fun} calls {\tt InferWidth_fun} on the list o
     {\seqq{newt = initt}}
     \quad
    \\[1ex]
-    \infer[max\_ftlist: \neq nil]
+    \infer[max\_ftlist: $\neq$ nil]
     {\seqq{max\_ftlist(initt, tel) = newt}}
     {
     \begin{array}{c}
       tel = gt \ tl
-      newt' = max_fgtyp(initt, gt) \\
-      newt = max_ftlist(newt', tl) 
+      newt' = max\_fgtyp(initt, gt) \\
+      newt = max\_ftlist(newt', tl) 
     \end{array}
     }
     \quad
@@ -471,17 +481,17 @@ the Coq function {\tt InferWidths\_fun} calls {\tt InferWidth_fun} on the list o
     \inferii[max\_fgtyp: fuint\_implicit]
     {\seqq{max\_fgtyp(initt, te) = newt}}
     {\seqq{initt = fuint\_implicit \ w}}
-    {\seqq{newt = fuint\_implicit \ max(w, sizeof_fgtyp te)}}
+    {\seqq{newt = fuint\_implicit \ max(w, sizeof\_fgtyp te)}}
     \quad
    \\[1ex]
     \inferii[max\_fgtyp: fsint\_implicit]
     {\seqq{max\_fgtyp(initt, te) = newt}}
     {\seqq{initt = fsint\_implicit \ w}}
-    {\seqq{newt = fsint\_implicit \ max(w, sizeof_fgtyp te)}}
+    {\seqq{newt = fsint\_implicit \ max(w, sizeof\_fgtyp te)}}
   \end{gather*}
-%  \vspace{-4mm}
+ \vspace{-4mm}
   \caption{$InferWidths\_fun$, $InferWidth\_fun$, $max\_ftlist$ and $max\_fgtyp$}
-  \label{tab:InferWidths\_fun}
+  \label{tab:InferWidths-fun}
   \vspace{-6mm}
 \end{table}
 
