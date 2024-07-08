@@ -1,89 +1,189 @@
 
-\section{Detailed Results of Section~\ref{sec-validate-interpreter}}\label{sec-detailed-results}
-
+\section{Detailed Results of the FIRRTL OCaml Compiler Validation}\label{sec-interpreter}
 
 \begin{table}[!t]
-\caption{Results of conformance testing on the benchmarks from Treadle}\footnotesize\vspace*{-3mm}
-\label{tab:conformancetesting-Treadle}
+\caption{Results of conformance testing on the benchmarks from circt}\footnotesize\vspace*{-3mm}
+\label{tab:conformancetesting-chiselbook}
 \scalebox{0.9}{\begin{tabular}{|c|c|c|c|c|c|}
   \hline
 \multirow{2}{*}{\bf Benchmark name} & \multirow{2}{*}{\bf \#LOC} & \multicolumn{2}{c|}{\bf Execution time ($\mu$s)}&\multirow{2}{*}{\bf Speedup}  & \multirow{2}{*}{\bf Result} \\ \cline{3-4}
-                              &                        & {\bf Treadle}  &  {\bf Ours}  &     &  \\ \hline
+                              &                        & {\bf firtool}  &  {\bf Ours}  &     &  \\ \hline
  \hline
-        AggregatePassThrough & 72 & 13.83 & 3.57 & 2.87  & \ding{51} \\ \hline
-        ALU & 61 & 24.65 & 2.58 & 8.56  & \ding{51} \\ \hline
-        BundlePassThrough & 27 & 8.71 & 2.16 & 3.04  & \ding{51} \\ \hline
-        ConstantTapTransposedStreamingFIR & 35 & 11.48 & 1.40 & 7.19  & \ding{51} \\ \hline
-        DoesAbs & 36 & 11.67 & 2.89 & 3.04  & \ding{51} \\ \hline
-        DriverTest & 8 & 6.43 & 0.63 & 9.14  & \ding{51} \\ \hline
-        EqModule & 9 & 8.29 & 0.64 & 12.05  & \ding{51} \\ \hline
-        ExampleModule & 44 & 11.47 & 2.00 & 4.72  & \ding{51} \\ \hline
-        FixedPointAdder & 11 & 9.36 & 0.47 & 18.89  & \ding{51} \\ \hline
-        FixedPointDivide & 10 & 7.30 & 0.40 & 17.22  & \ding{51} \\ \hline
-        FixedPointReduce & 43 & 18.40 & 2.38 & 6.72  & \ding{51} \\ \hline
-        FixedPointShifter & 15 & 10.11 & 1.59 & 5.36  & \ding{51} \\ \hline
-        FixedPrecisionChanger & 10 & 9.51 & 0.64 & 13.83  & \ding{51} \\ \hline
-        FixedRing1 & 26 & 9.26 & 2.81 & 2.30  & \ding{51} \\ \hline
-        GCD & 30 & 9.75 & 2.11 & 3.61  & \ding{51} \\ \hline
-        HardwareHashMaker & 122 & 28.38 & 31.49 & -0.10  & \ding{51} \\ \hline
-        IntegerModule & 11 & 7.35 & 0.74 & 8.88  & \ding{51} \\ \hline
-        OverflowTypeCircuit & 34 & 9.90 & 2.16 & 3.57  & \ding{51} \\ \hline
-        ParameterizedNumberOperation & 12 & 10.93 & 0.52 & 19.89  & \ding{51} \\ \hline
-        PeekPokeBundleSpecMyCircuit & 17 & 9.11 & 2.01 & 3.53  & \ding{51} \\ \hline
-        RealGCD2 & 44 & 9.98 & 2.60 & 2.84  & \ding{51} \\ \hline
-        RealGCD3 & 48 & 12.66 & 2.71 & 3.67  & \ding{51} \\ \hline
-        RemoveMantissa & 10 & 8.48 & 0.55 & 14.39  & \ding{51} \\ \hline
-        RingModule & 11 & 6.91 & 0.64 & 9.72  & \ding{51} \\ \hline
-        ShouldBeBadUIntSubtractWithGrow & 14 & 7.81 & 0.66 & 10.93  & \ding{51} \\ \hline
-        SignedAdder & 11 & 9.77 & 0.68 & 13.47  & \ding{51} \\ \hline
-        SignedModule & 34 & 6.79 & 1.36 & 4.01  & \ding{51} \\ \hline
-        SimpleAdder & 15 & 9.14 & 0.69 & 12.19  & \ding{51} \\ \hline
-        SimpleCaseClassModule & 10 & 8.78 & 0.52 & 15.87  & \ding{51} \\ \hline
-        SimpleComplexAdder & 40 & 12.68 & 1.56 & 7.11  & \ding{51} \\ \hline
-        Sort & 85 & 17.53 & 7.14 & 1.46  & \ding{51} \\ \hline
-        UseMyBundle & 59 & 8.75 & 3.11 & 1.82  & \ding{51} \\ \hline
-        VecPassThrough & 75 & 20.21 & 5.06 & 3.00  & \ding{51} \\ \hline
-        VF & 64 & 6.53 & 2.18 & 2.00  & \ding{51} \\ \hline
-        ContextNestingTop & 64 & 8.76 & 3.10 & 1.83  & \ding{51} \\ \hline
-        MultiGcdCalculator & 133 & 51.35 & 18.33 & 1.80  & \ding{51} \\ \hline
-        StreamingAutocorrelator & 59 & 8.78 & 1.56 & 4.62  & \ding{51} \\ \hline\hline
-        {\bf Average} & \textbf{38.08} & \textbf{12.18} & \textbf{3.13} & \textbf{7.16} &  \\ \hline
+        AddNot  & 10  & 2.80 & 0.05 & 59.87  & \ding{51} \\ \hline
+        annotation-error  & 14  & 0.10 & 0.05 & 0.92  & \ding{51} \\ \hline
+        include-dirs-annotations  & 16  & 0.10 & 0.05 & 1.00  & \ding{51} \\ \hline
+        constant-data-taps  & 26  & 0.30 & 0.09 & 2.19  & \ding{51} \\ \hline
+        name-preservation  & 31  & 0.70 & 0.09 & 7.05  & \ding{51} \\ \hline
+        optimizations  & 43  & 0.50 & 0.14 & 2.62  & \ding{51} \\ \hline
+        sv-attr  & 38  & 0.50 & 0.05 & 9.00  & \ding{51} \\ \hline
+        width-spec  & 53  & 2.40 & 0.50 & 3.85  & \ding{51} \\ \hline
+        register-randomization  & 51  & 0.60 & 0.17 & 2.59  & \ding{51} \\ \hline
+        async-reset-verilog  & 67  & 1.60 & 0.44 & 2.64  & \ding{51} \\ \hline
+        Ops  & 55  & 6.00 & 0.87 & 5.89  & \ding{51} \\ \hline
+        invalid-reg-pass-add  & 61  & 2.40 & 0.58 & 3.12  & \ding{51} \\ \hline
+        invalid-reg-pass-xorr  & 26  & 0.80 & 0.19 & 3.15  & \ding{51} \\ \hline
+        invalid-reg-pass-not  & 29  & 0.80 & 0.15 & 4.26  & \ding{51} \\ \hline
+        invalid-reg-pass-orr  & 29  & 0.80 & 0.24 & 2.40  & \ding{51} \\ \hline
+        invalid-reg-pass-andr  & 29  & 0.80 & 0.22 & 2.67  & \ding{51} \\ \hline
+        invalid-reg-pass-pad  & 29  & 0.80 & 0.21 & 2.85  & \ding{51} \\ \hline
+        invalid-reg-pass-shl  & 29  & 0.80 & 0.23 & 2.48  & \ding{51} \\ \hline
+        invalid-reg-pass-shr  & 29  & 0.80 & 0.20 & 3.02  & \ding{51} \\ \hline
+        invalid-reg-pass-head  & 29  & 0.80 & 0.21 & 2.83  & \ding{51} \\ \hline
+        invalid-reg-pass-tail  & 29  & 0.80 & 0.20 & 3.08  & \ding{51} \\ \hline
+        invalid-reg-pass-asUInt  & 29  & 0.80 & 0.24 & 2.35  & \ding{51} \\ \hline
+        invalid-reg-pass-asSInt  & 29  & 0.80 & 0.21 & 2.77  & \ding{51} \\ \hline
+        invalid-reg-pass-bits  & 29  & 0.80 & 0.29 & 1.79  & \ding{51} \\ \hline
+        invalid-reg-pass-cvt  & 29  & 0.80 & 0.21 & 2.76  & \ding{51} \\ \hline
+        invalid-reg-pass-asAsyncReset  & 27  & 0.80 & 0.22 & 2.62  & \ding{51} \\ \hline
+        invalid-reg-pass-asClock  & 29  & 0.70 & 0.21 & 2.29  & \ding{51} \\ \hline
+        invalid-reg-pass-neg  & 32  & 0.90 & 0.48 & 0.86  & \ding{51} \\ \hline
+        invalid-reg-pass-eq  & 42  & 1.10 & 0.34 & 2.22  & \ding{51} \\ \hline
+        invalid-reg-pass-gt  & 42  & 1.10 & 0.48 & 1.28  & \ding{51} \\ \hline
+        invalid-reg-pass-lt  & 42  & 1.10 & 0.46 & 1.42  & \ding{51} \\ \hline
+        invalid-reg-pass-or  & 42  & 1.10 & 0.43 & 1.55  & \ding{51} \\ \hline
+        invalid-reg-pass-and  & 42  & 1.10 & 0.47 & 1.34  & \ding{51} \\ \hline
+        invalid-reg-pass-cat  & 42  & 1.10 & 0.44 & 1.51  & \ding{51} \\ \hline
+        invalid-reg-pass-geq  & 42  & 1.00 & 0.44 & 1.29  & \ding{51} \\ \hline
+        invalid-reg-pass-leq  & 42  & 1.10 & 0.45 & 1.44  & \ding{51} \\ \hline
+        invalid-reg-pass-neq  & 42  & 1.10 & 0.52 & 1.10  & \ding{51} \\ \hline
+        invalid-reg-pass-xor  & 42  & 1.10 & 0.47 & 1.35  & \ding{51} \\ \hline
+        invalid-reg-pass-dshl  & 42  & 1.10 & 0.46 & 1.38  & \ding{51} \\ \hline
+        invalid-reg-pass-dshr  & 42  & 1.10 & 0.23 & 3.89  & \ding{51} \\ \hline
+        invalid-reg-pass-rem  & 42  & 1.10 & 0.44 & 1.51  & \ding{51} \\ \hline
+        invalid-reg-pass-div  & 42  & 1.10 & 0.50 & 1.21  & \ding{51} \\ \hline
+        invalid-reg-pass-sub  & 46  & 1.40 & 0.59 & 1.36  & \ding{51} \\ \hline
+        invalid-reg-pass-mul  & 42  & 1.10 & 0.38 & 1.89  & \ding{51} \\ \hline
+    \hline
+        {\bf Average} & \textbf{36.43} & \textbf{1.10} & \textbf{0.32} & \textbf{2.50} &  \\ \hline
 \end{tabular}}
 \end{table}
 
-
-
-\begin{table}[!t]
-\caption{Results of conformance testing on the benchmarks from \cite{HarrisonHA21}}\footnotesize\vspace*{-3mm}
-\label{tab:conformancetesting-Agda}
-\scalebox{0.9}{\begin{tabular}{|c|c|c|c|c|c|}
+\begingroup\scriptsize
+\begin{longtable}{|c|c|c|c|c|c|}
+\caption{Results of conformance testing on the benchmarks from the Chisel Book}
+\label{tab:conformancetesting-Chisel-book}\\
+%\begin{tabular}
   \hline
 \multirow{2}{*}{\bf Benchmark name} & \multirow{2}{*}{\bf \#LOC} & \multicolumn{2}{c|}{\bf Execution time ($\mu$s)}&\multirow{2}{*}{\bf Speedup}  & \multirow{2}{*}{\bf Result} \\ \cline{3-4}
-                              &                        & {\bf Treadle}  &  {\bf Ours}  &     &  \\ \hline
- \hline
-        Accumulator & 13 & 17.47  & 0.67  & 25.15  & \ding{51} \\ \hline
-        Combinational & 12 & 16.70  & 0.66  & 24.15  & \ding{51} \\ \hline
-        FibCircuit & 14 & 19.02  & 0.46  & 40.80  & \ding{51} \\ \hline
-        ShiftRegister & 21 & 19.01  & 0.63  & 29.16  & \ding{51} \\ \hline \hline
-        \textbf{Average} & \textbf{15.00} & \textbf{18.05} & \textbf{0.60} & \textbf{29.81} & \\ \hline
-\end{tabular}}
-\end{table}
+                              &                        & {\bf firtool}  &  {\bf Ours}  &     &  \\ \hline          \hline
+  \endfirsthead
 
+  \multicolumn{6}{c}%
+{{\bfseries \tablename\ \thetable{} -- continued from previous page}} \\ \hline
+\multirow{2}{*}{\bf Benchmark name} & \multirow{2}{*}{\bf \#LOC} & \multicolumn{2}{c|}{\bf Execution time ($\mu$s)}&\multirow{2}{*}{\bf Speedup}  & \multirow{2}{*}{\bf Result} \\ \cline{3-4}
+                              &                        & {\bf firtool}  &  {\bf Ours}  &     &  \\ \hline          \hline
+\endhead
+
+ \multicolumn{6}{|r|}{{Continued on next page}} \\ \hline
+\endfoot
+
+
+
+\endlastfoot
+
+
+        FormalSimple  & 7  & 0.14  & 0.06  & 1.25  & \ding{51} \\ \hline
+        Comparator  & 10  & 0.20  & 0.01  & 14.87  & \ding{51} \\ \hline
+        CombWhen  & 11  & 0.61  & 0.03  & 22.83  & \ding{51} \\ \hline
+        CombOther  & 12  & 0.58  & 0.01  & 85.57  & \ding{51} \\ \hline
+        BasicExercise  & 10  & 0.13  & 0.01  & 12.98  & \ding{51} \\ \hline
+        CombWireDefault  & 11  & 0.33  & 0.01  & 25.61  & \ding{51} \\ \hline
+        Combinational  & 24  & 0.32  & 0.02  & 17.93  & \ding{51} \\ \hline
+        CombWhen2Untested  & 12  & 0.20  & 0.01  & 59.61  & \ding{51} \\ \hline
+        CombElseWhen  & 15  & 0.49  & 0.01  & 58.04  & \ding{51} \\ \hline
+        UIntAsU  & 14  & 0.34  & 0.01  & 63.15  & \ding{51} \\ \hline
+        UpTicker  & 15  & 0.21  & 0.01  & 43.68  & \ding{51} \\ \hline
+        FunctionalComp  & 14  & 0.24  & 0.01  & 36.50  & \ding{51} \\ \hline
+        Count100  & 14  & 0.38  & 0.01  & 75.00  & \ding{51} \\ \hline
+        Registers  & 16  & 0.18  & 0.01  & 39.00  & \ding{51} \\ \hline
+        DownTicker  & 16  & 0.29  & 0.01  & 52.70  & \ding{51} \\ \hline
+        FunctionalAdd  & 15  & 0.24  & 0.01  & 20.62  & \ding{51} \\ \hline
+        NerdTicker  & 17  & 0.26  & 0.01  & 47.15  & \ding{51} \\ \hline
+        DownCounter  & 17  & 0.26  & 0.01  & 43.07  & \ding{51} \\ \hline
+        WhenCounter  & 17  & 0.26  & 0.01  & 44.61  & \ding{51} \\ \hline
+        MuxCounter  & 16  & 0.24  & 0.01  & 38.34  & \ding{51} \\ \hline
+        Hello  & 19  & 0.28  & 0.03  & 8.82  & \ding{51} \\ \hline
+        Timer  & 21  & 0.50  & 0.01  & 67.49  & \ding{51} \\ \hline
+        NerdCounter  & 19  & 0.30  & 0.01  & 23.39  & \ding{51} \\ \hline
+        Conditional  & 24  & 0.56  & 0.01  & 43.09  & \ding{51} \\ \hline
+        ParamFunc  & 22  & 0.56  & 0.01  & 50.85  & \ding{51} \\ \hline
+        RisingFsm  & 24  & 0.40  & 0.01  & 35.36  & \ding{51} \\ \hline
+        ScalaGen  & 24  & 0.41  & 0.06  & 5.74  & \ding{51} \\ \hline
+        ReadyValidBuffer  & 22  & 0.31  & 0.06  & 4.26  & \ding{51} \\ \hline
+        DrawAcc  & 28  & 0.47  & 0.04  & 11.24  & \ding{51} \\ \hline
+        CountBool  & 23  & 0.36  & 0.09  & 3.05  & \ding{51} \\ \hline
+        DrawMux6  & 32  & 0.73  & 0.03  & 26.55  & \ding{51} \\ \hline
+        FifoRegister  & 28  & 0.43  & 0.04  & 11.25  & \ding{51} \\ \hline
+        SourceClock  & 28  & 0.39  & 0.05  & 7.04  & \ding{51} \\ \hline
+        GenHardware  & 30  & 0.68  & 0.10  & 6.05  & \ding{51} \\ \hline
+        SimpleFsm  & 33  & 0.51  & 0.03  & 16.77  & \ding{51} \\ \hline
+        SimpleFsmCopy  & 33  & 0.49  & 0.03  & 13.24  & \ding{51} \\ \hline
+        SinkClock  & 28  & 0.44  & 0.03  & 14.49  & \ding{51} \\ \hline
+        ShiftRefister  & 29  & 0.42  & 0.04  & 9.29  & \ding{51} \\ \hline
+        RisingMooreFsm  & 33  & 0.50  & 0.03  & 16.06  & \ding{51} \\ \hline
+        Arbiter3  & 33  & 0.45  & 0.07  & 5.39  & \ding{51} \\ \hline
+        Arbiter3Direct  & 40  & 0.63  & 0.03  & 22.42  & \ding{51} \\ \hline
+        FunctionCounter  & 30  & 0.44  & 0.04  & 11.02  & \ding{51} \\ \hline
+        Arbiter3Loop  & 37  & 0.52  & 0.07  & 6.77  & \ding{51} \\ \hline
+        Sequential  & 44  & 0.66  & 0.07  & 8.10  & \ding{51} \\ \hline
+        Logic  & 47  & 0.79  & 0.15  & 4.44  & \ding{51} \\ \hline
+        CarryRippleAdder  & 51  & 0.68  & 0.18  & 2.83  & \ding{51} \\ \hline
+        RegisterFile  & 46  & 3.20  & 0.44  & 6.26  & \ding{51} \\ \hline
+        Debounce  & 52  & 0.63  & 3.82  & -0.84  & \ding{51} \\ \hline
+        Flasher2  & 78  & 1.19  & 0.17  & 5.98  & \ding{51} \\ \hline
+        Flasher  & 81  & 1.28  & 0.11  & 10.96  & \ding{51} \\ \hline
+        FunctionalMin  & 85  & 1.31  & 0.77  & 0.69  & \ding{51} \\ \hline
+        BcdTable  & 109  & 2.07  & 0.77  & 1.67  & \ding{51} \\ \hline
+        EncDec  & 122  & 1.51  & 0.58  & 1.62  & \ding{51} \\ \hline
+        BundleVec  & 118  & 2.93  & 0.25  & 10.67  & \ding{51} \\ \hline
+        CarrySkipAdder  & 137  & 1.49  & 0.86  & 0.74  & \ding{51} \\ \hline
+        CarrySelectAdder  & 153  & 1.61  & 0.96  & 0.68  & \ding{51} \\ \hline
+        FileReader  & 264  & 3.42  & 2.05  & 0.67  & \ding{51} \\ \hline
+        CarryLookaheadAdder  & 313  & 3.26  & 3.18  & 0.02  & \ding{51} \\ \hline
+        MinFanoutPrefixAdder  & 342  & 3.38  & 3.25  & 0.04  & \ding{51} \\ \hline
+        ArbiterTreeExperiments  & 289  & 3.09  & 1.19  & 1.59  & \ding{51} \\ \hline
+        BasicPrefixAdder  & 432  & 4.23  & 4.64 & -0.09  & \ding{51} \\ \hline
+        DeepExecution  & 1220  & 7.89  & 23.33 & -0.66  & \ding{51} \\ \hline \hline
+        {\bf Average} & \textbf{79.13} & \textbf{9.89} & \textbf{7.72} & \textbf{0.28} &  \\ \hline
+\end{longtable}
+\endgroup
 
 
 \begin{table}[!t]
-\caption{Results of conformance testing on our own benchmarks}\footnotesize\vspace*{-3mm}
+\caption{Results of conformance testing on issue benchmarks}\footnotesize\vspace*{-3mm}
 \label{tab:conformancetesting-ours}
 \scalebox{0.9}{\begin{tabular}{|c|c|c|c|c|c|}
   \hline
 \multirow{2}{*}{\bf Benchmark name} & \multirow{2}{*}{\bf \#LOC} & \multicolumn{2}{c|}{\bf Execution time ($\mu$s)}&\multirow{2}{*}{\bf Speedup}  & \multirow{2}{*}{\bf Result} \\ \cline{3-4}
-                              &                        & {\bf Treadle}  &  {\bf Ours}  &     &  \\ \hline
+                              &                        & {\bf firtool}  &  {\bf Ours}  &     &  \\ \hline
  \hline
-       Mytest & 52	&249.90 & 103.69 & 1.41 & \ding{51}\\ \hline
-        Mytestinst & 49& 127.70 &21.34&	4.98   & \ding{51}\\ \hline \hline
-        \textbf{Average} & \textbf{50.50} & \textbf{188.80}  & \textbf{62.52}  & \textbf{3.20} & \\ \hline
+        4859(1)  & 4  & 0.03  & 0.80  & 25.67  & \ding{51} \\ \hline
+        4859(2) & 6  & 0.06  & 1.00  & 16.54  & \ding{51} \\ \hline
+        5391  & 17  & 0.09  & 4.00  & 44.98  & \ding{51} \\ \hline
+        5524(1) & 5  & 0.02  & 0.50  & 20.74  & \ding{51} \\ \hline
+        5524(2) & 6  & 0.03  & 1.00  & 39.00  & \ding{51} \\ \hline
+        5650  & 8  & 0.04  & 0.80  & 18.05  & \ding{51} \\ \hline
+        6742  & 264  & 12.96  & ~ & ~ & \ding{55}(1) \\ \hline
+        \hline
+        \textbf{Average} & \textbf{44.29} & \textbf{1.89}  & \textbf{1.35}  & \textbf{-0.29} & \\ \hline
 \end{tabular}}
 \end{table}
+
+
+\section{Low FIRRTL OCaml Interpreter: Extraction and Validation}\label{sec-interpreter}
+
+%\section{Detailed Results of Section~\ref{sec-validate-interpreter}}\label{sec-detailed-results}
+
+
+\subsection{Extraction of the OCaml LoFIRRTL Interpreter}
+
+\input{firrtl-interpret-extraction}
+
+\subsection{Validation of the OCaml LoFIRRTL Interpreter} 
+
+\input{firrtl-interpret-validation}
+
+ 
 
 
 \begingroup\scriptsize
@@ -186,6 +286,6 @@
         UseMemMappedRV & 175 & 251.77  & 137.40  & 0.83  & \ding{51} \\ \hline
         UseParamRouter & 46 & 86.47  & 32.72  & 1.64  & \ding{51} \\ \hline
         UseParamRouter2 & 50 & 77.73  & 38.20  & 1.03  & \ding{51} \\ \hline \hline
-        \textbf{Average} & \textbf{68.86} & \textbf{136.90}  & \textbf{29.73}  & \textbf{5.81} & \\ \hline 
+        \textbf{Average} & \textbf{68.86} & \textbf{136.90}  & \textbf{29.73}  & \textbf{5.81} & \\ \hline
 \end{longtable}
 \endgroup

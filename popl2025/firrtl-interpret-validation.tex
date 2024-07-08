@@ -60,6 +60,92 @@ We do not compare with the Agda-based Interpreter because it cannot directly exe
 \end{table}
  	 	 	
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{table}[t]
+\caption{Results of conformance testing on the benchmarks from Treadle}\footnotesize\vspace*{-3mm}
+\label{tab:conformancetesting-Treadle}
+\scalebox{0.9}{\begin{tabular}{|c|c|c|c|c|c|}
+  \hline
+\multirow{2}{*}{\bf Benchmark name} & \multirow{2}{*}{\bf \#LOC} & \multicolumn{2}{c|}{\bf Execution time ($\mu$s)}&\multirow{2}{*}{\bf Speedup}  & \multirow{2}{*}{\bf Result} \\ \cline{3-4}
+                              &                        & {\bf Treadle}  &  {\bf Ours}  &     &  \\ \hline
+ \hline
+        AggregatePassThrough & 72 & 13.83 & 3.57 & 2.87  & \ding{51} \\ \hline
+        ALU & 61 & 24.65 & 2.58 & 8.56  & \ding{51} \\ \hline
+        BundlePassThrough & 27 & 8.71 & 2.16 & 3.04  & \ding{51} \\ \hline
+        ConstantTapTransposedStreamingFIR & 35 & 11.48 & 1.40 & 7.19  & \ding{51} \\ \hline
+        DoesAbs & 36 & 11.67 & 2.89 & 3.04  & \ding{51} \\ \hline
+        DriverTest & 8 & 6.43 & 0.63 & 9.14  & \ding{51} \\ \hline
+        EqModule & 9 & 8.29 & 0.64 & 12.05  & \ding{51} \\ \hline
+        ExampleModule & 44 & 11.47 & 2.00 & 4.72  & \ding{51} \\ \hline
+        FixedPointAdder & 11 & 9.36 & 0.47 & 18.89  & \ding{51} \\ \hline
+        FixedPointDivide & 10 & 7.30 & 0.40 & 17.22  & \ding{51} \\ \hline
+        FixedPointReduce & 43 & 18.40 & 2.38 & 6.72  & \ding{51} \\ \hline
+        FixedPointShifter & 15 & 10.11 & 1.59 & 5.36  & \ding{51} \\ \hline
+        FixedPrecisionChanger & 10 & 9.51 & 0.64 & 13.83  & \ding{51} \\ \hline
+        FixedRing1 & 26 & 9.26 & 2.81 & 2.30  & \ding{51} \\ \hline
+        GCD & 30 & 9.75 & 2.11 & 3.61  & \ding{51} \\ \hline
+        HardwareHashMaker & 122 & 28.38 & 31.49 & -0.10  & \ding{51} \\ \hline
+        IntegerModule & 11 & 7.35 & 0.74 & 8.88  & \ding{51} \\ \hline
+        OverflowTypeCircuit & 34 & 9.90 & 2.16 & 3.57  & \ding{51} \\ \hline
+        ParameterizedNumberOperation & 12 & 10.93 & 0.52 & 19.89  & \ding{51} \\ \hline
+        PeekPokeBundleSpecMyCircuit & 17 & 9.11 & 2.01 & 3.53  & \ding{51} \\ \hline
+        RealGCD2 & 44 & 9.98 & 2.60 & 2.84  & \ding{51} \\ \hline
+        RealGCD3 & 48 & 12.66 & 2.71 & 3.67  & \ding{51} \\ \hline
+        RemoveMantissa & 10 & 8.48 & 0.55 & 14.39  & \ding{51} \\ \hline
+        RingModule & 11 & 6.91 & 0.64 & 9.72  & \ding{51} \\ \hline
+        ShouldBeBadUIntSubtractWithGrow & 14 & 7.81 & 0.66 & 10.93  & \ding{51} \\ \hline
+        SignedAdder & 11 & 9.77 & 0.68 & 13.47  & \ding{51} \\ \hline
+        SignedModule & 34 & 6.79 & 1.36 & 4.01  & \ding{51} \\ \hline
+        SimpleAdder & 15 & 9.14 & 0.69 & 12.19  & \ding{51} \\ \hline
+        SimpleCaseClassModule & 10 & 8.78 & 0.52 & 15.87  & \ding{51} \\ \hline
+        SimpleComplexAdder & 40 & 12.68 & 1.56 & 7.11  & \ding{51} \\ \hline
+        Sort & 85 & 17.53 & 7.14 & 1.46  & \ding{51} \\ \hline
+        UseMyBundle & 59 & 8.75 & 3.11 & 1.82  & \ding{51} \\ \hline
+        VecPassThrough & 75 & 20.21 & 5.06 & 3.00  & \ding{51} \\ \hline
+        VF & 64 & 6.53 & 2.18 & 2.00  & \ding{51} \\ \hline
+        ContextNestingTop & 64 & 8.76 & 3.10 & 1.83  & \ding{51} \\ \hline
+        MultiGcdCalculator & 133 & 51.35 & 18.33 & 1.80  & \ding{51} \\ \hline
+        StreamingAutocorrelator & 59 & 8.78 & 1.56 & 4.62  & \ding{51} \\ \hline\hline
+        {\bf Average} & \textbf{38.08} & \textbf{12.18} & \textbf{3.13} & \textbf{7.16} &  \\ \hline
+\end{tabular}}
+\end{table}
+
+
+
+\begin{table}[t]
+\caption{Results of conformance testing on the benchmarks from \cite{HarrisonHA21}}\footnotesize\vspace*{-3mm}
+\label{tab:conformancetesting-Agda}
+\scalebox{0.9}{\begin{tabular}{|c|c|c|c|c|c|}
+  \hline
+\multirow{2}{*}{\bf Benchmark name} & \multirow{2}{*}{\bf \#LOC} & \multicolumn{2}{c|}{\bf Execution time ($\mu$s)}&\multirow{2}{*}{\bf Speedup}  & \multirow{2}{*}{\bf Result} \\ \cline{3-4}
+                              &                        & {\bf Treadle}  &  {\bf Ours}  &     &  \\ \hline
+ \hline
+        Accumulator & 13 & 17.47  & 0.67  & 25.15  & \ding{51} \\ \hline
+        Combinational & 12 & 16.70  & 0.66  & 24.15  & \ding{51} \\ \hline
+        FibCircuit & 14 & 19.02  & 0.46  & 40.80  & \ding{51} \\ \hline
+        ShiftRegister & 21 & 19.01  & 0.63  & 29.16  & \ding{51} \\ \hline \hline
+        \textbf{Average} & \textbf{15.00} & \textbf{18.05} & \textbf{0.60} & \textbf{29.81} & \\ \hline
+\end{tabular}}
+\end{table}
+
+
+
+\begin{table}[t]
+\caption{Results of conformance testing on our own benchmarks}\footnotesize\vspace*{-3mm}
+\label{tab:conformancetesting-ours}
+\scalebox{0.9}{\begin{tabular}{|c|c|c|c|c|c|}
+  \hline
+\multirow{2}{*}{\bf Benchmark name} & \multirow{2}{*}{\bf \#LOC} & \multicolumn{2}{c|}{\bf Execution time ($\mu$s)}&\multirow{2}{*}{\bf Speedup}  & \multirow{2}{*}{\bf Result} \\ \cline{3-4}
+                              &                        & {\bf Treadle}  &  {\bf Ours}  &     &  \\ \hline
+ \hline
+       Mytest & 52	&249.90 & 103.69 & 1.41 & \ding{51}\\ \hline
+        Mytestinst & 49& 127.70 &21.34&	4.98   & \ding{51}\\ \hline \hline
+        \textbf{Average} & \textbf{50.50} & \textbf{188.80}  & \textbf{62.52}  & \textbf{3.20} & \\ \hline
+\end{tabular}}
+\end{table}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
 \smallskip\noindent
 {\bf Testing results}.
 The summary of conformance testing is reported in Table~\ref{tab:conformancetesting}.
@@ -71,7 +157,7 @@ Column (Result) shows the comparison result of output ports between Treadle and 
 where \ding{51} indicates that the values of the output ports produced by two tools are the same and \ding{55}(n) indicates
 that the values of the output ports of $n$ benchmarks produced by two tools are different.
 The last row (Average) shows the average results over all 120 benchmarks.
-Detailed results are given in the supplementary material due to space limits.
+Detailed results are given in Tables~\ref{tab:conformancetesting-Treadle}, \ref{tab:conformancetesting-Agda}, \ref{tab:conformancetesting-ours}, and \ref{tab:conformancetesting-Chisel-book}.
 
 Overall, our LoFIRRTL OCaml Interpreter successfully executes all the 120 benchmarks
 and produces the same values of the output ports as Treadle except for one benchmark \texttt{BundleVec} taken from the Chisel Book.

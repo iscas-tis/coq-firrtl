@@ -325,7 +325,7 @@
 %%It provides a mechanized formal semantics for low FIRRTL,
 %%and Moreover, it formalizes the syntax of FIRRTL and its lowering transformations.
 %%To validate the formal semantics %for low FIRRTL,
-%we extract an OCaml interpreter from the formal semantics which %low FIRRTL  that 
+%we extract an OCaml interpreter from the formal semantics which %low FIRRTL  that
 %can execute low FIRRTL programs,
 %and empirically check its consistency against Treadle,
 %the low FIRRTL reference interpreter,
@@ -421,9 +421,9 @@
 %
 %-- behavioral semantics for module graphs, interpreter
 %
-%\item sec 4: functional correctness of compilation passes 
+%\item sec 4: functional correctness of compilation passes
 %
-%-- correctness of a compilation pass InferWidths: 
+%-- correctness of a compilation pass InferWidths:
 %for each high FIRRTL program P, if G(P) is nonempty, then IW(P) succeeds, and G(IW(P)) is the minimum one among G(P)
 %
 %-- ExpandConnects, ExpandWhens: G(T(P)) = G(P)
@@ -471,27 +471,28 @@
 
 \input{form-firrtl-transform}
 
-%functional correctness of compilation passes 
+%functional correctness of compilation passes
 
 \subsection{Functional Correctness} %of $\bf ExpandConnects$ and $\bf ExpandWhens$}\label{sec-spec-verif-expand}
 
 %\input{verif-firrtl-transform}
 
 
-\section{Extraction of the OCaml Compiler} \label{sect:ocamlcompiler}
+\section{The OCaml Compiler: Extraction and Validation} \label{sect:ocamlcompiler}
 
-%\subsection{Extraction of the OCaml LoFIRRTL Interpreter}
+\subsection{Extraction of the OCaml LoFIRRTL Interpreter}
+\fu{To be rewritten}
 
-%\input{firrtl-interpret-extraction}
+\input{firrtl-compiler-extraction}
 
-%\subsection{Validation of the OCaml LoFIRRTL Interpreter}\label{sec-validate-interpreter}
+\subsection{Validation of the OCaml LoFIRRTL Interpreter}\label{sec-validate-interpreter}
 
-%\input{firrtl-interpret-validation}
+\input{firrtl-compiler-validation}
 
 %\subsection{Low FIRRTL OCaml Interpreter: Extraction and Validation}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
- 
+
 \section{Related work}\label{sec-related-work}
 
 \input{related}
@@ -525,7 +526,7 @@
 
 \input{appendix.tex}
 
-
+\fu{To be rewritten}
 \input{appendix-detailed-results.tex}
 
 \end{document}
