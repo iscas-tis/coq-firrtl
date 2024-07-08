@@ -4603,83 +4603,78 @@ Admitted.
 
 Lemma Sem_frag_stmts_component_Equal :
 forall (ss : HiFP.hfstmt_seq) (vm_old1 vm_old2 : CEP.t vertex_type) (ct_old1 ct_old2 : CEP.t def_expr) (vm_new1 vm_new2 : CEP.t vertex_type) (ct_new : CEP.t def_expr) (tmap1 tmap2 : CEP.t (ftype * HiF.forient)),
-    vm_and_ct_compatible vm_old1 ct_old1 ->
-    vm_and_ct_compatible vm_old2 ct_old2 ->
-    CEP.Equal vm_old1 vm_old2 ->
-    CEP.Equal vm_new1 vm_new2 ->
-    CEP.Equal tmap1 tmap2 ->
-    Sem_frag_stmts vm_old1 ct_old1 (component_stmts_of ss) vm_new1 ct_new tmap1 ->
-    Sem_frag_stmts vm_old2 ct_old2 (component_stmts_of ss) vm_new2 (extend_map_with ct_old2 ct_new) tmap2
+        ct_sub_vm ct_old1 vm_old1 tmap1
+    ->
+        ct_sub_vm ct_old2 vm_old2 tmap2
+    ->
+        CEP.Equal vm_old1 vm_old2
+    ->
+        CEP.Equal vm_new1 vm_new2
+    ->
+        CEP.Equal tmap1 tmap2
+    ->
+        Sem_frag_stmts vm_old1 ct_old1 (component_stmts_of ss) vm_new1 ct_new tmap1
+    ->
+        Sem_frag_stmts vm_old2 ct_old2 (component_stmts_of ss) vm_new2 (extend_map_with ct_old2 ct_new) tmap2
 with Sem_frag_stmt_component_Equal :
 forall (s : HiFP.hfstmt) (vm_old1 vm_old2 : CEP.t vertex_type) (ct_old1 ct_old2 : CEP.t def_expr) (vm_new1 vm_new2 : CEP.t vertex_type) (ct_new : CEP.t def_expr) (tmap1 tmap2 : CEP.t (ftype * HiF.forient)),
-    vm_and_ct_compatible vm_old1 ct_old1 ->
-    vm_and_ct_compatible vm_old2 ct_old2 ->
-    CEP.Equal vm_old1 vm_old2 ->
-    CEP.Equal vm_new1 vm_new2 ->
-    CEP.Equal tmap1 tmap2 ->
-    Sem_frag_stmts vm_old1 ct_old1 (component_stmt_of s) vm_new1 ct_new tmap1 ->
-    Sem_frag_stmts vm_old2 ct_old2 (component_stmt_of s) vm_new2 (extend_map_with ct_old2 ct_new) tmap2.
+        ct_sub_vm ct_old1 vm_old1 tmap1
+    ->
+        ct_sub_vm ct_old2 vm_old2 tmap2
+    ->
+        CEP.Equal vm_old1 vm_old2
+    ->
+        CEP.Equal vm_new1 vm_new2
+    ->
+        CEP.Equal tmap1 tmap2
+    ->
+        Sem_frag_stmts vm_old1 ct_old1 (component_stmt_of s) vm_new1 ct_new tmap1
+    ->
+        Sem_frag_stmts vm_old2 ct_old2 (component_stmt_of s) vm_new2 (extend_map_with ct_old2 ct_new) tmap2.
 Proof.
 * clear Sem_frag_stmts_component_Equal.
-  induction ss ; simpl ; intros.
+  induction ss as [|s ss] ; simpl ; intros.
   + split.
     - apply (CEP.Lemmas.Equal_trans (CEP.Lemmas.Equal_sym H1)).
       exact (CEP.Lemmas.Equal_trans (proj1 H4) H2).
     - intro ; rewrite /extend_map_with CEP.Lemmas.map2_1bis //.
       specialize (H0 y).
       destruct (CEP.find y ct_old2) ; first by reflexivity.
-      specialize (H y).
-      specialize (H1 y).
-      specialize (proj2 H4 y) ; intro.
-      destruct (CEP.find y vm_old2) as [[]|] ; try (by contradiction H0) ;
-            rewrite H1 H5 in H ; by rewrite H //.
-  + apply Sem_frag_stmts_cat.
+      specialize (H y) ; rewrite (H1 y) (proj2 H4 y) in H.
+      destruct (CEP.find y ct_new) as [[]|] ; last (by reflexivity) ;
+      destruct (CEP.find y vm_old2) as [[]|] ; done.
+  + rename Sem_frag_stmt_component_Equal into IHs ; specialize (IHs s).
+    apply Sem_frag_stmts_cat.
     apply Sem_frag_stmts_cat in H4.
     destruct H4 as [vm_temp [ct_temp [H4 H5]]].
     exists vm_temp, (extend_map_with ct_old2 ct_temp).
+    specialize (IHs vm_old1 vm_old2 ct_old1 ct_old2 vm_temp vm_temp ct_temp tmap1 tmap2
+                    H H0 H1 (CEP.Lemmas.Equal_refl _) H3 H4).
     split.
-    - by apply (Sem_frag_stmt_component_Equal h vm_old1 vm_old2 ct_old1 ct_old2 vm_temp vm_temp ct_temp tmap1 tmap2
-                                              H H0 H1 (CEP.Lemmas.Equal_refl _) H3 H4).
-    - generalize (Sem_frag_stmts_compatible (component_stmt_of h) vm_old1 ct_old1 vm_temp ct_temp tmap1
-                                            H4) ; intro.
-      destruct H6 as [H6 [_ H7]] ; specialize (H7 H).
-(*
-      generalize (Sem_frag_stmts_component ss vm_temp ct_temp vm_new1 ct_new tmap1 H7 H5) ; intro.
-      generalize (extend_map_with_submap ct_old2 ct_temp ct_new H8) ; intro.
+    * by apply IHs.
+    * generalize (Sem_frag_stmt_component s vm_old1 ct_old1 vm_temp ct_temp tmap1 H H4) ; intro Hold1_sub_temp.
+      generalize (Sem_frag_stmt_component s vm_old2 ct_old2 vm_temp (extend_map_with ct_old2 ct_temp) tmap2 H0 IHs) ; intro Hold2_sub_temp.
+      specialize IHss with (1 := proj1 Hold1_sub_temp) (2 := proj1 Hold2_sub_temp) (3 := CEP.Lemmas.Equal_refl vm_temp) (4 := H2) (5 := H3) (6 := H5).
+      generalize (Sem_frag_stmts_component ss vm_temp ct_temp vm_new1 ct_new tmap1 (proj1 Hold1_sub_temp) H5) ; intro Htemp_sub_new1.
+      generalize (extend_map_with_submap ct_old2 ct_temp ct_new (proj2 (proj2 Htemp_sub_new1))) ; intro.
       apply Sem_frag_stmts_Equal with (vm_old1 := vm_temp) (ct_old1 := extend_map_with ct_old2 ct_temp)
                                       (vm_new1 := vm_new2) (ct_new1 := extend_map_with (extend_map_with ct_old2 ct_temp) ct_new)
                                       (tmap1 := tmap2) ;
-            try assumption ; try apply CEP.Lemmas.Equal_refl.
-      apply IHss with (vm_old1 := vm_temp) (ct_old1 := ct_temp)
-                      (vm_new1 := vm_new1)
-                      (tmap1 := tmap1) ;
-            try assumption ; try apply CEP.Lemmas.Equal_refl.
-      generalize (Sem_frag_stmt_component h vm_old1 ct_old1 vm_temp ct_temp tmap1 H H4) ; intro.
-      intro.
-      specialize (H0 v) ; specialize (H1 v) ; specialize (H6 v) ;
-            rewrite H1 in H6.
-      rewrite CEP.Lemmas.map2_1bis //.
-      destruct (CEP.find v vm_old2) as [[]|] ;
-            try (by rewrite H0 ; apply H7) ;
-            by (rewrite (H6 _ Logic.eq_refl) ;
-                    destruct (CEP.find v ct_old2) ;
-                          first (by discriminate) ;
-                          last (by contradiction H0)).
+            try assumption ; apply CEP.Lemmas.Equal_refl.
 * clear Sem_frag_stmt_component_Equal.
-  destruct s ; intros.
+  destruct s as [|var ft|var reg|var mem|var1 var2|var expr|ref expr|ref|cond sst ssf] ; intros.
   + (* Sskip *)
     simpl ; split ;
         first by apply (CEP.Lemmas.Equal_trans (CEP.Lemmas.Equal_sym H1)),
                        (CEP.Lemmas.Equal_trans (proj1 H4)), H2.
-    intro ; rewrite CEP.Lemmas.map2_1bis //.
+    simpl in H4.
+    intro y ; rewrite CEP.Lemmas.map2_1bis // -(proj2 H4).
     specialize (H0 y).
     destruct (CEP.find y ct_old2) ; first by reflexivity.
-    specialize (H1 y).
-    destruct (CEP.find y vm_old2) as [[]|] ;
-          try (by contradiction H0) ;
-          by (specialize (H y) ; rewrite H1 in H ;
-              specialize (proj2 H4 y) ; clear H4 ; intro H4 ;
-              rewrite -H4 H //).
+    rewrite -H1 in H0.
+    specialize (H y).
+    destruct (CEP.find y ct_old1) as [[]|], (CEP.find y vm_old1) as [[]|] ;
+          done.
   + (* Swire *)
     simpl ; simpl in H4.
     destruct H4 as [vm' [ct' [H4 [H5 H6]]]].
@@ -4687,9 +4682,9 @@ Proof.
     split ; last by split ; apply CEP.Lemmas.Equal_refl.
     apply (CEP.Lemmas.Equal_trans) with (2 := H2) in H5.
     clear H2 vm_new1.
-    specialize (H3 s).
-    destruct (CEP.find s tmap1) as [[newft ori]|] ; last by contradiction H4.
-    rewrite -H3 ; clear ori H3.
+    specialize (H3 var).
+    destruct (CEP.find var tmap1) as [[newft [| | | |]]|] ; try by contradiction H4.
+    rewrite -H3 ; clear H3.
     split.
     - destruct H4 as [H4 _].
       intro ; specialize (H4 n).
@@ -4710,9 +4705,9 @@ Proof.
       specialize (H1 (v0, n0)).
       destruct (CEP.find (v0, n0) vm_old2) as [[]|] ;
             try (by contradiction H0) ;
-            by (specialize (H (v0, n0)) ;
-                rewrite H1 in H ;
-                rewrite -H4 H //).
+      specialize (H (v0, n0)) ;
+      destruct (CEP.find (v0, n0) ct_old1) as [[]|] ;
+      by rewrite H1 // in H.
     - destruct H4 as [H7 [_ [_ H4]]].
       intros ; specialize (H4 n0 H2) ; specialize (H7 n0).
       rewrite -(list_rhs_type_p_size newft) in H2.
@@ -4720,9 +4715,11 @@ Proof.
       generalize (proj2 (List.nth_error_Some (list_rhs_type_p newft) n0) H2) ; intro.
       destruct (List.nth_error (list_rhs_type_p newft) n0) ; last by contradiction H3.
       rewrite H1 in H7.
-      specialize (H0 (s.1, bin_of_nat (n0 + s.2))).
+      specialize (H0 (var.1, bin_of_nat (n0 + var.2))).
       rewrite (proj1 H7) in H0.
-      rewrite CEP.Lemmas.map2_1bis // H0 -H6 H4 //.
+      destruct (CEP.find (var.1, bin_of_nat (n0 + var.2)) ct_old2) as [[]|] eqn: Hct2 ;
+            try by contradiction H0.
+      by rewrite CEP.Lemmas.map2_1bis // -H6 H4 Hct2 //.
   + (* Sreg, should be similar to Swire *)
     admit.
   + (* Smem, TBD *)
@@ -4739,62 +4736,63 @@ Proof.
     simpl ; split ;
         first by apply (CEP.Lemmas.Equal_trans (CEP.Lemmas.Equal_sym H1)),
                        (CEP.Lemmas.Equal_trans (proj1 H4)), H2.
-    intro ; rewrite CEP.Lemmas.map2_1bis //.
+    simpl in H4.
+    intro y ; rewrite CEP.Lemmas.map2_1bis // -(proj2 H4).
     specialize (H0 y).
     destruct (CEP.find y ct_old2) ; first by reflexivity.
-    specialize (H1 y).
-    destruct (CEP.find y vm_old2) as [[]|] ;
-          try (by contradiction H0) ;
-          by (specialize (H y) ; rewrite H1 in H ;
-              specialize (proj2 H4 y) ; clear H4 ; intro H4 ;
-              rewrite -H4 H //).
+    rewrite -H1 in H0.
+    specialize (H y).
+    destruct (CEP.find y ct_old1) as [[]|], (CEP.find y vm_old1) as [[]|] ;
+          done.
   + (* Sinvalid, similar to Sskip *)
     simpl ; split ;
         first by apply (CEP.Lemmas.Equal_trans (CEP.Lemmas.Equal_sym H1)),
                        (CEP.Lemmas.Equal_trans (proj1 H4)), H2.
-    intro ; rewrite CEP.Lemmas.map2_1bis //.
+    simpl in H4.
+    intro y ; rewrite CEP.Lemmas.map2_1bis // -(proj2 H4).
     specialize (H0 y).
     destruct (CEP.find y ct_old2) ; first by reflexivity.
-    specialize (H1 y).
-    destruct (CEP.find y vm_old2) as [[]|] ;
-          try (by contradiction H0) ;
-          by (specialize (H y) ; rewrite H1 in H ;
-              specialize (proj2 H4 y) ; clear H4 ; intro H4 ;
-              rewrite -H4 H //).
+    rewrite -H1 in H0.
+    specialize (H y).
+    destruct (CEP.find y ct_old1) as [[]|], (CEP.find y vm_old1) as [[]|] ;
+          done.
   + (* Swhen *)
-    rename h into cond ; rename h0 into ss_true ; rename h1 into ss_false.
+    rename Sem_frag_stmts_component_Equal into IHss.
     simpl component_stmt_of in H4 ; simpl component_stmt_of.
     apply Sem_frag_stmts_cat in H4 ; apply Sem_frag_stmts_cat.
     destruct H4 as [vm_temp [ct_temp [H4 H5]]].
     exists vm_temp, (extend_map_with ct_old2 ct_temp).
     split.
-    - by apply (Sem_frag_stmts_component_Equal ss_true vm_old1 vm_old2 ct_old1 ct_old2 vm_temp vm_temp ct_temp tmap1 tmap2
+    - by apply (IHss sst vm_old1 vm_old2 ct_old1 ct_old2 vm_temp vm_temp ct_temp tmap1 tmap2
                                               H H0 H1 (CEP.Lemmas.Equal_refl _) H3 H4).
-    - generalize (Sem_frag_stmts_compatible (component_stmts_of ss_true) vm_old1 ct_old1 vm_temp ct_temp tmap1
-                                            H4) ; intro.
-      destruct H6 as [H6 [_ H7]] ; specialize (H7 H).
-      generalize (Sem_frag_stmts_component ss_false vm_temp ct_temp vm_new1 ct_new tmap1 H7 H5) ; intro.
-      generalize (extend_map_with_submap ct_old2 ct_temp ct_new H8) ; intro.
+    - generalize (Sem_frag_stmts_component sst vm_old1 ct_old1 vm_temp ct_temp tmap1 H H4) ; intro.
+      generalize (Sem_frag_stmts_component ssf vm_temp ct_temp vm_new1 ct_new tmap1 (proj1 H6) H5) ; intro.
+      generalize (extend_map_with_submap ct_old2 ct_temp ct_new (proj2 (proj2 H7))) ; intro.
       apply Sem_frag_stmts_Equal with (vm_old1 := vm_temp) (ct_old1 := extend_map_with ct_old2 ct_temp)
                                       (vm_new1 := vm_new2) (ct_new1 := extend_map_with (extend_map_with ct_old2 ct_temp) ct_new)
                                       (tmap1 := tmap2) ;
             try assumption ; try apply CEP.Lemmas.Equal_refl.
-      apply Sem_frag_stmts_component_Equal with (vm_old1 := vm_temp) (ct_old1 := ct_temp)
+      apply IHss with (vm_old1 := vm_temp) (ct_old1 := ct_temp)
                       (vm_new1 := vm_new1)
                       (tmap1 := tmap1) ;
             try assumption ; try apply CEP.Lemmas.Equal_refl.
-      generalize (Sem_frag_stmts_component ss_true vm_old1 ct_old1 vm_temp ct_temp tmap1 H H4) ; intro.
-      intro.
-      specialize (H0 v) ; specialize (H1 v) ; specialize (H6 v) ;
-            rewrite H1 in H6.
-      rewrite CEP.Lemmas.map2_1bis //.
-      destruct (CEP.find v vm_old2) as [[]|] ;
-            try (by rewrite H0 ; apply H7) ;
-            by (rewrite (H6 _ Logic.eq_refl) ;
-                    destruct (CEP.find v ct_old2) ;
-                          first (by discriminate) ;
-                          last (by contradiction H0)).
-*)
+      - by apply H6.
+      - intro v.
+        rewrite /extend_map_with CEP.Lemmas.map2_1bis //.
+        specialize (H0 v) ; specialize (H1 v).
+        destruct H6 as [H6' [H6 _]] ; specialize (H6 v) ; rewrite H1 in H6.
+        (*specialize (H8 v) ; rewrite /extend_map_with CEP.Lemmas.map2_1bis // CEP.Lemmas.map2_1bis // CEP.Lemmas.map2_1bis // in H8.*)
+        destruct (CEP.find v ct_old2) as [[| |expr2]|] eqn: Hct2, (CEP.find v vm_old2) eqn: Hvm2 ;
+              try rewrite (H6 _ Logic.eq_refl) ;
+              try done.
+        - specialize (H6' v) ; rewrite (H6 _ Logic.eq_refl) in H6'.
+          destruct (PVM.find v ct_temp) as [[]|], v0 ; done.
+        - specialize (H6' v).
+          destruct (CEP.find v ct_temp) as [[| |expr]|] ; try by exact H6'.
+          destruct (CEP.find v vm_temp) as [[gt|gt|gt|gt|gt]|] ; try (by exact H6') ;
+          generalize (type_of_expr_submap expr tmap1 tmap2 (CEP.Lemmas.Equal_submap H3)) ; intro ;
+          destruct (type_of_expr expr tmap1) as [[[gt_expr| |] Hgt_expr_inf]|] ; try (by contradiction H6') ;
+          rewrite H9 //.
 Admitted.
 
 Lemma ExpandWhen_correct_inductive :
@@ -5135,7 +5133,68 @@ Proof.
         apply Sem_frag_stmts_cat.
         exists vm_comp, (extend_defined_map_with eb_connmap_t ct_comp) (* actually a slight variant of ct_comp *).
         split.
-        + (* Sem_frag_stmts_component_Equal? *)
+        + (* Sem_frag_stmts_component_Equal? 
+Problem: eb_connmap_t contains connect statements that are not in component_stmts_of.
+How is that?
+But then these affect components that are not defined in ssf, so it should still be ok. *)
+Check Sem_frag_stmts_component_Equal.
+          generalize (Sem_frag_stmts_component_Equal ssf vm_comp_t vm_comp_t
+                ct_comp_t (extend_map_with old_ct (extend_defined_map_with eb_connmap_t ct_comp_t))
+                vm_comp vm_comp
+                ct_comp tmap tmap) ; intro.
+          specialize (H (proj1 Hsf_comp_sub_t)).
+Check Hsf_comp_sub_f.
+          assert (H_precondition: ct_sub_vm (extend_map_with old_ct (extend_defined_map_with eb_connmap_t ct_comp_t)) vm_comp_t tmap).
+                intro k.
+                rewrite /extend_map_with CEP.Lemmas.map2_1bis // CEP.Lemmas.map2_1bis //.
+                destruct Hsf_comp_sub_t as [Hctct_sub_vmct [_ Hoct_sub_ctct]] ;
+                specialize (Hctct_sub_vmct k) ; specialize (Hoct_sub_ctct k).
+                destruct Haft_comp_t as [[_ [Hctct_sub_ct [_ [Hvmct_sub_tm [_ Hebcm_sub_tm]]]]] _] ;
+                specialize (Hctct_sub_ct k).
+                destruct (CEP.find k old_ct) ;
+                       first (by specialize (Hoct_sub_ctct _ Logic.eq_refl) ;
+                                 rewrite Hoct_sub_ctct // in Hctct_sub_vmct).
+                specialize (Hvmct_sub_tm k) ; specialize (Hebcm_sub_tm k).
+                destruct (CEP.find k ct_comp_t) as [[| |ctct_expr]|] ;
+                      last (by rewrite Hctct_sub_ct //) ;
+                destruct (CEP.find k eb_connmap_t) as [[| |ebct_expr]|] ;
+                      try done ;
+                destruct (CEP.find k vm_comp_t) as [[gt|gt|gt|gt|gt]|] ;
+                      try done ;
+                rewrite Hvmct_sub_tm in Hebcm_sub_tm ;
+                generalize (type_of_expr_submap ebct_expr tm_tmap_t tmap Htmt_sub_tm) ; intro H0 ;
+                destruct (type_of_expr ebct_expr tm_tmap_t) as [[[gt_expr| |] Hgt_expr_inf]|] ;
+                      try (by contradiction Hebcm_sub_tm) ;
+                by rewrite H0 //.
+          specialize (H H_precondition (CEP.Lemmas.Equal_refl _) (CEP.Lemmas.Equal_refl _) (CEP.Lemmas.Equal_refl _) Hsf_comp_f).
+          clear H_precondition.
+(*
+          assert (CEP.Equal (extend_map_with (extend_map_with old_ct (extend_defined_map_with eb_connmap_t ct_comp_t)) ct_comp)
+                            (extend_defined_map_with eb_connmap_t ct_comp)).
+                intro k.
+                rewrite /extend_map_with /extend_defined_map_with.
+                repeat (rewrite CEP.Lemmas.map2_1bis //).
+                destruct Hsf_comp_sub_t as [_ [_ Holdct_sub_ctct]].
+                specialize (Holdct_sub_ctct k).
+                (*destruct IHsst as [_ [_ IHsst]] ; specialize (IHsst k).
+                rewrite /extend_defined_map_with CEP.Lemmas.map2_1bis // /extend_map_with CEP.Lemmas.map2_1bis // in IHsst.*)
+                destruct (CEP.find k old_ct) as [[| |old_expr]|] eqn: Holdct ;
+                      try specialize (Holdct_sub_ctct _ Logic.eq_refl) ;
+                      try rewrite Holdct_sub_ctct ;
+                      (*try rewrite Holdct_sub_ctct in IHsst ;*)
+                      try rewrite (proj2 (proj2 Hsf_comp_sub_f) k _ Holdct_sub_ctct).
+                + destruct (CEP.find k eb_connmap_t) as [[| |Hebct_expr]|] eqn: Hebct ; try done.
+
+
+Perhaps need to change the new ct set altogether?
+I now think that these two are not actually equal,
+because eb_connmap_t is generated based on connect statements.
+
+I think one needs to set a more complicated expression as the new connection tree set;
+later, using Sem_frag_smts_connect, we will see that most of its entries
+are overwritten anyway.
+
+*)
           admit.
         + apply Sem_frag_stmts_connect ; first by exact Htm_inf.
           destruct Haft_comp_t as [Haft_comp_t _], Haft_comp_f as [Haft_comp_f _] ; split.
