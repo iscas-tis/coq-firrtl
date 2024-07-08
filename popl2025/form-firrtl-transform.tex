@@ -300,6 +300,8 @@ The resulting $ce$ contains the inferred concrete reset types.
 %%% the original texts written by xiaomu
 
 \subsubsection{Formalization of ExpandConnects}
+\input{transform-expandconnects}
+\hide{
 The ``ExpandConnects'' pass expands the connections between aggregate types into those between ground types.
 We define two Coq functions {\tt expand\_expr} and {\tt expand\_cnct} that expand the expressions and the connect statements, respectively.
 The rationale behind the functions {\tt expand\_expr} and {\tt expand\_cnct} is to break aggregate types in expressions and connect statements recursively into their fields. 
@@ -381,7 +383,8 @@ the statements $els_{l, 1} <= els_{r, 1}, \cdots, els_{l, m} <= els_{r, m}$,
 
 The function {\tt expand\_cnct} handles the \prettyll{is invalid} statements in the same way as connect statements. It produces from a \prettyll{is invalid} statement
  a sequence of \prettyll{is invalid} statements for its fields.
-
+ }
+   
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %\hide{
