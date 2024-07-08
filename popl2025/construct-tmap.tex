@@ -85,12 +85,10 @@ to process the fields sequentially, which,
 for each field $(x,b,t)$, (recursive) calls $t':=\madeexplicit(t, id, tm)$ %returns $t'$ and thus we 
 and obtains $(x,b,t')$. 
 %If $\vec{f} = \nil$, then it returns $(\btype, \nil)$. Otherwise, let $\vec{f} = (x, b, t)\ \myvec{f'}$. Then it calls $\madeexplicit(t, id, tm)$ to get $t'$ and recursively calls $\madeexplicitfields(\myvec{f'}, id, tm)$ to get $\myvec{f''}$. Finally, it returns $newt = (x, b, t')\ \myvec{f''}$. 
-
 \end{itemize}
-
-Note that for simplicity %the rules in 
-Fig.~\ref{fig:made-explicit} only present the most important rules. % are chosen to be incomplete in purpose to avoid the tediousness. 
-For instance, in the rule {\madeexplicit: \vtype}, if the $n$ ground-type sequences in $tm$ corresponding to the $n$ copies of $t'$ are not equal, then $\madeexplicit$ returns the special value $\svnone$. 
+(Note that for simplicity %the rules in 
+Fig.~\ref{fig:made-explicit} only presents the most important rules. % are chosen to be incomplete in purpose to avoid the tediousness. 
+For instance, in the rule {\madeexplicit: \vtype}, if the $n$ ground-type sequences in $tm$ corresponding to the $n$ copies of $t'$ are not equal, then $\madeexplicit$ returns the special value $\svnone$.) 
 
 \begin{figure}[htbp]
   \begin{gather*}
@@ -238,7 +236,7 @@ Note that $scope$ is introduced to check that the component references in $ss$ d
 %
 %The procedures $\portstmap$ and $\stmtstmap$ are defined by the rules in Fig.~\ref{fig:ports-stmts-tmap}.
 
-$\portstmap(pp, tm)$ defines $tmap$ from the port declarations in $pp$. If $pp = input\ x: t\ pp'$, then it calls $\madeexplicit(t, (id(x), 0), tm)$ to construct $newt$. Moreover, it recursively calls $\portstmap(pp', tm)$ to obtain $tmap'$. Then it checks that $tmap'(id(x)) = \svnone$.  If it is the case, then the output $tmap$ is obtained by adding the pair $(id(x), (newt, \source))$ to $tmap'$. The case $pp = output\ x: t\ pp'$ is dealt with similarly, with $\source$ replaced by $\sink$. Furthermore, if $pp = \nil$, then the empty map $\sf emp$ is returned. 
+$\portstmap(pp, tm)$ defines $tmap$ from the port declarations. If $pp = input\ x: t\ pp'$, then it calls $\madeexplicit(t, (id(x), 0), tm)$ to construct $newt$. Moreover, it recursively calls $\portstmap(pp', tm)$ to obtain $tmap'$. Then it checks that $tmap'(id(x)) = \svnone$.  If it is the case, then the output $tmap$ is obtained by adding the pair $(id(x), (newt, \source))$ to $tmap'$. The case $pp = output\ x: t\ pp'$ is dealt with similarly, with $\source$ replaced by $\sink$. Furthermore, if $pp = \nil$, then the empty map $\sf emp$ is returned. 
 
 $\stmtstmap((tmap, scope), ss, tm)$ defines $tmap$ from the statements in $ss$. If $ss = \nil$, then it simply returns $(tmap, scope)$. Otherwise, let $ss = s\ ss'$, where $s$ is a statement. Then it calls $\stmttmap(s, tm)$ to compute $(tmap'', scope'')$ from a $s$ (see Figure~\ref{fig:stmts-tmap} for its definition). Finally, it recursively calls $\stmtstmap((tmap'', scope''), ss', tm)$ to compute the return value $(tmap', scope')$. 
  
