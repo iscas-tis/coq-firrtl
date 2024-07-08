@@ -1,10 +1,10 @@
 %!TEX root = main.tex
 
-Our goal is to construct a connection mapping $cm'$ from $tmap$ and $ss$ (the sequence of statements in $M$). 
-For this purpose, we define two relations $cm_1 \xrightarrow[tmap]{s} cm_2$ and $cm_1 \xrightarrow[tmap]{ss'} cm_2$, where $s$ is a statement and $ss'$ is a sequence of statements. Note that $cm_1 \xrightarrow[tmap]{s} cm_2$ and $cm_1 \xrightarrow[tmap]{ss'} cm_2$ are mutually recursive, since a \prettyll{when} statement involves statement sequences. 
-Finally, let $cm'$ be the connection mapping satisfying ${\sf emp} \xrightarrow[tmap]{ss} cm'$, where ${\sf emp}$ is the empty connection mapping. 
+Our goal is to construct a connection mapping $cm'$ from $tm$, $tmap$ and $ss$ (the sequence of statements in $M$). 
+For this purpose, we define two relations $cm_1 \xrightarrow[tm, tmap]{s} cm_2$ and $cm_1 \xrightarrow[vm, tmap]{ss'} cm_2$, where $s$ is a statement and $ss'$ is a sequence of statements. Note that $cm_1 \xrightarrow[tm, tmap]{s} cm_2$ and $cm_1 \xrightarrow[tm, tmap]{ss'} cm_2$ are mutually recursive, since a \prettyll{when} statement involves statement sequences. 
+Finally, let $cm'$ be the connection mapping satisfying ${\sf emp} \xrightarrow[tm, tmap]{ss} cm'$, where ${\sf emp}$ is the empty connection mapping. The reason why $tm$ is still needed in the definition of the two relations lies in the fact that if $ss$ contains a statement of the form \prettyll{reg x: t clk with reset => (rsig, rval)}, then we should check the reset values in $tm(id(x), i)$'s are compatible with $rval$ (see the rule ``register'' in Figure~\ref{fig:firrtl-sem}).
 
-In the sequel, we show how to define the relations $cm_1 \xrightarrow[tmap]{s} cm_2$ and $cm_1 \xrightarrow[tmap]{ss'} cm_2$. Similar to the construction of $tmap$, when defining the two relations, we should deal with the mismatch between the abstraction levels of connection mappings and $M$. 
+In the sequel, we show how to define the relations $cm_1 \xrightarrow[tm, tmap]{s} cm_2$ and $cm_1 \xrightarrow[tm, tmap]{ss'} cm_2$. Similar to the construction of $tmap$, when defining the two relations, we should deal with the mismatch between the abstraction levels of connection mappings and $M$. 
 %
 Furthermore, we should take care of the flipping status of fields when defining the semantics of connection statements of the form \prettyll{r1 <= r2}, where \prettyll{r1, r2} are both references. For instance, in the following {\hifirrtl} program, the connect statement \prettyll{a <= b} will be split into the following two connections between ground-type components, \prettyll{b.f3 <= a.f1} and \prettyll{a.f2 <= b.f4}. Note that in \prettyll{b.f3 <= a.f1}, the connection flow is reversed since \prettyll{f1} is a flipped field. 
 %
@@ -19,7 +19,39 @@ Furthermore, we should take care of the flipping status of fields when defining 
 \end{tabular}
 \end{figure*}
 
-The relations $cm_1 \xrightarrow[tmap]{s} cm_2$ and $cm_1 \xrightarrow[tmap]{ss'} cm_2$ are defined by the rules in Fig.~\ref{fig:firrtl-sem}. 
+The relations $cm_1 \xrightarrow[tm, tmap]{s} cm_2$ and $cm_1 \xrightarrow[tm, tmap]{ss'} cm_2$ are defined by the rules in Fig.~\ref{fig:firrtl-sem}. The rule for the \prettyll{skip} statement is omitted since it does not modify $cm_1$, that is,  $cm_1 \xrightarrow[tm, tmap]{\mbox{skip}} cm_1$.
+The rules in Fig.~\ref{fig:firrtl-sem} utilize the following functions,
+\begin{itemize} 
+\item $\updatecm(cm_1, (v, m), ft, ls)$ modifies $cm_1(v, m), \cdots, cm_1(v, m+n-1)$ to $ls[0], \cdots, ls[n-1]$ respectively, where $n = \sizeofftype(ft)$,
+%
+\item $\updatecmref(cm_1, (v, m), ft, ls, (v', m'), ft', ls')$ updates $cm_1$ into $cm_2$ such that for each $0 \le i < n$, $cm_2(v, m+i) = ls'[i]$ if the $i$-th field in $ft$ is not flipped and $cm_2(v', m'+i) = ls[i]$ otherwise, where $n = \sizeofftype(ft)$, 
+%
+\item $\listgexp(e, ft)$ returns a list of ground-type expressions obtained by expanding $e$ according to $ft$, 
+%
+\item $\typecompatible(ft, ft', flipped)$ checks whether the two types $ft$ and $ft'$ are compatible and distinguish between whether $flipped = \ltrue$ or not, 
+%
+\item $\typeofref(r, tmap)$ returns the type of the reference $r$, 
+%
+\item $\invalidateref(cm_1, (v, m), ft, ori)$ may set $cm_1(v, m+i)$ to $\svinvalid$ for $i: 0 \le i < n$, depending on the orientation $ori$ and the flipping status of the $i$-th ground type in $ft$, where $ft$ is the type of some reference denoted by $(v, m)$ and $n = \sizeofftype(ft)$. 
+\end{itemize}
+The functions $\updatecm$, $\updatecmref$, $\invalidateref$ will be defined in Fig.~\ref{tab:update-vm-ct} and the functions $\listgexp$, $\typecompatible$, $\typeofref$ will be defined in Fig.~\ref{fig:list-gexp}-\ref{fig:type-ref}. 
+
+Let us explain the rules of Fig.~\ref{fig:firrtl-sem}. 
+\begin{itemize}
+\item The ``wire'' rule updates each of $cm_1(v, 0), \cdots, cm_1(v, sz-1)$ to $\svinvalid$, where $s = \mbox{wire }x: t$,  $v$ is the identifier of $x$, $tmap(v) = (ft, ori)$, and $sz= \sizeofftype(ft)$.  
+%
+\item The ``node'' rule is similar to the ``wire'' rule, except that $cm_1(v, 0), \cdots, cm_1(v, sz-1)$ are updated to $ls[0], \cdots, ls[sz-1]$ respectively, where $s = \mbox{node }x = e$, $v$ is the identifier of $x$, $\typeofexp(e) = ft$, $sz= \sizeofftype(ft)$, and $ls = \listgexp(e, ft)$. 
+%
+\item The ``register'' rule first checks that $ft$ and $rft$ are compatible, moreover, $\listgexp(rval, rft)$ and $(tm(v,0), \cdots, tm(v, sz-1))$ are equivalent, then it updates $cm_1(v, 0), \cdots, cm_1(v, sz-1)$ to $ls[0], \cdots, ls[sz-1]$, where $s = \mbox{reg } x : t\ e\ \mbox{with: reset=>}  (rsig, rval)$, $id(x) = v$, $tmap(v) = (ft, ori)$, $rft = \typeofexp(rval, tmap)$, $sz = \sizeofftype(ft)$, and $ls = \listgexp(x, ft)$.
+%
+\item The ``connect:exp'' rule checks that $ori$, the orientation of $r$, is $\duplex$ or $\sink$,  then checks the compatibility of $rft$ and $eft$, moreover, it updates $cm_1(v, m), \cdots, cm_1(v, m+sz-1)$ to $ls[0], \cdots, ls[sz-1]$, where $s = r <= e$ such that $e$ is not a reference, $id(r) = (v, m)$, $(rft, ori) = \typeofref(r, tmap)$, $\typeofexp(e, tmap) = eft$, $sz = \sizeofftype(rft)$, and $ls = \listgexp(e, eft)$. 
+%
+\item The ``connect:ref'' rule checks that $ori$, the orientation of $r$, is $\duplex$ or $\sink$, and $ori'$, the orientation of $r'$, is $\duplex$ or $\source$, then checks the compatibility of $ft$ and $ft'$, moreover, it updates $cm_1$ into $cm_2$ by calling $\updatecmref(cm, (v, m), ft, ls, (v', m'), ft', ls')$, where $s = r <= r'$, $id(r)=(v,m)$, $id(r') = (v', m')$, $(ft, ori) = \typeofref(r, tmap)$, $(ft', ori') = \typeofref(r', tmap)$, $\listgexp(r, ft) = ls$, and $\listgexp(r', ft') = ls'$. 
+%
+\item The ``invalid'' rule calls $\invalidateref(cm_1, (v, m), ft, ori)$ to update $cm_1$, where $s = r \mbox{ is invalid}$, $id(r) = (v, m)$, and $(ft, ori) = \typeofref(r, tmap)$. 
+%
+\item The ``when'' rule first checks the type of $cond$ is $(\gtype, (\uint, 1))$, then computes $cmt$ from $cm_1$ by applying $sst$, and computes $cmf$ from $cm_1$ by applying $ssf$, finally let $cm_2 = \mux(cond, cmt, cmf)$, where $s  = \mbox{when } cond:\ sst \mbox{ else}:\ ssf$ and the $\mux$ function combines $cmt$ and $cmf$ pointwise into $cm_2$ by using the multiplexer operator $\mux(cond, \_, \_)$. 
+\end{itemize}
 
 %Given $tmap$, the semantics of a statement $s$ in $M$ is defined by a relation $ct \xrightarrow[tmap]{s} ct'$. %, where $s$ is seen as a modifier of module graphs. 
 %Moreover, the relation can be easily extended to sequences of statements, that is, $ct \xrightarrow[tmap]{ss} ct'$, where $ss$ is a sequence of statements. 
@@ -27,13 +59,13 @@ The relations $cm_1 \xrightarrow[tmap]{s} cm_2$ and $cm_1 \xrightarrow[tmap]{ss'
 \begin{figure}[htbp]
   \small
   \begin{gather*}
-    \infer[skip]
-    {\seqq{ cm \xrightarrow[tmap]{\mbox{skip}} cm}}
-    {\seqq{-}}
-    \quad
-    \\[1ex]
+%    \infer[skip]
+%    {\seqq{ cm \xrightarrow[tm, tmap]{\mbox{skip}} cm}}
+%    {\seqq{-}}
+%    \quad
+%    \\[1ex]
     \infer[wire]
-    {\seqq{cm_1 \xrightarrow[tmap]{\mbox{wire } x: t} cm_2}}
+    {\seqq{cm_1 \xrightarrow[tm, tmap]{\mbox{wire } x: t} cm_2}}
    {
     \begin{array}{c}
     id(x) = v \wedge tmap(v)= (ft, ori) \wedge \sizeofftype(ft) = sz \\
@@ -46,7 +78,7 @@ The relations $cm_1 \xrightarrow[tmap]{s} cm_2$ and $cm_1 \xrightarrow[tmap]{ss'
     \quad
     \\[1ex]
     \infer[node]
-    {\seqq{ cm_1 \xrightarrow[tmap]{\mbox{node } x = e} cm_2}}
+    {\seqq{ cm_1 \xrightarrow[tm, tmap]{\mbox{node } x = e} cm_2}}
     {
     \begin{array}{c}
    id(x) = v \wedge \typeofexp(e, tmap)= ft \wedge \sizeofftype(ft) = sz \wedge \listgexp(e, ft) = ls \\
@@ -57,18 +89,20 @@ The relations $cm_1 \xrightarrow[tmap]{s} cm_2$ and $cm_1 \xrightarrow[tmap]{ss'
     \quad
     \\[1ex]
     \infer[register]
-    {\seqq{ cm_1 \xrightarrow[tmap]{\mbox{reg } x : t\ e\ \mbox{with: reset=>}  (rsig, rval)} cm_2}}
+    {\seqq{ cm_1 \xrightarrow[tm, tmap]{\mbox{reg } x : t\ e\ \mbox{with: reset=>}  (rsig, rval)} cm_2}}
     {
     \begin{array}{c}
    id(x) = v \wedge tmap(v)= (ft, ori) \wedge \sizeofftype(ft) = sz \wedge  rft = \typeofexp(rval, tmap) \\
-   \typecompatible(ft, rft, false) \wedge \forall n.\ 0 \le n < sz  \Rightarrow  cm_1(v, n) = \svnone \\
+   \forall n.\ 0 \le n < sz  \Rightarrow  cm_1(v, n) = \svnone \\
+   \typecompatible(ft, rft, false) \wedge ls = \listgexp(rval, rft)\ \wedge\\ 
+   \forall n.\ 0 \le n < sz \Rightarrow  (tm(v, n) = (\register, (t_n, cl_n, rs_n, rv_n, b_n)) \wedge rv_n = ls[n]) \\
    \updatecm(cm_1, (v, 0), ft, \listgexp(x, ft)) = cm_2
     \end{array}    
     }
     \quad
     \\[1ex]
     \infer[connect: exp]
-    {\seqq{ cm_1 \xrightarrow[tmap]{r <= e} cm_2}}
+    {\seqq{ cm_1 \xrightarrow[tm, tmap]{r <= e} cm_2}}
     {
     \begin{array}{c}
     id(r)=(v, m) \wedge \typeofref(r, tmap)= (rft, ori) \ \wedge \\
@@ -82,7 +116,7 @@ The relations $cm_1 \xrightarrow[tmap]{s} cm_2$ and $cm_1 \xrightarrow[tmap]{ss'
     \quad
     \\[1ex]
     \infer[connect: ref]
-    {\seqq{ cm_1 \xrightarrow[tmap]{r <= r'} cm_2}}
+    {\seqq{ cm_1 \xrightarrow[tm, tmap]{r <= r'} cm_2}}
     {
     \begin{array}{c}
      id(r)=(v, m) \wedge  id(r')=(v', m') \wedge \typeofref(r, tmap)= (ft, ori) \ \wedge \\
@@ -100,26 +134,26 @@ The relations $cm_1 \xrightarrow[tmap]{s} cm_2$ and $cm_1 \xrightarrow[tmap]{ss'
     }
     \\[1ex]
     \infer[invalid]
-    {\seqq{cm_1 \xrightarrow[tmap]{r \mbox{ is invalid}} cm_2}}
+    {\seqq{cm_1 \xrightarrow[tm, tmap]{r \mbox{ is invalid}} cm_2}}
     {
     \begin{array}{c}
     id(r) = (v, m) \wedge \typeofref(r, tmap) = (ft, ori)\\
-    \invalidate(cm_1, (v,m), ft, ori) = cm_2
+    \invalidateref(cm_1, (v,m), ft, ori) = cm_2
     \end{array}    
     }
     \\[1ex]
     \infer[when]
-    {\seqq{cm_1 \xrightarrow[tmap]{\mbox{when } cond:\ sst \mbox{ else}:\ ssf } cm_2}}
+    {\seqq{cm_1 \xrightarrow[tm, tmap]{\mbox{when } cond:\ sst \mbox{ else}:\ ssf } cm_2}}
     {
     \begin{array}{c}
     \typeofexp(cond, tmap) = (\gtype, (\uint, 1))\\
-    cm \xrightarrow[tmap]{sst} cmt \wedge cm \xrightarrow[tmap]{ssf} cmf \wedge
+    cm \xrightarrow[tm, tmap]{sst} cmt \wedge cm \xrightarrow[tm, tmap]{ssf} cmf \wedge
     cm_2 = \mux(cond, cmt, cmf)
     \end{array}    
     }
   \end{gather*}
 %  \vspace{-4mm}
-  \caption{The relation $cm_1 \xrightarrow[tmap]{s} cm_2$}
+  \caption{The relation $cm_1 \xrightarrow[tm, tmap]{s} cm_2$}
   \label{fig:firrtl-sem}
 \end{figure}
  
@@ -127,6 +161,10 @@ The relations $cm_1 \xrightarrow[tmap]{s} cm_2$ and $cm_1 \xrightarrow[tmap]{ss'
 %Let $M$ be a {\hifirrtl} module and $G$ be a module graph. We define how $G = (vm, ct)$ \emph{matches} $M$ as follows: We define the relations $(vm, ct) \xrightarrow[tmap]{s} (vm', ct')$, where $s$ is a statement. Then $G$ matches $M$ if $(vm_{emp}, ct_{emp}) \xrightarrow[tmap]{ss} (vm, ct)$, where $ss$ is the statement sequence of $M$. 
 
 %%%%% vm_match
+
+\zhilin{stopped here}
+
+The functions $\updatecmref$ and $\invalidateref$ call the function $\listgtyperef$ to compute the list of ground types for a reference (see Fig.~\ref{fig:list-ftype-fields}).  
 
 \begin{figure}[htbp]
   \small
@@ -173,8 +211,8 @@ The relations $cm_1 \xrightarrow[tmap]{s} cm_2$ and $cm_1 \xrightarrow[tmap]{ss'
     \end{array}
     }
     \\[1ex]
-    \infer[\invalidate]
-    {\invalidate(cm_1, id, ft, ori) = cm_2}
+    \infer[\invalidateref]
+    {\invalidateref(cm_1, id, ft, ori) = cm_2}
     {
     \begin{array}{c}
     id = (v, m) \wedge \sizeofftype(ft) = sz \wedge \listgtyperef(ft, false) = lgt \\
@@ -198,7 +236,7 @@ The relations $cm_1 \xrightarrow[tmap]{s} cm_2$ and $cm_1 \xrightarrow[tmap]{ss'
     \end{array}
     }
   \end{gather*}
-  \caption{$\updatecm$, $\updatecmref$, and $\invalidate$}
+  \caption{$\updatecm$, $\updatecmref$, and $\invalidateref$}
   \label{tab:update-vm-ct}
 \end{figure}
 
@@ -257,92 +295,6 @@ The relations $cm_1 \xrightarrow[tmap]{s} cm_2$ and $cm_1 \xrightarrow[tmap]{ss'
   \end{gather*}
   \caption{$list\_gexp$ and $list\_gexp\_fields$}
   \label{fig:list-gexp}
-\end{figure}
-
-
-\begin{figure}[htbp]
-  \small
-  \begin{gather*}
-    \infer[\listgtype: ground]
-    {\seqq{list\_gtype(ft) = [gt]}}
-    {\seqq{ft = (ground, gt)}}
-    \quad
-    \\[1ex]
-    \inferii[list\_gtype: vector]
-    {\seqq{list\_gtype(ft) = \underbrace{l'\ ++\ \cdots\ ++\ l'}_{m}}}
-    {\seqq{ft = (vector, ft'[m])}}    {\seqq{l' = list\_gtype(ft')}}
-    \quad
-    \\[1ex]
-    \inferii[list\_gtype: bundle]
-    {\seqq{list\_gtype(ft) = l'}}
-    {\seqq{ft = (bundle, ff)}}    {\seqq{l' = list\_gtype\_fields(ff)}}
-    \quad
-    \\[1ex]    
-    \infer[list\_gtype\_fields: nil]
-    {\seqq{list\_gtype\_fields(ff) = []}}
-    {\seqq{f f = nil}}
-    \quad
-    \\[1ex]
-    \inferiii[list\_gtype\_fields: $\neq$ nil]
-    {\seqq{list\_gtype\_fields(ff) = l'\ {++}\ l''}}
-    {\seqq{f f = (\_, \_, ft', ff')}} 
-    {\seqq{list\_gtype(ft') = l'}} {\seqq{list\_gtype\_fields(ff') = l''}}  
-    \quad
-    \\[1ex]
-    \infer[list\_gtype\_ref: ground]
-    {\seqq{list\_gtype\_ref(ft, flipped) = [(gt, flipped)]}}
-    {\seqq{ft = (ground, gt)}}
-    \quad
-    \\[1ex]
-    \inferii[list\_gtype\_ref: vector]
-    {\seqq{list\_gtype\_ref(ft, flipped) = \underbrace{l'\ ++\ \cdots\ ++\ l'}_{m}}}
-    {\seqq{ft = (vector, ft'[m])}}    {\seqq{l' = list\_gtype\_ref(ft', flipped)}}
-    \quad
-    \\[1ex]
-    \inferii[list\_gtype\_ref: bundle]
-    {\seqq{list\_gtype\_ref(ft, flipped) = l'}}
-    {\seqq{ft = (bundle, ff)}}    {\seqq{l' = list\_gtype\_ref\_fields(ff, flipped)}}
-    \quad
-    \\[1ex]    
-    \infer[list\_gtype\_ref\_fields: nil]
-    {\seqq{list\_gtype\_ref\_fields(ff, flipped) = []}}
-    {\seqq{f f = nil}}
-    \quad
-    \\[1ex]
-    \inferii[list\_gtype\_ref\_fields: $\neq$nil-1]
-    {\seqq{list\_gtype\_ref\_fields(ff, flipped) = l'\ {++}\ l''}}
-    {
-    \begin{array}{c}
-    	f f = (\_, flipped', ft', ff')\ \wedge\\
-	 flipped' = false
-    \end{array}
-    }
-    {
-    \begin{array}{c}
-    	list\_gtype\_ref(ft', flipped) = l'\ \wedge \\
-    	list\_gtype\_ref\_fields(ff', flipped) = l''
-    \end{array}
-    } 
-    \quad
-    \\[1ex]
-    \inferii[list\_gtype\_ref\_fields: $\neq$nil-2]
-    {\seqq{list\_gtype\_ref\_fields(ff, flipped) = l'\ {++}\ l''}}
-    {
-    \begin{array}{c}
-    	f f = (\_, flipped', ft', ff')\ \wedge\\
-	 flipped' = true
-    \end{array}
-    }
-    {
-    \begin{array}{c}
-    	list\_gtype\_ref(ft', \neg flipped) = l'\ \wedge \\
-    	list\_gtype\_ref\_fields(ff', flipped) = l''
-    \end{array}
-    } 
-  \end{gather*}
-%  \vspace{-4mm}
-  \caption{$list\_gtype$, $list\_gtype\_fields$, $list\_gtype\_ref$, and $list\_gtype\_ref\_fields$}
-  \label{fig:size-list-ftype-fields}
 \end{figure}
 
 
@@ -520,4 +472,88 @@ The relations $cm_1 \xrightarrow[tmap]{s} cm_2$ and $cm_1 \xrightarrow[tmap]{ss'
   \label{fig:type-ref}
 \end{figure}
 
+\begin{figure}[htbp]
+  \small
+  \begin{gather*}
+%    \infer[\listgtype: ground]
+%    {\seqq{list\_gtype(ft) = [gt]}}
+%    {\seqq{ft = (ground, gt)}}
+%    \quad
+%    \\[1ex]
+%    \inferii[list\_gtype: vector]
+%    {\seqq{list\_gtype(ft) = \underbrace{l'\ ++\ \cdots\ ++\ l'}_{m}}}
+%    {\seqq{ft = (vector, ft'[m])}}    {\seqq{l' = list\_gtype(ft')}}
+%    \quad
+%    \\[1ex]
+%    \inferii[list\_gtype: bundle]
+%    {\seqq{list\_gtype(ft) = l'}}
+%    {\seqq{ft = (bundle, ff)}}    {\seqq{l' = list\_gtype\_fields(ff)}}
+%    \quad
+%    \\[1ex]    
+%    \infer[list\_gtype\_fields: nil]
+%    {\seqq{list\_gtype\_fields(ff) = []}}
+%    {\seqq{f f = nil}}
+%    \quad
+%    \\[1ex]
+%    \inferiii[list\_gtype\_fields: $\neq$ nil]
+%    {\seqq{list\_gtype\_fields(ff) = l'\ {++}\ l''}}
+%   {\seqq{f f = (\_, \_, ft', ff')}} 
+%    {\seqq{list\_gtype(ft') = l'}} {\seqq{list\_gtype\_fields(ff') = l''}}  
+%    \quad
+%    \\[1ex]
+    \infer[list\_gtype\_ref: ground]
+    {\seqq{list\_gtype\_ref(ft, flipped) = [(gt, flipped)]}}
+    {\seqq{ft = (ground, gt)}}
+    \quad
+    \\[1ex]
+    \inferii[list\_gtype\_ref: vector]
+    {\seqq{list\_gtype\_ref(ft, flipped) = \underbrace{l'\ ++\ \cdots\ ++\ l'}_{m}}}
+    {\seqq{ft = (vector, ft'[m])}}    {\seqq{l' = list\_gtype\_ref(ft', flipped)}}
+    \quad
+    \\[1ex]
+    \inferii[list\_gtype\_ref: bundle]
+    {\seqq{list\_gtype\_ref(ft, flipped) = l'}}
+    {\seqq{ft = (bundle, ff)}}    {\seqq{l' = list\_gtype\_ref\_fields(ff, flipped)}}
+    \quad
+    \\[1ex]    
+    \infer[list\_gtype\_ref\_fields: nil]
+    {\seqq{list\_gtype\_ref\_fields(ff, flipped) = []}}
+    {\seqq{f f = nil}}
+    \quad
+    \\[1ex]
+    \inferii[list\_gtype\_ref\_fields: $\neq$nil-1]
+    {\seqq{list\_gtype\_ref\_fields(ff, flipped) = l'\ {++}\ l''}}
+    {
+    \begin{array}{c}
+    	f f = (\_, flipped', ft', ff')\ \wedge\\
+	 flipped' = false
+    \end{array}
+    }
+    {
+    \begin{array}{c}
+    	list\_gtype\_ref(ft', flipped) = l'\ \wedge \\
+    	list\_gtype\_ref\_fields(ff', flipped) = l''
+    \end{array}
+    } 
+    \quad
+    \\[1ex]
+    \inferii[list\_gtype\_ref\_fields: $\neq$nil-2]
+    {\seqq{list\_gtype\_ref\_fields(ff, flipped) = l'\ {++}\ l''}}
+    {
+    \begin{array}{c}
+    	f f = (\_, flipped', ft', ff')\ \wedge\\
+	 flipped' = true
+    \end{array}
+    }
+    {
+    \begin{array}{c}
+    	list\_gtype\_ref(ft', \neg flipped) = l'\ \wedge \\
+    	list\_gtype\_ref\_fields(ff', flipped) = l''
+    \end{array}
+    } 
+  \end{gather*}
+%  \vspace{-4mm}
+  \caption{$list\_gtype\_ref$ and $list\_gtype\_ref\_fields$}
+  \label{fig:list-ftype-fields}
+\end{figure}
 
