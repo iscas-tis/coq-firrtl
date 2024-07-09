@@ -171,9 +171,12 @@ p & ::= & (\mbox{\tt ``\fnprettyll{input}''} \mid \mbox{\tt ``\fnprettyll{output
 %ruw & = & \mbox{``old''} \mid \mbox{``new''} \mid \mbox{``undefined''};\\
 %
 %\mbox{\bf Expression} &
-  e & ::= & (\mbox{\tt ``\fnprettyll{UInt}''} | \mbox{\tt ``\fnprettyll{SInt}''}) [w] \mbox{\tt ``(''}int\mbox{\tt ``)''} \mid r \mid \mbox{\tt ``\fnprettyll{mux}(''}e\mbox{\tt ``,''} e\mbox{\tt ``,''} e\mbox{\tt ``)''}\\
-    &     &  \mid \mbox{\tt ``\fnprettyll{validif}(''}e\mbox{\tt ``,''} e\mbox{\tt ``)''}
-        \mid \mbox{\tt ``\textcolor{blue}{read}(''}sr \mbox{\tt ``)''} \mid op\\
+  e & ::= & (\mbox{\tt ``\fnprettyll{UInt}''} | \mbox{\tt ``\fnprettyll{SInt}''}) [w] \mbox{\tt ``(''}int\mbox{\tt ``)''} \mid r \mid \mbox{\tt ``\fnprettyll{mux}(''}e\mbox{\tt ``,''} e\mbox{\tt ``,''} e\mbox{\tt ``)''}
+  %\\
+%    &     &  
+ %   \mid \mbox{\tt ``\fnprettyll{validif}(''}e\mbox{\tt ``,''} e\mbox{\tt ``)''}
+        %\mid \mbox{\tt ``\textcolor{blue}{read}(''}sr \mbox{\tt ``)''} 
+        \mid op\\
 %
 %&
 r & ::= & sr \mid r \mbox{\tt ``[''} e \mbox{\tt ``]''}\\
@@ -301,7 +304,8 @@ p & ::= & (\mbox{\tt ``input''} \mid \mbox{\tt ``output''})\ id\mbox{\tt ``:''}t
 %
 %\mbox{\bf Expression} &
 e & ::= & (\mbox{\tt ``UInt''} | \mbox{\tt ``SInt''}) [w] \mbox{\tt ``(''}int\mbox{\tt ``)''} \mid r \mid \mbox{\tt ``mux(''}e\mbox{\tt ``,''} e\mbox{\tt ``,''} e\mbox{\tt ``)''}
-  \mid \mbox{\tt ``\prettyll{validif}(''}e\mbox{\tt ``,''} e\mbox{\tt ``)''} \mid \mbox{\tt ``read(''}sr \mbox{\tt ``)''} \mid op\\
+%  \mid \mbox{\tt ``\prettyll{validif}(''}e\mbox{\tt ``,''} e\mbox{\tt ``)''} \mid \mbox{\tt ``read(''}sr \mbox{\tt ``)''} 
+  \mid op\\
 %
 %&
 r & ::= & sr \mid r \mbox{\tt ``[''} e \mbox{\tt ``]''}\\
@@ -404,8 +408,9 @@ and satisfies that in each module, each component is connected to at most once.
   \mbox{\tt ``\fnprettyll{inst}''}\ id\ \mbox{\tt ``\fnprettyll{of}''}\ id \mid \mbox{\tt ``\fnprettyll{node}''}\ id \mbox{\tt ``=''} id  \mid r \mbox{\tt ``<=''} e  \mid r\ \mbox{\tt ``\fnprettyll{is invalid}''}\mid \mbox{\tt ``\fnprettyll{skip}''}\\
 %
 %\mbox{\bf Expression} &
-e & ::= & (\mbox{\tt ``\fnprettyll{UInt}''} | \mbox{\tt ``\fnprettyll{SInt}''})\ w \mbox{\tt ``(''}int\mbox{\tt ``)''} \mid r \mid \mbox{\tt ``\fnprettyll{mux}(''}e\mbox{\tt ``,''} e\mbox{\tt ``,''} e\mbox{\tt ``)''}\\
- &  & \mid \mbox{\tt ``\fnprettyll{validif}(''}e\mbox{\tt ``,''} e\mbox{\tt ``)''} \mid \mbox{\tt ``\textcolor{blue}{read}(''}sr \mbox{\tt ``)''} \mid op\\
+e & ::= & (\mbox{\tt ``\fnprettyll{UInt}''} | \mbox{\tt ``\fnprettyll{SInt}''})\ w \mbox{\tt ``(''}int\mbox{\tt ``)''} \mid r \mid \mbox{\tt ``\fnprettyll{mux}(''}e\mbox{\tt ``,''} e\mbox{\tt ``,''} e\mbox{\tt ``)''}
+% &  & \mid \mbox{\tt ``\fnprettyll{validif}(''}e\mbox{\tt ``,''} e\mbox{\tt ``)''} \mid \mbox{\tt ``\textcolor{blue}{read}(''}sr \mbox{\tt ``)''} 
+ \mid op\\
 %
 %&
 r & ::= & sr \mid r \mbox{\tt ``[''} e \mbox{\tt ``]''}\\
@@ -422,7 +427,7 @@ w & ::= & \mbox{\tt ``<''} int \mbox{\tt ``>''}\\
 %\mbox{\bf Data Types} &
 t & ::= & tg \\
  %&
- tg & ::= &  \mbox{\tt ``\fnprettyll{Clock}''} \mid \mbox{\tt ``\fnprettyll{AsyncReset}''} \mid (\mbox{\tt ``\fnprettyll{UInt}''} \mid \mbox{\tt ``\fnprettyll{SInt}''}) w
+ tg & ::= &  \mbox{\tt ``\fnprettyll{Clock}''} \mid \mbox{\tt ``\fnprettyll{AsyncReset}''} \mid (\mbox{\tt ``\fnprettyll{UInt}''} \mid \mbox{\tt ``\fnprettyll{SInt}''})\ w
  %&
 % & & \mid \mbox{``Fixed''}, [width], [binarypoint];\\
  %&
