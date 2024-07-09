@@ -210,9 +210,10 @@ For instance, in the rule {\madeexplicit: \vtype}, if the $n$ ground-type sequen
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
-The mapping $tmap$ is defined by the procedure $\portsstmtstmap(pp, ss, tm)$, which calls the procedure $\portstmap(pp, tm)$ to compute $pmap$ which intuitively a partial definition for $tmap$ and $scope$, then calls $\stmtstmap((pmap, pmap), ss, tm)$ to update $tmap$ (see Figure~\ref{fig:ports-stmts-tmap}). 
+The mapping $tmap$ is defined by the procedure $\portsstmtstmap(pp, ss, tm)$, which calls the procedure $\portstmap(pp, tm)$ to define a mapping $pmap$ which intuitively an initial version for $tmap$ and $scope$, then calls $\stmtstmap((pmap, pmap), ss, tm)$ to update $tmap$ and $scope$. % (see Figure~\ref{fig:ports-stmts-tmap}). 
 %
-Intuitively, $\portstmap(pp, tm)$ defines a mapping based on the port declarations $pp$ and $tm$, and $\stmtstmap((pmap, pmap), ss, tm)$ defines a pair $(tmap, scope)$ from $(pmap, pmap)$, the statement sequence $ss$, and $tm$. Note that $scope$ is introduced to check 
+%In particular, $\portstmap(pp, tm)$ defines a mapping based on the port declarations $pp$ and $tm$, and $\stmtstmap((pmap, pmap), ss, tm)$ defines a pair $(tmap, scope)$ from $(pmap, pmap)$, the statement sequence $ss$, and $tm$. 
+Note that $scope$ is introduced to check that the component references in $ss$ do not violate  the scoping
 \begin{wrapfigure}{r}{0.3\textwidth} 
 %\centering
 %\begin{tabular}{c}
@@ -229,8 +230,8 @@ Intuitively, $\portstmap(pp, tm)$ defines a mapping based on the port declaratio
 %\end{tabular}
 %\label{fig:example}
 \end{wrapfigure}
-\tl{this scope thing makes the semantics less focused, but is it really important? Can we simply rule it out at the syntax level?}
-that the component references in $ss$ do not violate the scoping constraints brought upon by the \prettyll{when} statements. For instance, the presented {\hifirrtl} program contains a scoping error, since $z$ is declared in the scope of the \prettyll{when} statement, but is referred outside  (cf.\ Line 7). 
+%\tl{this scope thing makes the semantics less focused, but is it really important? Can we simply rule it out at the syntax level?}
+constraints brought upon by the \prettyll{when} statements. For instance, the presented {\hifirrtl} program contains a scoping error, since $z$ is declared in the scope of the \prettyll{when} statement, but is referred outside  (cf.\ Line 7). 
 %
 %The procedures $\portstmap$ and $\stmtstmap$ are defined by the rules in Fig.~\ref{fig:ports-stmts-tmap}.
 
