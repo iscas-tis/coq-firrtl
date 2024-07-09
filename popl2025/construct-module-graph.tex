@@ -42,7 +42,7 @@ The definitions of $cm_1 \xrightarrow[tm, tmap]{s} cm_2$ and $cm_1 \xrightarrow[
 	%
 	\item $\listgexp(e, ft)$ returns a list of ground-type expressions obtained by expanding $e$ according to $ft$, 
 	%
-	\item $\typecompatible(ft, ft', flipped)$ checks whether the two types $ft$ and $ft'$ are compatible and distinguish between whether $flipped = \ltrue$ or not, 
+	\item $\typecompatible(ft, ft', flipped)$ checks whether the two types $ft$ and $ft'$ are compatible and distinguish between whether $flipped = \ltrue$, 
 	%
 	\item $\typeofref(r, tmap)$ returns the type of the reference $r$, 
 	%
@@ -52,7 +52,7 @@ The definitions of $cm_1 \xrightarrow[tm, tmap]{s} cm_2$ and $cm_1 \xrightarrow[
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %The functions $\updatecm$, $\updatecmref$, $\invalidateref$ will be defined in Fig.~\ref{tab:update-vm-ct} and the functions $\listgexp$, $\typecompatible$, $\typeofref$ will be defined in Fig.~\ref{fig:list-gexp}-\ref{fig:type-ref}. 
 %
-%Let us explain the rules of Fig.~\ref{fig:firrtl-sem}. 
+We explain the rules of Fig.~\ref{fig:firrtl-sem}. 
 \begin{itemize}
 	\item The ``wire'' rule updates each of $cm_1(v, 0), \cdots, cm_1(v, sz-1)$ to $\svinvalid$, where $s = \mbox{wire }x: t$,  $v$ is the identifier of $x$, $tmap(v) = (ft, ori)$, and $sz= \sizeofftype(ft)$.  
 	%
@@ -81,58 +81,54 @@ The definitions of $cm_1 \xrightarrow[tm, tmap]{s} cm_2$ and $cm_1 \xrightarrow[
 %    \quad
 %    \\[1ex]
     \infer[wire]
-    {\seqq{cm_1 \xrightarrow[tm, tmap]{\mbox{wire } x: t} cm_2}}
+    {\seqq{cm_1 \xrightarrow[tm, tmap]{\mbox{wire } x: t} \updatecm(cm_1, (v, 0), ft, [\underbrace{\svundefined, \ldots, \svundefined}_{m}])}}
    {
     \begin{array}{c}
     id(x) = v \wedge tmap(v)= (ft, ori) \wedge \sizeofftype(ft) = sz \\
-    \forall n.\ 0 \le n < sz \Rightarrow cm_1(v, n) = \svnone  \\
+    \forall n.\ 0 \le n < sz \Rightarrow cm_1(v, n) = \svnone  
 %    \forall n.\ n \ge size\_of\_ftype(ft) \Rightarrow vm(v, n) =  vm'(v,n)\\
 %    \forall n.\ 0 \le n < size\_of\_ftype(ft) \Rightarrow ct(v, n) = none \wedge ct'(v,n) = undefined \\
-    \updatecm(cm_1, (v, 0), ft, [\underbrace{\svundefined, \ldots, \svundefined}_{m}]) = cm_2
     \end{array}
    }
-    \quad
     \\[1ex]
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     \infer[node]
-    {\seqq{ cm_1 \xrightarrow[tm, tmap]{\mbox{node } x = e} cm_2}}
+    {\seqq{ cm_1 \xrightarrow[tm, tmap]{\mbox{node } x = e}  \updatecm(cm_1, (v, 0), ft, ls)}}
     {
     \begin{array}{c}
    id(x) = v \wedge \typeofexp(e, tmap)= ft \wedge \sizeofftype(ft) = sz \wedge \listgexp(e, ft) = ls \\
-    \forall n.\ 0 \le n < sz  \Rightarrow  cm_1(v, n) = \svnone \\
-    \updatecm(cm_1, (v, 0), ft, ls) = cm_2
+    \forall n.\ 0 \le n < sz  \Rightarrow  cm_1(v, n) = \svnone 
     \end{array}    
     }
-    \quad
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     \\[1ex]
     \infer[register]
-    {\seqq{ cm_1 \xrightarrow[tm, tmap]{\mbox{reg } x : t\ e\ \mbox{with: reset=>}  (rsig, rval)} cm_2}}
+    {\seqq{ cm_1 \xrightarrow[tm, tmap]{\mbox{reg } x : t\ e\ \mbox{with: reset=>}  (rsig, rval)}   \updatecm(cm_1, (v, 0), ft, \listgexp(x, ft))}}
     {
     \begin{array}{c}
    id(x) = v \wedge tmap(v)= (ft, ori) \wedge \sizeofftype(ft) = sz \wedge  rft = \typeofexp(rval, tmap) \\
    \forall n.\ 0 \le n < sz  \Rightarrow  cm_1(v, n) = \svnone \\
    \typecompatible(ft, rft, false) \wedge ls = \listgexp(rval, rft)\ \wedge\\ 
-   \forall n.\ 0 \le n < sz \Rightarrow  (tm(v, n) = (\register, (t_n, cl_n, rs_n, rv_n, b_n)) \wedge rv_n = ls[n]) \\
-   \updatecm(cm_1, (v, 0), ft, \listgexp(x, ft)) = cm_2
+   \forall n.\ 0 \le n < sz \Rightarrow  (tm(v, n) = (\register, (t_n, cl_n, rs_n, rv_n, b_n)) \wedge rv_n = ls[n])  
     \end{array}    
     }
-    \quad
     \\[1ex]
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     \infer[connect: exp]
-    {\seqq{ cm_1 \xrightarrow[tm, tmap]{r <= e} cm_2}}
+    {\seqq{ cm_1 \xrightarrow[tm, tmap]{r <= e}  \updatecm(cm_1, (v, m), rft, \listgexp(e, eft))}}
     {
     \begin{array}{c}
     id(r)=(v, m) \wedge \typeofref(r, tmap)= (rft, ori) \ \wedge \\
      (ori = \duplex \vee ori = \sink) \wedge \sizeofftype(rft) = sz \wedge \typeofexp(e, tmap)= eft \\
-    \typecompatible(rft, eft, false) \wedge \forall n.\ 0 \le n < sz \Rightarrow cm_1(v, m+n) \neq \svnone \\
+    \typecompatible(rft, eft, false) \wedge \forall n.\ 0 \le n < sz \Rightarrow cm_1(v, m+n) \neq \svnone 
 %    \forall n.\ n \ge size\_of\_ftype(ft) \Rightarrow vm(v, n) =  vm'(v,n)\\
 %    \forall n.\ 0 \le n < size\_of\_ftype(ft) \Rightarrow ct(v, n) = none \wedge ct'(v,n) = undefined \\
-     \updatecm(cm_1, (v, m), rft, \listgexp(e, eft)) = cm_2
     \end{array}    
     }
-    \quad
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     \\[1ex]
     \infer[connect: ref]
-    {\seqq{ cm_1 \xrightarrow[tm, tmap]{r <= r'} cm_2}}
+    {\seqq{ cm_1 \xrightarrow[tm, tmap]{r <= r'}  \updatecmref(cm_1, (v, m), ft, ls, (v', m'), ft', ls') }}
     {
     \begin{array}{c}
      id(r)=(v, m) \wedge  id(r')=(v', m') \wedge \typeofref(r, tmap)= (ft, ori) \ \wedge \\
@@ -142,29 +138,28 @@ The definitions of $cm_1 \xrightarrow[tm, tmap]{s} cm_2$ and $cm_1 \xrightarrow[
     \typecompatible(ft, ft', false) \\
 %    \forall n.\ n \ge size\_of\_ftype(ft) \Rightarrow vm(v, n) =  vm'(v,n)\\
 %    \forall n.\ 0 \le n < size\_of\_ftype(ft) \Rightarrow ct(v, n) = none \wedge ct'(v,n) = undefined \\
-	\forall n.\ 0 \le n < sz \Rightarrow (cm_1(v, m+n) \neq \svnone \wedge cm_1(v', m'+n) \neq \svnone) \\
-     \updatecmref(cm_1, (v, m), ft, ls, (v', m'), ft', ls') = cm_2
+	\forall n.\ 0 \le n < sz \Rightarrow (cm_1(v, m+n) \neq \svnone \wedge cm_1(v', m'+n) \neq \svnone) 
 %    \forall v'', n''.\ (v'' \neq v \vee n'' < m \vee n'' \ge m+sz) \wedge (v'' \neq v' \vee n'' < m' \vee n'' \ge m'+sz)  \Rightarrow \\
 %    ct'(v'', n'') = ct(v'', n'') 
     \end{array}    
     }
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     \\[1ex]
     \infer[invalid]
-    {\seqq{cm_1 \xrightarrow[tm, tmap]{r \mbox{ is invalid}} cm_2}}
+    {\seqq{cm_1 \xrightarrow[tm, tmap]{r \mbox{ is invalid}}\invalidateref(cm_1, (v,m), ft, ori)}}
     {
     \begin{array}{c}
-    id(r) = (v, m) \wedge \typeofref(r, tmap) = (ft, ori)\\
-    \invalidateref(cm_1, (v,m), ft, ori) = cm_2
+    id(r) = (v, m) \wedge \typeofref(r, tmap) = (ft, ori) 
     \end{array}    
     }
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     \\[1ex]
     \infer[when]
-    {\seqq{cm_1 \xrightarrow[tm, tmap]{\mbox{when } cond:\ sst \mbox{ else}:\ ssf } cm_2}}
+    {\seqq{cm_1 \xrightarrow[tm, tmap]{\mbox{when } cond:\ sst \mbox{ else}:\ ssf }  \mux(cond, cmt, cmf)}}
     {
     \begin{array}{c}
-    \typeofexp(cond, tmap) = (\gtype, (\uint, 1))\\
-    cm \xrightarrow[tm, tmap]{sst} cmt \wedge cm \xrightarrow[tm, tmap]{ssf} cmf \wedge
-    cm_2 = \mux(cond, cmt, cmf)
+    \typeofexp(cond, tmap) = (\gtype, (\uint, 1))\wedge 
+    cm \xrightarrow[tm, tmap]{sst} cmt \wedge cm \xrightarrow[tm, tmap]{ssf} cmf  
     \end{array}    
     }
   \end{gather*}
@@ -178,7 +173,7 @@ The definitions of $cm_1 \xrightarrow[tm, tmap]{s} cm_2$ and $cm_1 \xrightarrow[
 
 %%%%% vm_match
 
-Let us explain the rules for $\updatecm$, $\updatecmref$, and $\invalidateref$ in Fig.~\ref{tab:update-vm-ct}.
+We explain the rules for $\updatecm$, $\updatecmref$, and $\invalidateref$ in Fig.~\ref{tab:update-vm-ct}.
 \begin{itemize}
 \item The function $\updatecm(cm_1, id, ft, ls)$ updates $cm_1$ into $cm_2$ by modifying $cm_1(v, m+n)$ to $ls[n]$ for each $0 \le n < sz$, where $id = (v, m)$, $sz = \sizeofftype(ft)$. 
 %
@@ -200,6 +195,7 @@ Let us explain the rules for $\updatecm$, $\updatecmref$, and $\invalidateref$ i
     \end{array}
     }
     \\[1ex]
+  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%  
     \infer[\updatecmref]
     {\updatecmref(cm_1, id, ft, ls, id', ft', ls') = cm_2}
     {
@@ -466,6 +462,8 @@ $$\listgtypereffields(\myvec{f}, flipped).$$
 \item In the rule ``{\listgtypereffields: $\neq$nil-2}'', if   $\myvec{f} = (\_, flipped', ft')\ \myvec{f'}$ and $flipped' = \ltrue$, then it calls $\listgtyperef(ft', \neg flipped)$ and $\listgtypereffields(\myvec{f'}, flipped)$ to get $l'$ and $l''$ respectively, and finally returns $l' \ ++\ l''$. Note that $\neg flipped$, instead of $flipped$, is used in $\listgtyperef(ft', \neg flipped)$ since $flipped' = \ltrue$. 
 \end{itemize}
 
+
+
 %%%%%% typeofref
 \begin{figure}[htbp]
  \def\defaultHypSeparation{\hskip 10pt}
@@ -551,6 +549,13 @@ $$\listgtypereffields(\myvec{f}, flipped).$$
   \label{fig:type-ref}
 \end{figure}
 
+\begin{align*}
+	\listgtyperef((\gtype, gt), flipped) = [(gt, flipped)]\\ 
+	\listgtyperef((\vtype, ft'[m]), flipped) = \\
+	\underbrace{\listgtyperef(ft', flipped) ++ \cdots ++ \listgtyperef(ft', flipped)}_{m}\\
+	\listgtyperef((\btype, \myvec{f}), flipped) = \listgtypereffields(\myvec{f}, flipped)
+\end{align*}
+
 %%%%%% listgtyperef
 \begin{figure}[htbp]
   \begin{gather*}
@@ -594,7 +599,8 @@ $$\listgtypereffields(\myvec{f}, flipped).$$
     {\seqq{\listgtyperef(ft, flipped) = l'}}
     {\seqq{ft = (\btype, \myvec{f})}}    {\seqq{l' = \listgtypereffields(\myvec{f}, flipped)}}
     \quad
-    \\[1ex]    
+    \\[1ex]
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%     
     \infer[\listgtypereffields: nil]
     {\seqq{\listgtypereffields(\myvec{f}, flipped) = []}}
     {\seqq{\myvec{f} = \nil}}
@@ -604,8 +610,7 @@ $$\listgtypereffields(\myvec{f}, flipped).$$
     {\seqq{\listgtypereffields(\myvec{f}, flipped) = l'\ {++}\ l''}}
     {
     \begin{array}{c}
-    	\myvec{f} = (\_, flipped', ft')\  \myvec{f'} \ \wedge\\
-	 flipped' = \lfalse
+    	\myvec{f} = (\_, \lfalse, ft')\  \myvec{f'} \ \wedge
     \end{array}
     }
     {
@@ -620,8 +625,7 @@ $$\listgtypereffields(\myvec{f}, flipped).$$
     {\seqq{\listgtypereffields(\myvec{f}, flipped) = l'\ {++}\ l''}}
     {
     \begin{array}{c}
-    	\myvec{f} = (\_, flipped', ft', \myvec{f'})\ \wedge\\
-	 flipped' = \ltrue
+    	\myvec{f} = (\_, \ltrue, ft') \myvec{f'}\ \wedge 
     \end{array}
     }
     {
