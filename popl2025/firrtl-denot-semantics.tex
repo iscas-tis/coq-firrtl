@@ -671,34 +671,34 @@ $tmap$ is constructed from $pp, ss, vm$ as follows.
 \end{table}
 
 
-\hide{
-For a statement $\kappa\ v: t$ where $\kappa =\mbox{\prettyll{input},\prettyll{output},\prettyll{wire}}$, 
-We define a mapping $tmap$ that assigns to each identifier from $\range{id}$ a type where all widths are explicit.    
-For each $v \in \dom(id)$, 
-\begin{itemize}
-\item if $v$ is declared in a statement $p \equiv \{\mbox{\prettyll{input}} v: t$, then 
-\begin{itemize}
-\item if $t = \theta$ with $\theta \in \{\mbox{\prettyll{Clock}}, \mbox{\prettyll{Reset}} \mbox{\prettyll{AsyncReset}}\}$ and $vm((id(v),0)) = (\inport, \theta)$, then $tmap(id(v)) = (gt, \theta)$, 
-%
-\item if $t = \theta$ with $\theta \in \{\mbox{\prettyll{UInt}}, \mbox{\prettyll{SInt}}\}$ and $vm((id(v), 0)) = (\inport, (\theta, n))$, then $tmap(id(v)) = (gt, \theta \langle n \rangle)$, 
-%
-\item if $t = \theta\langle n \rangle$ with $\theta \in \{\mbox{\prettyll{UInt}}, \mbox{\prettyll{SInt}}\} $ and $vm((id(v),0)) = (\inport, (\theta, n))$, then $tmap(id(v)) = (gt, \theta \langle n \rangle)$, 
-%
-\item if $t = t'[n]$ and $vm((id(v),n)) = (\inport, )$, then $tmap(id(v)) = (gt, \theta \langle n \rangle)$
-\end{itemize}
-\item if $v$ is declared in a statement $p \equiv \{\mbox{\prettyll{output}} v: t$, then $tmap(id(v))$ is defined similarly to the case $p \equiv \{\mbox{\prettyll{input}} v: t$, except that $\inport$ is replaced by $\outport$, 
-%   
-\item if $v$ is declared in a statement $s \equiv \mbox{\prettyll{wire} } v: t$, then 
-\begin{itemize}
-\item if $v$ is declared in a statement $p \equiv \{\mbox{\prettyll{input}} v: t$, then 
-\begin{itemize}
-\item if $t = \theta$ with $\theta \in \{\mbox{\prettyll{Clock}}, \mbox{\prettyll{Reset}} \mbox{\prettyll{AsyncReset}}\}$ and $vm(id(v)) = (\inport, \theta)$, then $tmap(id(v)) = (gt, \theta)$, 
-%
-\item if $t = \theta$ with $\theta \in \{\mbox{\prettyll{UInt}}, \mbox{\prettyll{SInt}}\}$ and $vm(id(v)) = (\inport, (\theta, n))$, then $tmap(id(v)) = (gt, \theta \langle n \rangle)$. 
-\end{itemize}
-\end{itemize}
-\end{itemize}
-}
+%\hide{
+%For a statement $\kappa\ v: t$ where $\kappa =\mbox{\prettyll{input},\prettyll{output},\prettyll{wire}}$, 
+%We define a mapping $tmap$ that assigns to each identifier from $\range{id}$ a type where all widths are explicit.    
+%For each $v \in \dom(id)$, 
+%\begin{itemize}
+%\item if $v$ is declared in a statement $p \equiv \{\mbox{\prettyll{input}} v: t$, then 
+%\begin{itemize}
+%\item if $t = \theta$ with $\theta \in \{\mbox{\prettyll{Clock}}, \mbox{\prettyll{Reset}} \mbox{\prettyll{AsyncReset}}\}$ and $vm((id(v),0)) = (\inport, \theta)$, then $tmap(id(v)) = (gt, \theta)$, 
+%%
+%\item if $t = \theta$ with $\theta \in \{\mbox{\prettyll{UInt}}, \mbox{\prettyll{SInt}}\}$ and $vm((id(v), 0)) = (\inport, (\theta, n))$, then $tmap(id(v)) = (gt, \theta \langle n \rangle)$, 
+%%
+%\item if $t = \theta\langle n \rangle$ with $\theta \in \{\mbox{\prettyll{UInt}}, \mbox{\prettyll{SInt}}\} $ and $vm((id(v),0)) = (\inport, (\theta, n))$, then $tmap(id(v)) = (gt, \theta \langle n \rangle)$, 
+%%
+%\item if $t = t'[n]$ and $vm((id(v),n)) = (\inport, )$, then $tmap(id(v)) = (gt, \theta \langle n \rangle)$
+%\end{itemize}
+%\item if $v$ is declared in a statement $p \equiv \{\mbox{\prettyll{output}} v: t$, then $tmap(id(v))$ is defined similarly to the case $p \equiv \{\mbox{\prettyll{input}} v: t$, except that $\inport$ is replaced by $\outport$, 
+%%   
+%\item if $v$ is declared in a statement $s \equiv \mbox{\prettyll{wire} } v: t$, then 
+%\begin{itemize}
+%\item if $v$ is declared in a statement $p \equiv \{\mbox{\prettyll{input}} v: t$, then 
+%\begin{itemize}
+%\item if $t = \theta$ with $\theta \in \{\mbox{\prettyll{Clock}}, \mbox{\prettyll{Reset}} \mbox{\prettyll{AsyncReset}}\}$ and $vm(id(v)) = (\inport, \theta)$, then $tmap(id(v)) = (gt, \theta)$, 
+%%
+%\item if $t = \theta$ with $\theta \in \{\mbox{\prettyll{UInt}}, \mbox{\prettyll{SInt}}\}$ and $vm(id(v)) = (\inport, (\theta, n))$, then $tmap(id(v)) = (gt, \theta \langle n \rangle)$. 
+%\end{itemize}
+%\end{itemize}
+%\end{itemize}
+%}
 
 
 
