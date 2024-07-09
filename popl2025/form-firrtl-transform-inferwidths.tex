@@ -1,6 +1,6 @@
 %%%!TEX root = main.tex
 
-\subsubsection{Formalization of InferWidths}
+%\subsubsection{Formalization of InferWidths}
 %By Keyin
 We formalize the ``InferWidths'' pass by defining a Coq function {\tt InferWidths\_m}, which contains two process. The first process {\tt InferWidths\_stage1} iterates over the topological sorted order of module's implicit widths ground type components and updates a $FType$ map, so that the bit widths of all the components with undefined bit widths can be determined. Then the second process {\tt InferWidths\_stage2} produce a new module with inferred bit widths and explicit widths instead of implicit widths in the original module.
 
@@ -11,6 +11,23 @@ The behavior of the function {\tt inferwidths\_m} on a module contains the folow
     \item Record the original $FType$ map $tmap'$ with aggerate types and the connection map $var2exprs$ with only ground type expressions according to ports sequecnse $pp$ and statement sequence $ss$ in the module $(pp,ss)$. 
 
 The Coq function {\tt ports\_stmts\_tmap} shown in ? and ?, given ports list and statements list in the module, generates two corresponding maps, mapping from aggregate level components to types and ground type level components to expressions. Note that aggregate connections are not expanded yet so that flip field should be considered when generating the connection map. The Coq function {\tt type\_of\_ref'} shown in ?  given identifier and $tmap$, generates a pair with the first element is the same as function {\tt type\_of\_ref} and the second element is a Boolean value shows whether the component is flipped or not.
+
+For a statement that declares a component $v$ with ftype \{flip a : UInt, b : SInt\},
+the {\tt ports\_stmts\_tmap'} function will update $tmap$ by
+ $$ {tmap':= tmap \uplus \{v : \{flip \  a : UInt, b : SInt\}\}} $$
+\\For a statement that connects $v$ to another component $w$ with ftype \{ flip a : UInt, b : SInt \},
+the {\tt ports\_stmts\_tmap'} function will update $var2exprs$ by
+ $$ {var2exprs':= var2exprs \uplus \{v.a : \{w.a\} \} \uplus \{v.b : \{w.b\} \}} $$
+
+    \item Draw the dependency graph according to the connection map. The Coq function {\tt drawg}, given elements in the connection map, generates the dependency graph by adding edges from every component in a expression to the target component. To make the calculation simpler, only components with uninferred implicit width are involved in the dependency graph,
+    
+    
+    \item Generate the topological order of all the uninferred ground type components. Given the vertices set and the graph, the correctness of sorting algorithm {\tt topo\_sort} is certified. Because the module components depends on each other through connections and operations, implicit widths should be inferred sequentially in the order of topological order,
+
+    \item Compare the widths of each expression connected to the same component, and chooses the larger width. Since the last connect semantics is not considered, each connection to the component provides a potential width. A function named {\tt max\_ftlist} compares the potential widths and outputs the maximum one. 
+    
+the Coq function {\tt InferWidths\_fun} calls {\tt InferWidth\_fun} on the list of topological order, where the widths are inferred according to connect statements. 
+\end{enumerate}
 
 \begin{figure}[htbp]
   \begin{gather*}
@@ -132,10 +149,12 @@ The Coq function {\tt ports\_stmts\_tmap} shown in ? and ?, given ports list and
   \label{tab:add_expr_connect}
 \end{figure}
 
+
+%%%%% where the bug begins
 \begin{figure}[htbp]
    \begin{gather*}
     \inferii[stmt\_tmap': skip]
-    {\seqq{stmt\_tmap'((tmap, var2exprs), s) = (tmap', var2exprs')}}
+    {\seqq{stmt\_tmap'((tmap, var2exprs), s)=(tmap', var2exprs')}}
     {\seqq{s = skip}}
     {\seqq{tmap' = tmap \wedge var2exprs' = var2exprs}}
    \quad
@@ -175,7 +194,7 @@ The Coq function {\tt ports\_stmts\_tmap} shown in ? and ?, given ports list and
     {
       \begin{array}{c}
       s = r \mbox{ is invalid} \\
-      type\_of\_ref(r, tmap) $\neq$ none \\
+      type\_of\_ref(r, tmap) \neq none \\
       (tmap', var2exprs') = (tmap, var2exprs)
      \end{array}
     }
@@ -206,7 +225,7 @@ The Coq function {\tt ports\_stmts\_tmap} shown in ? and ?, given ports list and
     }
 \end{gather*}
 %  \vspace{-4mm}
-  \caption{$stmt\_tmap' (part 1)$}
+  \caption{stmt\_tmap' (part 1)}
   \label{fig:stmts-tmap'}
 \end{figure}
 
@@ -218,7 +237,7 @@ The Coq function {\tt ports\_stmts\_tmap} shown in ? and ?, given ports list and
     {
     \begin{array}{c} 
       s = \mbox{reg } x: t \ clk \mbox{ with: reset =>} (rsig, rval)  \\
-      tmap(id(x)) = none \wedge type\_of\_exp(clk, tmap) $\neq$ none  \\
+      tmap(id(x)) = none \wedge type\_of\_exp(clk, tmap) \neq none  \\
       tmap' = add((id(x), (t, \duplex)), tmap) \\
       lhsl = list\_gtypref (x, t, false) \\
       rhsl = list\_gtypexpr (rval, t)\\
@@ -232,7 +251,7 @@ The Coq function {\tt ports\_stmts\_tmap} shown in ? and ?, given ports list and
     {
     \begin{array}{c}
       s = \mbox{reg } x: t \ clk \\
-      tmap(id(x)) = none \wedge type\_of\_exp(clk, tmap) $\neq$ none  \\
+      tmap(id(x)) = none \wedge type\_of\_exp(clk, tmap) \neq none  \\
       tmap' = add((id(x), (t, \duplex)), tmap) \\
       var2exprs' = var2exprs
      \end{array}
@@ -244,7 +263,7 @@ The Coq function {\tt ports\_stmts\_tmap} shown in ? and ?, given ports list and
     {
     \begin{array}{c}
       s = \mbox{when } c: sst \mbox{ else }: ssf  \\
-      type\_of\_exp(c, scope) $\neq$ none \\
+      type\_of\_exp(c, scope) \neq none \\
       stmts\_tmap'((tmap, var2exprs), sst) = (tmap'', var2exprs'') \\
       stmts\_tmap'((tmap'', var2exprs''), ssf) = (tmap', var2exprs')
      \end{array}
@@ -293,7 +312,7 @@ The Coq function {\tt ports\_stmts\_tmap} shown in ? and ?, given ports list and
     {\seqq{type\_of\_field'(f, ff, flip) = (ft, flip')}}
     {
     \begin{array}{c}
-    f f = (f', flipped, t, ff')\wedge f $\neq$ f'\\
+    f f = (f', flipped, t, ff')\wedge f \neq f'\\
     type\_of\_field'(f, ff', flip) = (ft, flip')
     \end{array}
     }
@@ -323,14 +342,6 @@ The Coq function {\tt ports\_stmts\_tmap} shown in ? and ?, given ports list and
   \label{tab:type-ref'}
 \end{figure}
 
-For a statement that declares a component $v$ with ftype \{flip a : UInt, b : SInt\},
-the {\tt ports\_stmts\_tmap'} function will update $tmap$ by
- $$ {tmap':= tmap \uplus \{v : \{flip \  a : UInt, b : SInt\}\}} $$
-\\For a statement that connects $v$ to another component $w$ with ftype \{ flip a : UInt, b : SInt \},
-the {\tt ports\_stmts\_tmap'} function will update $var2exprs$ by
- $$ {var2exprs':= var2exprs \uplus \{v.a : \{w.a\} \} \uplus \{v.b : \{w.b\} \}} $$
-
-    \item Draw the dependency graph according to the connection map. The Coq function {\tt drawg}, given elements in the connection map, generates the dependency graph by adding edges from every component in a expression to the target component. To make the calculation simpler, only components with uninferred implicit width are involved in the dependency graph,
 
 \begin{table}[htbp]
   \small
@@ -423,11 +434,6 @@ the {\tt ports\_stmts\_tmap'} function will update $var2exprs$ by
   \vspace{-6mm}
 \end{table}
 
-    \item Generate the topological order of all the uninferred ground type components. Given the vertices set and the graph, the correctness of sorting algorithm {\tt topo\_sort} is certified. Because the module components depends on each other through connections and operations, implicit widths should be inferred sequentially in the order of topological order,
-
-    \item Compare the widths of each expression connected to the same component, and chooses the larger width. Since the last connect semantics is not considered, each connection to the component provides a potential width. A function named {\tt max\_ftlist} compares the potential widths and outputs the maximum one. 
-    
-the Coq function {\tt InferWidths\_fun} calls {\tt InferWidth\_fun} on the list of topological order, where the widths are inferred according to connect statements. 
 
 \begin{table}[htbp]
   \small
@@ -494,7 +500,7 @@ the Coq function {\tt InferWidths\_fun} calls {\tt InferWidth\_fun} on the list 
   \label{tab:InferWidths-fun}
   \vspace{-6mm}
 \end{table}
-\end{enumerate}
+
 
 %%%%%%%%%%%%%%%
 %\hide{
