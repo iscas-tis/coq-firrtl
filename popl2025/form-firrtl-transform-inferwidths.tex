@@ -2,11 +2,11 @@
 %By Keyin
 We formalize the ``InferWidths'' pass by defining a Coq function {\tt InferWidths\_m}, which contains two process. The first process {\tt InferWidths\_stage1} iterates over the topological sorted order of module's implicit widths ground type components and updates a $FType$ map, so that the bit widths of all the components with undefined bit widths can be determined. Then the second process {\tt InferWidths\_stage2} produce a new module with inferred bit widths and explicit widths instead of implicit widths in the original module.
 
-The rationale behind the {\tt InferWidth\_m} function is stated as follows: The function  {\tt InferWidths\_stage1} always chooses the maximum width of the expressions that are connected to the component $x$. 
+The rationale behind the {\tt InferWidth\_m} function is stated as follows: The function  {\tt InferWidths\_stage1} always chooses the maximum width of the expressions that are connected to the component $x$.
 
 The behavior of the function {\tt inferwidths\_m} on a module contains the folowing steps :
 \begin{enumerate}
-    \item Record the original $FType$ map $tmap'$ with aggerate types and the connection map $var2exprs$ with only ground type expressions according to ports sequecnse $pp$ and statement sequence $ss$ in the module $(pp,ss)$. 
+    \item Record the original $FType$ map $tmap'$ with aggerate types and the connection map $var2exprs$ with only ground type expressions according to ports sequecnse $pp$ and statement sequence $ss$ in the module $(pp,ss)$.
 
 The Coq function {\tt ports\_stmts\_tmap} shown in ? and ?, given ports list and statements list in the module, generates two corresponding maps, mapping from aggregate level components to types and ground type level components to expressions. Note that aggregate connections are not expanded yet so that flip field should be considered when generating the connection map. The Coq function {\tt type\_of\_ref'} shown in ?  given identifier and $tmap$, generates a pair with the first element is the same as function {\tt type\_of\_ref} and the second element is a Boolean value shows whether the component is flipped or not.
 
@@ -148,7 +148,7 @@ The Coq function {\tt ports\_stmts\_tmap} shown in ? and ?, given ports list and
     \begin{array}{c}
       s = r <= ref \\
       type\_of\_ref'(r, tmap) = (t\_tgt, flip\_tgt)  \\
-      type\_of\_ref'(ref, tmap) = (t\_src, flip\_src) \\ 
+      type\_of\_ref'(ref, tmap) = (t\_src, flip\_src) \\
       lhsl = list\_gtypref (r, t\_tgt, flip\_tgt) \\
       rhsl = list\_gtypref (ref, t\_src, flip\_src) \\
       var2exprs' = add\_expr\_connect\_non\_passive (lhsl, rhsl) var2exprs \\
@@ -163,7 +163,7 @@ The Coq function {\tt ports\_stmts\_tmap} shown in ? and ?, given ports list and
     \begin{array}{c}
       s = r <= exp \\
       type\_of\_ref'(r, tmap) = (t\_tgt, \_)  \\
-      type\_of\_exp(exp, tmap) = t\_src \\ 
+      type\_of\_exp(exp, tmap) = t\_src \\
       lhsl = list\_gtypref (r, t\_tgt, flip\_tgt) \\
       rhsl = list\_gtypexpr (exp, t\_src)\\
       var2exprs' = add\_expr\_connect (lhsl, rhsl) var2exprs \\
@@ -203,7 +203,7 @@ The Coq function {\tt ports\_stmts\_tmap} shown in ? and ?, given ports list and
       tmap' = add((id(x), (t\_src, \source)), tmap) \\
       lhsl = list\_gtypref (x, t\_src, false) \\
       rhsl = list_gtypexpr (e, t\_src)\\
-      var2exprs' = add\_expr\_connect (lhsl, rhsl) var2exprs 
+      var2exprs' = add\_expr\_connect (lhsl, rhsl) var2exprs
      \end{array}
     }
    \quad
@@ -220,13 +220,13 @@ The Coq function {\tt ports\_stmts\_tmap} shown in ? and ?, given ports list and
     \infer[stmt\_tmap': register-reset]
     {\seqq{stmt\_tmap'((tmap, var2exprs), s) = (tmap', var2exprs')}}
     {
-    \begin{array}{c} 
+    \begin{array}{c}
       s = \mbox{reg } x: t \ clk \mbox{ with: reset =>} (rsig, rval)  \\
       tmap(id(x)) = none \wedge type\_of\_exp(clk, tmap) $\neq$ none  \\
       tmap' = add((id(x), (t, \duplex)), tmap) \\
       lhsl = list\_gtypref (x, t, false) \\
       rhsl = list\_gtypexpr (rval, t)\\
-      var2exprs' = add\_expr\_connect (lhsl, rhsl) var2exprs 
+      var2exprs' = add\_expr\_connect (lhsl, rhsl) var2exprs
      \end{array}
     }
    \quad
@@ -429,9 +429,9 @@ the {\tt ports\_stmts\_tmap'} function will update $var2exprs$ by
 
     \item Generate the topological order of all the uninferred ground type components. Given the vertices set and the graph, the correctness of sorting algorithm {\tt topo\_sort} is certified. Because the module components depends on each other through connections and operations, implicit widths should be inferred sequentially in the order of topological order,
 
-    \item Compare the widths of each expression connected to the same component, and chooses the larger width. Since the last connect semantics is not considered, each connection to the component provides a potential width. A function named {\tt max\_ftlist} compares the potential widths and outputs the maximum one. 
-    
-the Coq function {\tt InferWidths\_fun} calls {\tt InferWidth\_fun} on the list of topological order, where the widths are inferred according to connect statements. 
+    \item Compare the widths of each expression connected to the same component, and chooses the larger width. Since the last connect semantics is not considered, each connection to the component provides a potential width. A function named {\tt max\_ftlist} compares the potential widths and outputs the maximum one.
+
+the Coq function {\tt InferWidths\_fun} calls {\tt InferWidth\_fun} on the list of topological order, where the widths are inferred according to connect statements.
 
 \begin{table}[htbp]
   \small
@@ -477,7 +477,7 @@ the Coq function {\tt InferWidths\_fun} calls {\tt InferWidth\_fun} on the list 
     \begin{array}{c}
       tel = gt \ tl
       newt' = max\_fgtyp(initt, gt) \\
-      newt = max\_ftlist(newt', tl) 
+      newt = max\_ftlist(newt', tl)
     \end{array}
     }
     \quad
