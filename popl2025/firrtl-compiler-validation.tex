@@ -1,7 +1,7 @@
 %!TEX root = main.tex
 
 We conduct conformance testing of our OCaml FIRRTL compiler to validate the
-consistency with the official MLIR FIRRTL compiler {\sf firtool}, deployed in the CIRCT project.
+consistency with the official MLIR FIRRTL compiler, integrated in {\sf firtool} and deployed in CIRCT.
 
 
 
@@ -52,7 +52,7 @@ by applying the CEC engine of the tool {\sf UC Berkeley-ABC}~\cite{MishchenkoCBE
 The summary of the compiler conformance testing is reported in Table~\ref{tab:conformancetesting}.
 Column (\#LOC) shows the average number of locations for each benchmark suit.
 Column ({\sf firtool}) shows the average compilation time $t_1$ of {\sf firtool} in millisecond (ms) for each benchmark suit.
-Column (Ours) shows the average compilation time $t_2$ of our FIRRTL OCaml compiler in ms for each benchmark suit.
+Column (Ours) shows the average compilation time $t_2$ of our OCaml FIRRTL compiler in ms for each benchmark suit.
 Column (Speedup) is calculated via $\frac{t_1-t_2}{t_2}$ for each benchmark suit.
 Column (Verification time) shows the average time $t_v$ of equivalence checking in millisecond (ms) for each benchmark suit.
 Column (Result) shows the result of equivalence checking for each benchmark suit, 
@@ -89,9 +89,9 @@ so that the FIRRTL program can be successfully lowered.
 In terms of efficiency, our OCaml FIRRTL compiler is generally faster (0.37 times on average) than {\sf firtool}. 
 Only on 3 benchmarks from ChiselBook, our OCaml FIRRTL compiler used more compilation time than {\sf firtool}.
 After an in-depth analysis, we found that this is attributed to our topological sorting algorithm based implementation of
-the InferWidths transformation whose cost increase with the dependency graph.
+the InferWidths transformation whose cost increases with the dependency graph.
 For instance, on the program \texttt{DeepExecution} with 1220 lines,
- our OCaml FIRRTL compiler used 3 times more compilation time than {\sf firtool} and
+ our OCaml FIRRTL compiler used 3 times more compilation time than {\sf firtool} but
  the Inferwidths pass used 30 times more execution time than {\sf firtool}.
    
   %We plan to implement a constraint solver as well and provide these two methods as an option.
