@@ -59,7 +59,7 @@ We shall use operations over lists where $++$ stands for list concatenation, and
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %The functions $\updatecm$, $\updatecmref$, $\invalidateref$ will be defined in Fig.~\ref{tab:update-vm-ct} and the functions $\listgexp$, $\typecompatible$, $\typeofref$ will be defined in Fig.~\ref{fig:list-gexp}-\ref{fig:type-ref}. 
 %
-We explain the rules of Fig.~\ref{fig:firrtl-sem}. 
+The most important semantics definitions are given in Fig.~\ref{fig:firrtl-sem} and we explain their intuitions.  The detailed formal definitions for those functions are given in Appendix, Section~\ref{appendix:semantics}.  
 \begin{itemize}
 	\item The ``wire'' rule updates each of $cm_1(v, 0), \cdots, cm_1(v, sz-1)$ to $\svinvalid$, where $s = \mbox{wire }x: t$,  $v$ is the identifier of $x$, $tmap(v) = (ft, ori)$, and $sz= \sizeofftype(ft)$.  
 	%
