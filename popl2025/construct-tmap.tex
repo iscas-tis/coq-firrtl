@@ -210,7 +210,7 @@ For instance, in the rule {\madeexplicit: \vtype}, if the $n$ ground-type sequen
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
-The mapping $tmap$ is defined by the procedure $\portsstmtstmap(pp, ss, tm)$, which calls the procedure $\portstmap(pp, tm)$ to compute $pmap$, then calls $\stmtstmap((pmap, pmap), ss, tm)$ \tl{to check} to get $tmap$ (see Figure~\ref{fig:ports-stmts-tmap}). 
+The mapping $tmap$ is defined by the procedure $\portsstmtstmap(pp, ss, tm)$, which calls the procedure $\portstmap(pp, tm)$ to compute $pmap$ which intuitively a partial definition for $tmap$ and $scope$, then calls $\stmtstmap((pmap, pmap), ss, tm)$ to update $tmap$ (see Figure~\ref{fig:ports-stmts-tmap}). 
 %
 Intuitively, $\portstmap(pp, tm)$ defines a mapping based on the port declarations $pp$ and $tm$, and $\stmtstmap((pmap, pmap), ss, tm)$ defines a pair $(tmap, scope)$ from $(pmap, pmap)$, the statement sequence $ss$, and $tm$. Note that $scope$ is introduced to check 
 \begin{wrapfigure}{r}{0.3\textwidth} 
