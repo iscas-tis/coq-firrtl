@@ -31,7 +31,7 @@ Note that we need to take care of the flipping status of fields when defining th
 	\end{tabular}
 \end{figure*}
 
-The definitions of $cm_1 \xrightarrow[tm, tmap]{s} cm_2$ and $cm_1 \xrightarrow[tm, tmap]{ss'} cm_2$ are given in Fig.~\ref{fig:firrtl-sem}. We first introduce some functions. 
+The definitions of $cm_1 \xrightarrow[tm, tmap]{s} cm_2$ and $cm_1 \xrightarrow[tm, tmap]{ss'} cm_2$ are given in Fig.~\ref{fig:firrtl-sem}. We shall use the following functions in the semantics definition. 
 
 %The rule for the \prettyll{skip} statement is omitted since it does not modify $cm_1$, that is,  $cm_1 \xrightarrow[tm, tmap]{\mbox{skip}} cm_1$.
 %The rules in Fig.~\ref{fig:firrtl-sem} utilize the following functions,
@@ -48,6 +48,10 @@ The definitions of $cm_1 \xrightarrow[tm, tmap]{s} cm_2$ and $cm_1 \xrightarrow[
 	%
 	\item $\invalidateref(cm_1, (v, m), ft, ori)$ may set $cm_1(v, m+i)$ to $\svinvalid$ for $i: 0 \le i < n$, depending on the orientation $ori$ and the flipping status of the $i$-th ground type in $ft$, where $ft$ is the type of some reference denoted by $(v, m)$ and $n = \sizeofftype(ft)$. 
 \end{itemize}
+
+\newcommand{\conc}[1]{+\!+^{(#1)}}
+
+We shall use operations over lists where $++$ stands for list concatenation, and $\conc{m}(l)$ is the concatenation of $m$ copies of $l$.  
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %The functions $\updatecm$, $\updatecmref$, $\invalidateref$ will be defined in Fig.~\ref{tab:update-vm-ct} and the functions $\listgexp$, $\typecompatible$, $\typeofref$ will be defined in Fig.~\ref{fig:list-gexp}-\ref{fig:type-ref}. 
@@ -81,7 +85,9 @@ We explain the rules of Fig.~\ref{fig:firrtl-sem}.
 %    \quad
 %    \\[1ex]
     \infer[wire]
-    {\seqq{cm_1 \xrightarrow[tm, tmap]{\mbox{wire } x: t} \updatecm(cm_1, (v, 0), ft, [\underbrace{\svundefined, \ldots, \svundefined}_{m}])}}
+    {\seqq{cm_1 \xrightarrow[tm, tmap]{\mbox{wire } x: t} \updatecm(cm_1, (v, 0), ft, %[\underbrace{\svundefined, \ldots, \svundefined}_{m}]
+    \conc{m}(\svundefined)		
+    		)}}
    {
     \begin{array}{c}
     id(x) = v \wedge tmap(v)= (ft, ori) \wedge \sizeofftype(ft) = sz \\
@@ -557,10 +563,10 @@ $$\listgtypereffields(\myvec{f}, flipped).$$
 \end{figure}
 
 \begin{align*}
-	\listgtyperef((\gtype, gt), flipped) = [(gt, flipped)]\\ 
-	\listgtyperef((\vtype, ft'[m]), flipped) = \\
-	\underbrace{\listgtyperef(ft', flipped) ++ \cdots ++ \listgtyperef(ft', flipped)}_{m}\\
-	\listgtyperef((\btype, \myvec{f}), flipped) = \listgtypereffields(\myvec{f}, flipped)
+	\listgtyperef((\gtype, gt), flipped) & = [(gt, flipped)]\\ 
+	\listgtyperef((\vtype, ft'[m]), flipped) & =  
+	\conc{m}(\listgtyperef(ft', flipped))\\
+	\listgtyperef((\btype, \myvec{f}), flipped) & = \listgtypereffields(\myvec{f}, flipped)
 \end{align*}
 
 %%%%%% listgtyperef
