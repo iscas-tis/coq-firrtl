@@ -300,7 +300,7 @@ $\stmtstmap((tmap, scope), ss, tm)$ defines $tmap$ from the statements. For each
 		{\seqq{\stmtstmap((tmap, scope), ss, tm) = (tmap', scope')}}
 		{
 			\begin{array}{c}
-				ss = s\ ss' \\
+				ss = s\cdot ss' \\
 				(tmap'', scope'') = \stmttmap(s, tm) \\
 				(tmap', scope') = \stmtstmap((tmap'', scope''), ss', tm)
 			\end{array}
@@ -464,15 +464,19 @@ some (less important) rules for $\portstmap$ and $\stmtstmap$ are omitted in Fig
 
 The procedure $\stmttmap$, defined in Fig.~\ref{fig:stmts-tmap}, is the core to process the statement, the intuitions of which is as follows. 
 
-If $s$ is a declaration statement, $\stmttmap((tmap, scope), s, tm)$ utilizes $tm$ to instantiate the types in $s$ and update $(tmap, scope)$ into $(tmap', scope')$. We distinguish between different cases of declaration statements. 
+If $s$ is a declaration statement, $\stmttmap((tmap, scope), s, tm)$ utilizes $tm$ to instantiate the types in $s$ and updates $(tmap, scope)$ to $(tmap', scope')$. We distinguish different declaration statements. 
 \begin{itemize}
-	\item If $s = \mbox{wire } x: t$, then it checks $tmap(id(x)) = \svnone$ and calls $\madeexplicit(t, (id(x), 0), tm)$ to compute $newt$. Finally, it adds the pair $(id(x), (newt, \duplex))$ to both $tmap$ and $scope$, and obtains the return value $(tmap', scope')$. Note that the orientation of a \prettyll{wire} component is \duplex. (see the rule \stmttmap: wire in Fig.~\ref{fig:stmts-tmap})
+	\item If $s = \mbox{wire } x: t$, then it checks $tmap(id(x)) = \svnone$ and calls $\madeexplicit(t, (id(x), 0), tm)$ to compute $newt$. Finally, it adds the pair $(id(x), (newt, \duplex))$ to both $tmap$ and $scope$. %, and obtains the return value $(tmap', scope')$. 
+	Note that the orientation of a \prettyll{wire} component is \duplex. (Cf. \stmttmap: wire in Fig.~\ref{fig:stmts-tmap})
 	%
-	\item If $s = \mbox{node } x = e$, then it checks $tmap(id(x)) = \svnone$, computes $t= \typeofexp(e, scope)$, and calls $\madeexplicit(t, (id(x), 0), tm)$ to obtain $newt$. Finally, it adds $(id(x), (newt, \source))$ to both $tmap$ and $scope$, and obtains the return value $(tmap', scope')$. Note that in the function call $\typeofexp(e, scope)$, $scope$, instead of $tmap$, is used to check whether the references in $e$ are well-scoped. Moreover, the orientation of a \prettyll{node} component is \source. (see the rule \stmttmap: node in Fig.~\ref{fig:stmts-tmap})
+	\item If $s = \mbox{node } x = e$, then it checks $tmap(id(x)) = \svnone$, computes $t= \typeofexp(e, scope)$, and calls $\madeexplicit(t, (id(x), 0), tm)$ to obtain $newt$. Finally, it adds $(id(x), (newt, \source))$ to both $tmap$ and $scope$. %, and obtains the return value $(tmap', scope')$. 
+	Note that in the function call $\typeofexp(e, scope)$, $scope$, instead of $tmap$, is used to check whether the references in $e$ are well-scoped. Moreover, the orientation of a \prettyll{node} component is \source. (Cf.\ \stmttmap: node in Fig.~\ref{fig:stmts-tmap})
 	%
-	\item If $s = \mbox{reg } x: t \ clk \mbox{ with: reset =>} (rsig, rval)$ and additionally $\typeofexp(rsig, scope) = (\gtype, \asyncreset)$, then it checks $tmap(id(x)) = \svnone$, $\typeofexp(clk, scope) \neq \svnone$, and $\typeofexp(rval, scope) \neq \svnone$, calls $\madeexplicit(t, (id(x), 0), tm)$ to obtain $newt$. Finally, it adds $(id(x), (newt, \duplex))$ to both $tmap$ and $scope$, and obtains the return value $(tmap', scope')$. Note that in $\typeofexp(clk, scope)$, $\typeofexp(rsig, scope)$, and $\typeofexp(rval, scope)$, $scope$, instead of $tmap$, is used to check that the references in $clk, rsig, rval$ are well-scoped. Moreover, the orientation of a \prettyll{reg} component is \duplex. (see the rule \stmttmap: reg-asyncreset in Fig.~\ref{fig:stmts-tmap})
+	\item If $s = \mbox{reg } x: t \ clk \mbox{ with: reset =>} (rsig, rval)$ and $\typeofexp(rsig, scope) = (\gtype, \asyncreset)$, then it checks $tmap(id(x)) = \svnone$, $\typeofexp(clk, scope) \neq \svnone$, and $\typeofexp(rval, scope) \neq \svnone$, calls $\madeexplicit(t, (id(x), 0), tm)$ to obtain $newt$. Finally, it adds $(id(x), (newt, \duplex))$ to both $tmap$ and $scope$. %, and obtains the return value $(tmap', scope')$. 
+	Note that in $\typeofexp(clk, scope)$, $\typeofexp(rsig, scope)$ and $\typeofexp(rval, scope)$, $scope$, instead of $tmap$, is used to check that the references in $clk, rsig, rval$ are well-scoped. Moreover, the orientation of a \prettyll{reg} component is \duplex. (Cf. \stmttmap: reg-asyncreset in Fig.~\ref{fig:stmts-tmap})
 	%
-	\item If $s = \mbox{reg } x: t \ clk \mbox{ with: reset =>} (rsig, rval)$ and additionally $\typeofexp(rsig, scope) = (\gtype, (\uint, 1))$, then it checks $tmap(id(x)) = \svnone$ and $\typeofexp(clk, scope) \neq \svnone$, calls $\madeexplicit(t, (id(x), 0), tm)$ to obtain $newt$. Moreover, it adds $(id(x), (newt, \duplex))$ to $scope$ and obtains $scope'$. Then it checks $\typeofexp(rval, scope') \neq \svnone$, and adds $(id(x), (newt, \duplex))$ to $tmap$ and obtains $tmap'$. Finally, it returns $(tmap', scope')$. Note that in $\typeofexp(clk, scope)$, $\typeofexp(rsig, scope)$, $scope$, instead of $tmap$, is used to check that the references in $clk, rsig$ are well-scoped. Moreover, because the reset signal $rsig$ is synchronous, that is, $\typeofexp(rsig, scope) = (\gtype, (\uint, 1))$, we have that in $\typeofexp(rval, scope')$, $scope'$, instead of $scope$ or $tmap$, is used to check that the references in $rval$ are well-scoped. (see the rule \stmttmap: reg-reset in Fig.~\ref{fig:stmts-tmap})
+	\item If $s = \mbox{reg } x: t \ clk \mbox{ with: reset =>} (rsig, rval)$ and $\typeofexp(rsig, scope) = (\gtype, (\uint, 1))$, then it checks $tmap(id(x)) = \svnone$ and $\typeofexp(clk, scope) \neq \svnone$, calls $\madeexplicit(t, (id(x), 0), tm)$ to obtain $newt$. Moreover, it adds $(id(x), (newt, \duplex))$ to $scope$ and obtains $scope'$. Then it checks $\typeofexp(rval, scope') \neq \svnone$, and adds $(id(x), (newt, \duplex))$ to $tmap$ 
+	and obtains $tmap'$. Finally, it returns $(tmap', scope')$. Note that in $\typeofexp(clk, scope)$, $\typeofexp(rsig, scope)$, $scope$, instead of $tmap$, is used to check that the references in $clk, rsig$ are well-scoped. Moreover, because the reset signal $rsig$ is synchronous, that is, $\typeofexp(rsig, scope) = (\gtype, (\uint, 1))$, we have that in $\typeofexp(rval, scope')$, $scope'$, instead of $scope$ or $tmap$, is used to check that the references in $rval$ are well-scoped. (see the rule \stmttmap: reg-reset in Fig.~\ref{fig:stmts-tmap})
 \end{itemize}
 
 For others, if $s$ is a connect or invalid statement,  $\stmttmap$ %((tmap, scope), s, tm)$ 
