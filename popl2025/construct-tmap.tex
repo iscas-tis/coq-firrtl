@@ -25,13 +25,13 @@ inputs and nodes:\source, (3) outputs: \sink,
 %\end{itemize}   
 
 %To tackle the mismatch between $tm$ and $tmap$, 
-To make the bit width %in $tm$ 
+To make the bit-width %in $tm$ 
 explicit, we introduce a function $\madeexplicit$ (see Fig.~\ref{fig:made-explicit}), which takes three arguments $(ft, id, tm)$ where $ft \in \ftypes$, $id \in \gidset_M$ and $tm$ is a type mapping, and %Intuitively, $\madeexplicit$ utilizes $id$ and $tm$ to determine 
-prescribes the bit widths in $ft$. 
+prescribes the bit widths. % for $ft$. 
 %
 % (i.e. the widths for the ground types $(\uintimp, 0)$ and $(\sintimp, 0)$), resulting in a new type $newt$ where all the widths are explicit (i.e. non-zero). 
 %
-To this end, $\madeexplicit$ uses a function $\sizeofftype:\ftypes\rightarrow \nat$ to calculate the number of ground types included in a type or a sequence of fields. %(see Fig.~\ref{fig:size-list-ftype-fields} for its definition) 
+To this end, $\madeexplicit$ uses a function $\sizeofftype:\ftypes\rightarrow \nat$ to calculate the number of ground types included in a (vector) type or a sequence of fields. %(see Fig.~\ref{fig:size-list-ftype-fields} for its definition) 
 Formally, $\sizeofftype$ is recursively defined as follows. 
 %
 \begin{align*}
@@ -64,7 +64,7 @@ equate some ground types, i.e., %one from $M$ and the other one from $tm$. Namel
 (Note that $\typeeq$ contains identity relation which we omit.)
 %
 %It is easy to observe that $\typeeq$ is not symmetric, thus not an equivalence relation.  As a result, the aforementioned  ``equivalence'' in $\typeeq$ is just an intuitive way of saying the compatibility between the two ground types,  
-Two types $(\uintimp, n_1)$ and $(\uintimp, n_2)$ are equivalent regardless of $n_1$ and  $n_2$. Moreover, the (abstract) $\reset$ type from $M$ is equivalent to both $(\uint, 1)$ and $\asyncreset$ from $tm$. 
+Two types $(\uintimp, n_1)$ and $(\uintimp, n_2)$ are equivalent regardless of $n_1$ and  $n_2$. Moreover, the (high-level) $\reset$ type from $M$ is equivalent to both $(\uint, 1)$ and $\asyncreset$ from $tm$. 
 %
 %(Recall that the $\reset$ type does not appear in {\lofirrtl} according to the syntax of {\lofirrtl} in Fig.~\ref{fig-lofirrtl-synt}.)
 
@@ -210,10 +210,11 @@ For instance, in the rule {\madeexplicit: \vtype}, if the $n$ ground-type sequen
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
-The mapping $tmap$ is defined by the procedure $\portsstmtstmap(pp, ss, tm)$, which calls the procedure $\portstmap(pp, tm)$ to define a mapping $pmap$ which intuitively an initial version for $tmap$ and $scope$, then calls $\stmtstmap((pmap, pmap), ss, tm)$ to update $tmap$ and $scope$. % (see Figure~\ref{fig:ports-stmts-tmap}). 
+The mapping $tmap$ is defined by the procedure $\portsstmtstmap(pp, ss, tm)$, which calls the procedure $\portstmap(pp, tm)$ to define a mapping $pmap$ which  intuitively produces an initial version for $tmap$ and $scope$, then calls $\stmtstmap$ %((pmap, pmap), ss, tm)$ 
+to update $tmap$ and $scope$. % (see Figure~\ref{fig:ports-stmts-tmap}). 
 %
 %In particular, $\portstmap(pp, tm)$ defines a mapping based on the port declarations $pp$ and $tm$, and $\stmtstmap((pmap, pmap), ss, tm)$ defines a pair $(tmap, scope)$ from $(pmap, pmap)$, the statement sequence $ss$, and $tm$. 
-Note that $scope$ is introduced to check that the component references in $ss$ do not violate  the scoping
+Here, $scope$ is introduced to check that the component references in $ss$ do not violate  the scoping constraints
 \begin{wrapfigure}{r}{0.3\textwidth} 
 %\centering
 %\begin{tabular}{c}
@@ -232,7 +233,7 @@ Note that $scope$ is introduced to check that the component references in $ss$ d
 %\label{fig:example}
 \end{wrapfigure}
 %\tl{this scope thing makes the semantics less focused, but is it really important? Can we simply rule it out at the syntax level?}
-constraints brought upon by the \prettyll{when} statements. For instance, the presented {\hifirrtl} program contains a scoping error, since $z$ is declared in the scope of the \prettyll{when} statement, but is referred outside  (cf.\ Line 7). 
+imposed by the \prettyll{when} statements. For instance, the presented {\hifirrtl} program contains a scoping error, since $z$ is declared in the scope of the \prettyll{when} statement, but is referred outside  (cf.\ Line 7). 
 %
 %The procedures $\portstmap$ and $\stmtstmap$ are defined by the rules in Fig.~\ref{fig:ports-stmts-tmap}.
 
