@@ -248,11 +248,9 @@ except $\source$ being replaced by $\sink$.
 %If $pp = input\ x: t\ pp'$, then it calls $\madeexplicit(t, (id(x), 0), tm)$ to construct $newt$. Moreover, it recursively calls $\portstmap(pp', tm)$ to obtain $tmap'$. Then it checks that $tmap'(id(x)) = \svnone$.  If it is the case, then the output $tmap$ is obtained by adding the pair $(id(x), (newt, \source))$ to $tmap'$. The case $pp = output\ x: t\ pp'$ is dealt with similarly, with $\source$ replaced by $\sink$. 
 %%Furthermore, if $pp = \nil$, then the empty map $\sf emp$ is returned. 
 
-$\stmtstmap((tmap, scope), ss, tm)$ defines $tmap$ from the statements in $ss$. If $ss = \nil$, then it simply returns $(tmap, scope)$. Otherwise, let $ss = s\ ss'$, where $s$ is a statement. Then it calls $\stmttmap(s, tm)$ to compute $(tmap'', scope'')$ from a $s$ (see Figure~\ref{fig:stmts-tmap} for its definition). Finally, it recursively calls $\stmtstmap((tmap'', scope''), ss', tm)$ to compute the return value $(tmap', scope')$. 
- 
-
+$\stmtstmap((tmap, scope), ss, tm)$ defines $tmap$ from the statements. For each statement, it calls $\stmttmap(s, tm)$ (cf.\ Figure~\ref{fig:stmts-tmap}) to update $tmap$ and $scope$, which are used to process the subsequent statements recursively. 
+%$\stmtstmap((tmap, scope), ss, tm)$ defines $tmap$ from the statements in $ss$. If $ss = \nil$, then it simply returns $(tmap, scope)$. Otherwise, let $ss = s\ ss'$, where $s$ is a statement. Then it calls $\stmttmap(s, tm)$ to compute $(tmap'', scope'')$ from a $s$ (see Figure~\ref{fig:stmts-tmap} for its definition). Finally, it recursively calls $\stmtstmap((tmap'', scope''), ss', tm)$ to compute the return value $(tmap', scope')$. 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
 \begin{figure}[htbp]
 	\begin{gather*}
 		%    \inferii
@@ -291,14 +289,11 @@ $\stmtstmap((tmap, scope), ss, tm)$ defines $tmap$ from the statements in $ss$. 
 				tmap = \fadd((id(x), (newt, \sink)),tmap')
 			\end{array}
 		}    
-		\quad
-		\\[1ex]
-		\def\defaultHypSeparation{\hskip 10pt}
+	%	\def\defaultHypSeparation{\hskip 10pt}
 		%		\inferii[\stmtstmap: \nil]
 		%		{\seqq{\stmtstmap((tmap, scope), ss, tm) = (tmap', scope')}}
 		%		{\seqq{s s = \nil}}
 		%		{\seqq{tmap' = tmap \wedge scope' = scope}}
-		\quad
 		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%		
 		\\[1ex]
 		\infer[\stmtstmap: $\neq$\nil]
@@ -315,7 +310,7 @@ $\stmtstmap((tmap, scope), ss, tm)$ defines $tmap$ from the statements in $ss$. 
 	\caption{The procedures $\portstmap$ and $\stmtstmap$}
 	\label{fig:ports-stmts-tmap}
 \end{figure}
-
+%
 Note that %Similarly, 
 some (less important) rules for $\portstmap$ and $\stmtstmap$ are omitted in Fig.~\ref{fig:ports-stmts-tmap}.  For instance, if $tmap'(id(x)) \neq \svnone$ in the rule {\portstmap: input}, then $\portstmap(pp, tm) = \svnone$.
 
@@ -467,9 +462,9 @@ some (less important) rules for $\portstmap$ and $\stmtstmap$ are omitted in Fig
 	\label{fig:stmts-tmap}
 \end{figure}
 
-The procedure $\stmttmap$ is defined in Fig.~\ref{fig:stmts-tmap}, the intuitions of which is as follows. 
+The procedure $\stmttmap$, defined in Fig.~\ref{fig:stmts-tmap}, is the core to process the statement, the intuitions of which is as follows. 
 
-If $s$ is a declaration statement, then $\stmttmap((tmap, scope), s, tm)$ utilizes $tm$ to instantiate the types in $s$ and update $(tmap, scope)$ into $(tmap', scope')$. We distinguish between different cases of declaration statements. 
+If $s$ is a declaration statement, $\stmttmap((tmap, scope), s, tm)$ utilizes $tm$ to instantiate the types in $s$ and update $(tmap, scope)$ into $(tmap', scope')$. We distinguish between different cases of declaration statements. 
 \begin{itemize}
 	\item If $s = \mbox{wire } x: t$, then it checks $tmap(id(x)) = \svnone$ and calls $\madeexplicit(t, (id(x), 0), tm)$ to compute $newt$. Finally, it adds the pair $(id(x), (newt, \duplex))$ to both $tmap$ and $scope$, and obtains the return value $(tmap', scope')$. Note that the orientation of a \prettyll{wire} component is \duplex. (see the rule \stmttmap: wire in Fig.~\ref{fig:stmts-tmap})
 	%
