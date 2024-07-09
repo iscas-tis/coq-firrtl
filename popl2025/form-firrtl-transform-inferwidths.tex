@@ -1,3 +1,5 @@
+%%%!TEX root = main.tex
+
 \subsubsection{Formalization of InferWidths}
 %By Keyin
 We formalize the ``InferWidths'' pass by defining a Coq function {\tt InferWidths\_m}, which contains two process. The first process {\tt InferWidths\_stage1} iterates over the topological sorted order of module's implicit widths ground type components and updates a $FType$ map, so that the bit widths of all the components with undefined bit widths can be determined. Then the second process {\tt InferWidths\_stage2} produce a new module with inferred bit widths and explicit widths instead of implicit widths in the original module.
@@ -10,10 +12,9 @@ The behavior of the function {\tt inferwidths\_m} on a module contains the folow
 
 The Coq function {\tt ports\_stmts\_tmap} shown in ? and ?, given ports list and statements list in the module, generates two corresponding maps, mapping from aggregate level components to types and ground type level components to expressions. Note that aggregate connections are not expanded yet so that flip field should be considered when generating the connection map. The Coq function {\tt type\_of\_ref'} shown in ?  given identifier and $tmap$, generates a pair with the first element is the same as function {\tt type\_of\_ref} and the second element is a Boolean value shows whether the component is flipped or not.
 
-\begin{table}[htbp]
-  \small
+\begin{figure}[htbp]
   \begin{gather*}
-     \inferii
+     \inferii[ ]
     {\seqq{ports\_stmts\_tmap'(pp, ss) = (tmap', var2exprs)}}
     {\seqq{ports\_tmap'(pp) = pmap'}}
     {\seqq{stmts\_tmap'(pmap', ss) = (tmap', var2exprs)}}
@@ -57,11 +58,10 @@ The Coq function {\tt ports\_stmts\_tmap} shown in ? and ?, given ports list and
   \end{gather*}
 %  \vspace{-4mm}
   \caption{$ports\_stmts\_tmap'$, $ports\_tmap'$, and $stmts\_tmap'$}
-  \label{tab:ports_stmts_tmap'}
-\end{table}
+  \label{fig:ports_stmts_tmap'}
+\end{figure}
 
-\begin{table}[htbp]
-  \small
+\begin{figure}[htbp]
   \begin{gather*}
    \infer[find\_some]
     {\seqq{add\_expr\_connect(lhsl, rhsl, var2exprs) = var2exprs'}}
@@ -129,12 +129,10 @@ The Coq function {\tt ports\_stmts\_tmap} shown in ? and ?, given ports list and
     }
   \end{gather*}
 \caption{$add\_expr\_connect\_non\_passive$ and $add\_expr\_connect$}
-  \label{tab : add_expr_connect}
-\end{table}
+  \label{tab:add_expr_connect}
+\end{figure}
 
-
-\begin{table}[htbp]
-  \small
+\begin{figure}[htbp]
    \begin{gather*}
     \inferii[stmt\_tmap': skip]
     {\seqq{stmt\_tmap'((tmap, var2exprs), s) = (tmap', var2exprs')}}
@@ -175,7 +173,7 @@ The Coq function {\tt ports\_stmts\_tmap} shown in ? and ?, given ports list and
     \infer[stmt\_tmap': invalid]
     {\seqq{stmt\_tmap'((tmap, var2exprs), s) = (tmap', var2exprs')}}
     {
-    \begin{array}{c}
+      \begin{array}{c}
       s = r \mbox{ is invalid} \\
       type\_of\_ref(r, tmap) $\neq$ none \\
       (tmap', var2exprs') = (tmap, var2exprs)
@@ -186,7 +184,7 @@ The Coq function {\tt ports\_stmts\_tmap} shown in ? and ?, given ports list and
     \infer[stmt\_tmap': wire]
     {\seqq{stmt\_tmap'((tmap, var2exprs), s) = (tmap', var2exprs')}}
     {
-    \begin{array}{c}
+      \begin{array}{c}
       s = \mbox{wire } x: t \wedge tmap(id(x)) = none  \\
       tmap' = add((id(x), (t, \duplex)), tmap) \\
       var2exprs' = var2exprs
@@ -197,7 +195,7 @@ The Coq function {\tt ports\_stmts\_tmap} shown in ? and ?, given ports list and
     \infer[stmt\_tmap': node]
     {\seqq{stmt\_tmap'((tmap, var2exprs), s) = (tmap', var2exprs')}}
     {
-    \begin{array}{c}
+     \begin{array}{c}
       s = \mbox{node } x = e \wedge tmap(id(x)) = none  \\
       type\_of\_exp(e, tmap) = t\_src \\
       tmap' = add((id(x), (t\_src, \source)), tmap) \\
@@ -206,15 +204,13 @@ The Coq function {\tt ports\_stmts\_tmap} shown in ? and ?, given ports list and
       var2exprs' = add\_expr\_connect (lhsl, rhsl) var2exprs 
      \end{array}
     }
-   \quad
-   \\[1ex]
-       \end{gather*}
+\end{gather*}
 %  \vspace{-4mm}
   \caption{$stmt\_tmap' (part 1)$}
-  \label{tab:stmts-tmap'}
-\end{table}
+  \label{fig:stmts-tmap'}
+\end{figure}
 
-\begin{table}[htbp]
+\begin{figure}[htbp]
   \small
    \begin{gather*}
     \infer[stmt\_tmap': register-reset]
@@ -257,9 +253,9 @@ The Coq function {\tt ports\_stmts\_tmap} shown in ? and ?, given ports list and
 %  \vspace{-4mm}
   \caption{$stmt\_tmap' (part 2)$}
   \label{tab:stmts-tmap-2}
-\end{table}
+\end{figure}
 
-\begin{table}[htbp]
+\begin{figure}[htbp]
   \small
   \begin{gather*}
    \inferii[type\_of\_ref': id]
@@ -325,7 +321,7 @@ The Coq function {\tt ports\_stmts\_tmap} shown in ? and ?, given ports list and
 %  \vspace{-4mm}
   \caption{$type\_of\_ref'$ and $type\_of\_field'$}
   \label{tab:type-ref'}
-\end{table}
+\end{figure}
 
 For a statement that declares a component $v$ with ftype \{flip a : UInt, b : SInt\},
 the {\tt ports\_stmts\_tmap'} function will update $tmap$ by

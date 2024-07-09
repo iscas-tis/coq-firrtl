@@ -447,10 +447,10 @@ some (less important) rules for $\portstmap$ and $\stmtstmap$ are omitted in Fig
 		\\[1ex]
 		\inferii[\stmttmap: when]
 		{\seqq{\stmttmap((tmap, scope), s, tm) = (tmap', scope)}}
-		{\seqq{s = \mbox{when } c\mbox{: } sst \mbox{ else: } ssf }}
+		{\seqq{s = \mbox{when } cond\mbox{: } sst \mbox{ else: } ssf }}
 		{
 			\begin{array}{c}
-				\typeofexp(e, scope) \neq \svnone \\
+				\typeofexp(cond, scope) \neq \svnone \\
 				\stmtstmap((tmap, scope), sst, tm) = (tmapt, \_) \\
 				\stmtstmap((tmapt, scope), ssf, tm) = (tmapf, \_) \\
 				tmap' = tmapf  
