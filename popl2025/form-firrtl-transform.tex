@@ -241,14 +241,14 @@ The rationale behind the function {\tt infer\_reset} is stated as follows: After
 \item if two components of type \prettyll{AsyncReset} and \prettyll{UInt<1>} respectively are both connected to the component $x$, then the function  {\tt infer\_reset} reports an error.
 \end{itemize}
 The behavior of the  {\tt infer\_reset} function on a connect statement is defined by the following two rules,
- % \begin{gather*}
-%    \label{rule-infer-reset-pass}
-%    \inferiv[]
-%    {\seqq{ce \vdash {\tt infer\_reset} (x<=e, ce) \rightsquigarrow ce'}}
-%    {\seqq{ce(x)= (t_x, \kappa)}} {\seqq{ce\vdash t_e={\tt type\_of\_expr}(e)}}
-%    {\seqq{{\tt \neg conflict} (t_x, t_e)}}
-%    {\seqq{ce'= ce \uplus \{x : (t_e, \kappa)\}}}
-%    \end{gather*}
+  \begin{gather*}
+    \label{rule-infer-reset-pass}
+    \inferiv[]
+    {\seqq{ce \vdash {\tt infer\_reset} (x<=e, ce) \rightsquigarrow ce'}}
+    {\seqq{ce(x)= (t_x, \kappa)}} {\seqq{ce\vdash t_e={\tt type\_of\_expr}(e)}}
+    {\seqq{{\tt \neg conflict} (t_x, t_e)}}
+    {\seqq{ce'= ce \uplus \{x : (t_e, \kappa)\}}}
+    \end{gather*}
 and
   \begin{gather*}
     \inferiii[]
