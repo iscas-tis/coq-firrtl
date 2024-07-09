@@ -45,6 +45,10 @@ Before applying the lowering transformations, the module $A$ will be first trans
 
 %A description of the formalization of InferTypes, InferWidths, InferResets, ExpandConnects, ExpandWhens, LowerTypes, and RemoveResets.
 
+
+
+%%%%%%% infertypes removed
+\hide{
 \subsubsection{Formalization of InferTypes}
 %Initially, the component environment $ce$ of a circuit diagram $D_M$
 %is empty.  The Infer Types pass is then applied to fill $ce$ with
@@ -94,9 +98,17 @@ After the function {\tt infer\_type} has been applied to all the statements in t
 the component environment $ce$.
 %After applying the Infer Types pass, types with an
 %implicitly defined width are assigned with 0 in $ce$.
+}
+%%%%%%% infertypes removed
+%%%%%%% infertypes removed
+
 
 \subsubsection{Formalization of InferWidths}
-%% \input{form-firrtl-transform-inferwidths}
+\input{form-firrtl-transform-inferwidths}
+
+
+%%%% the original texts for InferWidths
+\hide{
 %The bit widths of some components may still be missing after applying {\tt infer\_type} to all the statements in $ss$.
 We formalize the ``InferWidths'' pass by defining a Coq function {\tt infer\_width}, which iterates over the statements in the sequence $ss$ and updates
 the component environment $ce$, so that the bit widths of all the components with undefined bit widths can be determined.
@@ -122,6 +134,9 @@ Note that the last-connected semantics is ignored here. The behavior of the func
 %Intuitively, {\tt infer\_width} infers for each component the maximum width of the expressions that are connected to it. Note that the last-connected semantics is ignored here.
 Moreover, the function {\tt infer\_width} uses another Coq function {\tt max\_width}, which, given two aggregate types, compares for each field their widths in the aggregate types, and chooses the larger width.
 Finally,  the function {\tt infer\_width} processes the partial connect statements similarly.
+}
+%%%% the original texts for InferWidths
+%%%% the original texts for InferWidths
 %Note that {\tt infer\_width} does not check the equivalence of the bit widths of the two sides of connect statements.
 
 %%%%%%%%%%%%%%%
@@ -208,6 +223,10 @@ Finally,  the function {\tt infer\_width} processes the partial connect statemen
 %% Now, wire $c$ has the width as same as $d$, which is 14. The latter connection
 %% from d gives a larger width to the destination $c$.
 
+
+%%%%%% inferresets removed
+%%%%%% inferresets removed
+\hide{
 \subsubsection{Formalization of InferResets}
 We formalize the ``InferResets'' pass by defining a Coq function {\tt infer\_reset}, which iterates over the statements in
 the sequence $ss$ and updates the component environment $ce$, so that the concrete reset types of all abstract reset signals can be inferred.
@@ -243,6 +262,9 @@ Moreover, here we take \prettyll{is invalid} statements as connect statements co
 %If there is no error reported, the inferred reset types stored in the temporary map $rm$ can be
 %merged into the component environment $ce$ using the {\tt map2} function.
 %The resulting $ce$ contains the inferred concrete reset types.
+}
+%%%%%% inferresets removed
+%%%%%% inferresets removed
 
 %%% the original texts written by xiaomu
 %%% the original texts written by xiaomu
@@ -589,6 +611,9 @@ Finally, the statement sequence is updated by concatenating the statement sequen
 %similar to the example in Subsection~\ref{subsec-lowering-transformations}.
 If in the end some component is still assigned the value $\bot$ by the connect mapping, an appropriate error message can be generated.
 
+%%%% the original texts of LowerTypes
+%%%% the original texts of LowerTypes
+\hide{
 \subsubsection{Formalization of LowerTypes}
 The ``LowerTypes'' pass flattens each component of an aggregate type into a collection of components of ground types.
 %The pass replaces certain defined components with
@@ -628,5 +653,6 @@ The behavior of the function {\tt lower\_types} on the declaration statements is
 Note that the ``LowerTypes'' pass should be applied after the ``ExpandConnects'' pass.
 Therefore, before applying the function {\tt lower\_types} to the statements in the sequence $ss$, both sides of the connect statements are already in ground types.
 Then when the {\tt lower\_types} function  processes a connect statement, the references to the component fields in this statement should be replaced by the corresponding paired identifiers. Thus in this case, all the three components of the circuit diagram, namely, the statement sequence, the component environment, the connect mapping, are all updated to reflect the replacements of component fields by paired identifiers.
-%As a result, the statements $ss$ in the circuit diagram are replaced by the new $ss'$, and the components environment $ce$ are updated to reflect the new ground types and paired identifiers.
-
+}
+%%%% the original texts of LowerTypes
+%%%% the original texts of LowerTypes

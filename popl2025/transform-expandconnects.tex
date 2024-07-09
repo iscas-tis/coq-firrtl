@@ -6,39 +6,53 @@ module, the process involves two phases. The first phase is to record
 the types along with orientations and flipping information of the
 objects, which helps determine the actual connection directions. For
 example, if there is an input port of aggregate types with a field
-marked as ``flip'', the ``flip'' mark will recursively apply to all the
-atomic elements in that field. Since it is an input port, the
-orientation is record as ``source''. The second phase is to expand the statements
-sequentially. For declaration statements, ground-typed elements are
-generated corresponding to the original aggregate types. For
-connection statements, the connection directions are determined by the
-orientations and flipping information from the first phase. For
-subfields, there are two kinds of connections allowed for HiFirrtl
-programs. One is to set connections between elements of equivalent
-aggregate types. In such bundled connections, individual subfield
-connections can be of different directions. The other kind is to
-connect subfields separately, in which case the direction should
-comply with the orientation of the subfield elements.
-
+marked as ``flip'', the ``flip'' mark will recursively apply to all
+the atomic elements in that field. Since it is an input port, the
+orientation is record as ``source''.  The second phase is to expand
+the statements sequentially, and then produce a serial of new
+statements.  For declaration statements, ground-typed elements are
+generated corresponding to the original aggregate types and the
+orientations. For connection statements, the connection directions are
+determined by the orientations and flipping information from the first
+phase. For subfields, there are two kinds of connections allowed for
+HiFirrtl programs. One is connect subfields separately, in which case
+the direction should already comply with the orientation of the
+subfield elements. The other is to set connections between elements of
+equivalent aggregate types. In such bundled connections, after
+expansion process, individual subfield connections can be of different
+directions.
 
 At the beginning of a Firrtl module, ports are declared first. When
-ports are defined with flip sub-fields, the expansion process will
+ports are defined with flipped subfields, the expansion process will
 change those fields of input ports into output ports, and vice
 versa. As a result, their orientations are changed between ``source''
 and ``sink''.
  \begin{gather*}
    \label{expand-input}
    \infer[]
-         {\seqq{{\tt expand\_connect} (\mbox{\prettyll{input v}}) = ss}}
+         {\seqq{{\tt expand\_connect} (\mbox{\prettyll{input v t}}) = ss}}
          {\begin{array}{c}
              \seqq{{\tt expand\_ref \;v} = [v_0, v_1,\dots v_n]}\\
              \seqq{ s s= {\tt map}\; (fun\; v_x \Rightarrow if\;{\tt is\_flipped}(v_x)\;then\; \mbox{\prettyll{output}} {\tt v_x}\;else\; \mbox{\prettyll{input}} {\tt v_x})\, [v_0, v_1,\dots v_n]}
            \end{array}
          }
  \end{gather*}
-
+ 
+The {\tt expand\_connect} function takes a statement as input and
+produces a sequence of statements as output. In the case above, the
+input statement is the port declaration ``\mbox{\prettyll{input v}}'',
+and ``ss'' is the sequence of output statements.  The ``ss'' is
+produced by expanding the port {\tt v} to its atomic subfields with
+its type {\tt t}, and flipping the port orientation by the judging
+whether the subfields are marked with ``flip''({\tt is\_flipped}).
+The {\tt map} is the genernal operation for lists that applies a
+function over lists. In the {\tt expand\_connect} function for
+``\mbox{\prettyll{input v}}'', it applies the judging {\tt
+  is\_flipped} over all the expanded references of {\tt v} then gives
+the new sequence of declaration statements for input and output ports.
+ 
 Elements such as wires and registers have duplex
-orientation. Regardless of the flip sub-fields in the original
+orientation. Regardless of the flip subfields in the original
 aggregate types, the resulting orientations will remain duplex. To
 expand registers in aggregate types, we also need to expand the reset
 values of the registers. Expanding wires is relatively simple and is
@@ -58,7 +72,7 @@ omitted here.
 \end{gather*}
 
 Nodes are also ``source'' elements. They are only allowed to be declared
-with passive aggregate types, which means no flip sub-fields. During
+with passive aggregate types, which means no flip subfields. During
 the expansion of node declarations, the passive type is checked;
 otherwise, the result will be an empty sequence.
 \begin{gather*}
@@ -91,7 +105,7 @@ invalidated. The result of expansion will omit them.
 \end{gather*}
 
 Connections between bundled elements contain a set of connections for
-individual sub-fields. According to the indicated ``flip'' for a sub-field, the
+individual subfields. According to the indicated ``flip'' for a subfield, the
 connection direction may differ from the original.
 \begin{gather*}
    \label{expand-invalid}
@@ -105,5 +119,8 @@ connection direction may differ from the original.
          }
 \end{gather*}
 
-
+To summarize, a given Firrtl module can be expanded by applying the
+{\tt expand\_connect} function to all its statements
+sequencially. Then the module in return contains only the elements and
+their connections in ground types.
 
