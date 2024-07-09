@@ -5,11 +5,19 @@ To this end, we define two relations $cm_1 \xrightarrow[tm, tmap]{s} cm_2$ and $
 %%%%
 %Note that $cm_1 \xrightarrow[tm, tmap]{s} cm_2$ and $cm_1 \xrightarrow[tm, tmap]{ss'} cm_2$ are mutually recursive, since a \prettyll{when} statement involves statement sequences. 
 %%%%
-Finally, let $cm'$ be the connection mapping satisfying ${\sf emp} \xrightarrow[tm, tmap]{ss} cm'$, where ${\sf emp}$ is the empty connection mapping. The reason why $tm$ is still needed in the definition of the two relations lies in the fact that if $ss$ contains a statement of the form \prettyll{reg x: t clk with reset => (rsig, rval)}, then we should check the reset values in $tm(id(x), i)$'s are compatible with $rval$ (see the rule ``register'' in Figure~\ref{fig:firrtl-sem}).
+Finally, let $cm'$ be the connection mapping satisfying ${\sf emp} \xrightarrow[tm, tmap]{ss} cm'$, where ${\sf emp}$ is the empty connection mapping. 
 
-In the sequel, we show how to define the relations $cm_1 \xrightarrow[tm, tmap]{s} cm_2$ and $cm_1 \xrightarrow[tm, tmap]{ss'} cm_2$. Similar to the construction of $tmap$, when defining the two relations, we should deal with the mismatch between the abstraction levels of connection mappings and $M$. 
 %
-Furthermore, we should take care of the flipping status of fields when defining the semantics of connection statements of the form \prettyll{r1 <= r2}, where \prettyll{r1, r2} are both references. For instance, in the following {\hifirrtl} program, the connect statement \prettyll{a <= b} will be split into the following two connections between ground-type components, \prettyll{b.f3 <= a.f1} and \prettyll{a.f2 <= b.f4}. Note that in \prettyll{b.f3 <= a.f1}, the connection flow is reversed since \prettyll{f1} is a flipped field. 
+%The reason why $tm$ is still needed in the definition of the two relations lies in the fact that if $ss$ contains a statement of the form \prettyll{reg x: t clk with reset => (rsig, rval)}, then we should check the reset values in $tm(id(x), i)$'s are compatible with $rval$ (see the rule ``register'' in Figure~\ref{fig:firrtl-sem}).
+%
+%In the sequel, we show how to define the relations $cm_1 \xrightarrow[tm, tmap]{s} cm_2$ and $cm_1 \xrightarrow[tm, tmap]{ss'} cm_2$. 
+
+
+Similar to the construction of $tmap$, when defining the two relations, we should deal with the mismatch between the abstraction levels of connection mappings and $M$. 
+%
+%Furthermore, 
+
+we should take care of the flipping status of fields when defining the semantics of connection statements of the form \prettyll{r1 <= r2}, where \prettyll{r1, r2} are both references. For instance, in the following {\hifirrtl} program, the connect statement \prettyll{a <= b} will be split into the following two connections between ground-type components, \prettyll{b.f3 <= a.f1} and \prettyll{a.f2 <= b.f4}. Note that in \prettyll{b.f3 <= a.f1}, the connection flow is reversed since \prettyll{f1} is a flipped field. 
 %
 \begin{figure*}[htbp]
 \begin{tabular}{c}
@@ -39,9 +47,11 @@ $cm_1 \xrightarrow[tm, tmap]{s} cm_2$ and $cm_1 \xrightarrow[tm, tmap]{ss'} cm_2
 %
 \item $\invalidateref(cm_1, (v, m), ft, ori)$ may set $cm_1(v, m+i)$ to $\svinvalid$ for $i: 0 \le i < n$, depending on the orientation $ori$ and the flipping status of the $i$-th ground type in $ft$, where $ft$ is the type of some reference denoted by $(v, m)$ and $n = \sizeofftype(ft)$. 
 \end{itemize}
-The functions $\updatecm$, $\updatecmref$, $\invalidateref$ will be defined in Fig.~\ref{tab:update-vm-ct} and the functions $\listgexp$, $\typecompatible$, $\typeofref$ will be defined in Fig.~\ref{fig:list-gexp}-\ref{fig:type-ref}. 
 
-Let us explain the rules of Fig.~\ref{fig:firrtl-sem}. 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%The functions $\updatecm$, $\updatecmref$, $\invalidateref$ will be defined in Fig.~\ref{tab:update-vm-ct} and the functions $\listgexp$, $\typecompatible$, $\typeofref$ will be defined in Fig.~\ref{fig:list-gexp}-\ref{fig:type-ref}. 
+%
+%Let us explain the rules of Fig.~\ref{fig:firrtl-sem}. 
 \begin{itemize}
 \item The ``wire'' rule updates each of $cm_1(v, 0), \cdots, cm_1(v, sz-1)$ to $\svinvalid$, where $s = \mbox{wire }x: t$,  $v$ is the identifier of $x$, $tmap(v) = (ft, ori)$, and $sz= \sizeofftype(ft)$.  
 %
