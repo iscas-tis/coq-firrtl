@@ -258,6 +258,10 @@ We explain the rules for $\updatecm$, $\updatecmref$, and $\invalidateref$ in Fi
   \label{tab:update-vm-ct}
 \end{figure}
 
+
+%%%%%%%%%%%%%%%%%%% 
+\tl{stuff from here can be moved to appendix, they are just tedious defs.}
+
 The function $\listgexp(e, ft)$ is defined in Fig.~\ref{fig:list-gexp}. 
 Let us explain the rules $\listgexp: mux$ and $\listgexp: vector$. The explanation of the other rules are omitted for brevity. 
 %
@@ -270,14 +274,15 @@ Let us explain the rules $\listgexp: mux$ and $\listgexp: vector$. The explanati
 %%%%%% listgexp
 \begin{figure}[htbp]
   \begin{gather*}
-    \infer[\listgexp: ground]
-    {\listgexp(e, ft) = l}
-    {
-    \begin{array}{c}
-    	ft = (ground, t) \wedge l = [e]
-    \end{array}
-    }
+    \infernone[\listgexp: ground]
+    {\listgexp(e, (ground, t)) = [e]}
+%    {
+%    \begin{array}{c}
+%    	ft = (ground, t) \wedge l = [e]
+%    \end{array}
+%    }
     \\[1ex]
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     \infer[\listgexp: mux]
     {\listgexp(e, ft) = l}
     {
@@ -296,29 +301,30 @@ Let us explain the rules $\listgexp: mux$ and $\listgexp: vector$. The explanati
     \end{array}
     }
     \\[1ex]
-    \infer[\listgexp: bundle]
-    {\listgexp(e, ft) = l}
-    {
-    \begin{array}{c}
-    	 ft = (bundle, ff) \wedge l = \listgexpfields(e, ff)
-    \end{array}
-    }
+    \infernone[\listgexp: bundle]
+    {\listgexp(e,  (bundle, ff) ) = \listgexpfields(e, ff)}
+%    {
+%    \begin{array}{c}
+%    	 ft = (bundle, ff) \wedge l = \listgexpfields(e, ff)
+%    \end{array}
+%    }
     \\[1ex]
-    \infer[\listgexpfields: nil]
-    {\listgexpfields(e, ff) = l}
-    {
-    \begin{array}{c}
-    	 ff = nil \wedge l = []
-    \end{array}
-    }
+    \infernone[\listgexpfields: nil]
+    {\listgexpfields(e, \nil) = []}
+%    {
+%    \begin{array}{c}
+%    	 ff = nil \wedge l = []
+%    \end{array}
+%    }
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
    \\[1ex]
-    \infer[\listgexpfields: $\neq$nil]
-    {\listgexpfields(e, ff) = l}
-    {
-    \begin{array}{c}
-    	 ff = (f, b, t, ff1) \wedge l = \listgexp(e.f, t)\ ++\ \listgexpfields(e, ff1)
-    \end{array}
-    }
+    \infernone[\listgexpfields: $\neq$nil]
+    {\listgexpfields(e, (f, b, t) ff1) = \listgexp(e.f, t)\ ++\ \listgexpfields(e, ff1)}
+%    {
+%    \begin{array}{c}
+%    	 ff = (f, b, t) ff1 \wedge l = \listgexp(e.f, t)\ ++\ \listgexpfields(e, ff1)
+%    \end{array}
+%    }
   \end{gather*}
   \caption{$\listgexp$ and $\listgexpfields$}
   \label{fig:list-gexp}
@@ -429,7 +435,7 @@ The relations $\typecompatible(ft, ft', flipped)$ and  $\typecompatiblefields(\m
     {\typecompatiblefields(\myvec{f}, \myvec{f'}, flipped)}
     {
     \begin{array}{c}
-    	\myvec{f} = (x, b, t)\ \myvec{f_1} \wedge \myvec{f'} = (x', b, t', \myvec{f'_1}) \wedge b = \ltrue \\
+    	\myvec{f} = (x, b, t)\ \myvec{f_1} \wedge \myvec{f'} = (x', b, t') \myvec{f'_1} \wedge b = \ltrue \\
 	\typecompatible(t, t', \neg flipped) \\
 	\typecompatiblefields(\myvec{f_1}, \myvec{f'_1}, flipped)
     \end{array}
@@ -438,6 +444,7 @@ The relations $\typecompatible(ft, ft', flipped)$ and  $\typecompatiblefields(\m
   \caption{$\typecompatible$ and $\typecompatiblefields$}
   \label{fig:type-compatible}
 \end{figure}
+
 
 The functions $\typeofref(r, tmap)$ and $\listgtyperef(ft, flipped)$ compute the type and list of ground types respectively for references. 
 Moreover, $\typeofref(r, tmap)$ calls $\typeoffield(f, \myvec{f'}, ori)$ to compute $(t, ori')$ such that $ori$ is the orientation of $\myvec{f'}$, $t$ is the type of $f$ in $\myvec{f'}$, and $ori'$ is the orientation of $f$. 
@@ -585,25 +592,25 @@ $$\listgtypereffields(\myvec{f}, flipped).$$
 %    {\seqq{list\_gtype(ft') = l'}} {\seqq{list\_gtype\_fields(ff') = l''}}  
 %    \quad
 %    \\[1ex]
-    \infer[\listgtyperef: ground]
-    {\seqq{\listgtyperef(ft, flipped) = [(gt, flipped)]}}
-    {\seqq{ft = (\gtype, gt)}}
-    \quad
-    \\[1ex]
-    \inferii[\listgtyperef: vector]
-    {\seqq{\listgtyperef(ft, flipped) = \underbrace{l'\ ++\ \cdots\ ++\ l'}_{m}}}
-    {\seqq{ft = (\vtype, ft'[m])}}    {\seqq{l' = \listgtyperef(ft', flipped)}}
-    \quad
-    \\[1ex]
-    \inferii[\listgtyperef: bundle]
-    {\seqq{\listgtyperef(ft, flipped) = l'}}
-    {\seqq{ft = (\btype, \myvec{f})}}    {\seqq{l' = \listgtypereffields(\myvec{f}, flipped)}}
-    \quad
-    \\[1ex]
+%    \infer[\listgtyperef: ground]
+%    {\seqq{\listgtyperef(ft, flipped) = [(gt, flipped)]}}
+%    {\seqq{ft = (\gtype, gt)}}
+%    \quad
+%    \\[1ex]
+%    \inferii[\listgtyperef: vector]
+%    {\seqq{\listgtyperef(ft, flipped) = \underbrace{l'\ ++\ \cdots\ ++\ l'}_{m}}}
+%    {\seqq{ft = (\vtype, ft'[m])}}    {\seqq{l' = \listgtyperef(ft', flipped)}}
+%    \quad
+%    \\[1ex]
+%    \inferii[\listgtyperef: bundle]
+%    {\seqq{\listgtyperef(ft, flipped) = l'}}
+%    {\seqq{ft = (\btype, \myvec{f})}}    {\seqq{l' = \listgtypereffields(\myvec{f}, flipped)}}
+%    \quad
+%    \\[1ex]
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%     
-    \infer[\listgtypereffields: nil]
-    {\seqq{\listgtypereffields(\myvec{f}, flipped) = []}}
-    {\seqq{\myvec{f} = \nil}}
+    \infernone[\listgtypereffields: nil]
+    {\seqq{\listgtypereffields(\nil, flipped) = []}}
+    %{\seqq{\myvec{f} = \nil}}
     \quad
     \\[1ex]
     \inferii[\listgtypereffields: $\neq$nil-1]
