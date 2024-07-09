@@ -1,6 +1,6 @@
 %!TEX root = main.tex
 
-Recall that the goal is to define a connection mapping $cm'$ out of $tm$, $tmap$ and the statements in $M$. 
+We proceed to define a connection mapping $cm'$ out of $tm$, $tmap$ and the statements in $M$. 
 To this end, we define two relations $cm_1 \xrightarrow[tm, tmap]{s} cm_2$ and $cm_1 \xrightarrow[vm, tmap]{ss'} cm_2$, where $s$ (resp. $ss$) is a (resp. sequence of) statement. 
 %%%%
 %Note that $cm_1 \xrightarrow[tm, tmap]{s} cm_2$ and $cm_1 \xrightarrow[tm, tmap]{ss'} cm_2$ are mutually recursive, since a \prettyll{when} statement involves statement sequences. 
@@ -18,7 +18,8 @@ $cm'$ is then defined to be the connection mapping satisfying ${\sf emp} \xright
 %Furthermore, 
 %
 %we should take care of 
-Note that we need to take care of the flipping status of fields when defining the semantics of connection statements of the form \prettyll{r1 <= r2}, where \prettyll{r1, r2} are references. For instance, in the following {\hifirrtl} program, the connect statement \prettyll{a <= b} will be split into the following two connections between ground-type components, \prettyll{b.f3 <= a.f1} and \prettyll{a.f2 <= b.f4}. Note that in \prettyll{b.f3 <= a.f1}, the connection flow is reversed since \prettyll{f1} is a flipped field. 
+In particular, here we need to take care of the flipping status of fields when defining the semantics of connection statements of the form 
+\prettyll{r1 <= r2}, where \prettyll{r1, r2} are references. For instance, in the following {\hifirrtl} program, the connect statement \prettyll{a <= b} will be split into the following two connections between ground-type components, \prettyll{b.f3 <= a.f1} and \prettyll{a.f2 <= b.f4}. Note that in \prettyll{b.f3 <= a.f1}, the connection flow is reversed since \prettyll{f1} is a flipped field. 
 %
 \begin{figure*}[htbp]
 	\begin{tabular}{c}
@@ -42,7 +43,9 @@ The definitions of $cm_1 \xrightarrow[tm, tmap]{s} cm_2$ and $cm_1 \xrightarrow[
 	%
 	\item $\listgexp(e, ft)$ returns a list of ground-type expressions obtained by expanding $e$ according to $ft$, 
 	%
-	\item $\typecompatible(ft, ft', flipped)$ checks whether the two types $ft$ and $ft'$ are compatible and distinguish between whether $flipped = \ltrue$, 
+	\item $\typecompatible(ft, ft', flipped)$ checks whether the two types $ft$ and $ft'$ are compatible %and distinguish between 
+	depending on whether 
+	$flipped = \ltrue$, 
 	%
 	\item $\typeofref(r, tmap)$ returns the type of the reference $r$, 
 	%
