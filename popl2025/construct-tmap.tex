@@ -489,59 +489,44 @@ first calls $\stmtstmap((tmap, scope), sst, tm)$ to compute $(tmapt, scopet)$, t
 %(see the rule \stmttmap: when in Fig.~\ref{fig:stmts-tmap})
  
 
-\hide{
-For a statement $\kappa\ v: t$ where $\kappa =\mbox{\prettyll{input},\prettyll{output},\prettyll{wire}}$, 
-We define a mapping $tmap$ that assigns to each identifier from $\range{id}$ a type where all widths are explicit.    
-For each $v \in \dom(id)$, 
-\begin{itemize}
-\item if $v$ is declared in a statement $p \equiv \{\mbox{\prettyll{input}} v: t$, then 
-\begin{itemize}
-\item if $t = \theta$ with $\theta \in \{\mbox{\prettyll{Clock}}, \mbox{\prettyll{Reset}} \mbox{\prettyll{AsyncReset}}\}$ and $tm((id(v),0)) = (\inport, \theta)$, then $tmap(id(v)) = (gt, \theta)$, 
-%
-\item if $t = \theta$ with $\theta \in \{\mbox{\prettyll{UInt}}, \mbox{\prettyll{SInt}}\}$ and $tm((id(v), 0)) = (\inport, (\theta, n))$, then $tmap(id(v)) = (gt, \theta \langle n \rangle)$, 
-%
-\item if $t = \theta\langle n \rangle$ with $\theta \in \{\mbox{\prettyll{UInt}}, \mbox{\prettyll{SInt}}\} $ and $tm((id(v),0)) = (\inport, (\theta, n))$, then $tmap(id(v)) = (gt, \theta \langle n \rangle)$, 
-%
-\item if $t = t'[n]$ and $tm((id(v),n)) = (\inport, )$, then $tmap(id(v)) = (gt, \theta \langle n \rangle)$
-\end{itemize}
-\item if $v$ is declared in a statement $p \equiv \{\mbox{\prettyll{output}} v: t$, then $tmap(id(v))$ is defined similarly to the case $p \equiv \{\mbox{\prettyll{input}} v: t$, except that $\inport$ is replaced by $\outport$, 
-%   
-\item if $v$ is declared in a statement $s \equiv \mbox{\prettyll{wire} } v: t$, then 
-\begin{itemize}
-\item if $v$ is declared in a statement $p \equiv \{\mbox{\prettyll{input}} v: t$, then 
-\begin{itemize}
-\item if $t = \theta$ with $\theta \in \{\mbox{\prettyll{Clock}}, \mbox{\prettyll{Reset}} \mbox{\prettyll{AsyncReset}}\}$ and $tm(id(v)) = (\inport, \theta)$, then $tmap(id(v)) = (gt, \theta)$, 
-%
-\item if $t = \theta$ with $\theta \in \{\mbox{\prettyll{UInt}}, \mbox{\prettyll{SInt}}\}$ and $tm(id(v)) = (\inport, (\theta, n))$, then $tmap(id(v)) = (gt, \theta \langle n \rangle)$. 
-\end{itemize}
-\end{itemize}
-\end{itemize}
-}
-
-
-
-
-%A HiFIRRTL program $P$ is mapped to \emph{a set of} module graphs. %, where the box 
-%We define $\mathcal{G}(P)$.  % G(P): the set of module graphs of  P
+%\hide{
+%For a statement $\kappa\ v: t$ where $\kappa =\mbox{\prettyll{input},\prettyll{output},\prettyll{wire}}$, 
+%We define a mapping $tmap$ that assigns to each identifier from $\range{id}$ a type where all widths are explicit.    
+%For each $v \in \dom(id)$, 
+%\begin{itemize}
+%\item if $v$ is declared in a statement $p \equiv \{\mbox{\prettyll{input}} v: t$, then 
+%\begin{itemize}
+%\item if $t = \theta$ with $\theta \in \{\mbox{\prettyll{Clock}}, \mbox{\prettyll{Reset}} \mbox{\prettyll{AsyncReset}}\}$ and $tm((id(v),0)) = (\inport, \theta)$, then $tmap(id(v)) = (gt, \theta)$, 
+%%
+%\item if $t = \theta$ with $\theta \in \{\mbox{\prettyll{UInt}}, \mbox{\prettyll{SInt}}\}$ and $tm((id(v), 0)) = (\inport, (\theta, n))$, then $tmap(id(v)) = (gt, \theta \langle n \rangle)$, 
+%%
+%\item if $t = \theta\langle n \rangle$ with $\theta \in \{\mbox{\prettyll{UInt}}, \mbox{\prettyll{SInt}}\} $ and $tm((id(v),0)) = (\inport, (\theta, n))$, then $tmap(id(v)) = (gt, \theta \langle n \rangle)$, 
+%%
+%\item if $t = t'[n]$ and $tm((id(v),n)) = (\inport, )$, then $tmap(id(v)) = (gt, \theta \langle n \rangle)$
+%\end{itemize}
+%\item if $v$ is declared in a statement $p \equiv \{\mbox{\prettyll{output}} v: t$, then $tmap(id(v))$ is defined similarly to the case $p \equiv \{\mbox{\prettyll{input}} v: t$, except that $\inport$ is replaced by $\outport$, 
+%%   
+%\item if $v$ is declared in a statement $s \equiv \mbox{\prettyll{wire} } v: t$, then 
+%\begin{itemize}
+%\item if $v$ is declared in a statement $p \equiv \{\mbox{\prettyll{input}} v: t$, then 
+%\begin{itemize}
+%\item if $t = \theta$ with $\theta \in \{\mbox{\prettyll{Clock}}, \mbox{\prettyll{Reset}} \mbox{\prettyll{AsyncReset}}\}$ and $tm(id(v)) = (\inport, \theta)$, then $tmap(id(v)) = (gt, \theta)$, 
+%%
+%\item if $t = \theta$ with $\theta \in \{\mbox{\prettyll{UInt}}, \mbox{\prettyll{SInt}}\}$ and $tm(id(v)) = (\inport, (\theta, n))$, then $tmap(id(v)) = (gt, \theta \langle n \rangle)$. 
+%\end{itemize}
+%\end{itemize}
+%\end{itemize}
+%}
 
 
 %We assume a component environment $ce$ which extracts the type information from $P$ %the sequence $ss$ of statements 
 %and 
 %the connect mapping $cm$ extracts for each component the expression that is connected to the component according to the last-connect semantics. 
 
-%Recall that a circuit defined by $P$ consists of multiple modules. 
-%
-%\begin{itemize}
-%\end{itemize}
 
-%	\item tg
-%\end{itemize} 
 
 
 %A HiFIRRTL module $M$ will be first transformed into a circuit diagram $D_M = (ss, ce, cm)$, where $ss$ is the sequence of statements in $M$, $ce$ is the component environment obtained from the variable declarations in $M$, possibly with the types of some variables missing or partial, 
 
 %and $cm$ is the trivial mapping that maps each component to $\bot$ (Intuitively, this means that the connects of the components have not be determined yet). The missing or partial  types in $ce$ will be completed by the compilation passes during the transformation of $M$ into a LoFIRRTL module. Moreover, the connect mapping $cm$ will be updated by the ExpandWhens compilation pass. Furthermore, the statement sequence $ss$ will be updated by ExpandConnects, ExpandWhens, LowerTypes, and RemoveReset, while they keep unchanged during the other compilation passes.  
 
-
-
-%\subsection{Behavioral semantics of modular graphs}
