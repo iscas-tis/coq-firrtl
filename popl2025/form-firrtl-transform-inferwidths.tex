@@ -1,11 +1,14 @@
 \subsubsection{Formalization of InferWidths}
 %By Keyin
-We formalize the ``InferWidths'' pass by defining a Coq function {\tt InferWidths\_m}, which contains two process. The first process {\tt InferWidths\_stage1} iterates over the topological sorted order of module's implicit widths ground type components and updates the type map, so that the bit widths of all the components with undefined bit widths can be determined. Then the second process {\tt InferWidths\_stage2} produce a new module with inferred bit widths and explicit widths instead of implicit widths in the original module.
+We formalize the ``InferWidths'' pass by defining a Coq function {\tt InferWidths\_m}, which contains two process. The first process {\tt InferWidths\_stage1} iterates over the topological sorted order of module's implicit widths ground type components and updates a $FType$ map, so that the bit widths of all the components with undefined bit widths can be determined. Then the second process {\tt InferWidths\_stage2} produce a new module with inferred bit widths and explicit widths instead of implicit widths in the original module.
 
 The rationale behind the {\tt InferWidth\_m} function is stated as follows: The function  {\tt InferWidths\_stage1} always chooses the maximum width of the expressions that are connected to the component $x$. 
 
-The behavior of the function {\tt inferwidths\_m} on a module contains the folowing steps :\\
-Record the original type map and the connection map according to ports sequecnse and statement sequence in the module. The Coq function {\tt ports\_stmts\_tmap}, given ports list and statements list in the module, generates two corresponding maps, maps from aggregate level components to types and ground type level components to expressions. Note that aggregate connections are not expanded yet so that flip field should be considered when generating the connection map.
+The behavior of the function {\tt inferwidths\_m} on a module contains the folowing steps :
+\begin{enumerate}
+    \item Record the original $FType$ map $tmap'$ with aggerate types and the connection map $var2exprs$ with only ground type expressions according to ports sequecnse $pp$ and statement sequence $ss$ in the module $(pp,ss)$. 
+
+The Coq function {\tt ports\_stmts\_tmap} shown in ? and ?, given ports list and statements list in the module, generates two corresponding maps, mapping from aggregate level components to types and ground type level components to expressions. Note that aggregate connections are not expanded yet so that flip field should be considered when generating the connection map. The Coq function {\tt type\_of\_ref'} shown in ?  given identifier and $tmap$, generates a pair with the first element is the same as function {\tt type\_of\_ref} and the second element is a Boolean value shows whether the component is flipped or not.
 
 \begin{table}[htbp]
   \small
@@ -331,7 +334,7 @@ the {\tt ports\_stmts\_tmap'} function will update $tmap$ by
 the {\tt ports\_stmts\_tmap'} function will update $var2exprs$ by
  $$ {var2exprs':= var2exprs \uplus \{v.a : \{w.a\} \} \uplus \{v.b : \{w.b\} \}} $$
 
-Draw the dependency graph according to the connection map. The Coq function {\tt drawg}, given elements in the connection map, generates the dependency graph by adding edges from every component in a expression to the target component. To make the calculation simpler, only components with uninferred implicit width are involved in the dependency graph,
+    \item Draw the dependency graph according to the connection map. The Coq function {\tt drawg}, given elements in the connection map, generates the dependency graph by adding edges from every component in a expression to the target component. To make the calculation simpler, only components with uninferred implicit width are involved in the dependency graph,
 
 \begin{table}[htbp]
   \small
@@ -424,9 +427,10 @@ Draw the dependency graph according to the connection map. The Coq function {\tt
   \vspace{-6mm}
 \end{table}
 
-Generate the topological order of all the uninferred ground type components. Given the vertices set and the graph, the correctness of sorting algorithm {\tt topo\_sort} is certified. Because the module components depends on each other through connections and operations, implicit widths should be inferred sequentially in the order of topological order,
+    \item Generate the topological order of all the uninferred ground type components. Given the vertices set and the graph, the correctness of sorting algorithm {\tt topo\_sort} is certified. Because the module components depends on each other through connections and operations, implicit widths should be inferred sequentially in the order of topological order,
 
-Finally, compares the widths of each expression connected to the same component, and chooses the larger width. Since the last connect semantics is not considered, each connection to the component provides a potential width. A function named {\tt max\_ftlist} compares the potential widths and outputs the maximum one. 
+    \item Compare the widths of each expression connected to the same component, and chooses the larger width. Since the last connect semantics is not considered, each connection to the component provides a potential width. A function named {\tt max\_ftlist} compares the potential widths and outputs the maximum one. 
+    
 the Coq function {\tt InferWidths\_fun} calls {\tt InferWidth\_fun} on the list of topological order, where the widths are inferred according to connect statements. 
 
 \begin{table}[htbp]
@@ -494,7 +498,7 @@ the Coq function {\tt InferWidths\_fun} calls {\tt InferWidth\_fun} on the list 
   \label{tab:InferWidths-fun}
   \vspace{-6mm}
 \end{table}
-
+\end{enumerate}
 
 %%%%%%%%%%%%%%%
 %\hide{
