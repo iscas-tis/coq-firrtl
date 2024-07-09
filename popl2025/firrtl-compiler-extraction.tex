@@ -1,14 +1,37 @@
 %!TEX root = main.tex
 
-Formalizing the lowering transformations of FIRRTL in Coq not only facilitates a precise understanding of the lowing passes, 
-but can also be turned into a verified OCaml compiler for FIRRTL, by utilizing the extraction mechanism of Coq~\cite{LET08}. 
+With the formalization and correctness proofs of the lowering transformations of FIRRTL in Coq,
+by utilizing the extraction mechanism available in the Coq proof assistant~\cite{Letouzey02,LET08},
+a verified FIRRTL compiler in OCaml can be extracted. The verified OCaml compiler lowers
+a given FIRRTL program by consecutively executing the three lowering transformations, namely, 
+``InferWidths'', 
+``ExpandConnects'', and ``ExpandWhens'', resulting in a LoFIRRTL program.
 
+To utilize our OCaml FIRRTL compiler in practice, one can replace the original FIRRTL compiler (e.g., the Scala FIRRTL compiler or
+the new MLIR FIRRTL compiler) in the entire compilation tool-chain with ours. For instance, 
+to synthesize a circuit design in Chisel into synthesizable Verilog,
+typically, high-level circuit design generators in Chisel are compiled
+and executed using the convertor \textsf{ChiselStage} of the Chisel compiler framework, 
+resulting in FIRRTL programs, which in turn are compiled into LoFIRRTL programs by an FIRRTL compiler.
+The LoFIRRTL programs are further transformed into circuits in synthesizable Verilog using, e.g.,
+{\sf firtool}, a tool provided with CIRCT.
 
-Our goal is to have an verified compiler for FIRRTL programs, that is, given a FIRRTL program, the compiler first parses the input program, then executes three compilation passes on the FIRRTL program and produces a corresponding LoFIRRTL program of MLIR syntax. In the sequel, we have a closer look at the extraction of the FIRRTL compiler from the Coq programs.
+To bridge the input and output gap between our OCaml FIRRTL compiler and other tools, we develop
+an FIRRTL parser and a LoFIRRTL emitter both in OCaml. 
+We implement the FIRRTL parser by defining the syntax grammar of FIRRTL programs in the BNF-like form in {\tt ocamlyacc}, then specifying the
+semantic-actions to produce the required abstract syntax tree representation of the FIRRTL program in the OCaml types,
+which can be processed by our OCaml FIRRTL compiler.
+The LoFIRRTL emitter visits the abstract syntax tree representation of the LoFIRRTL program
+and prints the program in MLIR syntax~\footnote{https://mlir.llvm.org} which can be processed by {\sf firtool}.
 
-Since the extraction of the OCaml code out of the transformation passes formalized in Coq is straightforward, it is relatively easy to obtain an engine in OCaml that is able to execute compilation passes on the FIRRTL program.
-
-Another building block of the compiler is a parser for FIRRTL programs generated using {\tt ocamlyacc}. The parser relies on the OCaml types for FIRRTL constructs that are extracted from the Coq code that formalizes the syntax of FIRRTL. We implement the parser by defining the grammar of FIRRTL programs in the BNF-like form in {\tt ocamlyacc}, then specifying the production rules to attach the grammar constructors to the OCaml types in semantic-actions. The evaluation of the semantic-actions will produce an AST to represent the FIRRTL program in the OCaml types, which are then taken by the execution engine.
-
-Finally, three transformation passes defined in Section~\ref{??} works on the given circuit in the order of inferwidths, expandconnects and expandwhens. A lowered FIRRTL circuit is produced after each pass and after expandwhens the compiler write the lowered FIRRTL program in MLIR syntax into a new file. In the experiment, we then use CIRCT official compiler firtool transform this LoFIRRTL program to verilog.
+ %
+%
+%
+%Our goal is to have an verified compiler for FIRRTL programs, that is, given a FIRRTL program, the compiler first parses the input program, then executes three compilation passes on the FIRRTL program and produces a corresponding LoFIRRTL program of MLIR syntax. In the sequel, we have a closer look at the extraction of the FIRRTL compiler from the Coq programs.
+%
+%Since the extraction of the OCaml code out of the transformation passes formalized in Coq is straightforward, it is relatively easy to obtain an engine in OCaml that is able to execute compilation passes on the FIRRTL program.
+%
+%Another building block of the compiler is a parser for FIRRTL programs generated using {\tt ocamlyacc}. The parser relies on the OCaml types for FIRRTL constructs that are extracted from the Coq code that formalizes the syntax of FIRRTL. We implement the parser by defining the grammar of FIRRTL programs in the BNF-like form in {\tt ocamlyacc}, then specifying the production rules to attach the grammar constructors to the OCaml types in semantic-actions. The evaluation of the semantic-actions will produce an AST to represent the FIRRTL program in the OCaml types, which are then taken by the execution engine.
+%
+%Finally, three transformation passes defined in Section~\ref{??} works on the given circuit in the order of inferwidths, expandconnects and expandwhens. A lowered FIRRTL circuit is produced after each pass and after expandwhens the compiler write the lowered FIRRTL program in MLIR syntax into a new file. In the experiment, we then use CIRCT official compiler firtool transform this LoFIRRTL program to verilog.
 
