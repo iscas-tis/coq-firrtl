@@ -467,11 +467,13 @@ some (less important) rules for $\portstmap$ and $\stmtstmap$ are omitted in Fig
 
 The procedure $\stmttmap$, defined in Fig.~\ref{fig:stmts-tmap}, is the core to process the statement, the intuitions of which is as follows. If $s$ is a declaration statement, $\stmttmap((tmap, scope), s, tm)$ utilizes $tm$ to instantiate the types in $s$ and updates $(tmap, scope)$ to $(tmap', scope')$. We distinguish different declaration statements. 
 \begin{itemize}
-	\item If $s = \mbox{wire } x: t$, then it checks $tmap(id(x)) = \svnone$ and calls $\madeexplicit(t, (id(x), 0), tm)$ to compute $newt$. Finally, it adds the pair $(id(x), (newt, \duplex))$ to both $tmap$ and $scope$. %, and obtains the return value $(tmap', scope')$. 
-	Note that the orientation of a \prettyll{wire} component is \duplex. (Cf. \stmttmap: wire in Fig.~\ref{fig:stmts-tmap})
+	\item If $s = \mbox{wire } x: t$, then it checks $tmap(id(x)) = \svnone$ and calls $\madeexplicit(t, (id(x), 0), tm)$ to compute $newt$. The pair $(id(x), (newt, \duplex))$ is then added to both $tmap$ and $scope$. %, and obtains the return value $(tmap', scope')$. 
+	%Note that the orientation of a \prettyll{wire} component is \duplex. 
+	(Cf. \stmttmap: wire in Fig.~\ref{fig:stmts-tmap})
 	%
-	\item If $s = \mbox{node } x = e$, then it checks $tmap(id(x)) = \svnone$, computes $t= \typeofexp(e, scope)$, and calls $\madeexplicit(t, (id(x), 0), tm)$ to obtain $newt$. Finally, it adds $(id(x), (newt, \source))$ to both $tmap$ and $scope$. %, and obtains the return value $(tmap', scope')$. 
-	Note that in the function call $\typeofexp(e, scope)$, $scope$, instead of $tmap$, is used to check whether the references in $e$ are well-scoped. Moreover, the orientation of a \prettyll{node} component is \source. (Cf.\ \stmttmap: node in Fig.~\ref{fig:stmts-tmap})
+	\item If $s = \mbox{node } x = e$, then it checks $tmap(id(x)) = \svnone$, computes $t= \typeofexp(e, scope)$, and calls $\madeexplicit(t, (id(x), 0), tm)$ to obtain $newt$. $(id(x), (newt, \source))$ is added to both $tmap$ and $scope$. %, and obtains the return value $(tmap', scope')$. 
+	Note that in the function call $\typeofexp(e, scope)$, $scope$ instead of $tmap$ is used to check whether the references in $e$ are well-scoped. %Moreover, the orientation of a \prettyll{node} component is \source. 
+	(Cf.\ \stmttmap: node in Fig.~\ref{fig:stmts-tmap})
 	%
 	\item If $s = \mbox{reg } x: t \ clk \mbox{ with: reset =>} (rsig, rval)$ and $\typeofexp(rsig, scope) = (\gtype, \asyncreset)$, then it checks $tmap(id(x)) = \svnone$, $\typeofexp(clk, scope) \neq \svnone$, and $\typeofexp(rval, scope) \neq \svnone$, calls $\madeexplicit(t, (id(x), 0), tm)$ to obtain $newt$. Finally, it adds $(id(x), (newt, \duplex))$ to both $tmap$ and $scope$. %, and obtains the return value $(tmap', scope')$. 
 	Note that in $\typeofexp(clk, scope)$, $\typeofexp(rsig, scope)$ and $\typeofexp(rval, scope)$, $scope$, instead of $tmap$, is used to check that the references in $clk, rsig, rval$ are well-scoped. Moreover, the orientation of a \prettyll{reg} component is \duplex. (Cf. \stmttmap: reg-asyncreset in Fig.~\ref{fig:stmts-tmap})
@@ -482,7 +484,7 @@ The procedure $\stmttmap$, defined in Fig.~\ref{fig:stmts-tmap}, is the core to 
 \end{itemize}
 
 For others, if $s$ is a connect or invalid statement,  $\stmttmap$ %((tmap, scope), s, tm)$ 
-only checks that the references or expressions are well-scoped with respect to $scope$, but does not modify $(tmap, scope)$. %(see the rules \stmttmap: connect and  \stmttmap: invalid in Fig.~\ref{fig:stmts-tmap})
+only checks that the references or expressions are well-scoped with respect to $scope$, but does not update $(tmap, scope)$. %(see the rules \stmttmap: connect and  \stmttmap: invalid in Fig.~\ref{fig:stmts-tmap})
 %
 
 If $s$ is a when statement \prettyll{when c: sst else: ssf},  $\stmttmap$ %((tmap, scope), s, tm)$ 

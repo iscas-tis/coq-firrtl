@@ -5,19 +5,20 @@ To this end, we define two relations $cm_1 \xrightarrow[tm, tmap]{s} cm_2$ and $
 %%%%
 %Note that $cm_1 \xrightarrow[tm, tmap]{s} cm_2$ and $cm_1 \xrightarrow[tm, tmap]{ss'} cm_2$ are mutually recursive, since a \prettyll{when} statement involves statement sequences. 
 %%%%
-Finally, let $cm'$ be the connection mapping satisfying ${\sf emp} \xrightarrow[tm, tmap]{ss} cm'$, where ${\sf emp}$ is the empty connection mapping. 
-
+$cm'$ is then defined to be the connection mapping satisfying ${\sf emp} \xrightarrow[tm, tmap]{ss} cm'$, where ${\sf emp}$ is the empty connection mapping. 
+%
 %
 %The reason why $tm$ is still needed in the definition of the two relations lies in the fact that if $ss$ contains a statement of the form \prettyll{reg x: t clk with reset => (rsig, rval)}, then we should check the reset values in $tm(id(x), i)$'s are compatible with $rval$ (see the rule ``register'' in Figure~\ref{fig:firrtl-sem}).
 %
 %In the sequel, we show how to define the relations $cm_1 \xrightarrow[tm, tmap]{s} cm_2$ and $cm_1 \xrightarrow[tm, tmap]{ss'} cm_2$. 
-
-
-Similar to the construction of $tmap$, when defining the two relations, we should deal with the mismatch between the abstraction levels of connection mappings and $M$. 
+%
+%
+%Similar to the construction of $tmap$, when defining the two relations, we should deal with the mismatch between the abstraction levels of connection mappings and $M$. 
 %
 %Furthermore, 
-
-we should take care of the flipping status of fields when defining the semantics of connection statements of the form \prettyll{r1 <= r2}, where \prettyll{r1, r2} are both references. For instance, in the following {\hifirrtl} program, the connect statement \prettyll{a <= b} will be split into the following two connections between ground-type components, \prettyll{b.f3 <= a.f1} and \prettyll{a.f2 <= b.f4}. Note that in \prettyll{b.f3 <= a.f1}, the connection flow is reversed since \prettyll{f1} is a flipped field. 
+%
+%we should take care of 
+Note that we need to take care of the flipping status of fields when defining the semantics of connection statements of the form \prettyll{r1 <= r2}, where \prettyll{r1, r2} are references. For instance, in the following {\hifirrtl} program, the connect statement \prettyll{a <= b} will be split into the following two connections between ground-type components, \prettyll{b.f3 <= a.f1} and \prettyll{a.f2 <= b.f4}. Note that in \prettyll{b.f3 <= a.f1}, the connection flow is reversed since \prettyll{f1} is a flipped field. 
 %
 \begin{figure*}[htbp]
 	\begin{tabular}{c}
@@ -30,7 +31,7 @@ we should take care of the flipping status of fields when defining the semantics
 	\end{tabular}
 \end{figure*}
 
-$cm_1 \xrightarrow[tm, tmap]{s} cm_2$ and $cm_1 \xrightarrow[tm, tmap]{ss'} cm_2$ are given in Fig.~\ref{fig:firrtl-sem}. We first introduce some functions. 
+The definitions of $cm_1 \xrightarrow[tm, tmap]{s} cm_2$ and $cm_1 \xrightarrow[tm, tmap]{ss'} cm_2$ are given in Fig.~\ref{fig:firrtl-sem}. We first introduce some functions. 
 
 %The rule for the \prettyll{skip} statement is omitted since it does not modify $cm_1$, that is,  $cm_1 \xrightarrow[tm, tmap]{\mbox{skip}} cm_1$.
 %The rules in Fig.~\ref{fig:firrtl-sem} utilize the following functions,
