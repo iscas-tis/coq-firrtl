@@ -1,6 +1,10 @@
 %!TEX root = main.tex
 
-The verified transformations for FIRRTL formalized in Coq not only facilitates a precise understanding of the meanings of FIRRTL lowing passes, it can also be turned into a compiler where the FIRRTL programs can be compiled, by utilizing the extraction mechanism of Coq~\cite{LET08}. Our goal is to have an verified compiler for FIRRTL programs, that is, given a FIRRTL program, the compiler first parses the input program, then executes three compilation passes on the FIRRTL program and produces a corresponding LoFIRRTL program of MLIR syntax. In the sequel, we have a closer look at the extraction of the FIRRTL compiler from the Coq programs.
+Formalizing the lowering transformations of FIRRTL in Coq not only facilitates a precise understanding of the lowing passes, 
+but can also be turned into a verified OCaml compiler for FIRRTL, by utilizing the extraction mechanism of Coq~\cite{LET08}. 
+
+
+Our goal is to have an verified compiler for FIRRTL programs, that is, given a FIRRTL program, the compiler first parses the input program, then executes three compilation passes on the FIRRTL program and produces a corresponding LoFIRRTL program of MLIR syntax. In the sequel, we have a closer look at the extraction of the FIRRTL compiler from the Coq programs.
 
 Since the extraction of the OCaml code out of the transformation passes formalized in Coq is straightforward, it is relatively easy to obtain an engine in OCaml that is able to execute compilation passes on the FIRRTL program.
 
