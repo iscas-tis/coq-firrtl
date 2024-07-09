@@ -1,11 +1,14 @@
 \subsubsection{Formalization of InferWidths}
 %By Keyin
-We formalize the ``InferWidths'' pass by defining a Coq function {\tt InferWidths\_m}, which contains two process. The first process {\tt InferWidths\_stage1} iterates over the topological sorted order of module's implicit widths ground type components and updates the type map, so that the bit widths of all the components with undefined bit widths can be determined. Then the second process {\tt InferWidths\_stage2} produce a new module with inferred bit widths and explicit widths instead of implicit widths in the original module.
+We formalize the ``InferWidths'' pass by defining a Coq function {\tt InferWidths\_m}, which contains two process. The first process {\tt InferWidths\_stage1} iterates over the topological sorted order of module's implicit widths ground type components and updates a $FType$ map, so that the bit widths of all the components with undefined bit widths can be determined. Then the second process {\tt InferWidths\_stage2} produce a new module with inferred bit widths and explicit widths instead of implicit widths in the original module.
 
 The rationale behind the {\tt InferWidth\_m} function is stated as follows: The function  {\tt InferWidths\_stage1} always chooses the maximum width of the expressions that are connected to the component $x$. 
 
-The behavior of the function {\tt inferwidths\_m} on a module contains the folowing steps :\\
-Record the original type map and the connection map according to ports sequecnse and statement sequence in the module. The Coq function {\tt ports\_stmts\_tmap}, given ports list and statements list in the module, generates two corresponding maps, maps from aggregate level components to types and ground type level components to expressions. Note that aggregate connections are not expanded yet so that flip field should be considered when generating the connection map.
+The behavior of the function {\tt inferwidths\_m} on a module contains the folowing steps :
+\begin{enumerate}
+    \item Record the original $FType$ map $tmap'$ with aggerate types and the connection map $var2exprs$ with only ground type expressions according to ports sequecnse $pp$ and statement sequence $ss$ in the module $(pp,ss)$. 
+
+The Coq function {\tt ports\_stmts\_tmap} shown in ? and ?, given ports list and statements list in the module, generates two corresponding maps, mapping from aggregate level components to types and ground type level components to expressions. Note that aggregate connections are not expanded yet so that flip field should be considered when generating the connection map. The Coq function {\tt type\_of\_ref'} shown in ?  given identifier and $tmap$, generates a pair with the first element is the same as function {\tt type\_of\_ref} and the second element is a Boolean value shows whether the component is flipped or not.
 
 \begin{table}[htbp]
   \small
@@ -60,7 +63,7 @@ Record the original type map and the connection map according to ports sequecnse
 \begin{table}[htbp]
   \small
   \begin{gather*}
-   \infer[add\_expr\_connect: find\_some]
+   \infer[find\_some]
     {\seqq{add\_expr\_connect(lhsl, rhsl, var2exprs) = var2exprs'}}
     {
     \begin{array}{c}
@@ -71,7 +74,7 @@ Record the original type map and the connection map according to ports sequecnse
     }
     \quad
     \\[1ex]
-    \infer[add\_expr\_connect: find\_none]
+    \infer[find\_none]
     {\seqq{add\_expr\_connect(lhsl, rhsl, var2exprs) = var2exprs'}}
     {
     \begin{array}{c}
@@ -82,18 +85,18 @@ Record the original type map and the connection map according to ports sequecnse
     }
      \quad
     \\[1ex]
-    \infer[add\_expr\_connect\_non\_passive: non-flip, find\_some]
+    \infer[flip, find\_none]
     {\seqq{add\_expr\_connect\_non\_passive(lhsl, rhsl, var2exprs) = var2exprs'}}
     {
     \begin{array}{c}
-    lhsl = (ref1, \_, false) \ ltl \wedge rhsl = (ref2, \_, \_) \ rtl \\
-    var2exprs(ref1) = Some el \wedge var2exprs'' = add(ref1, (Eref ref2) :: el, var2exprs) \\
+    lhsl = (ref1, \_, true) \ ltl \wedge rhsl = (ref2, \_, \_) \ rtl \\
+    var2exprs(ref2) = None \wedge var2exprs'' = add(ref2, [::(Eref ref1)], var2exprs) \\
     var2exprs' = add\_expr\_connect\_non\_passive(ltl, rtl, var2exprs'')
     \end{array}
     }
      \quad
     \\[1ex]
-    \infer[add\_expr\_connect\_non\_passive: non-flip, find\_none]
+    \infer[non-flip, find\_none]
     {\seqq{add\_expr\_connect\_non\_passive(lhsl, rhsl, var2exprs) = var2exprs'}}
     {
     \begin{array}{c}
@@ -104,7 +107,7 @@ Record the original type map and the connection map according to ports sequecnse
     }
     \quad
     \\[1ex]
-    \infer[add\_expr\_connect\_non\_passive: flip, find\_some]
+    \infer[flip, find\_some]
     {\seqq{add\_expr\_connect\_non\_passive(lhsl, rhsl, var2exprs) = var2exprs'}}
     {
     \begin{array}{c}
@@ -115,7 +118,7 @@ Record the original type map and the connection map according to ports sequecnse
     }
     \quad
     \\[1ex]
-    \infer[add\_expr\_connect\_non\_passive: non-flip, find\_some]
+    \infer[non-flip, find\_some]
     {\seqq{add\_expr\_connect\_non\_passive(lhsl, rhsl, var2exprs) = var2exprs'}}
     {
     \begin{array}{c}
@@ -162,7 +165,7 @@ Record the original type map and the connection map according to ports sequecnse
       type\_of\_ref'(r, tmap) = (t\_tgt, \_)  \\
       type\_of\_exp(exp, tmap) = t\_src \\ 
       lhsl = list\_gtypref (r, t\_tgt, flip\_tgt) \\
-      rhsl = list_gtypexpr (exp, t_src)\\
+      rhsl = list\_gtypexpr (exp, t\_src)\\
       var2exprs' = add\_expr\_connect (lhsl, rhsl) var2exprs \\
       tmap' = tmap
      \end{array}
@@ -174,7 +177,7 @@ Record the original type map and the connection map according to ports sequecnse
     {
     \begin{array}{c}
       s = r \mbox{ is invalid} \\
-      type\_of\_ref(r, tmap) \neq none \\
+      type\_of\_ref(r, tmap) $\neq$ none \\
       (tmap', var2exprs') = (tmap, var2exprs)
      \end{array}
     }
@@ -196,10 +199,10 @@ Record the original type map and the connection map according to ports sequecnse
     {
     \begin{array}{c}
       s = \mbox{node } x = e \wedge tmap(id(x)) = none  \\
-      type\_of\_exp(e, tmap) = t_src \\
-      tmap' = add((id(x), (t_src, \source)), tmap) \\
+      type\_of\_exp(e, tmap) = t\_src \\
+      tmap' = add((id(x), (t\_src, \source)), tmap) \\
       lhsl = list\_gtypref (x, t\_src, false) \\
-      rhsl = list_gtypexpr (e, t_src)\\
+      rhsl = list_gtypexpr (e, t\_src)\\
       var2exprs' = add\_expr\_connect (lhsl, rhsl) var2exprs 
      \end{array}
     }
@@ -219,10 +222,10 @@ Record the original type map and the connection map according to ports sequecnse
     {
     \begin{array}{c} 
       s = \mbox{reg } x: t \ clk \mbox{ with: reset =>} (rsig, rval)  \\
-      tmap(id(x)) = none \wedge type\_of\_exp(clk, tmap) \neq none  \\
+      tmap(id(x)) = none \wedge type\_of\_exp(clk, tmap) $\neq$ none  \\
       tmap' = add((id(x), (t, \duplex)), tmap) \\
       lhsl = list\_gtypref (x, t, false) \\
-      rhsl = list_gtypexpr (rval, t)\\
+      rhsl = list\_gtypexpr (rval, t)\\
       var2exprs' = add\_expr\_connect (lhsl, rhsl) var2exprs 
      \end{array}
     }
@@ -233,7 +236,7 @@ Record the original type map and the connection map according to ports sequecnse
     {
     \begin{array}{c}
       s = \mbox{reg } x: t \ clk \\
-      tmap(id(x)) = none \wedge type\_of\_exp(clk, tmap) \neq none  \\
+      tmap(id(x)) = none \wedge type\_of\_exp(clk, tmap) $\neq$ none  \\
       tmap' = add((id(x), (t, \duplex)), tmap) \\
       var2exprs' = var2exprs
      \end{array}
@@ -245,7 +248,7 @@ Record the original type map and the connection map according to ports sequecnse
     {
     \begin{array}{c}
       s = \mbox{when } c: sst \mbox{ else }: ssf  \\
-      type\_of\_exp(c, scope) \neq none \\
+      type\_of\_exp(c, scope) $\neq$ none \\
       stmts\_tmap'((tmap, var2exprs), sst) = (tmap'', var2exprs'') \\
       stmts\_tmap'((tmap'', var2exprs''), ssf) = (tmap', var2exprs')
      \end{array}
@@ -294,7 +297,7 @@ Record the original type map and the connection map according to ports sequecnse
     {\seqq{type\_of\_field'(f, ff, flip) = (ft, flip')}}
     {
     \begin{array}{c}
-    f f = (f', flipped, t, ff')\wedge f \neq f'\\
+    f f = (f', flipped, t, ff')\wedge f $\neq$ f'\\
     type\_of\_field'(f, ff', flip) = (ft, flip')
     \end{array}
     }
@@ -331,7 +334,7 @@ the {\tt ports\_stmts\_tmap'} function will update $tmap$ by
 the {\tt ports\_stmts\_tmap'} function will update $var2exprs$ by
  $$ {var2exprs':= var2exprs \uplus \{v.a : \{w.a\} \} \uplus \{v.b : \{w.b\} \}} $$
 
-Draw the dependency graph according to the connection map. The Coq function {\tt drawg}, given elements in the connection map, generates the dependency graph by adding edges from every component in a expression to the target component. To make the calculation simpler, only components with uninferred implicit width are involved in the dependency graph,
+    \item Draw the dependency graph according to the connection map. The Coq function {\tt drawg}, given elements in the connection map, generates the dependency graph by adding edges from every component in a expression to the target component. To make the calculation simpler, only components with uninferred implicit width are involved in the dependency graph,
 
 \begin{table}[htbp]
   \small
@@ -347,7 +350,7 @@ Draw the dependency graph according to the connection map. The Coq function {\tt
     {
     \begin{array}{c}
       elements \ var2exprs = v : el\ tl \\
-      type_of_ref(v, tmap) = (t, \_) \wedge not_implict t \\
+      type\_of\_ref(v, tmap) = (t, \_) \wedge not_implict t \\
       (vertices', g') = drawg (tl, tmap, vertices, g)
     \end{array}
     }
@@ -358,7 +361,7 @@ Draw the dependency graph according to the connection map. The Coq function {\tt
     {
     \begin{array}{c}
       elements \ var2exprs = v : el\ tl \\
-      type_of_ref(v, tmap) = (t, \_) \wedge not_implict t = false \\
+      type\_of\_ref(v, tmap) = (t, \_) \wedge not_implict t = false \\
       (vertices'', g'') = drawel(v, el, vertices, g) \\
       (vertices', g') = drawg (tl, tmap, vertices'', g'')
     \end{array}
@@ -424,9 +427,10 @@ Draw the dependency graph according to the connection map. The Coq function {\tt
   \vspace{-6mm}
 \end{table}
 
-Generate the topological order of all the uninferred ground type components. Given the vertices set and the graph, the correctness of sorting algorithm {\tt topo\_sort} is certified. Because the module components depends on each other through connections and operations, implicit widths should be inferred sequentially in the order of topological order,
+    \item Generate the topological order of all the uninferred ground type components. Given the vertices set and the graph, the correctness of sorting algorithm {\tt topo\_sort} is certified. Because the module components depends on each other through connections and operations, implicit widths should be inferred sequentially in the order of topological order,
 
-Finally, compares the widths of each expression connected to the same component, and chooses the larger width. Since the last connect semantics is not considered, each connection to the component provides a potential width. A function named {\tt max\_ftlist} compares the potential widths and outputs the maximum one. 
+    \item Compare the widths of each expression connected to the same component, and chooses the larger width. Since the last connect semantics is not considered, each connection to the component provides a potential width. A function named {\tt max\_ftlist} compares the potential widths and outputs the maximum one. 
+    
 the Coq function {\tt InferWidths\_fun} calls {\tt InferWidth\_fun} on the list of topological order, where the widths are inferred according to connect statements. 
 
 \begin{table}[htbp]
@@ -494,7 +498,7 @@ the Coq function {\tt InferWidths\_fun} calls {\tt InferWidth\_fun} on the list 
   \label{tab:InferWidths-fun}
   \vspace{-6mm}
 \end{table}
-
+\end{enumerate}
 
 %%%%%%%%%%%%%%%
 %\hide{
