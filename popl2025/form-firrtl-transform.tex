@@ -6,7 +6,7 @@ In this section, we show how the lowering transformations of HiFIRRTL, which wer
 These three transformations are the key transformations from {\hifirrtl} programs to {\lofirrtl} ones. 
 Moreover, we shall show how to prove the semantics preservation property of these three transformations. 
 
-For simplicity, let us focus on a {\hifirrtl} circuit $A$ that contains no \prettyll{inst of} statements, that is, circuit $A$ contains exactly one top-level module $A$.
+For simplicity, let us focus on a {\hifirrtl} circuit that contains no \prettyll{inst of} statements, that is, a circuit that contains exactly one top-level module $M$. We still assume an identifier function $id$ that assigns to each component name in $M$ an unique natural number. 
 
 \subsection{Formalization of Transformations}\label{sec:form-transform}
 

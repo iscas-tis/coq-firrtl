@@ -3,7 +3,9 @@
 %\subsubsection{Formalization of InferWidths}
 %By Keyin
 
-The InferWidth transformation is formalized 
+Since the InferWidth transformation only modifies the declaration statements, we shall formalize it as a function $\inferwidth_M$ from $\range{id} \rightarrow \ftypes$ to $\range{id} \rightarrow \ftypes$. 
+To define $\inferwidth_M$, we first compute from $M$ a topological sorting of the dependency graph of its ground-type components, denoted by $tpSort$. Moreover, we compute from $M$ a mapping $connExps$ such that  $connExps(v, m)$ is a list of expressions that are connected to $(v, m)$. Finally, $\inferwidth_M$ is defined as $infer$
+
 
 We formalize the ``InferWidths'' pass by defining a Coq function ${\sf inferWidthsM}:{\sf M} \rightarrow {\sf M}$, which contains two process. The first process ${\sf inferWidthsStage1 : M \rightarrow tmap}$ calculates the topological order of dependency graph of $M$ and iterates on the topological sorted order to updates a $tmap$, so that the bit widths of all the components with undefined bit widths can be determined. Then the second process ${\sf inferWidthsStage2 : M \times tmap \rightarrow M}$ produce a new module with inferred bit widths and explicit widths instead of implicit widths in the original module.
 
