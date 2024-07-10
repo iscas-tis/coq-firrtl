@@ -5,100 +5,113 @@
 
 Since the InferWidth transformation only modifies the declaration statements, we shall formalize it as a function $\inferwidths$ such that for each module $M$, $\inferwidths(M)$ is a function from $\range{id}$ to $\ftypes$ where all the widths are explicit (i.e. nonzero). With the mapping $\inferwidths(M)$, it is a routine to replace the types of components in $M$ by those in $\inferwidths(M)$ and generate a new module $M'$ where all the widths are explicit. 
 
-To compute $\inferwidths(M)$, we first call the procedure $\tycnmap(M)$ to compute a pair $(tm, cm)$ such that $tm$ is a type mapping, i.e. a function from $\range{id}$ to $\ftypes$,  and $cm$ is a connection mapping, i.e. a function that assigns to each $(v,m) \in \gidset_M$ a list of expressions that are connected to $(v, m)$. 
-Note that there is a gap between $tm$ and $cm$, $tm$ records the typing information for the (not necessarily ground-type) components in $M$, while $cm$ records the connections only for ground type components. Then we call the procedure $\depgraph(cm)$ to compute a dependency graph $G$. 
-Intuitively, the dependency graph $G$ is defined as follows: If a component of identifier $(v', m')$ occurs in $cm(v, m)$, then there is an edge from $(v',m')$ to $(v, m)$. 
-We assume that \emph{$G$ is acyclic} and compute a topological sorting of $G$, say $ts$. For convenience, we represent $ts$ as a vertex sequence. 
-Then we define a recursive function $tm_1 \xrightarrow[cm]{vs} tm_2$ where $tm_1, tm_2 \in \range{id} \rightarrow \ftypes$ and $vs$ is a sequence of vertices in $G$.
-Finally, we define $\inferwidths(M)$ as $tm'$ such that $tm \xrightarrow[cm]{ts} tm'$. Note here we require that the dependency graph $G$ is acyclic. This technical choice is justified by the fact that inferring widths for cyclic dependency graphs is error-prone \footnote{See e.g. xxx for the the bugs of Firtool related to this.} \zhilin{please add a link here} and it is unclear how the semantics should be defined in this situation.  
+The computation of $\inferwidths(M)$ comprises the following steps. The main idea is to focus on the ground-type components that are flattened from the components in $M$, infer the widths of the ground types, and finally assemble the ground types into aggregate types where all the widths are explicit. 
+\begin{itemize}
+\item We first call the procedure $\tycnmap(M)$ to compute a triple $(tm, gtm, gcm)$ such that $tm$ is a type mapping from $\range{id}$ to $\ftypes$, and $gtm$ is a ground-type mapping, i.e. a function from $\gidset_M$ to $\gtypes$,  and $gcm$ is a ground-type connection mapping, i.e. a function that assigns to each $(v, m) \in \gidset_M$ a list of ground-type expressions that are connected to $(v, m)$. 
+%
+%Note that there is a gap between $tm$ and $cm$, $tm$ records the typing information for the (not necessarily ground-type) components in $M$, while $cm$ records the connections only for ground type components. 
+\item We call the procedure $\depgraph(gcm)$ to compute a dependency graph $G = (V, E)$ from $gcm$. We choose to focus on component of implicit widths. Therefore, we set $V$ to be the set of $(v, m) \in \gidset_M$ such that in the ground type of the component denoted by $(v, m)$, the width is implicit.  
+Moreover, the set of edges in $G$ is defined as follows: If $(v, m) \in V$ and a component of identifier $(v', m') \in V$ occurs in $cm(v, m)$, then there is an edge from $(v',m')$ to $(v, m)$. 
+%
+\item We assume that \emph{$G$ is acyclic} and compute a topological sorting of $G$, say $ts$. For convenience, we represent $ts$ as a vertex sequence. 
+%
+\item Then we define a recursive function $gtm_1 \xrightarrow[cm]{vs} gtm_2$ where $gtm_1, gtm_2 \in \range{id} \rightarrow \ftypes$ and $vs$ is a sequence of vertices in $G$. Let $gtm'$ be the type mapping such that $gtm \xrightarrow[cm]{ts} gtm'$. 
+%
+\item Finally, we construct $\inferwidths(M)$ as a mapping $tm'$ in$\range{id} \rightarrow \ftypes$, which is obtained by calling the procedure $\instantiate(tm, gtm')$ to instantiate the implicit widths in $tm$ according to $gtm'$. 
+\end{itemize}
+
+Note here we require that the dependency graph $G$ is acyclic. This technical choice is justified by the fact that inferring widths for cyclic dependency graphs is error-prone\footnote{See e.g. \url{https://github.com/llvm/circt/issues/1271} and \url{https://github.com/llvm/circt/issues/6742} for the the bugs in Firtool related to this.} and it is unclear how the semantics should be defined for the general case.  
 
 %\begin{figure}[htbp]
   \begin{gather*}
   \def\defaultHypSeparation{\hskip 10pt}
-    \inferiv[]
-    {\seqq{\inferwidths(M) = tm'}}
-    {\seqq{\tycnmap(M) = (tm, cm)}}
-    {\seqq{G = \depgraph(cm)}}
-    {\seqq{\topsort(G) = ts}}
-    {\seqq{tm \xrightarrow[cm]{ts} tm'}}
+    \infer[xx]
+     {\seqq{\inferwidths(M) = tm'}}
+     {
+     \begin{array}{c}
+      \tycnmap(M) = (tm, gtm, gcm) \hspace{15pt} G = \depgraph(gcm) \hspace{15pt} \topsort(G) = ts\\
+    gtm \xrightarrow[gcm]{ts} gtm'  \hspace{20pt}  tm' = \instantiate(tm, gtm')
+    \end{array}
+    }
   \end{gather*}
 %\end{figure}
 
 The definition of the function $\tycnmap(M)$, that is, the computation of $(tm, cm)$, is roughly the combination of the function $\portsstmtstmap$ and the relation $cm_1 \xrightarrow[tm, tmap]{ss} cm_2$ in Section~\ref{sec-form-firrtl}. The construction of a dependency graph from $cm$, i.e.  the procedure $\depgraph(cm)$, is easy to understand. 
-The procedure $\topsort(G)$ is adapted from a depth-first search (DFS) algorithm in the graph library of the mathematical components repository~\cite{DP20,CoqGraph}. Given a directed graph $G$, $\topsort(G)$ either reports that the input graph is acyclic and outputs a topological sorting of the acyclic graph, or reports that the input graph is cyclic and outputs a cycle. Moreover, accordingly, we prove the correctness of the topological sorting algorithm by adapting the correctness proof of the DFS algorithm.
-To avoid tediousness, we omit the detailed definitions of $\tycnmap(M)$, $\depgraph(cm)$, and $\topsort(G)$ here. 
+The procedure $\topsort(G)$ is adapted from a depth-first search (DFS) algorithm in the graph library of the mathematical components repository~\cite{DP20,CoqGraph}. Given a directed graph $G$, $\topsort(G)$ either reports that the input graph is acyclic and outputs a topological sorting of the acyclic graph, or reports that the input graph is cyclic and outputs a cycle. Moreover, accordingly, we prove the correctness of the topological sorting algorithm by adapting the correctness proof of the DFS algorithm. The procedure $\instantiate(tm, gtm')$ can also be easily defined.  
+To avoid tediousness, we omit the detailed definitions of $\tycnmap(M)$, $\depgraph(gcm)$, $\topsort(G)$, and $\instantiate(tm, gtm')$ here. 
 
-In the sequel, we show how the function $tm \xrightarrow[cm]{ts} tm'$ is defined. 
+In the sequel, we show how the function $gtm \xrightarrow[cm]{ts} gtm'$ is defined. 
+$gtm \xrightarrow[cm]{ts} gtm'$ is defined by the following two rules,  for the cases $ts = \nil$ and $ts \neq \nil$ respectively. The first rule is trivial, that is, we have $gtm \xrightarrow[gcm]{\nil} gtm$. For the case $ts \neq \nil$, let $ts = (v, m)\ ts'$, then 
+\begin{itemize}
+\item it obtains the ground type $gt = gtm(v, m)$ and the list of ground-type expressions $cgels = gcm(v, m)$ connected to $(v, m)$, 
+\item moreover, it computes the corresponding list $cgtls$ of ground types for $cgels$, 
+\item then it calls $\maxgtlist(gt, cgtls)$ to choose the maximum width among them and obtain $newgt$, 
+\item let $gtm'' = gtm[newgt/(v, m)]$, i.e. the ground-type mapping obtained from $gtm$ by assigning $nwegt$ to $(v, m)$, 
+\item finally, it recursively calls $gtm'' \xrightarrow[gcm]{ts'} gtm'$ to compute $gtm'$. 
+\end{itemize}
+%
+%  \begin{gather*}
+%    \infer[]
+%    {\seqq{gtm \xrightarrow[gcm]{ts} gtm}}
+%    {\seqq{ts = \nil}}
+%\end{gather*}
 
+  \begin{gather*}
+    \infer[]
+    {\seqq{gtm \xrightarrow[gcm]{ts} gtm'}}
+    {
+    \begin{array}{c}
+      ts = (v, m)\ ts' \hspace{15pt} gt = gtm(v, m) \hspace{15pt}
+      cgels = gcm(v, m) \\
+     cgtls = \fmap(fun (e \Rightarrow \typeofexp(e)), cgels) \hspace{15pt}
+     newgt = \maxgtlist(gt, cgtls) \hspace{15pt} \\
+     gtm'' = gtm[newgt/(v, m)] \hspace{15pt}
+     gtm'' \xrightarrow[gcm]{ts'} gtm'
+    \end{array}
+    }
+\end{gather*}
+
+The procedure $\maxgtlist(gt, cgtls)$ is defined by the rules in Fig.~\ref{fig:maxgtlist}. 
 
 %We formalize the ``InferWidths'' pass by defining a Coq function ${\sf inferWidthsM}:{\sf M} \rightarrow {\sf M}$, which contains two process. The first process ${\sf inferWidthsStage1 : M \rightarrow tmap}$ calculates the topological order of dependency graph of $M$ and iterates on the topological sorted order to updates a $tmap$, so that the bit widths of all the components with undefined bit widths can be determined. Then the second process ${\sf inferWidthsStage2 : M \times tmap \rightarrow M}$ produce a new module with inferred bit widths and explicit widths instead of implicit widths in the original module.
 
-\zhilin{stopped here}
-
-\begin{table}[htbp]
-  \small
+\begin{figure}[htbp]
   \begin{gather*}
     \infer[\nil]
-    {\seqq{tm \xrightarrow[cm]{ts} tm'}}
-    {\seqq{ts = \nil}}
+    {\seqq{\maxgtlist(gt, cgtls) = gt}}
+    {\seqq{cgtls = \nil}}
     \quad
    \\[1ex]
-    \infer[$\neq$ \nil]
-    {\seqq{tm \xrightarrow[cm]{ts} tm'}}
+    \infer[$\neq$\nil: \uintimp]
+    {\seqq{\maxgtlist(gt, cgtls) =  newgt'}}
     {
     \begin{array}{c}
-      ts = (v, m)\ ts' \\
-      cels = cm(v) \\
-       tm \xrightarrow[cm]{ts}  (v, cels, tmap) \\
-      tmap' = {\sf inferWidthsFun} (tl, var2exprs, tmap'')
+      cgtls = gt' \ ls' \hspace{15pt} 
+      gt = (\uintimp, n)  \hspace{15pt} 
+      gt' = (\uintimp, n') \\
+      newgt = (\uintimp, \max(n, n')) \hspace{15pt}  newgt' = \maxgtlist(newgt, ls')
     \end{array}
     }
     \quad
    \\[1ex]
-    \infer[{\sf inferWidthFun}]
-    {\seqq{{\sf inferWidthFun}(v, el, tmap) = \fadd((v.1,0), newft, tmap)}}
+    \infer[$\neq$\nil: \sintimp]
+    {\seqq{\maxgtlist(gt, cgtls) =  newgt'}}
     {
     \begin{array}{c}
-      {\sf typeOfRef'}(v, tmap) = (initt, \_) \wedge  {\sf typeOfRef'}((v.1,0),tmap) = (ft, \_)\\
-      newt = {\sf maxFtList}(initt, map (({\sf typeOfExp}(tmap)) \leftarrow el)) \\
-      newft = {\sf ftSetSub}(newt,v.2,ft) 
+      cgtls = gt' \ ls' \hspace{15pt} 
+      gt = (\sintimp, n)  \hspace{15pt} 
+      gt' = (\sintimp, n') \\
+      newgt = (\sintimp, \max(n, n')) \hspace{15pt}  newgt' = \maxgtlist(newgt, ls')
     \end{array}
     }
-    \quad
-   \\[1ex]
-    \infer[{\sf maxFtList}: \nil]
-    {\seqq{{\sf maxFtList}(initt, tel) = initt}}
-    {\seqq{tel = \nil}}
-    \quad
-   \\[1ex]
-    \infer[{\sf maxFtList}: $\neq$ \nil]
-    {\seqq{{\sf maxFtList}(initt, tel) = {\sf maxFtList}(newt', tl) }}
-    {
-    \begin{array}{c}
-      tel = gt \ tl \\
-      newt' = {\sf maxFgtyp}(initt, gt) 
-    \end{array}
-    }
-    \quad
-   \\[1ex]
-    \infer[{\sf maxFgtyp}: {\sf UIntImp}]
-    {\seqq{{\sf maxFgtyp}(initt, te) = ({\sf UIntImp},{\sf max}(w, {\sf sizeOfGtyp}(te)))}}
-    {\seqq{initt = ({\sf UIntImp},w)}}
-    \quad
-   \\[1ex]
-    \infer[{\sf maxFgtyp}: {\sf SIntImp}]
-    {\seqq{{\sf maxFgtyp}(initt, te) = ({\sf SIntImp},{\sf max}(w, {\sf sizeOfGtyp}(te)))}}
-    {\seqq{initt = ({\sf SIntImp},w)}}
   \end{gather*}
- \vspace{-4mm}
-  \caption{${\sf inferWidthsFun}$, ${\sf inferWidthsFun}$, ${\sf maxFtList}$ and ${\sf maxFgtyp}$}
-  \label{tab:InferWidths-fun}
-  \vspace{-6mm}
-\end{table}
+  \caption{$\maxgtlist$}
+  \label{fig:maxgtlist}
+\end{figure}
 
 
-
-
+%%%%%%  the original texts by Keyin
+\hide{
 The rationale behind the {\sf inferWidthM} function is stated as follows: The function  {\sf inferWidthsStage1} always chooses the maximum width of the expressions that are connected to the component $v$. 
 
 The behavior of the function {\sf inferwidthsM} on a module contains the folowing steps :
@@ -123,7 +136,9 @@ the {\sf {\sf portsStmtsTmap'}} function will update $var2exprs$ by
     
 the Coq function {\sf inferWidthsFun} calls {\sf {\sf inferWidthsFun}} on the list of topological soreted order, where the widths are inferred sequentially according to the dependencies. 
 \end{enumerate}
-
+}
+%%%%%%  the original texts by Keyin
+%%%%%%  the original texts by Keyin
 
 
 
