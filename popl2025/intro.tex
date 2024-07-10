@@ -7,14 +7,15 @@
 
 %FIRRTL originated from the high-level hardware construction language Chisel~\cite{BachrachVRLWAWA12}.
 
-Chisel (Constructing Hardware in a Scala Embedded Language~\cite{BachrachVRLWAWA12}) is an open-source hardware description language used to describe digital electornics and circuits and the register-transfer level. 
+Chisel (Constructing Hardware in a Scala Embedded Language~\cite{BachrachVRLWAWA12}) is an open-source hardware description language
+used to describe digital electronics and circuits at the register-transfer level (RTL).
 %
 As a domain specific language, Chisel is %embedded in 
 based on Scala, comprising a library of special class definitions, predefined objects, and usage conventions for writing highly-parameterized hardware design generators.
 High-level hardware generators in Chisel are developed by manipulating circuit components using Scala functions, and their interfaces are encoded by Scala types.
 Hardware can also be constructed by leveraging Scala's functional and object-oriented programming features, thus enabling parameterized, modular, and reusable hardware generators that improve the productivity and robustness of  hardware designs.
 Chisel has been successfully used to build RISC-V processes such as Rocket Chip~\cite{RocketChip}, RISC-V BOOM \cite{Boom}, NutShell~\cite{NutShell},
-XiangShan~\cite{xiangshan,Xiangshan-github}.
+and XiangShan~\cite{xiangshan,Xiangshan-github}.
 %SiFive Core IP portfolio~\cite{SiFive},
 %and Google Edge TPU~\cite{EdgeTPU}.
 
@@ -31,7 +32,10 @@ It is noteworthy that FIRRTL was designed to compile Chisel programs, but is not
 
 Similar to C/C++ compilers (e.g., GCC and LLVM), unsurprisingly, 
 the FIRRTL compiler suffers from a considerable number of bugs due to its inherent complexity. For instance, there are 655 issues in its Github repository, among which
-99 have been labeled as bugs~\cite{FIRRTLissues}. This motivates us to investigate the formalization and verification of FIRRTL and its lowering transformations, along the similar line for formally verifying compilers of mainstream programming languages such as C/C++ (a review of which is given in Section~\ref{sec-related-work}).
+99 have been labeled as bugs~\cite{FIRRTLissues}.
+This motivated us to investigate the formalization and verification of FIRRTL and its lowering transformations,
+along a similar line as formally verifying compilers of mainstream programming languages such as C/C++
+(a review of which is given in Section~\ref{sec-related-work}).
 %
 %For instance, the width of \lstinline!dshl(e1,e2)! inferred by the ``Infer Width'' compilation pass
 %is less than the width of \lstinline!e1!~\footnote{\url{https://github.com/chipsalliance/firrtl/issues/2296}}, where \lstinline!dshl! is a dynamic shift left operation
@@ -41,7 +45,8 @@ the FIRRTL compiler suffers from a considerable number of bugs due to its inhere
 %the ``InferTypes'' compilation pass~\footnote{\url{https://github.com/chipsalliance/firrtl/issues/852}}.
 %
 %Nevertheless, 
-Partially because Chisel and FIRRTL are relatively new and the ecosystem around them is still evolving, formalization and verification of FIRRTL and its lowering transformations are largely missing. To the best our knowledge,  the only  exception is \cite{HarrisonHA21} where a coinductive denotational semantics for an idealized subset of LoFIRRTL was proposed and formalized in the Agda proof assistant, based on a formalism called device calculus. %Nevertheless, while \cite{HarrisonHA21} made some progress in the formalization of LoFIRRTL, 
+Partially because Chisel and FIRRTL are relatively new and the ecosystem around them is still evolving, formalization and verification of FIRRTL and its lowering transformations are largely missing.
+To the best our knowledge, the only exception is \cite{HarrisonHA21}, where a coinductive denotational semantics for an idealized subset of LoFIRRTL was proposed and formalized in the Agda proof assistant, based on a formalism called device calculus. %Nevertheless, while \cite{HarrisonHA21} made some progress in the formalization of LoFIRRTL,
 
 In general, a framework where programs in HiFIRRTL and its lowering transformations can be formally reasoned about 
 %is still elusive. %The establishment of 
@@ -61,15 +66,25 @@ transformations. %In this work, we present for the first time such a framework. 
 {\bf Contributions.} In this paper, we present VeFir, a framework to formally reason about programs in FIRRTL and its lowering transformations.
 %In this work, we fill in this gap and establish a general framework called Vefirrtl for formally reasoning about programs in FIRRTL and its lowering transformations. Specifically, we make the following major contributions.
 
-For (1), we define a denotation semantics for \hifirrtl. We represent a \lofirrtl program by a pair $(tm, cm)$ of type and connection mappings, and define a conformance relation between a low FIRRTL module and a HiFIRRTL program $M$, namely, $(tm, cm)\models M$. As such, the semantics $M$, i.e., $\llbracket M\rrbracket$  is interpreted as all $(tm,cm)$ such that $(tm, cm)\models M$. The main challenge is that there is a semantics gap between {\hifirrtl} and {\lofirrtl} programs: the former embraces high-level constructs such as aggregate types (e.g., bundle and vector types), implicit bit-widths for their components, and conditional statements (when), etc, whereas the latter is very close to circuits where all components are of ground type and all bit-widths must be explicitly given. 
+For (1), we define a denotational semantics for \hifirrtl.
+We represent a \lofirrtl program by a pair $(tm, cm)$ of type and connection mappings, and define a conformance relation between a low FIRRTL module and a HiFIRRTL program $M$, namely, $(tm, cm)\models M$.
+As such, the semantics $M$, i.e., $\llbracket M\rrbracket$  is interpreted as all $(tm,cm)$ such that $(tm, cm)\models M$.
+The main challenge is that there is a semantics gap between {\hifirrtl} and {\lofirrtl} programs:
+the former embrace high-level constructs such as aggregate types (i.e., bundle and vector types), implicit bit-widths for their components, and conditional statements (when),
+whereas the latter are very close to circuits where all components are of ground type and all bit-widths must be explicitly given.
 
 
 %VeFir provides a mechanized formal semantics for low FIRRTL,
 %and formalizes the syntax of FIRRTL and 
-For (2), we formalize the three key lowering transformations, i.e., InferWidths, ExpandConnect and ExpandWhens and their functional correctness based on the semantics. Based on the denotational semantics, a {\hifirrtl} program is an underspecification   which may be satisfied by many {\lofirrtl} programs and the transformations can be viewed as a refinement process, and eventually induce an ``optimal" {\lofirrtl} program which should respect all the constraints of the  {\hifirrtl} program but also admits the lowest bit-widths. 
+For (2), we formalize the three key lowering transformations, i.e., InferWidths, ExpandConnect and ExpandWhens,
+and we prove their functional correctness based on the semantics.
+Based on the denotational semantics, a {\hifirrtl} program may contain underspecified parts, which may be satisfied by many {\lofirrtl} programs.
+The transformations can be viewed as a refinement process, and eventually produce an ``optimal" {\lofirrtl} program,
+which should respect all the constraints of the {\hifirrtl} program but also admits the lowest bit-widths.
 
 
-For (3), we verify formally that these transformations preserve the semantics. All of semantics definitions, the correctness specification and the proofs are mechanized in
+For (3), we verify formally that these transformations preserve the semantics.
+All semantic definitions, the correctness specification and the proofs are mechanized in
 the interactive theorem prover Coq.
 %Vefirrtl is built using the Coq interactive theorem prover.
 %It provides a mechanized formal semantics for low FIRRTL,
@@ -78,7 +93,7 @@ the interactive theorem prover Coq.
 
 \tl{to be done}
 On top, we extract an OCaml FIRRTL compiler, which is verified by construction and is validated
-against the official MLIR FIRRTL compiler.  %interpreter from the formal semantics which %low FIRRTL  that
+against the official MLIR FIRRTL compiler  %interpreter from the formal semantics which %low FIRRTL  that
 %can execute low FIRRTL programs,
 %and empirically check its consistency against Treadle,
 %the low FIRRTL reference interpreter,

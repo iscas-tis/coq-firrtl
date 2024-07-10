@@ -54,7 +54,7 @@ circuit A :
 \vspace{-2mm}
 \end{figure}
 
-A FIRRTL \emph{circuit} comprises a list of modules with a designated top-level module that has the same identifier as the circuit.
+A FIRRTL \emph{circuit} comprises of a list of modules with a designated top-level module that has the same identifier as the circuit.
 Each module represents a hardware block that can
 be instantiated one or more times.
 %
@@ -73,7 +73,8 @@ or a \emph{bundle type,} e.g. \prettyll{\{flip enable: UInt<1>, calc: UInt<3>\}}
 
 A circuit \emph{component} is a declared element in a FIRRTL circuit that can be referred to by its name or identifier.
 Therefore, a component can be a port, node, wire, register, memory, or instance.
-A declared component can be connected to or from except for input ports that can only be connected from.
+A declared component can be connected to or from
+(respecting data flow: input ports and nodes can only be connected from; output ports can only be connected to).
 %\zhilin{component: a double check is needed}
 %\david{Double checked: ``component'' is not directly declared in the FIRRTL specification,
 %but it mostly speaks of ``declared component'', so it needs to be declared;
@@ -93,7 +94,8 @@ A \emph{type} can be either a \emph{ground type}, e.g. \begin{lstinline}!UInt<1>
 \end{comment}
 
 The syntactic rules of FIRRTL are given in Figure~\ref{fig-firrtl-synt-simp} in Extended Backus-Naur Form (EBNF), where \{$\cdots$\} denotes repetition (repeating zero or more times),
-[$\cdots$] denotes option (either included or discarded),  and the terminals are doubly quoted by \mbox{\tt ``} and \mbox{\tt ''}. We stress that the syntactic rules of FIRRTL presented here is a simplification of those in the official specification.\footnote{\url{https://github.com/chipsalliance/firrtl-spec/blob/main/spec.md}}
+[$\cdots$] denotes option (either included or discarded),  and the terminals are doubly quoted by \mbox{\tt ``} and \mbox{\tt ''}.
+We point out that the syntactic rules of FIRRTL presented here are a simplification of those in the official specification.\footnote{\url{https://github.com/chipsalliance/firrtl-spec/blob/main/spec.md}}
 %
 For instance, indent, dedent and newline terminals are omitted for readability;
 the types and constructs for analog signals are also omitted, since we focus on digital circuits in this work.
