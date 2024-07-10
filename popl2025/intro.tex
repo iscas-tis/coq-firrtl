@@ -61,20 +61,19 @@ transformations. In this work, we present for the first time such a framework.  
 {\bf Contributions.}
 %In this work, we fill in this gap and establish a general framework called Vefirrtl for formally reasoning about programs in FIRRTL and its lowering transformations. Specifically, we make the following major contributions.
 
-We introduce provide the formal semantics of FIRRTL. 
+In response to (1), we define a denotation semantics for \hifirrtl. To this end, we represent a \lofirrtl program by a pair $(tm, cm)$ of type and connection mappings, and define a conformance relation between a low FIRRTL module and a HiFIRRTL program $M$, namely, $(tm, cm)\models M$. As such, the semantics $M$, i.e., $\llbracket M\rrbracket$  is interpreted as all $(tm,cm)$ such that $(tm, cm)\models M$.  
 
 
-
-
-We provide a denotation semantics for HiFIRRTL, where the low FIRRTL module is represented by a pair of type and connection mappings and we define a conformance relation between a low FIRRTL module and a HiFIRRTL program. As such, the latter is interpreted as a set of low FIRRTL modules which conform to it.  
 %VeFir provides a mechanized formal semantics for low FIRRTL,
 %and formalizes the syntax of FIRRTL and 
-We formalize the three key lowering transformations, i.e., InferWidths, ExpandConnect and ExpandWhens and their correctness based on the semantics, and verify formally that these transformations preserve the semantics of a HiFIRRTL program. All of them are mechanized in
+In response to (2) We formalize the three key lowering transformations, i.e., InferWidths, ExpandConnect and ExpandWhens and their correctness based on the semantics, and verify formally that these transformations preserve the semantics of a HiFIRRTL program. All of them are mechanized in
 the interactive theorem prover Coq.
 %Vefirrtl is built using the Coq interactive theorem prover.
 %It provides a mechanized formal semantics for low FIRRTL,
 %and Moreover, it formalizes the syntax of FIRRTL and its lowering transformations.
 %To validate the formal semantics %for low FIRRTL,
+
+
 On top, we extract an OCaml FIRRTL compiler, which is verified by construction and is validated
 against the official MLIR FIRRTL compiler.  %interpreter from the formal semantics which %low FIRRTL  that
 %can execute low FIRRTL programs,
