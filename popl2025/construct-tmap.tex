@@ -542,7 +542,8 @@ is the core to process the statement. %, the intuitions of which is as follows.
 %
 If $s$ is a declaration statement, $\stmttmap((tmap, scope), s, tm)$ utilizes $tm$ to instantiate the types in $s$ and updates $(tmap, scope)$ to $(tmap', scope')$. We distinguish different declaration statements. 
 \begin{itemize}
-	\item Case s = \prettyll{wire x: t}. It checks $tmap(id(x)) = \svnone$ and calls $\madeexplicit(t, (id(x), 0), tm)$ to compute $newt$. The pair $(id(x), (newt, \duplex))$ is then added to both $tmap$ and $scope$. %, and obtains the return value $(tmap', scope')$. 
+	\item Case s = \prettyll{wire x: t}. It checks $tmap(id(x)) = \svnone$ and calls $\madeexplicit$ %(t, (id(x), 0), tm)$ 
+	to get $newt$. The pair $(id(x), (newt, \duplex))$ is then added to both $tmap$ and $scope$. %, and obtains the return value $(tmap', scope')$. 
 	\[
 			\inferii[\stmttmap: wire]
 			{\seqq{\stmttmap((tmap, scope), s, tm) = (tmap', scope')}}
@@ -561,7 +562,9 @@ If $s$ is a declaration statement, $\stmttmap((tmap, scope), s, tm)$ utilizes $t
 	%Note that the orientation of a \prettyll{wire} component is \duplex. 
 %	(Cf. \stmttmap: wire in Fig.~\ref{fig:stmts-tmap})
 	%
-	\item Case s = \prettyll{node x = e}. It checks $tmap(id(x)) = \svnone$, computes $t= \typeofexp(e, scope)$, and calls $\madeexplicit(t, (id(x), 0), tm)$ to obtain $newt$. $(id(x), (newt, \source))$ is then added to both $tmap$ and $scope$. %, and obtains the return value $(tmap', scope')$. 
+	\item Case s = \prettyll{node x = e}. It checks $tmap(id(x)) = \svnone$, computes $t= \typeofexp(e, scope)$, and calls $\madeexplicit$
+	%(t, (id(x), 0), tm)$ 
+	to obtain $newt$. $(id(x), (newt, \source))$ is then added to both $tmap$ and $scope$. %, and obtains the return value $(tmap', scope')$. 
 %	Note that in the function call $\typeofexp(e, scope)$, $scope$ instead of $tmap$ is used to check whether the references in $e$ are well-scoped. %Moreover, the orientation of a \prettyll{node} component is \source. 
 %	(Cf.\ \stmttmap: node in Fig.~\ref{fig:stmts-tmap})
 \[
@@ -576,10 +579,11 @@ If $s$ is a declaration statement, $\stmttmap((tmap, scope), s, tm)$ utilizes $t
 	\end{array}
 }
 \]
-	%
-	\item Case s = \prettyll{reg  x: t clk  with: reset => (rsig, rval)}.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%	%
+\item Case s = \prettyll{reg  x: t clk  with: reset => (rsig, rval)}.
 	
-	We further assume $\typeofexp(rsig, scope) = (\gtype, \asyncreset)$. It checks $tmap(id(x)) = \svnone$, $\typeofexp(clk, scope) \neq \svnone$, and $\typeofexp(rval, scope) \neq \svnone$, calls $\madeexplicit(t, (id(x), 0), tm)$ to obtain $newt$.  $(id(x), (newt, \duplex))$ is added to both $tmap$ and $scope$. %, and obtains the return value $(tmap', scope')$. 
+	We assume $\typeofexp(rsig, scope) = (\gtype, \asyncreset)$. It checks $tmap(id(x)) = \svnone$, $\typeofexp(clk, scope) \neq \svnone$, and $\typeofexp(rval, scope) \neq \svnone$, calls $\madeexplicit$ %(t, (id(x), 0), tm)$ 
+	to obtain $newt$.  $(id(x), (newt, \duplex))$ is added to both $tmap$ and $scope$. %, and obtains the return value $(tmap', scope')$. 
 %	Note that in $\typeofexp(clk, scope)$, $\typeofexp(rsig, scope)$ and $\typeofexp(rval, scope)$, $scope$, instead of $tmap$, is used to check that the references in $clk, rsig, rval$ are well-scoped. Moreover, the orientation of a \prettyll{reg} component is \duplex. (Cf. \stmttmap: reg-asyncreset in Fig.~\ref{fig:stmts-tmap})
 	%
 	\[
@@ -597,11 +601,11 @@ If $s$ is a declaration statement, $\stmttmap((tmap, scope), s, tm)$ utilizes $t
 		\end{array}
 	}
 	\]
-	
-	
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%	
 	\item Case s = \prettyll{reg  x: t \ clk with: reset => (rsig, rval)}. 
 	
-	We assume $\typeofexp(rsig, scope) = (\gtype, (\uint, 1))$. It checks $tmap(id(x)) = \svnone$ and $\typeofexp(clk, scope) \neq \svnone$, calls $\madeexplicit(t, (id(x), 0), tm)$ to obtain $newt$. $(id(x), (newt, \duplex))$ is added to $scope$ to get $scope'$. Then it checks $\typeofexp(rval, scope') \neq \svnone$, and adds $(id(x), (newt, \duplex))$ to $tmap$ 
+	We assume $\typeofexp(rsig, scope) = (\gtype, (\uint, 1))$. It checks $tmap(id(x)) = \svnone$ and $\typeofexp(clk, scope) \neq \svnone$, calls $\madeexplicit$ %(t, (id(x), 0), tm)$ 
+	to obtain $newt$. $(id(x), (newt, \duplex))$ is added to $scope$ to get $scope'$. Then it checks $\typeofexp(rval, scope') \neq \svnone$, and adds $(id(x), (newt, \duplex))$ to $tmap$ 
 	and obtains $tmap'$. 
 	\[
 			\infer[\stmttmap: reg-reset]
@@ -622,7 +626,7 @@ If $s$ is a declaration statement, $\stmttmap((tmap, scope), s, tm)$ utilizes $t
 %	Note that in $\typeofexp(clk, scope)$, $\typeofexp(rsig, scope)$, $scope$, instead of $tmap$, is used to check that the references in $clk, rsig$ are well-scoped. Moreover, because the reset signal $rsig$ is synchronous, that is, $\typeofexp(rsig, scope) = (\gtype, (\uint, 1))$, we have that in $\typeofexp(rval, scope')$, $scope'$, instead of $scope$ or $tmap$, is used to check that the references in $rval$ are well-scoped. (Cf. the rule \stmttmap: reg-reset in Fig.~\ref{fig:stmts-tmap})
 \end{itemize}
 
-For others, if $s$ is a connect or invalid statement,  $\stmttmap$ %((tmap, scope), s, tm)$ 
+For others, if $s$ is a \prettyll{connect} or \prettyll{invalid} statement,  $\stmttmap$ %((tmap, scope), s, tm)$ 
 only checks that the references or expressions are well-scoped with respect to $scope$, but does not update $(tmap, scope)$. %(see the rules \stmttmap: connect and  \stmttmap: invalid in Fig.~\ref{fig:stmts-tmap})
 \[
 		\inferii[\stmttmap: connect]
@@ -666,14 +670,13 @@ first calls $\stmtstmap$ %((tmap, scope), sst, tm)$
 to compute $(tmapt, scopet)$, then calls  $\stmtstmap((tmapt, scope), ssf, tm)$ to compute $(tmapf, scopef)$, finally returns the pair $(tmapf, scope)$. 
 \[
 		\inferii[\stmttmap: when]
-{\seqq{\stmttmap((tmap, scope), s, tm) = (tmap', scope)}}
+{\seqq{\stmttmap((tmap, scope), s, tm) = (tmapf, scope)}}
 {\seqq{s = \mbox{when } cond\mbox{: } sst \mbox{ else: } ssf }}
 {
 	\begin{array}{c}
 		\typeofexp(cond, scope) \neq \svnone \\
 		\stmtstmap((tmap, scope), sst, tm) = (tmapt, \_) \\
-		\stmtstmap((tmapt, scope), ssf, tm) = (tmapf, \_) \\
-		tmap' = tmapf  
+		\stmtstmap((tmapt, scope), ssf, tm) = (tmapf, \_)  
 	\end{array}
 }
 \]
