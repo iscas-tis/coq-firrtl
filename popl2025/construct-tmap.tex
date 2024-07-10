@@ -564,7 +564,7 @@ If $s$ is a declaration statement, $\stmttmap((tmap, scope), s, tm)$ utilizes $t
 	%
 	\item Case s = \prettyll{node x = e}. It checks $tmap(id(x)) = \svnone$, computes $t= \typeofexp(e, scope)$, and calls $\madeexplicit$
 	%(t, (id(x), 0), tm)$ 
-	to obtain $newt$. $(id(x), (newt, \source))$ is then added to both $tmap$ and $scope$. %, and obtains the return value $(tmap', scope')$. 
+	to obtain $newt$. $(id(x), (newt, \source))$ is then added to $tmap$ and $scope$. %, and obtains the return value $(tmap', scope')$. 
 %	Note that in the function call $\typeofexp(e, scope)$, $scope$ instead of $tmap$ is used to check whether the references in $e$ are well-scoped. %Moreover, the orientation of a \prettyll{node} component is \source. 
 %	(Cf.\ \stmttmap: node in Fig.~\ref{fig:stmts-tmap})
 \[
