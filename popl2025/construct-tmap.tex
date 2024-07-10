@@ -26,8 +26,8 @@ inputs and nodes:\source, (3) outputs: \sink,
 
 %To tackle the mismatch between $tm$ and $tmap$, 
 To make the bit-width %in $tm$ 
-explicit, we introduce a function $\madeexplicit$ (see Fig.~\ref{fig:made-explicit}), which takes three arguments $(ft, id, tm)$ where $ft \in \ftypes$, $id \in \gidset_M$ and $tm$ is a type mapping, and %Intuitively, $\madeexplicit$ utilizes $id$ and $tm$ to determine 
-prescribes the bit widths. % for $ft$. 
+explicit, we introduce a function $\madeexplicit$, which takes three arguments $(ft, id, tm)$ where $ft \in \ftypes$, $id \in \gidset_M$ and $tm$ is a type mapping, and %Intuitively, $\madeexplicit$ utilizes $id$ and $tm$ to determine 
+prescribes the bit-widths. % for $ft$. 
 %
 % (i.e. the widths for the ground types $(\uintimp, 0)$ and $(\sintimp, 0)$), resulting in a new type $newt$ where all the widths are explicit (i.e. non-zero). 
 %
@@ -108,7 +108,7 @@ and obtains $(x,b,t')$.
   	\seqq{\madeexplicitfields(\vec{f}, id, tm) = newt}
   }
 \]
-where $\madeexplicitfields(\vec{f}, id, tm)$ is self-explanatory. 
+where $\madeexplicitfields(\vec{f}, id, tm)$ is mostly self-explanatory. 
 %    {
 	%    \begin{array}{c}
 		%    ft = (\btype, \vec{f}) \wedge
