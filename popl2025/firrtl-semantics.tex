@@ -92,7 +92,7 @@ In particular, $\gtypes$ can model types of implicit width in $M$. For instance,
 In $tm$,  the ground types are annotated with component sorts (e.g., input and output ports, wires, etc). To accommodate this, we define \emph{extended ground types} $\egtypes$ as %the set of vertex sorts.
 \begin{itemize}
 \item $(s, t)$ with $s \in \{\inport, \outport, \wire, \node\}$ and $t \in \gtypes$, or 
-\item $(\register, (t, clk, rsig, rval, b))$ such that $t \in \gtypes$, $clk, rsig, rval \in \exps$ and $b\in \{0,1\}$. (Intuitively, $clk$ represents a clock, $rsig$ represents a reset signal, and $rval$ represents a reset value, and $b$ is a Boolean value denoting whether the reset is asynchronous or not).
+\item $(\register, (t, clk, rsig, rval, b))$ such that $t \in \gtypes$, $clk, rsig, rval \in \exps$ and $b\in \{0,1\}$. (Intuitively, $clk$ represents a clock, $rsig$ represents a reset signal, and $rval$ represents a reset value, and $b$ is a Boolean value denoting whether the reset is asynchronous or not.)
 \end{itemize}
 We also assume $\svnone,\svundefined \in \egtypes$.
 
@@ -123,9 +123,9 @@ Intuitively, an identifier $(v, m)$ in $tm$ is used to refer to the ground-type 
 \begin{itemize}
 \item either $v$ is the identifier of a ground-type component and $m = 0$,
 %
-\item or $v$ is the identifier of a vector-type component in $M$,  and $m$ is an index in the vector,
+\item or $v$ is the identifier of a vector-type component in $M$ and $m$ is an index in the vector,
 %
-\item or $v$ is the identifier of a bundle-type component in $M$, and $m$ is the offset of a ground-type field in the component.
+\item or $v$ is the identifier of a bundle-type component in $M$ and $m$ is the offset of a ground-type field in the component.
 \end{itemize}
 Let $\gidset_M$ denote the set of such identifiers $(v,m)$.
 
