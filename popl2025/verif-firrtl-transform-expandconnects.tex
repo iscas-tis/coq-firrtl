@@ -1,25 +1,24 @@
 %!TEX root = main.tex
 
-Let $M$ be the Firrtl program before applying the ``ExpandConnections'' pass, and {\tt expand\_connect}$(M)$ be the returned program of the pass.
+Let $M$ be the Firrtl program before applying the ExpandConnections pass, and \expandconnects $(M)$ be the program returned.
 
 \paragraph*{Specification}
-The correctness of {\tt expand\_connect} is specified by the formula 
+The correctness of \expandconnects is specified by the formula 
 %
-$$(tm,\,cm) \models \,{\tt expand\_connect}(M) \imply (tm,\,cm) \models \,M. $$
+$$(tm,\,cm) \models \, \expandconnects(M) \rightarrow (tm,\,cm) \models \,M. $$
 %
 The formula states that if the pair of the typing mapping $tm$ and the
-connection mapping $ct$ conform to the program of produce by {\tt
-expand\_connect} from $M$, then the same pair of $tm$ and $ct$ should
+connection mapping $ct$ conform to the program of produce by \expandconnects $(M)$, then the same pair of $tm$ and $ct$ should
 also conform to the original program $M$.  More specifically, the
-Firrtl programs before and after the ``ExpandConnections'' pass should
+Firrtl programs before and after the ExpandConnections pass should
 reflect the same low-level circuit.  The process of
-``ExpandConnections'' expects an equivalent representation of the
+ExpandConnections expects an equivalent representation of the
 original program with the aggregate typed objects now presented in
 ground types.
 
 To prove the conformance holds for the original Firrtl module, we need
 to find such clues from the conformance after the expansion. Such
-information can be found through the {\tt expand\_connect} function,
+information can be found through the \expandconnects function,
 by analyzing cases when it is applied to different kinds of statements
 in that module.
 
@@ -32,23 +31,27 @@ Recall the semantics focuses on four main points for connection
 statements between references. The first is that the two references
 are already declared, which means they are already in the typing
 mapping $tm_0$. The second is that their orientations can fit
-together, e.g. from the orientation \source to \sink. The third is to
+together, e.g. from the orientation \source\, to \sink\,. The third is to
 ensure the compatibility of types of the two objects. The last is to
 have the connection mapping $cm$ to contain the corresponding
 right-hand side.
 
 The semantics for a general connection states the conformance for all
-the subfields at once. The subfields are obtained from expanding the
-references in the original statement. On the other hand, {\tt
-expand\_connect} is a function mapping from one connection statement
-to a list of connection statements on ground types.  If directly use
-the relation rules for statement sequence, we need to reason on every
-intermediate state throught the whole sequence.  It is more convient
-to extract one conclusion from the sequence to meet the semantics.
-The different if the semantics rules for sequence considers all kinds
-of statements, but in this case we have only connections between references,
-and especially ground typed ones.
-%% Formally, the lemma we want to proof orig
+the subfields at once. 
+% The subfields are obtained from expanding the references in the original statement.
+On the other hand, \expandconnects is a function mapping from one connection statement
+to a list of connection statements on ground types.
+If directly use
+the semantics relation rules for statement sequence, we need to reason on every
+intermediate state throught the whole sequence.
+It is more convient
+to extract one conclusion from the sequence which contains only the connections of references in ground types.
+
+Concretely, the lemma we want to proof will change from
+%%
+to
+%%
+We then can benefit from using the lemmas provided by the Seq library from mathcomp \xiaomu{references}.
 
 
 \hide{

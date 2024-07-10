@@ -27,33 +27,27 @@ directions.
 At the beginning of a Firrtl module, ports are declared first. When
 ports are defined with flipped subfields, the expansion process will
 change those fields of input ports into output ports, and vice
-versa. As a result, their orientations are changed between \source
-and \sink.
+versa. %As a result, their orientations are changed between \source \, and \sink.
  \begin{gather*}
    \label{expand-input}
    \infer[]
          {\seqq{\expandconnects(\mbox{\prettyll{input} }x: t) = pp}}
          {\begin{array}{c}
-             \seqq{{\expandref(x)} = rl \wedge \listgtyperef(t, \lfalse) = tl }\\
+             \seqq{{\expandref(x)} = rl \wedge \listgtype(t, \lfalse) = tl }\\
              \seqq{ pp= {\tt map2}\; (fun\; (v, (gt, flipped)) \Rightarrow if\; flipped \;then\; \mbox{\prettyll{output}}\ v: gt  \;else\; \mbox{\prettyll{input} }v: gt)\, (rl, tl)}
            \end{array}
          }
  \end{gather*}
- The {\tt expand\_connect} function takes a statement as input and
+The \expandconnects function takes a statement as input and
 produces a sequence of statements as output. In the case above, the
-input statement is the port declaration ``\mbox{\prettyll{input v t}}'',
+input statement is the port declaration ``$\mbox{\prettyll{input }}x : t$'',
 and ``$pp$'' is the sequence of output. The ``$pp$'' is produced by
-expanding the port to its atomic subfields using {\tt expand\_ref v}
-with its type expanded by {\tt flatten\_ftype t}.
-Then it flips the port orientation by judging whether the
-subfields are marked with ``flip''. Here, the {\tt map2}
+expanding the port reference and expanding its type.
+According to the flip information carried by the types, the input port may be flipped to a output port.
+Here, the {\tt map2}
 is the general operation for lists that applies a function over two
-lists. In the {\tt expand\_connect} function for
-``\mbox{\prettyll{input v t}}'', it applies the the function 
-{\tt is\_flipped} over the list of expanded references $[v_0,\dots v_n]$
-and the list of flattened types $[t_0,\dots t_n]$.
-The result $pp$ is composed by 
-the new sequence of declaration statements for input and output ports.
+lists. It applies the generation function of input/output port statement to the
+lists $(rl,tl)$ produced by expanding references and expanding types.
 
 Elements such as wires and registers have duplex
 orientation. Regardless of the flip subfields in the original
@@ -64,50 +58,56 @@ omitted here.
 \begin{gather*}
   \label{expand-reg}
   \infer[]
-        {\seqq{{\tt expand\_connect} (\mbox{\prettyll{reg v : t clk with : (reset => rst, rv)}}) = ss}}
+        {\seqq{\expandconnects (\mbox{\prettyll{reg}}\; x:\,t\,clk\,\mbox{\prettyll{with: reset=> (rsig, }}rval)) = ss}}
         {\begin{array}{c}
-            \seqq{{\tt expand\_ref \;}v = [v_0,\dots v_n]}\\
-            \seqq{{\tt flatten\_ftype \;t} = [t_0,\dots t_n]}\\            
-            \seqq{{\tt expand\_expr \;}rv = [rv_0,\dots rv_n]}\\
-            \seqq{ s s= {\tt map3}\; (fun\; v_x\;t_x\; rv_x\; \Rightarrow \mbox{\prettyll{reg}}\; v_x:\,\mbox{\prettyll{t_x clk with:(reset=> rst,}}\,rv_x))}
-            %% \rightline{
-              \seqq{[v_0,\dots v_n]\,[t_0,\dots t_n]\,[rv_0,\dots rv_n]}
+            \seqq{\expandref(x) = rl} \wedge
+            \seqq{\listgtype(t, \lfalse) = tl} \wedge            
+            \seqq{\listgexp(rval, t) = rvall}\\
+            \seqq{ ss= {\tt map3}\; (fun\; (v,(gt,\_),rv) \Rightarrow \mbox{\prettyll{reg}}\; v:\,gt\,clk\,\mbox{\prettyll{with: reset=> (rsig, }}rv))\,(rl,tl,rvall)}
           \end{array}
         }
 \end{gather*}
-Here, {\tt expand\_connect} function takes
-\mbox{\prettyll{reg v : t clk with : (reset => rst, rv)}} as input, which is the statement
-to define a register {\tt v}. Similar to expanding a port, \xiaomu{add details} 
+Here, \expandconnects function takes register statement
+``$\mbox{\prettyll{reg}}\; x:\,t\,clk\,\mbox{\prettyll{with: reset=> (rsig, }}rval)$''
+as input, which defines 
+a register {\tt x}. Similar to expanding a port, expanding a register
+involves expanding the reference to its subfield representations using \expandref,
+expanding the aggregate type using \listgtype, and also expanding the reset value with
+\listgexp. 
 
-Nodes are also \source elements. They are only allowed to be declared
-with passive aggregate types, which means no flip subfields. During
+Nodes are also \source \, elements. They are only allowed to be defined
+with passive types, which means no flip fields. During
 the expansion of node declarations, the passive type is checked;
 otherwise, the result will be an empty sequence.
 \begin{gather*}
   \label{expand-node}
   \infer[]
-        {\seqq{{\tt expand\_connect} (\mbox{\prettyll{node v e}}) = ss}}
+        {\seqq{\expandconnects (\mbox{\prettyll{node }}\; x = e) = ss}}
         {\begin{array}{c}
-            \seqq{{\tt expand\_ref}\; v = [v_0, v_1,\dots v_n]}\\
-            \seqq{{\tt expand\_expr}\; e = [e_0, e_1,\dots e_n]}\\
-            \seqq{ s s= if\;{\tt is\_passive}(v_x)\; then\; {\tt map2}\; (fun\; v_x\;e_x \Rightarrow \; \mbox{\prettyll{node}}\; {\tt v_x}\;{\tt e_x})\,[v_0, v_1,\dots v_n]\,[e_0, e_1,\dots e_n] else\; [::]}
+            \seqq{\expandref(x) = rl} \wedge
+            \seqq{\typeofref(x) = (t, \_)} \wedge
+            \seqq{\listgexp(e, t) = el} \\
+            \seqq{ ss= if\;{\sf isPassive}(t)\; then\; {\tt map2}\; (fun\; (v,e) \Rightarrow \; \mbox{\prettyll{node}}\; v\;=\;e)\,(rl,el)\;else\; [::]}
           \end{array}
-        } 
+        }
 \end{gather*}
+In the definition above, function {\sf isPassive} recursively checks the the subfields of type $t$.
+If it has no flip field, it returns true; otherwise, it returns false.
 
-To expand \prettyll{v is invalid} statements, we
-select only the \sink and \duplex elements to produce the sequence of
+To expand \prettyll{is invalid} statements, we
+select only the \sink\, and \duplex\, elements to produce the sequence of
 invalidations.
-In HiFirrtl, it is allowed to have \source sub-elements in a bundle be
-invalidated. The result of expansion will omit them.
+In HiFirrtl, it is allowed to have \source\, sub-elements in a bundle be
+invalidated. The expansion result will discard them.
 \begin{gather*}
   \label{expand-invalid}
   \infer[]
-        {\seqq{{\tt expand\_connect} (\mbox{\prettyll{v is invalid}}) = ss}}
+        {\seqq{\expandconnects(x\;\mbox{\prettyll{is invalid}}) = ss}}
         {\begin{array}{c}
-            \seqq{{\tt expand\_ref \;}v = [v_0, v_1,\dots v_n]}\\
-            \seqq{vs = {\tt filter}\; (fun\; v_x \Rightarrow orient (v_x) \neq source) [v_0, v_1,\dots v_n]}\\
-            \seqq{ s s = {\tt map}\; (fun\; v_x \Rightarrow {\tt v_x}\;\mbox{\prettyll{is invalid}})\, vs}
+            \seqq{\expandref(x) = rl} \wedge
+            \seqq{\typeofref(x) = (t,ori)} \wedge
+            \seqq{{\tt filter}\; (fun\;(v) \Rightarrow ori \neq source)\,rl = rl'}\\
+            \seqq{ ss = {\tt map}\; (fun\; (v) \Rightarrow v\;\mbox{\prettyll{is invalid}})\, rl'}
           \end{array}
         } 
 \end{gather*}
@@ -118,33 +118,36 @@ connection direction may differ from the original.
 \begin{gather*}
    \label{expand-invalid}
    \infer[]
-         {\seqq{{\tt expand\_connect} (\mbox{\prettyll{l <= r}}) = ss}}
+         {\seqq{\expandconnects (r\;\mbox{\prettyll{<=}}\;r') = ss}}
          {\begin{array}{c}
-             \seqq{{\tt expand\_ref }\; l = [l_0,\dots l_n]}\\
-             \seqq{{\tt expand\_ref}\; r = [r_0,\dots r_n]}\\
-             \seqq{ s s = {\tt map2}\; (fun\; l_x\;r_x \Rightarrow if\;{\tt is\_flipped}(l_x)\; then\;\ {\tt r_x}\, \mbox{\prettyll{ <= }}\, {\tt l_x}\; else\;{\tt l_x}\, \mbox{\prettyll{ <= }}\, {\tt r_x})\,[l_0,\dots l_n]\,[r_0,\dots r_n]}
+             \seqq{\expandref(r) = rl}\wedge
+             \seqq{\expandref(r') = rl'}\wedge
+            \seqq{\typeofref(r) = (t,\_)} \wedge
+            \seqq{\listgtype(t, \lfalse) = tl} \\
+             \seqq{ ss = {\tt map3}\; (fun\; (v_l,v_r,(\_,flipped)) \Rightarrow if\;flipped\; then\;v_l\, \mbox{\prettyll{ <= }}\, v_r\; else\;v_r\, \mbox{\prettyll{ <= }}\,v_l)\,(rl,rl',tl)}
            \end{array}
          }
 \end{gather*}
 In the case above, the connection is set between two references of
-elements {\tt l} and {\tt r}. When the connection takes an expression other than a
+elements $r$ and $r'$. When the connection takes an expression other than a
 reference on the right-hand side, flip information is not taken into
 account. The expansion simply expands the reference and the expression
 and produces a new sequence of connections as follows.
 \begin{gather*}
    \label{expand-invalid}
    \infer[]
-         {\seqq{{\tt expand\_connect} (\mbox{\prettyll{l <= e}}) = ss}}
+         {\seqq{\expandconnects (r\;\mbox{\prettyll{<=}}\;e) = ss}}
          {\begin{array}{c}
-             \seqq{{\tt expand\_ref }\; l = [l_0,\dots l_n]}\\
-             \seqq{{\tt expand\_expr}\; e = [e_0,\dots e_n]}\\
-             \seqq{ s s = {\tt map2}\; (fun\; l_x\;e_x \Rightarrow {\tt l_x}\, \mbox{\prettyll{ <= }}\, {\tt e_x})\,[l_0,\dots l_n]\,[e_0,\dots e_n]}
+             \seqq{\expandref(r) = rl}\wedge
+            \seqq{\typeofref(r) = (t,\_)} \wedge
+             \seqq{\listgexp(e, t) = el}\\
+             \seqq{ ss = {\tt map2}\; (fun\; (v,e) \Rightarrow v\, \mbox{\prettyll{ <= }}\, e)\,(rl,el)}
            \end{array}
          }
 \end{gather*}
 
 To summarize, a given Firrtl module can be expanded by applying the
-{\tt expand\_connect} function to all its statements
+\expandconnects function to all its statements
 sequentially. Then the module in return contains only the elements and
 their connections in ground types.
 
