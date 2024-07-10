@@ -505,42 +505,42 @@ The function {\tt expand\_cnct} handles the \prettyll{is invalid} statements in 
 \subsubsection{Formalization of ExpandWhens}
 The ``ExpandWhens'' pass ensures that every component in a module is connected to at most once.
 It reformulates the conditions in the \prettyll{when} statements by multiplex expressions and removes the \prettyll{when} statements. Moreover, for each component, it removes the non-last (redundant) connect statements for the component.
-We define two functions {\tt expand\_branch} and {\tt combine\_branches} to formalize the ``ExpandWhens'' pass.
-The function {\tt expand\_branch} scans through the statement sequence $ss$, copies the declaration statements, and updates the component environment $cm$ when processing connect, \prettyll{is invalid}, and \prettyll{when} statements.  The function {\tt combine\_branches} is used to combine the connect mappings for branches of \prettyll{when} statements.
+We define two functions \expandbranch and \combinebranches to formalize the ``ExpandWhens'' pass.
+The function \expandbranch scans through the statement sequence $ss$, copies the declaration statements, and updates the component environment $cm$ when processing connect, \prettyll{is invalid}, and \prettyll{when} statements.  The function \combinebranches is used to combine the connect mappings for branches of \prettyll{when} statements.
 %This is done by scanning through the statement sequence of the module:
 %declaration statements are copied without change,
 %and connect and \prettyll{is invalid} statements update a connect map
 %(so redundant connects are overwritten in the map).
-The  {\tt expand\_branch} function is defined by the following four rules, % (\ref{rule-expandwhen-declare})-(\ref{rule-expandwhen-when}),
+The  \expandbranch function is defined by the following four rules, % (\ref{rule-expandwhen-declare})-(\ref{rule-expandwhen-when}),
 where $\mathit{declare}\ x$ represents a declaration statement for $x$, e.g. \prettyll{wire x: t}.
 \begin{gather*}
     \label{rule-expandwhen-declare}
     \infer[]
-    {\seqq{{\tt expand\_branch}(ss ; \mathit{declare}\ x, cm_0) = (ss_\mathrm{dcl} ; \mathit{declare}\ x, cm[\bot/x])}}
-    {\seqq{{\tt expand\_branch}(ss, cm_0) = (ss_\mathrm{dcl}, cm)}}
+    {\seqq{\expandbranch(ss ; \mathit{declare}\ x, cm_0) = (ss_\mathrm{dcl} ; \mathit{declare}\ x, cm[\bot/x])}}
+    {\seqq{\expandbranch(ss, cm_0) = (ss_\mathrm{dcl}, cm)}}
 \\[1ex]
     \label{rule-expandwhen-connect}
     \infer[]
-    {\seqq{{\tt expand\_branch}(ss ; x <= e, cm_0) = (ss_\mathrm{dcl}, cm [e/x])}}
-    {\seqq{{\tt expand\_branch}(ss, cm_0) = (ss_\mathrm{dcl}, cm)}}
+    {\seqq{\expandbranch(ss ; x <= e, cm_0) = (ss_\mathrm{dcl}, cm [e/x])}}
+    {\seqq{\expandbranch(ss, cm_0) = (ss_\mathrm{dcl}, cm)}}
 \\[1ex]
     \label{rule-expandwhen-invalid}
     \infer[]
-    {\seqq{{\tt expand\_branch}(ss ; v \text{ \prettyll{is invalid}}, cm_0) = (ss_\mathrm{dcl}, cm [{\tt invalid}/v])}}
-    {\seqq{{\tt expand\_branch}(ss, cm_0) = (ss_\mathrm{dcl}, cm)}}
+    {\seqq{\expandbranch(ss ; v \text{ \prettyll{is invalid}}, cm_0) = (ss_\mathrm{dcl}, cm [{\tt invalid}/v])}}
+    {\seqq{\expandbranch(ss, cm_0) = (ss_\mathrm{dcl}, cm)}}
 \end{gather*}
 %
 \begin{gather*}
     \label{rule-expandwhen-when}
     \inferii[]
-    {\seqq{{\tt expand\_branch}(ss ; \text{\prettyll{when c then} } ss^\mathsf{T} \text{ \prettyll{else} } ss^\mathsf{F}, cm_0) =
-        (ss_\mathrm{dcl} ; ss_\mathrm{dcl}^\mathsf{T} ; ss_\mathrm{dcl}^\mathsf{F}, {\tt combine\_branches}(cm^\mathsf{T}, cm^\mathsf{F}))}}
-    {\seqq{{\tt expand\_branch}(ss, cm_0) = (ss_\mathrm{dcl}, cm)}}
-    {\begin{gathered}[b] \seqq{{\tt expand\_branch}(ss^\mathsf{T}, cm) = (ss_\mathrm{dcl}^\mathsf{T}, cm^\mathsf{T})} \\
-                      \seqq{{\tt expand\_branch}(ss^\mathsf{F}, cm) = (ss_\mathrm{dcl}^\mathsf{F}, cm^\mathsf{F})} \end{gathered}}
+    {\seqq{\expandbranch(ss ; \text{\prettyll{when c then} } ss^\mathsf{T} \text{ \prettyll{else} } ss^\mathsf{F}, cm_0) =
+        (ss_\mathrm{dcl} ; ss_\mathrm{dcl}^\mathsf{T} ; ss_\mathrm{dcl}^\mathsf{F}, \combinebranches(c, cm^\mathsf{T}, cm^\mathsf{F}))}}
+    {\seqq{\expandbranch(ss, cm_0) = (ss_\mathrm{dcl}, cm)}}
+    {\begin{gathered}[b] \seqq{\expandbranch(ss^\mathsf{T}, cm) = (ss_\mathrm{dcl}^\mathsf{T}, cm^\mathsf{T})} \\
+                      \seqq{\expandbranch(ss^\mathsf{F}, cm) = (ss_\mathrm{dcl}^\mathsf{F}, cm^\mathsf{F})} \end{gathered}}
 \end{gather*}
 Note that for a statement \prettyll{when c then} $ss^\mathsf{T}$ \prettyll{else} $ss^\mathsf{F}$,
- the function {\tt expand\_branch}  first processes the statements preceding this statement and obtains a connect mapping $cm$, then uses $cm$ to process $ss^\mathsf{T}$ and $ss^\mathsf{F}$ respectively, resulting into the connect mappings $cm^\mathsf{T}$ and $cm^\mathsf{F}$ respectively. Finally, $cm^\mathsf{T}$ and $cm^\mathsf{F}$ are combined into one mapping by {\tt combine\_branches}.
+ the function \expandbranch  first processes the statements preceding this statement and obtains a connect mapping $cm$, then uses $cm$ to process $ss^\mathsf{T}$ and $ss^\mathsf{F}$ respectively, resulting into the connect mappings $cm^\mathsf{T}$ and $cm^\mathsf{F}$ respectively. Finally, $cm^\mathsf{T}$ and $cm^\mathsf{F}$ are combined into one mapping by \combinebranches.
 
 %For \prettyll{when} statements,
 %the true and false branches are similarly split
@@ -554,32 +554,32 @@ Note that for a statement \prettyll{when c then} $ss^\mathsf{T}$ \prettyll{else}
 %This also implies that we cannot use the (register) state of a configuration in these rules.
 
 
-The function {\tt combine\_branches} combines two connect mappings into one by the following fix rules %(\ref{rule-expandwhen-combine-1})-(\ref{rule-expandwhen-combine-6}),
+The function \combinebranches combines two connect mappings into one by the following fix rules %(\ref{rule-expandwhen-combine-1})-(\ref{rule-expandwhen-combine-6}),
 where an expression is constructed for each component, denoting the fact that the expression is connected to it according to the last-connect semantics.
 If both connect mappings assign the same value to a component, then no multiplexer or \prettyll{validif} is needed in the combined expression.
 \begin{gather*}
  \label{rule-expandwhen-combine-1}
     \infer[]
-    {{\tt combine\_branches}(cm^\mathsf{T},cm^\mathsf{F})(x) = e}
+    {\combinebranches(c, cm^\mathsf{T},cm^\mathsf{F})(x) = e}
     {cm^\mathsf{T}(x) = cm^\mathsf{F}(x) = e}
 \\[1ex]
  \label{rule-expandwhen-combine-2}
     \infer[]
-    {{\tt combine\_branches}(cm^\mathsf{T},cm^\mathsf{F})(x) = {\tt invalid}}
+    {\combinebranches(c, cm^\mathsf{T},cm^\mathsf{F})(x) = {\tt invalid}}
     {cm^\mathsf{T}(x) = cm^\mathsf{F}(x) = {\tt invalid}}
 \end{gather*}
 If the two connect mappings assign different values to a component, then a multiplexer or \prettyll{validif} expression is obtained.
 \begin{gather*}
  \label{rule-expandwhen-combine-3}
     \inferiii[]
-    {{\tt combine\_branches}(cm^\mathsf{T},cm^\mathsf{F})(x) = \text{\prettyll{mux}}(\text{\prettyll{c}},e^\mathsf{T},e^\mathsf{F})}
+    {\combinebranches(c, cm^\mathsf{T},cm^\mathsf{F})(x) = \text{\prettyll{mux}}(\text{\prettyll{c}},e^\mathsf{T},e^\mathsf{F})}
     {cm^\mathsf{T}(x) = e^\mathsf{T}}
     {cm^\mathsf{F}(x) = e^\mathsf{F}}
     {e^\mathsf{T} \not= e^\mathsf{F}}
 \\[1ex]
  \label{rule-expandwhen-combine-4}
     \inferii[]
-    {{\tt combine\_branches}(cm^\mathsf{T},cm^\mathsf{F})(x) = \text{\prettyll{validif}}(c,e^\mathsf{T})}
+    {\combinebranches(c, cm^\mathsf{T},cm^\mathsf{F})(x) = \text{\prettyll{validif}}(c,e^\mathsf{T})}
     {cm^\mathsf{T}(x) = e^\mathsf{T}}
     {cm^\mathsf{F}(x) = {\tt invalid}}
 \end{gather*}
@@ -589,24 +589,24 @@ register that it is still not (always) connected:
 \begin{gather*}
  \label{rule-expandwhen-combine-5}
     \inferii[]
-    {{\tt combine\_branches}(cm^\mathsf{T},cm^\mathsf{F})(x) = e^\mathsf{T}}
+    {\combinebranches(c, cm^\mathsf{T},cm^\mathsf{F})(x) = e^\mathsf{T}}
     {cm^\mathsf{T}(x) = e^\mathsf{T}}
     {cm^\mathsf{F}(x) \text{ is undefined}}
 \\[1ex]
  \label{rule-expandwhen-combine-6}
     \infer[]
-    {{\tt combine\_branches}(cm^\mathsf{T},cm^\mathsf{F})(x) =\bot}
+    {\combinebranches(c, cm^\mathsf{T},cm^\mathsf{F})(x) =\bot}
     {cm^\mathsf{F}(x) = \bot}
 \end{gather*}
 For the last three rules, a symmetric variant exists where the role of the true and false branches are swapped.
 
 Moreover, to initialize, the empty statement sequence does not change a connect map, specified by the following rule:
 {\begin{gather*}
-    \infer{\seqq{{\tt expand\_branch}(\emptyset, cm_0) = (\emptyset, cm_0)}}
+    \infer{\seqq{\expandbranch(\emptyset, cm_0) = (\emptyset, cm_0)}}
     {} % no premise
 \end{gather*}}
 
-Finally, the statement sequence is updated by concatenating the statement sequence generated by the function  {\tt expand\_branch} and the sequence of connect and \prettyll{is invalid} statements corresponding to the connect mapping generated by the function {\tt expand\_branch}.
+Finally, the statement sequence is updated by concatenating the statement sequence generated by the function  \expandbranch and the sequence of connect and \prettyll{is invalid} statements corresponding to the connect mapping generated by the function \expandbranch.
 %(possibly after topologically sorting them),
 %similar to the example in Subsection~\ref{subsec-lowering-transformations}.
 If in the end some component is still assigned the value $\bot$ by the connect mapping, an appropriate error message can be generated.
