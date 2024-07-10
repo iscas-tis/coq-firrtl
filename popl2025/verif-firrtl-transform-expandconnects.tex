@@ -13,71 +13,86 @@ also conform to the original program $M$.  More specifically, the
 Firrtl programs before and after the ExpandConnections pass should
 reflect the same low-level circuit.  The process of
 ExpandConnections expects an equivalent representation of the
-original program with the aggregate typed objects now presented in
+original program with the aggregate typed objects now represented in
 ground types.
 
 To prove the conformance holds for the original Firrtl module, we need
 to find such clues from the conformance after the expansion. Such
-information can be found through the \expandconnects function,
-by analyzing cases when it is applied to different kinds of statements
-in that module.
-
+information can be draw out from the \expandconnects \,function,
+by cases analysis on different kinds of statements in Firrtl modules.
 Take the connection statement between two references
 \mbox{\prettyll{l <= r}}
-as an example, we illustrate the proof structure for finding
-the conformance in connection mappings. 
+as an example, we illustrate the proof structure for finding the
+conformance between the program and the $tm$ and $cm$ representation.
 
-Recall the semantics rule of ``connection:ref''
-focuses on three predicates. 
-The first is that the orientations 
-can fit together, e.g. from the orientation \source\, to \sink\.%($P_{orient}$).
-The second is to ensure the compatibility of types of
-the two objects.% ($P_{compat}$).
-The last is to have the connection
-mapping $cm$ to contain the corresponding connection expressions.% ($P_{findCM}$).
-They can be named by $P_{orient}$, $P_{compat}$ and $P_{findCM}$.
-%% Note that  semantics are reflected on $(tm,cm)$, that means the predicates are
-%% stated for all the ground type elements.
-The connections have no effect on change the typing mapping,
-therefore $tm$ stays the same.
+Since connections have no effect on change the typing mapping
+($tm$ stays the same). Therefore we can focuse on the semantic rules states on $cm$ (in
+Fig \ref{fig:firrtl-sem}). 
+Recall the semantic rule of ``connection:ref'',
+it focuses on three predicates. 
+The first is that the orientations of connected elements
+fit together, e.g. from the orientation \source\, to \sink\.%($P_{orient}$).
+The second is to ensure the type compatibility of
+the connected objects.% ($P_{compat}$).
+The last is to have the ensure the connection
+mapping $cm$ contains the corresponding connection expressions.% ($P_{findCM}$).
 
-The semantics rule of ``connection:ref'' states the conformance for all
-the ground type elements altogether. That is to say for elements related
-to the original statement satisfy the properties above.
-By contrast, the result of \expandconnects 
-is a sequence of connection statements on ground
-types. 
-If directly use the semantics rule for statement sequence, we
-need to reason on every intermediate state of $(tm_n,cm_n)$ through the whole sequence.
+Note that semantics reflects on $cm$ which contains only ground type
+elements, which means the three predicates should be equal to a set of
+predicates on ground type elements.  They can be named by
+$P_{orient}$, $P_{compat}$ and $P_{findCM}$, which are the predicates
+on two ground type elements. For example, $P_{orient}$ states the
+orientations of two atomic elements fit.  Additionally, the
+connections have no effect on the typing mapping, therefore $tm$ stays
+the same.
+
+The semantic rule of ``connection:ref'' can represent the conformance
+for one aggregate type connection. The atomic elements involved in the connection
+should satisfy the predicates modeled with $cm$.
+By contrast, the result
+of \expandconnects\, is a sequence of connection statements on ground
+types. If directly use the semantics rule for statement sequences, we
+need to reason on every intermediate state $cm_n$ providing by the whole
+sequence.
 %% , like
 %% $$
 %% cm_0 \xrightarrow[tm, tmap]{\expandconnects(M)} cm_n
 %% = cm_0 \xrightarrow[tm, tmap]{s_0} cm_1 \xrightarrow[tm, tmap]{s_1} \dots cm_n.
 %% $$
-It is more convenient to have one conclusion for the whole connection sequence.
-We can state the predicates mentioned before on reference lists pairwise.
+It is more convenient to have one conclusion for the whole connection sequence produced by \expandconnects.
+
 Concretely, we have the following lemmas.
-First of all, we prove the result of \expandconnects $(r<=r')$ contains only ground type connections.
-Then, we can state that,
+First of all, we prove 
+\begin{lemma}
+ The result of \expandconnects $(r<=r')$ contains only ground type connections.
+\end{lemma}
+
+Then, we state that,
 \begin{lemma}\label{p1-p3}
-For all connection statements produced by \expandconnects $(r<=r')$, $rl$ and $rl'$ are the list of references obtained by \expandref$(r)$ and \expandref(r') respectively,\\
-then $all2(P_{orient}, rl, rl')\;\wedge \;all2(P_{compat}, rl,rl')\; \wedge \;all2(P_{findCM}, rl, rl')$.
+For all connection statements produced by \expandconnects $(r<=r')$, $rl$ and $rl'$ are the lists of ground type references obtained by \expandref$(r)$ and \expandref(r') respectively.\\
+Then $all2(P_{orient}, rl, rl')\;\wedge \;all2(P_{compat}, rl,rl')\; \wedge \;all2(P_{findCM}, rl, rl')$.
 \end{lemma}
 %%
-Here, The {\sf all2} function is used to check
+Here, {\sf all2} function is used to check
 whether the predicate is satisfied by every pairwise ground 
 type elements in $rl$ and $rl'$.
-The predicates are the ones given by the semantics rule of ``connection:ref''.
-Since the definition of \expandconnects for
-connections contains the checking of orientations, the checking of type equivalent and the checking of flipped fields,
-the above lemma can be proved by case analysis on the definition.
-Then,
-we should prove that the \expandref and \listgexp produce the same lists for $rl$ and $rl'$.
+%The predicates are the ones given for a pair ground type elements between a connection.
+Since the definition of \expandconnects\, for
+connections contains the checking of orientations, the first part $all2(P_{orient}, rl, rl')$ can be  
+proven.
+The type compatibility predicate $all2(P_{compat}, rl,rl')$ can be proved by the type equivalent checking and the flipped fields checking in \expandconnects.
+The last $all2(P_{findCM}, rl, rl')$ states in the final $cm$ we can find by the reference in $rl$ with the one in $rl'$ correspondingly. This can be proven by the lemma provide by maps data structure that the pairs of update and find actions should satisfy.
+%% Meanwhile, the $all2$ function also satisfies the the size of the two lists are equal.
+
+We need also prove that the \expandref\, and \listgexp\, produce the same lists for both $rl$ and $rl'$.
 \begin{lemma}\label{rl-rl'}
 For all references $r$, the reference expression obtained by \expandref(r) contains the same reference identifiers generated by \listgexp$(r)$.
 \end{lemma}
 This can be proved by comparing the definitions of the two functions. They both rely on the type of the reference input.
-At the end, we can conclude that the result of \expandconnects $(r<=r')$ implies the three predicates hold by lemma\ref{p1-p3}. With lemma \ref{rl-rl'} we then obtains all the evidence required by the semantic rule of ``connection:ref'' for the original statement $(r<=r')$ tosatisfy.
+At the end, we can conclude that the result of \expandconnects $(r<=r')$ implies the three predicates hold by lemma\ref{p1-p3}. With lemma \ref{rl-rl'} we obtains all the predicates satisfied by the lists produced by \expandref\, also can be satisfied by the lists produced by \listgexp. Then, the lists produced by \listgexp and the predicates they satisfied are exactly the ones required by the semantic rule of ``connection:ref''
+for the original statement $(r<=r')$.
+
+Similarly, we can make this changing from semantic reasoning on sequence of statements to the predicates applies on the lists of ground type elements expanded from each kind of statement.
 
 %% We can benefit from using the lemmas provided by the Seq library from mathcomp \xiaomu{references}.
 
