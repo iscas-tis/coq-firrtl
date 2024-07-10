@@ -1,44 +1,14 @@
 %!TEX root = main.tex
 
-%\subsection{Module graphs}
-
-%For simplicity, let us focus on a HiFIRRTL circuit $A$ that contains no ``inst of'' statements, that is, circuit $A$ contains exactly one module $A$.
-
-%We introduce a structure called \emph{circuit diagrams} to formalize the syntax of HiFIRRTL, in particular, to represent the high-level constructs of HiFIRRTL.
-
-% by reading https://github.com/iscas-tis/coq-firrtl/blob/with_implicits/src/ModuleGraph_oriented.v
-
-
-
-%A module graph consists of two things: vertex and edges.
-%
-%vertex can be output, inport, register, wire, node.  (??)
-%
-%components have types
-
-
-%For each module, we have ports
-
-%connection: for each input connector of a module graph, there is an associated expression, which is based on the vertices in the module graph.
-
-%Input connectors are identified by a triple of natural numbers:
-%- a pair to identify the vertex of the module graph
-%- a number to identify the input connector of the vertex.
-
 %\newcommand{\clock}{{\tt Clock}\xspace}
 %\newcommand{\UInt}{{\tt UInt}\xspace}
 
-
-%In this section, we present a formal semantics of {\hifirrtl}.
-A {\hifirrtl} program provides a high-level description of low-level RTL circuits. %the main idea of
-%
-To a certain extent, it is %\emph{nondeterministic}
-an under-specification in the sense that the bit widths of its components are not fully determined. %As a result, the formal
-%define
-The semantics we present is denotational, i.e.,  %of a given
-a {\hifirrtl} program
+ 
+A {\hifirrtl} program provides a high-level description of low-level RTL circuits. To a certain extent, it is %\emph{nondeterministic}
+an under-specification in the sense that the bit-widths of its components are not fully determined. 
+The semantics we present is denotational, i.e., a {\hifirrtl} program
 is interpreted as the set of (low-level) {\lofirrtl} programs that conform to it, where (1) all components are of ground types,
-whose bit widths are all explicitly given, (2) there are no \prettyll{when} statements, and (3) each component is connected at most once.
+whose bit-widths are all explicitly given, (2) there are no \prettyll{when} statements, and (3) each component is connected at most once.
 As a result, the semantics definition is essentially to specify which low-level RTL circuits conform to a given {\hifirrtl} program.
 
 
@@ -50,19 +20,18 @@ as a pair $(tm, cm)$ where $tm$ is a \emph{type mapping} that records the typing
 %
 %Hence,
 %The crux of the semantics definition is to
-We define %a module graph
-that $(tm, cm)$ conforms to $M$ (denoted by $(tm, cm)\models M$)
+We define the conformance between $(tm, cm)$ and $M$ (denoted by $(tm, cm)\models M$)
 as follows. Intuitively, %is defined as follows: \tl{to see how to improve this.}
 \begin{itemize}
 \item %At first, $vm$ is used to determine
-we first utilize $tm$ to determine all the bit-widths of the components in $M$ and build a mapping $tmap$ that records the typing information of the (not necessarily ground-type) components in $M$. During the construction of $tmap$, we check that the types in $tm$ and $M$ are compatible and the component references in $M$ are well-scoped with respect to its \prettyll{when} statements),
+we first utilize $tm$ to determine all the bit-widths of the components in $M$ and build a mapping $tmap$ that records the typing information of the (not necessarily ground-type) components in $M$. During the construction of $tmap$, we check that the types in $tm$ and $M$ are compatible and the component references in $M$ are well-scoped with respect to its \prettyll{when} statements,
 	%
 \item %to decide whether $(tm, cm) \models M$,
 	we then utilize $tm$ and $tmap$ %together with the statements in $M$,
 	to construct a connection mapping $cm'$.
 	%moreover, during the construction of $(tm', cm')$,
 \end{itemize}
-Clearly $(tm, cm) \models M$ if $tmap$ and $cm'$ are successfully constructed and $cm = cm'$.
+We say that $(tm, cm) \models M$ if $tmap$ and $cm'$ are successfully constructed and $cm = cm'$.
 \fu{It seems that the above is a construction of $tmap$ and $cm'$ instead of the definition of conformance. When the construction succeeds, and $cm = cm'$, it
 yields a low level module that conforms to $M$. Can we first define what is conformance, then discuss how to compute all the low level modules that conform to $M$?}
 
@@ -120,7 +89,7 @@ In particular, $\gtypes$ can model types of implicit width in $M$. For instance,
 %For a ground type $t = (\tau, n) \in \{UInt, SInt\} \times \Nat$, $n$ is the \emph{width} of $t$, denoted by $wd(t)$.
 %
 
-In the definition of $tm$,  the ground types \fu{are} annotated with component \fu{sorts} (e.g., input and output ports, wires, etc). To accommodate this, we define \emph{extended ground types} $\egtypes$ as %the set of vertex sorts.
+In $tm$,  the ground types are annotated with component sorts (e.g., input and output ports, wires, etc). To accommodate this, we define \emph{extended ground types} $\egtypes$ as %the set of vertex sorts.
 \begin{itemize}
 \item $(s, t)$ with $s \in \{\inport, \outport, \wire, \node\}$ and $t \in \gtypes$,
 \item or $(\register, (t, clk, rsig, rval, b))$ such that $t \in \gtypes$, $clk, rsig, rval \in \exps$ and $b\in \{0,1\}$. (Intuitively, $clk$ represents a clock, $rsig$ represents a reset signal, and $rval$ represents a reset value, and $b$ is a Boolean value denoting whether the reset is asynchronous or not).
