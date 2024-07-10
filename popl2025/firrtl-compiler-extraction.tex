@@ -18,11 +18,11 @@ The LoFIRRTL programs are further transformed into circuits in synthesizable Ver
 
 To bridge the input and output gap between our OCaml FIRRTL compiler and other tools, we develop
 an FIRRTL parser and a LoFIRRTL emitter both in OCaml.
-We implement the FIRRTL parser by defining the grammar of FIRRTL in the BNF-like form in {\tt ocamlyacc}, then specifying the
-semantic-actions to produce the required abstract syntax tree representation of the FIRRTL program in the OCaml types,
+We implement the parser by defining the grammar of FIRRTL in the BNF-like form in {\tt ocamlyacc}, and specifying the
+semantic-actions to produce the abstract syntax tree representation of the FIRRTL program in the OCaml types,
 which can be processed by our OCaml FIRRTL compiler.
 The LoFIRRTL emitter visits the abstract syntax tree representation of the LoFIRRTL program
-and prints the program in MLIR syntax~\footnote{https://mlir.llvm.org} which can be processed by {\sf firtool}.
+and prints it in the MLIR syntax~\footnote{https://mlir.llvm.org} which can be processed by {\sf firtool}.
 
  %
 %

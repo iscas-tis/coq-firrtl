@@ -63,12 +63,12 @@ that  {\sf firtool} fails to compile one FIRRTL program.
 The last row (Average) shows the average results over all 113 benchmarks when they are available.
 Detailed results are given in Appendix~\ref{sec-detailed-results} due to space limits.
 
-\begin{table}[t]
-\caption{Results of the compiler conformance testing}\small %\footnotesize\vspace*{-3mm}
+\begin{table}[t]\setlength{\tabcolsep}{3pt}
+\caption{Results of the compiler conformance testing}\small  \vspace{-3mm} %\footnotesize\vspace*{-3mm}
 \label{tab:compilerconformancetesting}
 \scalebox{0.85}{\begin{tabular}{|c|c|c|c|c|c|c|}
   \hline
-\multirow{2}{*}{\bf Benchmark suit} & \multirow{2}{*}{\bf \#LOC} & \multicolumn{2}{c|}{\bf Compilation time (ms)}&\multirow{2}{*}{\bf Speedup}  & \multirow{2}{*}{\bf Verification time} & \multirow{2}{*}{\bf Result} \\ \cline{3-4}
+\multirow{2}{*}{\bf Benchmark suit} & \multirow{2}{*}{\bf \#LOC} & \multicolumn{2}{c|}{\bf Compilation time (ms)}&\multirow{2}{*}{\bf Speedup}  & \multirow{2}{*}{\bf Verification time (ms)} & \multirow{2}{*}{\bf Result} \\ \cline{3-4}
                               &                        & {\sf firtool}  &  {\bf Ours}  &     & & \\ \hline \hline
       CIRCT (44 programs) & 36.43  & 1.10  & 0.32  & 2.50  & 0.00 & \ding{51} \\ \hline
          Chisel Book (62 programs) & 79.13 & 9.89  & 7.68  &  0.29 & 0.00 & \ding{51} \\ \hline
