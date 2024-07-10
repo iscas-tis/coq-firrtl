@@ -22,7 +22,8 @@ $cm'$ is then defined to be the connection mapping satisfying ${\sf emp} \xright
 %Furthermore, 
 %
 %we should take care of 
-In particular, here we need to take care of the flipping status of fields when defining the semantics of connection statements of the form 
+In particular, here we need to take care of the flipping status of fields when handling %defining the semantics of 
+connection statements of the form 
 \prettyll{r1 <= r2}, where \prettyll{r1, r2} are references. For instance, in the following {\hifirrtl} program, the connect statement \prettyll{a <= b} will be split into the following two connections between ground-type components, \prettyll{b.f3 <= a.f1} and \prettyll{a.f2 <= b.f4}. Note that in \prettyll{b.f3 <= a.f1}, the connection flow is reversed since \prettyll{f1} is a flipped field. 
 %
 \begin{figure*}[htbp]
@@ -56,9 +57,9 @@ We shall use the following functions. % in the semantics definition.
 	%
 	\item $\invalidateref(cm_1, (v, m), ft, ori)$ may set $cm_1(v, m+i)$ to $\svinvalid$ for $i: 0 \le i < n$, depending on the orientation $ori$ and the flipping status of the $i$-th ground type in $ft$, where $ft$ is the type of some reference denoted by $(v, m)$ and $n = \sizeofftype(ft)$. 
 \end{itemize}
-The detailed formal definitions for those functions are given in Appendix, Section~\ref{appendix:semantics}.  
+The detailed formal definitions for these functions are given in Appendix, Section~\ref{appendix:semantics}.  
 %
-We shall use operations over lists where $++$ stands for list concatenation, and $\conc{m}(l)$ is the concatenation of $m$ copies of $l$.  
+For notational simplicity we shall use operations over lists where $++$ stands for list concatenation, and $\conc{m}(l)$ is the concatenation of $m$ copies of $l$.  
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %The functions $\updatecm$, $\updatecmref$, $\invalidateref$ will be defined in Fig.~\ref{tab:update-vm-ct} and the functions $\listgexp$, $\typecompatible$, $\typeofref$ will be defined in Fig.~\ref{fig:list-gexp}-\ref{fig:type-ref}. 
@@ -163,7 +164,7 @@ We shall use operations over lists where $++$ stands for list concatenation, and
 We select the most important semantics definitions. %are given in Fig.~\ref{fig:firrtl-sem} and we explain their intuitions.  
 %\tl{to further improve this later.}
 \begin{itemize}
-	\item The ``wire'' rule updates each of $cm_1(v, 0), \cdots, cm_1(v, sz-1)$ to $\svinvalid$, where $s = \mbox{wire }x: t$,  $v$ is the identifier of $x$, $tmap(v) = (ft, ori)$, and $sz= \sizeofftype(ft)$. 
+	\item The ``wire'' rule updates each of $cm_1(v, 0), \cdots, cm_1(v, sz-1)$ to $\svinvalid$, where \prettyll{s = wire x: t},  $v$ is the identifier of $x$, $tmap(v) = (ft, ori)$, and $sz= \sizeofftype(ft)$. 
 	\[
 		\infer[wire]
 	{\seqq{cm_1 \xrightarrow[tm, tmap]{\mbox{wire } x: t} \updatecm(cm_1, (v, 0), ft, %[\underbrace{\svundefined, \ldots, \svundefined}_{m}]
@@ -178,7 +179,7 @@ We select the most important semantics definitions. %are given in Fig.~\ref{fig:
 		\end{array}
 	}
 	\] 
-	%
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 	\item The ``node'' rule is similar to the ``wire'' rule, except that $cm_1(v, 0), \cdots, cm_1(v, sz-1)$ are updated to $ls[0], \cdots, ls[sz-1]$ respectively, where s = \prettyll{node x = e}, $v$ is the identifier of $x$, $\typeofexp(e) = ft$, $sz= \sizeofftype(ft)$, and $ls = \listgexp(e, ft)$. 
 	\[
 			\infer[node]
@@ -190,8 +191,8 @@ We select the most important semantics definitions. %are given in Fig.~\ref{fig:
 		\end{array}    
 	}
 	\]
-	%
-	\item The ``register'' rule first checks that $ft$ and $rft$ are compatible, moreover, $\listgexp(rval, rft)$ and $(tm(v,0), \cdots, tm(v, sz-1))$ are equivalent, then it updates $cm_1(v, 0), \cdots, cm_1(v, sz-1)$ to $ls[0], \cdots, ls[sz-1]$, where $s = \mbox{reg } x : t\ e\ \mbox{with: reset=>}  (rsig, rval)$, $id(x) = v$, $tmap(v) = (ft, ori)$, $rft = \typeofexp(rval, tmap)$, $sz = \sizeofftype(ft)$, and $ls = \listgexp(x, ft)$.
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+	\item The ``register'' rule first checks that $ft$ and $rft$ are compatible, $\listgexp(rval, rft)$ and $(tm(v,0), \cdots, tm(v, sz-1))$ are equivalent, then it updates $cm_1(v, 0), \cdots, cm_1(v, sz-1)$ to $ls[0], \cdots, ls[sz-1]$, where s = \prettyll{reg  x : t e  with: reset=>(rsig, rval)}, $id(x) = v$, $tmap(v) = (ft, ori)$, $rft = \typeofexp(rval, tmap)$, $sz = \sizeofftype(ft)$, $ls = \listgexp(x, ft)$.
 	\[
 			\infer[register]
 	{\seqq{ cm_1 \xrightarrow[tm, tmap]{\mbox{reg } x : t\ e\ \mbox{with: reset=>}  (rsig, rval)}   \updatecm(cm_1, (v, 0), ft, \listgexp(x, ft))}}
@@ -205,7 +206,8 @@ We select the most important semantics definitions. %are given in Fig.~\ref{fig:
 	}
 	\]
 	%
-	\item The ``connect:exp'' rule checks that $ori$, the orientation of $r$, is $\duplex$ or $\sink$,  then checks the compatibility of $rft$ and $eft$, moreover, it updates $cm_1(v, m), \cdots, cm_1(v, m+sz-1)$ to $ls[0], \cdots, ls[sz-1]$, where $s = r <= e$ such that $e$ is not a reference, $id(r) = (v, m)$, $(rft, ori) = \typeofref(r, tmap)$, $\typeofexp(e, tmap) = eft$, $sz = \sizeofftype(rft)$, and $ls = \listgexp(e, eft)$. 
+	\item The ``connect:exp'' rule checks that %$ori$, 
+	the orientation of $r$ is $\duplex$ or $\sink$,  then checks the compatibility of $rft$ and $eft$, and updates $cm_1(v, m), \cdots, cm_1(v, m+sz-1)$ to $ls[0], \cdots, ls[sz-1]$, where $s = r <= e$ such that $e$ is not a reference, $id(r) = (v, m)$, $(rft, ori) = \typeofref(r, tmap)$, $\typeofexp(e, tmap) = eft$, $sz = \sizeofftype(rft)$, and $ls = \listgexp(e, eft)$. 
 	%
 	\[
 		\infer[connect: exp]
@@ -220,12 +222,11 @@ We select the most important semantics definitions. %are given in Fig.~\ref{fig:
 		\end{array}    
 	}
 	\]
-%	
-	%
-	\item The ``connect:ref'' rule checks that $ori$, the orientation of $r$, is $\duplex$ or $\sink$, and $ori'$, the orientation of $r'$, is $\duplex$ or $\source$, then checks the compatibility of $ft$ and $ft'$, moreover, it updates $cm_1$ into $cm_2$ by calling $\updatecmref(cm, (v, m), ft, ls, (v', m'), ft', ls')$, where $s = r <= r'$, $id(r)=(v,m)$, $id(r') = (v', m')$, $(ft, ori) = \typeofref(r, tmap)$, $(ft', ori') = \typeofref(r', tmap)$, $\listgexp(r, ft) = ls$, and $\listgexp(r', ft') = ls'$. 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%	
+	\item The ``connect:ref'' rule checks that the orientation of $r$ is $\duplex$ or $\sink$, and  the orientation of $r'$ is $\duplex$ or $\source$, then checks the compatibility of $ft$ and $ft'$, and  updates $cm_1$ to $cm_2$ by calling $\updatecmref(cm, (v, m), ft, ls, (v', m'), ft', ls')$, where $s = r <= r'$, $id(r)=(v,m)$, $id(r') = (v', m')$, $(ft, ori) = \typeofref(r, tmap)$, $(ft', ori') = \typeofref(r', tmap)$, $\listgexp(r, ft) = ls$, and $\listgexp(r', ft') = ls'$. 
 	%
 	\[
-			\infer[connect: ref]
+	\infer[connect: ref]
 	{\seqq{ cm_1 \xrightarrow[tm, tmap]{r <= r'}  \updatecmref(cm_1, (v, m), ft, ls, (v', m'), ft', ls') }}
 	{
 		\begin{array}{c}
@@ -242,8 +243,8 @@ We select the most important semantics definitions. %are given in Fig.~\ref{fig:
 		\end{array}    
 	}
 	\]
-	
-	\item The ``invalid'' rule calls $\invalidateref(cm_1, (v, m), ft, ori)$ to update $cm_1$, where $s = r \mbox{ is invalid}$, $id(r) = (v, m)$, and $(ft, ori) = \typeofref(r, tmap)$. 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+	\item The ``invalid'' rule calls $\invalidateref(cm_1, (v, m), ft, ori)$ to update $cm_1$, where s = \prettyll{r is invalid}, $id(r) = (v, m)$, and $(ft, ori) = \typeofref(r, tmap)$. 
 	\[
 			\infer[invalid]
 	{\seqq{cm_1 \xrightarrow[tm, tmap]{r \mbox{ is invalid}}\invalidateref(cm_1, (v,m), ft, ori)}}
@@ -253,10 +254,10 @@ We select the most important semantics definitions. %are given in Fig.~\ref{fig:
 		\end{array}    
 	}
 	\]
-	%
-	\item The ``when'' rule first checks the type of $cond$ is $(\gtype, (\uint, 1))$, then computes $cmt$ from $cm_1$ by applying $sst$, and computes $cmf$ from $cm_1$ by applying $ssf$, finally let $cm_2 = \mux(cond, cmt, cmf)$, where $s  = \mbox{when } cond:\ sst \mbox{ else}:\ ssf$ and the $\mux$ function combines $cmt$ and $cmf$ pointwise into $cm_2$ by using the multiplexer operator $\mux(cond, \_, \_)$. 
+	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+	\item The ``when'' rule first checks the type of $cond$ is $(\gtype, (\uint, 1))$, then computes $cmt$ from $cm_1$ by applying $sst$, and computes $cmf$ from $cm_1$ by applying $ssf$, finally let $cm_2 = \mux(cond, cmt, cmf)$, where s  = \prettyll{when cond: sst   else: ssf} and the $\mux$ function combines $cmt$ and $cmf$ pointwise into $cm_2$ by using the multiplexer operator $\mux(cond, \_, \_)$. 
 	\[
-			\infer[when]
+	\infer[when]
 	{\seqq{cm_1 \xrightarrow[tm, tmap]{\mbox{when } cond:\ sst \mbox{ else}:\ ssf }  \mux(cond, cmt, cmf)}}
 	{
 		\begin{array}{c}
