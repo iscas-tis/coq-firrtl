@@ -56,7 +56,7 @@ circuit A :
 
 A FIRRTL \emph{circuit} comprises a list of modules with a designated top-level module that has the same identifier as the circuit.
 Each module represents a hardware block that can
-be instantiated one or more times. 
+be instantiated one or more times.
 %
 For instance, the FIRRTL circuit \prettyll{A} shown in Figure~\ref{fig:example} has two modules \prettyll{A} and \prettyll{B},
 where the top-level module of the circuit is the module \prettyll{A}.
@@ -122,31 +122,29 @@ In the syntax, memory is also omitted since its semantics is still under active 
 %\end{tabular}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-
 \begin{figure}[htbp]
 {\small %\footnotesize
 \[
 \begin{array}{l l l}
 %\mbox{\bf Circuit} &
-c & ::= & \mbox{\tt ``\fnprettyll{circuit}''}\ id\mbox{\tt ``:''} \{m\}\\
+c & ::= & \mbox{``\fnprettyll{circuit}''}\ id \mbox{``:''} \{m\}\\
 %
 %\mbox{\bf Module} &
-m & ::= & \mbox{\tt ``\fnprettyll{module}''} \ id \{p\} \{s\}\\
+m & ::= & \mbox{``\fnprettyll{module}''} \ id \{p\} \{s\}\\
 %
 %\mbox{\bf External Module} &
-%em & ::= & \mbox{\tt ``extmodule''}\ id \{p\} [\mbox{\tt ``defname =''}\ id] \{\mbox{\tt ``parameter''}\ id \mbox{\tt ``= ''}(string \mid int)\}\\
+%em & ::= & \mbox{``extmodule''}\ id \{p\} [\mbox{``defname =''}\ id] \{\mbox{``parameter''}\ id \mbox{``= ''}(string \mid int)\}\\
 %
 %\mbox{\bf Port} &
-p & ::= & (\mbox{\tt ``\fnprettyll{input}''} \mid \mbox{\tt ``\fnprettyll{output}''})\ id\mbox{\tt ``:''}t \\
+p & ::= & (\mbox{``\fnprettyll{input}''} \mid \mbox{``\fnprettyll{output}''})\ id\mbox{``:''}t \\
 %
  %\mbox{\bf Statment} &
- s & ::= & \mbox{\tt ``\fnprettyll{wire}''}\ id\mbox{\tt ``:''}t  \mid \mbox{\tt ``\fnprettyll{reg}''}\ id\mbox{\tt ``:''}t\ e [\mbox{\tt ``(\fnprettyll{with}:\{\fnprettyll{reset}=>(''} e\mbox{\tt ``,''} e \mbox{\tt ``)\})''}] \\
+ s & ::= & \mbox{``\fnprettyll{wire}''}\ id \mbox{``:''}t  \mid \mbox{``\fnprettyll{reg}''}\ id \mbox{``:''}t\ e [\mbox{``(\fnprettyll{with}:\{\fnprettyll{reset}=$>$(''} e\mbox{``,''} e \mbox{``)\})''}] \\
  %&
   &   &  \mid
 %  \mid memory \mid
-  \mbox{\tt ``\fnprettyll{inst}''}\ id\ \mbox{\tt ``\fnprettyll{of}''}\ id \mid \mbox{\tt ``\fnprettyll{node}''}\ id \mbox{\tt ``=''} id  \mid r \mbox{\tt ``<=''} e  \mid r \mbox{\tt ``<-''} e \mid r\ \mbox{\tt ``\fnprettyll{is invalid}''} \\
-%&
-&   &\mid \mbox{\tt ``\fnprettyll{when}''}\ e\mbox{\tt ``:''}\{s\} [\mbox{\tt ``\fnprettyll{else}:''} \{s\}] \mid \mbox{\tt ``\fnprettyll{skip}''}\\
+  \mbox{``\fnprettyll{inst}''}\ id\ \mbox{``\fnprettyll{of}''}\ id\ \mid \mbox{``\fnprettyll{node}''}\ id\ \mbox{``=''} id\  \mid r \mbox{``$<$=''} e  \\
+  &  & \mid r \mbox{``$<$--''} e \mid r\ \mbox{``\fnprettyll{is invalid}''}  \mid \mbox{``\fnprettyll{when}''}\ e\mbox{``:''}\{s\} [\mbox{``\fnprettyll{else}:''} \{s\}] \mid \mbox{``\fnprettyll{skip}''}\\
 %
 %\mbox{\bf Memory} &
 %memory & = &  \mbox{``mem''}, id, newline, indent, \\
@@ -171,11 +169,142 @@ p & ::= & (\mbox{\tt ``\fnprettyll{input}''} \mid \mbox{\tt ``\fnprettyll{output
 %ruw & = & \mbox{``old''} \mid \mbox{``new''} \mid \mbox{``undefined''};\\
 %
 %\mbox{\bf Expression} &
-  e & ::= & (\mbox{\tt ``\fnprettyll{UInt}''} | \mbox{\tt ``\fnprettyll{SInt}''}) [w] \mbox{\tt ``(''}int\mbox{\tt ``)''} \mid r \mid \mbox{\tt ``\fnprettyll{mux}(''}e\mbox{\tt ``,''} e\mbox{\tt ``,''} e\mbox{\tt ``)''}
+  e & ::= & (\mbox{``\fnprettyll{UInt}''} | \mbox{``\fnprettyll{SInt}''}) [w] \mbox{``(''}int\mbox{``)''} \mid r \mid \mbox{``\fnprettyll{mux}(''}e\mbox{``,''} e\mbox{``,''} e\mbox{``)''} 
   %\\
-%    &     &  
+   % &     &
+ \mid \mbox{``\fnprettyll{validif}(''}e\mbox{``,''} e\mbox{``)''}
+        %\mid \mbox{``\textcolor{blue}{read}(''}sr \mbox{``)''}
+        \mid op\\
+%
+%&
+r & ::= & sr \mid r \mbox{``[''} e \mbox{``]''}\\
+%
+sr & ::= & id \mid sr\mbox{``.''}id \mid sr\mbox{``[''}int\mbox{``]''}\\
+%&
+w & ::= & \mbox{``$<$''} int \mbox{``$>$''}\\
+%
+%&
+%binarypoint & = & \mbox{``<''}, \mbox{``<''}, int, \mbox{``>''}, \mbox{``>''};\\
+%
+ %\mbox{\bf Bundle Field} &
+%
+%\mbox{\bf Data Types} &
+t & ::= & tg \mid ta \\
+ %&
+ tg & ::= &  \mbox{``\fnprettyll{Clock}''} \mid \mbox{``\fnprettyll{Reset}''} \mid \mbox{``\fnprettyll{AsyncReset}''} \mid (\mbox{``\fnprettyll{UInt}''} \mid \mbox{``\fnprettyll{SInt}''}) [w] \\
+ %&
+% & & \mid \mbox{``Fixed''}, [width], [binarypoint];\\
+ %&
+%
+  ta & ::= &\mbox{``\{''} f \{f\}\mbox{``\}''} \mid t \mbox{``[''} int \mbox{``]''} \\
+%
+    f & ::= & [\mbox{``\fnprettyll{flip}''}]\ id\mbox{``:''}t\\
+%& & & \mbox{``UInt''}, [\mbox{``<''}, int, \mbox{``>''}] \mid \mbox{``SInt''}, [\mbox{``<''}, int, \mbox{``>''} ] \\
+%& & & \mid \mbox{``Fixed''}, [\mbox{``<''}, int, \mbox{``>''} ] [\mbox{``<}\mbox{<''}, int, \mbox{``>}\mbox{>''}]\\
+% &  &  & \mid \mbox{``Clock''} \mid \mbox{``Analog''},  [\mbox{``<''}, int, \mbox{``>''}] \mid \mbox{``\{''}, field, \mbox{``\}''} \mid type, \mbox{``[''}, int, \mbox{``]''}; \\
+%
+id & ::= & ( \mbox{``\_''} \mid l) \{ \mbox{``\_''} \mid l \mid d\} \\
+%\mbox{\bf Primitive Operation} &
+op & ::= & op\_2e \mid op\_1e \mid op\_1e1i \mid op\_1e2i \\
+%&
+op\_2e & ::= & op\_2e\_key \mbox{``(''}  e \mbox{``,''}  e \mbox{``)''} \\
+%
+%&
+op\_2e\_key & ::= &  \mbox{``\fnprettyll{add}''}  \mid  \mbox{``\fnprettyll{sub}''}  \mid \mbox{``\fnprettyll{mul}''} \mid \mbox{``\fnprettyll{div}''} \mid \mbox{``\fnprettyll{mod}''} \mid \mbox{``\fnprettyll{lt}''} \mid \mbox{``\fnprettyll{leq}''} \mid \mbox{``\fnprettyll{gt}''} \mid \mbox{``\fnprettyll{geq}''}\\
+%&
+& &   \mid \mbox{``\fnprettyll{eq}''} \mid \mbox{``\fnprettyll{neq}''}  \mid \mbox{``\fnprettyll{dshl}''}  \mid \mbox{``\fnprettyll{dshr}''} \mid \mbox{``\fnprettyll{and}''} \mid \mbox{``\fnprettyll{or}''} \mid \mbox{``\fnprettyll{xor}''} \mid \mbox{``\fnprettyll{cat}''} \\
+ %
+%&
+op\_1e & ::= & op\_1e\_key \mbox{``(''}  e \mbox{``)''} \\
+%&
+op\_1e\_key & ::= & \mbox{``\fnprettyll{asUInt}''} \mid \mbox{``\fnprettyll{asSInt}''} \mid \mbox{``\fnprettyll{asClock}''} \mid \mbox{``\fnprettyll{cvt}''} \mid \mbox{``\fnprettyll{neg}''} \mid \mbox{``\fnprettyll{not}''}  \mid \mbox{``\fnprettyll{andr}''} \mid \mbox{``\fnprettyll{orr}''} \mid  \mbox{``\fnprettyll{xorr}''}\\
+%
+%&
+op\_1e1i & ::= & op\_1e1i\_key \mbox{``(''}  e \mbox{``,''} int \mbox{``)''} \\
+%&
+op\_1e1i\_key & ::= & \mbox{``\fnprettyll{pad}''} \mid \mbox{``\fnprettyll{shl}''} \mid \mbox{``\fnprettyll{shr}''} \mid \mbox{``\fnprettyll{head}''} \mid \mbox{``\fnprettyll{tail}''} \\
+%&
+op\_1e2i & ::= & op\_1e2i\_key \mbox{``(''}  e \mbox{``,''}  int  \mbox{``,''}  int \mbox{``)''} \\
+%&
+op\_1e2i\_key & ::= & \mbox{``\fnprettyll{bits}''}\\
+%
+int & ::= & [\mbox{``-''}] d \{d\} \mid \mbox{``{\tt "}b''} [\mbox{``-''}] d\_b \{d\_b\} \mbox{``{\tt "}''} \\
+& & \mid \mbox{``{\tt "}o''} [\mbox{``-''}] d\_o \{d\_o\} \mbox{``{\tt "}''} \mid
+\mbox{``{\tt "}h''} [\mbox{``-''}] d\_h \{d\_h\} \mbox{``{\tt "}''} \\
+%
+%d & ::= &\mbox{``0''} \mid  \mbox{ ``1''}\mid \mbox{``2''} \mid\mbox{``3''} \mid  \mbox{ ``4''}\mid \mbox{``5''} \mid\mbox{``6''} \mid  \mbox{ ``7''}\mid \mbox{``8''} \mid\mbox{``9''} \\
+%d\_b & ::= &\mbox{``0''} \mid  \mbox{ ``1''}  \\
+%d\_o & ::= &\mbox{``0''} \mid  \mbox{ ``1''}\mid \mbox{``2''} \mid\mbox{``3''} \mid  \mbox{ ``4''}\mid \mbox{``5''} \mid\mbox{``6''} \mid  \mbox{ ``7''} \\
+%d\_h & ::= &\mbox{``0''} \mid  \mbox{ ``1''}\mid \mbox{``2''} \mid\mbox{``3''} \mid  \mbox{ ``4''}\mid \mbox{``5''} \mid\mbox{``6''} \mid  \mbox{ ``7''}\mid \mbox{``8''} \mid\mbox{``9''}  \mid  \mbox{ ``A''}\mid \mbox{``B''} \mid\mbox{``C''} \mid  \mbox{ ``D''}\mid \mbox{``E''} \mid\mbox{``F''}\\
+%
+
+%\mbox{\bf File Information Token} &
+%info & = & \mbox{``@''}, \mbox{``[''}, \{string, \mbox{`` ''}, linecol\}, \mbox{``]''};\\
+%&
+%linecol & = &  digit\_dec, \{digit\_dec\}, \mbox{``:''}, digit\_dec, \{digit\_dec\};\\
+%&
+%
+\end{array}
+\]
+$d$ (resp. $d\_b$, $d\_o$ and $d\_h$) denotes a decimal (resp. binary, octal and hexadecimal) digit, and $l$ denotes a letter
+}
+\caption{Syntax of FIRRTL}
+\label{fig-firrtl-synt-simp}%\vspace{-2mm}
+\end{figure}
+
+\hide{
+\begin{figure}[htbp]
+{\small %\footnotesize
+\[
+\begin{array}{l l l}
+%\mbox{\bf Circuit} &
+c & ::= & \mbox{\tt ``\fnprettyll{circuit}''}\ id\mbox{\tt ``:''} \{m\}\\
+%
+%\mbox{\bf Module} &
+m & ::= & \mbox{\tt ``\fnprettyll{module}''} \ id \{p\} \{s\}\\
+%
+%\mbox{\bf External Module} &
+%em & ::= & \mbox{\tt ``extmodule''}\ id \{p\} [\mbox{\tt ``defname =''}\ id] \{\mbox{\tt ``parameter''}\ id \mbox{\tt ``= ''}(string \mid int)\}\\
+%
+%\mbox{\bf Port} &
+p & ::= & (\mbox{\tt ``\fnprettyll{input}''} \mid \mbox{\tt ``\fnprettyll{output}''})\ id\mbox{\tt ``:''}t \\
+%
+ %\mbox{\bf Statment} &
+ s & ::= & \mbox{\tt ``\fnprettyll{wire}''}\ id\mbox{\tt ``:''}t  \mid \mbox{\tt ``\fnprettyll{reg}''}\ id\mbox{\tt ``:''}t\ e [\mbox{\tt ``(\fnprettyll{with}:\{\fnprettyll{reset}=>(''} e\mbox{\tt ``,''} e \mbox{\tt ``)\})''}] \\
+ %&
+  &   &  \mid
+%  \mid memory \mid
+  \mbox{\tt ``\fnprettyll{inst}''}\ id\ \mbox{\tt ``\fnprettyll{of}''}\ id \mid \mbox{\tt ``\fnprettyll{node}''}\ id \mbox{\tt ``=''} id  \mid r \mbox{\tt ``<=''} e  \\
+  &  & \mid r \mbox{\tt ``<-''} e \mid r\ \mbox{\tt ``\fnprettyll{is invalid}''}  \mid \mbox{\tt ``\fnprettyll{when}''}\ e\mbox{\tt ``:''}\{s\} [\mbox{\tt ``\fnprettyll{else}:''} \{s\}] \mid \mbox{\tt ``\fnprettyll{skip}''}\\
+%
+%\mbox{\bf Memory} &
+%memory & = &  \mbox{``mem''}, id, newline, indent, \\
+ %&
+% & & \mbox{``data-type''}, \mbox{``=>''}, type, newline, \\
+ %&
+% & & \mbox{``depth''}, \mbox{``=>''}, int, newline, \\
+ %&
+% & & \mbox{``read-latency''}, \mbox{``=>''}, int, newline, \\
+ %&
+% & & \mbox{``write-latency}, \mbox{``=>''}, int, newline,  \\
+ %&
+% & & \mbox{``read-under-write''}, \mbox{``=>''}, ruw, newline, \\
+  %&
+%  & & \{\mbox{``reader''}, \mbox{``=>''}, id, newline\}, \\
+  %&
+%  & & \{\mbox{``writer''}, \mbox{``=>''}, id, newline\}, \\
+  %&
+%  & & \{\mbox{``readwriter''}, \mbox{``=>''}, id, newline\}, dedent;\\
+%
+%\mbox{\bf Read Under Write Flag} &
+%ruw & = & \mbox{``old''} \mid \mbox{``new''} \mid \mbox{``undefined''};\\
+%
+%\mbox{\bf Expression} &
+  e & ::= & (\mbox{\tt ``\fnprettyll{UInt}''} | \mbox{\tt ``\fnprettyll{SInt}''}) [w] \mbox{\tt ``(''}int\mbox{\tt ``)''} \mid r \mid \mbox{\tt ``\fnprettyll{mux}(''}e\mbox{\tt ``,''} e\mbox{\tt ``,''} e\mbox{\tt ``)''} \\
+  %\\
+    &     &
  \mid \mbox{\tt ``\fnprettyll{validif}(''}e\mbox{\tt ``,''} e\mbox{\tt ``)''}
-        %\mid \mbox{\tt ``\textcolor{blue}{read}(''}sr \mbox{\tt ``)''} 
+        %\mid \mbox{\tt ``\textcolor{blue}{read}(''}sr \mbox{\tt ``)''}
         \mid op\\
 %
 %&
@@ -253,6 +382,7 @@ $d$ (resp. $d\_b$, $d\_o$ and $d\_h$) denotes a decimal (resp. binary, octal and
 \caption{Syntax of FIRRTL}
 \label{fig-firrtl-synt-simp}%\vspace{-2mm}
 \end{figure}
+}
 
 \begin{comment}
 \begin{figure}[htbp]
@@ -304,7 +434,7 @@ p & ::= & (\mbox{\tt ``input''} \mid \mbox{\tt ``output''})\ id\mbox{\tt ``:''}t
 %
 %\mbox{\bf Expression} &
 e & ::= & (\mbox{\tt ``UInt''} | \mbox{\tt ``SInt''}) [w] \mbox{\tt ``(''}int\mbox{\tt ``)''} \mid r \mid \mbox{\tt ``mux(''}e\mbox{\tt ``,''} e\mbox{\tt ``,''} e\mbox{\tt ``)''}
-%  \mid \mbox{\tt ``\prettyll{validif}(''}e\mbox{\tt ``,''} e\mbox{\tt ``)''} \mid \mbox{\tt ``read(''}sr \mbox{\tt ``)''} 
+%  \mid \mbox{\tt ``\prettyll{validif}(''}e\mbox{\tt ``,''} e\mbox{\tt ``)''} \mid \mbox{\tt ``read(''}sr \mbox{\tt ``)''}
   \mid op\\
 %
 %&
@@ -409,7 +539,7 @@ and satisfies that in each module, each component is connected to at most once.
 %
 %\mbox{\bf Expression} &
 e & ::= & (\mbox{\tt ``\fnprettyll{UInt}''} | \mbox{\tt ``\fnprettyll{SInt}''})\ w \mbox{\tt ``(''}int\mbox{\tt ``)''} \mid r \mid \mbox{\tt ``\fnprettyll{mux}(''}e\mbox{\tt ``,''} e\mbox{\tt ``,''} e\mbox{\tt ``)''}
-% &  & \mid \mbox{\tt ``\fnprettyll{validif}(''}e\mbox{\tt ``,''} e\mbox{\tt ``)''} \mid \mbox{\tt ``\textcolor{blue}{read}(''}sr \mbox{\tt ``)''} 
+% &  & \mid \mbox{\tt ``\fnprettyll{validif}(''}e\mbox{\tt ``,''} e\mbox{\tt ``)''} \mid \mbox{\tt ``\textcolor{blue}{read}(''}sr \mbox{\tt ``)''}
  \mid op\\
 %
 %&
@@ -499,7 +629,7 @@ module MyModule :
 \subsection{Lowering Transformations of FIRRTL}
 \label{subsec-lowering-transformations}
 
-In the sequel, we give an informal introduction to the lowering transformations (aka compilation passes) of  FIRRTL. 
+In the sequel, we give an informal introduction to the lowering transformations (aka compilation passes) of  FIRRTL.
 
 %The dependencies between these compilation passes are illustrated in Figure~\ref{fig-c-pass} \tl{redo this}.
 
@@ -521,7 +651,7 @@ In the sequel, we give an informal introduction to the lowering transformations 
 \tl{incorporate infertypes please}
 
 \paragraph*{InferWidths}
-The InferWidths pass infers the widths of all components whose widths are unknown. %, after the InferTypes pass has been applied \tl{to be revised}. 
+The InferWidths pass infers the widths of all components whose widths are unknown. %, after the InferTypes pass has been applied \tl{to be revised}.
 It is a \emph{global} width inference algorithm. Instances of the same module with unknown input port widths will be assigned the largest width of all assignments to each of its instance ports. It infers the smallest width that is larger than all assigned widths to a component. Note that this means that dummy assignments that are overwritten by last-connect semantics can still influence width inference. The last-connect semantics means that the last connect statement for a component will take effects and all the preceding connect statements for it will be ignored  in the end. For instance, InferWidths infers from the code snippet \prettyll{wire x: UInt   x <= UInt<5>(15)    x <= UInt<1>(1)} that the width of the wire $x$ is $5$, but with a value \prettyll{UInt<1>(1)}.
 
 

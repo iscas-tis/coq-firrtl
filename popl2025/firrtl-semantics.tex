@@ -39,7 +39,7 @@ The semantics we present is denotational, i.e.,  %of a given
 a {\hifirrtl} program
 is interpreted as the set of (low-level) {\lofirrtl} programs that conform to it, where (1) all components are of ground types, 
 whose bit widths are all \fu{explicitly} given, (2) there are no \prettyll{when} statements, and (3) each component is connected at most once.
-As a result, the semantics definition is essentially to specify which low-level RTL circuits conform to a given {\hifirrtl} program.
+As a result, the definition of the semantics is essentially to specify which low-level RTL circuits conform to a given {\hifirrtl} program.
 
 Fix a {\hifirrtl} module $M$ which consists of a sequence of port declarations followed by statements. We shall represent a {\lofirrtl} module  %by a data structure called \emph{module graphs}. A module graph $G = (vm, ct)$ represents a module in {\hifirrtl} programs,
 as a pair $(tm, cm)$ where $tm$ is a \emph{type mapping} that records the typing information of ground-type components in $M$, and $cm$ is a \emph{connection mapping} that records the connections between these components.
@@ -60,8 +60,10 @@ we first utilize $tm$ to determine all the bit-widths of the components in $M$ a
 	we then utilize $tm$ and $tmap$ %together with the statements in $M$,
 	to construct a connection mapping $cm'$.
 	%moreover, during the construction of $(tm', cm')$,
-\end{itemize}
+\end{itemize} 
 Clearly $(tm, cm) \models M$ if $tmap$ and $cm'$ are successfully constructed and $cm = cm'$.
+\fu{It seems that the above is a construction of $tmap$ and $cm'$ instead of the definition of conformance. When the construction succeeds, and $cm = cm'$, it
+yields a low level module that conforms to $M$. Can we first define what is conformance, then discuss how to compute all the low level modules that conform to $M$?}
 
 The main technical difficulty %for defining $(tm, cm)\models M$
 arises from the gap between $(tm, cm)$ and $M$: while $(tm, cm)$ is of low-level, $M$ is at high level which may contain aggregate types (e.g., vectors and bundles) as well as \prettyll{when} statements. As a result, %when checking $(tm, cm)\models M$,
