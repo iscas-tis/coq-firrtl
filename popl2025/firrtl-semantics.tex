@@ -170,98 +170,14 @@ the ground-type fields are \prettyll{c}, \prettyll{d}, \prettyll{e}, and a preor
 the fields at the same level are visited %traversed
 according to the order of occurrence in $M$. %Moreover, the field $b$ is omitted here since it is \emph{not} of ground type.
 
-%\tl{I am a bit confused here: in this example, cnt=io is of a bundle type, but the "o" is defined for its fields?}
-
-
-
-%For convenience, we define an \emph{identifier} as a pair $(a, o) \in \Nat \times \Nat$. %where intuitively $a$ refers to ... and $o$ refers to ... .
-%Let $\idset$ denote the set of identifiers. Intuitively,
-%each component $cnt$ of ground type in $M$ is associated with an identifier $(a, o)$, where
-%\begin{itemize}
-%\item if $cnt$ is a sub-component of some other component $cnt'$ of an aggregate type, then $a \in \Nat$ is the identifier of $cnt'$ \tl{there is a bit issue here as the identifier of $cnt'$ is a pair?} and $o$ represents the offset of $cnt$ in $cnt'$,
-%\item otherwise, $a \in \Nat$ is the identifier of $cnt$ and $o = 0$.
-%\end{itemize}
-
-
-%Moreover, for the components where aggregate types are nested, the offsets of the components of ground types are determined by the traversal order of a depth-first search. \tl{to be improved.}
-
-%We consider a finite set $\sorts = \{ \inport, \outport, \wire, \node, \register\}$ of \emph{sorts}.
-
-
-%\medskip
+ 
 
 %We are ready to define $(tm, cm)$, the representation of {\lofirrtl} programs, formally. 	
 \begin{definition}[Low-level RTL circuits]
 A low-level RTL circuit is defined as a pair $(tm, cm)$, where $tm$ is a function from $\gidset_M$ to $\egtypes$
 and $cm$ is function from $\gidset_M$ to $\exps$. %with a finite domain.
 For convenience, $tm$ is called a type mapping and $cm$ is called a connection mapping.
-\end{definition}
-%\end{definition}
-%\tl{this def has little to do with graph!?}\zhilin{if $ct(id)$ is a component of ground type, then it is analogous to the graph edges, otherwise, $ct(id)$ may involve multiple identifiers, somehow it can be seen as an edge in a supergraph. May changed to module diagram}
-
-%Intuitively, a module graph is a representation of a module, where the focus is on the components of ground types, all implicit widths are concretized, $vm$ records the declarations of components, and $cm$ records for each component an expression that is generated from its connect statements according to the last-connect semantics.
-
-%\begin{example}
-%An example of module graphs here
-%\end{example}
-
-%\hide{
-%\begin{definition}[Vertex]
-%	A vertex $v$ is a tuple $(\sorts, \width, \datatype)$ where
-%   \begin{itemize}
-%   		\item $\inputport$ and $\outputport$ are sets of input and output ports, respectively;
-%		\item {\sorts} specifies the sort of component in the circuit $v$ is standing for; 		
-%		\item {\width} is a nonnegative number, specifying the bit width of $v$;
-%		\item {\datatype} specifies the \emph{ground} type of $v$;
-%		\item {\expr} is only defined for \emph{nodes},
-%	\end{itemize}
-%\end{definition}
-%}
-
-%\tl{I propose we introduce the notion of \emph{hierarchical module graph} as the intermediate step for (flattened) module graph}
-%
-%
-%\begin{definition}
-%	A hierarchical module graph is a tuple $\langle M_1, \cdots, M_n\rangle$ where each module $M_i$ has the following components:
-%	\begin{itemize}
-%		\item a finite set $V_i$ of vertices;
-%		\item a finite set $B_i$ of boxes; ($B_i$ and $V_i$ are all pairwise disjoint)
-%		\item a finite set $I_i$ of input ports;
-%		\item a finite set $O_i$ of output ports;
-%		\item a labeling function $Y_i: V_i \rightarrow \{i+1, \cdots, n\}$ that maps each box of the $i$-th graph to an index grater than $i$. That is, if $Y_i(b)=j$, for a box $b$ of graph $M_i$, then $b$ can be viewed as reference to the definition of the graph $M_j$.
-%	\end{itemize}
-%\end{definition}
-%
-%\tl{to decide later how to proceed}
-
-%vertices ��Ӧmodule�е�component, wire, register, node�ȣ�ÿ��vertex��type, width, input/output ports����
-%edges��һ��vertex��output port��������һ��vertex��input port
-
-%from David
-%The reset signal, reset value and clock inputs need to be fixed when the register is declared. Only the normal input can be connected (and reconnected) with later statements.
-%
-%So while a register has four inputs, only one of them is handled using the normal connection information.
-%
-%Further, a node can serve as an abbreviation for an expression. While an expression can depend on any number of input signals, none of them is handled using the normal connection information, because the expression is fixed at the time the node is declared.
-
-
-
-%\begin{example}
-%For the program in Fig.~\ref{fig:example}, the module graph is $\langle M_1, M_2\rangle$.
-%
-%$M_1=(\{clk, rst\}, \{io\}, ...)$ and
-%
-%$M_2=(\{clk,rst\}, \{io\}, \{counter, T_7, T_8\}, ...)$
-%where $counter$ is vertex, $T_7$ is a vertex, and $T_8$ is vertex.
-%\end{example}
-%Note that the types in the range of $ce$ in Definition~\ref{def-cd} are not necessarily ground types, that is, they may be aggregate types, since HiFIRRTL may contain high-level constructs, e.g. vectors and bundles.
-
-
-
-
-
-%\subsection{Operational semantics for module graphs}
-
+\end{definition} 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \subsection{Defining $tmap$ from $tm$ and $M$} \label{sec-construct-tmap}

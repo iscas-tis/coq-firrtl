@@ -1,16 +1,16 @@
 %!TEX root = main.tex
 
-In this section, we show how the lowering transformations of HiFIRRTL, which were described informally in Section~\ref{subsec-lowering-transformations}, are formalized in Coq. Specifically, we consider the formalization of the three lowering transformations, namely, %``InferTypes'',
+In this section, we formalize the lowering transformations of {\hifirrtl} described informally in Section~\ref{subsec-lowering-transformations} in Coq. Specifically, we consider three key lowering transformations, namely, %``InferTypes'',
 ``InferWidths'', %``InferResets'',
 ``ExpandConnects'', and ``ExpandWhens''. %, and ``LowerTypes''.
-These three transformations are the key transformations from {\hifirrtl} programs to {\lofirrtl} ones. 
+%These three transformations are the key transformations from {\hifirrtl} programs to {\lofirrtl} ones. 
 Moreover, we shall show how to prove the semantics preservation property of these three transformations. 
 
-For simplicity, let us focus on a {\hifirrtl} circuit that contains no \prettyll{inst of} statements, that is, a circuit that contains exactly one top-level module $M$. We still assume an identifier function $id$ that assigns to each component name in $M$ an unique natural number. 
+For simplicity, we focus on a {\hifirrtl} circuit that contains no \prettyll{inst of} statements, that is, a circuit that contains exactly one top-level module $M$. We still assume an identifier function $id$ that assigns to each component name in $M$ a unique natural number. 
 
 \subsection{Formalization of Transformations}\label{sec:form-transform}
 
-In the sequel, we show how to formalize the three transformations. 
+%In the sequel, we show how to formalize the three transformations. 
 
 %The formalization utilizes a structure called \emph{circuit diagrams} defined below.
 %
