@@ -2,13 +2,13 @@
 \section{Detailed Results of Section~\ref{sec-validate-compiler}}\label{sec-detailed-results}
 
 
-\begin{table}[!t]
-\caption{Results of conformance testing on the benchmarks from circt}\footnotesize\vspace*{-3mm}
-\label{tab:conformancetesting-chiselbook}
-\scalebox{0.9}{\begin{tabular}{|c|c|c|c|c|c|c|}
+\begin{table}[!t]\setlength{\tabcolsep}{3pt}
+\caption{Results of the compiler conformance testing on the benchmarks from CIRCT}\footnotesize
+\label{tab:compilerconformancetesting-chiselbook}\vspace*{-3mm}
+\scalebox{0.85}{\begin{tabular}{|c|c|c|c|c|c|c|}
   \hline
-\multirow{2}{*}{\bf Benchmark name} & \multirow{2}{*}{\bf \#LOC} & \multicolumn{2}{c|}{\bf Compilation time (ms)}&\multirow{2}{*}{\bf Speedup}  &\multirow{2}{*}{\bf Verification time}  & \multirow{2}{*}{\bf Result} \\ \cline{3-4}
-                              &                        & {\bf firtool}  &  {\bf Ours}  &     &  \\ \hline
+\multirow{2}{*}{\bf Benchmark name} & \multirow{2}{*}{\bf \#LOC} & \multicolumn{2}{c|}{\bf Compilation time (ms)}&\multirow{2}{*}{\bf Speedup}  &\multirow{2}{*}{\bf Verification time (ms)}  & \multirow{2}{*}{\bf Result} \\ \cline{3-4}
+                              &                        & {\bf firtool}  &  {\bf Ours}  &     &  & \\ \hline
  \hline
         AddNot  & 10  & 2.80 & 0.05 & 59.87  & 0.00 & \ding{51} \\ \hline
         annotation-error  & 14  & 0.10 & 0.05 & 0.92  & 0.00 & \ding{51} \\ \hline
@@ -59,20 +59,20 @@
 \end{tabular}}
 \end{table}
 
-\begingroup\scriptsize
+\begingroup\scriptsize\setlength{\tabcolsep}{3pt}
 \begin{longtable}{|c|c|c|c|c|c|c|}
-\caption{Results of conformance testing on the benchmarks from the Chisel Book}
-\label{tab:conformancetesting-Chisel-book}\\
+\caption{Results of the compiler conformance testing on the benchmarks from the Chisel Book}\vspace{-3mm}
+\label{tab:compilerconformancetesting-Chisel-book}\\
 %\begin{tabular}
   \hline
-\multirow{2}{*}{\bf Benchmark name} & \multirow{2}{*}{\bf \#LOC} & \multicolumn{2}{c|}{\bf Compilation time (ms)}&\multirow{2}{*}{\bf Speedup}  &\multirow{2}{*}{\bf Verification time} & \multirow{2}{*}{\bf Result} \\ \cline{3-4}
-                              &                        & {\bf firtool}  &  {\bf Ours}  &     &  \\ \hline          \hline
+\multirow{2}{*}{\bf Benchmark name} & \multirow{2}{*}{\bf \#LOC} & \multicolumn{2}{c|}{\bf Compilation time (ms)}&\multirow{2}{*}{\bf Speedup}  &\multirow{2}{*}{\bf Verification time (ms)} & \multirow{2}{*}{\bf Result} \\ \cline{3-4}
+                              &                        & {\bf firtool}  &  {\bf Ours}  &     & & \\ \hline          \hline
   \endfirsthead
 
   \multicolumn{7}{c}%
 {{\bfseries \tablename\ \thetable{} -- continued from previous page}} \\ \hline
-\multirow{2}{*}{\bf Benchmark name} & \multirow{2}{*}{\bf \#LOC} & \multicolumn{2}{c|}{\bf Compilation time (ms)}&\multirow{2}{*}{\bf Speedup}  &\multirow{2}{*}{\bf Verification time} & \multirow{2}{*}{\bf Result} \\ \cline{3-4}
-                              &                        & {\bf firtool}  &  {\bf Ours}  &     &  \\ \hline          \hline
+\multirow{2}{*}{\bf Benchmark name} & \multirow{2}{*}{\bf \#LOC} & \multicolumn{2}{c|}{\bf Compilation time (ms)}&\multirow{2}{*}{\bf Speedup}  &\multirow{2}{*}{\bf Verification time (ms)} & \multirow{2}{*}{\bf Result} \\ \cline{3-4}
+                              &                        & {\bf firtool}  &  {\bf Ours}  &     &  &\\ \hline          \hline
 \endhead
 
  \multicolumn{7}{|r|}{{Continued on next page}} \\ \hline
@@ -82,7 +82,7 @@
 
 \endlastfoot
 
-  
+
         FormalSimple  & 7  & 0.14  & 0.06  & 1.25  & 0.00 & \ding{51} \\ \hline
         Comparator  & 10  & 0.20  & 0.01  & 14.87  & 0.00 & \ding{51} \\ \hline
         CombWhen  & 11  & 0.61  & 0.03  & 22.83  & 0.00 & \ding{51} \\ \hline
@@ -151,12 +151,12 @@
 
 
 \begin{table}[!t]
-\caption{Results of conformance testing on issue benchmarks}\footnotesize\vspace*{-3mm}
-\label{tab:conformancetesting-ours}
+\caption{Results of the compiler conformance testing on issue benchmarks}\footnotesize\vspace*{-3mm}
+\label{tab:compilerconformancetesting-ours}
 \scalebox{0.9}{\begin{tabular}{|c|c|c|c|c|c|c|}
   \hline
-\multirow{2}{*}{\bf Benchmark name} & \multirow{2}{*}{\bf \#LOC} & \multicolumn{2}{c|}{\bf Compilation time (ms)}&\multirow{2}{*}{\bf Speedup}  &\multirow{2}{*}{\bf Verification time} & \multirow{2}{*}{\bf Result} \\ \cline{3-4}
-                              &                        & {\bf firtool}  &  {\bf Ours}  &     &  \\ \hline
+\multirow{2}{*}{\bf Benchmark name} & \multirow{2}{*}{\bf \#LOC} & \multicolumn{2}{c|}{\bf Compilation time (ms)}&\multirow{2}{*}{\bf Speedup}  &\multirow{2}{*}{\bf Verification time  (ms)} & \multirow{2}{*}{\bf Result} \\ \cline{3-4}
+                              &                        & {\bf firtool}  &  {\bf Ours}  &     &  & \\ \hline
  \hline
         4859(1)  & 4  & 0.80  & 0.03  & 25.67  & 0.00 & \ding{51} \\ \hline
         4859(2) & 6  & 1.00  & 0.06  & 16.54  & 0.00 & \ding{51} \\ \hline
