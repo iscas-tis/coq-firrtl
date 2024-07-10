@@ -33,12 +33,12 @@
 A {\hifirrtl} program provides a high-level description of low-level RTL circuits. %the main idea of
 %
 To a certain extent, it is %\emph{nondeterministic}
-\fu{an} under-specification in the sense that the bit widths of its components are not fully determined. %As a result, the formal
+an under-specification in the sense that the bit widths of its components are not fully determined. %As a result, the formal
 %define
 The semantics we present is denotational, i.e.,  %of a given
 a {\hifirrtl} program
 is interpreted as the set of (low-level) {\lofirrtl} programs that conform to it, where (1) all components are of ground types, 
-whose bit widths are all \fu{explicitly} given, (2) there are no \prettyll{when} statements, and (3) each component is connected at most once.
+whose bit widths are all explicitly given, (2) there are no \prettyll{when} statements, and (3) each component is connected at most once.
 As a result, the semantics definition is essentially to specify which low-level RTL circuits conform to a given {\hifirrtl} program.
 
 Fix a {\hifirrtl} module $M$ which consists of a sequence of port declarations followed by statements. We shall represent a {\lofirrtl} module  %by a data structure called \emph{module graphs}. A module graph $G = (vm, ct)$ represents a module in {\hifirrtl} programs,
@@ -230,8 +230,8 @@ For convenience, $tm$ is called a type mapping and $cm$ is called a connection m
 %
 %\tl{to decide later how to proceed}
 
-%vertices ¶ÔÓ¦moduleÖÐµÄcomponent, wire, register, nodeµÈ£¬Ã¿¸övertexÓÐtype, width, input/output portsÊôÐÔ
-%edges´ÓÒ»¸övertexµÄoutput portÁ¬µ½ÁíÍâÒ»¸övertexµÄinput port
+%vertices ï¿½ï¿½Ó¦moduleï¿½Ðµï¿½component, wire, register, nodeï¿½È£ï¿½Ã¿ï¿½ï¿½vertexï¿½ï¿½type, width, input/output portsï¿½ï¿½ï¿½ï¿½
+%edgesï¿½ï¿½Ò»ï¿½ï¿½vertexï¿½ï¿½output portï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ò»ï¿½ï¿½vertexï¿½ï¿½input port
 
 %from David
 %The reset signal, reset value and clock inputs need to be fixed when the register is declared. Only the normal input can be connected (and reconnected) with later statements.
