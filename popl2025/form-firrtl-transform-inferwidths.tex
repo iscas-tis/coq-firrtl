@@ -3,28 +3,53 @@
 %\subsubsection{Formalization of InferWidths}
 %By Keyin
 
-Since the InferWidth transformation only modifies the declaration statements, we shall formalize it as a function $\inferwidth_M$ from $\range{id} \rightarrow \ftypes$ to $\range{id} \rightarrow \ftypes$. 
-To define $\inferwidth_M$, we first compute from $M$ a topological sorting of the dependency graph of its ground-type components, denoted by $tpSort$. Moreover, we compute from $M$ a mapping $connExps$ such that  $connExps(v, m)$ is a list of expressions that are connected to $(v, m)$. Finally, $\inferwidth_M$ is defined as $infer$
+Since the InferWidth transformation only modifies the declaration statements, we shall formalize it as a function $\inferwidths$ such that for each module $M$, $\inferwidths(M)$ is a function from $\range{id}$ to $\ftypes$ where all the widths are explicit (i.e. nonzero). With the mapping $\inferwidths(M)$, it is a routine to replace the types of components in $M$ by those in $\inferwidths(M)$ and generate a new module $M'$ where all the widths are explicit. 
+
+To compute $\inferwidths(M)$, we first call the procedure $\tycnmap(M)$ to compute a pair $(tm, cm)$ such that $tm$ is a type mapping, i.e. a function from $\range{id}$ to $\ftypes$,  and $cm$ is a connection mapping, i.e. a function that assigns to each $(v,m) \in \gidset_M$ a list of expressions that are connected to $(v, m)$. 
+Note that there is a gap between $tm$ and $cm$, $tm$ records the typing information for the (not necessarily ground-type) components in $M$, while $cm$ records the connections only for ground type components. Then we call the procedure $\depgraph(cm)$ to compute a dependency graph $G$. 
+Intuitively, the dependency graph $G$ is defined as follows: If a component of identifier $(v', m')$ occurs in $cm(v, m)$, then there is an edge from $(v',m')$ to $(v, m)$. 
+We assume that \emph{$G$ is acyclic} and compute a topological sorting of $G$, say $ts$. For convenience, we represent $ts$ as a vertex sequence. 
+Then we define a recursive function $tm_1 \xrightarrow[cm]{vs} tm_2$ where $tm_1, tm_2 \in \range{id} \rightarrow \ftypes$ and $vs$ is a sequence of vertices in $G$.
+Finally, we define $\inferwidths(M)$ as $tm'$ such that $tm \xrightarrow[cm]{ts} tm'$. Note here we require that the dependency graph $G$ is acyclic. This technical choice is justified by the fact that inferring widths for cyclic dependency graphs is error-prone \footnote{See e.g. xxx for the the bugs of Firtool related to this.} \zhilin{please add a link here} and it is unclear how the semantics should be defined in this situation.  
+
+%\begin{figure}[htbp]
+  \begin{gather*}
+  \def\defaultHypSeparation{\hskip 10pt}
+    \inferiv[]
+    {\seqq{\inferwidths(M) = tm'}}
+    {\seqq{\tycnmap(M) = (tm, cm)}}
+    {\seqq{G = \depgraph(cm)}}
+    {\seqq{\topsort(G) = ts}}
+    {\seqq{tm \xrightarrow[cm]{ts} tm'}}
+  \end{gather*}
+%\end{figure}
+
+The definition of the function $\tycnmap(M)$, that is, the computation of $(tm, cm)$, is roughly the combination of the function $\portsstmtstmap$ and the relation $cm_1 \xrightarrow[tm, tmap]{ss} cm_2$ in Section~\ref{sec-form-firrtl}. The construction of a dependency graph from $cm$, i.e.  the procedure $\depgraph(cm)$, is easy to understand. 
+The procedure $\topsort(G)$ is adapted from a depth-first search (DFS) algorithm in the graph library of the mathematical components repository~\cite{DP20,CoqGraph}. Given a directed graph $G$, $\topsort(G)$ either reports that the input graph is acyclic and outputs a topological sorting of the acyclic graph, or reports that the input graph is cyclic and outputs a cycle. Moreover, accordingly, we prove the correctness of the topological sorting algorithm by adapting the correctness proof of the DFS algorithm.
+To avoid tediousness, we omit the detailed definitions of $\tycnmap(M)$, $\depgraph(cm)$, and $\topsort(G)$ here. 
+
+In the sequel, we show how the function $tm \xrightarrow[cm]{ts} tm'$ is defined. 
 
 
-We formalize the ``InferWidths'' pass by defining a Coq function ${\sf inferWidthsM}:{\sf M} \rightarrow {\sf M}$, which contains two process. The first process ${\sf inferWidthsStage1 : M \rightarrow tmap}$ calculates the topological order of dependency graph of $M$ and iterates on the topological sorted order to updates a $tmap$, so that the bit widths of all the components with undefined bit widths can be determined. Then the second process ${\sf inferWidthsStage2 : M \times tmap \rightarrow M}$ produce a new module with inferred bit widths and explicit widths instead of implicit widths in the original module.
+%We formalize the ``InferWidths'' pass by defining a Coq function ${\sf inferWidthsM}:{\sf M} \rightarrow {\sf M}$, which contains two process. The first process ${\sf inferWidthsStage1 : M \rightarrow tmap}$ calculates the topological order of dependency graph of $M$ and iterates on the topological sorted order to updates a $tmap$, so that the bit widths of all the components with undefined bit widths can be determined. Then the second process ${\sf inferWidthsStage2 : M \times tmap \rightarrow M}$ produce a new module with inferred bit widths and explicit widths instead of implicit widths in the original module.
 
+\zhilin{stopped here}
 
 \begin{table}[htbp]
   \small
   \begin{gather*}
-    \infer[{\sf inferWidthsFun}: \nil]
-    {\seqq{{\sf inferWidthsFun}(order, var2exprs, tmap) = tmap}}
-    {\seqq{order = \nil}}
+    \infer[\nil]
+    {\seqq{tm \xrightarrow[cm]{ts} tm'}}
+    {\seqq{ts = \nil}}
     \quad
    \\[1ex]
-    \infer[{\sf inferWidthsFun}: $\neq$ \nil]
-    {\seqq{{\sf inferWidthsFun}(order, var2exprs, tmap) = tmap'}}
+    \infer[$\neq$ \nil]
+    {\seqq{tm \xrightarrow[cm]{ts} tm'}}
     {
     \begin{array}{c}
-      order = v\ tl \\
-      el = var2exprs(v) \\
-      tmap'' = {\sf inferWidthFun}(v, el, tmap) \\
+      ts = (v, m)\ ts' \\
+      cels = cm(v) \\
+       tm \xrightarrow[cm]{ts}  (v, cels, tmap) \\
       tmap' = {\sf inferWidthsFun} (tl, var2exprs, tmap'')
     \end{array}
     }
