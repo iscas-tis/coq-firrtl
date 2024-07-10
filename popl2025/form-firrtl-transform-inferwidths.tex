@@ -71,7 +71,7 @@ $gtm \xrightarrow[cm]{ts} gtm'$ is defined by the following two rules,  for the 
     }
 \end{gather*}
 
-The procedure $\maxgtlist(gt, cgtls)$ is defined by the rules in Fig.~\ref{fig:maxgtlist}. 
+The procedure $\maxgtlist(gt, cgtls)$ is defined by the rules in Fig.~\ref{fig:maxgtlist}, where the maximum is chosen among the widths for the implicit types. 
 
 %We formalize the ``InferWidths'' pass by defining a Coq function ${\sf inferWidthsM}:{\sf M} \rightarrow {\sf M}$, which contains two process. The first process ${\sf inferWidthsStage1 : M \rightarrow tmap}$ calculates the topological order of dependency graph of $M$ and iterates on the topological sorted order to updates a $tmap$, so that the bit widths of all the components with undefined bit widths can be determined. Then the second process ${\sf inferWidthsStage2 : M \times tmap \rightarrow M}$ produce a new module with inferred bit widths and explicit widths instead of implicit widths in the original module.
 
