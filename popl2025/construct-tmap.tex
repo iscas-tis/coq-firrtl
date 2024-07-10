@@ -467,18 +467,20 @@ some (less important) rules (for error handling) for $\portstmap$ and $\stmtstma
 
 The procedure $\stmttmap$, defined in Fig.~\ref{fig:stmts-tmap}, is the core to process the statement, the intuitions of which is as follows. If $s$ is a declaration statement, $\stmttmap((tmap, scope), s, tm)$ utilizes $tm$ to instantiate the types in $s$ and updates $(tmap, scope)$ to $(tmap', scope')$. We distinguish different declaration statements. 
 \begin{itemize}
-	\item Case $s = \mbox{wire } x: t$. It checks $tmap(id(x)) = \svnone$ and calls $\madeexplicit(t, (id(x), 0), tm)$ to compute $newt$. The pair $(id(x), (newt, \duplex))$ is then added to both $tmap$ and $scope$. %, and obtains the return value $(tmap', scope')$. 
+	\item Case s = \prettyll{wire x: t}. It checks $tmap(id(x)) = \svnone$ and calls $\madeexplicit(t, (id(x), 0), tm)$ to compute $newt$. The pair $(id(x), (newt, \duplex))$ is then added to both $tmap$ and $scope$. %, and obtains the return value $(tmap', scope')$. 
 	%Note that the orientation of a \prettyll{wire} component is \duplex. 
 %	(Cf. \stmttmap: wire in Fig.~\ref{fig:stmts-tmap})
 	%
-	\item Case $s = \mbox{node } x = e$. It checks $tmap(id(x)) = \svnone$, computes $t= \typeofexp(e, scope)$, and calls $\madeexplicit(t, (id(x), 0), tm)$ to obtain $newt$. $(id(x), (newt, \source))$ is then added to both $tmap$ and $scope$. %, and obtains the return value $(tmap', scope')$. 
+	\item Case s = \prettyll{node x = e}. It checks $tmap(id(x)) = \svnone$, computes $t= \typeofexp(e, scope)$, and calls $\madeexplicit(t, (id(x), 0), tm)$ to obtain $newt$. $(id(x), (newt, \source))$ is then added to both $tmap$ and $scope$. %, and obtains the return value $(tmap', scope')$. 
 %	Note that in the function call $\typeofexp(e, scope)$, $scope$ instead of $tmap$ is used to check whether the references in $e$ are well-scoped. %Moreover, the orientation of a \prettyll{node} component is \source. 
 %	(Cf.\ \stmttmap: node in Fig.~\ref{fig:stmts-tmap})
 	%
-	\item Case $s = \mbox{reg } x: t \ clk \mbox{ with: reset =>} (rsig, rval)$ and $\typeofexp(rsig, scope) = (\gtype, \asyncreset)$. It checks $tmap(id(x)) = \svnone$, $\typeofexp(clk, scope) \neq \svnone$, and $\typeofexp(rval, scope) \neq \svnone$, calls $\madeexplicit(t, (id(x), 0), tm)$ to obtain $newt$.  $(id(x), (newt, \duplex))$ is added to both $tmap$ and $scope$. %, and obtains the return value $(tmap', scope')$. 
+	\item Case s = \prettyll{reg  x: t clk  with: reset => (rsig, rval)}. 
+	
+	If $\typeofexp(rsig, scope) = (\gtype, \asyncreset)$. It checks $tmap(id(x)) = \svnone$, $\typeofexp(clk, scope) \neq \svnone$, and $\typeofexp(rval, scope) \neq \svnone$, calls $\madeexplicit(t, (id(x), 0), tm)$ to obtain $newt$.  $(id(x), (newt, \duplex))$ is added to both $tmap$ and $scope$. %, and obtains the return value $(tmap', scope')$. 
 %	Note that in $\typeofexp(clk, scope)$, $\typeofexp(rsig, scope)$ and $\typeofexp(rval, scope)$, $scope$, instead of $tmap$, is used to check that the references in $clk, rsig, rval$ are well-scoped. Moreover, the orientation of a \prettyll{reg} component is \duplex. (Cf. \stmttmap: reg-asyncreset in Fig.~\ref{fig:stmts-tmap})
 	%
-	\item Case $s = \mbox{reg } x: t \ clk \mbox{ with: reset =>} (rsig, rval)$. 
+	\item Case s = \prettyll{reg  x: t \ clk with: reset => (rsig, rval)}. 
 	
 	We assume $\typeofexp(rsig, scope) = (\gtype, (\uint, 1))$. It checks $tmap(id(x)) = \svnone$ and $\typeofexp(clk, scope) \neq \svnone$, calls $\madeexplicit(t, (id(x), 0), tm)$ to obtain $newt$. $(id(x), (newt, \duplex))$ is added to $scope$ to get $scope'$. Then it checks $\typeofexp(rval, scope') \neq \svnone$, and adds $(id(x), (newt, \duplex))$ to $tmap$ 
 	and obtains $tmap'$. %Finally, it returns $(tmap', scope')$. 
@@ -489,7 +491,7 @@ For others, if $s$ is a connect or invalid statement,  $\stmttmap$ %((tmap, scop
 only checks that the references or expressions are well-scoped with respect to $scope$, but does not update $(tmap, scope)$. %(see the rules \stmttmap: connect and  \stmttmap: invalid in Fig.~\ref{fig:stmts-tmap})
 %
 
-If $s$ is a when statement \prettyll{when c: sst else: ssf},  $\stmttmap$ %((tmap, scope), s, tm)$ 
+For the when statement \prettyll{when c: sst else: ssf},  $\stmttmap$ %((tmap, scope), s, tm)$ 
 first calls $\stmtstmap((tmap, scope), sst, tm)$ to compute $(tmapt, scopet)$, then calls  $\stmtstmap((tmapt, scope), ssf, tm)$ to compute $(tmapf, scopef)$, finally returns the pair $(tmapf, scope)$. 
 
 %Note that in $\stmtstmap((tmapt, scope), ssf, tm)$, we are using $scope$, instead of $scopet$, since the components declared in $sst$ should \emph{not} be referred in $ssf$.  Moreover, the return value of $\stmttmap((tmap, scope), s, tm)$ is $(tmapf, scope)$, instead of $(tmapf, scopef)$, since the components declared inside the when statement should \emph{not} be referred outside it. 

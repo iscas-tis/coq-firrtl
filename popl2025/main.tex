@@ -110,6 +110,7 @@
 \usepackage{graphics}
 \usepackage[ruled,linesnumbered]{algorithm2e}
 \usepackage{wrapfig}
+\usepackage{stmaryrd}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%package listings for highlighting FIRRTL code %%%%%%%%%%%%
@@ -318,9 +319,9 @@ which have to be removed by a sequence of lowering transformations,
 resulting in ``low FIRRTL" which is close to RTL Verilog.
 %
 This paper presents VeFir, a framework to formally reason about programs in FIRRTL and its lowering transformations.
-We provide a denotation semantics for HiFIRRTL, where the low FIRRTL module is represented by a pair of type and connection mappings and we define a conformance relation between a low FIRRTL module and a HiFIRRTL program. As such, the latter is interpreted as a set of low FIRRTL modules which conform to it.  
+We provide a denotation semantics for HiFIRRTL, where the low FIRRTL module is represented by a pair of type and connection mappings and we define a conformance relation between a low FIRRTL module and a HiFIRRTL program. As such, the latter is interpreted as a set of low FIRRTL modules which conform to it.
 %VeFir provides a mechanized formal semantics for low FIRRTL,
-%and formalizes the syntax of FIRRTL and 
+%and formalizes the syntax of FIRRTL and
 We formalize the three key lowering transformations, i.e., InferWidths, ExpandConnect and ExpandWhens and their correctness based on the semantics, and verify formally that these transformations preserve the semantics of a HiFIRRTL program. All of them are mechanized in
 the interactive theorem prover Coq.
 %Vefirrtl is built using the Coq interactive theorem prover.

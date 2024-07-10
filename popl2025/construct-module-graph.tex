@@ -58,6 +58,106 @@ We shall use operations over lists where $++$ stands for list concatenation, and
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %The functions $\updatecm$, $\updatecmref$, $\invalidateref$ will be defined in Fig.~\ref{tab:update-vm-ct} and the functions $\listgexp$, $\typecompatible$, $\typeofref$ will be defined in Fig.~\ref{fig:list-gexp}-\ref{fig:type-ref}. 
+
+\begin{figure}[htbp]
+	\begin{gather*}
+		%    \infer[skip]
+		%    {\seqq{ cm \xrightarrow[tm, tmap]{\mbox{skip}} cm}}
+		%    {\seqq{-}}
+		%    \quad
+		%    \\[1ex]
+		\infer[wire]
+		{\seqq{cm_1 \xrightarrow[tm, tmap]{\mbox{wire } x: t} \updatecm(cm_1, (v, 0), ft, %[\underbrace{\svundefined, \ldots, \svundefined}_{m}]
+				\conc{m}(\svundefined)		
+				)}}
+		{
+			\begin{array}{c}
+				id(x) = v \wedge tmap(v)= (ft, ori) \wedge \sizeofftype(ft) = sz \\
+				\forall n.\ 0 \le n < sz \Rightarrow cm_1(v, n) = \svnone  
+				%    \forall n.\ n \ge size\_of\_ftype(ft) \Rightarrow vm(v, n) =  vm'(v,n)\\
+				%    \forall n.\ 0 \le n < size\_of\_ftype(ft) \Rightarrow ct(v, n) = none \wedge ct'(v,n) = undefined \\
+			\end{array}
+		}
+		\\[1ex]
+		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+		\infer[node]
+		{\seqq{ cm_1 \xrightarrow[tm, tmap]{\mbox{node } x = e}  \updatecm(cm_1, (v, 0), ft, ls)}}
+		{
+			\begin{array}{c}
+				id(x) = v \wedge \typeofexp(e, tmap)= ft \wedge \sizeofftype(ft) = sz \wedge \listgexp(e, ft) = ls \\
+				\forall n.\ 0 \le n < sz  \Rightarrow  cm_1(v, n) = \svnone 
+			\end{array}    
+		}
+		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+		\\[1ex]
+		\infer[register]
+		{\seqq{ cm_1 \xrightarrow[tm, tmap]{\mbox{reg } x : t\ e\ \mbox{with: reset=>}  (rsig, rval)}   \updatecm(cm_1, (v, 0), ft, \listgexp(x, ft))}}
+		{
+			\begin{array}{c}
+				id(x) = v \wedge tmap(v)= (ft, ori) \wedge \sizeofftype(ft) = sz \wedge  rft = \typeofexp(rval, tmap) \\
+				\forall n.\ 0 \le n < sz  \Rightarrow  cm_1(v, n) = \svnone \\
+				\typecompatible(ft, rft, false) \wedge ls = \listgexp(rval, rft)\ \wedge\\ 
+				\forall n.\ 0 \le n < sz \Rightarrow  (tm(v, n) = (\register, (t_n, cl_n, rs_n, rv_n, b_n)) \wedge rv_n = ls[n])  
+			\end{array}    
+		}
+		\\[1ex]
+		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+		\infer[connect: exp]
+		{\seqq{ cm_1 \xrightarrow[tm, tmap]{r <= e}  \updatecm(cm_1, (v, m), rft, \listgexp(e, eft))}}
+		{
+			\begin{array}{c}
+				id(r)=(v, m) \wedge \typeofref(r, tmap)= (rft, ori) \ \wedge \\
+				(ori = \duplex \vee ori = \sink) \wedge \sizeofftype(rft) = sz \wedge \typeofexp(e, tmap)= eft \\
+				\typecompatible(rft, eft, false) \wedge \forall n.\ 0 \le n < sz \Rightarrow cm_1(v, m+n) \neq \svnone 
+				%    \forall n.\ n \ge size\_of\_ftype(ft) \Rightarrow vm(v, n) =  vm'(v,n)\\
+				%    \forall n.\ 0 \le n < size\_of\_ftype(ft) \Rightarrow ct(v, n) = none \wedge ct'(v,n) = undefined \\
+			\end{array}    
+		}
+		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+		\\[1ex]
+		\infer[connect: ref]
+		{\seqq{ cm_1 \xrightarrow[tm, tmap]{r <= r'}  \updatecmref(cm_1, (v, m), ft, ls, (v', m'), ft', ls') }}
+		{
+			\begin{array}{c}
+				id(r)=(v, m) \wedge  id(r')=(v', m') \wedge \typeofref(r, tmap)= (ft, ori) \ \wedge \\
+				\sizeofftype(ft) = sz \wedge \typeofref(r', tmap)= (ft', ori')\ \wedge \\
+				\listgexp(r, ft) = ls \wedge  \listgexp(r', ft') = ls'\ \wedge  \\
+				(ori = \duplex \vee ori = \sink) \wedge (ori' = \duplex \vee ori' = \source) \\
+				\typecompatible(ft, ft', false) \\
+				%    \forall n.\ n \ge size\_of\_ftype(ft) \Rightarrow vm(v, n) =  vm'(v,n)\\
+				%    \forall n.\ 0 \le n < size\_of\_ftype(ft) \Rightarrow ct(v, n) = none \wedge ct'(v,n) = undefined \\
+				\forall n.\ 0 \le n < sz \Rightarrow (cm_1(v, m+n) \neq \svnone \wedge cm_1(v', m'+n) \neq \svnone) 
+				%    \forall v'', n''.\ (v'' \neq v \vee n'' < m \vee n'' \ge m+sz) \wedge (v'' \neq v' \vee n'' < m' \vee n'' \ge m'+sz)  \Rightarrow \\
+				%    ct'(v'', n'') = ct(v'', n'') 
+			\end{array}    
+		}
+		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+		\\[1ex]
+		\infer[invalid]
+		{\seqq{cm_1 \xrightarrow[tm, tmap]{r \mbox{ is invalid}}\invalidateref(cm_1, (v,m), ft, ori)}}
+		{
+			\begin{array}{c}
+				id(r) = (v, m) \wedge \typeofref(r, tmap) = (ft, ori) 
+			\end{array}    
+		}
+		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+		\\[1ex]
+		\infer[when]
+		{\seqq{cm_1 \xrightarrow[tm, tmap]{\mbox{when } cond:\ sst \mbox{ else}:\ ssf }  \mux(cond, cmt, cmf)}}
+		{
+			\begin{array}{c}
+				\typeofexp(cond, tmap) = (\gtype, (\uint, 1))\wedge 
+				cm \xrightarrow[tm, tmap]{sst} cmt \wedge cm \xrightarrow[tm, tmap]{ssf} cmf  
+			\end{array}    
+		}
+	\end{gather*}
+	%  \vspace{-4mm}
+	\caption{The relation $cm_1 \xrightarrow[tm, tmap]{s} cm_2$}
+	\label{fig:firrtl-sem}
+\end{figure}
+
+
+
 %
 The most important semantics definitions are given in Fig.~\ref{fig:firrtl-sem} and we explain their intuitions.  The detailed formal definitions for those functions are given in Appendix, Section~\ref{appendix:semantics}.  
 \tl{to further improve this later.}
@@ -81,102 +181,7 @@ The most important semantics definitions are given in Fig.~\ref{fig:firrtl-sem} 
 %Moreover, the relation can be easily extended to sequences of statements, that is, $ct \xrightarrow[tmap]{ss} ct'$, where $ss$ is a sequence of statements. 
 
 
-\begin{figure}[htbp]
-  \begin{gather*}
-%    \infer[skip]
-%    {\seqq{ cm \xrightarrow[tm, tmap]{\mbox{skip}} cm}}
-%    {\seqq{-}}
-%    \quad
-%    \\[1ex]
-    \infer[wire]
-    {\seqq{cm_1 \xrightarrow[tm, tmap]{\mbox{wire } x: t} \updatecm(cm_1, (v, 0), ft, %[\underbrace{\svundefined, \ldots, \svundefined}_{m}]
-    \conc{m}(\svundefined)		
-    		)}}
-   {
-    \begin{array}{c}
-    id(x) = v \wedge tmap(v)= (ft, ori) \wedge \sizeofftype(ft) = sz \\
-    \forall n.\ 0 \le n < sz \Rightarrow cm_1(v, n) = \svnone  
-%    \forall n.\ n \ge size\_of\_ftype(ft) \Rightarrow vm(v, n) =  vm'(v,n)\\
-%    \forall n.\ 0 \le n < size\_of\_ftype(ft) \Rightarrow ct(v, n) = none \wedge ct'(v,n) = undefined \\
-    \end{array}
-   }
-    \\[1ex]
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    \infer[node]
-    {\seqq{ cm_1 \xrightarrow[tm, tmap]{\mbox{node } x = e}  \updatecm(cm_1, (v, 0), ft, ls)}}
-    {
-    \begin{array}{c}
-   id(x) = v \wedge \typeofexp(e, tmap)= ft \wedge \sizeofftype(ft) = sz \wedge \listgexp(e, ft) = ls \\
-    \forall n.\ 0 \le n < sz  \Rightarrow  cm_1(v, n) = \svnone 
-    \end{array}    
-    }
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    \\[1ex]
-    \infer[register]
-    {\seqq{ cm_1 \xrightarrow[tm, tmap]{\mbox{reg } x : t\ e\ \mbox{with: reset=>}  (rsig, rval)}   \updatecm(cm_1, (v, 0), ft, \listgexp(x, ft))}}
-    {
-    \begin{array}{c}
-   id(x) = v \wedge tmap(v)= (ft, ori) \wedge \sizeofftype(ft) = sz \wedge  rft = \typeofexp(rval, tmap) \\
-   \forall n.\ 0 \le n < sz  \Rightarrow  cm_1(v, n) = \svnone \\
-   \typecompatible(ft, rft, false) \wedge ls = \listgexp(rval, rft)\ \wedge\\ 
-   \forall n.\ 0 \le n < sz \Rightarrow  (tm(v, n) = (\register, (t_n, cl_n, rs_n, rv_n, b_n)) \wedge rv_n = ls[n])  
-    \end{array}    
-    }
-    \\[1ex]
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    \infer[connect: exp]
-    {\seqq{ cm_1 \xrightarrow[tm, tmap]{r <= e}  \updatecm(cm_1, (v, m), rft, \listgexp(e, eft))}}
-    {
-    \begin{array}{c}
-    id(r)=(v, m) \wedge \typeofref(r, tmap)= (rft, ori) \ \wedge \\
-     (ori = \duplex \vee ori = \sink) \wedge \sizeofftype(rft) = sz \wedge \typeofexp(e, tmap)= eft \\
-    \typecompatible(rft, eft, false) \wedge \forall n.\ 0 \le n < sz \Rightarrow cm_1(v, m+n) \neq \svnone 
-%    \forall n.\ n \ge size\_of\_ftype(ft) \Rightarrow vm(v, n) =  vm'(v,n)\\
-%    \forall n.\ 0 \le n < size\_of\_ftype(ft) \Rightarrow ct(v, n) = none \wedge ct'(v,n) = undefined \\
-    \end{array}    
-    }
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    \\[1ex]
-    \infer[connect: ref]
-    {\seqq{ cm_1 \xrightarrow[tm, tmap]{r <= r'}  \updatecmref(cm_1, (v, m), ft, ls, (v', m'), ft', ls') }}
-    {
-    \begin{array}{c}
-     id(r)=(v, m) \wedge  id(r')=(v', m') \wedge \typeofref(r, tmap)= (ft, ori) \ \wedge \\
-     \sizeofftype(ft) = sz \wedge \typeofref(r', tmap)= (ft', ori')\ \wedge \\
-     \listgexp(r, ft) = ls \wedge  \listgexp(r', ft') = ls'\ \wedge  \\
-    (ori = \duplex \vee ori = \sink) \wedge (ori' = \duplex \vee ori' = \source) \\
-    \typecompatible(ft, ft', false) \\
-%    \forall n.\ n \ge size\_of\_ftype(ft) \Rightarrow vm(v, n) =  vm'(v,n)\\
-%    \forall n.\ 0 \le n < size\_of\_ftype(ft) \Rightarrow ct(v, n) = none \wedge ct'(v,n) = undefined \\
-	\forall n.\ 0 \le n < sz \Rightarrow (cm_1(v, m+n) \neq \svnone \wedge cm_1(v', m'+n) \neq \svnone) 
-%    \forall v'', n''.\ (v'' \neq v \vee n'' < m \vee n'' \ge m+sz) \wedge (v'' \neq v' \vee n'' < m' \vee n'' \ge m'+sz)  \Rightarrow \\
-%    ct'(v'', n'') = ct(v'', n'') 
-    \end{array}    
-    }
-    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    \\[1ex]
-    \infer[invalid]
-    {\seqq{cm_1 \xrightarrow[tm, tmap]{r \mbox{ is invalid}}\invalidateref(cm_1, (v,m), ft, ori)}}
-    {
-    \begin{array}{c}
-    id(r) = (v, m) \wedge \typeofref(r, tmap) = (ft, ori) 
-    \end{array}    
-    }
-    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    \\[1ex]
-    \infer[when]
-    {\seqq{cm_1 \xrightarrow[tm, tmap]{\mbox{when } cond:\ sst \mbox{ else}:\ ssf }  \mux(cond, cmt, cmf)}}
-    {
-    \begin{array}{c}
-    \typeofexp(cond, tmap) = (\gtype, (\uint, 1))\wedge 
-    cm \xrightarrow[tm, tmap]{sst} cmt \wedge cm \xrightarrow[tm, tmap]{ssf} cmf  
-    \end{array}    
-    }
-  \end{gather*}
-%  \vspace{-4mm}
-  \caption{The relation $cm_1 \xrightarrow[tm, tmap]{s} cm_2$}
-  \label{fig:firrtl-sem}
-\end{figure}
+
  
        
 %Let $M$ be a {\hifirrtl} module and $G$ be a module graph. We define how $G = (vm, ct)$ \emph{matches} $M$ as follows: We define the relations $(vm, ct) \xrightarrow[tmap]{s} (vm', ct')$, where $s$ is a statement. Then $G$ matches $M$ if $(vm_{emp}, ct_{emp}) \xrightarrow[tmap]{ss} (vm, ct)$, where $ss$ is the statement sequence of $M$. 
