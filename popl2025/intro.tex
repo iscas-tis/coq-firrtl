@@ -19,7 +19,7 @@ XiangShan~\cite{xiangshan,Xiangshan-github}.
 %and Google Edge TPU~\cite{EdgeTPU}.
 
 FIRRTL (Flexible Intermediate Representation for RTL~\cite{IzraelevitzKLLW17,firrtl-spec}) was proposed  as an intermediate representation (IR) for the compilation of Chisel programs, analogous to the role of LLVM IR~\cite{LLVM} for compiling C programs.
-FIRRTL features first-class support for high-level constructs such as vector types, bundle types, conditional statements, connects, partial connects,
+FIRRTL features first-class support for high-level constructs such as vector types, bundle types, conditional statements, connects,
 and modules so that Chisel programs can easily be translated into FIRRTL.
 %
 High-level synthesis is performed on FIRRTL by a sequence of compilation passes and optimizations,
@@ -61,7 +61,7 @@ transformations. In this work, we present for the first time such a framework.  
 {\bf Contributions.} In this paper, we present VeFir, a framework to formally reason about programs in FIRRTL and its lowering transformations.
 %In this work, we fill in this gap and establish a general framework called Vefirrtl for formally reasoning about programs in FIRRTL and its lowering transformations. Specifically, we make the following major contributions.
 
-In response to (1), we define a denotation semantics for \hifirrtl. To this end, we represent a \lofirrtl program by a pair $(tm, cm)$ of type and connection mappings, and define a conformance relation between a low FIRRTL module and a HiFIRRTL program $M$, namely, $(tm, cm)\models M$. As such, the semantics $M$, i.e., $\llbracket M\rrbracket$  is interpreted as all $(tm,cm)$ such that $(tm, cm)\models M$. The main challenge is that there is a semantics gap between {\hifirrtl} and {\lofirrtl} programs: the former embraces high-level constructs such as aggregate types (e.g., bundle and vector types), implicit bit-widths for their components, partial connections, and conditional statements (when), etc, whereas the latter is very close to circuits where all components are of ground type and all bit-widths must be explicitly given. 
+In response to (1), we define a denotation semantics for \hifirrtl. To this end, we represent a \lofirrtl program by a pair $(tm, cm)$ of type and connection mappings, and define a conformance relation between a low FIRRTL module and a HiFIRRTL program $M$, namely, $(tm, cm)\models M$. As such, the semantics $M$, i.e., $\llbracket M\rrbracket$  is interpreted as all $(tm,cm)$ such that $(tm, cm)\models M$. The main challenge is that there is a semantics gap between {\hifirrtl} and {\lofirrtl} programs: the former embraces high-level constructs such as aggregate types (e.g., bundle and vector types), implicit bit-widths for their components, and conditional statements (when), etc, whereas the latter is very close to circuits where all components are of ground type and all bit-widths must be explicitly given. 
 
 
 %VeFir provides a mechanized formal semantics for low FIRRTL,
