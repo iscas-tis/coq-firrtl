@@ -5129,22 +5129,13 @@ Proof.
   destruct Hsf_comp0_f as [vm_comp_f [ct_comp_f Hsf_comp0_f]].*)
   assert (Hsf_f : Sem_frag_stmts vm_comp_t (extend_map_with old_ct (extend_defined_map_with eb_connmap_t ct_comp_t))
                         (Qcat (component_stmts_of ssf) (convert_to_connect_stmts eb_connmap_f))
-                        vm_comp (extend_defined_map_with eb_connmap_f (extend_defined_map_with eb_connmap_t ct_comp)) tmap).
+                        vm_comp (extend_defined_map_with eb_connmap_f (extend_map_with
+     (extend_map_with old_ct (extend_defined_map_with eb_connmap_t ct_comp_t))
+     ct_comp)) tmap).
         apply Sem_frag_stmts_cat.
-        exists vm_comp, (extend_defined_map_with eb_connmap_t ct_comp) (* actually a slight variant of ct_comp *).
+        exists vm_comp, (extend_map_with (extend_map_with old_ct (extend_defined_map_with eb_connmap_t ct_comp_t)) ct_comp).
         split.
-        + (* Sem_frag_stmts_component_Equal? 
-Problem: eb_connmap_t contains connect statements that are not in component_stmts_of.
-How is that?
-But then these affect components that are not defined in ssf, so it should still be ok. *)
-Check Sem_frag_stmts_component_Equal.
-          generalize (Sem_frag_stmts_component_Equal ssf vm_comp_t vm_comp_t
-                ct_comp_t (extend_map_with old_ct (extend_defined_map_with eb_connmap_t ct_comp_t))
-                vm_comp vm_comp
-                ct_comp tmap tmap) ; intro.
-          specialize (H (proj1 Hsf_comp_sub_t)).
-Check Hsf_comp_sub_f.
-          assert (H_precondition: ct_sub_vm (extend_map_with old_ct (extend_defined_map_with eb_connmap_t ct_comp_t)) vm_comp_t tmap).
+        + assert (H_precondition: ct_sub_vm (extend_map_with old_ct (extend_defined_map_with eb_connmap_t ct_comp_t)) vm_comp_t tmap).
                 intro k.
                 rewrite /extend_map_with CEP.Lemmas.map2_1bis // CEP.Lemmas.map2_1bis //.
                 destruct Hsf_comp_sub_t as [Hctct_sub_vmct [_ Hoct_sub_ctct]] ;
@@ -5166,49 +5157,66 @@ Check Hsf_comp_sub_f.
                 destruct (type_of_expr ebct_expr tm_tmap_t) as [[[gt_expr| |] Hgt_expr_inf]|] ;
                       try (by contradiction Hebcm_sub_tm) ;
                 by rewrite H0 //.
-          specialize (H H_precondition (CEP.Lemmas.Equal_refl _) (CEP.Lemmas.Equal_refl _) (CEP.Lemmas.Equal_refl _) Hsf_comp_f).
-          clear H_precondition.
-(*
-          assert (CEP.Equal (extend_map_with (extend_map_with old_ct (extend_defined_map_with eb_connmap_t ct_comp_t)) ct_comp)
-                            (extend_defined_map_with eb_connmap_t ct_comp)).
-                intro k.
-                rewrite /extend_map_with /extend_defined_map_with.
-                repeat (rewrite CEP.Lemmas.map2_1bis //).
-                destruct Hsf_comp_sub_t as [_ [_ Holdct_sub_ctct]].
-                specialize (Holdct_sub_ctct k).
-                (*destruct IHsst as [_ [_ IHsst]] ; specialize (IHsst k).
-                rewrite /extend_defined_map_with CEP.Lemmas.map2_1bis // /extend_map_with CEP.Lemmas.map2_1bis // in IHsst.*)
-                destruct (CEP.find k old_ct) as [[| |old_expr]|] eqn: Holdct ;
-                      try specialize (Holdct_sub_ctct _ Logic.eq_refl) ;
-                      try rewrite Holdct_sub_ctct ;
-                      (*try rewrite Holdct_sub_ctct in IHsst ;*)
-                      try rewrite (proj2 (proj2 Hsf_comp_sub_f) k _ Holdct_sub_ctct).
-                + destruct (CEP.find k eb_connmap_t) as [[| |Hebct_expr]|] eqn: Hebct ; try done.
-
-
-Perhaps need to change the new ct set altogether?
-I now think that these two are not actually equal,
-because eb_connmap_t is generated based on connect statements.
-
-I think one needs to set a more complicated expression as the new connection tree set;
-later, using Sem_frag_smts_connect, we will see that most of its entries
-are overwritten anyway.
-
-*)
-          admit.
+          apply (Sem_frag_stmts_component_Equal ssf vm_comp_t vm_comp_t ct_comp_t
+                                           (extend_map_with old_ct (extend_defined_map_with eb_connmap_t ct_comp_t))
+                                           vm_comp vm_comp ct_comp tmap tmap
+                                           (proj1 Hsf_comp_sub_t)) in H_precondition ;
+                try (by apply CEP.Lemmas.Equal_refl) ;
+                done.
         + apply Sem_frag_stmts_connect ; first by exact Htm_inf.
           destruct Haft_comp_t as [Haft_comp_t _], Haft_comp_f as [Haft_comp_f _] ; split.
           + intro k ; by rewrite CEP.Lemmas.empty_o //.
-          destruct Haft_comp_f as [_ Haft_comp_f], Haft_comp_t as [_ Haft_comp_t] ; split.
+          destruct Haft as [_ Haft], Haft_comp_f as [_ Haft_comp_f], Haft_comp_t as [_ Haft_comp_t] ; split.
           + destruct Haft_comp_f as [Haft_comp_f _].
             intro k ; specialize (Haft_comp_f k).
-            rewrite /extend_defined_map_with CEP.Lemmas.map2_1bis //.
-            destruct (CEP.find k eb_connmap_t) as [[| |cm_expr_t]|], (CEP.find k eb_connmap_f), (CEP.find k ct_comp) ;
-                  by done.
-          destruct Haft_comp_f as [_ Haft_comp_f], Haft_comp_t as [_ Haft_comp_t] ; split.
-          + (* use the last conjunct of Hsf_sub_t, which should be adapted to all_fit_together *)
-            admit.
-          destruct Haft_comp_f as [_ Haft_comp_f], Haft_comp_t as [_ Haft_comp_t] ; split.
+            rewrite /extend_map_with CEP.Lemmas.map2_1bis // CEP.Lemmas.map2_1bis // /extend_defined_map_with CEP.Lemmas.map2_1bis //.
+            destruct (CEP.find k old_ct) ; first by trivial.
+            destruct (CEP.find k eb_connmap_t) as [[]|] ; try by trivial.
+            1,2: destruct (CEP.find k ct_comp_t) ; by trivial.
+          destruct Haft as [_ Haft], Haft_comp_t as [Hebcmt_sub_ctct Haft_comp_t], Haft_comp_f as [_ Haft_comp_f] ; split.
+          + destruct Haft as [Haft _], Haft_comp_t as [Haft_comp_t [Hvmct_sub_tmt [_ Hebcmt_sub_tmt]]], Haft_comp_f as [Haft_comp_f _].
+            intro k ; specialize (Haft k) ; specialize (Haft_comp_t k) ; specialize (Haft_comp_f k).
+            rewrite /extend_map_with CEP.Lemmas.map2_1bis // CEP.Lemmas.map2_1bis // /extend_defined_map_with CEP.Lemmas.map2_1bis //.
+            destruct (CEP.find k old_ct) as [[| |oldexpr]|].
+            - 1-3: destruct Hsf_sub_t as [Hsf_sub_t _] ; specialize (Hsf_sub_t k) ;
+                   destruct (CEP.find k old_vm) as [[gt|gt|gt|gt|gt]|] ;
+                         try (by contradiction Haft) ;
+                   rewrite (proj1 (proj2 Hsf_comp_sub_f) k _ (Hsf_sub_t _ Logic.eq_refl)) //.
+              1-3: generalize (type_of_expr_submap oldexpr old_tmap tmap Holdtm_sub_tm) ; intro Htyp_oldexpr ;
+                   destruct (type_of_expr oldexpr old_tmap) as [[[gt_oldexpr| |] Hgt_oldexpr_exp]|] ;
+                         try (by contradiction Haft) ;
+                   by rewrite Htyp_oldexpr //.
+            - specialize (Hebcmt_sub_ctct k) ; specialize (Hebcmt_sub_tmt k).
+              destruct (CEP.find k eb_connmap_t) as [[| |cmt_expr]|] ;
+              destruct Hsf_comp_sub_f as [_ [Hvmct_sub_vmc Hsf_comp_sub_f]] ; specialize (Hsf_comp_sub_f k) ;
+              destruct (CEP.find k ct_comp_t) as [[| |ctct_expr]|] ; try done.
+              * 1-12: specialize (Hsf_comp_sub_f _ Logic.eq_refl).
+                1,2,4,5,10,11: by rewrite Hsf_comp_sub_f // in Haft_comp_f.
+                1-6: rewrite Hsf_comp_sub_f in Haft_comp_f.
+              * 1: destruct (CEP.find k vm_comp) as [[gt|gt|gt|gt|gt]|] ; try done ;
+                   generalize (type_of_expr_submap ctct_expr tm_tmap tmap Htm_tm_sub_tm) ; intro ;
+                   destruct (type_of_expr ctct_expr tm_tmap) as [[[gt_ctct_expr| |] Hgt_ctct_expr_exp]|] ;
+                         try (by contradiction Haft_comp_f) ;
+                   rewrite H ; done.
+              * 1: destruct (CEP.find k vm_comp) as [[gt|gt|gt|gt|gt]|] ; done.
+              * 1-3: specialize (Hvmct_sub_vmc k) ; specialize (Hvmct_sub_tmt k).
+                1-3: destruct (CEP.find k vm_comp_t) as [[gt|gt|gt|gt|gt]|] ;
+                         try (by contradiction Haft_comp_t) ;
+                   generalize (type_of_expr_submap cmt_expr tm_tmap_t tmap Htmt_sub_tm) ; intro ;
+                   destruct (type_of_expr cmt_expr tm_tmap_t) as [[[gt_ctm_expr| |] Hgt_cmt_expr_exp]|] ;
+                         try (by contradiction Hebcmt_sub_tmt) ;
+                   rewrite (Hvmct_sub_vmc _ Logic.eq_refl) H // ; clear H ;
+                   by rewrite Hvmct_sub_tmt // in Hebcmt_sub_tmt.
+              * generalize (type_of_expr_submap ctct_expr tm_tmap tmap Htm_tm_sub_tm) ; intro.
+                destruct (CEP.find k vm_comp) as [[gt|gt|gt|gt|gt]|] ; try done ;
+                destruct (type_of_expr ctct_expr tm_tmap) as [[[gt_ctct_expr| |] Hgt_ctct_expr_exp]|] ; try done ;
+                by rewrite H //.
+              * destruct (CEP.find k ct_comp) as [[| |ctc_expr]|] ; try done.
+                generalize (type_of_expr_submap ctc_expr tm_tmap tmap Htm_tm_sub_tm) ; intro.
+                destruct (CEP.find k vm_comp) as [[gt|gt|gt|gt|gt]|] ; try done ;
+                destruct (type_of_expr ctc_expr tm_tmap) as [[[gt_ctct_expr| |] Hgt_ctct_expr_exp]|] ; try done ;
+                by rewrite H //.
+          destruct Haft as [_ Haft], Haft_comp_t as [_ Haft_comp_t], Haft_comp_f as [_ Haft_comp_f] ; split.
           + destruct Haft_comp_f as [Haft_comp_f _].
             intro k ; specialize (Haft_comp_f k).
             destruct (CEP.find k vm_comp) as [[gt|gt|gt|gt|gt]|] ;
@@ -5291,13 +5299,19 @@ are overwritten anyway.
   apply convert_to_connect_stmts_Sem in Hsf_conn.
   + split.
     - exists vm_comp_t, (extend_defined_map_with eb_connmap_t ct_comp_t),
-             (extend_defined_map_with eb_connmap_f (extend_defined_map_with eb_connmap_t ct_comp)).
+             (extend_defined_map_with eb_connmap_f
+             (extend_map_with
+                (extend_map_with old_ct
+                   (extend_defined_map_with eb_connmap_t ct_comp_t)) ct_comp)).
       split.
       - by apply IHsst.
       split.
       - apply Sem_frag_stmts_Equal with (vm_old1 := vm_comp_t)
                     (ct_old1 := (extend_map_with old_ct (extend_defined_map_with eb_connmap_t ct_comp_t)))
-                    (vm_new1 := vm_comp) (ct_new1 := (extend_defined_map_with eb_connmap_f (extend_defined_map_with eb_connmap_t ct_comp)))
+                    (vm_new1 := vm_comp) (ct_new1 := (extend_defined_map_with eb_connmap_f
+             (extend_map_with
+                (extend_map_with old_ct
+                   (extend_defined_map_with eb_connmap_t ct_comp_t)) ct_comp)))
                     (tmap1 := tmap) ;
               try (by apply CEP.Lemmas.Equal_refl) ;
               first (by apply Hsf_conn).
@@ -5310,160 +5324,176 @@ are overwritten anyway.
           specialize (proj2 (proj2 IHsst) k) ; intro Hcmt_sub_ctct.
           rewrite /extend_defined_map_with CEP.Lemmas.map2_1bis // /extend_map_with CEP.Lemmas.map2_1bis // Heb_cm_t in Hcmt_sub_ctct.
           specialize (proj2 (proj2 IHssf) k) ; intro Hcmf_sub_ctct.
-          rewrite /extend_defined_map_with /extend_map_with CEP.Lemmas.map2_1bis // CEP.Lemmas.map2_1bis // CEP.Lemmas.map2_1bis // CEP.Lemmas.map2_1bis // CEP.Lemmas.map2_1bis // Heb_cm_t in Hcmf_sub_ctct.
+          rewrite /extend_defined_map_with /extend_map_with CEP.Lemmas.map2_1bis // CEP.Lemmas.map2_1bis // CEP.Lemmas.map2_1bis // CEP.Lemmas.map2_1bis // CEP.Lemmas.map2_1bis // CEP.Lemmas.map2_1bis // CEP.Lemmas.map2_1bis // Heb_cm_t in Hcmf_sub_ctct.
           destruct (CEP.find k ct_comp_t) as [[| |expr_ctct]|] eqn: Hctct ;
           try by discriminate (Hcmt_sub_ctct _ Logic.eq_refl).
           + rewrite (Hctct_sub_ctc _ Logic.eq_refl).
             destruct (match PVM.find k eb_connmap_f with
                       | Some D_invalidated | Some (D_fexpr _) => PVM.find k eb_connmap_f
-                      | _ => Some D_undefined
+                      | _ =>
+                          match
+                            match PVM.find k old_ct with
+                            | Some e => Some e
+                            | None => Some D_undefined
+                            end
+                          with
+                          | Some e => Some e
+                          | None => Some D_undefined
+                          end
                       end) as [[]|] ; by reflexivity.
           + (* CEP.find k ct_comp_t = None, but eb_connmap_t <> None. *)
             destruct Haft_comp_t as [[_ [Haft_comp_t _]] _].
             specialize (Haft_comp_t k).
-            rewrite Heb_cm_t Hctct // in Haft_comp_t.
-        * specialize (proj2 (proj2 Hsf_comp_sub_f) k) ; intro Hctct_sub_ctc.
-          specialize (proj2 (proj2 IHssf) k) ; intro Hcmf_sub_ctct.
-          rewrite /extend_defined_map_with /extend_map_with CEP.Lemmas.map2_1bis // CEP.Lemmas.map2_1bis // CEP.Lemmas.map2_1bis // CEP.Lemmas.map2_1bis // CEP.Lemmas.map2_1bis // Heb_cm_t in Hcmf_sub_ctct.
-          destruct (CEP.find k ct_comp_t) as [[| |expr_ctct]|] eqn: Hctct.
-          + 1-3: rewrite (Hctct_sub_ctc _ Logic.eq_refl).
-            1-3: destruct (CEP.find k eb_connmap_f) as [[| |expr_cm_f]|] eqn: Heb_cm_f ; try by reflexivity.
-            1,2: by discriminate (Hcmf_sub_ctct _ Logic.eq_refl).
-          + (* CEP.find k ct_comp_t = None, but eb_connmap_t <> None. *)
-            destruct Haft_comp_t as [[_ [Haft_comp_t _]] _].
-            specialize (Haft_comp_t k).
-            rewrite Heb_cm_t Hctct // in Haft_comp_t.
-        * specialize (proj2 (proj2 Hsf_comp_sub_f) k) ; intro Hctct_sub_ctc.
-          specialize (proj2 (proj2 IHssf) k) ; intro Hcmf_sub_ctct.
-          rewrite /extend_defined_map_with /extend_map_with CEP.Lemmas.map2_1bis // CEP.Lemmas.map2_1bis // CEP.Lemmas.map2_1bis // CEP.Lemmas.map2_1bis // CEP.Lemmas.map2_1bis // Heb_cm_t in Hcmf_sub_ctct.
-          destruct (CEP.find k ct_comp_t) as [[| |expr_ctct]|] eqn: Hctct.
-          + 1-3: rewrite (Hctct_sub_ctc _ Logic.eq_refl).
-            1-3: destruct (CEP.find k eb_connmap_f) as [[| |expr_cm_f]|] eqn: Heb_cm_f.
-            - 1,5,9: by discriminate (Hcmf_sub_ctct _ Logic.eq_refl).
-            - 1,4,7: by reflexivity.
-            - 1,3,5: destruct (expr_cm_t == expr_cm_f) ; by reflexivity.
-            - 1,2,3: by rewrite eq_refl //.
-          + (* CEP.find k ct_comp_t = None, but eb_connmap_t <> None. *)
-            destruct Haft_comp_t as [[_ [Haft_comp_t _]] _].
-            specialize (Haft_comp_t k).
-            rewrite Heb_cm_t Hctct // in Haft_comp_t.
-        * (* proj2 Haft_comp_t only allows to conclude CEP.find k old_connmap = None,
-             which we already know from elsewhere. *)
-          specialize (proj2 (proj2 Hsf_comp_sub_f) k) ; intro Hctct_sub_ctc.
-          specialize (proj2 (proj2 IHsst) k) ; intro Hcmt_sub_ctct.
-          rewrite /extend_defined_map_with CEP.Lemmas.map2_1bis // /extend_map_with CEP.Lemmas.map2_1bis // Heb_cm_t in Hcmt_sub_ctct.
-          specialize (proj2 (proj2 IHssf) k) ; intro Hcmf_sub_ctct.
-          rewrite /extend_defined_map_with /extend_map_with CEP.Lemmas.map2_1bis // CEP.Lemmas.map2_1bis // CEP.Lemmas.map2_1bis // CEP.Lemmas.map2_1bis // CEP.Lemmas.map2_1bis // Heb_cm_t in Hcmf_sub_ctct.
-          destruct (CEP.find k ct_comp_t) as [[| |expr_ctct]|] eqn: Hctct.
-          + rewrite (Hctct_sub_ctc _ Logic.eq_refl).
-            destruct (PVM.find k eb_connmap_f) as [[| |expr_cm_f]|] eqn: Heb_cm_f ; try by reflexivity.
-            - (* This should not happen: CEP.find k eb_connmap_t = None, so k is out of scope.
-                 CEP.find k old_ct <> None, so it is defined before the Swhen statement.
-                 (i.e. CEP.find k old_tmap <> None).
-                 But then we cannot have CEP.find k eb_connmap_f <> None.
-                 We need a property that says: parts that are out of scope cannot be changed
-                 (out-of-scope things can be added though).
-                 "If it is out of scope but in ct [or in tmap], then ct or the connmap does not change it." *)
-              destruct Haft_comp_f as [Haft_comp_f Holdcm_sub_cmf].
-              specialize (Holdcm_sub_cmf k).
-              rewrite Heb_cm_f in Holdcm_sub_cmf.
-              destruct Heb_t as [Heb_t _] ; specialize (Heb_t k) ; rewrite Heb_cm_t in Heb_t.
-              destruct Haft as [Hsc_sub_cm [_ [Hct_sub_vm [_ [Hsc_sub_vm _]]]]] ;
-              specialize (Hsc_sub_cm k) ; rewrite Heb_t in Hsc_sub_cm ;
-              specialize (Hct_sub_vm k) ; rewrite (Hcmt_sub_ctct _ Logic.eq_refl) in Hct_sub_vm ;
-              specialize (Hsc_sub_vm k).
-              destruct Hsdu_t as [_ Hsdu_t] ; specialize (Hsdu_t k).
-              rewrite (Hcmt_sub_ctct _ Logic.eq_refl) Hctct in Hsdu_t.
-              rewrite Heb_t in Holdcm_sub_cmf.
-              destruct (CEP.find k old_scope) as [[sct [| | | |]]|] ; try by done.
-              * (* This cannot happen because a source cannot be connected *)
-                destruct (CEP.find k tm_scope_comp_t) as [t|] ; last by contradiction Hsdu_t.
-                destruct (CEP.find k old_tmap) as [u|] ; last by contradiction Hsdu_t.
-                destruct Hsdu_t as [H1 [H2 _]] ; subst u t.
-                destruct (CEP.find k old_vm) as [[gt|gt|gt|gt|gt]|] ; done.
-              * (* This cannot happen either ... *)
-                destruct Hst_sub_t as [_ [Hst_sub_t _]] ; specialize (Hst_sub_t k).
-                destruct (CEP.find k tm_scope_comp_t), (CEP.find k old_tmap) ; try done.
-                rewrite (Hst_sub_t _ Logic.eq_refl) in Holdcm_sub_cmf.
+            by rewrite Heb_cm_t Hctct // in Haft_comp_t.
+        * 1,2: specialize (proj2 (proj2 Hsf_comp_sub_f) k) ; intro Hctct_sub_ctc.
+          1,2: specialize (proj2 (proj2 IHssf) k) ; intro Hcmf_sub_ctct.
+          1,2: rewrite /extend_defined_map_with /extend_map_with CEP.Lemmas.map2_1bis // CEP.Lemmas.map2_1bis // CEP.Lemmas.map2_1bis // CEP.Lemmas.map2_1bis // CEP.Lemmas.map2_1bis // CEP.Lemmas.map2_1bis // CEP.Lemmas.map2_1bis // Heb_cm_t in Hcmf_sub_ctct.
+          1,2: destruct (CEP.find k ct_comp_t) as [[| |expr_ctct]|] eqn: Hctct.
+          + 1-3,5-7: rewrite (Hctct_sub_ctc _ Logic.eq_refl) ;
+                     rewrite (Hctct_sub_ctc _ Logic.eq_refl) in Hcmf_sub_ctct.
+            1,4: destruct (CEP.find k eb_connmap_f) as [[| |expr_cm_f]|] eqn: Heb_cm_f ; try by reflexivity.
+            - 1,3: destruct (CEP.find k old_ct) as [[]|] eqn: Holdct ; try by discriminate (Hcmf_sub_ctct _ Logic.eq_refl).
+              1,2: by reflexivity.
+            - (* CEP.find k eb_connmap_f = None. So k is not declared in ssf.
+                 From proj2 Haft_comp_f we can conclude that CEP.find k old_scope = CEP.find k tm_scope_f
+                 and that CEP.find k old_connmap = None.
+                 We know that if CEP.find k old_ct = None, the proof is completed;
+                 but otherwise we must have CEP.find k old_ct = Some D_undefined.
+                 Now because CEP.find k eb_connmap_t = Some D_invalidated, k must be in scope.
+                 But then we cannot have CEP.find eb_connmap_f = None. *)
+              1,3: destruct Hsf_comp_sub_t as [_ [_ Hsf_comp_sub_t]] ; specialize (Hsf_comp_sub_t k) ;
+              destruct (CEP.find k old_ct) as [[| |old_ct_expr]|] eqn: Hold_ct ; last (by rewrite // eq_refl //) ;
+              try by rewrite (Hsf_comp_sub_t _ Logic.eq_refl) // in Hctct.
+              1,2: specialize (proj2 Haft_comp_t k) ; intro ; rewrite Heb_cm_t in H.
+              1,2: specialize (Hcm_submap_ct k) ; destruct (CEP.find k old_connmap) as [[| |oldcm_expr]|] eqn: Holdcm ;
+                    try (by rewrite (Hcm_submap_ct _ Logic.eq_refl) // in Hold_ct).
+              * (* old_connmap = Some D_undefined, so eb_connmap_f <> None *)
+                1,3: destruct Heb_f as [Heb_f _] ; specialize (Heb_f k).
+                1,2: by rewrite Holdcm Heb_cm_f // in Heb_f.
+              * (* old_connmap = None, so k is not in old_scope, so it cannot be changed in the true branch. *)
+                1,2: destruct Haft as [H1 [_ [H2 [H3 _]]]] ; specialize (H1 k) ; rewrite Holdcm in H1.
+                1,2: destruct (CEP.find k old_scope) as [[ft [| | | |]]|] eqn: Holdsc ; try by contradiction H1.
+                + (* well, actually the scope has source orientation, but then it cannot be connected at all *)
+                  1,3: destruct Haft_comp_t as [[Haft_comp_t _] _] ; specialize (Haft_comp_t k).
+                  1,2: destruct (CEP.find k tm_scope_t) as [[ft_t [| | | |]]|] ; try done ;
+                  destruct (CEP.find k old_tmap) as [[ft_otm [| | | |]]|] ; try done ;
+                  destruct H as [H [H' _]] ; try (by discriminate H) ; try (by discriminate H').
+                  1,2: by rewrite Haft_comp_t // in Heb_cm_t.
+                + (* out of scope but defined in old_tmap... *)
+                  1,2: specialize (H2 k) ; specialize (H3 k).
+                  1,2: rewrite Hold_ct in H2.
+                  1,2: destruct (CEP.find k old_vm) as [[gt|gt|gt|gt|gt]|] ;
+                        try (by contradiction H2) ;
+                  rewrite H3 in H ;
+                  destruct (CEP.find k tm_scope_t) ; done.
+          + destruct (expr_cm_t == expr_cm_f) ; by reflexivity.
+          + 1-7: destruct (CEP.find k eb_connmap_f) as [[| |expr_cm_f]|] eqn: Heb_cm_f ; try by done.
+            (* The above line also touches the goal with eb_connmap_t = None *)
+            - 1,3,5,8,11,13: destruct Hsf_comp_sub_t as [_ [_ Hsf_comp_sub_t]] ; specialize (Hsf_comp_sub_t k) ;
+              destruct (CEP.find k old_ct) as [[]|] eqn: Holdct ; try (by discriminate (Hcmf_sub_ctct _ Logic.eq_refl)) ;
+              by rewrite (Hsf_comp_sub_t _ Logic.eq_refl) // in Hctct.
+            - (* CEP.find k eb_connmap_f = None. So k is not declared in ssf.
+                 From proj2 Haft_comp_f we can conclude that CEP.find k old_scope = CEP.find k tm_scope_f
+                 and that CEP.find k old_connmap = None.
+                 We know that if CEP.find k old_ct = None, the proof is completed;
+                 but otherwise we must have CEP.find k old_ct = Some D_undefined.
+                 Now because CEP.find k eb_connmap_t = Some D_invalidated, k must be in scope.
+                 But then we cannot have CEP.find eb_connmap_f = None. *)
+              1,7: destruct Hsf_comp_sub_t as [_ [_ Hsf_comp_sub_t]] ; specialize (Hsf_comp_sub_t k) ;
+              destruct (CEP.find k old_ct) as [[| |old_ct_expr]|] eqn: Hold_ct ; last (by reflexivity) ;
+              by rewrite (Hsf_comp_sub_t _ Logic.eq_refl) // in Hctct.
+            - (* CEP.find k eb_connmap_f = None. So k is not declared in ssf.
+                 From proj2 Haft_comp_f we can conclude that CEP.find k old_scope = CEP.find k tm_scope_f
+                 and that CEP.find k old_connmap = None.
+                 We know that if CEP.find k old_ct = None, the proof is completed;
+                 but otherwise we must have CEP.find k old_ct = Some D_undefined.
+                 Now because CEP.find k eb_connmap_t = Some D_invalidated, k must be in scope.
+                 But then we cannot have CEP.find eb_connmap_f = None. *)
+              1,3,5,7: destruct Hsf_comp_sub_t as [_ [_ Hsf_comp_sub_t]] ; specialize (Hsf_comp_sub_t k) ;
+              destruct (CEP.find k old_ct) as [[| |old_ct_expr]|] eqn: Hold_ct ; last (by rewrite // eq_refl //) ;
+              try by rewrite (Hsf_comp_sub_t _ Logic.eq_refl) // in Hctct.
+              (* The above already solves two goals. *)
+              1,2: specialize (proj2 Haft_comp_t k) ; intro ; rewrite Heb_cm_t in H ;
+              specialize (Hcm_submap_ct k) ; destruct (CEP.find k old_connmap) as [[| |oldcm_expr]|] eqn: Holdcm ;
+                    try (by rewrite (Hcm_submap_ct _ Logic.eq_refl) // in Hold_ct).
+              * (* old_connmap = Some D_undefined, so eb_connmap_f <> None *)
+                1,3: destruct Heb_f as [Heb_f _] ; specialize (Heb_f k) ;
+                by rewrite Holdcm Heb_cm_f // in Heb_f.
+              * (* old_connmap = None, so k is not in old_scope, so it cannot be changed in the true branch. *)
+                1,2: destruct Haft as [H1 [_ [H2 [H3 _]]]] ; specialize (H1 k) ; rewrite Holdcm in H1 ;
+                destruct (CEP.find k old_scope) as [[ft [| | | |]]|] eqn: Holdsc ; try by contradiction H1.
+                + (* well, actually the scope has source orientation, but then it cannot be connected at all *)
+                  1,3: destruct Haft_comp_t as [[Haft_comp_t _] _] ; specialize (Haft_comp_t k) ;
+                  destruct (CEP.find k tm_scope_t) as [[ft_t [| | | |]]|] ; try done ;
+                  destruct (CEP.find k old_tmap) as [[ft_otm [| | | |]]|] ; try done ;
+                  destruct H as [H [H' _]] ; try (by discriminate H) ; try (by discriminate H') ;
+                  by rewrite Haft_comp_t // in Heb_cm_t.
+                + (* out of scope but defined in old_tmap... *)
+                  1,2: specialize (H2 k) ; specialize (H3 k) ;
+                  rewrite Hold_ct in H2 ;
+                  destruct (CEP.find k old_vm) as [[gt|gt|gt|gt|gt]|] ;
+                        try (by contradiction H2) ;
+                  rewrite H3 in H ;
+                  destruct (CEP.find k tm_scope_t) ; done.
+            - 1-3: destruct (expr_cm_t == expr_cm_f) ; by reflexivity.
+          + specialize (proj2 (proj2 Hsf_comp_sub_f) k) ; intro Hctct_sub_ctc.
+            specialize (proj2 (proj2 IHssf) k) ; intro Hcmf_sub_ctct.
+            rewrite /extend_defined_map_with /extend_map_with CEP.Lemmas.map2_1bis // CEP.Lemmas.map2_1bis // CEP.Lemmas.map2_1bis // CEP.Lemmas.map2_1bis // CEP.Lemmas.map2_1bis // CEP.Lemmas.map2_1bis // CEP.Lemmas.map2_1bis // Heb_cm_t in Hcmf_sub_ctct.
+            destruct (CEP.find k ct_comp_t) as [[| |expr_ctct]|] eqn: Hctct.
+            - 1-3: rewrite (Hctct_sub_ctc _ Logic.eq_refl) ;
+                   rewrite (Hctct_sub_ctc _ Logic.eq_refl) in Hcmf_sub_ctct.
+              * destruct (match
+                            match PVM.find k old_ct with
+                            | Some e => Some e
+                            | None => Some D_undefined
+                            end
+                          with
+                          | Some e => Some e
+                          | None => Some D_undefined
+                          end) as [[]|] ; by reflexivity.
+              * destruct Hsf_comp_sub_t as [_ [_ Hsf_comp_sub_t]] ; specialize (Hsf_comp_sub_t k).
+                destruct (CEP.find k old_ct) as [[]|] eqn: Holdct ; try by rewrite (Hsf_comp_sub_t _ Logic.eq_refl) // in Hctct.
+                by reflexivity.
+              * destruct Hsf_comp_sub_t as [_ [_ Hsf_comp_sub_t]] ; specialize (Hsf_comp_sub_t k).
+                destruct (PVM.find k old_ct) as [[| |old_expr]|] eqn: Holdct ; try done ;
+                try rewrite (Hsf_comp_sub_t _ Logic.eq_refl) // in Hctct.
+                + injection Hctct ; intro ; subst expr_ctct ; rewrite eq_refl //.
+                + by rewrite eq_refl //.
+              * destruct Hsf_comp_sub_t as [_ [_ Hsf_comp_sub_t]] ; specialize (Hsf_comp_sub_t k).
+                destruct (CEP.find k old_ct) as [[]|] eqn: Holdct ; try by rewrite (Hsf_comp_sub_t _ Logic.eq_refl) // in Hctct.
+                destruct (CEP.find k ct_comp) ; done.
+          + (*specialize (proj2 (proj2 Hsf_comp_sub_f) k) ; intro Hctct_sub_ctc.*)
+            1,2: specialize (proj2 (proj2 IHsst) k) ; intro Hcmt_sub_ctc.
+            1,2: rewrite /extend_defined_map_with /extend_map_with CEP.Lemmas.map2_1bis // CEP.Lemmas.map2_1bis // Heb_cm_t in Hcmt_sub_ctc.
+            1,2: destruct (CEP.find k ct_comp_t) as [[| |expr_ctct]|] eqn: Hctct ; try done.
+            - (* CEP.find k old_ct = D_undefined and CEP.find k eb_connmap_f = D_invalidated,
+               so it must be in scope. But then CEP.find k eb_connmap_t <> None. *)
+              1-4: destruct Heb_t as [Heb_t _] ; specialize (Heb_t k).
+              1-4: rewrite Heb_cm_t // in Heb_t.
+              1-4: destruct Haft as [H1 [_ [H2 [H3 [H4 _]]]]] ; specialize (H1 k) ; rewrite Heb_t in H1.
+              1-4: destruct (CEP.find k old_scope) as [[ft [| | | |]]|] eqn: Holdsc ; try by contradiction H1.
+              * (* well, actually the scope has source orientation, but then it cannot be connected at all *)
+                1,3,5,7: specialize (H2 k) ; rewrite (Hcmt_sub_ctc _ Logic.eq_refl) in H2.
+                1-4: specialize (H4 k) ; rewrite Holdsc in H4.
+                1-4: destruct (CEP.find k old_vm) as [[]|] ; done.
+              * (* out of scope but defined in old_tmap... so it cannot be redefined. *)
+                1-4: specialize (proj2 Haft_comp_f k) ; intro H.
+                1-4: rewrite Holdsc Heb_t Heb_cm_f in H.
+                1-4: specialize (H2 k) ; specialize (H3 k).
+                1-4: rewrite (Hcmt_sub_ctc _ Logic.eq_refl) in H2.
+                1-4: destruct (CEP.find k old_vm) as [[gt|gt|gt|gt|gt]|] ;
+                      try (by contradiction H2) ;
+                rewrite (proj1 (proj2 Hst_sub_t) k _ H3) in H ;
                 destruct (CEP.find k tm_scope_f) ; done.
-            - (* Now PVM.find k eb_connmap_f = Some (D_fexpr expr_cm_f).
-                 I think we can do something similar as above... *)
-              destruct Haft_comp_f as [Haft_comp_f Holdcm_sub_cmf].
-              specialize (Holdcm_sub_cmf k).
-              rewrite Heb_cm_f in Holdcm_sub_cmf.
-              destruct Heb_t as [Heb_t _] ; specialize (Heb_t k) ; rewrite Heb_cm_t in Heb_t.
-              destruct Haft as [Hsc_sub_cm [_ [Hct_sub_vm [_ [Hsc_sub_vm _]]]]] ;
-              specialize (Hsc_sub_cm k) ; rewrite Heb_t in Hsc_sub_cm ;
-              specialize (Hct_sub_vm k) ; rewrite (Hcmt_sub_ctct _ Logic.eq_refl) in Hct_sub_vm ;
-              specialize (Hsc_sub_vm k).
-              destruct Hsdu_t as [_ Hsdu_t] ; specialize (Hsdu_t k).
-              rewrite (Hcmt_sub_ctct _ Logic.eq_refl) Hctct in Hsdu_t.
-              rewrite Heb_t in Holdcm_sub_cmf.
-              destruct (CEP.find k old_scope) as [[sct [| | | |]]|] ; try by done.
-              * (* This cannot happen because a source cannot be connected *)
-                destruct (CEP.find k tm_scope_comp_t) as [t|] ; last by contradiction Hsdu_t.
-                destruct (CEP.find k old_tmap) as [u|] ; last by contradiction Hsdu_t.
-                destruct Hsdu_t as [H1 [H2 _]] ; subst u t.
-                destruct (CEP.find k old_vm) as [[gt|gt|gt|gt|gt]|] ; done.
-              * (* This cannot happen either ... *)
-                destruct Hst_sub_t as [_ [Hst_sub_t _]] ; specialize (Hst_sub_t k).
-                destruct (CEP.find k tm_scope_comp_t), (CEP.find k old_tmap) ; try done.
-                rewrite (Hst_sub_t _ Logic.eq_refl) in Holdcm_sub_cmf.
-                destruct (CEP.find k tm_scope_f) ; done.
-          + rewrite (Hctct_sub_ctc _ Logic.eq_refl).
-            destruct (PVM.find k eb_connmap_f) as [[| |eb_expr_f]|] ; done.
-          + specialize (Hctct_sub_ctc _ Logic.eq_refl).
-            rewrite Hctct_sub_ctc ; rewrite Hctct_sub_ctc (Hcmt_sub_ctct _ Logic.eq_refl) in Hcmf_sub_ctct.
-            (* This should not happen: CEP.find k eb_connmap_t = None, so k is out of scope.
-               CEP.find k old_ct <> None, so it is defined before the Swhen statement. *)
-            destruct (PVM.find k eb_connmap_f) as [[| |eb_expr_f]|] eqn: Heb_cm_f.
-            - by discriminate (Hcmf_sub_ctct _ Logic.eq_refl).
-            - destruct Haft_comp_f as [Haft_comp_f Holdcm_sub_cmf].
-              specialize (Holdcm_sub_cmf k).
-              rewrite Heb_cm_f in Holdcm_sub_cmf.
-              destruct Heb_t as [Heb_t _] ; specialize (Heb_t k) ; rewrite Heb_cm_t in Heb_t.
-              destruct Haft as [Hsc_sub_cm [_ [Hct_sub_vm [_ [Hsc_sub_vm _]]]]] ;
-              specialize (Hsc_sub_cm k) ; rewrite Heb_t in Hsc_sub_cm ;
-              specialize (Hct_sub_vm k) ; rewrite (Hcmt_sub_ctct _ Logic.eq_refl) in Hct_sub_vm ;
-              specialize (Hsc_sub_vm k).
-              destruct Hsdu_t as [_ Hsdu_t] ; specialize (Hsdu_t k).
-              rewrite (Hcmt_sub_ctct _ Logic.eq_refl) Hctct in Hsdu_t.
-              rewrite Heb_t in Holdcm_sub_cmf.
-              destruct (CEP.find k old_scope) as [[sct [| | | |]]|] ; try by done.
-              * (* This cannot happen because a source cannot be connected *)
-                destruct (CEP.find k tm_scope_comp_t) as [t|] ; last by contradiction Hsdu_t.
-                destruct (CEP.find k old_tmap) as [u|] ; last by contradiction Hsdu_t.
-                destruct Hsdu_t as [H1 [H2 _]] ; subst u t.
-                destruct (CEP.find k old_vm) as [[gt|gt|gt|gt|gt]|] ; done.
-              * (* This cannot happen either ... *)
-                destruct Hst_sub_t as [_ [Hst_sub_t _]] ; specialize (Hst_sub_t k).
-                destruct (CEP.find k tm_scope_comp_t), (CEP.find k old_tmap) ; try done.
-                rewrite (Hst_sub_t _ Logic.eq_refl) in Holdcm_sub_cmf.
-                destruct (CEP.find k tm_scope_f) ; done.
-            - destruct Haft_comp_f as [Haft_comp_f Holdcm_sub_cmf].
-              specialize (Holdcm_sub_cmf k).
-              rewrite Heb_cm_f in Holdcm_sub_cmf.
-              destruct Heb_t as [Heb_t _] ; specialize (Heb_t k) ; rewrite Heb_cm_t in Heb_t.
-              destruct Haft as [Hsc_sub_cm [_ [Hct_sub_vm [_ [Hsc_sub_vm _]]]]] ;
-              specialize (Hsc_sub_cm k) ; rewrite Heb_t in Hsc_sub_cm ;
-              specialize (Hct_sub_vm k) ; rewrite (Hcmt_sub_ctct _ Logic.eq_refl) in Hct_sub_vm ;
-              specialize (Hsc_sub_vm k).
-              destruct Hsdu_t as [_ Hsdu_t] ; specialize (Hsdu_t k).
-              rewrite (Hcmt_sub_ctct _ Logic.eq_refl) Hctct in Hsdu_t.
-              rewrite Heb_t in Holdcm_sub_cmf.
-              destruct (CEP.find k old_scope) as [[sct [| | | |]]|] ; try by done.
-              * (* This cannot happen because a source cannot be connected *)
-                destruct (CEP.find k tm_scope_comp_t) as [t|] ; last by contradiction Hsdu_t.
-                destruct (CEP.find k old_tmap) as [u|] ; last by contradiction Hsdu_t.
-                destruct Hsdu_t as [H1 [H2 _]] ; subst u t.
-                destruct (CEP.find k old_vm) as [[gt|gt|gt|gt|gt]|] ; done.
-              * (* This cannot happen either ... *)
-                destruct Hst_sub_t as [_ [Hst_sub_t _]] ; specialize (Hst_sub_t k).
-                destruct (CEP.find k tm_scope_comp_t), (CEP.find k old_tmap) ; try done.
-                rewrite (Hst_sub_t _ Logic.eq_refl) in Holdcm_sub_cmf.
-                destruct (CEP.find k tm_scope_f) ; done.
+          + specialize (proj2 (proj2 IHsst) k) ; intro Hcmt_sub_ctc.
+            rewrite /extend_defined_map_with /extend_map_with CEP.Lemmas.map2_1bis // CEP.Lemmas.map2_1bis // Heb_cm_t in Hcmt_sub_ctc.
+            destruct (CEP.find k ct_comp_t) as [[| |expr_ctct]|] eqn: Hctct ;
+            try rewrite (proj2 (proj2 Hsf_comp_sub_f) k _ Hctct) (Hcmt_sub_ctc _ Logic.eq_refl) //.
             - by rewrite eq_refl //.
-          + destruct (CEP.find k eb_connmap_f) as [[| |eb_expr_f]|], (CEP.find k ct_comp) ; done.
+            - destruct Hsf_comp_sub_t as [_ [_ Hsf_comp_sub_t]] ; specialize (Hsf_comp_sub_t k) ;
+              rewrite Hctct in Hsf_comp_sub_t.
+              destruct (CEP.find k old_ct) as [[]|] ; try by discriminate (Hsf_comp_sub_t _ Logic.eq_refl).
+              destruct (CEP.find k ct_comp) ; by reflexivity.
     split.
     - destruct IHsst as [_ [IHsst _]], IHssf as [_ [IHssf _]],
                Haft_comp_t as [Haft_comp_t _], Haft_comp_f as [Haft_comp_f _].
@@ -5634,29 +5664,50 @@ are overwritten anyway.
               /extend_map_with CEP.Lemmas.map2_1bis // in IHsst.
       destruct IHssf as [_ [_ IHssf]] ; specialize (IHssf k).
       rewrite /extend_defined_map_with CEP.Lemmas.map2_1bis // CEP.Lemmas.map2_1bis //
-              /extend_map_with CEP.Lemmas.map2_1bis // CEP.Lemmas.map2_1bis // CEP.Lemmas.map2_1bis // in IHssf.
+              /extend_map_with CEP.Lemmas.map2_1bis // CEP.Lemmas.map2_1bis // CEP.Lemmas.map2_1bis // CEP.Lemmas.map2_1bis // CEP.Lemmas.map2_1bis // in IHssf.
       destruct (CEP.find k eb_connmap_t) as [[| |eb_expr_t]|] eqn: Heb_cm_t,
                (CEP.find k eb_connmap_f) as [[| |eb_expr_f]|] eqn: Heb_cm_f ;
             try by reflexivity.
       (* Now a number of goals have that one of the connmaps in D_undefined. Then ct_comp should also be D_undefined. *)
-      * 1,8: destruct Haft_comp_f as [[_ [Hebcmf_sub_ctc _]] _] ;
-             specialize (Hebcmf_sub_ctc k) ; rewrite Heb_cm_f in Hebcmf_sub_ctc ;
-             destruct (CEP.find k ct_comp) ; last (by discriminate Hebcmf_sub_ctc) ;
-             apply IHssf ; by reflexivity.
+      * destruct Haft_comp_f as [[_ [Hebcmf_sub_ctc _]] _] ;
+        specialize (Hebcmf_sub_ctc k) ; rewrite Heb_cm_f in Hebcmf_sub_ctc.
+        destruct Hsf_comp_sub_t as [_ [_ Hsf_comp_sub_t]] ; specialize (Hsf_comp_sub_t k) ;
+        destruct Hsf_comp_sub_f as [_ [_ Hsf_comp_sub_f]] ; specialize (Hsf_comp_sub_f k).
+        destruct (CEP.find k ct_comp_t) as [[]|] eqn: Hctct ;
+        try (by discriminate (IHsst _ Logic.eq_refl)).
+        + by rewrite (Hsf_comp_sub_f _ Logic.eq_refl) //.
+        + destruct (CEP.find k old_ct) ; try (by discriminate (Hsf_comp_sub_t _ Logic.eq_refl)).
+          destruct (CEP.find k ct_comp) as [[]|] ; last (by discriminate Hebcmf_sub_ctc) ;
+          try (by discriminate (IHssf _ Logic.eq_refl)).
+          by reflexivity.
       * 1-3: destruct Haft_comp_t as [[_ [Hebcmt_sub_ctct _]] _] ;
              specialize (Hebcmt_sub_ctct k) ; rewrite Heb_cm_t in Hebcmt_sub_ctct ;
              destruct Hsf_comp_sub_f as [_ [_ Hsf_comp_sub_f]] ; specialize (Hsf_comp_sub_f k) ;
              destruct (CEP.find k ct_comp_t) ; last (by discriminate Hebcmt_sub_ctct) ;
              rewrite (Hsf_comp_sub_f _ Logic.eq_refl) ;
              apply IHsst ; by reflexivity.
-      * 1,2: by discriminate (IHssf _ Logic.eq_refl).
+      * 1,2: generalize (CEP.Lemmas.submap_trans (proj2 (proj2 Hsf_comp_sub_t)) (proj2 (proj2 Hsf_comp_sub_f)) k) ; intro H ;
+        destruct (PVM.find k old_ct) as [[]|] ; try (by discriminate (IHssf _ Logic.eq_refl)) ;
+        by rewrite (H _ Logic.eq_refl) //.
       * destruct (eb_expr_t == eb_expr_f) ; by reflexivity.
+      * destruct Haft_comp_f as [[_ [Hebcmf_sub_ctc _]] _] ;
+        specialize (Hebcmf_sub_ctc k) ; rewrite Heb_cm_f in Hebcmf_sub_ctc.
+        destruct Hsf_comp_sub_t as [_ [_ Hsf_comp_sub_t]] ; specialize (Hsf_comp_sub_t k) ;
+        destruct Hsf_comp_sub_f as [_ [_ Hsf_comp_sub_f]] ; specialize (Hsf_comp_sub_f k).
+        destruct (CEP.find k old_ct) as [[]|] eqn: Holdct ;
+        try (by discriminate (IHssf _ Logic.eq_refl)).
+        + by rewrite (Hsf_comp_sub_f _ (Hsf_comp_sub_t _ Logic.eq_refl)) //.
+        + destruct (CEP.find k ct_comp_t) ; try (by discriminate (IHsst _ Logic.eq_refl)).
+          destruct (CEP.find k ct_comp) as [[]|] ; last (by discriminate Hebcmf_sub_ctc) ;
+          try (by discriminate (IHssf _ Logic.eq_refl)).
+          by reflexivity.
       * destruct Hsf_comp_sub_t as [_ [_ Hsf_comp_sub_t]] ; specialize (Hsf_comp_sub_t k).
         destruct Hsf_comp_sub_f as [_ [_ Hsf_comp_sub_f]] ; specialize (Hsf_comp_sub_f k).
-        destruct (CEP.find k old_ct), (CEP.find k ct_comp) ; try by done.
-        + apply IHssf ; by reflexivity.
-        + by discriminate (Hsf_comp_sub_f _ (Hsf_comp_sub_t _ Logic.eq_refl)).
-        + by discriminate (IHsst _ (IHssf _ Logic.eq_refl)).
+        destruct (CEP.find k old_ct) ;
+              first by rewrite (Hsf_comp_sub_f _ (Hsf_comp_sub_t _ Logic.eq_refl)) //.
+        destruct (CEP.find k ct_comp_t) ; first by discriminate (IHsst _ Logic.eq_refl).
+        destruct (CEP.find k ct_comp) ; first by discriminate (IHssf _ Logic.eq_refl).
+        by reflexivity.
   + destruct Haft_comp_t as [Haft_comp_t Holdcm_sub_cmt].
     destruct Haft_comp_f as [Haft_comp_f Holdcm_sub_cmf].
     split.
