@@ -9,7 +9,6 @@
 
 \zhilin{define $\typeofexp(e, tmap)$ here}
 
-
 \paragraph*{The definitions of $te(e)$ and $s(e)$}
 %
 For $\theta \bwidth{n}(n')$ such that $\theta \in \{\mbox{\prettyll{UInt}, \prettyll{SInt}}\}$, $n > 0$, and $n'$ is an integer, we define $bv_{\theta \bwidth{n}(n')}$ as follows.
@@ -115,7 +114,6 @@ $s(and(e_1, e_2))$ is the bitwise and of $bv_{\theta\bwidth{\max(n_1, n_2)}(s(e_
 %
 \end{itemize}
 
-\section{Missing details in Section~\ref{sec-hi-firrtl-transform}}\label{app-hifirrtl}
 
 \paragraph*{The definition of ${\tt type\_of\_expr}(e)$ }%\zhilin{@Xiaomu, please add the definition here}
 We define the type of HiFIRRTL program in the Coq as $ftype$. In general, it can be used to represent either a {\it ground type} ($gtyp$), a {\it vector type} ($vtyp$), or a {\tt bundle type} ($btyp$),
@@ -130,6 +128,18 @@ For each kind of expression of HiFIRRRL, we derived its type $t$ in $ftype$ as f
 \item ${\tt type\_of\_expr}(\mbox{\prettyll{validif}}(e_1,e_2))={\tt type\_of\_expr}(e_2)$, regardless the type of $e1$.
 \item ${\tt type\_of\_expr}(op)$, $op$ includes all the binary and unary operations, in which only $gtyp$ operation will involve. The {\tt type\_of\_expr} computes the type as same as $te$.
 \end{itemize}
+
+
+
+\input{appendix_sect3.tex}
+
+
+
+
+\section{Missing details in Section~\ref{sec:form-transform}}\label{app-hifirrtl}
+
+
+\input{appendix_sect4.tex}
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

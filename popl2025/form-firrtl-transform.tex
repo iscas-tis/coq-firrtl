@@ -1,21 +1,16 @@
 %!TEX root = main.tex
 
-\subsection{Formalization of Transformations}
-
-%Equipped with this definition of
-With the formal semantics of {\hifirrtl} programs, we %are able to
-shall formalize the lowering transformations and prove %that they preserve the
-various semantics preservation properties in Section~\ref{sec-hi-firrtl-transform}. %, i.e.,  %of {\hifirrtl} programs, that is, prove that
-%the set of module graphs of {\hifirrtl} programs are unchanged during the lowering transformations.
-
-In this section, we show how the lowering transformations of HiFIRRTL, which were described informally in Section~\ref{subsec-lowering-transformations}, are formalized in Coq. Specifically, we consider the formalization of the six lowering transformations, namely, %``InferTypes'',
+In this section, we show how the lowering transformations of HiFIRRTL, which were described informally in Section~\ref{subsec-lowering-transformations}, are formalized in Coq. Specifically, we consider the formalization of the three lowering transformations, namely, %``InferTypes'',
 ``InferWidths'', %``InferResets'',
 ``ExpandConnects'', and ``ExpandWhens''. %, and ``LowerTypes''.
+These three transformations are the key transformations from {\hifirrtl} programs to {\lofirrtl} ones. 
+Moreover, we shall show how to prove the semantics preservation property of these three transformations. 
 
+For simplicity, let us focus on a {\hifirrtl} circuit $A$ that contains no \prettyll{inst of} statements, that is, circuit $A$ contains exactly one top-level module $A$.
 
+\subsection{Formalization of Transformations}\label{sec:form-transform}
 
-
-For simplicity, let us focus on a HiFIRRTL circuit $A$ that contains no \prettyll{inst of} statements, that is, circuit $A$ contains exactly one top-level module $A$.
+In the sequel, we show how to formalize the three transformations. 
 
 %The formalization utilizes a structure called \emph{circuit diagrams} defined below.
 %
@@ -29,13 +24,13 @@ For simplicity, let us focus on a HiFIRRTL circuit $A$ that contains no \prettyl
 %the connect mapping $cm$ extracts for each component the expression that is connected to the component according to the last-connect semantics.
 
 
-\tl{to be rewritten}
+%\tl{to be rewritten}
 
-As we will see later on, the sequence $ss$ of statements will be updated by the ``ExpandConnects'', ``ExpandWhens'', and ``LowerTypes'' passes,
-and the component environment $ce$ will be modified by the ``InferTypes'', ``InferWidths'', ``InferResets'',  and ``LowerTypes'' passes,
- while the component environment $cm$ will only be changed by the ``ExpandWhens'' pass, since it is the only pass that deals with the last-connect semantics.
+%As we will see later on, the sequence $ss$ of statements will be updated by the ``ExpandConnects'', ``ExpandWhens'', and ``LowerTypes'' passes,
+%and the component environment $ce$ will be modified by the ``InferTypes'', ``InferWidths'', ``InferResets'',  and ``LowerTypes'' passes,
+% while the component environment $cm$ will only be changed by the ``ExpandWhens'' pass, since it is the only pass that deals with the last-connect semantics.
 
-Before applying the lowering transformations, the module $A$ will be first transformed into a circuit diagram $D_A = (ss_0, ce_0, cm_0)$, where $ss_0$ is the sequence of statements in the module  $A$, $ce_0$ is the component environment obtained from the component declarations in the module $A$, possibly with the types of some components missing or partial, and $cm_0$ is the trivial mapping that maps each component to $\bot$. (Intuitively, this means that none of the components have been connected to so far.) The missing or partial types in the component environment $ce_0$ will be completed by the lowering transformations ``InferTypes'' and ``InferWidths''.
+%Before applying the lowering transformations, the module $A$ will be first transformed into a circuit diagram $D_A = (ss_0, ce_0, cm_0)$, where $ss_0$ is the sequence of statements in the module  $A$, $ce_0$ is the component environment obtained from the component declarations in the module $A$, possibly with the types of some components missing or partial, and $cm_0$ is the trivial mapping that maps each component to $\bot$. (Intuitively, this means that none of the components have been connected to so far.) The missing or partial types in the component environment $ce_0$ will be completed by the lowering transformations ``InferTypes'' and ``InferWidths''.
 
 
 
