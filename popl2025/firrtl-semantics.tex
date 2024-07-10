@@ -37,10 +37,10 @@ an under-specification in the sense that the bit widths of its components are no
 %define
 The semantics we present is denotational, i.e.,  %of a given
 a {\hifirrtl} program
-is interpreted as the set of (low-level) {\lofirrtl} programs that conform to it, where (1) all components are of ground types, 
+is interpreted as the set of (low-level) {\lofirrtl} programs that conform to it, where (1) all components are of ground types,
 whose bit widths are all explicitly given, (2) there are no \prettyll{when} statements, and (3) each component is connected at most once.
 As a result, the semantics definition is essentially to specify which low-level RTL circuits conform to a given {\hifirrtl} program.
- 
+
 
 Fix a {\hifirrtl} module $M$ which consists of a sequence of port declarations followed by statements. We shall represent a {\lofirrtl} module  %by a data structure called \emph{module graphs}. A module graph $G = (vm, ct)$ represents a module in {\hifirrtl} programs,
 as a pair $(tm, cm)$ where $tm$ is a \emph{type mapping} that records the typing information of ground-type components in $M$, and $cm$ is a \emph{connection mapping} that records the connections between these components.
@@ -61,7 +61,7 @@ we first utilize $tm$ to determine all the bit-widths of the components in $M$ a
 	we then utilize $tm$ and $tmap$ %together with the statements in $M$,
 	to construct a connection mapping $cm'$.
 	%moreover, during the construction of $(tm', cm')$,
-\end{itemize} 
+\end{itemize}
 Clearly $(tm, cm) \models M$ if $tmap$ and $cm'$ are successfully constructed and $cm = cm'$.
 \fu{It seems that the above is a construction of $tmap$ and $cm'$ instead of the definition of conformance. When the construction succeeds, and $cm = cm'$, it
 yields a low level module that conforms to $M$. Can we first define what is conformance, then discuss how to compute all the low level modules that conform to $M$?}
@@ -111,6 +111,7 @@ Note that $\uintimp$ and $\sintimp$ are introduced to denote the %explicit
 ground types that are instantiated from the implicit ground types. %\tl{then why not use unitexp !?}
 %
 In particular, $\gtypes$ can model types of implicit width in $M$. For instance, $\uint$ where the width is implicit is captured by $(\uintimp, 0)$.
+\fu{The meaning of ``0'' is unclear here, does $i>0$ in $(\uintimp, i)$ denotes the width $i$ and $0$ denotes unknown?}
 %\tl{so it is sugar?}
 %\zhilin{UIntImp is used to check the compatibility between tm and tmap later on.}
 %Similarly for $\sint$.
@@ -119,7 +120,7 @@ In particular, $\gtypes$ can model types of implicit width in $M$. For instance,
 %For a ground type $t = (\tau, n) \in \{UInt, SInt\} \times \Nat$, $n$ is the \emph{width} of $t$, denoted by $wd(t)$.
 %
 
-In the definition of $tm$,  the ground types is annotated with component sort (e.g., input and output ports, wires, etc). To accommodate this, we define \emph{extended ground types} $\egtypes$ as %the set of vertex sorts.
+In the definition of $tm$,  the ground types \fu{are} annotated with component \fu{sorts} (e.g., input and output ports, wires, etc). To accommodate this, we define \emph{extended ground types} $\egtypes$ as %the set of vertex sorts.
 \begin{itemize}
 \item $(s, t)$ with $s \in \{\inport, \outport, \wire, \node\}$ and $t \in \gtypes$,
 \item or $(\register, (t, clk, rsig, rval, b))$ such that $t \in \gtypes$, $clk, rsig, rval \in \exps$ and $b\in \{0,1\}$. (Intuitively, $clk$ represents a clock, $rsig$ represents a reset signal, and $rval$ represents a reset value, and $b$ is a Boolean value that denotes whether the reset is asynchronous or not).
