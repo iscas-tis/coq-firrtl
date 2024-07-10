@@ -334,6 +334,84 @@ the Coq function {\sf inferWidthsFun} calls {\sf {\sf inferWidthsFun}} on the li
   \label{tab:type-ref'}
 \end{figure}
 
+\begin{figure}[htbp]
+  \begin{gather*}
+    \inferii[{\sf ftSetSub}: ground-0]
+    {\seqq{{\sf ftSetSub}(gt, n, ft) = [(\gtype, gt)]}}
+    {\seqq{ft = (\gtype, \_)}}
+    {\seqq{n = 0}}
+    \quad
+    \\[1ex]
+    \inferii[{\sf ftSetSub}: ground-$\neq$0]
+    {\seqq{{\sf ftSetSub}(gt, n, ft) = \svnone}}
+    {\seqq{ft = (\gtype, \_)}}
+    {\seqq{n \neq 0}}
+    \quad
+    \\[1ex]
+    \infer[{\sf ftSetSub}: vector-lt]
+    {\seqq{{\sf ftSetSub}(gt,n,ft) = (\vtype, newt[m])}}
+    {
+    \begin{array}{c}
+    ft = (\vtype, ft'[m]) \wedge n < \sizeofftype(ft) \\
+    n' = {\sf mod}(n, ({\sizeofftype(ft')})) \wedge newt = {\sf ftSetSub}(gt,n',ft')
+    \end{array}
+    }
+    \quad
+    \\[1ex]
+    \infer[{\sf ftSetSub}: vector-geq]
+    {\seqq{{\sf ftSetSub}(gt,n,ft) = \svnone}}
+    {
+    \begin{array}{c}
+    ft = (\vtype, ft'[m]) \wedge n \geq \sizeofftype(ft) 
+    \end{array}
+    }
+    \quad
+    \\[1ex]
+    \infer[{\sf ftSetSub}: bundle]
+    {\seqq{{\sf ftSetSub}(gt,n,ft) = (\btype, \myvec{f'})}}
+    {
+    \begin{array}{c}
+    ft = (\btype, \myvec{f}) \wedge \myvec{f'} = {\sf ftSetFld}(gt,n,\myvec{f})
+    \end{array}
+    }
+    \quad
+    \\[1ex]    
+    \infer[{\sf ftSetFld}: nil]
+    {\seqq{{\sf ftSetFld}(gt,n,\myvec{f}) = \svnone}}
+    {\seqq{\myvec{f} = \nil}}
+    \quad
+    \\[1ex]
+    \infer[{\sf ftSetFld}: $\neq$nil-1]
+    {\seqq{{\sf ftSetFld}(gt,n,\myvec{f}) = (v, flip, ft', \myvec{f'})}}
+    {
+    \begin{array}{c}
+    \myvec{f} = (v, flip, ft, \myvec{f'}) \ \wedge n < \sizeofftype(ft) \\
+	ft' = {\sf ftSetSub}(gt,n,ft)
+    \end{array}
+    }
+    \quad
+    \\[1ex]
+    \infer[{\sf ftSetFld}: $\neq$nil-2]
+    {\seqq{{\sf ftSetFld}(gt,n,\myvec{f}) = (v, flip, ft, \myvec{f''})}}
+    {
+    \begin{array}{c}
+    \myvec{f} = (v, flip, ft, \myvec{f'})\ \wedge \sizeofftype(ft) \leq n < \sizeoffields(\myvec{f}) \\
+	\myvec{f''} = {\sf ftSetFld}(gt,(n- \sizeofftype(ft)),\myvec{f'})
+    \end{array}
+    }
+    \quad
+    \\[1ex]
+    \infer[{\sf ftSetFld}: $\neq$nil-3]
+    {\seqq{{\sf ftSetFld}(gt,n,\myvec{f}) = \svnone}}
+    {
+    \begin{array}{c}
+    \myvec{f} = (v, flip, ft, \myvec{f'}) \ \wedge n \geq \sizeoffields(f) 
+    \end{array}
+    }
+    \end{gather*}
+    \caption{${\sf ftSetSub}$ and ${\sf ftSetFld}$}
+  \label{tab:ft-set-sub}
+\end{figure}
 
 \begin{table}[htbp]
   \small
@@ -434,19 +512,19 @@ the Coq function {\sf inferWidthsFun} calls {\sf {\sf inferWidthsFun}} on the li
     \begin{array}{c}
       order = v\ tl \\
       el = var2exprs(v) \\
-      tmap'' = {\sf inferWidthsFun}(v, el, tmap) \\
+      tmap'' = {\sf inferWidthFun}(v, el, tmap) \\
       tmap' = {\sf inferWidthsFun} (tl, var2exprs, tmap'')
     \end{array}
     }
     \quad
    \\[1ex]
-    \infer[{\sf inferWidthsFun}]
-    {\seqq{{\sf inferWidthsFun}(v, el, tmap) = tmap'}}
+    \infer[{\sf inferWidthFun}]
+    {\seqq{{\sf inferWidthFun}(v, el, tmap) = \fadd((v.1,0), newft, tmap)}}
     {
     \begin{array}{c}
-      {\sf typeOfRef'}(v, tmap) = (initt, \_) \\
+      {\sf typeOfRef'}(v, tmap) = (initt, \_) \wedge  {\sf typeOfRef'}((v.1,0),tmap) = (ft, \_)\\
       newt = {\sf maxFtList}(initt, map (({\sf typeOfExp}(tmap)) \leftarrow el)) \\
-      tmap' = \fadd(v, newt, tmap)
+      newft = {\sf ftSetSub}(newt,v.2,ft) 
     \end{array}
     }
     \quad

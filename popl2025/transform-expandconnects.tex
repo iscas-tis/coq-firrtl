@@ -41,15 +41,18 @@ and \sink.
  \end{gather*}
  The {\tt expand\_connect} function takes a statement as input and
 produces a sequence of statements as output. In the case above, the
-input statement is the port declaration ``\mbox{\prettyll{input v}}'',
+input statement is the port declaration ``\mbox{\prettyll{input v t}}'',
 and ``$pp$'' is the sequence of output. The ``$pp$'' is produced by
-expanding the port {\tt v} to its atomic subfields with its type {\tt t},
-and flipping the port orientation by judging whether the
-subfields are marked with ``flip''. The {\tt map}
-is the general operation for lists that applies a function over
+expanding the port to its atomic subfields using {\tt expand\_ref v}
+with its type expanded by {\tt flatten\_ftype t}.
+Then it flips the port orientation by judging whether the
+subfields are marked with ``flip''. Here, the {\tt map2}
+is the general operation for lists that applies a function over two
 lists. In the {\tt expand\_connect} function for
-``\mbox{\prettyll{input v}}'', it applies the judging
-{\tt is\_flipped} over all the expanded references of {\tt v}, then gives
+``\mbox{\prettyll{input v t}}'', it applies the the function 
+{\tt is\_flipped} over the list of expanded references $[v_0,\dots v_n]$
+and the list of flattened types $[t_0,\dots t_n]$.
+The result $pp$ is composed by 
 the new sequence of declaration statements for input and output ports.
 
 Elements such as wires and registers have duplex
@@ -64,10 +67,11 @@ omitted here.
         {\seqq{{\tt expand\_connect} (\mbox{\prettyll{reg v : t clk with : (reset => rst, rv)}}) = ss}}
         {\begin{array}{c}
             \seqq{{\tt expand\_ref \;}v = [v_0,\dots v_n]}\\
+            \seqq{{\tt flatten\_ftype \;t} = [t_0,\dots t_n]}\\            
             \seqq{{\tt expand\_expr \;}rv = [rv_0,\dots rv_n]}\\
-            \seqq{ s s= {\tt map}\; (fun\; v_x\; rv_x\; \Rightarrow \mbox{\prettyll{reg}}\; v_x:\,\mbox{\prettyll{t clk with:(reset=> rst,}}\,rv_x))}
+            \seqq{ s s= {\tt map3}\; (fun\; v_x\;t_x\; rv_x\; \Rightarrow \mbox{\prettyll{reg}}\; v_x:\,\mbox{\prettyll{t_x clk with:(reset=> rst,}}\,rv_x))}
             %% \rightline{
-              \seqq{[v_0,\dots v_n], [rv_0,\dots rv_n]}
+              \seqq{[v_0,\dots v_n]\,[t_0,\dots t_n]\,[rv_0,\dots rv_n]}
           \end{array}
         }
 \end{gather*}
@@ -86,7 +90,7 @@ otherwise, the result will be an empty sequence.
         {\begin{array}{c}
             \seqq{{\tt expand\_ref}\; v = [v_0, v_1,\dots v_n]}\\
             \seqq{{\tt expand\_expr}\; e = [e_0, e_1,\dots e_n]}\\
-            \seqq{ s s= if\;{\tt is\_passive}(v_x)\; then\; {\tt map}\; (fun\; v_x\;e_x \Rightarrow \; \mbox{\prettyll{node}} {\tt v_x}\;{\tt e_x})\,[v_0, v_1,\dots v_n]\,[e_0, e_1,\dots e_n] else\; [::]}
+            \seqq{ s s= if\;{\tt is\_passive}(v_x)\; then\; {\tt map2}\; (fun\; v_x\;e_x \Rightarrow \; \mbox{\prettyll{node}}\; {\tt v_x}\;{\tt e_x})\,[v_0, v_1,\dots v_n]\,[e_0, e_1,\dots e_n] else\; [::]}
           \end{array}
         } 
 \end{gather*}
@@ -118,7 +122,7 @@ connection direction may differ from the original.
          {\begin{array}{c}
              \seqq{{\tt expand\_ref }\; l = [l_0,\dots l_n]}\\
              \seqq{{\tt expand\_ref}\; r = [r_0,\dots r_n]}\\
-             \seqq{ s s = {\tt map}\; (fun\; l_x\;r_x \Rightarrow if\;{\tt is\_flipped}(l_x)\; then\;\ {\tt r_x}\, \mbox{\prettyll{ <= }}\, {\tt l_x}\; else\;{\tt l_x}\, \mbox{\prettyll{ <= }}\, {\tt r_x})\,[l_0,\dots l_n]\,[r_0,\dots r_n]}
+             \seqq{ s s = {\tt map2}\; (fun\; l_x\;r_x \Rightarrow if\;{\tt is\_flipped}(l_x)\; then\;\ {\tt r_x}\, \mbox{\prettyll{ <= }}\, {\tt l_x}\; else\;{\tt l_x}\, \mbox{\prettyll{ <= }}\, {\tt r_x})\,[l_0,\dots l_n]\,[r_0,\dots r_n]}
            \end{array}
          }
 \end{gather*}
@@ -134,7 +138,7 @@ and produces a new sequence of connections as follows.
          {\begin{array}{c}
              \seqq{{\tt expand\_ref }\; l = [l_0,\dots l_n]}\\
              \seqq{{\tt expand\_expr}\; e = [e_0,\dots e_n]}\\
-             \seqq{ s s = {\tt map}\; (fun\; l_x\;e_x \Rightarrow {\tt l_x}\, \mbox{\prettyll{ <= }}\, {\tt e_x})\,[l_0,\dots l_n]\,[e_0,\dots e_n]}
+             \seqq{ s s = {\tt map2}\; (fun\; l_x\;e_x \Rightarrow {\tt l_x}\, \mbox{\prettyll{ <= }}\, {\tt e_x})\,[l_0,\dots l_n]\,[e_0,\dots e_n]}
            \end{array}
          }
 \end{gather*}
