@@ -31,30 +31,22 @@ prescribes the bit widths. % for $ft$.
 %
 % (i.e. the widths for the ground types $(\uintimp, 0)$ and $(\sintimp, 0)$), resulting in a new type $newt$ where all the widths are explicit (i.e. non-zero). 
 %
-To this end, $\madeexplicit$ uses a function $\sizeofftype:\ftypes\rightarrow \nat$ to calculate the number of ground types included in a (vector) type or a sequence of fields. %(see Fig.~\ref{fig:size-list-ftype-fields} for its definition) 
+To this end, $\madeexplicit$ uses a function $\sizeofftype:\ftypes\rightarrow \nat$ to calculate the number of ground types in a (vector) type or a sequence of fields. %(see Fig.~\ref{fig:size-list-ftype-fields} for its definition) 
 Formally, $\sizeofftype$ is recursively defined as follows. 
 %
 \begin{align*}
    	\sizeofftype ((\gtype, gt)) & =1\\
 	\sizeofftype ((\vtype, t'[m])) & =  \sizeofftype(t')*m\\
 	\sizeofftype ((\btype, (\_, \_, t_1), \cdots, (\_, \_, t_n))) & = \sum_{i=1}^n\sizeofftype(t_i)
-%	
-%	\sizeofftype ((\btype, \vec{f})) & =  \sizeoffields(\vec{f})\\
-%	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%	 \sizeoffields (\nil) & = 0 \\
-%	\sizeoffields((\_, \_, t')\ \vec{f}') & = \sizeofftype(t')+ \sizeoffields(\vec{f}') 
 \end{align*}
 %It also calls a function $\typeeq$ to check the equivalence between two ground types, one from $M$ and the other one from $tm$. For instance, in $\typeeq$, two types $(\uintimp, n_1)$ and $(\uintimp, n_2)$ are equivalent regardless of $n_1$ and  $n_2$, and the (abstract) $\reset$ type from $M$ is equivalent to both $(\uint, 1)$ and $\asyncreset$ from $tm$. (Note that according to the syntax of {\lofirrtl} in Fig.~\ref{fig-lofirrtl-synt}, the $\reset$ type does not appear in {\lofirrtl}. )
 
-We also define a relation $\typeeq\subseteq \gtypes\times \gtypes$ to %specify the equivalence between two 
-equate some ground types, i.e., %one from $M$ and the other one from $tm$. Namely, 
+We also define a relation $\typeeq\subseteq \gtypes\times \gtypes$ to equate some ground types, i.e., %one from $M$ and the other one from $tm$. Namely, 
 %
 \[
 \begin{array}{l c l}
 \typeeq & := & \{((\uint, n), (\uint, n)) \mid n  \in \Nat \} \cup \{((\sint, n), (\sint, n)) \mid n  \in \Nat \}\ \cup \\
-&& \{((\uintimp, n_1), (\uintimp, n_2)) \mid n_1, n_2 \in \Nat\}\ \cup  \\
-%		
-&& \{((\sintimp, n_1), (\sintimp, n_2)) \mid n_1, n_2 \in \Nat\}\ \cup  \\
+&& \{((\uintimp, n_1), (\uintimp, n_2)), ((\sintimp, n_1), (\sintimp, n_2)) \mid n_1, n_2 \in \Nat\}\ \cup  \\
 %		
 &&  %\{ (\clock, \clock)\} 
   \{(\reset, (\uint, 1)), (\reset,\asyncreset)\} 
@@ -64,7 +56,8 @@ equate some ground types, i.e., %one from $M$ and the other one from $tm$. Namel
 (Note that $\typeeq$ contains identity relation which we omit.)
 %
 %It is easy to observe that $\typeeq$ is not symmetric, thus not an equivalence relation.  As a result, the aforementioned  ``equivalence'' in $\typeeq$ is just an intuitive way of saying the compatibility between the two ground types,  
-Two types $(\uintimp, n_1)$ and $(\uintimp, n_2)$ are equivalent regardless of $n_1$ and  $n_2$. Moreover, the (high-level) $\reset$ type from $M$ is equivalent to both $(\uint, 1)$ and $\asyncreset$ from $tm$. 
+%Two types $(\uintimp, n_1)$ and $(\uintimp, n_2)$ are equivalent regardless of $n_1$ and  $n_2$. Moreover, 
+In particular, the (high-level) $\reset$ type from $M$ is equivalent to both $(\uint, 1)$ and $\asyncreset$ from $tm$. 
 %
 %(Recall that the $\reset$ type does not appear in {\lofirrtl} according to the syntax of {\lofirrtl} in Fig.~\ref{fig-lofirrtl-synt}.)
 

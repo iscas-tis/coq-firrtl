@@ -91,8 +91,8 @@ In particular, $\gtypes$ can model types of implicit width in $M$. For instance,
 
 In $tm$,  the ground types are annotated with component sorts (e.g., input and output ports, wires, etc). To accommodate this, we define \emph{extended ground types} $\egtypes$ as %the set of vertex sorts.
 \begin{itemize}
-\item $(s, t)$ with $s \in \{\inport, \outport, \wire, \node\}$ and $t \in \gtypes$,
-\item or $(\register, (t, clk, rsig, rval, b))$ such that $t \in \gtypes$, $clk, rsig, rval \in \exps$ and $b\in \{0,1\}$. (Intuitively, $clk$ represents a clock, $rsig$ represents a reset signal, and $rval$ represents a reset value, and $b$ is a Boolean value denoting whether the reset is asynchronous or not).
+\item $(s, t)$ with $s \in \{\inport, \outport, \wire, \node\}$ and $t \in \gtypes$, or 
+\item $(\register, (t, clk, rsig, rval, b))$ such that $t \in \gtypes$, $clk, rsig, rval \in \exps$ and $b\in \{0,1\}$. (Intuitively, $clk$ represents a clock, $rsig$ represents a reset signal, and $rval$ represents a reset value, and $b$ is a Boolean value denoting whether the reset is asynchronous or not).
 \end{itemize}
 We also assume $\svnone,\svundefined \in \egtypes$.
 
@@ -103,8 +103,7 @@ defined inductively as follows.
 \begin{itemize}
 \item If $t \in \gtypes$, then $(\gtype, t) \in \ftypes$.
 %
-\item If $t \in \ftypes$ and $n \in \Nat$, then $(\vtype, t[n]) \in \ftypes$,
-%\tl{is this typo GTypes, or indeed a recursive definition?}\zhilin{Yes, a recursive definition}
+\item If $t \in \ftypes$ and $n \in \Nat$, then $(\vtype, t[n]) \in \ftypes$, 
 %
 \item If $\vec{f} \in \fieldseq$, then $(\btype, \vec{f}) \in \ftypes$.
 \end{itemize}
@@ -138,10 +137,7 @@ The bundle-type component can be naturally represented as a tree where its (grou
 the ground-type fields are \prettyll{c}, \prettyll{d}, \prettyll{e}, and a preorder traversal gives an order $d, e, c$. As a result, the offsets of $d, e, c$ are $0, 1, 2$ respectively. Note that %during the depth-first search,
 the fields at the same level are visited %traversed
 according to the order of occurrence in $M$. %Moreover, the field $b$ is omitted here since it is \emph{not} of ground type.
-
- 
-
-%We are ready to define $(tm, cm)$, the representation of {\lofirrtl} programs, formally. 	
+ 	
 \begin{definition}[Low-level RTL circuits]
 A low-level RTL circuit is defined as a pair $(tm, cm)$, where $tm$ is a function from $\gidset_M$ to $\egtypes$
 and $cm$ is function from $\gidset_M$ to $\exps$. %with a finite domain.
