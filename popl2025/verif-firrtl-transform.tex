@@ -1,7 +1,7 @@
 %!TEX root = main.tex
 
 %The proof of the functional correctness of ExpandConnects and ExpandWhens.
-
+\hide{
 -- correctness of a compilation pass InferWidths: 
 for each high FIRRTL program P, if G(P) is nonempty, then IW(P) succeeds, and G(IW(P)) is the minimum one among G(P)
 
@@ -12,7 +12,7 @@ The goal of this section is to prove that the Coq implementations of two most in
 
 %we first present the specifications of the ExpandConnects and ExpandWhens passes, 
 %then prove their correctness, namely, the Coq implementations conform to their specifications.
-
+}
 
 \subsubsection{Correctness of ExpandConnects}
 
@@ -20,7 +20,7 @@ The goal of this section is to prove that the Coq implementations of two most in
 
 \subsubsection{Correctness of ExpandWhens}
 
-\input{verif-firrtl-transform-expandwhens}
+%\input{verif-firrtl-transform-expandwhens}
 
 
 
