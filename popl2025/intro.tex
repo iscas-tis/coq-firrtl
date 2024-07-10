@@ -61,7 +61,31 @@ transformations. In this work, we present for the first time such a framework.  
 {\bf Contributions.}
 %In this work, we fill in this gap and establish a general framework called Vefirrtl for formally reasoning about programs in FIRRTL and its lowering transformations. Specifically, we make the following major contributions.
 
-We introduced the concept of \emph{module graphs} which is used to provide the formal semantics of FIRRTL. 
+We introduce provide the formal semantics of FIRRTL. 
+
+
+
+
+We provide a denotation semantics for HiFIRRTL, where the low FIRRTL module is represented by a pair of type and connection mappings and we define a conformance relation between a low FIRRTL module and a HiFIRRTL program. As such, the latter is interpreted as a set of low FIRRTL modules which conform to it.  
+%VeFir provides a mechanized formal semantics for low FIRRTL,
+%and formalizes the syntax of FIRRTL and 
+We formalize the three key lowering transformations, i.e., InferWidths, ExpandConnect and ExpandWhens and their correctness based on the semantics, and verify formally that these transformations preserve the semantics of a HiFIRRTL program. All of them are mechanized in
+the interactive theorem prover Coq.
+%Vefirrtl is built using the Coq interactive theorem prover.
+%It provides a mechanized formal semantics for low FIRRTL,
+%and Moreover, it formalizes the syntax of FIRRTL and its lowering transformations.
+%To validate the formal semantics %for low FIRRTL,
+On top, we extract an OCaml FIRRTL compiler, which is verified by construction and is validated
+against the official MLIR FIRRTL compiler.  %interpreter from the formal semantics which %low FIRRTL  that
+%can execute low FIRRTL programs,
+%and empirically check its consistency against Treadle,
+%the low FIRRTL reference interpreter,
+on a benchmark suite comprising 113 low FIRRTL programs.
+
+
+This paper presents VeFir, a framework to formally reason about programs in FIRRTL and its lowering transformations.
+
+
 
 We formalize the compilation pass, i.e., lowering transformations from HiFIRRTL to LoFIRRTL. In particular, we specify and formalize the functional correctness of %the two most involved and impactful 
 lowering transformations in Coq,
@@ -94,9 +118,8 @@ We extract an OCaml compiler and empirically evaluate its performance against th
 \smallskip
 \noindent
 {\bf Organization.}
-The rest of this paper is organized as follows. Section~\ref{sec-firrtl} gives an informal introduction to FIRRTL and its lowering transformations. 
-
-%Section~\ref{sec-form-low-firrtl} is devoted to the  operational semantics of LoFIRRTL as well as its validation against Treadle. Section~\ref{sec-hi-firrtl-transform} formalizes HiFIRRTL and its lowering transformations. Section~\ref{sec-spec-verif-expand} specifies and verifies ``ExpandConnects'' and ``ExpandWhens''. 
+The rest of this paper is organized as follows. Section~\ref{sec-firrtl} gives an informal introduction to FIRRTL and its lowering transformations. Section~\ref{sec-form-firrtl} defines a denotational semantics for \hifirrtl. Section~\ref{sec-form-verif-transform} formalizes the lowering transformations and verifies their correctness. %is devoted to the  operational semantics of LoFIRRTL as well as its validation against Treadle. Section~\ref{sec-hi-firrtl-transform} formalizes HiFIRRTL and its lowering transformations. Section~\ref{sec-spec-verif-expand} specifies and verifies ``ExpandConnects'' and ``ExpandWhens''.
+Section~\ref{sect:ocamlcompiler} presents the extracted OCaml Compiler and experiments for validation. 
 We discuss related work in Section~\ref{sec-related-work} and conclude this paper in Section~\ref{sec-conc}.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
