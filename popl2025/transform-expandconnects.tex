@@ -1,7 +1,9 @@
-The ``ExpandConnects'' pass expands the connections between aggregate
-types into those between ground types. It also flattens the elements
-in aggregate types to their corresponding ground types in declaration
-statements. To expand the objects of aggregate types in a Firrtl
+%!TEX root = main.tex
+
+The ExpandConnects transformation expands the connect statements between aggregate
+types into those between ground types. Correspondingly, it also flattens the aggregate-type components to a collection of ground-type components, so that after the ExpandConnects transformation, all the components are of ground types. 
+
+To expand the objects of aggregate types in a Firrtl
 module, the process involves two phases. The first phase is to record
 the types along with orientations and flipping information of the
 objects, which helps determine the actual connection directions. For
@@ -30,10 +32,10 @@ and \sink.
  \begin{gather*}
    \label{expand-input}
    \infer[]
-         {\seqq{{\tt expand\_connect} (\mbox{\prettyll{input v t}}) = pp}}
+         {\seqq{\expandconnects(\mbox{\prettyll{input} }x: t) = pp}}
          {\begin{array}{c}
-             \seqq{{\tt expand\_ref \;v} = [v_0, v_1,\dots v_n]}\\
-             \seqq{ pp= {\tt map}\; (fun\; v_x \Rightarrow if\;{\tt is\_flipped}(v_x)\;then\; \mbox{\prettyll{output}} {\tt v_x}\;else\; \mbox{\prettyll{input}} {\tt v_x})\, [v_0, v_1,\dots v_n]}
+             \seqq{{\expandref(x)} = rl \wedge \listgtyperef(t, \lfalse) = tl }\\
+             \seqq{ pp= {\tt map2}\; (fun\; (v, (gt, flipped)) \Rightarrow if\; flipped \;then\; \mbox{\prettyll{output}}\ v: gt  \;else\; \mbox{\prettyll{input} }v: gt)\, (rl, tl)}
            \end{array}
          }
  \end{gather*}
