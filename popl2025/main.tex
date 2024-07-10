@@ -318,27 +318,30 @@ which have to be removed by a sequence of lowering transformations,
 resulting in ``low FIRRTL" which is close to RTL Verilog.
 %
 This paper presents VeFir, a framework to formally reason about programs in FIRRTL and its lowering transformations.
-We provide a denotation semantics for HiFIRRTL, where the
+We provide a denotation semantics for HiFIRRTL, where the low FIRRTL module is represented by a pair of type and connection mappings and we define a conformance relation between a low FIRRTL module and a HiFIRRTL program. As such, the latter is interpreted as a set of low FIRRTL modules which conform to it.  
 %VeFir provides a mechanized formal semantics for low FIRRTL,
-and formalizes the syntax of FIRRTL and its lowering transformations \tl{??}, all in
+%and formalizes the syntax of FIRRTL and 
+We formalize the three key lowering transformations, i.e., InferWidths, ExpandConnect and ExpandWhens and their correctness based on the semantics, and verify formally that these transformations preserve the semantics of a HiFIRRTL program. All of them are mechanized in
 the interactive theorem prover Coq.
 %Vefirrtl is built using the Coq interactive theorem prover.
 %It provides a mechanized formal semantics for low FIRRTL,
 %and Moreover, it formalizes the syntax of FIRRTL and its lowering transformations.
 %To validate the formal semantics %for low FIRRTL,
-we extract an OCaml interpreter from the formal semantics which %low FIRRTL  that
-can execute low FIRRTL programs,
-and empirically check its consistency against Treadle,
-the low FIRRTL reference interpreter,
-on a benchmark suite comprising 120 low FIRRTL programs.
+On top, we extract an OCaml FIRRTL compiler, which is verified by construction and is validated
+against the official MLIR FIRRTL compiler.  %interpreter from the formal semantics which %low FIRRTL  that
+%can execute low FIRRTL programs,
+%and empirically check its consistency against Treadle,
+%the low FIRRTL reference interpreter,
+on a benchmark suite comprising 113 low FIRRTL programs.
 %
-Experimental results show that our OCaml interpreter is 6.95 times faster than Treadle on average, and
-produces the same outputs as Treadle for almost all the benchmarks
-except for one due to an undefined semantics in low FIRRTL.
-Furthermore, we specify and verify the functional correctness of two key lowering transformations,
-namely ``ExpandConnects'' and ``ExpandWhens'',
-which expands the connect statements for vector and bundle types,
-and replaces conditional statements with multiplexers, respectively.
+
+%Experimental results show that our OCaml interpreter is 6.95 times faster than Treadle on average, and
+%produces the same outputs as Treadle for almost all the benchmarks
+%except for one due to an undefined semantics in low FIRRTL.
+%Furthermore, we specify and verify the functional correctness of two key lowering transformations,
+%namely ``ExpandConnects'' and ``ExpandWhens'',
+%which expands the connect statements for vector and bundle types,
+%and replaces conditional statements with multiplexers, respectively.
 %
 \end{abstract}
 
