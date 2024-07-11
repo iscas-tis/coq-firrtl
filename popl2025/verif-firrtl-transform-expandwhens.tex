@@ -7,12 +7,20 @@ As in the other phases, the correctness of {ExpandWhens} is specified by the for
 %
 $$\forall tm, cm.\ (tm,\,cm) \models \, {\sf expandWhens}(M) \Rightarrow (tm,\,cm) \models \,M.$$
 %
-This formula states that if the pair of the type mapping $tm$ and the connection mapping $cm$ conform to the program produced by {\sf expandWhens} $(M)$,
+This formula states that if the pair of the type mapping $tm$ and the connection mapping $cm$ conform to the program produced by {\sf expandWhens}$(M)$,
 then the same pair of $tm$ and $cm$ should also conform to the original program $M$.
-Note that this requires that an incorrect program is not translated to a correct program.
-For example, if $M$ contains scoping errors like in Figure~\ref{fig:example},
-{\sf expandWhens} cannot produce an output program.
-Therefore, {\sf expandBranch} also checks for such scoping errors.
+Note that this requires that an incorrect program is not translated to a conforming program
+(for example, scoping errors like in Figure~\ref{fig:example}).
+%Therefore, {\sf expandBranch} also checks for such scoping errors.
+
+To prove this formula, we can assume that all components in $M$ have ground types and known widths,
+and all connections are to ground-type components.
+%(This is necessary to create the correct multiplexers).
+The construction of $tmap$ (which would record the aggregate types of components) becomes rather trivial;
+also, $tm$ is not supposed to change.
+Therefore, {\sf expandWhens} mostly works on $cm$.
+
+
 
 \paragraph*{Verification}
 Let $(tm, cm) \models \expandwhens(M)$. We would like to show $(tm, cm) \models M$. 
@@ -38,27 +46,21 @@ satisfies the correctness property if both $sst$ and $ssf$ satisfy it.
 The mutual induction also requires us to define the two Coq datatypes for statements and statement sequences mutually inductive;
 we cannot just use the sequence or list types from the standard Coq library.
 
-The proof compares in details the constructions and checks executed by {\sf stmtsTmap},
+The proof compares in detail the constructions and checks executed by {\sf stmtsTmap},
 the construction of a connection mapping, and {\sf expandBranch}.
-The main maps that should \emph{fit together} are:
-$scope$, $cm'$ (constructed by {\sf expandBranch}), $cm$, $tm$, and $tmap$ where $tmap$ is constructed from $tm$ by $\portsstmtstmap$. (Note that $tm$ and $cm$ are from the specification.)
-%Generally speaking, 
-%the domain of every map in this list is a subdomain of the next map
-%the information in these maps needs to be consistent with each other, e.g. sources cannot be connected to.
-In particular, the $cm$ constructed by {\sf expandBranch} needs to contain all connections that are in scope
-so that {\sf combineBranches} at the end of a subsequent \prettyll{when} statement can choose correctly
-even if only one branch assigns a value.
-Then, the other branch retains the old value (like \prettyll{posv} in Figure~\ref{fig-lofirrtl-exmp3}).
+The main maps that should fit together are:
+$scope$, $ecm$ (constructed by {\sf expandBranch}), $cm$, $tm$, and $tmap$ where $tmap$ is constructed from $tm$ by $\portsstmtstmap$.
+Generally speaking,
+the domain of every map in this list is a subdomain of the next map.
+Also, the information in these maps needs to be consistent with each other, e.g. sources cannot be connected to.
 
-The main inductive statement of the proof is:
+We use these conditions (all types are ground-types, the five main maps fit together)
+as background for the main inductive statement of the proof:
 \begin{lemma}
-If:
-\begin{itemize}
-\item   $tmap$ has fully inferred ground types;
-\item   $tm$ fits together with $tmap$;
-\item   statement sequence $ss$ only refers to fully inferred ground types (e.g. it does not contain implicit widths);
-\item   the five maps mentioned fit together;
-\item   {\sf stmtTmap}, the construction of the connection mapping, and {\expandbranch} can be applied to statement sequence ss;
+If the constructions mentioned in Section 3 ({\sf stmtTmap}, the connection mapping, and {\expandbranch}) can be applied to statement sequence $ss$,
+then 
+
+;
 \end{itemize}
 Then:
 \begin{itemize}
