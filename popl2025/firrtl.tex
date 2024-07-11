@@ -34,43 +34,43 @@ circuit A :
     io.calc <= x.io.calc
 \end{lstlisting}
 \end{tabular}\vspace{-2mm}
-\caption{An example FIRRTL program \label{fig:example}}
+\caption{An example FIRRTL program \label{fig:example_sect2}}
 \vspace{-2mm}
 \end{figure}
 
 %%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%
-\hide
-{
-%    inst x of B
-
-  module B :
-    input clk : Clock
-    input rst : UInt<1>
-    output io : {flip enable : UInt<1>, calc : UInt<3>}
-    clk is invalid
-    rst is invalid
-    io is invalid
-    reg counter : UInt<3>, clock with : (reset => (rst, UInt<3>("h00")))
-    when io.enable
-      node _T_7 = add(counter, UInt<1>("h01"))
-      node _T_8 = tail(_T_7, 1)
-      counter <= _T_8
-      skip
-    io.calc <= counter
-}
+%\hide
+%{
+%%    inst x of B
+%
+%  module B :
+%    input clk : Clock
+%    input rst : UInt<1>
+%    output io : {flip enable : UInt<1>, calc : UInt<3>}
+%    clk is invalid
+%    rst is invalid
+%    io is invalid
+%    reg counter : UInt<3>, clock with : (reset => (rst, UInt<3>("h00")))
+%    when io.enable
+%      node _T_7 = add(counter, UInt<1>("h01"))
+%      node _T_8 = tail(_T_7, 1)
+%      counter <= _T_8
+%      skip
+%    io.calc <= counter
+%}
 %%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%
 
-A FIRRTL \emph{circuit} comprises of a list of modules with a designated top-level module that has the same identifier as the circuit.
+A FIRRTL \emph{circuit} consists of a list of modules with a designated top-level module that has the same identifier as the circuit.
 Each module represents a hardware block that can
 be instantiated one or more times.
 %
-For instance, the FIRRTL circuit \prettyll{A} shown in Figure~\ref{fig:example} has one module \prettyll{A}.
+For instance, the FIRRTL circuit \prettyll{A} shown in Figure~\ref{fig:example_sect2} has one module \prettyll{A}.
 %where the top-level module of the circuit is the module \prettyll{A}.
 
 A \emph{module} consists of a set of ports and a sequence of statements.
-Each port has an identifier, a direction (either \prettyll{input} or \prettyll{output}), and a data type.
+Each port has an identifier, a direction (either \prettyll{input} or \prettyll{output}) and a data type.
 For instance, the module \prettyll{A} has two input ports \prettyll{clk} and \prettyll{rst} and one output port \prettyll{io}, with
 types \prettyll{Clock}, \prettyll{UInt<1>} and  \prettyll{\{flip enable: UInt<1>, calc: UInt<3>\}}, respectively.
 Each \emph{statement} defines a wire, register, node, connect (\prettyll{<=}), conditional (\prettyll{when}), or instance (\prettyll{inst of}), and so on.
