@@ -22,6 +22,7 @@ Moreover, let $tmap = \portsstmtstmap(pp, ss, tm)$.
 For each statement $s$ in $M$ (i.e. $s$ is from $pp$ or $ss$) and connection mappings $cm_1, cm_2$, 
 if $cm_1 \xrightarrow[tm, tm]{\expandconnects(s)} cm_2$, then $cm_1 \xrightarrow[tm, tmap]{s} cm_2$. 
 \end{lemma}
+Note that in $cm_1 \xrightarrow[tm, tm]{\expandconnects(s)} cm_2$, the context is $tm, tm$, instead of $tm, tmap$. This is because the type mapping constructed by $\portsstmtstmap(pp', ss', tm)$ is still $tm$, since all the components in $\expandconnects(M) = (pp', ss')$ are of ground types. 
 Lemma~\ref{lem-expandconn-stmt} can be shown by unfolding the definitions $\expandconnects(s)$ and $\xrightarrow[tm, tmap]{s}$ simultaneously. 
 If $s$ is a connect statement $r <= r'$ or $r <= e$, then $\xrightarrow[tm, tmap]{s}$ calls the procedure $\updatecm$ or $\updatecmref$ to update in $cm_1$ the values of all the ground-type components included in $r$. The proof is fulfilled by going through the expanding process of $\expandconnects(s)$ and the updating process in $\updatecm$ or $\updatecmref$ in the same pace. If $s$ is a declaration statement, the proof is similar and simpler than the case of connection statements. 
 
