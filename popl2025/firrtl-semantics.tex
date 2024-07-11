@@ -33,7 +33,8 @@ we first utilize $tm$ to determine all the bit-widths of the components in $M$ a
 \end{itemize}
 We say that $(tm, cm) \models M$ if $tmap$ and $cm'$ are successfully constructed and $cm = cm'$.
 \fu{It seems that the above is a construction of $tmap$ and $cm'$ instead of the definition of conformance. When the construction succeeds, and $cm = cm'$, it
-yields a low level module that conforms to $M$. Can we first define what is conformance, then discuss how to compute all the low level modules that conform to $M$?}
+yields a low level module that conforms to $M$. Can we first define what is conformance, then discuss how to compute all the low level modules that conform to $M$?
+Also, I suggest to move this conformance definition after definition of low-level circuits.}
 
 The main technical difficulty %for defining $(tm, cm)\models M$
 arises from the gap between $(tm, cm)$ and $M$: while $(tm, cm)$ is of low-level, $M$ is at high level which may contain aggregate types (i.e., vectors and bundles) as well as \prettyll{when} statements. As a result, %when checking $(tm, cm)\models M$,
