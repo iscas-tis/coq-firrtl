@@ -32,9 +32,9 @@ we first utilize $tm$ to determine all the bit-widths of the components in $M$ a
 	%moreover, during the construction of $(tm', cm')$,
 \end{itemize}
 We say that $(tm, cm) \models M$ if $tmap$ and $cm'$ are successfully constructed and $cm = cm'$.
-\fu{It seems that the above is a construction of $tmap$ and $cm'$ instead of the definition of conformance. When the construction succeeds, and $cm = cm'$, it
-yields a low level module that conforms to $M$. Can we first define what is conformance, then discuss how to compute all the low level modules that conform to $M$?
-Also, I suggest to move this conformance definition after definition of low-level circuits.}
+%\fu{It seems that the above is a construction of $tmap$ and $cm'$ instead of the definition of conformance. When the construction succeeds, and $cm = cm'$, it
+%yields a low level module that conforms to $M$. Can we first define what is conformance, then discuss how to compute all the low level modules that conform to $M$?
+%Also, I suggest to move this conformance definition after definition of low-level circuits.}
 
 The main technical difficulty %for defining $(tm, cm)\models M$
 arises from the gap between $(tm, cm)$ and $M$: while $(tm, cm)$ is of low-level, $M$ is at high level which may contain aggregate types (i.e., vectors and bundles) as well as \prettyll{when} statements. As a result, %when checking $(tm, cm)\models M$,
@@ -81,7 +81,7 @@ Note that $\uintimp$ and $\sintimp$ are introduced to denote the %explicit
 ground types that are instantiated from the implicit ground types. %\tl{then why not use unitexp !?}
 %
 In particular, $\gtypes$ can model types of implicit width in $M$. For instance, $\uint$ where the width is implicit is captured by $(\uintimp, 0)$.
-\fu{The meaning of ``0'' is unclear here, does $i>0$ in $(\uintimp, i)$ denotes the width $i$ and $0$ denotes unknown?}
+%\fu{The meaning of ``0'' is unclear here, does $i>0$ in $(\uintimp, i)$ denotes the width $i$ and $0$ denotes unknown?}
 %\tl{so it is sugar?}
 %\zhilin{UIntImp is used to check the compatibility between tm and tmap later on.}
 %Similarly for $\sint$.

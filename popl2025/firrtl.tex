@@ -2,18 +2,13 @@
 
 %FIRRTL represents the standardized elaborated circuit that the Chisel HDL produces.
 %FIRRTL represents the circuit immediately after Chisel's elaboration but before any circuit simplification. It is designed to resemble the Chisel HDL after all meta-programming has executed. Thus, a user program that makes little use of meta-programming facilities should look almost identical to the generated FIRRTL.
-
-%For this reason,
+ 
 
 %In this section, we give an informal introduction to FIRRTL %intermediate representation
 %and its lowering transformations.
 
 \subsection{FIRRTL IR}
-
-%\zhilin{Can we find a running example ?}
-
-%Figure~\ref{fig:example} contains an example FIRRTL program.
-
+ 
 \begin{figure}[t]
 \centering
 \begin{tabular}{c}
@@ -66,7 +61,7 @@ A {\firrtl} \emph{circuit} consists of a list of modules with a designated top-l
 Each module represents a hardware block that can
 be instantiated one or more times.
 %
-For instance, the FIRRTL circuit \prettyll{A} shown in Figure~\ref{fig:example_sect2} has one module \prettyll{A}.
+For instance, the {\firrtl}  circuit \prettyll{A} shown in Figure~\ref{fig:example_sect2} has one module \prettyll{A}.
 %where the top-level module of the circuit is the module \prettyll{A}.
 
 A \emph{module} consists of a set of ports and a sequence of statements.
@@ -79,7 +74,7 @@ or an \emph{aggregate type}, which is either a \emph{vector type,} e.g. \prettyl
 or a \emph{bundle type,} e.g. \prettyll{\{flip enable: UInt<1>, calc: UInt<3>\}} comprising two signals of the ground types \prettyll{UInt<1>} and \prettyll{UInt<3>} respectively.
 
 
-A circuit \emph{component} is a declared element in a FIRRTL circuit that can be referred to by its name or identifier.
+A circuit \emph{component} is a declared element in a {\firrtl}  circuit that can be referred to by its name or identifier.
 Therefore, a component can be a port, node, wire, register, memory, or instance.
 A declared component can be connected to or from
 (respecting data flow: input ports and nodes can only be connected from; output ports can only be connected to).
@@ -101,9 +96,9 @@ Each \emph{statement} defines a wire, register, node, connect (<=), conditional 
 A \emph{type} can be either a \emph{ground type}, e.g. \begin{lstinline}!UInt<1>!\end{lstinline} (unsigned integer of bit width 1), or an \emph{aggregate type}, which is either a \emph{vector type}, e.g. \begin{lstinline}!UInt[3]!\end{lstinline} (a three element vector of unsigned integers), or a \emph{bundle type} e.g \begin{lstinline}! {flip enable: UInt<1>, calc: UInt<3>} !\end{lstinline} which comprises two signals of the ground types  \begin{lstinline}!UInt<1>!\end{lstinline} and  \begin{lstinline}!UInt<3>!\end{lstinline} respectively. A circuit \emph{component} is an element in a FIRRTL circuit that can be referred to by its name or identifier. Therefore, a component can be a port, node, wire, register, or instance, and so on. \zhilin{component: a double check is needed}
 \end{comment}
 
-The syntactic rules of FIRRTL are given in Figure~\ref{fig-firrtl-synt-simp} in Extended Backus-Naur Form (EBNF), where \{$\cdots$\} denotes repetition (repeating zero or more times),
+The syntactic rules of {\firrtl} are given in Figure~\ref{fig-firrtl-synt-simp} in Extended Backus-Naur Form (EBNF), where \{$\cdots$\} denotes repetition (repeating zero or more times),
 [$\cdots$] denotes option (either included or discarded),  and the terminals are doubly quoted by \mbox{\tt ``} and \mbox{\tt ''}.
-We point out that the syntactic rules of FIRRTL presented here are a simplification of those in the official specification.\footnote{\url{https://github.com/chipsalliance/firrtl-spec/blob/main/spec.md}}
+We point out that the syntactic rules of {\firrtl}  presented here are a simplification of those in the official specification.\footnote{\url{https://github.com/chipsalliance/firrtl-spec/blob/main/spec.md}}
 %
 For instance, indent, dedent and newline terminals are omitted for readability;
 the types and constructs for analog signals are also omitted, since we focus on digital circuits in this work.
@@ -259,7 +254,7 @@ int & ::= & [\mbox{``-''}] d \{d\} \mid \mbox{``{\tt "}b''} [\mbox{``-''}] d\_b 
 \]
 $d$ (resp. $d\_b$, $d\_o$ and $d\_h$) denotes a decimal (resp. binary, octal and hexadecimal) digit, and $l$ denotes a letter
 }
-\caption{Syntax of FIRRTL}
+\caption{Syntax of {\firrtl} }
 \label{fig-firrtl-synt-simp}%\vspace{-2mm}
 \end{figure}
 
@@ -390,7 +385,7 @@ int & ::= & [\mbox{\tt ``-''}] d \{d\} \mid \mbox{\tt ``"b''} [\mbox{\tt ``-''}]
 \]
 $d$ (resp. $d\_b$, $d\_o$ and $d\_h$) denotes a decimal (resp. binary, octal and hexadecimal) digit, and $l$ denotes a letter
 }
-\caption{Syntax of FIRRTL}
+\caption{Syntax of {\firrtl} }
 \label{fig-firrtl-synt-simp}%\vspace{-2mm}
 \end{figure}
 }
@@ -520,17 +515,17 @@ int & ::= & [\mbox{\tt ``-''}] d \{d\} \mid \mbox{\tt ``"b''} [\mbox{\tt ``-''}]
 \end{figure}
 \end{comment}
 
-According to the syntax, FIRRTL features high-level constructs such as vector types, bundle types, conditional statements, connects, and modules.
+According to the syntax, {\firrtl} features high-level constructs such as vector types, bundle types, conditional statements, connects, and modules.
 These high-level constructs are then gradually removed by a sequence of \emph{lowering transformations}. During each lowering transformation, the circuit is rewritten into an equivalent circuit using simpler, lower-level
-constructs. Eventually the circuit is simplified to its most restricted form, resembling a structured netlist,
-which allows for easy translation to an output language (e.g. Verilog).
-This form is given the name lowered FIRRTL (abbreviated as \lofirrtl) and is a strict subset of the full FIRRTL language.
-For clarity, the original form is referred to as high FIRRTL (\hifirrtl).
+constructs. Eventually, the circuit is simplified to its most restricted form, resembling a structured netlist,
+which allows for easy translation to an output language (e.g., Verilog).
+This form is given the name lowered {\firrtl}  (abbreviated as \lofirrtl) and is a strict subset of the full {\firrtl} language.
+For clarity, the original form is referred to as high {\firrtl}  (\hifirrtl).
 %\footnote{Besides LoFIRRTL, there is another lowered form of FIRRTL, referred to as MidFIRRTL, which resides between HiFIRRTL and LoFIRRTL. We do not introduce MidFIRRTL in this work,
 %since it can be seen as an internal representation of a FIRRTL compiler that does not interface with the other parts of the Chisel toolchain.}
 
 
-A FIRRTL circuit is a {\lofirrtl} circuit if it obeys the following restrictions:
+A {\firrtl}  circuit is a {\lofirrtl} circuit if it obeys the following restrictions:
 \begin{itemize}
 \item All widths are explicitly defined.
 \item No conditional statements (\prettyll{when}) are used.
@@ -538,7 +533,7 @@ A FIRRTL circuit is a {\lofirrtl} circuit if it obeys the following restrictions
 %\item No partial connect statements (\prettyll{<-}) are used.
 \item Each component is connected to at most once.
 \end{itemize}
-More precisely, a {\lofirrtl} circuit is a FIRRTL circuit that is defined by the syntactic rules in Figure~\ref{fig-lofirrtl-synt}
+More precisely, a {\lofirrtl} circuit is a {\firrtl}  circuit that is defined by the syntactic rules in Figure~\ref{fig-lofirrtl-synt}
 and satisfies that in each module, each component is connected to at most once.
 
 
@@ -586,7 +581,7 @@ t & ::= & tg \\
 \end{array}
 \]
 }
-\caption{Syntax of LoFIRRTL (Rules that are identical to those in Figure~\ref{fig-firrtl-synt-simp} are not repeated)}
+\caption{Syntax of {\lofirrtl} (Rules that are identical to those in Figure~\ref{fig-firrtl-synt-simp} are not repeated)}
 \label{fig-lofirrtl-synt}
 \end{figure}
 
@@ -645,9 +640,9 @@ removing the \prettyll{when} statement from the rule for $s$,
 and removing the rule for aggregate types $ta$.
 %
 The requirement that each component is connected to at most once
-gives LoFIRRTL a flavor similar to static single-assignment (SSA) form of software programs.
+gives {\lofirrtl} a flavor similar to static single-assignment (SSA) form of software programs.
 Programs in SSA form are those where each variable is assigned at most once and each variable is defined before it is used.
-For instance, the program in Figure~\ref{fig-lofirrtl-exmp}(a) is a LoFIRRTL program,
+For instance, the program in Figure~\ref{fig-lofirrtl-exmp}(a) is a {\lofirrtl} program,
 while the program in Figure~\ref{fig-lofirrtl-exmp}(b) is not,
 since the output port \prettyll{myport1} is connected to twice from the input ports \prettyll{a} and \prettyll{b}, respectively.
 \begin{figure}[htbp]
@@ -684,7 +679,7 @@ module MyModule :
 \end{lstlisting}
 \caption{}
 \end{subfigure}
-\caption{Examples for illustrating the syntactic restrictions of LoFIRRTL}
+\caption{Examples for illustrating the syntactic restrictions of {\lofirrtl}}
 \label{fig-lofirrtl-exmp}
 \end{figure}
 
@@ -693,7 +688,7 @@ module MyModule :
 \subsection{Lowering Transformations of FIRRTL}
 \label{subsec-lowering-transformations}
 
-In the sequel, we give an informal introduction to the lowering transformations (aka compilation passes) of  FIRRTL.
+In the sequel, we give an informal introduction to the lowering transformations (aka compilation passes) of  {\firrtl}.
 
 %The dependencies between these compilation passes are illustrated in Figure~\ref{fig-c-pass} \tl{redo this}.
 
@@ -713,10 +708,11 @@ In the sequel, we give an informal introduction to the lowering transformations 
 % the expression $e$ is equivalent to that of the component $x$ (where the bit widths are ignored), and does not update the bit width of $x$ to that of the expression $e$.
 
 %\tl{incorporate infertypes please}
-
-\paragraph*{InferWidths}
-The InferWidths pass first infers the types of components where the widths of some components are unknown. Additionally, 
-the InferWidths pass infers these unknown widths.
+\smallskip
+\noindent\emph{InferWidths.}
+The InferWidths pass first infers the types of components where the widths %of some components 
+are unknown. Additionally, 
+it infers these unknown widths.
 %, after the InferTypes pass has been applied \tl{to be revised}.
 It is a \emph{global} width inference algorithm.
 %Instances of the same module with unknown input port widths will be assigned the largest width of all assignments to each of its instance ports.
@@ -726,7 +722,8 @@ It infers the smallest width that is larger than all assigned widths to a compon
 %\paragraph*{InferResets} %% that infers concrete resets, i.e. AsyncReset or UInt<1>,
 %The InferResets pass infers the concrete reset types for the abstract reset type \prettyll{Reset}, namely, asynchronous resets represented by  \prettyll{AsyncReset} or synchronous resets represented by \prettyll{UInt<1>}. For example, in the code snippet \prettyll{ input in: UInt<1>   wire rst: Reset   rst <= in } with an input port \prettyll{in} of type \prettyll{UInt<1>} and a wire \prettyll{rst} of abstract type \prettyll{Reset}, the \prettyll{rst} wire will be inferred as a synchronous reset based on the type of the input port \prettyll{in}. If a component of \prettyll{Reset} type is instantiated with different concrete reset types, then a conflict occurs and an error is reported.
 
-\paragraph{ExpandConnects} The ExpandConnects pass expands the connect statements,
+\smallskip
+\noindent\emph{ExpandConnects.} The ExpandConnects pass expands the connect statements,
 after the types and widths of components have been inferred by the InferWidths pass.
 %(In particular, InferWidths will infer that the width of every element in an array is the same.)
 For instance, the ExpandConnects pass transforms the program shown in Figure~\ref{fig-lofirrtl-exmp2}(a) into the one shown in Figure~\ref{fig-lofirrtl-exmp2}(b).
@@ -789,8 +786,9 @@ module MyModule:
 %\end{tabular}
 %\end{figure}
 
-\paragraph{ExpandWhens} The ExpandWhens pass mainly replaces \prettyll{when} statements;
-this is necessary because a physical circuit cannot contain conditional elements.
+\smallskip
+\noindent\emph{ExpandWhens.} The ExpandWhens pass mainly replaces \prettyll{when} statements, which cannot be present in a physical circuit.
+%this is necessary because a physical circuit cannot contain conditional elements.
 It also applies the so-called last-connect semantics.
 
 For every ground-type writable (sub)component, ExpandWhens retains the last connect or \prettyll{is} \prettyll{invalid} statement
