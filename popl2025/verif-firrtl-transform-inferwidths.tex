@@ -4,16 +4,18 @@ The correctness of {\sf inferWidths} is specified by the formulas:
 $$(tm,\,cm) \models \, {\sf inferWidths}(M) \Rightarrow ({\sf madeImplicit}(tm,M),\,cm) \models \,M.$$
 $$\forall tm,cm, (tm,\,cm) \models M \wedge (tm',\,cm') \models \, {\sf inferWidths}(M) \Rightarrow tm' \preceq tm \wedge cm' = cm.$$
 %
+%
+Here {\sf madeImplicit} is a function that makes bit-width implicit. Given a type mapping with only implicit widths components $tm$ and the original module $M$, it returns a type mapping that makes some components implicit according to the definitions in $M$.
 
-Here {\sf madeImplicit} is a function that makes bit-width implicit, given a type mapping with only implicit widths components $tm$ and the original module $M$, it return a type mapping that makes some components implicit according to the definitions in $M$.
+The first formula states that if the pair of the typing mapping $tm$ and the connection mapping $ct$ conform to the program of produce by {\sf inferWidths}$(M)$, then the pair of ${\sf madeImplicit}(tm,M)$ and $ct$ must conform to the original program $M$.  
 
-The first formula states that if the pair of the typing mapping $tm$ and the connection mapping $ct$ conform to the program of produce by {\sf inferWidths} $(M)$, then the pair of ${\sf madeImplicit}(tm,M)$ and $ct$ should conform to the original program $M$.  
-
-For the second formula, A typing mapping $tm' \preceq tm$ means that they involve same components and regardless of implicit or not, the bit width of a component in $tm'$ is less than or equal to the width of it in $tm$.
+For the second formula, a typing mapping $tm' \preceq tm$ means that they involve same components and 
+%regardless of implicit or not, 
+the bit width of a component in $tm'$ is no greater than that in $tm$.
 
 It states that if the pair $(tm', cm')$ conform to {\sf inferWidths} $(M)$, then for any pair of $(tm, cm)$ conform to the original program $(M)$, $tm$ and $tm'$ satisfy that $tm' \preceq tm$ and $cm = cm'$.
 
-Since {\sf inferWidths} only modify the widths of implicit components and have no effect on changing the connection mapping, we can focus on the goals for implicit components in $tm$. To prove the formulas through {\sf inferWidths}, we need to derive clues from the conformance and its formalization. Since {\sf inferWidths} operates on components following the topological order, we can focus on an implicit component identified as $(v,m)$ and $cgels = [e_0,\dots e_n]$ are connections connected to $(v,m)$ according to $gcm$. We can prove that :
+Since {\sf inferWidths} only modifies the widths of implicit components and has no effect on changing the connection mapping, we can focus on the goals for implicit components in $tm$. To prove the formulas through {\sf inferWidths}, we need to derive clues from the conformance and its formalization. Since {\sf inferWidths} operates on components following the topological order, we can focus on an implicit component identified as $(v,m)$ and $cgels = [e_0,\dots e_n]$ are connections connected to $(v,m)$ according to $gcm$. We can prove that :
 
 \begin{lemma}
 For any implicit components in $M$, it appears in the topological sorted order $ts$.
