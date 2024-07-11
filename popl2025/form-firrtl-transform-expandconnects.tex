@@ -92,10 +92,10 @@ be an empty sequence.
 In the definition above, function {\sf isPassive} recursively checks the the subfields of type $t$.
 If it has no flip field, it returns true; otherwise, it returns false.
 
-To expand \prettyll{is invalid} statements, we
+To expand the \prettyll{is invalid} statement, we
 select only the {\sink} and {\duplex} elements to produce the sequence of
 invalidations.
-In HiFirrtl, it is allowed to have {\source} sub-elements in a bundle be
+In \hifirrtl, it is allowed to have {\source} sub-elements in a bundle be
 invalidated. The expansion result will discard them.
 \begin{gather*}
   \label{expand-invalid}
