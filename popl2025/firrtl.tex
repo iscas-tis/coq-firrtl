@@ -54,7 +54,7 @@ circuit A :
 \vspace{-2mm}
 \end{figure}
 
-A FIRRTL \emph{circuit} comprises a list of modules with a designated top-level module that has the same identifier as the circuit.
+A FIRRTL \emph{circuit} comprises of a list of modules with a designated top-level module that has the same identifier as the circuit.
 Each module represents a hardware block that can
 be instantiated one or more times.
 %
@@ -65,7 +65,7 @@ A \emph{module} consists of a set of ports and a sequence of statements.
 Each port has an identifier, a direction (either \prettyll{input} or \prettyll{output}), and a data type.
 For instance, the module \prettyll{A} has two input ports \prettyll{clk} and \prettyll{rst} and one output port \prettyll{io}, with
 types \prettyll{Clock}, \prettyll{UInt<1>} and  \prettyll{\{flip enable: UInt<1>, calc: UInt<3>\}}, respectively.
-Each \emph{statement} defines a wire, register, node, connect (\prettyll{<=}), partial connect (\prettyll{<-}), conditional (\prettyll{when}), or instance (\prettyll{inst of}), and so on.
+Each \emph{statement} defines a wire, register, node, connect (\prettyll{<=}), conditional (\prettyll{when}), or instance (\prettyll{inst of}), and so on.
 A \emph{type} for specifying the structure of the data can be either a \emph{ground type,} e.g. \prettyll{Clock} (carrying a clock signal) and \prettyll{UInt<1>} (unsigned integer of bit width 1);
 or an \emph{aggregate type}, which is either a \emph{vector type,} e.g. \prettyll{UInt[3]} (a three-element vector of unsigned integers),
 or a \emph{bundle type,} e.g. \prettyll{\{flip enable: UInt<1>, calc: UInt<3>\}} comprising two signals of the ground types \prettyll{UInt<1>} and \prettyll{UInt<3>} respectively.
@@ -73,7 +73,8 @@ or a \emph{bundle type,} e.g. \prettyll{\{flip enable: UInt<1>, calc: UInt<3>\}}
 
 A circuit \emph{component} is a declared element in a FIRRTL circuit that can be referred to by its name or identifier.
 Therefore, a component can be a port, node, wire, register, memory, or instance.
-A declared component can be connected to or from except for input ports that can only be connected from.
+A declared component can be connected to or from
+(respecting data flow: input ports and nodes can only be connected from; output ports can only be connected to).
 %\zhilin{component: a double check is needed}
 %\david{Double checked: ``component'' is not directly declared in the FIRRTL specification,
 %but it mostly speaks of ``declared component'', so it needs to be declared;
@@ -87,13 +88,14 @@ Each \emph{port} has an identifier, \fu{an direction either \prettyll{input} or 
 For instance, the module {\tt A} has two input ports  {\tt clk} and {\tt rst} and one output port {\tt io}.}
 A \emph{module} includes \fu{a list of ports} and  a sequence of statements.
 %A \emph{port}  is either an input port or an output port, and has an identifier as well as a type.
-Each \emph{statement} defines a wire, register, node, connect (<=), partial connect (<-), conditional (when), or instance (inst of), and so on.
+Each \emph{statement} defines a wire, register, node, connect (<=), conditional (when), or instance (inst of), and so on.
 %A \emph{statement} is either a declaration of wire, register, instance, node, or a connection (<=) or partial connection (<-), or a conditional (when) statement.
 A \emph{type} can be either a \emph{ground type}, e.g. \begin{lstinline}!UInt<1>!\end{lstinline} (unsigned integer of bit width 1), or an \emph{aggregate type}, which is either a \emph{vector type}, e.g. \begin{lstinline}!UInt[3]!\end{lstinline} (a three element vector of unsigned integers), or a \emph{bundle type} e.g \begin{lstinline}! {flip enable: UInt<1>, calc: UInt<3>} !\end{lstinline} which comprises two signals of the ground types  \begin{lstinline}!UInt<1>!\end{lstinline} and  \begin{lstinline}!UInt<3>!\end{lstinline} respectively. A circuit \emph{component} is an element in a FIRRTL circuit that can be referred to by its name or identifier. Therefore, a component can be a port, node, wire, register, or instance, and so on. \zhilin{component: a double check is needed}
 \end{comment}
 
 The syntactic rules of FIRRTL are given in Figure~\ref{fig-firrtl-synt-simp} in Extended Backus-Naur Form (EBNF), where \{$\cdots$\} denotes repetition (repeating zero or more times),
-[$\cdots$] denotes option (either included or discarded),  and the terminals are doubly quoted by \mbox{\tt ``} and \mbox{\tt ''}. We stress that the syntactic rules of FIRRTL presented here is a simplification of those in the official specification.\footnote{\url{https://github.com/chipsalliance/firrtl-spec/blob/main/spec.md}}
+[$\cdots$] denotes option (either included or discarded),  and the terminals are doubly quoted by \mbox{\tt ``} and \mbox{\tt ''}.
+We point out that the syntactic rules of FIRRTL presented here are a simplification of those in the official specification.\footnote{\url{https://github.com/chipsalliance/firrtl-spec/blob/main/spec.md}}
 %
 For instance, indent, dedent and newline terminals are omitted for readability;
 the types and constructs for analog signals are also omitted, since we focus on digital circuits in this work.
@@ -144,7 +146,8 @@ p & ::= & (\mbox{``\fnprettyll{input}''} \mid \mbox{``\fnprettyll{output}''})\ i
   &   &  \mid
 %  \mid memory \mid
   \mbox{``\fnprettyll{inst}''}\ id\ \mbox{``\fnprettyll{of}''}\ id\ \mid \mbox{``\fnprettyll{node}''}\ id\ \mbox{``=''} id\  \mid r \mbox{``$<$=''} e  \\
-  &  & \mid r \mbox{``$<$--''} e \mid r\ \mbox{``\fnprettyll{is invalid}''}  \mid \mbox{``\fnprettyll{when}''}\ e\mbox{``:''}\{s\} [\mbox{``\fnprettyll{else}:''} \{s\}] \mid \mbox{``\fnprettyll{skip}''}\\
+  &  & \mid r\ \mbox{``\fnprettyll{is invalid}''}  \mid \mbox{``\fnprettyll{when}''}\ e\mbox{``:''}\{s\} [\mbox{``\fnprettyll{else}:''} \{s\}] \mid \mbox{``\fnprettyll{skip}''}\\
+%\mid r \mbox{``$<$--''} e 
 %
 %\mbox{\bf Memory} &
 %memory & = &  \mbox{``mem''}, id, newline, indent, \\
@@ -406,7 +409,9 @@ p & ::= & (\mbox{\tt ``input''} \mid \mbox{\tt ``output''})\ id\mbox{\tt ``:''}t
  %&
   &   &  \mid
 %  \mid memory \mid
-  \mbox{\tt ``inst''}\ id\ \mbox{\tt ``of''}\ id \mid \mbox{\tt ``node''}\ id \mbox{\tt ``=''} id  \mid r \mbox{\tt ``<=''} e  \mid r \mbox{\tt ``<-''} e \mid r\ \mbox{\tt ``is invalid''} \\
+  \mbox{\tt ``inst''}\ id\ \mbox{\tt ``of''}\ id \mid \mbox{\tt ``node''}\ id \mbox{\tt ``=''} id  \mid r \mbox{\tt ``<=''} e  
+  \mid r \mbox{\tt ``<-''} e 
+  \mid r\ \mbox{\tt ``is invalid''} \\
 %&
 &   &\mid \mbox{\tt ``when''}\ e\mbox{\tt ``:''}\{s\} [\mbox{\tt ``else:''} \{s\}] \mid \mbox{\tt ``skip''}\\
 %
@@ -507,7 +512,7 @@ int & ::= & [\mbox{\tt ``-''}] d \{d\} \mid \mbox{\tt ``"b''} [\mbox{\tt ``-''}]
 \end{figure}
 \end{comment}
 
-According to the syntax, FIRRTL features high-level constructs such as vector types, bundle types, conditional statements, connects, partial connects, and modules.
+According to the syntax, FIRRTL features high-level constructs such as vector types, bundle types, conditional statements, connects, and modules.
 These high-level constructs are then gradually removed by a sequence of \emph{lowering transformations}. During each lowering transformation, the circuit is rewritten into an equivalent circuit using simpler, lower-level
 constructs. Eventually the circuit is simplified to its most restricted form, resembling a structured netlist,
 which allows for easy translation to an output language (e.g. Verilog).
@@ -522,7 +527,7 @@ A FIRRTL circuit is a LoFIRRTL circuit if it obeys the following restrictions:
 \item All widths are explicitly defined.
 \item No conditional statements (\prettyll{when}) are used.
 \item All circuit components are declared with a ground type.
-\item No partial connect statements (\prettyll{<-}) are used.
+%\item No partial connect statements (\prettyll{<-}) are used.
 \item Each component is connected to at most once.
 \end{itemize}
 More precisely, a LoFIRRTL circuit is a FIRRTL circuit that is defined by the syntactic rules in Figure~\ref{fig-lofirrtl-synt}
@@ -577,7 +582,7 @@ t & ::= & tg \\
 
 Note that in Figure~\ref{fig-lofirrtl-synt}, the rules for $f$, $id$, $op$ are the same as those in Figure~\ref{fig-firrtl-synt-simp}  (and thus omitted). %to avoid tediousness.
 In a nutshell, the syntactic rules in Figure~\ref{fig-lofirrtl-synt} are obtained from those in Figure~\ref{fig-firrtl-synt-simp} by replacing $[w]$ with $w$ (so that the width becomes mandatory),
-removing the \prettyll{when} statement and the partial connect statement (\prettyll{<-}) from the rule for $s$,
+removing the \prettyll{when} statement from the rule for $s$,
 and removing the rule for aggregate types $ta$.
 %
 The requirement that each component is connected to at most once
@@ -648,17 +653,20 @@ In the sequel, we give an informal introduction to the lowering transformations 
 %\prettyll{ wire x: UInt   x <= UInt<5>(15) x <= UInt<1>(1) } that the type of the wire $x$ is \prettyll{ UInt}. Note that for a connect statement   \prettyll{ x <= e}, InferTypes only checks that the type of
 % the expression $e$ is equivalent to that of the component $x$ (where the bit widths are ignored), and does not update the bit width of $x$ to that of the expression $e$.
 
-\tl{incorporate infertypes please}
+%\tl{incorporate infertypes please}
 
 \paragraph*{InferWidths}
-The InferWidths pass infers the widths of all components whose widths are unknown. %, after the InferTypes pass has been applied \tl{to be revised}.
-It is a \emph{global} width inference algorithm. Instances of the same module with unknown input port widths will be assigned the largest width of all assignments to each of its instance ports. It infers the smallest width that is larger than all assigned widths to a component. Note that this means that dummy assignments that are overwritten by last-connect semantics can still influence width inference. The last-connect semantics means that the last connect statement for a component will take effects and all the preceding connect statements for it will be ignored  in the end. For instance, InferWidths infers from the code snippet \prettyll{wire x: UInt   x <= UInt<5>(15)    x <= UInt<1>(1)} that the width of the wire $x$ is $5$, but with a value \prettyll{UInt<1>(1)}.
+Besides the types, the InferWidths pass infers the widths of all components whose widths are unknown. 
+%, after the InferTypes pass has been applied \tl{to be revised}.
+It is a \emph{global} width inference algorithm. 
+%Instances of the same module with unknown input port widths will be assigned the largest width of all assignments to each of its instance ports. 
+It infers the smallest width that is larger than all assigned widths to a component. Note that this means that dummy assignments that are overwritten by last-connect semantics can still influence width inference. The last-connect semantics means that the last connect statement for a component will take effects and all the preceding connect statements for it will be ignored  in the end. For instance, InferWidths infers from the code snippet \prettyll{wire x: UInt   x <= UInt<5>(15)    x <= UInt<1>(1)} that the type of the wire $x$ is \prettyll{UInt<5>} where its width is $5$, but with a value \prettyll{UInt<1>(1)}.
 
 
 %\paragraph*{InferResets} %% that infers concrete resets, i.e. AsyncReset or UInt<1>,
 %The InferResets pass infers the concrete reset types for the abstract reset type \prettyll{Reset}, namely, asynchronous resets represented by  \prettyll{AsyncReset} or synchronous resets represented by \prettyll{UInt<1>}. For example, in the code snippet \prettyll{ input in: UInt<1>   wire rst: Reset   rst <= in } with an input port \prettyll{in} of type \prettyll{UInt<1>} and a wire \prettyll{rst} of abstract type \prettyll{Reset}, the \prettyll{rst} wire will be inferred as a synchronous reset based on the type of the input port \prettyll{in}. If a component of \prettyll{Reset} type is instantiated with different concrete reset types, then a conflict occurs and an error is reported.
 
-\paragraph{ExpandConnects} The ExpandConnects pass expands the connect and partial connect statements, after the types of components have been inferred by the InferTypes pass.
+\paragraph{ExpandConnects} The ExpandConnects pass expands the connect statements, after the types of components have been inferred by the InferTypes pass.
 For instance, the ExpandConnects pass transforms the program shown in Figure~\ref{fig-lofirrtl-exmp2}(a) into the one shown in Figure~\ref{fig-lofirrtl-exmp2}(b).
 
 

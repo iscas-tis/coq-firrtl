@@ -1,44 +1,14 @@
 %!TEX root = main.tex
 
-%\subsection{Module graphs}
-
-%For simplicity, let us focus on a HiFIRRTL circuit $A$ that contains no ``inst of'' statements, that is, circuit $A$ contains exactly one module $A$.
-
-%We introduce a structure called \emph{circuit diagrams} to formalize the syntax of HiFIRRTL, in particular, to represent the high-level constructs of HiFIRRTL.
-
-% by reading https://github.com/iscas-tis/coq-firrtl/blob/with_implicits/src/ModuleGraph_oriented.v
-
-
-
-%A module graph consists of two things: vertex and edges.
-%
-%vertex can be output, inport, register, wire, node.  (??)
-%
-%components have types
-
-
-%For each module, we have ports
-
-%connection: for each input connector of a module graph, there is an associated expression, which is based on the vertices in the module graph.
-
-%Input connectors are identified by a triple of natural numbers:
-%- a pair to identify the vertex of the module graph
-%- a number to identify the input connector of the vertex.
-
 %\newcommand{\clock}{{\tt Clock}\xspace}
 %\newcommand{\UInt}{{\tt UInt}\xspace}
 
-
-%In this section, we present a formal semantics of {\hifirrtl}.
-A {\hifirrtl} program provides a high-level description of low-level RTL circuits. %the main idea of
-%
-To a certain extent, it is %\emph{nondeterministic}
-an under-specification in the sense that the bit widths of its components are not fully determined. %As a result, the formal
-%define
-The semantics we present is denotational, i.e.,  %of a given
-a {\hifirrtl} program
+ 
+A {\hifirrtl} program provides a high-level description of low-level RTL circuits. To a certain extent, it is %\emph{nondeterministic}
+an under-specification in the sense that the bit-widths of its components are not fully determined. 
+The semantics we present is denotational, i.e., a {\hifirrtl} program
 is interpreted as the set of (low-level) {\lofirrtl} programs that conform to it, where (1) all components are of ground types,
-whose bit widths are all explicitly given, (2) there are no \prettyll{when} statements, and (3) each component is connected at most once.
+whose bit-widths are all explicitly given, (2) there are no \prettyll{when} statements, and (3) each component is connected at most once.
 As a result, the semantics definition is essentially to specify which low-level RTL circuits conform to a given {\hifirrtl} program.
 
 
@@ -50,19 +20,18 @@ as a pair $(tm, cm)$ where $tm$ is a \emph{type mapping} that records the typing
 %
 %Hence,
 %The crux of the semantics definition is to
-We define %a module graph
-that $(tm, cm)$ conforms to $M$ (denoted by $(tm, cm)\models M$)
+We define the conformance between $(tm, cm)$ and $M$ (denoted by $(tm, cm)\models M$)
 as follows. Intuitively, %is defined as follows: \tl{to see how to improve this.}
 \begin{itemize}
 \item %At first, $vm$ is used to determine
-we first utilize $tm$ to determine all the bit-widths of the components in $M$ and build a mapping $tmap$ that records the typing information of the (not necessarily ground-type) components in $M$. During the construction of $tmap$, we check that the types in $tm$ and $M$ are compatible and the component references in $M$ are well-scoped with respect to its \prettyll{when} statements),
+we first utilize $tm$ to determine all the bit-widths of the components in $M$ and build a mapping $tmap$ that records the typing information of the (not necessarily ground-type) components in $M$. During the construction of $tmap$, we check that the types in $tm$ and $M$ are compatible and the component references in $M$ are well-scoped with respect to its \prettyll{when} statements,
 	%
 \item %to decide whether $(tm, cm) \models M$,
 	we then utilize $tm$ and $tmap$ %together with the statements in $M$,
 	to construct a connection mapping $cm'$.
 	%moreover, during the construction of $(tm', cm')$,
 \end{itemize}
-Clearly $(tm, cm) \models M$ if $tmap$ and $cm'$ are successfully constructed and $cm = cm'$.
+We say that $(tm, cm) \models M$ if $tmap$ and $cm'$ are successfully constructed and $cm = cm'$.
 \fu{It seems that the above is a construction of $tmap$ and $cm'$ instead of the definition of conformance. When the construction succeeds, and $cm = cm'$, it
 yields a low level module that conforms to $M$. Can we first define what is conformance, then discuss how to compute all the low level modules that conform to $M$?}
 
@@ -120,22 +89,21 @@ In particular, $\gtypes$ can model types of implicit width in $M$. For instance,
 %For a ground type $t = (\tau, n) \in \{UInt, SInt\} \times \Nat$, $n$ is the \emph{width} of $t$, denoted by $wd(t)$.
 %
 
-In the definition of $tm$,  the ground types \fu{are} annotated with component \fu{sorts} (e.g., input and output ports, wires, etc). To accommodate this, we define \emph{extended ground types} $\egtypes$ as %the set of vertex sorts.
+In $tm$,  the ground types are annotated with component sorts (e.g., input and output ports, wires, etc). To accommodate this, we define \emph{extended ground types} $\egtypes$ as %the set of vertex sorts.
 \begin{itemize}
-\item $(s, t)$ with $s \in \{\inport, \outport, \wire, \node\}$ and $t \in \gtypes$,
-\item or $(\register, (t, clk, rsig, rval, b))$ such that $t \in \gtypes$, $clk, rsig, rval \in \exps$ and $b\in \{0,1\}$. (Intuitively, $clk$ represents a clock, $rsig$ represents a reset signal, and $rval$ represents a reset value, and $b$ is a Boolean value denoting whether the reset is asynchronous or not).
+\item $(s, t)$ with $s \in \{\inport, \outport, \wire, \node\}$ and $t \in \gtypes$, or 
+\item $(\register, (t, clk, rsig, rval, b))$ such that $t \in \gtypes$, $clk, rsig, rval \in \exps$ and $b\in \{0,1\}$. (Intuitively, $clk$ represents a clock, $rsig$ represents a reset signal, and $rval$ represents a reset value, and $b$ is a Boolean value denoting whether the reset is asynchronous or not.)
 \end{itemize}
 We also assume $\svnone,\svundefined \in \egtypes$.
 
 %Besides ground types,
-The types for the components in $M$ (which may be of aggregate types) are referred to \emph{FIRRTL types}, which is denoted by $\ftypes$ and  % to denote these types. More precisely, we define $\ftypes$ to be the set of elements of one of the following forms,
+The types for the components in $M$ (which may be of aggregate types) are referred to as \emph{FIRRTL types}, which is denoted by $\ftypes$ and  % to denote these types. More precisely, we define $\ftypes$ to be the set of elements of one of the following forms,
 %Formally, $\ftypes$ is
 defined inductively as follows.
 \begin{itemize}
 \item If $t \in \gtypes$, then $(\gtype, t) \in \ftypes$.
 %
-\item If $t \in \ftypes$ and $n \in \Nat$, then $(\vtype, t[n]) \in \ftypes$,
-%\tl{is this typo GTypes, or indeed a recursive definition?}\zhilin{Yes, a recursive definition}
+\item If $t \in \ftypes$ and $n \in \Nat$, then $(\vtype, t[n]) \in \ftypes$, 
 %
 \item If $\vec{f} \in \fieldseq$, then $(\btype, \vec{f}) \in \ftypes$.
 \end{itemize}
@@ -155,9 +123,9 @@ Intuitively, an identifier $(v, m)$ in $tm$ is used to refer to the ground-type 
 \begin{itemize}
 \item either $v$ is the identifier of a ground-type component and $m = 0$,
 %
-\item or $v$ is the identifier of a vector-type component in $M$,  and $m$ is an index in the vector,
+\item or $v$ is the identifier of a vector-type component in $M$ and $m$ is an index in the vector,
 %
-\item or $v$ is the identifier of a bundle-type component in $M$, and $m$ is the offset of a ground-type field in the component.
+\item or $v$ is the identifier of a bundle-type component in $M$ and $m$ is the offset of a ground-type field in the component.
 \end{itemize}
 Let $\gidset_M$ denote the set of such identifiers $(v,m)$.
 
@@ -169,99 +137,12 @@ The bundle-type component can be naturally represented as a tree where its (grou
 the ground-type fields are \prettyll{c}, \prettyll{d}, \prettyll{e}, and a preorder traversal gives an order $d, e, c$. As a result, the offsets of $d, e, c$ are $0, 1, 2$ respectively. Note that %during the depth-first search,
 the fields at the same level are visited %traversed
 according to the order of occurrence in $M$. %Moreover, the field $b$ is omitted here since it is \emph{not} of ground type.
-
-%\tl{I am a bit confused here: in this example, cnt=io is of a bundle type, but the "o" is defined for its fields?}
-
-
-
-%For convenience, we define an \emph{identifier} as a pair $(a, o) \in \Nat \times \Nat$. %where intuitively $a$ refers to ... and $o$ refers to ... .
-%Let $\idset$ denote the set of identifiers. Intuitively,
-%each component $cnt$ of ground type in $M$ is associated with an identifier $(a, o)$, where
-%\begin{itemize}
-%\item if $cnt$ is a sub-component of some other component $cnt'$ of an aggregate type, then $a \in \Nat$ is the identifier of $cnt'$ \tl{there is a bit issue here as the identifier of $cnt'$ is a pair?} and $o$ represents the offset of $cnt$ in $cnt'$,
-%\item otherwise, $a \in \Nat$ is the identifier of $cnt$ and $o = 0$.
-%\end{itemize}
-
-
-%Moreover, for the components where aggregate types are nested, the offsets of the components of ground types are determined by the traversal order of a depth-first search. \tl{to be improved.}
-
-%We consider a finite set $\sorts = \{ \inport, \outport, \wire, \node, \register\}$ of \emph{sorts}.
-
-
-%\medskip
-
-%We are ready to define $(tm, cm)$, the representation of {\lofirrtl} programs, formally. 	
+ 	
 \begin{definition}[Low-level RTL circuits]
 A low-level RTL circuit is defined as a pair $(tm, cm)$, where $tm$ is a function from $\gidset_M$ to $\egtypes$
 and $cm$ is function from $\gidset_M$ to $\exps$. %with a finite domain.
 For convenience, $tm$ is called a type mapping and $cm$ is called a connection mapping.
-\end{definition}
-%\end{definition}
-%\tl{this def has little to do with graph!?}\zhilin{if $ct(id)$ is a component of ground type, then it is analogous to the graph edges, otherwise, $ct(id)$ may involve multiple identifiers, somehow it can be seen as an edge in a supergraph. May changed to module diagram}
-
-%Intuitively, a module graph is a representation of a module, where the focus is on the components of ground types, all implicit widths are concretized, $vm$ records the declarations of components, and $cm$ records for each component an expression that is generated from its connect statements according to the last-connect semantics.
-
-%\begin{example}
-%An example of module graphs here
-%\end{example}
-
-%\hide{
-%\begin{definition}[Vertex]
-%	A vertex $v$ is a tuple $(\sorts, \width, \datatype)$ where
-%   \begin{itemize}
-%   		\item $\inputport$ and $\outputport$ are sets of input and output ports, respectively;
-%		\item {\sorts} specifies the sort of component in the circuit $v$ is standing for; 		
-%		\item {\width} is a nonnegative number, specifying the bit width of $v$;
-%		\item {\datatype} specifies the \emph{ground} type of $v$;
-%		\item {\expr} is only defined for \emph{nodes},
-%	\end{itemize}
-%\end{definition}
-%}
-
-%\tl{I propose we introduce the notion of \emph{hierarchical module graph} as the intermediate step for (flattened) module graph}
-%
-%
-%\begin{definition}
-%	A hierarchical module graph is a tuple $\langle M_1, \cdots, M_n\rangle$ where each module $M_i$ has the following components:
-%	\begin{itemize}
-%		\item a finite set $V_i$ of vertices;
-%		\item a finite set $B_i$ of boxes; ($B_i$ and $V_i$ are all pairwise disjoint)
-%		\item a finite set $I_i$ of input ports;
-%		\item a finite set $O_i$ of output ports;
-%		\item a labeling function $Y_i: V_i \rightarrow \{i+1, \cdots, n\}$ that maps each box of the $i$-th graph to an index grater than $i$. That is, if $Y_i(b)=j$, for a box $b$ of graph $M_i$, then $b$ can be viewed as reference to the definition of the graph $M_j$.
-%	\end{itemize}
-%\end{definition}
-%
-%\tl{to decide later how to proceed}
-
-%vertices ��Ӧmodule�е�component, wire, register, node�ȣ�ÿ��vertex��type, width, input/output ports����
-%edges��һ��vertex��output port��������һ��vertex��input port
-
-%from David
-%The reset signal, reset value and clock inputs need to be fixed when the register is declared. Only the normal input can be connected (and reconnected) with later statements.
-%
-%So while a register has four inputs, only one of them is handled using the normal connection information.
-%
-%Further, a node can serve as an abbreviation for an expression. While an expression can depend on any number of input signals, none of them is handled using the normal connection information, because the expression is fixed at the time the node is declared.
-
-
-
-%\begin{example}
-%For the program in Fig.~\ref{fig:example}, the module graph is $\langle M_1, M_2\rangle$.
-%
-%$M_1=(\{clk, rst\}, \{io\}, ...)$ and
-%
-%$M_2=(\{clk,rst\}, \{io\}, \{counter, T_7, T_8\}, ...)$
-%where $counter$ is vertex, $T_7$ is a vertex, and $T_8$ is vertex.
-%\end{example}
-%Note that the types in the range of $ce$ in Definition~\ref{def-cd} are not necessarily ground types, that is, they may be aggregate types, since HiFIRRTL may contain high-level constructs, e.g. vectors and bundles.
-
-
-
-
-
-%\subsection{Operational semantics for module graphs}
-
+\end{definition} 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \subsection{Defining $tmap$ from $tm$ and $M$} \label{sec-construct-tmap}

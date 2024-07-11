@@ -3,7 +3,7 @@
 Recall that $M$ comprises a pair $(pp, ss)$, where $pp$ (resp.\ $ss$) is a sequence of port declarations (resp. statements). 
 Our goal is to %construct from %the type mapping 
 %$tm$ and $M$ 
-define a mapping $tmap: \range{id}\rightarrow\ftypes \times \{\duplex, \source, \sink\}$. %that records the typing information for the components in $M$. 
+define a mapping $tmap: \range{id}\rightarrow\ftypes \times \{\duplex, \source, \sink\}$. 
 %Nevertheless, there is a mismatch between the types in $tm$ and those in $tmap$: While the types in $tm$ are from $\gtypes$, the types in $tmap$ are from $\ftypes$. 
 %In the sequel, we shall explain how to tackle this mismatch in the construction of $tmap$. 
 %
@@ -26,35 +26,27 @@ inputs and nodes:\source, (3) outputs: \sink,
 
 %To tackle the mismatch between $tm$ and $tmap$, 
 To make the bit-width %in $tm$ 
-explicit, we introduce a function $\madeexplicit$ (see Fig.~\ref{fig:made-explicit}), which takes three arguments $(ft, id, tm)$ where $ft \in \ftypes$, $id \in \gidset_M$ and $tm$ is a type mapping, and %Intuitively, $\madeexplicit$ utilizes $id$ and $tm$ to determine 
-prescribes the bit widths. % for $ft$. 
+explicit, we introduce a function $\madeexplicit$, which takes three arguments $(ft, id, tm)$ where $ft \in \ftypes$, $id \in \gidset_M$ and $tm$ is a type mapping, and %Intuitively, $\madeexplicit$ utilizes $id$ and $tm$ to determine 
+prescribes the bit-widths. % for $ft$. 
 %
 % (i.e. the widths for the ground types $(\uintimp, 0)$ and $(\sintimp, 0)$), resulting in a new type $newt$ where all the widths are explicit (i.e. non-zero). 
 %
-To this end, $\madeexplicit$ uses a function $\sizeofftype:\ftypes\rightarrow \nat$ to calculate the number of ground types included in a (vector) type or a sequence of fields. %(see Fig.~\ref{fig:size-list-ftype-fields} for its definition) 
+To this end, $\madeexplicit$ uses a function $\sizeofftype:\ftypes\rightarrow \nat$ to calculate the number of ground types in a (vector) type or a sequence of fields. %(see Fig.~\ref{fig:size-list-ftype-fields} for its definition) 
 Formally, $\sizeofftype$ is recursively defined as follows. 
 %
 \begin{align*}
    	\sizeofftype ((\gtype, gt)) & =1\\
 	\sizeofftype ((\vtype, t'[m])) & =  \sizeofftype(t')*m\\
 	\sizeofftype ((\btype, (\_, \_, t_1), \cdots, (\_, \_, t_n))) & = \sum_{i=1}^n\sizeofftype(t_i)
-%	
-%	\sizeofftype ((\btype, \vec{f})) & =  \sizeoffields(\vec{f})\\
-%	%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%	 \sizeoffields (\nil) & = 0 \\
-%	\sizeoffields((\_, \_, t')\ \vec{f}') & = \sizeofftype(t')+ \sizeoffields(\vec{f}') 
 \end{align*}
 %It also calls a function $\typeeq$ to check the equivalence between two ground types, one from $M$ and the other one from $tm$. For instance, in $\typeeq$, two types $(\uintimp, n_1)$ and $(\uintimp, n_2)$ are equivalent regardless of $n_1$ and  $n_2$, and the (abstract) $\reset$ type from $M$ is equivalent to both $(\uint, 1)$ and $\asyncreset$ from $tm$. (Note that according to the syntax of {\lofirrtl} in Fig.~\ref{fig-lofirrtl-synt}, the $\reset$ type does not appear in {\lofirrtl}. )
 
-We also define a relation $\typeeq\subseteq \gtypes\times \gtypes$ to %specify the equivalence between two 
-equate some ground types, i.e., %one from $M$ and the other one from $tm$. Namely, 
+We also define a relation $\typeeq\subseteq \gtypes\times \gtypes$ to equate some ground types, i.e., %one from $M$ and the other one from $tm$. Namely, 
 %
 \[
 \begin{array}{l c l}
 \typeeq & := & \{((\uint, n), (\uint, n)) \mid n  \in \Nat \} \cup \{((\sint, n), (\sint, n)) \mid n  \in \Nat \}\ \cup \\
-&& \{((\uintimp, n_1), (\uintimp, n_2)) \mid n_1, n_2 \in \Nat\}\ \cup  \\
-%		
-&& \{((\sintimp, n_1), (\sintimp, n_2)) \mid n_1, n_2 \in \Nat\}\ \cup  \\
+&& \{((\uintimp, n_1), (\uintimp, n_2)), ((\sintimp, n_1), (\sintimp, n_2)) \mid n_1, n_2 \in \Nat\}\ \cup  \\
 %		
 &&  %\{ (\clock, \clock)\} 
   \{(\reset, (\uint, 1)), (\reset,\asyncreset)\} 
@@ -64,44 +56,114 @@ equate some ground types, i.e., %one from $M$ and the other one from $tm$. Namel
 (Note that $\typeeq$ contains identity relation which we omit.)
 %
 %It is easy to observe that $\typeeq$ is not symmetric, thus not an equivalence relation.  As a result, the aforementioned  ``equivalence'' in $\typeeq$ is just an intuitive way of saying the compatibility between the two ground types,  
-Two types $(\uintimp, n_1)$ and $(\uintimp, n_2)$ are equivalent regardless of $n_1$ and  $n_2$. Moreover, the (high-level) $\reset$ type from $M$ is equivalent to both $(\uint, 1)$ and $\asyncreset$ from $tm$. 
+%Two types $(\uintimp, n_1)$ and $(\uintimp, n_2)$ are equivalent regardless of $n_1$ and  $n_2$. Moreover, 
+In particular, the (high-level) $\reset$ type from $M$ is equivalent to both $(\uint, 1)$ and $\asyncreset$ from $tm$. 
 %
 %(Recall that the $\reset$ type does not appear in {\lofirrtl} according to the syntax of {\lofirrtl} in Fig.~\ref{fig-lofirrtl-synt}.)
 
-The function $\madeexplicit(ft, id, tm)$ is defined  in Fig.~\ref{fig:made-explicit}. 
-\begin{itemize}
-\item The rule {\madeexplicit: \gtype} deals with $ft = (\gtype, gt)$, which  simply returns the ground type in $tm(id)$. 
+The function $\madeexplicit(ft, id, tm)$ is defined as follows. % in Fig.~\ref{fig:made-explicit}. 
 %
-\item The rule {\madeexplicit: \vtype} deals with $ft = (\vtype, t[n])$, where $\madeexplicit$  computes $t' = \madeexplicit(t, id, tm)$ and  returns $t'[n]$. Moreover, it checks that the $n$ ground-type sequences in $tm$ (corresponding to the $n$ copies of $t'$) are all equal. Namely,  let $id = (v,m)$ and $sz = \sizeofftype(t')$. We check all blocks $(tm(v, m+ i*sz + 0), \ldots, tm(v, m+(i+1)*sz-1))$ for $0\leq i<n$ are all equal. %= (tm(v, m+sz), \ldots, tm(v, m+2sz-1)) = \cdots = (tm(v, m+(n-1)sz), \ldots, tm(v, m+nsz-1))$. \tl{to see how to improve this.}
+The \textbf{rule {\madeexplicit: \gtype}} deals with $ft = (\gtype, gt)$, which simply returns the ground type in $tm(id)$. 
 %
-\item The rule {\madeexplicit: \btype} deals with the case $ft = (\btype, \vec{f})$, where $\madeexplicit$ %calls $\madeexplicitfields(\vec{f}, id, tm)$ and returns its output. 
+\[    
+\inferiii[\madeexplicit: \gtype]
+{\seqq{\madeexplicit(ft, id, tm) = newt}}
+{\seqq{ft = (\gtype, gt)}}
+{
+	\begin{array}{c}
+		tm(id) = (\_, newt)\ \mbox{or} \\
+		(\register, (newt, \_, \_, \_))
+	\end{array}
+}
+{\seqq{\typeeq(gt, newt)}}
+\]
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+The \textbf{rule {\madeexplicit: \vtype}} deals with $ft = (\vtype, t[n])$, where $\madeexplicit$  computes $t' = \madeexplicit(t, id, tm)$ and  returns $t'[n]$. Moreover, it checks that the $n$ ground-type sequences in $tm$ (corresponding to the $n$ copies of $t'$) are all equal. Namely,  let $id = (v,m)$ and $sz = \sizeofftype(t')$. We check all blocks $(tm(v, m+ i*sz + 0), \ldots, tm(v, m+(i+1)*sz-1))$ for $0\leq i<n$ are all equal. %= (tm(v, m+sz), \ldots, tm(v, m+2sz-1)) = \cdots = (tm(v, m+(n-1)sz), \ldots, tm(v, m+nsz-1))$. \tl{to see how to improve this.}
+\[
+\infer[\madeexplicit: \vtype]
+{\seqq{\madeexplicit(ft, id, tm) = newt}}
+{
+	\begin{array}{c}
+		ft = (\vtype, t[n]) \wedge id = (v, m) \\
+		\madeexplicit(t, id, tm) = t' \wedge \sizeofftype(t) = sz \\
+		\forall 0 \le i < ((n-1)*sz) \Rightarrow tm(v, m+i) = tm(v, m+sz + i) \\
+		newt = (\vtype, t'[n]) 
+	\end{array}
+}
+\]
+
+The \textbf{rule {\madeexplicit: \btype}} deals with the case $ft = (\btype, \vec{f})$, where $\madeexplicit$ %calls $\madeexplicitfields(\vec{f}, id, tm)$ and returns its output. 
 uses $\madeexplicitfields(\vec{f}, id, tm)$ %recursively computes the output as follows. 
-to process the fields sequentially, which,  
-for each field $(x,b,t)$, (recursive) calls $t':=\madeexplicit(t, id, tm)$ %returns $t'$ and thus we 
+to process the fields sequentially, which (recursive) calls $t':=\madeexplicit(t, id, tm)$ for each field $(x,b,t)$ %returns $t'$ and thus we 
 and obtains $(x,b,t')$. 
 %If $\vec{f} = \nil$, then it returns $(\btype, \nil)$. Otherwise, let $\vec{f} = (x, b, t)\ \myvec{f'}$. Then it calls $\madeexplicit(t, id, tm)$ to get $t'$ and recursively calls $\madeexplicitfields(\myvec{f'}, id, tm)$ to get $\myvec{f''}$. Finally, it returns $newt = (x, b, t')\ \myvec{f''}$. 
-\end{itemize}
+\[
+ \inferii[\madeexplicit: \btype]
+  {\seqq{\madeexplicit(ft, id, tm) = newt}}
+  {
+  	\seqq{ft = (\btype, \vec{f})}
+  }
+  {
+  	\seqq{\madeexplicitfields(\vec{f}, id, tm) = newt}
+  }
+\]
+$\madeexplicitfields(\vec{f}, id, tm)$ is mostly self-explanatory. 
+%    {
+	%    \begin{array}{c}
+		%    ft = (\btype, \vec{f}) \wedge
+		%    \madeexplicitfields(\vec{f}, id, tm) = newt 
+		%    \end{array}
+	%    }
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%\\[1ex]
+%\def\defaultHypSeparation{\hskip 10pt}
+%
+\[
+\infernone[\madeexplicitfields: \nil]
+{\seqq{\madeexplicitfields(\nil, id, tm) =  (\btype, \nil)}}
+\]
+%    
+%    \inferii[\madeexplicitfields: \nil]
+%    {\seqq{\madeexplicitfields(\nil, id, tm) =  (\btype, \nil)}}
+%    {\seqq{}}%\vec{f} = \nil}}
+%    {\seqq{newt = (\btype, \nil) latex}}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%\\[1ex]
+\[
+\infer[\madeexplicitfields: $\neq$\nil]
+{\seqq{\madeexplicitfields(\vec{f}, id, tm) = (x, b, t')\ \myvec{f''}}}
+{
+\begin{array}{c}
+\vec{f} = (x, b, t)\ \myvec{f'} \wedge id = (v, m) \wedge m' = m+\sizeofftype(t) \\
+\madeexplicit(t, id, tm) = t' \wedge 
+\madeexplicitfields(\myvec{f'}, (v, m'), tm) = \myvec{f''} 
+\end{array}
+}
+\]
+%
+%
 (Note that for simplicity %the rules in 
-Fig.~\ref{fig:made-explicit} only presents the most important rules. % are chosen to be incomplete in purpose to avoid the tediousness. 
-For instance, in the rule {\madeexplicit: \vtype}, if the $n$ ground-type sequences in $tm$ corresponding to the $n$ copies of $t'$ are not equal, then $\madeexplicit$ returns the special value $\svnone$.) 
+%Fig.~\ref{fig:made-explicit} only presents 
+we only address the most important rules. % are chosen to be incomplete in purpose to avoid the tediousness. 
+For instance, in the rule {\madeexplicit: \vtype}, if the $n$ ground-type sequences in $tm$ corresponding to the $n$ copies of $t'$ are not equal, $\madeexplicit$ returns the special value $\svnone$.) 
 
  
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\begin{figure}[htbp]
-  \begin{gather*}
-    \inferiii[\madeexplicit: \gtype]
-    {\seqq{\madeexplicit(ft, id, tm) = newt}}
-    {\seqq{ft = (\gtype, gt)}}
-    {
-    \begin{array}{c}
-    tm(id) = (\_, newt)\ \mbox{or} \\
-    (\register, (newt, \_, \_, \_))
-    \end{array}
-    }
-    {\seqq{\typeeq(gt, newt)}}
-    \quad
- %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%   
+%\begin{figure}[htbp]
+%  \begin{gather*}
+%    \inferiii[\madeexplicit: \gtype]
+%    {\seqq{\madeexplicit(ft, id, tm) = newt}}
+%    {\seqq{ft = (\gtype, gt)}}
+%    {
+%    \begin{array}{c}
+%    tm(id) = (\_, newt)\ \mbox{or} \\
+%    (\register, (newt, \_, \_, \_))
+%    \end{array}
+%    }
+%    {\seqq{\typeeq(gt, newt)}}
+  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%   
 %   \infer[\typeeq]
 %    {\seqq{\typeeq(prgt, tmgt) = res}}
 %    {
@@ -115,28 +177,28 @@ For instance, in the rule {\madeexplicit: \vtype}, if the $n$ ground-type sequen
 %     \end{array}
 %    }
  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%   
-    \\[1ex]  
-    \infer[\madeexplicit: \vtype]
-    {\seqq{\madeexplicit(ft, id, tm) = newt}}
-    {
-    \begin{array}{c}
-    ft = (\vtype, t[n]) \wedge id = (v, m) \\
-    \madeexplicit(t, id, tm) = t' \wedge \sizeofftype(t) = sz \\
-    \forall 0 \le i < ((n-1)*sz) \Rightarrow tm(v, m+i) = tm(v, m+sz + i) \\
-    newt = (\vtype, t'[n]) 
-    \end{array}
-    }
+%    \\[1ex]  
+%    \infer[\madeexplicit: \vtype]
+%    {\seqq{\madeexplicit(ft, id, tm) = newt}}
+%    {
+%    \begin{array}{c}
+%    ft = (\vtype, t[n]) \wedge id = (v, m) \\
+%    \madeexplicit(t, id, tm) = t' \wedge \sizeofftype(t) = sz \\
+%    \forall 0 \le i < ((n-1)*sz) \Rightarrow tm(v, m+i) = tm(v, m+sz + i) \\
+%    newt = (\vtype, t'[n]) 
+%    \end{array}
+%    }
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-   \\[1ex]
-   \def\defaultHypSeparation{\hskip 5pt}
-    \inferii[\madeexplicit: \btype]
-    {\seqq{\madeexplicit(ft, id, tm) = newt}}
-    {
-        \seqq{ft = (\btype, \vec{f})}
-    }
-    {
-       \seqq{\madeexplicitfields(\vec{f}, id, tm) = newt}
-    }
+%   \\[1ex]
+%   \def\defaultHypSeparation{\hskip 5pt}
+ %   \inferii[\madeexplicit: \btype]
+%    {\seqq{\madeexplicit(ft, id, tm) = newt}}
+%    {
+%        \seqq{ft = (\btype, \vec{f})}
+%    }
+%    {
+%       \seqq{\madeexplicitfields(\vec{f}, id, tm) = newt}
+%    }
 %    {
 %    \begin{array}{c}
 %    ft = (\btype, \vec{f}) \wedge
@@ -144,33 +206,33 @@ For instance, in the rule {\madeexplicit: \vtype}, if the $n$ ground-type sequen
 %    \end{array}
 %    }
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    \\[1ex]
-    \def\defaultHypSeparation{\hskip 10pt}
-    %
-    \infernone[\madeexplicitfields: \nil]
-     {\seqq{\madeexplicitfields(\nil, id, tm) =  (\btype, \nil)}}
+%    \\[1ex]
+%    \def\defaultHypSeparation{\hskip 10pt}
+%    %
+%    \infernone[\madeexplicitfields: \nil]
+%     {\seqq{\madeexplicitfields(\nil, id, tm) =  (\btype, \nil)}}
 %    
 %    \inferii[\madeexplicitfields: \nil]
 %    {\seqq{\madeexplicitfields(\nil, id, tm) =  (\btype, \nil)}}
 %    {\seqq{}}%\vec{f} = \nil}}
 %    {\seqq{newt = (\btype, \nil) latex}}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-   \\[1ex]
-    \infer[\madeexplicitfields: $\neq$\nil]
-    {\seqq{\madeexplicitfields(\vec{f}, id, tm) = newt}}
-    {
-    \begin{array}{c}
-    \vec{f} = (x, b, t)\ \myvec{f'} \wedge id = (v, m) \wedge m' = m+\sizeofftype(t) \\
-     \madeexplicit(t, id, tm) = t' \wedge 
-    \madeexplicitfields(\myvec{f'}, (v, m'), tm) = \myvec{f''} \\
-    newt = (x, b, t')\ \myvec{f''}
-    \end{array}
-    }
-  \end{gather*}
-  \caption{The procedures {\madeexplicit} and  {\madeexplicitfields}}
-  \label{fig:made-explicit}
-\end{figure}
- 
+%   \\[1ex]
+%    \infer[\madeexplicitfields: $\neq$\nil]
+%    {\seqq{\madeexplicitfields(\vec{f}, id, tm) = newt}}
+%    {
+%    \begin{array}{c}
+%    \vec{f} = (x, b, t)\ \myvec{f'} \wedge id = (v, m) \wedge m' = m+\sizeofftype(t) \\
+%     \madeexplicit(t, id, tm) = t' \wedge 
+%    \madeexplicitfields(\myvec{f'}, (v, m'), tm) = \myvec{f''} \\
+%    newt = (x, b, t')\ \myvec{f''}
+%    \end{array}
+%    }
+%  \end{gather*}
+%  \caption{The procedures {\madeexplicit} and  {\madeexplicitfields}}
+%  \label{fig:made-explicit}
+%\end{figure}
+% 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%  
@@ -209,51 +271,6 @@ For instance, in the rule {\madeexplicit: \vtype}, if the $n$ ground-type sequen
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-
-The mapping $tmap$ is defined by the procedure $\portsstmtstmap(pp, ss, tm)$, which calls the procedure $\portstmap(pp, tm)$ to define a mapping $pmap$ which  intuitively produces an initial version for $tmap$ and $scope$, then calls $\stmtstmap$ %((pmap, pmap), ss, tm)$ 
-to update $tmap$ and $scope$. % (see Figure~\ref{fig:ports-stmts-tmap}). 
-%
-%In particular, $\portstmap(pp, tm)$ defines a mapping based on the port declarations $pp$ and $tm$, and $\stmtstmap((pmap, pmap), ss, tm)$ defines a pair $(tmap, scope)$ from $(pmap, pmap)$, the statement sequence $ss$, and $tm$. 
-Here, $scope$ is introduced to check that the component references in $ss$ do not violate  the scoping constraints
-\begin{wrapfigure}{r}{0.3\textwidth} 
-%\centering
-%\begin{tabular}{c}
-%[basicstyle=\footnotesize\ttfamily]
-\hspace{1cm}
-\begin{lstlisting}
-    input c: UInt<1>
-    wire x: SInt<4>
-    wire y: SInt<4>
-    when c
-      wire z: SInt
-      z <= x
-    z <= y
-\end{lstlisting}
-%\end{tabular}
-%\label{fig:example}
-\end{wrapfigure}
-%\tl{this scope thing makes the semantics less focused, but is it really important? Can we simply rule it out at the syntax level?}
-imposed by the \prettyll{when} statements. For instance, the presented {\hifirrtl} program contains a scoping error, since $z$ is declared in the scope of the \prettyll{when} statement, but is referred outside  (cf.\ Line 7). 
-%
-%The procedures $\portstmap$ and $\stmtstmap$ are defined by the rules in Fig.~\ref{fig:ports-stmts-tmap}.
-
-$\portstmap(pp, tm)$ defines $tmap$ from the port declarations. In a nutshell, for $input\ x: t$ it calls $\madeexplicit(t, (id(x), 0), tm)$ which returns $newt$, and makes sure that $x$ is not defined elsewhere. %Moreover, it recursively calls $\portstmap(pp', tm)$ to obtain $tmap'$. Then it checks that $tmap'(id(x)) = \svnone$.  If it is the case, then 
-As such, $tmap$ sets %obtained by adding the pair 
-$(id(x), (newt, \source))$. %to $tmap'$. The case $pp = 
-$output\ x: t$ is almost the same %dealt with similarly, with 
-except $\source$ being replaced by $\sink$. 
-
-%Furthermore, if $pp = \nil$, then the empty map $\sf emp$ is returned. 
-
-
-
-%
-%If $pp = input\ x: t\ pp'$, then it calls $\madeexplicit(t, (id(x), 0), tm)$ to construct $newt$. Moreover, it recursively calls $\portstmap(pp', tm)$ to obtain $tmap'$. Then it checks that $tmap'(id(x)) = \svnone$.  If it is the case, then the output $tmap$ is obtained by adding the pair $(id(x), (newt, \source))$ to $tmap'$. The case $pp = output\ x: t\ pp'$ is dealt with similarly, with $\source$ replaced by $\sink$. 
-%%Furthermore, if $pp = \nil$, then the empty map $\sf emp$ is returned. 
-
-$\stmtstmap((tmap, scope), ss, tm)$ defines $tmap$ from the statements. For each statement, it calls $\stmttmap(s, tm)$ %(cf.\ Figure~\ref{fig:stmts-tmap}) 
-to update $tmap$ and $scope$, which are used to process the subsequent statements recursively. 
-%$\stmtstmap((tmap, scope), ss, tm)$ defines $tmap$ from the statements in $ss$. If $ss = \nil$, then it simply returns $(tmap, scope)$. Otherwise, let $ss = s\ ss'$, where $s$ is a statement. Then it calls $\stmttmap(s, tm)$ to compute $(tmap'', scope'')$ from a $s$ (see Figure~\ref{fig:stmts-tmap} for its definition). Finally, it recursively calls $\stmtstmap((tmap'', scope''), ss', tm)$ to compute the return value $(tmap', scope')$. 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \begin{figure}[htbp]
 	\begin{gather*}
@@ -291,7 +308,7 @@ to update $tmap$ and $scope$, which are used to process the subsequent statement
 				\portstmap(pp', tm) = tmap' \wedge tmap'(id(x)) = \svnone  
 			\end{array}
 		}    
-	%	\def\defaultHypSeparation{\hskip 10pt}
+		%	\def\defaultHypSeparation{\hskip 10pt}
 		%		\inferii[\stmtstmap: \nil]
 		%		{\seqq{\stmtstmap((tmap, scope), ss, tm) = (tmap', scope')}}
 		%		{\seqq{s s = \nil}}
@@ -312,20 +329,71 @@ to update $tmap$ and $scope$, which are used to process the subsequent statement
 	\caption{The procedures $\portstmap$ and $\stmtstmap$}
 	\label{fig:ports-stmts-tmap}
 \end{figure}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+The mapping $tmap$ is defined by the procedure $\portsstmtstmap(pp, ss, tm)$ given in Fig.~\ref{fig:ports-stmts-tmap}, which 
+\begin{wrapfigure}{r}{0.3\textwidth} 
+%\centering
+%\begin{tabular}{c}
+%[basicstyle=\footnotesize\ttfamily]
+\hspace{1cm}
+\begin{lstlisting}
+    input c: UInt<1>
+    wire x: SInt<4>
+    wire y: SInt<4>
+    when c
+      wire z: SInt
+      z <= x
+    z <= y
+\end{lstlisting}
+%\end{tabular}
+%\label{fig:example}
+\end{wrapfigure}
+calls $\portstmap(pp, tm)$ to define a mapping $pmap$ which  intuitively produces an initial version for $tmap$ and $scope$, then calls $\stmtstmap$ %((pmap, pmap), ss, tm)$ 
+to update $tmap$ and $scope$. % (see Figure~\ref{fig:ports-stmts-tmap}). 
 %
-Note that %Similarly, 
-some (less important) rules (for error handling) for $\portstmap$ and $\stmtstmap$ are omitted in Fig.~\ref{fig:ports-stmts-tmap}.  
+%In particular, $\portstmap(pp, tm)$ defines a mapping based on the port declarations $pp$ and $tm$, and $\stmtstmap((pmap, pmap), ss, tm)$ defines a pair $(tmap, scope)$ from $(pmap, pmap)$, the statement sequence $ss$, and $tm$. 
+Here, $scope$ is introduced to check that the component references in $ss$ do not violate  the scoping constraints
+%\tl{this scope thing makes the semantics less focused, but is it really important? Can we simply rule it out at the syntax level?}
+imposed by the \prettyll{when} statements. For instance, the presented {\hifirrtl} program contains a scoping error, since $z$ is declared in the scope of the \prettyll{when} statement, but is referred outside  (cf.\ Line 7). 
+%
+%The procedures $\portstmap$ and $\stmtstmap$ are defined by the rules in Fig.~\ref{fig:ports-stmts-tmap}.
+
+$\portstmap(pp, tm)$ defines $tmap$ from the port declarations. In a nutshell, for \prettyll{input x: t} it calls $\madeexplicit(t, (id(x), 0), tm)$ which returns $newt$, and makes sure that $x$ is not defined elsewhere. %Moreover, it recursively calls $\portstmap(pp', tm)$ to obtain $tmap'$. Then it checks that $tmap'(id(x)) = \svnone$.  If it is the case, then 
+As such, $tmap$ sets %obtained by adding the pair 
+$(id(x), (newt, \source))$. %to $tmap'$. The case $pp = 
+\prettyll{output x: t} is almost the same %dealt with similarly, with 
+except $\source$ being replaced by $\sink$. 
+
+%Furthermore, if $pp = \nil$, then the empty map $\sf emp$ is returned. 
+
+
+
+%
+%If $pp = input\ x: t\ pp'$, then it calls $\madeexplicit(t, (id(x), 0), tm)$ to construct $newt$. Moreover, it recursively calls $\portstmap(pp', tm)$ to obtain $tmap'$. Then it checks that $tmap'(id(x)) = \svnone$.  If it is the case, then the output $tmap$ is obtained by adding the pair $(id(x), (newt, \source))$ to $tmap'$. The case $pp = output\ x: t\ pp'$ is dealt with similarly, with $\source$ replaced by $\sink$. 
+%%Furthermore, if $pp = \nil$, then the empty map $\sf emp$ is returned. 
+
+$\stmtstmap((tmap, scope), ss, tm)$ defines $tmap$ from the statements. For each statement, it calls $\stmttmap(s, tm)$ %(cf.\ Figure~\ref{fig:stmts-tmap}) 
+to update $tmap$ and $scope$, which are used to process the subsequent statements recursively. 
+%$\stmtstmap((tmap, scope), ss, tm)$ defines $tmap$ from the statements in $ss$. If $ss = \nil$, then it simply returns $(tmap, scope)$. Otherwise, let $ss = s\ ss'$, where $s$ is a statement. Then it calls $\stmttmap(s, tm)$ to compute $(tmap'', scope'')$ from a $s$ (see Figure~\ref{fig:stmts-tmap} for its definition). Finally, it recursively calls $\stmtstmap((tmap'', scope''), ss', tm)$ to compute the return value $(tmap', scope')$. 
+%
+%
+Note that again %Similarly, 
+some (less important error handling) rules for $\portstmap$ and $\stmtstmap$ are omitted in Fig.~\ref{fig:ports-stmts-tmap}.  
 %For instance, if $tmap'(id(x)) \neq \svnone$ in the rule {\portstmap: input}, then $\portstmap(pp, tm) = \svnone$.
 
-\begin{figure}[htbp]
-	\begin{gather*}
-		\def\defaultHypSeparation{\hskip 10pt}
-		\infer[\stmttmap: skip]
-		{\seqq{\stmttmap((tmap, scope), \mbox{skip}, tm) = (tmap, scope)}}
-		%{\seqq{s = \mbox{skip}}}
-		%{\seqq{tmap' = tmap \wedge scope' = scope}}
-		\quad
-		\\[1ex]
+%\begin{figure}[htbp]
+%	\begin{gather*}
+%	%	\def\defaultHypSeparation{\hskip 10pt}
+%		\infer[\stmttmap: skip]
+%		{\seqq{\stmttmap((tmap, scope), \mbox{skip}, tm) = (tmap, scope)}}
+%		%{\seqq{s = \mbox{skip}}}
+%		%{\seqq{tmap' = tmap \wedge scope' = scope}}
+%		\quad
+%		\\[1ex]
 		%    \infer[stmt\_tmap: connect-none]
 		%    {\seqq{stmt\_tmap((tmap, scope), s, vm) = none}}
 		%    {
@@ -347,21 +415,21 @@ some (less important) rules (for error handling) for $\portstmap$ and $\stmtstma
 			%    }
 		%   \quad
 		%   \\[1ex]
-		\inferii[\stmttmap: wire]
-		{\seqq{\stmttmap((tmap, scope), s, tm) = (tmap', scope')}}
-		{      
-			\seqq{s = \mbox{wire } x: t} 
-		}
-		{
-			\begin{array}{c}
-				tmap(id(x)) = \svnone\  \wedge  \\
-				\madeexplicit(t, (id(x),0), tm) = newt\ \wedge \\
-				tmap' = \fadd((id(x), (newt, \duplex)), tmap)\ \wedge \\
-				scope' = \fadd((id(x), (newt, \duplex)), scope)
-			\end{array}
-		}
-		\quad
-		\\[1ex]
+%		\inferii[\stmttmap: wire]
+%		{\seqq{\stmttmap((tmap, scope), s, tm) = (tmap', scope')}}
+%		{      
+%			\seqq{s = \mbox{wire } x: t} 
+%		}
+%		{
+%			\begin{array}{c}
+%				tmap(id(x)) = \svnone\  \wedge  \\
+%				\madeexplicit(t, (id(x),0), tm) = newt\ \wedge \\
+%				tmap' = \fadd((id(x), (newt, \duplex)), tmap)\ \wedge \\
+%				scope' = \fadd((id(x), (newt, \duplex)), scope)
+%			\end{array}
+%		}
+%		\quad
+%		\\[1ex]
 		%    \infer[stmt\_tmap: node-none]
 		%    {\seqq{stmt\_tmap((tmap, scope), s, vm) = none}}
 		%    {
@@ -372,127 +440,246 @@ some (less important) rules (for error handling) for $\portstmap$ and $\stmtstma
 			%    }
 		%   \quad
 		%   \\[1ex]
-		\inferii[\stmttmap: node]
-		{\seqq{\stmttmap((tmap, scope), s, tm) = (tmap', scope')}}
-		{\seqq{s = \mbox{node } x = e} }
-		{
-			\begin{array}{c}
-				tmap(id(x)) = \svnone  \wedge \typeofexp(e, scope) = newt\ \wedge \\
-				tmap' = \fadd((id(x), (newt, \source)), tmap)\ \wedge \\
-				scope' = \fadd((id(x), (newt, \source)), scope)
-			\end{array}
-		}
-		\quad
-		\\[1ex]
-		\infer[\stmttmap: reg-asyncreset]
-		{\seqq{\stmttmap((tmap, scope), s, tm) = (tmap', scope')}}
-		{
-			\begin{array}{c}
-				s = \mbox{reg } x: t \ clk \mbox{ with: reset =>} (rsig, rval)  \\
-				tmap(id(x)) = \svnone \wedge \typeofexp(clk, scope) \neq \svnone  \\
-				\typeofexp(rsig, scope) = (\gtype, \asyncreset) \\
-				\typeofexp(rval, scope) \neq \svnone \\
-				\madeexplicit(t, (id(x),0), tm) = newt \\
-				tmap' = \fadd((id(x), (newt, \duplex)), tmap) \\
-				scope' = \fadd((id(x), (newt, \duplex)), scope)
-			\end{array}
-		}
-		\quad
-		\\[1ex]
-		\infer[\stmttmap: reg-reset]
-		{\seqq{\stmttmap((tmap, scope), s, tm) = (tmap', scope')}}
-		{
-			\begin{array}{c}
-				s = \mbox{reg } x: t \ clk \mbox{ with: reset =>} (rsig, rval)  \\
-				tmap(id(x)) = \svnone \wedge \typeofexp(clk, scope) \neq \svnone  \\
-				\typeofexp(rsig, scope) = (\gtype, (\uint, 1)) \\
-				\madeexplicit(t, (id(x),0), tm) = newt \\
-				scope' = \fadd((id(x), (newt, \duplex)), scope) \\
-				\typeofexp(rval, scope') \neq \svnone \\
-				tmap' = \fadd((id(x), (newt, \duplex)), tmap)
-			\end{array}
-		}
-		\quad
-		\\[1ex]
-		\inferii[\stmttmap: connect]
-		{\seqq{\stmttmap((tmap, scope), s, tm) = (tmap, scope)}}
-		{
-			\begin{array}{c}
-				s = r <= e
-			\end{array}
-		}
-		{
-			\begin{array}{c}
-				\typeofexp(r, scope) \neq \svnone\ \wedge  \\
-				\typeofexp(e, scope) \neq \svnone 
-			\end{array}
-		}
-		\quad
-		\\[1ex]
-		%    \infer[stmt\_tmap: invalid-none]
-		%    {\seqq{stmt\_tmap((tmap, scope), s, vm) = none}}
-		%    {
-			%    \begin{array}{c}
-				%      s = r \mbox{ is invalid} \wedge type\_of\_ref(r, scope) = none
-				%     \end{array}
-			%    }
-		%   \quad
-		%   \\[1ex]
-		\inferii[\stmttmap: invalid]
-		{\seqq{\stmttmap((tmap, scope), s, tm) = (tmap, scope)}}
-		{
-			s = r \mbox{ is invalid}   
-		}
-		{
-			\typeofexp(r, scope) \neq \svnone 
-		}
-		\quad
-		\\[1ex]
-		\inferii[\stmttmap: when]
-		{\seqq{\stmttmap((tmap, scope), s, tm) = (tmap', scope)}}
-		{\seqq{s = \mbox{when } cond\mbox{: } sst \mbox{ else: } ssf }}
-		{
-			\begin{array}{c}
-				\typeofexp(cond, scope) \neq \svnone \\
-				\stmtstmap((tmap, scope), sst, tm) = (tmapt, \_) \\
-				\stmtstmap((tmapt, scope), ssf, tm) = (tmapf, \_) \\
-				tmap' = tmapf  
-			\end{array}
-		}
-	\end{gather*}
-	%  \vspace{-4mm}
-	\caption{The procedure $\stmttmap$}
-	\label{fig:stmts-tmap}
-\end{figure}
+%		\inferii[\stmttmap: node]
+%		{\seqq{\stmttmap((tmap, scope), s, tm) = (tmap', scope')}}
+%		{\seqq{s = \mbox{node } x = e} }
+%		{
+%			\begin{array}{c}
+%				tmap(id(x)) = \svnone  \wedge \typeofexp(e, scope) = newt\ \wedge \\
+%				tmap' = \fadd((id(x), (newt, \source)), tmap)\ \wedge \\
+%				scope' = \fadd((id(x), (newt, \source)), scope)
+%			\end{array}
+%		}
+%		\quad
+%		\\[1ex]
+%		\infer[\stmttmap: reg-asyncreset]
+%		{\seqq{\stmttmap((tmap, scope), s, tm) = (tmap', scope')}}
+%		{
+%			\begin{array}{c}
+%				s = \mbox{reg } x: t \ clk \mbox{ with: reset =>} (rsig, rval)  \\
+%				tmap(id(x)) = \svnone \wedge \typeofexp(clk, scope) \neq \svnone  \\
+%				\typeofexp(rsig, scope) = (\gtype, \asyncreset) \\
+%				\typeofexp(rval, scope) \neq \svnone \\
+%				\madeexplicit(t, (id(x),0), tm) = newt \\
+%				tmap' = \fadd((id(x), (newt, \duplex)), tmap) \\
+%				scope' = \fadd((id(x), (newt, \duplex)), scope)
+%			\end{array}
+%		}
+%		\quad
+%		\\[1ex]
+%		\infer[\stmttmap: reg-reset]
+%		{\seqq{\stmttmap((tmap, scope), s, tm) = (tmap', scope')}}
+%		{
+%			\begin{array}{c}
+%				s = \mbox{reg } x: t \ clk \mbox{ with: reset =>} (rsig, rval)  \\
+%				tmap(id(x)) = \svnone \wedge \typeofexp(clk, scope) \neq \svnone  \\
+%				\typeofexp(rsig, scope) = (\gtype, (\uint, 1)) \\
+%				\madeexplicit(t, (id(x),0), tm) = newt \\
+%				scope' = \fadd((id(x), (newt, \duplex)), scope) \\
+%				\typeofexp(rval, scope') \neq \svnone \\
+%				tmap' = \fadd((id(x), (newt, \duplex)), tmap)
+%			\end{array}
+%		}
+%		\quad
+%		\\[1ex]
+%		\inferii[\stmttmap: connect]
+%		{\seqq{\stmttmap((tmap, scope), s, tm) = (tmap, scope)}}
+%		{
+%			\begin{array}{c}
+%				s = r <= e
+%			\end{array}
+%		}
+%		{
+%			\begin{array}{c}
+%				\typeofexp(r, scope) \neq \svnone\ \wedge  \\
+%				\typeofexp(e, scope) \neq \svnone 
+%			\end{array}
+%		}
+%		\quad
+%		\\[1ex]
+%		%    \infer[stmt\_tmap: invalid-none]
+%		%    {\seqq{stmt\_tmap((tmap, scope), s, vm) = none}}
+%		%    {
+%			%    \begin{array}{c}
+%				%      s = r \mbox{ is invalid} \wedge type\_of\_ref(r, scope) = none
+%				%     \end{array}
+%			%    }
+%		%   \quad
+%		%   \\[1ex]
+%		\inferii[\stmttmap: invalid]
+%		{\seqq{\stmttmap((tmap, scope), s, tm) = (tmap, scope)}}
+%		{
+%			s = r \mbox{ is invalid}   
+%		}
+%		{
+%			\typeofexp(r, scope) \neq \svnone 
+%		}
+%		\quad
+%		\\[1ex]
+%		\inferii[\stmttmap: when]
+%		{\seqq{\stmttmap((tmap, scope), s, tm) = (tmap', scope)}}
+%		{\seqq{s = \mbox{when } cond\mbox{: } sst \mbox{ else: } ssf }}
+%		{
+%			\begin{array}{c}
+%				\typeofexp(cond, scope) \neq \svnone \\
+%				\stmtstmap((tmap, scope), sst, tm) = (tmapt, \_) \\
+%				\stmtstmap((tmapt, scope), ssf, tm) = (tmapf, \_) \\
+%				tmap' = tmapf  
+%			\end{array}
+%		}
+%	\end{gather*}
+%	%  \vspace{-4mm}
+%	\caption{The procedure $\stmttmap$}
+%	\label{fig:stmts-tmap}
+%\end{figure}
 
-The procedure $\stmttmap$, defined in Fig.~\ref{fig:stmts-tmap}, is the core to process the statement, the intuitions of which is as follows. If $s$ is a declaration statement, $\stmttmap((tmap, scope), s, tm)$ utilizes $tm$ to instantiate the types in $s$ and updates $(tmap, scope)$ to $(tmap', scope')$. We distinguish different declaration statements. 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+The procedure $\stmttmap$ %, defined in Fig.~\ref{fig:stmts-tmap}, 
+is the core to process the statement. %, the intuitions of which is as follows. 
+%
+If $s$ is a declaration statement, $\stmttmap((tmap, scope), s, tm)$ utilizes $tm$ to instantiate the types in $s$ and updates $(tmap, scope)$ to $(tmap', scope')$. We distinguish different declaration statements. 
 \begin{itemize}
-	\item Case $s = \prettyll{wire x: t}$. It checks $tmap(id(x)) = \svnone$ and calls $\madeexplicit(t, (id(x), 0), tm)$ to compute $newt$. The pair $(id(x), (newt, \duplex))$ is then added to both $tmap$ and $scope$. %, and obtains the return value $(tmap', scope')$. 
+	\item Case s = \prettyll{wire x: t}. It checks $tmap(id(x)) = \svnone$ and calls $\madeexplicit$ %(t, (id(x), 0), tm)$ 
+	to get $newt$. The pair $(id(x), (newt, \duplex))$ is then added to both $tmap$ and $scope$. %, and obtains the return value $(tmap', scope')$. 
+	\[
+			\inferii[\stmttmap: wire]
+			{\seqq{\stmttmap((tmap, scope), s, tm) = (tmap', scope')}}
+			{      
+					\seqq{s = \mbox{wire } x: t} 
+				}
+			{
+					\begin{array}{c}
+							tmap(id(x)) = \svnone\  \wedge  \\
+							\madeexplicit(t, (id(x),0), tm) = newt\ \wedge \\
+							tmap' = \fadd((id(x), (newt, \duplex)), tmap)\ \wedge \\
+							scope' = \fadd((id(x), (newt, \duplex)), scope)
+						\end{array}
+				}
+	\]
 	%Note that the orientation of a \prettyll{wire} component is \duplex. 
 %	(Cf. \stmttmap: wire in Fig.~\ref{fig:stmts-tmap})
 	%
-	\item Case $s = \prettyll{node x = e}$. It checks $tmap(id(x)) = \svnone$, computes $t= \typeofexp(e, scope)$, and calls $\madeexplicit(t, (id(x), 0), tm)$ to obtain $newt$. $(id(x), (newt, \source))$ is then added to both $tmap$ and $scope$. %, and obtains the return value $(tmap', scope')$. 
+	\item Case s = \prettyll{node x = e}. It checks $tmap(id(x)) = \svnone$, computes $t= \typeofexp(e, scope)$, and calls $\madeexplicit$
+	%(t, (id(x), 0), tm)$ 
+	to obtain $newt$. $(id(x), (newt, \source))$ is then added to $tmap$ and $scope$. %, and obtains the return value $(tmap', scope')$. 
 %	Note that in the function call $\typeofexp(e, scope)$, $scope$ instead of $tmap$ is used to check whether the references in $e$ are well-scoped. %Moreover, the orientation of a \prettyll{node} component is \source. 
 %	(Cf.\ \stmttmap: node in Fig.~\ref{fig:stmts-tmap})
-	%
-	\item Case $s = \prettyll{reg  x: t clk  with: reset => (rsig, rval)}$. 
+\[
+	\inferii[\stmttmap: node]
+{\seqq{\stmttmap((tmap, scope), s, tm) = (tmap', scope')}}
+{\seqq{s = \mbox{node } x = e} }
+{
+	\begin{array}{c}
+		tmap(id(x)) = \svnone  \wedge \typeofexp(e, scope) = newt\ \wedge \\
+		tmap' = \fadd((id(x), (newt, \source)), tmap)\ \wedge \\
+		scope' = \fadd((id(x), (newt, \source)), scope)
+	\end{array}
+}
+\]
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%	%
+\item Case s = \prettyll{reg  x: t clk  with: reset => (rsig, rval)}.
 	
-	If $\typeofexp(rsig, scope) = (\gtype, \asyncreset)$. It checks $tmap(id(x)) = \svnone$, $\typeofexp(clk, scope) \neq \svnone$, and $\typeofexp(rval, scope) \neq \svnone$, calls $\madeexplicit(t, (id(x), 0), tm)$ to obtain $newt$.  $(id(x), (newt, \duplex))$ is added to both $tmap$ and $scope$. %, and obtains the return value $(tmap', scope')$. 
+	We assume $\typeofexp(rsig, scope) = (\gtype, \asyncreset)$. It checks $tmap(id(x)) = \svnone$, $\typeofexp(clk, scope) \neq \svnone$, and $\typeofexp(rval, scope) \neq \svnone$, calls $\madeexplicit$ %(t, (id(x), 0), tm)$ 
+	to obtain $newt$.  $(id(x), (newt, \duplex))$ is added to both $tmap$ and $scope$. %, and obtains the return value $(tmap', scope')$. 
 %	Note that in $\typeofexp(clk, scope)$, $\typeofexp(rsig, scope)$ and $\typeofexp(rval, scope)$, $scope$, instead of $tmap$, is used to check that the references in $clk, rsig, rval$ are well-scoped. Moreover, the orientation of a \prettyll{reg} component is \duplex. (Cf. \stmttmap: reg-asyncreset in Fig.~\ref{fig:stmts-tmap})
 	%
-	\item Case $s = \prettyll{reg  x: t \ clk with: reset => (rsig, rval)}$. 
+	\[
+		\infer[\stmttmap: reg-asyncreset]
+	{\seqq{\stmttmap((tmap, scope), s, tm) = (tmap', scope')}}
+	{
+		\begin{array}{c}
+			s = \mbox{reg } x: t \ clk \mbox{ with: reset =>} (rsig, rval)  \\
+			tmap(id(x)) = \svnone \wedge \typeofexp(clk, scope) \neq \svnone  \\
+			\typeofexp(rsig, scope) = (\gtype, \asyncreset) \\
+			\typeofexp(rval, scope) \neq \svnone \\
+			\madeexplicit(t, (id(x),0), tm) = newt \\
+			tmap' = \fadd((id(x), (newt, \duplex)), tmap) \\
+			scope' = \fadd((id(x), (newt, \duplex)), scope)
+		\end{array}
+	}
+	\]
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%	
+	\item Case s = \prettyll{reg  x: t \ clk with: reset => (rsig, rval)}. 
 	
-	We assume $\typeofexp(rsig, scope) = (\gtype, (\uint, 1))$. It checks $tmap(id(x)) = \svnone$ and $\typeofexp(clk, scope) \neq \svnone$, calls $\madeexplicit(t, (id(x), 0), tm)$ to obtain $newt$. $(id(x), (newt, \duplex))$ is added to $scope$ to get $scope'$. Then it checks $\typeofexp(rval, scope') \neq \svnone$, and adds $(id(x), (newt, \duplex))$ to $tmap$ 
-	and obtains $tmap'$. %Finally, it returns $(tmap', scope')$. 
+	We assume $\typeofexp(rsig, scope) = (\gtype, (\uint, 1))$. It checks $tmap(id(x)) = \svnone$ and $\typeofexp(clk, scope) \neq \svnone$, calls $\madeexplicit$ %(t, (id(x), 0), tm)$ 
+	to obtain $newt$. $(id(x), (newt, \duplex))$ is added to $scope$ to get $scope'$. Then it checks $\typeofexp(rval, scope') \neq \svnone$, and adds $(id(x), (newt, \duplex))$ to $tmap$ 
+	and obtains $tmap'$. 
+	\[
+			\infer[\stmttmap: reg-reset]
+	{\seqq{\stmttmap((tmap, scope), s, tm) = (tmap', scope')}}
+	{
+		\begin{array}{c}
+			s = \mbox{reg } x: t \ clk \mbox{ with: reset =>} (rsig, rval)  \\
+			tmap(id(x)) = \svnone \wedge \typeofexp(clk, scope) \neq \svnone  \\
+			\typeofexp(rsig, scope) = (\gtype, (\uint, 1)) \\
+			\madeexplicit(t, (id(x),0), tm) = newt \\
+			scope' = \fadd((id(x), (newt, \duplex)), scope) \\
+			\typeofexp(rval, scope') \neq \svnone \\
+			tmap' = \fadd((id(x), (newt, \duplex)), tmap)
+		\end{array}
+	}
+	\]
+	%Finally, it returns $(tmap', scope')$. 
 %	Note that in $\typeofexp(clk, scope)$, $\typeofexp(rsig, scope)$, $scope$, instead of $tmap$, is used to check that the references in $clk, rsig$ are well-scoped. Moreover, because the reset signal $rsig$ is synchronous, that is, $\typeofexp(rsig, scope) = (\gtype, (\uint, 1))$, we have that in $\typeofexp(rval, scope')$, $scope'$, instead of $scope$ or $tmap$, is used to check that the references in $rval$ are well-scoped. (Cf. the rule \stmttmap: reg-reset in Fig.~\ref{fig:stmts-tmap})
 \end{itemize}
 
-For others, if $s$ is a connect or invalid statement,  $\stmttmap$ %((tmap, scope), s, tm)$ 
+For others, if $s$ is a \prettyll{connect} or \prettyll{invalid} statement,  $\stmttmap$ %((tmap, scope), s, tm)$ 
 only checks that the references or expressions are well-scoped with respect to $scope$, but does not update $(tmap, scope)$. %(see the rules \stmttmap: connect and  \stmttmap: invalid in Fig.~\ref{fig:stmts-tmap})
+\[
+		\inferii[\stmttmap: connect]
+{\seqq{\stmttmap((tmap, scope), s, tm) = (tmap, scope)}}
+{
+	\begin{array}{c}
+		s = r <= e
+	\end{array}
+}
+{
+	\begin{array}{c}
+		\typeofexp(r, scope) \neq \svnone\ \wedge  \\
+		\typeofexp(e, scope) \neq \svnone 
+	\end{array}
+}
+\]
+\[
+%    \infer[stmt\_tmap: invalid-none]
+%    {\seqq{stmt\_tmap((tmap, scope), s, vm) = none}}
+%    {
+	%    \begin{array}{c}
+		%      s = r \mbox{ is invalid} \wedge type\_of\_ref(r, scope) = none
+		%     \end{array}
+	%    }
+%   \quad
+%   \\[1ex]
+\inferii[\stmttmap: invalid]
+{\seqq{\stmttmap((tmap, scope), s, tm) = (tmap, scope)}}
+{
+	s = r \mbox{ is invalid}   
+}
+{
+	\typeofexp(r, scope) \neq \svnone 
+}
+\]
+
 %
 
 For the when statement \prettyll{when c: sst else: ssf},  $\stmttmap$ %((tmap, scope), s, tm)$ 
-first calls $\stmtstmap((tmap, scope), sst, tm)$ to compute $(tmapt, scopet)$, then calls  $\stmtstmap((tmapt, scope), ssf, tm)$ to compute $(tmapf, scopef)$, finally returns the pair $(tmapf, scope)$. 
+first calls $\stmtstmap$ %((tmap, scope), sst, tm)$ 
+to compute $(tmapt, scopet)$, then calls  $\stmtstmap((tmapt, scope), ssf, tm)$ to compute $(tmapf, scopef)$, finally returns the pair $(tmapf, scope)$. 
+\[
+		\inferii[\stmttmap: when]
+{\seqq{\stmttmap((tmap, scope), s, tm) = (tmapf, scope)}}
+{\seqq{s = \mbox{when } cond\mbox{: } sst \mbox{ else: } ssf }}
+{
+	\begin{array}{c}
+		\typeofexp(cond, scope) \neq \svnone \\
+		\stmtstmap((tmap, scope), sst, tm) = (tmapt, \_) \\
+		\stmtstmap((tmapt, scope), ssf, tm) = (tmapf, \_)  
+	\end{array}
+}
+\]
 
 %Note that in $\stmtstmap((tmapt, scope), ssf, tm)$, we are using $scope$, instead of $scopet$, since the components declared in $sst$ should \emph{not} be referred in $ssf$.  Moreover, the return value of $\stmttmap((tmap, scope), s, tm)$ is $(tmapf, scope)$, instead of $(tmapf, scopef)$, since the components declared inside the when statement should \emph{not} be referred outside it. 
 %(see the rule \stmttmap: when in Fig.~\ref{fig:stmts-tmap})
