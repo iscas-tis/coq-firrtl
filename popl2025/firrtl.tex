@@ -717,7 +717,9 @@ It infers the smallest width that is larger than all assigned widths to a compon
 %\paragraph*{InferResets} %% that infers concrete resets, i.e. AsyncReset or UInt<1>,
 %The InferResets pass infers the concrete reset types for the abstract reset type \prettyll{Reset}, namely, asynchronous resets represented by  \prettyll{AsyncReset} or synchronous resets represented by \prettyll{UInt<1>}. For example, in the code snippet \prettyll{ input in: UInt<1>   wire rst: Reset   rst <= in } with an input port \prettyll{in} of type \prettyll{UInt<1>} and a wire \prettyll{rst} of abstract type \prettyll{Reset}, the \prettyll{rst} wire will be inferred as a synchronous reset based on the type of the input port \prettyll{in}. If a component of \prettyll{Reset} type is instantiated with different concrete reset types, then a conflict occurs and an error is reported.
 
-\paragraph{ExpandConnects} The ExpandConnects pass expands the connect statements, after the types of components have been inferred by the InferTypes pass.
+\paragraph{ExpandConnects} The ExpandConnects pass expands the connect statements,
+after the types and widths of components have been inferred by the InferWidths pass.
+%(In particular, InferWidths will infer that the width of every element in an array is the same.)
 For instance, the ExpandConnects pass transforms the program shown in Figure~\ref{fig-lofirrtl-exmp2}(a) into the one shown in Figure~\ref{fig-lofirrtl-exmp2}(b).
 
 
@@ -728,8 +730,8 @@ For instance, the ExpandConnects pass transforms the program shown in Figure~\re
 %[basicstyle=\footnotesize\ttfamily]
 \begin{lstlisting}[boxpos=t,aboveskip=0pt]
 module MyModule:
-  input x: {a: UInt, b: UInt}
-  output y:{a: UInt, b: UInt}
+  input x: {a: UInt<3>, b: UInt<4>}
+  output y:{a: UInt<5>, b: UInt<4>}
   y <= x
 \end{lstlisting}
 \vspace*{0.92\baselineskip}
@@ -742,8 +744,8 @@ module MyModule:
 %[basicstyle=\footnotesize\ttfamily]
 \begin{lstlisting}
  module MyModule:
-  input x: {a: UInt, b: UInt}
-  output y:{a: UInt, b: UInt}
+  input x: {a: UInt<3>, b: UInt<4>}
+  output y:{a: UInt<5>, b: UInt<4>}
   y.a <= x.a
   y.b <= x.b
 \end{lstlisting}
@@ -824,7 +826,7 @@ module TestCondition:
   wire a: SInt<33>
   posv <= mux(condition, in, 0)
   a <= neg in
-  negv <= validif(not condition, a)
+  negv <= a % validif(not condition, a)
 \end{lstlisting}
 \caption{}
 \end{subfigure}
@@ -886,8 +888,8 @@ and produces an error.
 This error can be suppressed by an \prettyll{is invalid} statement
 (Line~\ref{lstline-is-invalid} of Figure~\ref{fig-lofirrtl-exmp3}(a)),
 which explicitly indicates that the connect is missing on purpose,
-e.g. because the result is not used or is irrelevant under some conditions.
-The multiplexer is replaced by a \prettyll{validif} expression.
+e.g.\@ because the result is not used or is irrelevant under some conditions.
+These conditions are then ignored.
 %, which may allow later optimization passes to remove superfluous calculations.
 
 If a component is only declared under some condition
