@@ -5,10 +5,11 @@
 
 The InferWidth pass infer the types of components of $M$ and additionally infers the unknown widths in these types. The InferWidths pass only modifies the declaration statements in the original program, and does not modify the other statements. 
 
-\paragraph*{Formalization}
-We shall formalize the InferWidths pass as a function $\inferwidths$ such that for each module $M$, $\inferwidths(M)$ generates a new module $M'$ where all widths are explicit. The $\inferwidths$ function is defined by the rule below. 
+\smallskip
+\noindent\emph{Formalization.}
+We formalize the InferWidths pass as a function $\inferwidths$ such that for each module $M$, $\inferwidths(M)$ generates a new module $M'$ where all bit-widths are explicit. The $\inferwidths$ function is defined by the rule below. 
   \begin{gather*}
-  \def\defaultHypSeparation{\hskip 10pt}
+ % \def\defaultHypSeparation{\hskip 10pt}
     \infer[xx]
      {\seqq{\inferwidths(M) = M'}}
      {
@@ -20,27 +21,26 @@ We shall formalize the InferWidths pass as a function $\inferwidths$ such that f
   \end{gather*}
 The main idea is to focus on the ground-type components that are flattened from the components in $M$, infer the widths of the ground types, assemble the ground types into aggregate types where all the widths are explicit, and finally replace the aggregate types in $M$ by the inferred aggregate types and obtain the new module $M'$. Specifically, the computation of $\inferwidths(M)$ comprises the following steps. 
 \begin{enumerate}
-\item We first call the procedure $\tycnmap(M)$ to compute a triple $(atm, gtm, gcm)$ such that $atm$ is a type mapping from $\range{id}$ to $\ftypes$, and $gtm$ is a ground-type mapping, i.e. a function from $\gidset_M$ to $\gtypes$,  and $gcm$ is a ground-type connection mapping, i.e. a function that assigns to each $(v, m) \in \gidset_M$ a list of ground-type expressions that are connected to $(v, m)$. 
+\item We first call $\tycnmap(M)$ to compute a triple $(atm, gtm, gcm)$ where $atm$ is a type mapping from $\range{id}$ to $\ftypes$, $gtm$ is a ground-type mapping from $\gidset_M$ to $\gtypes$,  and $gcm$ is a ground-type connection mapping which assigns to each $(v, m) \in \gidset_M$ a list of ground-type expressions that are connected to $(v, m)$. 
 %
 %Note that there is a gap between $tm$ and $cm$, $tm$ records the typing information for the (not necessarily ground-type) components in $M$, while $cm$ records the connections only for ground type components. 
-\item We call the procedure $\depgraph(gcm)$ to compute a dependency graph $G = (V, E)$ from $gcm$. We choose to focus on the components of implicit widths. Therefore, we set $V$ to be the set of $(v, m) \in \gidset_M$ such that $gtm(v, m) \in \{(\uintimp, n), (\sintimp, n) \mid n \in \Nat\}$.  
-Moreover, the set of edges in $G$ is defined as follows: If $(v, m) \in V$ and a component of identifier $(v', m') \in V$ occurs in $cm(v, m)$, then there is an edge from $(v',m')$ to $(v, m)$. 
+\item We call $\depgraph(gcm)$ to compute a dependency graph $G = (V, E)$ from $gcm$. As we choose to focus on the components of implicit widths, $V$ is the set of $(v, m) \in \gidset_M$ such that $gtm(v, m) \in \{(\uintimp, n), (\sintimp, n) \mid n \in \Nat\}$.  
+Moreover, $E$ is defined as follows: if $(v, m) \in V$ and a component of identifier $(v', m') \in V$ occurs in $cm(v, m)$, then there is an edge from $(v',m')$ to $(v, m)$. 
 %
-\item We assume that \emph{$G$ is acyclic} and compute a topological sorting of $G$, say $ts$. For convenience, we represent $ts$ as a vertex sequence. 
+\item We assume that \emph{$G$ is acyclic} and compute a topological sorting $ts$ of $G$. For convenience, we represent $ts$ as a vertex sequence. 
 %
-\item Then we define a recursive function $gtm_1 \xrightarrow[cm]{vs} gtm_2$ where $gtm_1, gtm_2 \in \range{id} \rightarrow \ftypes$ and $vs$ is a sequence of vertices in $G$. Let $gtm'$ be the ground-type mapping such that $gtm \xrightarrow[cm]{ts} gtm'$. 
+\item We define a recursive function $gtm_1 \xrightarrow[cm]{vs} gtm_2$ where $gtm_1, gtm_2: \range{id} \rightarrow \ftypes$ and $vs$ is a sequence of vertices in $G$. Let $gtm'$ be the ground-type mapping such that $gtm \xrightarrow[cm]{ts} gtm'$. 
 %
-\item We construct $atm' \in \range{id} \rightarrow \ftypes$ by calling the procedure $\detwidths(atm, gtm')$ to determine the implicit widths in $atm$ according to $gtm'$. 
+\item We construct $atm':\range{id} \rightarrow \ftypes$ by calling $\detwidths(atm, gtm')$ to determine the implicit widths in $atm$ according to $gtm'$. 
 %
-\item Finally, we call the procedure $\replacewidths(M, atm')$ to replace the types in $M$ by those in $atm'$ and generate $M'$. 
+\item Finally, we call  $\replacewidths(M, atm')$ to replace the types in $M$ by those in $atm'$ and generate $M'$. 
 \end{enumerate}
 
-Note here we require that the dependency graph $G$ is acyclic. This technical choice is justified by the fact that inferring widths for cyclic dependency graphs is error-prone\footnote{See e.g. \url{https://github.com/llvm/circt/issues/1271} and \url{https://github.com/llvm/circt/issues/6742} for the the bugs in Firtool related to this.} and it is unclear how the semantics should be defined for the general case.  
-%
-%\begin{figure}[htbp]
-
-
-Let us briefly explain how the procedures $\tycnmap(M)$ and $\topsort(G)$ work. 
+Note here currently we require the dependency graph $G$ to be acyclic. The main reason is that %. This technical choice is justified by that 
+inferring widths for cyclic dependency graphs is error-prone\footnote{See e.g. \url{https://github.com/llvm/circt/issues/1271} and \url{https://github.com/llvm/circt/issues/6742} for the the bugs in Firtool related to this.} and the semantics is unclear %how the semantics should be defined 
+for the general case.  
+ 
+We briefly explain how the procedures $\tycnmap(M)$ and $\topsort(G)$ work. 
 \begin{itemize}
 \item The definition of the function $\tycnmap(M)$, that is, the computation of $(atm, gtm, gcm)$, is roughly the combination of the function $\portsstmtstmap$ and the relation $cm_1 \xrightarrow[tm, tmap]{ss} cm_2$ in Section~\ref{sec-form-firrtl}. 
 %
