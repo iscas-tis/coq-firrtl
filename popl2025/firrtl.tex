@@ -27,12 +27,22 @@ circuit A :
     clk is invalid
     rst is invalid
     io is invalid
-    inst x of B
     x.io is invalid
     x.clk <= clk
     x.rst <= rst
     x.io.enable <= io.enable
     io.calc <= x.io.calc
+\end{lstlisting}
+\end{tabular}\vspace{-2mm}
+\caption{An example FIRRTL program \label{fig:example}}
+\vspace{-2mm}
+\end{figure}
+
+%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%
+\hide
+{
+%    inst x of B
 
   module B :
     input clk : Clock
@@ -48,18 +58,16 @@ circuit A :
       counter <= _T_8
       skip
     io.calc <= counter
-\end{lstlisting}
-\end{tabular}\vspace{-2mm}
-\caption{An example FIRRTL program \label{fig:example} \tl{need to change this}}
-\vspace{-2mm}
-\end{figure}
+}
+%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%
 
 A FIRRTL \emph{circuit} comprises of a list of modules with a designated top-level module that has the same identifier as the circuit.
 Each module represents a hardware block that can
 be instantiated one or more times.
 %
-For instance, the FIRRTL circuit \prettyll{A} shown in Figure~\ref{fig:example} has two modules \prettyll{A} and \prettyll{B},
-where the top-level module of the circuit is the module \prettyll{A}.
+For instance, the FIRRTL circuit \prettyll{A} shown in Figure~\ref{fig:example} has one module \prettyll{A}.
+%where the top-level module of the circuit is the module \prettyll{A}.
 
 A \emph{module} consists of a set of ports and a sequence of statements.
 Each port has an identifier, a direction (either \prettyll{input} or \prettyll{output}), and a data type.
@@ -707,7 +715,8 @@ In the sequel, we give an informal introduction to the lowering transformations 
 %\tl{incorporate infertypes please}
 
 \paragraph*{InferWidths}
-Besides the types, the InferWidths pass infers the widths of all components whose widths are unknown.
+The InferWidths pass first infers the types of components where the widths of some components are unknown. Additionally, 
+the InferWidths pass infers these unknown widths.
 %, after the InferTypes pass has been applied \tl{to be revised}.
 It is a \emph{global} width inference algorithm.
 %Instances of the same module with unknown input port widths will be assigned the largest width of all assignments to each of its instance ports.
