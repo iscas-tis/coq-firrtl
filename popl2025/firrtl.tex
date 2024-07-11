@@ -34,7 +34,7 @@ circuit A :
     io.calc <= x.io.calc
 \end{lstlisting}
 \end{tabular}\vspace{-2mm}
-\caption{An example FIRRTL program \label{fig:example_sect2}}
+\caption{An example {\firrtl} program \label{fig:example_sect2}}
 \vspace{-2mm}
 \end{figure}
 
@@ -62,7 +62,7 @@ circuit A :
 %%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%
 
-A FIRRTL \emph{circuit} consists of a list of modules with a designated top-level module that has the same identifier as the circuit.
+A {\firrtl} \emph{circuit} consists of a list of modules with a designated top-level module that has the same identifier as the circuit.
 Each module represents a hardware block that can
 be instantiated one or more times.
 %
@@ -524,13 +524,13 @@ According to the syntax, FIRRTL features high-level constructs such as vector ty
 These high-level constructs are then gradually removed by a sequence of \emph{lowering transformations}. During each lowering transformation, the circuit is rewritten into an equivalent circuit using simpler, lower-level
 constructs. Eventually the circuit is simplified to its most restricted form, resembling a structured netlist,
 which allows for easy translation to an output language (e.g. Verilog).
-This form is given the name lowered FIRRTL (abbreviated as LoFIRRTL) and is a strict subset of the full FIRRTL language.
-For clarity, the original form is referred to as high FIRRTL (HiFIRRTL).
-\footnote{Besides LoFIRRTL, there is another lowered form of FIRRTL, referred to as MidFIRRTL, which resides between HiFIRRTL and LoFIRRTL. We do not introduce MidFIRRTL in this work,
-since it can be seen as an internal representation of a FIRRTL compiler that does not interface with the other parts of the Chisel toolchain.}
+This form is given the name lowered FIRRTL (abbreviated as \lofirrtl) and is a strict subset of the full FIRRTL language.
+For clarity, the original form is referred to as high FIRRTL (\hifirrtl).
+%\footnote{Besides LoFIRRTL, there is another lowered form of FIRRTL, referred to as MidFIRRTL, which resides between HiFIRRTL and LoFIRRTL. We do not introduce MidFIRRTL in this work,
+%since it can be seen as an internal representation of a FIRRTL compiler that does not interface with the other parts of the Chisel toolchain.}
 
 
-A FIRRTL circuit is a LoFIRRTL circuit if it obeys the following restrictions:
+A FIRRTL circuit is a {\lofirrtl} circuit if it obeys the following restrictions:
 \begin{itemize}
 \item All widths are explicitly defined.
 \item No conditional statements (\prettyll{when}) are used.
@@ -538,7 +538,7 @@ A FIRRTL circuit is a LoFIRRTL circuit if it obeys the following restrictions:
 %\item No partial connect statements (\prettyll{<-}) are used.
 \item Each component is connected to at most once.
 \end{itemize}
-More precisely, a LoFIRRTL circuit is a FIRRTL circuit that is defined by the syntactic rules in Figure~\ref{fig-lofirrtl-synt}
+More precisely, a {\lofirrtl} circuit is a FIRRTL circuit that is defined by the syntactic rules in Figure~\ref{fig-lofirrtl-synt}
 and satisfies that in each module, each component is connected to at most once.
 
 
