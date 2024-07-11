@@ -14,32 +14,33 @@ where $\mathit{declare}\ x$ represents a declaration statement for $x$, e.g. \pr
 \begin{gather*}
     \label{rule-expandwhen-declare}
     \infer[]
-    {\seqq{\expandbranch(ss ; \mathit{declare}\ x, ecm_0) = (ss_\mathrm{dcl} ; \mathit{declare}\ x, ecm[\svundefined/x])}}
-    {\seqq{\expandbranch(ss, ecm_0) = (ss_\mathrm{dcl}, ecm)}}
+    {\seqq{\expandbranch(\mathit{declare}\ x ; ss, ecm_0) = (\mathit{declare}\ x ; ss_\mathrm{dcl}, ecm)}}
+    {\seqq{\expandbranch(ss, ecm_0[\svundefined/x]) = (ss_\mathrm{dcl}, ecm)}}
 \\[1ex]
     \label{rule-expandwhen-connect}
     \infer[]
-    {\seqq{\expandbranch(ss ; x <= e, ecm_0) = (ss_\mathrm{dcl}, ecm [e/x])}}
-    {\seqq{\expandbranch(ss, ecm_0) = (ss_\mathrm{dcl}, ecm)}}
+    {\seqq{\expandbranch(x <= e ; ss, ecm_0) = (ss_\mathrm{dcl}, ecm)}}
+    {\seqq{\expandbranch(ss, ecm_0[e/x]) = (ss_\mathrm{dcl}, ecm)}}
 \\[1ex]
     \label{rule-expandwhen-invalid}
     \infer[]
-    {\seqq{\expandbranch(ss ; x \text{ \prettyll{is invalid}}, ecm_0) = (ss_\mathrm{dcl}, ecm [{\tt invalid}/x])}}
-    {\seqq{\expandbranch(ss, ecm_0) = (ss_\mathrm{dcl}, ecm)}}
+    {\seqq{\expandbranch(x \text{ \prettyll{is invalid}} ; ss, ecm_0) = (ss_\mathrm{dcl}, ecm)}}
+    {\seqq{\expandbranch(ss, ecm_0[{\tt invalid}/x]) = (ss_\mathrm{dcl}, ecm)}}
     \\[1ex]
     \label{rule-expandwhen-when}
-    \inferii[]
-    {\seqq{\expandbranch(ss ; \text{\prettyll{when c then} } ss^\mathsf{T} \text{ \prettyll{else} } ss^\mathsf{F}, ecm_0) =
-        (ss_\mathrm{dcl} ; ss_\mathrm{dcl}^\mathsf{T} ; ss_\mathrm{dcl}^\mathsf{F}, \combinebranches(c, ecm^\mathsf{T}, ecm^\mathsf{F}))}}
-    {\seqq{\expandbranch(ss, cm_0) = (ss_\mathrm{dcl}, ecm)}}
-    {\begin{gathered}[b] \seqq{\expandbranch(ss^\mathsf{T}, ecm) = (ss_\mathrm{dcl}^\mathsf{T}, ecm^\mathsf{T})} \\
-                      \seqq{\expandbranch(ss^\mathsf{F}, ecm) = (ss_\mathrm{dcl}^\mathsf{F}, ecm^\mathsf{F})} \end{gathered}}
+    \infer[]
+    {\seqq{\expandbranch((\text{\prettyll{when c then} } ss^\mathsf{T} \text{ \prettyll{else} } ss^\mathsf{F}) ; ss, ecm_0) =
+        (ss_\mathrm{dcl}^\mathsf{T} ; ss_\mathrm{dcl}^\mathsf{F} ; ss_\mathrm{dcl}^{\phantom{\mathsf{F}}}, ecm)}}
+    {\begin{gathered} \seqq{\expandbranch(ss, \combinebranches(c, ecm^\mathsf{T}, ecm^\mathsf{F})) = (ss_\mathrm{dcl}, ecm)} \\[-0.4em]
+     \seqq{\expandbranch(ss^\mathsf{T}, ecm_0) = (ss_\mathrm{dcl}^\mathsf{T}, ecm^\mathsf{T})} \qquad
+     \seqq{\expandbranch(ss^\mathsf{F}, ecm_0) = (ss_\mathrm{dcl}^\mathsf{F}, ecm^\mathsf{F})} \end{gathered}}
 \end{gather*}
 %
-Note that for a statement \prettyll{when c then} $ss^\mathsf{T}$ \prettyll{else} $ss^\mathsf{F}$,
- the function {\expandbranch}  first processes the statements preceding this statement and obtains a connection mapping $ecm$, then uses $ecm$ to process $ss^\mathsf{T}$ and $ss^\mathsf{F}$ respectively,
- resulting in connect mappings $ecm^\mathsf{T}$ and $ecm^\mathsf{F}$ respectively.
- Finally, $ecm^\mathsf{T}$ and $ecm^\mathsf{F}$ are combined into one mapping by {\combinebranches}.
+For the statement \prettyll{when c then} $ss^\mathsf{T}$ \prettyll{else} $ss^\mathsf{F}$,
+ the function {\expandbranch} first processes the branches $ss^\mathsf{T}$ and $ss^\mathsf{F}$ separately,
+ constructing two connect mappings $ecm^\mathsf{T}$ and $ecm^\mathsf{F}$ respectively.
+ These mappings are combined into one mapping by {\combinebranches};
+ the resulting mapping is the starting point for the statements $ss$ that follow after the \prettyll{when} statement.
 
 %For \prettyll{when} statements,
 %the true and false branches are similarly split
