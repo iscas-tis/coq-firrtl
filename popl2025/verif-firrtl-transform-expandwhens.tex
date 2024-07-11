@@ -1,6 +1,6 @@
 %!TEX root = main.tex
 
-Recall that the ``ExpandWhens'' pass was implemented by the function {\tt expand\_branch} in Section~\ref{sec-hi-firrtl-transform}. 
+Recall that the ``ExpandWhens'' pass was implemented by the function {\expandbranch} in Section~\ref{sec-hi-firrtl-transform}. 
 The function {\tt expand\_branch} requires a mutual induction over statements and statement sequences, because each \prettyll{when} statement may contain two statement sequences, one for each branch. Therefore, a correctness proof for  {\tt expand\_branch} would also require such a mutual induction. 
 
 %but the proof is more long than complicated. \fu{May move into the next subsection}
