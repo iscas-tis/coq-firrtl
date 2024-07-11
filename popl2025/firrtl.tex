@@ -147,7 +147,7 @@ p & ::= & (\mbox{``\fnprettyll{input}''} \mid \mbox{``\fnprettyll{output}''})\ i
 %  \mid memory \mid
   \mbox{``\fnprettyll{inst}''}\ id\ \mbox{``\fnprettyll{of}''}\ id\ \mid \mbox{``\fnprettyll{node}''}\ id\ \mbox{``=''} id\  \mid r \mbox{``$<$=''} e  \\
   &  & \mid r\ \mbox{``\fnprettyll{is invalid}''}  \mid \mbox{``\fnprettyll{when}''}\ e\mbox{``:''}\{s\} [\mbox{``\fnprettyll{else}:''} \{s\}] \mid \mbox{``\fnprettyll{skip}''}\\
-%\mid r \mbox{``$<$--''} e 
+%\mid r \mbox{``$<$--''} e
 %
 %\mbox{\bf Memory} &
 %memory & = &  \mbox{``mem''}, id, newline, indent, \\
@@ -172,7 +172,7 @@ p & ::= & (\mbox{``\fnprettyll{input}''} \mid \mbox{``\fnprettyll{output}''})\ i
 %ruw & = & \mbox{``old''} \mid \mbox{``new''} \mid \mbox{``undefined''};\\
 %
 %\mbox{\bf Expression} &
-  e & ::= & (\mbox{``\fnprettyll{UInt}''} | \mbox{``\fnprettyll{SInt}''}) [w] \mbox{``(''}int\mbox{``)''} \mid r \mid \mbox{``\fnprettyll{mux}(''}e\mbox{``,''} e\mbox{``,''} e\mbox{``)''} 
+  e & ::= & (\mbox{``\fnprettyll{UInt}''} | \mbox{``\fnprettyll{SInt}''}) [w] \mbox{``(''}int\mbox{``)''} \mid r \mid \mbox{``\fnprettyll{mux}(''}e\mbox{``,''} e\mbox{``,''} e\mbox{``)''}
   %\\
    % &     &
  \mid \mbox{``\fnprettyll{validif}(''}e\mbox{``,''} e\mbox{``)''}
@@ -409,8 +409,8 @@ p & ::= & (\mbox{\tt ``input''} \mid \mbox{\tt ``output''})\ id\mbox{\tt ``:''}t
  %&
   &   &  \mid
 %  \mid memory \mid
-  \mbox{\tt ``inst''}\ id\ \mbox{\tt ``of''}\ id \mid \mbox{\tt ``node''}\ id \mbox{\tt ``=''} id  \mid r \mbox{\tt ``<=''} e  
-  \mid r \mbox{\tt ``<-''} e 
+  \mbox{\tt ``inst''}\ id\ \mbox{\tt ``of''}\ id \mid \mbox{\tt ``node''}\ id \mbox{\tt ``=''} id  \mid r \mbox{\tt ``<=''} e
+  \mid r \mbox{\tt ``<-''} e
   \mid r\ \mbox{\tt ``is invalid''} \\
 %&
 &   &\mid \mbox{\tt ``when''}\ e\mbox{\tt ``:''}\{s\} [\mbox{\tt ``else:''} \{s\}] \mid \mbox{\tt ``skip''}\\
@@ -532,6 +532,57 @@ A FIRRTL circuit is a LoFIRRTL circuit if it obeys the following restrictions:
 \end{itemize}
 More precisely, a LoFIRRTL circuit is a FIRRTL circuit that is defined by the syntactic rules in Figure~\ref{fig-lofirrtl-synt}
 and satisfies that in each module, each component is connected to at most once.
+
+
+\begin{figure}[htbp]
+{\small
+\[
+\begin{array}{l l l}
+ s & ::= & \mbox{``\fnprettyll{wire}''}\ id\mbox{``:''}t  \mid \mbox{``\fnprettyll{reg}''}\ id\mbox{``:''}t\ e [\mbox{``(\fnprettyll{with}:\{\fnprettyll{reset}=$>$(''} e\mbox{``,''} e \mbox{``)\})''}] \\
+ %&
+  &   &  \mid
+%  \mid memory \mid
+  \mbox{``\fnprettyll{inst}''}\ id\ \mbox{``\fnprettyll{of}''}\ id \mid \mbox{``\fnprettyll{node}''}\ id \mbox{``=''} id  \mid r \mbox{``$<$=''} e  \mid r\ \mbox{``\fnprettyll{is invalid}''}\mid \mbox{``\fnprettyll{skip}''}\\
+%
+%\mbox{\bf Expression} &
+e & ::= & (\mbox{``\fnprettyll{UInt}''} | \mbox{``\fnprettyll{SInt}''})\ w \mbox{``(''}int\mbox{``)''} \mid r \mid \mbox{``\fnprettyll{mux}(''}e\mbox{``,''} e\mbox{``,''} e\mbox{``)''}
+% &  & \mid \mbox{``\fnprettyll{validif}(''}e\mbox{``,''} e\mbox{``)''} \mid \mbox{``\textcolor{blue}{read}(''}sr \mbox{``)''}
+ \mid op\\
+%
+%&
+r & ::= & sr \mid r \mbox{``[''} e \mbox{``]''}\\
+%
+sr & ::= & id \mid sr\mbox{``.''}id \mid sr\mbox{``[''}int\mbox{``]''}\\
+%&
+w & ::= & \mbox{``$<$''} int \mbox{``$>$''}\\
+%
+%&
+%binarypoint & = & \mbox{``<''}, \mbox{``<''}, int, \mbox{``>''}, \mbox{``>''};\\
+%
+ %\mbox{\bf Bundle Field} &
+%
+%\mbox{\bf Data Types} &
+t & ::= & tg \\
+ %&
+ tg & ::= &  \mbox{``\fnprettyll{Clock}''} \mid \mbox{``\fnprettyll{AsyncReset}''} \mid (\mbox{``\fnprettyll{UInt}''} \mid \mbox{``\fnprettyll{SInt}''})\ w
+ %&
+% & & \mid \mbox{``Fixed''}, [width], [binarypoint];\\
+ %&
+%
+%\mbox{\bf File Information Token} &
+%info & = & \mbox{``@''}, \mbox{``[''}, \{string, \mbox{`` ''}, linecol\}, \mbox{``]''};\\
+%&
+%linecol & = &  digit\_dec, \{digit\_dec\}, \mbox{``:''}, digit\_dec, \{digit\_dec\};\\
+%&
+%
+\end{array}
+\]
+}
+\caption{Syntax of LoFIRRTL (Rules that are identical to those in Figure~\ref{fig-firrtl-synt-simp} are not repeated)}
+\label{fig-lofirrtl-synt}
+\end{figure}
+
+\hide{
 \begin{figure}[htbp]
 {\small
 \[
@@ -578,7 +629,7 @@ t & ::= & tg \\
 }
 \caption{Syntax of LoFIRRTL (Rules that are identical to those in Figure~\ref{fig-firrtl-synt-simp} are not repeated)}
 \label{fig-lofirrtl-synt}
-\end{figure}
+\end{figure}}
 
 Note that in Figure~\ref{fig-lofirrtl-synt}, the rules for $f$, $id$, $op$ are the same as those in Figure~\ref{fig-firrtl-synt-simp}  (and thus omitted). %to avoid tediousness.
 In a nutshell, the syntactic rules in Figure~\ref{fig-lofirrtl-synt} are obtained from those in Figure~\ref{fig-firrtl-synt-simp} by replacing $[w]$ with $w$ (so that the width becomes mandatory),
@@ -656,10 +707,10 @@ In the sequel, we give an informal introduction to the lowering transformations 
 %\tl{incorporate infertypes please}
 
 \paragraph*{InferWidths}
-Besides the types, the InferWidths pass infers the widths of all components whose widths are unknown. 
+Besides the types, the InferWidths pass infers the widths of all components whose widths are unknown.
 %, after the InferTypes pass has been applied \tl{to be revised}.
-It is a \emph{global} width inference algorithm. 
-%Instances of the same module with unknown input port widths will be assigned the largest width of all assignments to each of its instance ports. 
+It is a \emph{global} width inference algorithm.
+%Instances of the same module with unknown input port widths will be assigned the largest width of all assignments to each of its instance ports.
 It infers the smallest width that is larger than all assigned widths to a component. Note that this means that dummy assignments that are overwritten by last-connect semantics can still influence width inference. The last-connect semantics means that the last connect statement for a component will take effects and all the preceding connect statements for it will be ignored  in the end. For instance, InferWidths infers from the code snippet \prettyll{wire x: UInt   x <= UInt<5>(15)    x <= UInt<1>(1)} that the type of the wire $x$ is \prettyll{UInt<5>} where its width is $5$, but with a value \prettyll{UInt<1>(1)}.
 
 
