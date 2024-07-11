@@ -334,7 +334,7 @@ For instance, in the rule {\madeexplicit: \vtype}, if the $n$ ground-type sequen
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-The mapping $tmap$ is defined by the procedure $\portsstmtstmap(pp, ss, tm)$ given in Fig.~\ref{fig:ports-stmts-tmap}, which
+The mapping $tmap$ is defined by the procedure $\portsstmtstmap(pp, ss, tm)$ given in Fig.~\ref{fig:ports-stmts-tmap}, 
 \begin{wrapfigure}{r}{0.3\textwidth}
 \centering
 %\begin{tabular}{c}
@@ -351,11 +351,10 @@ The mapping $tmap$ is defined by the procedure $\portsstmtstmap(pp, ss, tm)$ giv
 \end{lstlisting}
 \end{minipage}
 %\end{tabular}
-\caption{Scoping error for  {\small\ttfamily z}}
+\vspace*{-3mm}\caption{Scoping error for  {\small\ttfamily z}}
 \label{fig:example}
 \end{wrapfigure}
-
-calls $\portstmap(pp, tm)$ to define a mapping $pmap$ which  intuitively produces an initial version for $tmap$ and $scope$, then calls $\stmtstmap$ %((pmap, pmap), ss, tm)$
+which calls $\portstmap(pp, tm)$ to define a mapping $pmap$ which  intuitively produces an initial version for $tmap$ and $scope$, then calls $\stmtstmap$ %((pmap, pmap), ss, tm)$
 to update $tmap$ and $scope$. % (see Figure~\ref{fig:ports-stmts-tmap}).
 %
 %In particular, $\portstmap(pp, tm)$ defines a mapping based on the port declarations $pp$ and $tm$, and $\stmtstmap((pmap, pmap), ss, tm)$ defines a pair $(tmap, scope)$ from $(pmap, pmap)$, the statement sequence $ss$, and $tm$.
