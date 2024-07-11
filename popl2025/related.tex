@@ -40,12 +40,12 @@ Recently, an extension of verified ML compiler CakeML, called Lutsig, was develo
 %an extension of verified C compiler CompCert, called Lutsig, was developed for compiling  a subset of C programs to RTL Verilog programs~\cite{HerklotzPRW21}.
 
 
-In this work, we focus on the formalization of FIRRTL, an intermediate representation for the Chisel hardware description language.
-It is argued by the Chisel team that FIRRTL is the key for bringing software levels of productivity to hardware
+In this work, we focus on the formalization of {\firrtl}, an intermediate representation for the Chisel hardware description language.
+It is argued by the Chisel team that {\firrtl} is the key for bringing software levels of productivity to hardware
 development~\cite{firrtl-spec}.
 %\fu{Discuss new things in the formalization of formal semantics and compilation passes,
 %prove techniques, compared with existing ones.}
-As mentioned in the introduction, the closest work to ours is~\cite{HarrisonHA21}, which formalized a coinductive denotational semantics in Agda for an idealized subset of LoFIRRT, based on a formalism called device calculus. Our work makes substantial progress from \cite{HarrisonHA21} in the following aspects:  At first, the operational semantics  of LoFIRRTL is defined for the first time. Moreover, extensive experiments are done to validate the semantics against Treadle, the reference interpreter for LoFIRRTL,  by utilizing a benchmark suite comprising hundreds of programs that are collected from various sources. Furthermore, we go one step further by formalizing and verifying HiFIRRTL and its lowering transformations, thus laying down a solid foundation towards a fully verified FIRRTL compiler. 
+As mentioned in Section~\ref{sec-intro}, the closest work to ours is~\cite{HarrisonHA21}, which formalized a coinductive denotational semantics in Agda for an idealized subset of {\lofirrtl}, based on a formalism called device calculus. Our work makes substantial progress from \cite{HarrisonHA21} in the following aspects:  At first, the operational semantics  of {\lofirrtl} is defined for the first time. Moreover, extensive experiments are done to validate the semantics against Treadle, the reference interpreter for {\lofirrtl},  by utilizing a benchmark suite comprising hundreds of programs that are collected from various sources. Importantly, we formalize and verify {\hifirrtl} and its lowering transformations, laying a solid foundation towards a fully verified {\firrtl} compiler. 
 %They formalize hardware designs based on Mealy Machine and Device Calculus~\cite{Harrison20},
 %but leave the formal semantics for all of FIRRTL as future work.
 
