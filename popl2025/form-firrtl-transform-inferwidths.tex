@@ -40,18 +40,20 @@ Note here currently we require the dependency graph $G$ to be acyclic. The main 
 inferring widths for cyclic dependency graphs is error-prone\footnote{See e.g. \url{https://github.com/llvm/circt/issues/1271} and \url{https://github.com/llvm/circt/issues/6742} for the the bugs in Firtool related to this.} and the semantics is unclear %how the semantics should be defined 
 for the general case.  
  
-We briefly explain how the procedures $\tycnmap(M)$ and $\topsort(G)$ work. 
+We briefly explain how   $\tycnmap(M)$ and $\topsort(G)$ work. 
 \begin{itemize}
-\item The definition of the function $\tycnmap(M)$, that is, the computation of $(atm, gtm, gcm)$, is roughly the combination of the function $\portsstmtstmap$ and the relation $cm_1 \xrightarrow[tm, tmap]{ss} cm_2$ in Section~\ref{sec-form-firrtl}. 
+\item $\tycnmap(M)$ for the computation of $(atm, gtm, gcm)$ is roughly the combination of the function $\portsstmtstmap$ and the relation $cm_1 \xrightarrow[tm, tmap]{ss} cm_2$ in Section~\ref{sec-form-firrtl}. 
 %
-\item The construction of a dependency graph from $cm$, i.e.  the procedure $\depgraph(cm)$, is easy to define. 
+\item The construction of a dependency graph from $cm$, i.e.,  the procedure $\depgraph(cm)$, is straightforward.  
+%easy to define. 
 % 
-\item The procedure $\topsort(G)$ is adapted from a depth-first search (DFS) algorithm in the graph library of the mathematical components repository~\cite{DP20,CoqGraph}. Given a directed graph $G$, $\topsort(G)$ either reports that the input graph is acyclic and outputs a topological sorting of the acyclic graph, or reports that the input graph is cyclic and outputs a cycle. Moreover, accordingly, we prove the correctness of the topological sorting algorithm by adapting the correctness proof of the DFS algorithm. 
+\item $\topsort(G)$ is adapted from a depth-first search (DFS) algorithm in the graph library of the mathematical components repository~\cite{DP20,CoqGraph}. Given a directed graph $G$, $\topsort(G)$ either reports that $G$ is acyclic together with its topological sorting, or reports that $G$ is cyclic with a cycle as witness. Accordingly, we prove the correctness of the topological sorting algorithm by adapting the correctness proof of the DFS algorithm. 
 %
 %\item The procedure $\detwidths(tm, gtm')$ can also be easily defined.  
 \end{itemize}
-Moreover, the readers can also intuitively figure out the definitions of the procedures $\depgraph(gcm)$, $\detwidths(atm, gtm')$, and $\replacewidths(M, atm')$. 
-Therefore, to avoid tediousness, we omit the detailed definitions of these procedures. 
+%Moreover, the readers can also intuitively figure out 
+The definitions of $\depgraph(gcm)$, $\detwidths(atm, gtm')$, and $\replacewidths(M, atm')$ are more standard and are omitted here. 
+%Therefore, to avoid tediousness, we omit the detailed definitions of these procedures. 
 
 In the sequel, we show how the function $gtm \xrightarrow[cm]{ts} gtm'$ is defined. 
 $gtm \xrightarrow[cm]{ts} gtm'$ is defined by the following two rules,  for the cases $ts = \nil$ and $ts \neq \nil$ respectively. The first rule is trivial, that is, we have $gtm \xrightarrow[gcm]{\nil} gtm$. For the case $ts \neq \nil$, let $ts = (v, m)\ ts'$, then 
