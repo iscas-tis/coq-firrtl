@@ -14,7 +14,24 @@ For example, if $M$ contains scoping errors like in Figure~\ref{fig:example},
 {\sf expandWhens} cannot produce an output program.
 Therefore, {\sf expandBranch} also checks for such scoping errors.
 
-The correctness proof uses in a mutual induction over statements and statement sequences.
+\paragraph*{Verification}
+Let $(tm, cm) \models \expandwhens(M)$. We would like to show $(tm, cm) \models M$. 
+
+Because $\expandwhens(M)$ does not affect $tm$. As a result, we focus on $cm$. 
+Let $(v, m)$ be a component in $\expandwhens(M)$. Since there is at most one connect statement where $(v, m)$ is the left-hand side, if $cm(v, m) \neq \svnone$, we know that either $(v, m) <= cm(v, m)$ or $(v, m)$ \prettyll{ is invalid} is a statement in $\expandwhens(M)$. Let us take exemplify the proof for the case $(v, m) <= cm(v, m)$ is a statement in $M$. 
+Then $cm(v, m)$ is constructed in $\expandbranch(ss, {\sf emp})$. 
+To show that $(tm, cm) \models M$, we show that $cm$ can be constructed from {\sf emp} by $\xrightarrow[tm, tm]{ss}$, that is, ${\sf emp} \xrightarrow[tm, tm]{ss} cm$. 
+Because the recursive definitions of $\expandbranch(ss, cm_0)$ and $\xrightarrow[tm, tm]{ss}$ are similar, that is, process the statements one by one, the proof can be fulfilled by unfolding the two definitions in the same pace and show that each time the same connection mapping is obtained in the two computations. 
+
+The proof uses in a mutual induction over statements and statement sequences. The mutual induction also requires us to define the two Coq datatypes for statements and statement sequences mutually inductive; we cannot just use the sequence or list types from the standard Coq library.
+
+The complexity of the correctness proof lies mostly in the number of cases that need to be distinguished
+and in the multitude of bookkeeping information that needs to be dragged through.
+
+
+%%%%%%%%%%%%%%%%%%% the original texts by David 
+\hide{
+The proof uses in a mutual induction over statements and statement sequences.
 If a statement $s$ and a statement sequence $ss$ satisfy the correctness property, then also the statement sequence $s ; ss$.
 Moreover, a statement \prettyll{when} $c$ \prettyll{:} $sst$ \prettyll{else} $ssf$
 satisfies the correctness property if both $sst$ and $ssf$ satisfy it.
@@ -51,6 +68,6 @@ Then:
         as $cm$.
 \end{itemize}
 \end{lemma}
+}
+%%%%%%%%%%%%%%%%%%%%%%%
 
-The complexity of the correctness proof lies mostly in the number of cases that need to be distinguished
-and in the multitude of bookkeeping information that needs to be dragged through.
