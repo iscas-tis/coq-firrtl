@@ -1,41 +1,91 @@
+%!TEX root = main.tex
+
 \paragraph*{Specification}
-The correctness of {\sf inferWidths} is specified by the formulas: 
+The correctness of {\sf inferWidths} is specified by the following two formulas,
 %
-$$(tm',\,cm') \models \, {\sf inferWidths}(M) \Rightarrow ({\sf madeImplicit}(tm',M),\,cm') \models \,M.$$
-$$\forall tm,cm, (tm,\,cm) \models M \wedge (tm',\,cm') \models \, {\sf inferWidths}(M) \Rightarrow tm' \preceq tm \wedge cm' = cm.$$
+$$
+ \forall tm, cm.\ (tm,\,cm) \models \, {\sf inferWidths}(M) \Rightarrow (\madeimplicit(tm, M),\,cm) \models \,M,
+$$
+and
+$$
+\begin{array}{l}
+\forall tm, cm, tm', cm'.\ ((tm,\ cm) \models \inferwidths(M) \wedge (tm',\ cm') \models M) \Rightarrow \\
+\hspace{3cm} \madeimplicit(tm, M) \le tm' \wedge cm = cm'.
+\end{array}
+$$
+Note here a function $\madeimplicit(tm, M)$ is used here to transform $tm$ where its range is a subset of $\{\uint, \sint\} \times \Nat$ into a $tm'$ where $\uint$ (resp. $\sint$) is replaced by $\uintimp$ (resp. $\sintimp$) if the corresponding ground-type component is flattened from some component in $M$ where the widths are implicit. 
 %
 
-%% , given a type mapping with only implicit widths components $tm$ and the original module $M$, it return a type mapping that makes some components implicit according to the definitions in $M$.
+The first formula states that if the pair $(tm, cm)$ conforms to the program $\inferwidths(M)$, then the pair $(\madeimplicit(M), cm)$ should conform to the original program $M$.
+The second formula, on the other hand, specifies that the widths inferred by $\inferwidths(M)$ are actually the minimum widths that can be assigned to the implicit-width components in $M$ so that all the width constraints brought upon by the connect statements are respected. 
 
-The first formula states that if the pair of the typing mapping $tm'$ and the connection mapping $cm'$ conform to the program of produce by {\sf inferWidths} $(M)$, then the pair of ${\sf madeImplicit}(tm',M)$ and $cm'$ should conform to the original program $M$.
+%Since the $tm'$ comform to {\sf inferWidths(M)} contains only explicit typing information.
+%it is not enough to express there were implicit types in the original model.
+%We need function {\sf madeImplicit} to mark the implicit types according to original $M$.
 
-Since the $tm'$ comform to {\sf inferWidths(M)} contains only explicit typing information.
-it is not enough to express there were implicit types in the original model.
-We need function {\sf madeImplicit} to mark the implicit types according to original $M$.
-
-For the second formula, It states that if the pair $(tm', cm')$ conform to {\sf inferWidths} $(M)$, then for any pair of $(tm, cm)$ conform to the original program $(M)$, $tm$ and $tm'$ satisfy that $tm' \preceq tm$ and $cm = cm'$.
-The expression $tm' \preceq tm$ denotes that for all $(v,m)$, the width of $(v,m)$ in $tm'$ is less than or equal to the
-width of the same $(v,m)$ in $tm$.
+%For the second formula, It states that if the pair $(tm', cm')$ conform to {\sf inferWidths} $(M)$, then for any pair of $(tm, cm)$ conform to the original program $(M)$, $tm$ and $tm'$ satisfy that $tm' \preceq tm$ and $cm = cm'$.
+%The expression $tm' \preceq tm$ denotes that for all $(v,m)$, the width of $(v,m)$ in $tm'$ is less than or equal to the
+%width of the same $(v,m)$ in $tm$.
 %% they involve same components and regardless of implicit or not, the bit width of a component in $tm'$ is less than or equal to the width of it in $tm$.
 
-The function {\sf inferWidths} only modifies the type widths for implicit components,
-meanwhile the other parts of the module remain the same. 
-To satisfy the conformance of ${\sf madeImplicit}(tm',M),\,cm') \models \,M$,
-we only need to focus on reasoning about the changed widths.
-Therefore, we can focus on {\typecompatible} in the semantic rules.
-More precisely the widths satisfy $n' \leq n$ for all connections.
-The rests predicates to be satisfied can be directly derived from $(tm',\,cm') \models \, {\sf inferWidths}(M)$.
+\paragraph*{Verification}
+Let us consider the proof of the first formula.
+Suppose $(tm, cm) \models \inferwidths(M)$. Let $\tycnmap(M)= (atm, gtm, gcm)$ and $G = \depgraph(gcm)$. 
+Let us fix a vertex $(v, m)$ in $G$ and consider $tm(v, m)$. 
+The argument goes as follows. 
+\begin{itemize}
+\item From the definition of $\xrightarrow[gcm]{ts}$, we know that $gtm \xrightarrow[gcm]{ts} tm$, that is, $tm$ is computed from $gtm$ by using the topological sorting $ts$ and the ground-type connection mapping $gcm$. 
+%
+\item Then during the computation $gtm \xrightarrow[gcm]{ts} tm$, we get a recursive call $gtm_1 \xrightarrow[gcm]{(v,m)\ ts'} gtm_2$, where $(v,m)$ is the first vertex in the order $(v,m)\ ts'$. Then we have $tm(v,m) = gtm_2(v, m)$. Moreover, in this case, $gtm_1(gcm(v, m))$, i.e. the type sequence obtained by applying $gtm_1$ on $gcm(v, m)$, satisfies that $gtm_2(v, m) = \maxgtlist(gtm_1(v, m), gtm_1(gcm(v, m)))$. 
+%
+\item From the construction, we know that for each vertex $(v', m')$ that occurs in $gcm(v, m)$, we have $tm(v', m') = gtm_1(v', m')$. Therefore, $tm(v, m) = gtm_2(v, m) \ge gtm_1(e) = tm(e)$ for each expression $e$ in the sequence $gcm(v, m)$. In other words, $tm$ respects all the width constraints brought upon by the connection statements in $M$ where the component denoted by $(v, m)$ is the left-hand side. 
+%
+\end{itemize}
+Since this argument can be applied to every vertex $(v, m)$ in $G$, we conclude that $tm$ and thus $\madeimplicit(tm, M)$ satisfies all the the width constraints brought upon by the connection statements in $M$. From the fact that $\inferwidths(M)$ does not modify the connect statements, we conclude that $(\madeimplicit(tm, M), cm) \models M$. 
 
-For any $(v,m)$ in the topological sorted order $ts$.
-We prove:
-\begin{lemma}\label{max}
-The bit widths of $(v,m)$ after {\sf inferWidths} is updated to the maximum width among types of its connected expressions.
-\end{lemma}
-Then, we prove for the first formula:
-\begin{lemma}
-The  maximum width obtained by {\sf inferWidths} satisfies all the\\ $\bigwedge$ {\typecompatible} ($({\sf madeImplicit}(tm',M))(v,m)$, \typeofexp$(e_x)$), where $e_x$ are obtained by all the connections to $(v,m)$ in $M$.
-\end{lemma}
+%The function {\sf inferWidths} only modifies the type widths for implicit components,
+%meanwhile the other parts of the module remain the same. 
+%To satisfy the conformance of ${\sf madeImplicit}(tm',M),\,cm') \models \,M$,
+%we only need to focus on reasoning about the changed widths.
+%Therefore, we can focus on {\typecompatible} in the semantic rules.
+%More precisely the widths satisfy $n' \leq n$ for all connections.
+%The rests predicates to be satisfied can be directly derived from $(tm',\,cm') \models \, {\sf inferWidths}(M)$.
 
+%For any $(v,m)$ in the topological sorted order $ts$.
+%We prove:
+%\begin{lemma}\label{max}
+%The bit widths of $(v,m)$ after {\sf inferWidths} is updated to the maximum width among types of its connected expressions.
+%\end{lemma}
+%Then, we prove for the first formula:
+%\begin{lemma}
+%The  maximum width obtained by {\sf inferWidths} satisfies all the\\ $\bigwedge$ {\typecompatible} ($({\sf madeImplicit}(tm',M))(v,m)$, \typeofexp$(e_x)$), where $e_x$ are obtained by all the connections to $(v,m)$ in $M$.
+%\end{lemma}
+
+For the second formula, suppose $(tm,\ cm) \models \inferwidths(M)$ and  $(tm',\ cm') \models M$. We would like to show $\madeimplicit(tm, M) \le tm' \wedge cm = cm'$ holds. The fact that $cm = cm'$ follows from the fact that the connect statements in $\inferwidths(M)$ and $M$ are the same. 
+Let us show $\madeimplicit(tm, M) \le tm'$. Let us fix a vertex $(v, m)$ in the dependency graph $G$. 
+Similarly to the proof of the first formula, we consider the induction on the computation of $\xrightarrow[gcm]{ts}$. 
+\begin{itemize}
+\item Let $gtm_1 \xrightarrow[gcm]{(v,m)\ ts'} gtm_2$ be the recursive call where $(v, m)$ is the first vertex in the order $(v,m)\ ts'$. Then we have $tm(v, m) = gtm_2(v, m)$. Moreover, in this case, $gtm_1(gcm(v, m))$, i.e. the type sequence obtained by applying $gtm_1$ on $gcm(v, m)$, satisfies that $gtm_2(v, m) = \maxgtlist(gtm_1(v, m), gtm_1(gcm(v, m)))$. 
+
+\item Furthermore, since $(v, m)$ is a vertex in $G$, that is, its width is implicit in $M$, we know that $gtm_1(v, m) = 0$. It follows that $tm(v, m) = gtm_2(v, m) = \maxgtlist(gtm_1(gcm(v, m)))$.  
+
+\item By induction hypothesis, we know that for each vertex $(v', m')$ that occurs in $gcm(v, m)$, we have $\madeimplicit(tm(v', m'), M) \le tm'(v', m')$. As a result, 
+$$\madeimplicit(gtm_1(gcm(v, m)), M) = \madeimplicit(tm(gcm(v, m)), M) \le tm'(gcm(v, m)).$$ 
+
+\item Because $tm'$ respects all the width constraints brought upon by connection statements, we deduce that $\maxgtlist(tm'(gcm(v, m))) \le tm'(v, m)$, thus 
+$$
+\begin{array}{c}
+\madeimplicit(tm(v, m), M) = \madeimplicit(\maxgtlist(gtm_1(gcm(v, m))), M) = \\
+\madeimplicit(\maxgtlist(tm(gcm(v, m))), M) \le \maxgtlist(tm'(gcm(v, m))) \le tm'(v, m).
+\end{array}
+$$ 
+\end{itemize}
+Since the arguments can be applied to every vertex $(v,m)$ in $G$, we conclude $\madeimplicit(tm, M) \le tm'$ and the second formula holds.  
+
+
+%%%%%%% the original texts
+%%%%%%% the original texts
+\hide{
 From the formalization of {\sf inferWidths}, we know that the $newgt$ is used to update $(v,m)$ in $tm'$.
 In $newgt$, the type of $(v,m)$ gets the largest width of expression in $cgels$.
 The expressions collected in $cgels$ for $(v,m)$
@@ -70,6 +120,9 @@ $${\sf sizeOfGtyp}(tm'(v,m)) = {\sf sizeOfGtyp}(\typeofexp(e_y, tm')) \leq {\sf 
 \end{lemma}   
 Note, the expressions in $e_x$ and $cgels$ are the same set of expressions.
 Therefore, the bit width of an implicit component in $tm'$ is less than or equal to the width of it in $tm$ and we will have $tm' \preceq tm$ in the whole.
+}
+%%%%%%% the original texts
+%%%%%%% the original texts
 
 %% \begin{lemma}
 %% For every implicit components $r$ in ${\sf madeImplicit}(tm,M)$, ${\sf madeImplicit}(tm,M)(r) = t$.

@@ -76,7 +76,7 @@ $gtm \xrightarrow[cm]{ts} gtm'$ is defined by the following two rules,  for the 
     \begin{array}{c}
       ts = (v, m)\ ts' \hspace{15pt} gt = gtm(v, m) \hspace{15pt}
       cgels = gcm(v, m) \\
-     cgtls = \fmap(fun (e \Rightarrow \typeofexp(e)), cgels) \hspace{15pt}
+     cgtls = \fmap(fun (e \Rightarrow gtm(e)), cgels) \hspace{15pt}
      newgt = \maxgtlist(gt, cgtls) \hspace{15pt} \\
      gtm'' = gtm[newgt/(v, m)] \hspace{15pt}
      gtm'' \xrightarrow[gcm]{ts'} gtm'
