@@ -58,17 +58,17 @@ omitted here.
 \begin{gather*}
   \label{expand-reg}
   \infer[]
-        {\seqq{\expandconnects (\mbox{\prettyll{reg}}\; x:\,t\,clk\,\mbox{\prettyll{with: reset=> (rsig, }}rval)) = ss}}
+        {\seqq{\expandconnects (\mbox{\prettyll{reg}}\; x:\,t\,clk\,\mbox{\prettyll{with: reset=> }}(rsig, rval)) = ss}}
         {\begin{array}{c}
             \seqq{\expandref(x) = rl} \wedge
             \seqq{\listgtyperef(t, \lfalse) = tl} \wedge            
             \seqq{\listgexp(rval, t) = rvall}\\
-            \seqq{ ss= {\tt map3}\; (fun\; (v,(gt,\_),rv) \Rightarrow \mbox{\prettyll{reg}}\; v:\,gt\,clk\,\mbox{\prettyll{with: reset=> (rsig, }}rv))\,(rl,tl,rvall)}
+            \seqq{ ss= {\tt map3}\; (fun\; (v,(gt,\_),rv) \Rightarrow \mbox{\prettyll{reg}}\; v:\,gt\,clk\,\mbox{\prettyll{with: reset=>}} (rsig, rv))\,(rl,tl,rvall)}
           \end{array}
         }
 \end{gather*}
 Here, {\expandconnects} function takes register statement
-``$\mbox{\prettyll{reg}}\; x:\,t\,clk\,\mbox{\prettyll{with: reset=> (rsig, }}rval)$''
+``$\mbox{\prettyll{reg}}\; x:\,t\,clk\,\mbox{\prettyll{with: reset=>}} (rsig, rval)$''
 as input, which defines a register $x$. Similar to expanding a port,
 expanding a register involves expanding the reference to its subfield
 representations using {\expandref}, expanding the aggregate type
