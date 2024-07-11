@@ -1,12 +1,12 @@
 %!TEX root = main.tex
  
  
-With the formalization and correctness proofs of the lowering transformations of FIRRTL in Coq,
+Based on the formalization and correctness proofs of the lowering transformations of FIRRTL in Coq,
 by utilizing the extraction mechanism available in the Coq proof assistant~\cite{Letouzey02,LET08},
-a verified FIRRTL compiler in OCaml can be extracted. The verified OCaml compiler lowers
+we extract a verified FIRRTL compiler in OCaml. The verified OCaml compiler lowers
 a given FIRRTL program by consecutively executing the three lowering transformations, namely,
 ``InferWidths'',
-``ExpandConnects'', and ``ExpandWhens'', resulting in a LoFIRRTL program.
+``ExpandConnects'', and ``ExpandWhens'', resulting in a {\lofirrtl} program.
 
 To utilize our OCaml FIRRTL compiler in practice, one can replace the original FIRRTL compiler (e.g., the Scala FIRRTL compiler or
 the new MLIR FIRRTL compiler) in the entire compilation tool-chain with ours. For instance,
