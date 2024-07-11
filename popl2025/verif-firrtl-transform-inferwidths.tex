@@ -1,41 +1,42 @@
 \paragraph*{Specification}
 The correctness of {\sf inferWidths} is specified by the formulas: 
 %
-$$(tm,\,cm) \models \, {\sf inferWidths}(M) \Rightarrow ({\sf madeImplicit}(tm,M),\,cm) \models \,M.$$
+$$(tm',\,cm') \models \, {\sf inferWidths}(M) \Rightarrow ({\sf madeImplicit}(tm',M),\,cm') \models \,M.$$
 $$\forall tm,cm, (tm,\,cm) \models M \wedge (tm',\,cm') \models \, {\sf inferWidths}(M) \Rightarrow tm' \preceq tm \wedge cm' = cm.$$
 %
 
 %% , given a type mapping with only implicit widths components $tm$ and the original module $M$, it return a type mapping that makes some components implicit according to the definitions in $M$.
 
-The first formula states that if the pair of the typing mapping $tm$ and the connection mapping $ct$ conform to the program of produce by {\sf inferWidths} $(M)$, then the pair of ${\sf madeImplicit}(tm,M)$ and $ct$ should conform to the original program $M$.
+The first formula states that if the pair of the typing mapping $tm'$ and the connection mapping $cm'$ conform to the program of produce by {\sf inferWidths} $(M)$, then the pair of ${\sf madeImplicit}(tm',M)$ and $cm'$ should conform to the original program $M$.
 
-Since the $tm$ comform to {\sf inferWidths(M)} contains only explicit typing information.
+Since the $tm'$ comform to {\sf inferWidths(M)} contains only explicit typing information.
 it is not enough to express there were implicit types in the original model.
 We need function {\sf madeImplicit} to mark the implicit types according to original $M$.
 
 For the second formula, It states that if the pair $(tm', cm')$ conform to {\sf inferWidths} $(M)$, then for any pair of $(tm, cm)$ conform to the original program $(M)$, $tm$ and $tm'$ satisfy that $tm' \preceq tm$ and $cm = cm'$.
-The expression $tm' \preceq tm$ denotes that for all $(v,m)$, the width of $(vm)$ in $tm'$ is less than or equal to the
+The expression $tm' \preceq tm$ denotes that for all $(v,m)$, the width of $(v,m)$ in $tm'$ is less than or equal to the
 width of the same $(v,m)$ in $tm$.
 %% they involve same components and regardless of implicit or not, the bit width of a component in $tm'$ is less than or equal to the width of it in $tm$.
 
 The function {\sf inferWidths} only modifies the type widths for implicit components,
 meanwhile the other parts of the module remain the same. 
-To satisfy the conformance of ${\sf madeImplicit}(tm,M),\,cm) \models \,M$,
+To satisfy the conformance of ${\sf madeImplicit}(tm',M),\,cm') \models \,M$,
 we only need to focus on reasoning about the changed widths.
 Therefore, we can focus on {\typecompatible} in the semantic rules.
-More precisely the widths satisfy $n\geq n'$ for all connections.
-The rests predicates to be satisfied can be directly derived from $(tm,\,cm) \models \, {\sf inferWidths}(M)$.
+More precisely the widths satisfy $n' \leq n$ for all connections.
+The rests predicates to be satisfied can be directly derived from $(tm',\,cm') \models \, {\sf inferWidths}(M)$.
 
-First of all, we prove:
+For any $(v,m)$ in the topological sorted order $ts$.
+We prove:
 \begin{lemma}\label{max}
 The bit widths of $(v,m)$ after {\sf inferWidths} is updated to the maximum width among types of its connected expressions.
 \end{lemma}
 Then, we prove for the first formula:
 \begin{lemma}
-The  maximum width obtained by {\sf inferWidths} satisfies all the\\ $\bigwedge$ {\typecompatible} ($({\sf madeImplicit}(tm,M))(v,m)$, \typeofexp$(e_x)$), where $e_x$ are obtained by all the connections to $(v,m)$ in $M$.
+The  maximum width obtained by {\sf inferWidths} satisfies all the\\ $\bigwedge$ {\typecompatible} ($({\sf madeImplicit}(tm',M))(v,m)$, \typeofexp$(e_x)$), where $e_x$ are obtained by all the connections to $(v,m)$ in $M$.
 \end{lemma}
 
-From the formalization of {\sf inferWidths}, we know that the $newgt$ is used to update $(v,m)$ in $gtm$.
+From the formalization of {\sf inferWidths}, we know that the $newgt$ is used to update $(v,m)$ in $tm'$.
 In $newgt$, the type of $(v,m)$ gets the largest width of expression in $cgels$.
 The expressions collected in $cgels$ for $(v,m)$
 are the same expressions of $e_x$ to compare {\typecompatible} for $M$.
@@ -44,9 +45,13 @@ are the same expressions of $e_x$ to compare {\typecompatible} for $M$.
 %% From Lemma?/ formalization of {\sf inferWidths}, we should know that $${\sf sizeOfGtyp}(gtm(v,m)) = {\sf sizeOfGtyp}({\sf maxFtList}(gtm(v,m),cgtls))$$.
 %% where $gtm(v,m)$ should be (\uintimp,0) or (\sintimp,0).
 
-For the second formula, the proof is constructed as follows.
+For the second formula, we prove inductively on the topological sorted order $ts$.
+The proof is constructed as follows.
 Assume that the expression $e_y$ has the largest width among $cgels$,
-which is $${\sf sizeOfGtyp}(gtm(v,m)) = {\sf sizeOfGtyp}(\typeofexp(e_y)).$$
+which is $${\sf sizeOfGtyp}(tm'(v,m)) = {\sf sizeOfGtyp}(\typeofexp(e_y,tm')).$$
+
+The $e_y$ only contains the components already inferred, since they appear before $(v,m)$ in $ts$.
+We have ${\sf sizeOfGtyp}(\typeofexp(e_y,tm')) \leq {\sf sizeOfGtyp}(\typeofexp(e_y,tm)) $.
 
 
 %% As the dependency graph $G$ is acyclic, $(v,m)$ must not appear in $ts'$, which means \datatype \ of $(v,m)$ is not updated again through $gtm'' \xrightarrow[gcm]{ts'} gtm'$, i.e. ${\sf sizeOfGtyp}(gtm'(v,m)) = {\sf sizeOfGtyp}(gtm''(v,m)).$ 
@@ -59,7 +64,8 @@ which is $${\sf sizeOfGtyp}(gtm(v,m)) = {\sf sizeOfGtyp}(\typeofexp(e_y)).$$
 \begin{lemma}
 If the maximum width obtained by {\sf inferWidths} satisfies all the\\
 $\bigwedge${\typecompatible} ($(tm(v,m))$, \typeofexp$(e_x)$), where $e_x$ are obtained by all the connections to $(v,m)$ in $M$,
-then $${\sf sizeOfGtyp}(tm(v,m)) \geq {\sf sizeOfGtyp}(\typeofexp(e_y)) = {\sf sizeOfGtyp}(gtm(v,m)).$$
+then
+$${\sf sizeOfGtyp}(tm'(v,m)) = {\sf sizeOfGtyp}(\typeofexp(e_y, tm')) \leq {\sf sizeOfGtyp}(\typeofexp(e_y, tm))\leq {\sf sizeOfGtyp}(tm(v,m)).$$
 %% For every expression $e_x$ ???, {\sf sizeOfGtyp}(tm(v,m)) $\geq$ {\sf sizeOfGtyp}(\typeofexp($e_x$)). conjunction???
 \end{lemma}   
 Note, the expressions in $e_x$ and $cgels$ are the same set of expressions.
