@@ -3,9 +3,9 @@
 %\newcommand{\clock}{{\tt Clock}\xspace}
 %\newcommand{\UInt}{{\tt UInt}\xspace}
 
- 
+
 A {\hifirrtl} program provides a high-level description of low-level RTL circuits. To a certain extent, it is %\emph{nondeterministic}
-an under-specification in the sense that the bit-widths of its components are not fully determined. 
+an under-specification in the sense that the bit-widths of its components are not fully determined.
 The semantics we present is denotational, i.e., a {\hifirrtl} program
 is interpreted as the set of (low-level) {\lofirrtl} programs that conform to it, where (1) all components are of ground types,
 whose bit-widths are all explicitly given, (2) there are no \prettyll{when} statements, and (3) each component is connected at most once.
@@ -91,19 +91,19 @@ In particular, $\gtypes$ can model types of implicit width in $M$. For instance,
 
 In $tm$,  the ground types are annotated with component sorts (e.g., input and output ports, wires, etc). To accommodate this, we define \emph{extended ground types} $\egtypes$ as %the set of vertex sorts.
 \begin{itemize}
-\item $(s, t)$ with $s \in \{\inport, \outport, \wire, \node\}$ and $t \in \gtypes$, or 
+\item $(s, t)$ with $s \in \{\inport, \outport, \wire, \node\}$ and $t \in \gtypes$, or
 \item $(\register, (t, clk, rsig, rval, b))$ such that $t \in \gtypes$, $clk, rsig, rval \in \exps$ and $b\in \{0,1\}$. (Intuitively, $clk$ represents a clock, $rsig$ represents a reset signal, and $rval$ represents a reset value, and $b$ is a Boolean value denoting whether the reset is asynchronous or not.)
 \end{itemize}
 We also assume $\svnone,\svundefined \in \egtypes$.
 
 %Besides ground types,
-The types for the components in $M$ (which may be of aggregate types) are referred to as \emph{FIRRTL types}, which is denoted by $\ftypes$ and  % to denote these types. More precisely, we define $\ftypes$ to be the set of elements of one of the following forms,
+The types for the components in $M$ (which may be of aggregate types) are referred to as \emph{FIRRTL types}, which are denoted by $\ftypes$ and  % to denote these types. More precisely, we define $\ftypes$ to be the set of elements of one of the following forms,
 %Formally, $\ftypes$ is
 defined inductively as follows.
 \begin{itemize}
 \item If $t \in \gtypes$, then $(\gtype, t) \in \ftypes$.
 %
-\item If $t \in \ftypes$ and $n \in \Nat$, then $(\vtype, t[n]) \in \ftypes$, 
+\item If $t \in \ftypes$ and $n \in \Nat$, then $(\vtype, t[n]) \in \ftypes$,
 %
 \item If $\vec{f} \in \fieldseq$, then $(\btype, \vec{f}) \in \ftypes$.
 \end{itemize}
@@ -142,7 +142,7 @@ according to the order of occurrence in $M$. %Moreover, the field $b$ is omitted
 A low-level RTL circuit is defined as a pair $(tm, cm)$, where $tm$ is a function from $\gidset_M$ to $\egtypes$
 and $cm$ is function from $\gidset_M$ to $\exps$. %with a finite domain.
 For convenience, $tm$ is called a type mapping and $cm$ is called a connection mapping.
-\end{definition} 
+\end{definition}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \subsection{Defining $tmap$ from $tm$ and $M$} \label{sec-construct-tmap}
