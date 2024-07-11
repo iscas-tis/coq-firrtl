@@ -14,7 +14,6 @@ For example, if $M$ contains scoping errors like in Figure~\ref{fig:example},
 {\sf expandWhens} cannot produce an output program.
 Therefore, {\sf expandBranch} also checks for such scoping errors.
 
-\paragraph*{Verification}
 The correctness proof uses in a mutual induction over statements and statement sequences.
 If a statement $s$ and a statement sequence $ss$ satisfy the correctness property, then also the statement sequence $s ; ss$.
 Moreover, a statement \prettyll{when} $c$ \prettyll{:} $sst$ \prettyll{else} $ssf$
@@ -52,7 +51,6 @@ Then:
         as $cm$.
 \end{itemize}
 \end{lemma}
-\zhilin{This statement of this lemma is still unclear to me. }
 
 The complexity of the correctness proof lies mostly in the number of cases that need to be distinguished
 and in the multitude of bookkeeping information that needs to be dragged through.
