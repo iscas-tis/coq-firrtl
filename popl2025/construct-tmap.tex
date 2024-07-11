@@ -274,12 +274,12 @@ For instance, in the rule {\madeexplicit: \vtype}, if the $n$ ground-type sequen
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 \begin{figure}[htbp]
 	\begin{gather*}
-		%    \inferii
-		%    {\seqq{ports\_stmts\_tmap(pp, ss, tm) = tmap}}
-		%    {\seqq{ports\_tmap(pp, tm) = pmap}}
-		%    {\seqq{stmts\_tmap((pmap, pmap), ss, tm) = (tmap, \_)}}
-		%   \quad
-		%   \\[1ex]
+%		    \inferii
+%		    {\seqq{\portsstmtstmap(pp, ss, tm) = tmap}}
+%		    {\seqq{\portstmap(pp, tm) = pmap}}
+%		    {\seqq{\stmtstmap((pmap, pmap), ss, tm) = (tmap, \_)}}
+%		   \quad
+%		   \\[1ex]
 		\infernone[\portstmap: \nil]
 		{\seqq{\portstmap(\nil, tm) = {\sf emp}}}
 		%		{
@@ -334,7 +334,7 @@ For instance, in the rule {\madeexplicit: \vtype}, if the $n$ ground-type sequen
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-The mapping $tmap$ is defined by the procedure $\portsstmtstmap(pp, ss, tm)$ given in Fig.~\ref{fig:ports-stmts-tmap}, 
+The mapping $tmap$ is defined by $\portsstmtstmap(pp, ss, tm)$ which calls $\portstmap(pp, tm)$ %given in Fig.~\ref{fig:ports-stmts-tmap}, 
 \begin{wrapfigure}{r}{0.3\textwidth}
 \centering
 %\begin{tabular}{c}
@@ -354,7 +354,7 @@ The mapping $tmap$ is defined by the procedure $\portsstmtstmap(pp, ss, tm)$ giv
 \vspace*{-3mm}\caption{Scoping error for  {\small\ttfamily z}}
 \label{fig:example}
 \end{wrapfigure}
-which calls $\portstmap(pp, tm)$ to define a mapping $pmap$ which  intuitively produces an initial version for $tmap$ and $scope$, then calls $\stmtstmap$ %((pmap, pmap), ss, tm)$
+to define a mapping $pmap$ which  intuitively produces an initial version for $tmap$ and $scope$, then calls $\stmtstmap$ %((pmap, pmap), ss, tm)$
 to update $tmap$ and $scope$. % (see Figure~\ref{fig:ports-stmts-tmap}).
 %
 %In particular, $\portstmap(pp, tm)$ defines a mapping based on the port declarations $pp$ and $tm$, and $\stmtstmap((pmap, pmap), ss, tm)$ defines a pair $(tmap, scope)$ from $(pmap, pmap)$, the statement sequence $ss$, and $tm$.
