@@ -4,7 +4,7 @@ The ``ExpandWhens'' pass ensures that every component in a module is connected t
 It reformulates the conditions in the \prettyll{when} statements by multiplex expressions and removes the \prettyll{when} statements. Moreover, for each component, it removes the non-last (redundant) connect statements for the component.
 
 \paragraph*{Formalization} We define two functions {\expandbranch} and {\combinebranches} to formalize the ``ExpandWhens'' pass.
-The function {\expandbranch} scans through the statement sequence $ss$, copies the declaration statements, and updates the connection mapping $cm$ when processing connect, \prettyll{is invalid}, and \prettyll{when} statements.  The function {\combinebranches} is used to combine the connect mappings for branches of \prettyll{when} statements.
+The function {\expandbranch} scans through the statement sequence $ss$, copies the declaration statements, and updates the connection mapping $cm$ when processing connect, \prettyll{is invalid}, and \prettyll{when} statements. The function {\combinebranches} is used to combine the connect mappings for branches of \prettyll{when} statements.
 %This is done by scanning through the statement sequence of the module:
 %declaration statements are copied without change,
 %and connect and \prettyll{is invalid} statements update a connect map
