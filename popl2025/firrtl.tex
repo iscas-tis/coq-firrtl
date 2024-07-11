@@ -517,8 +517,8 @@ int & ::= & [\mbox{\tt ``-''}] d \{d\} \mid \mbox{\tt ``"b''} [\mbox{\tt ``-''}]
 
 According to the syntax, {\firrtl} features high-level constructs such as vector types, bundle types, conditional statements, connects, and modules.
 These high-level constructs are then gradually removed by a sequence of \emph{lowering transformations}. During each lowering transformation, the circuit is rewritten into an equivalent circuit using simpler, lower-level
-constructs. Eventually the circuit is simplified to its most restricted form, resembling a structured netlist,
-which allows for easy translation to an output language (e.g. Verilog).
+constructs. Eventually, the circuit is simplified to its most restricted form, resembling a structured netlist,
+which allows for easy translation to an output language (e.g., Verilog).
 This form is given the name lowered {\firrtl}  (abbreviated as \lofirrtl) and is a strict subset of the full {\firrtl} language.
 For clarity, the original form is referred to as high {\firrtl}  (\hifirrtl).
 %\footnote{Besides LoFIRRTL, there is another lowered form of FIRRTL, referred to as MidFIRRTL, which resides between HiFIRRTL and LoFIRRTL. We do not introduce MidFIRRTL in this work,
