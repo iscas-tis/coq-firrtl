@@ -25,7 +25,7 @@ where $\mathit{declare}\ x$ represents a declaration statement for $x$, e.g. \pr
     \label{rule-expandwhen-invalid}
     \infer[]
     {\seqq{\expandbranch(x \text{ \prettyll{is invalid}} ; ss, ecm_0) = (ss_\mathrm{dcl}, ecm)}}
-    {\seqq{\expandbranch(ss, ecm_0[{\tt invalid}/x]) = (ss_\mathrm{dcl}, ecm)}}
+    {\seqq{\expandbranch(ss, ecm_0[{\svinvalid}/x]) = (ss_\mathrm{dcl}, ecm)}}
     \\[1ex]
     \label{rule-expandwhen-when}
     \infer[]
@@ -66,8 +66,8 @@ is needed in the combined expression.
 \\[1ex]
  \label{rule-expandwhen-combine-2}
     \infer[]
-    {\combinebranches(c, ecm^\mathsf{T},ecm^\mathsf{F})(x) = {\tt invalid}}
-    {ecm^\mathsf{T}(x) = ecm^\mathsf{F}(x) = {\tt invalid}}
+    {\combinebranches(c, ecm^\mathsf{T},ecm^\mathsf{F})(x) = {\svinvalid}}
+    {ecm^\mathsf{T}(x) = ecm^\mathsf{F}(x) = {\svinvalid}}
 \end{gather*}
 If the two connection mappings assign different values to a component, then a multiplexer %or \prettyll{validif}
 expression is obtained.
@@ -79,11 +79,12 @@ expression is obtained.
     {ecm^\mathsf{F}(x) = e^\mathsf{F}}
     {e^\mathsf{T} \not= e^\mathsf{F}}
 \end{gather*}
-To make this rule work properly, $ecm$ needs to contain all connections that are in scope.
+To make this rule work properly, $ecm_0$ (from which $ecm^\mathsf{T}$ and $ecm^\mathsf{F}$ are constructed)
+needs to contain all connections that are in scope.
 Then the case where only one branch assigns a value (like \prettyll{posv} in Figure~\ref{fig-lofirrtl-exmp3})
 is handled correctly.
 
-If only one branch declared the component, ignore the condition;
+If only one branch declared the component, one can ignore the condition;
 similarly, if one branch explicitly invalidated the component,
 the other branch is chosen.
 \begin{gather*}
@@ -91,7 +92,7 @@ the other branch is chosen.
     \inferii[]
     {\combinebranches(c, ecm^\mathsf{T},ecm^\mathsf{F})(x) = e^\mathsf{T}}
     {ecm^\mathsf{T}(x) = e^\mathsf{T}}
-    {ecm^\mathsf{F}(x) = {\tt invalid}}
+    {ecm^\mathsf{F}(x) = {\svinvalid}}
 \\[1ex]
  \label{rule-expandwhen-combine-5}
     \inferii[]
