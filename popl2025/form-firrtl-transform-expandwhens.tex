@@ -2,18 +2,18 @@
 
 The ``ExpandWhens'' pass ensures that every component in a module is connected to at most once.
 It reformulates the conditions in the \prettyll{when} statements by multiplex expressions and removes the \prettyll{when} statements. Moreover, for each component, it removes the non-last (redundant) connect statements for the component.
-We define two functions \expandbranch and \combinebranches to formalize the ``ExpandWhens'' pass.
-The function \expandbranch scans through the statement sequence $ss$, copies the declaration statements, and updates the component environment $cm$ when processing connect, \prettyll{is invalid}, and \prettyll{when} statements.  The function \combinebranches is used to combine the connect mappings for branches of \prettyll{when} statements.
+We define two functions {\expandbranch} and {\combinebranches} to formalize the ``ExpandWhens'' pass.
+The function {\expandbranch} scans through the statement sequence $ss$, copies the declaration statements, and updates the connection mapping $cm$ when processing connect, \prettyll{is invalid}, and \prettyll{when} statements.  The function {\combinebranches} is used to combine the connect mappings for branches of \prettyll{when} statements.
 %This is done by scanning through the statement sequence of the module:
 %declaration statements are copied without change,
 %and connect and \prettyll{is invalid} statements update a connect map
 %(so redundant connects are overwritten in the map).
-The  \expandbranch function is defined by the following four rules, % (\ref{rule-expandwhen-declare})-(\ref{rule-expandwhen-when}),
-where $\mathit{declare}\ x$ represents a declaration statement for $x$, e.g. \prettyll{wire x: t}.
+The  {\expandbranch} function is defined by the following rules, % (\ref{rule-expandwhen-declare})-(\ref{rule-expandwhen-when}),
+where $\mathit{declare}\ x$ represents a declaration statement for $x$, e.g. \prettyll{input x: t} or \prettyll{wire x: t}. Note that here for simplicity, we do not distinguish between port declarations and component declarations, moreover, we assume that the identifiers in {\hifirrtl} programs are already of the form $(v, m)$ since the {ExpandWhens} pass is after the {ExpandConnects} pass and it has flattened all the aggregate-type components into ground-type ones. 
 \begin{gather*}
     \label{rule-expandwhen-declare}
     \infer[]
-    {\seqq{\expandbranch(ss ; \mathit{declare}\ x, cm_0) = (ss_\mathrm{dcl} ; \mathit{declare}\ x, cm[\bot/x])}}
+    {\seqq{\expandbranch(ss ; \mathit{declare}\ x, cm_0) = (ss_\mathrm{dcl} ; \mathit{declare}\ x, cm[\svnone/x])}}
     {\seqq{\expandbranch(ss, cm_0) = (ss_\mathrm{dcl}, cm)}}
 \\[1ex]
     \label{rule-expandwhen-connect}
@@ -23,11 +23,9 @@ where $\mathit{declare}\ x$ represents a declaration statement for $x$, e.g. \pr
 \\[1ex]
     \label{rule-expandwhen-invalid}
     \infer[]
-    {\seqq{\expandbranch(ss ; v \text{ \prettyll{is invalid}}, cm_0) = (ss_\mathrm{dcl}, cm [{\tt invalid}/v])}}
+    {\seqq{\expandbranch(ss ; x \text{ \prettyll{is invalid}}, cm_0) = (ss_\mathrm{dcl}, cm [{\tt invalid}/x])}}
     {\seqq{\expandbranch(ss, cm_0) = (ss_\mathrm{dcl}, cm)}}
-\end{gather*}
-%
-\begin{gather*}
+    \\[1ex]
     \label{rule-expandwhen-when}
     \inferii[]
     {\seqq{\expandbranch(ss ; \text{\prettyll{when c then} } ss^\mathsf{T} \text{ \prettyll{else} } ss^\mathsf{F}, cm_0) =
@@ -36,8 +34,9 @@ where $\mathit{declare}\ x$ represents a declaration statement for $x$, e.g. \pr
     {\begin{gathered}[b] \seqq{\expandbranch(ss^\mathsf{T}, cm) = (ss_\mathrm{dcl}^\mathsf{T}, cm^\mathsf{T})} \\
                       \seqq{\expandbranch(ss^\mathsf{F}, cm) = (ss_\mathrm{dcl}^\mathsf{F}, cm^\mathsf{F})} \end{gathered}}
 \end{gather*}
+%
 Note that for a statement \prettyll{when c then} $ss^\mathsf{T}$ \prettyll{else} $ss^\mathsf{F}$,
- the function \expandbranch  first processes the statements preceding this statement and obtains a connect mapping $cm$, then uses $cm$ to process $ss^\mathsf{T}$ and $ss^\mathsf{F}$ respectively, resulting into the connect mappings $cm^\mathsf{T}$ and $cm^\mathsf{F}$ respectively. Finally, $cm^\mathsf{T}$ and $cm^\mathsf{F}$ are combined into one mapping by \combinebranches.
+ the function {\expandbranch}  first processes the statements preceding this statement and obtains a connection mapping $cm$, then uses $cm$ to process $ss^\mathsf{T}$ and $ss^\mathsf{F}$ respectively, resulting into the connect mappings $cm^\mathsf{T}$ and $cm^\mathsf{F}$ respectively. Finally, $cm^\mathsf{T}$ and $cm^\mathsf{F}$ are combined into one mapping by {\combinebranches}.
 
 %For \prettyll{when} statements,
 %the true and false branches are similarly split
@@ -51,9 +50,9 @@ Note that for a statement \prettyll{when c then} $ss^\mathsf{T}$ \prettyll{else}
 %This also implies that we cannot use the (register) state of a configuration in these rules.
 
 
-The function \combinebranches combines two connect mappings into one by the following fix rules %(\ref{rule-expandwhen-combine-1})-(\ref{rule-expandwhen-combine-6}),
+The function {\combinebranches} combines two connection mappings into one by the following fix rules %(\ref{rule-expandwhen-combine-1})-(\ref{rule-expandwhen-combine-6}),
 where an expression is constructed for each component, denoting the fact that the expression is connected to it according to the last-connect semantics.
-If both connect mappings assign the same value to a component, then no multiplexer or \prettyll{validif} is needed in the combined expression.
+If both connection mappings assign the same value to a component, then no multiplexer or \prettyll{validif} is needed in the combined expression.
 \begin{gather*}
  \label{rule-expandwhen-combine-1}
     \infer[]
@@ -65,7 +64,7 @@ If both connect mappings assign the same value to a component, then no multiplex
     {\combinebranches(c, cm^\mathsf{T},cm^\mathsf{F})(x) = {\tt invalid}}
     {cm^\mathsf{T}(x) = cm^\mathsf{F}(x) = {\tt invalid}}
 \end{gather*}
-If the two connect mappings assign different values to a component, then a multiplexer or \prettyll{validif} expression is obtained.
+If the two connection mappings assign different values to a component, then a multiplexer or \prettyll{validif} expression is obtained.
 \begin{gather*}
  \label{rule-expandwhen-combine-3}
     \inferiii[]
@@ -92,21 +91,33 @@ register that it is still not (always) connected:
 \\[1ex]
  \label{rule-expandwhen-combine-6}
     \infer[]
-    {\combinebranches(c, cm^\mathsf{T},cm^\mathsf{F})(x) =\bot}
-    {cm^\mathsf{F}(x) = \bot}
+    {\combinebranches(c, cm^\mathsf{T},cm^\mathsf{F})(x) =\svnone}
+    {cm^\mathsf{F}(x) = \svnone}
 \end{gather*}
 For the last three rules, a symmetric variant exists where the role of the true and false branches are swapped.
 
-Moreover, to initialize, the empty statement sequence does not change a connect map, specified by the following rule:
+Moreover, to initialize, the empty statement sequence does not change a connection mapping, specified by the following rule:
 {\begin{gather*}
     \infer{\seqq{\expandbranch(\emptyset, cm_0) = (\emptyset, cm_0)}}
     {} % no premise
 \end{gather*}}
 
-Finally, the statement sequence is updated by concatenating the statement sequence generated by the function  \expandbranch and the sequence of connect and \prettyll{is invalid} statements corresponding to the connect mapping generated by the function \expandbranch.
+Finally, we formalize the ExpandWhens pass as a function $\expandwhens$ defined as follows: Let $M$ be a module where $ss$ is a sequence of statements (including port declarations). Then $\expandwhens$ is defined by the following two rules, where {\sf emp} is the empty connection mapping and the function $\connstmts(cm)$ generates from $cm$ a sequence of connect and \prettyll{is invalid} statements. Note that if in the end some component $x$ is still assigned the value $\svnone$ by $cm$, then the output of $\expandwhens(M)$ is $\svnone$ and an appropriate error message can be generated.
+{\begin{gather*}
+    \inferiii{\seqq{\expandwhens(M) = ss'}}
+    {\expandbranch(ss, {\sf emp}) = (ss_{\sf dcl}, cm)}
+    {\seqq{\forall x \in \gidset_M.\ cm(x) \neq \svnone}}
+    {ss'  = ss_{\sf dcl}\ ++\ \connstmts(cm)} 
+\\[1ex]
+    \inferii{\seqq{\expandwhens(M) = \svnone}}
+    {\seqq{\expandbranch(ss, {\sf emp}) = (ss_{\sf dcl}, cm)}}
+    {\seqq{\exists x \in \gidset_M.\ cm(x) = \svnone} } 
+\end{gather*}}
+
+%such that $ss'$ is the statement sequence obtained by concatenating the declaration-statement sequence generated by the function $\expandbranch(ss, {\sf emp}) = (ss_{\sf dcl}, cm)$ and the sequence of connect and \prettyll{is invalid} statements corresponding to the connection mapping generated by the function {\expandbranch}.
 %(possibly after topologically sorting them),
 %similar to the example in Subsection~\ref{subsec-lowering-transformations}.
-If in the end some component is still assigned the value $\bot$ by the connect mapping, an appropriate error message can be generated.
+%On the other hand, if in the end some component is still assigned the value $\svnone$ by the connection mapping, an appropriate error message can be generated.
 
 %%%% the original texts of LowerTypes
 %%%% the original texts of LowerTypes
