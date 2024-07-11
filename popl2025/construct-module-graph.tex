@@ -22,16 +22,19 @@ $cm'$ is then defined to be the connection mapping satisfying ${\sf emp} \xright
 %Furthermore, 
 %
 %we should take care of 
-In particular, here we need to take care of the flipping status of fields when handling %defining the semantics of 
+In particular, here we need to take care of the flipping status of fields when handling %defining the semantics of
 connection statements of the form 
-\prettyll{r1 <= r2}, where \prettyll{r1, r2} are references. For instance, in the following {\hifirrtl} program, the connect statement \prettyll{a <= b} will be split into the following two connections between ground-type components, \prettyll{b.f3 <= a.f1} and \prettyll{a.f2 <= b.f4}. Note that in \prettyll{b.f3 <= a.f1}, the connection flow is reversed since \prettyll{f1} is a flipped field. 
+\prettyll{r1 <= r2}, where \prettyll{r1, r2} are references.
+For instance, in the following {\hifirrtl} program, the connect statement \prettyll{a <= b} will be split into the following two connections between ground-type components:
+\prettyll{b.f1 <= a.f1} and \prettyll{a.f2 <= b.f2}.
+Note that in \prettyll{b.f1 <= a.f1}, the connection flow is reversed since \prettyll{f1} is a flipped field.
 %
 \begin{figure*}[htbp]
 	\begin{tabular}{c}
 		%[basicstyle=\footnotesize\ttfamily]
 		\begin{lstlisting}
 			wire a: {flip f1: UInt<1>, f2: UInt<3>}
-			wire b: {flip f3: UInt<1>, f4: UInt<3>}
+			wire b: {flip f1: UInt<1>, f2: UInt<3>}
 			a <= b
 		\end{lstlisting}
 	\end{tabular}
@@ -49,9 +52,9 @@ We shall use the following functions. % in the semantics definition.
 	%
 	\item $\listgexp(e, ft)$ returns a list of ground-type expressions obtained by expanding $e$ according to $ft$, 
 	%
-	\item $\typecompatible(ft, ft', \flipped)$ checks whether the two types $ft$ and $ft'$ are compatible %and distinguish between 
-	depending on whether 
-	$\flipped = \ltrue$, 
+	\item $\typecompatible(ft, ft', \flipped)$ checks whether the two types $ft$ and $ft'$ are compatible; %and distinguish between
+	it also ensures that inferred widths of implicit-width types do not cause data loss,
+	depending on whether the connection is flipped ($\flipped = \ltrue$) or not;
 	%
 	\item $\typeofref(r, tmap)$ returns the type of the reference $r$, 
 	%
@@ -164,7 +167,7 @@ For notational simplicity we shall use operations over lists where $++$ stands f
 We select the most important semantics definitions. %are given in Fig.~\ref{fig:firrtl-sem} and we explain their intuitions.  
 %\tl{to further improve this later.}
 \begin{itemize}
-	\item The ``wire'' rule updates each of $cm_1(v, 0), \cdots, cm_1(v, sz-1)$ to $\svinvalid$, where \prettyll{s = wire x: t},  $v$ is the identifier of $x$, $tmap(v) = (ft, ori)$, and $sz= \sizeofftype(ft)$. 
+	\item The ``wire'' rule updates each of $cm_1(v, 0), \cdots, cm_1(v, sz-1)$ to $\svundefined$, where \prettyll{s = wire x: t},  $v$ is the identifier of $x$, $tmap(v) = (ft, ori)$, and $sz= \sizeofftype(ft)$.
 	\[
 		\infer[wire]
 	{\seqq{cm_1 \xrightarrow[tm, tmap]{\mbox{wire } x: t} \updatecm(cm_1, (v, 0), ft, %[\underbrace{\svundefined, \ldots, \svundefined}_{m}]

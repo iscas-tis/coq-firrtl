@@ -36,7 +36,7 @@ We say that $(tm, cm) \models M$ if $tmap$ and $cm'$ are successfully constructe
 yields a low level module that conforms to $M$. Can we first define what is conformance, then discuss how to compute all the low level modules that conform to $M$?}
 
 The main technical difficulty %for defining $(tm, cm)\models M$
-arises from the gap between $(tm, cm)$ and $M$: while $(tm, cm)$ is of low-level, $M$ is at high level which may contain aggregate types (e.g., vectors and bundles) as well as \prettyll{when} statements. As a result, %when checking $(tm, cm)\models M$,
+arises from the gap between $(tm, cm)$ and $M$: while $(tm, cm)$ is of low-level, $M$ is at high level which may contain aggregate types (i.e., vectors and bundles) as well as \prettyll{when} statements. As a result, %when checking $(tm, cm)\models M$,
 it is necessary to %bridge this gap, in particular, to
 find a match between the ground types in $tm$ and aggregate types in $M$, as well as a match between $cm$ and the connect statements in $M$, which requires ``expanding" the \prettyll{when} statements in $M$.
 %
@@ -134,7 +134,7 @@ The bundle-type component can be naturally represented as a tree where its (grou
 \prettyll{output a: \{flip b: \{d: UInt<1>, e: UInt<2>\}, c: UInt<2>\}},
 \end{center}
 %
-the ground-type fields are \prettyll{c}, \prettyll{d}, \prettyll{e}, and a preorder traversal gives an order $d, e, c$. As a result, the offsets of $d, e, c$ are $0, 1, 2$ respectively. Note that %during the depth-first search,
+the ground-type fields are \prettyll{c}, \prettyll{d}, \prettyll{e}, and a preorder traversal gives an order $d, e, c$. As a result, the offsets of $d, e, c$ are $0$, $1$, and $2$ respectively. Note that %during the depth-first search,
 the fields at the same level are visited %traversed
 according to the order of occurrence in $M$. %Moreover, the field $b$ is omitted here since it is \emph{not} of ground type.
  	
