@@ -70,7 +70,7 @@ For instance, the FIRRTL circuit \prettyll{A} shown in Figure~\ref{fig:example} 
 %where the top-level module of the circuit is the module \prettyll{A}.
 
 A \emph{module} consists of a set of ports and a sequence of statements.
-Each port has an identifier, a direction (either \prettyll{input} or \prettyll{output}), and a data type.
+Each \emph{port} has an identifier, a direction (either \prettyll{input} or \prettyll{output}), and a data type.
 For instance, the module \prettyll{A} has two input ports \prettyll{clk} and \prettyll{rst} and one output port \prettyll{io}, with
 types \prettyll{Clock}, \prettyll{UInt<1>} and  \prettyll{\{flip enable: UInt<1>, calc: UInt<3>\}}, respectively.
 Each \emph{statement} defines a wire, register, node, connect (\prettyll{<=}), conditional (\prettyll{when}), or instance (\prettyll{inst of}), and so on.
@@ -835,7 +835,7 @@ module TestCondition:
   wire a: SInt<33>
   posv <= mux(condition, in, 0)
   a <= neg in
-  negv <= a % validif(not condition, a)
+  negv <= a 
 \end{lstlisting}
 \caption{}
 \end{subfigure}
