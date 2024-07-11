@@ -3,29 +3,29 @@
 The ExpandConnects transformation expands the connect statements between aggregate
 types into those between ground types. Correspondingly, it also flattens the aggregate-type components to a collection of ground-type components, so that after the ExpandConnects transformation, all the components are of ground types. 
 
-To expand the objects of aggregate types in a Firrtl
-module, the process involves two phases. The first phase is to record
-the types along with orientations and flipping information of the
-objects, which helps determine the actual connection directions. For
-example, if there is an input port of aggregate types with a field
-marked as ``flip'', the ``flip'' mark will recursively apply to all
-the atomic elements in that field. Since it is an input port, the
-orientation is record as \source.  The second phase is to expand
-the statements sequentially, and then produce a serial of new
-statements.  For declaration statements, ground-typed elements are
-generated corresponding to the original aggregate types and the
-orientations. For connection statements, the connection directions are
-determined by the orientations and flipping information from the first
-phase. For subfields, there are two kinds of connections allowed for
-HiFirrtl programs. One is connect subfields separately, in which case
-the direction should already comply with the orientation of the
-subfield elements. The other is to set connections between elements of
-equivalent aggregate types. In such bundled connections, after
-expansion process, individual subfield connections can be of different
-directions.
+%% To expand the objects of aggregate types in a Firrtl
+%% module, the process involves two phases. The first phase is to record
+%% the types along with orientations and flipping information of the
+%% objects, which helps determine the actual connection directions. For
+%% example, if there is an input port of aggregate types with a field
+%% marked as ``flip'', the ``flip'' mark will recursively apply to all
+%% the atomic elements in that field. Since it is an input port, the
+%% orientation is record as \source.  The second phase is to expand
+%% the statements sequentially, and then produce a serial of new
+%% statements.  For declaration statements, ground-typed elements are
+%% generated corresponding to the original aggregate types and the
+%% orientations. For connection statements, the connection directions are
+%% determined by the orientations and flipping information from the first
+%% phase. For subfields, there are two kinds of connections allowed for
+%% HiFirrtl programs. One is connect subfields separately, in which case
+%% the direction should already comply with the orientation of the
+%% subfield elements. The other is to set connections between elements of
+%% equivalent aggregate types. In such bundled connections, after
+%% expansion process, individual subfield connections can be of different
+%% directions.
 
-At the beginning of a Firrtl module, ports are declared first. When
-ports are defined with flipped subfields, the expansion process will
+In the beginning of a Firrtl module, ports are declared first. When
+ports have flipped subfields, the expansion process will
 change those fields of input ports into output ports, and vice
 versa. %As a result, their orientations are changed between \source \, and \sink.
  \begin{gather*}
@@ -38,16 +38,16 @@ versa. %As a result, their orientations are changed between \source \, and \sink
            \end{array}
          }
  \end{gather*}
-The \expandconnects function takes a statement as input and
+The {\expandconnects} function takes a statement as input and
 produces a sequence of statements as output. In the case above, the
 input statement is the port declaration ``$\mbox{\prettyll{input }}x : t$'',
-and ``$pp$'' is the sequence of output. The ``$pp$'' is produced by
+and ``$pp$'' is the sequence of output statements. The ``$pp$'' is produced by
 expanding the port reference and expanding its type.
 According to the flip information carried by the types, the input port may be flipped to a output port.
 Here, the {\tt map2}
-is the general operation for lists that applies a function over two
-lists. It applies the generation function of input/output port statement to the
-lists $(rl,tl)$ produced by expanding references and expanding types.
+is a general operation for lists that applies a function over two
+lists. It applies the generation function of the input/output port statement to the
+lists $(rl,tl)$ produced by expanding references and types.
 
 Elements such as wires and registers have duplex
 orientation. Regardless of the flip subfields in the original
@@ -67,18 +67,19 @@ omitted here.
           \end{array}
         }
 \end{gather*}
-Here, \expandconnects function takes register statement
+Here, {\expandconnects} function takes register statement
 ``$\mbox{\prettyll{reg}}\; x:\,t\,clk\,\mbox{\prettyll{with: reset=> (rsig, }}rval)$''
-as input, which defines 
-a register {\tt x}. Similar to expanding a port, expanding a register
-involves expanding the reference to its subfield representations using \expandref,
-expanding the aggregate type using \listgtyperef, and also expanding the reset value with
-\listgexp. 
+as input, which defines a register $x$. Similar to expanding a port,
+expanding a register involves expanding the reference to its subfield
+representations using {\expandref}, expanding the aggregate type
+using {\listgtyperef}. In addition, It includes the process of expanding
+the reset value with {\listgexp}.
 
-Nodes are also \source \, elements. They are only allowed to be defined
-with passive types, which means no flip fields. During
-the expansion of node declarations, the passive type is checked;
-otherwise, the result will be an empty sequence.
+Nodes are also {\source} elements. They are only allowed to be defined
+with passive types, which means the type of expression the node
+defined with has no flip fields. During the expansion of node
+declarations, the passive type is checked; otherwise, the result will
+be an empty sequence.
 \begin{gather*}
   \label{expand-node}
   \infer[]
@@ -95,9 +96,9 @@ In the definition above, function {\sf isPassive} recursively checks the the sub
 If it has no flip field, it returns true; otherwise, it returns false.
 
 To expand \prettyll{is invalid} statements, we
-select only the \sink\, and \duplex\, elements to produce the sequence of
+select only the {\sink} and {\duplex} elements to produce the sequence of
 invalidations.
-In HiFirrtl, it is allowed to have \source\, sub-elements in a bundle be
+In HiFirrtl, it is allowed to have {\source} sub-elements in a bundle be
 invalidated. The expansion result will discard them.
 \begin{gather*}
   \label{expand-invalid}
@@ -123,16 +124,17 @@ connection direction may differ from the original.
              \seqq{\expandref(r) = rl}\wedge
              \seqq{\expandref(r') = rl'}\\
             \seqq{\typeofref(r) = (t,ori)} \wedge
-            \seqq{\typeofref(r') = (t,ori')} \wedge
-            \seqq{\listgtyperef(t, \lfalse) = tl} \\
-             \seqq{ ss = if\;{\sf isOriFit}\; then\; {\tt map3}\; (fun\; (v_l,v_r,(\_,flipped)) \Rightarrow if\;flipped\; then\;v_l\, \mbox{\prettyll{ <= }}\, v_r\; else\;v_r\, \mbox{\prettyll{ <= }}\,v_l)\,(rl,rl',tl)}
+            \seqq{\typeofref(r') = (t',ori')} \\
+            \seqq{\listgtyperef(t, \lfalse) = tl} \wedge
+            \seqq{\typecompatible(t,t',false) = b}\\
+             \seqq{ ss = if\;b\; then\; {\tt map3}\; (fun\; (v_l,v_r,(\_,flipped)) \Rightarrow if\;flipped\; then\;v_r\, \mbox{\prettyll{ <= }}\, v_l\; else\;v_l\, \mbox{\prettyll{ <= }}\,v_r)\,(rl,rl',tl)\;else\,[::]}
            \end{array}
          }
 \end{gather*}
 %
 In the case above, the connection is set between two references of
-elements $r$ and $r'$. The function {\sf isOriFit} checks whether the
-orientations can fit together.  When the connection takes an
+elements $r$ and $r'$. The function {\typecompatible} checks whether the
+types can be connected. When the connection takes an
 expression other than a reference on the right-hand side, flip
 information is not taken into account. The expansion simply expands
 the reference and the expression and produces a new sequence of
@@ -144,15 +146,17 @@ connections as follows.
          {\seqq{\expandconnects (r\;\mbox{\prettyll{<=}}\;e) = ss}}
          {\begin{array}{c}
              \seqq{\expandref(r) = rl}\wedge
-             \seqq{\listgexp(e, t) = el}\\
+             \seqq{\listgexp(e, t) = el}\wedge
             \seqq{\typeofref(r) = (t,\_)} \wedge
-             \seqq{ ss = {\tt map2}\; (fun\; (v,e) \Rightarrow v\, \mbox{\prettyll{ <= }}\, e)\,(rl,el)}
+            \seqq{\typeofref(r') = (t,\_)} \\
+            \seqq{\typecompatible(t,t',false) = b}\\
+             \seqq{ ss = if\;b\; then\;{\tt map2}\; (fun\; (v,e) \Rightarrow v\, \mbox{\prettyll{ <= }}\, e)\,(rl,el)\; else\;[::]}
            \end{array}
          }
 \end{gather*}
 
 To summarize, a given Firrtl module can be expanded by applying the
-\expandconnects function to all its statements
+{\expandconnects} function to all its statements
 sequentially. Then the module in return contains only the elements and
 their connections in ground types.
 
