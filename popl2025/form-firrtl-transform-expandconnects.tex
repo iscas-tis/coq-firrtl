@@ -24,9 +24,7 @@ types into those between ground types. Correspondingly, it also flattens an aggr
 %% expansion process, individual subfield connections can be of different
 %% directions.
 
-In the beginning of a {\firrtl} module, ports are declared first. When
-ports have flipped subfields, the expansion process will
-change those fields of input ports into output ports, and vice
+In the beginning of a {\firrtl} module, ports are declared first. When ports have flipped subfields, the expansion process changes those fields of input ports into output ports, and vice
 versa. %As a result, their orientations are changed between \source \, and \sink.
  \begin{gather*}
    \label{expand-input}
@@ -41,21 +39,19 @@ versa. %As a result, their orientations are changed between \source \, and \sink
 {\expandconnects} takes a statement as input and produces a sequence of statements as output. 
 
 In the case above, the
-input statement is the port declaration ``$\mbox{\prettyll{input }}x : t$'',
+input statement is the port declaration ``\prettyll{input x : t}'',
 and ``$pp$'' is the sequence of output statements. The ``$pp$'' is produced by
 expanding the port reference and its type.
-According to the flip information carried by the types, the input port may be flipped to a output port.
+According to the flip information carried by the types, the input port may be flipped to an output port.
 Here, {\tt map2}
 is a general operation for lists that applies a function over two
 lists, which applies the generation function of the input/output port statement to the
 lists $(rl,tl)$ produced by expanding references and types.
 
 Elements such as wires and registers have duplex
-orientation. Regardless of the flip subfields in the original
-aggregate types, the resulting orientations will remain duplex. To
-expand registers in aggregate types, we also need to expand the reset
-values of the registers. Expanding wires is relatively simple and is
-omitted here.
+orientation. Regardless of the flip subfields in the original aggregate types, the resulting orientations will remain duplex. To
+expand registers of aggregate types, we also need to expand the reset
+values of the registers. Expanding wires is relatively simple and is omitted here.
 \begin{gather*}
   \label{expand-reg}
   \infer[]
@@ -69,7 +65,7 @@ omitted here.
         }
 \end{gather*}
 Here, {\expandconnects} function takes register statement
-``$\mbox{\prettyll{reg}}\; x:\,t\,clk\,\mbox{\prettyll{with: reset=>}} (rsig, rval)$''
+``\prettyll{reg x: t clk with: reset=>(rsig, rval)}''
 as input, which defines a register $x$. Similar to expanding a port,
 expanding a register involves expanding the reference to its subfield
 representations using {\expandref}, expanding the aggregate type
