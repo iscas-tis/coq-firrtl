@@ -1,10 +1,10 @@
 \paragraph*{Specification}
-The correctness of {\sf inferWidths} is specified by the formulas: 
+The correctness of {\sf inferWidths} is specified by the formulas:
 %
 $$(tm,\,cm) \models \, {\sf inferWidths}(M) \Rightarrow (tm,\,cm) \models \,M.$$
 $$\forall tm,cm, (tm,\,cm) \models M \wedge (tm',\,cm') \models \, {\sf inferWidths}(M) \Rightarrow tm' \leq tm \wedge cm' = cm.$$
 %
-The first formula states that if the pair of the typing mapping $tm$ and the connection mapping $ct$ conform to the program of produce by {\sf inferWidths} $(M)$, then the same pair of $tm$ and $ct$ should also conform to the original program $M$.  
+The first formula states that if the pair of the typing mapping $tm$ and the connection mapping $ct$ conform to the program of produce by {\sf inferWidths} $(M)$, then the same pair of $tm$ and $ct$ should also conform to the original program $M$.
 
 Further more, the second formula states that if the pair $(tm', cm')$ conform to the program of produce by {\sf inferWidths} $(M)$, then for any pair of $(tm, cm)$ conform to the original program $(M)$, $tm'$ should be smaller than $tm$ and $cm'$ should have same domain and store same connections for same components. A typing mapping $tm'$ smaller than another one $tm$ means that they have exactly same domain and the bit width of any component in $tm'$ is smaller than the widths of the same component in $tm$.
 
@@ -15,7 +15,7 @@ In the subsequent paragraphs, we will successively present the proof strategies 
 
 Connection statement is not changed in {\sf inferWidths} pass so that it is trivial to get the connection mapping part. The bit widths of all explicit defined components in $M$ remain unchanged after {\sf inferWidths}, aligning with the corresponding components in $tm$. For implicit widths components, the widths is inferred sequentially utilizing the connection information. In {\sf inferWidthsFun} function, type of each implicit component is updated to the type of its connected expressions, selecting the one with largest widths. The resulting bit widths ensures it is equal to or exceeds the bit width of any connected expression, which indicates $(tm,\,cm) \models M$.
 
-To prove the first part of the functional correctness of the InferWidths pass, we split the proof to several steps: 
+To prove the first part of the functional correctness of the InferWidths pass, we split the proof to several steps:
 
 \begin{itemize}
     \item The property \typecompatible \ required in semantics is defined on aggregate types which means the structure of \ftypes \ is considered besides widths constraints. But the {\sf InferWidthsFun} works on flatten types because every sub component can be connected separately in a circuit. In order to suit to the flatten types in {\sf InferWidthsFun}, we need the following Lemma1. Let $ft1,ft2$ be the \ftypes \ to be compared, $n$ is a natural number less equal than $\sizeofftype(ft1)$ and $\sizeofftype(ft2)$ indicated the offset of a ground type component in side the aggregate type. Assume $gt1,gt2$ are the corresponding \gtypes \  in $ft1,ft2$ on the  $n^{th}$ offset, then we have :
@@ -28,61 +28,61 @@ $\forall n, ft1, ft2 \models {\sf ftypeEq}(ft1,ft2) \wedge {\sf ftFindSub}(ft1,n
 
 \begin{lemma}\label{inferwidth_fun_correct}
 $\forall v, el, tmap, e \models {\sf typeOfRef} (v,({\sf inferWidthFun}(v,el,tmap))) = (\gtype,gt) \wedge e \in el \Rightarrow \typecompatible((\gtype,gt),\typeofexp(e,tmap)).$
-\end{lemma}   
+\end{lemma}
 
     According to the definition of semantics, \typecompatible \ is checked sequentially on the statement sequence. However, in the formalization of InferWidths in Section 4.1, we first collect the connection map and update the maximum width for the sub component at one time. Let $initt$ be the initial implicit \gtype \ \datatype, which is (\uintimp,0) or (\sintimp,0) according to the circuit design. To prove Lemma 4.2, we first prove the following Lemma for assistant:
 
 \begin{lemma}\label{max_compatible}
 $\forall e,tmap \models {\sf maxFtList}(initt, {\tt map}\; (fun\; e_x \Rightarrow \typeofexp(e_x, tmap))\,[e_0,\dots e_n]) = maxt \wedge e \in [e_0,\dots e_n] \Rightarrow \typecompatible((\gtype,maxt),\typeofexp(e,tmap)).$
-\end{lemma}   
+\end{lemma}
 
     Let $ft$ be the defined type of a circuit component $v$ which could be an aggregate type, if we update the field on $n^{th}$ offset of $ft$ with $gt$ in $tmap$, we can proof that:
 
 \begin{lemma}\label{set_find_correct}
 $\forall n, v, ft, gt, tmap \models {\sf replace}(ft,{\sf ftSetSub}(gt,n,ft),tmap) = newtm \Rightarrow \\ \typeofref((v.1,v.2+n),tmap) = gt.$
-\end{lemma}   
+\end{lemma}
 
     \item From the formalization of {\sf inferWidthFun}, we know that the $gt$ used to update specific $v$ in $ft$ is the type with the largest width of expression in $el$ which is exactly ${\sf maxFtList}(initt, {\tt map}\; (fun\; e_x \Rightarrow \typeofexp(e_x, tmap))\,[e_0,\dots e_n]) = maxt$. Every connection from an expression $e$ to an implicit width component $v$ is collected by {\sf portsStmtsTmap'} function and stored in $var2exprs$ map. The correctness of {\sf portsStmtsTmap'} function should guarantee that every expression connected to implicit width \gtype \ \datatype \ sub component $v$ belongs to $var2exprs(v)$. Then we can proof that the type of $v$ in the inferred $tmap$ is compatible with the type of expression $e$.
 
 \end{itemize}
 
     \item If $(tm',\,cm')$ conform to {\sf inferWidths} $(M)$, then $tm'$ is smaller than any $tm$, where $(tm,\,cm')$ conform to $M$.
-    
+
 For all components with implicit widths, the bit width of any component after {\sf inferWidths} in $tm'$ equals to the maximum bit width among all connected expressions. Meanwhile, each component in $tm$ must ensure that the bit width of any implicit widths component is at least as large as the bit width of any connected expression, including the expression with the maximum bit width. Hence, $tm'$ is always smaller than $tm$.
 
-Similarly, we split the proof to several steps: 
+Similarly, we split the proof to several steps:
 
 \begin{itemize}
 
     \item Let $(tm, cm)\models M$, where $M = (pp,ss)$ is the FIRRTL module to be compiled and the procedure {\sf portsStmtsTmap}$(pp,ss,tm)$ generates $tmap$. According to the semantics and the definition of {\sf portsStmtsTmap}, we should have :
 
-%Sem_wd_geqÔºöSem M vm Êª°Ë∂≥implicit widths component ÁöÑ‰ΩçÂÆΩÂ§ß‰∫éÁ≠â‰∫é‰ªª‰ΩïËøûÊé•Âà∞‰ªñÁöÑexpÁöÑ‰ΩçÂÆΩ
+%Sem_wd_geq£∫Sem M vm ¬˙◊„implicit widths component µƒŒªøÌ¥Û”⁄µ»”⁄»Œ∫Œ¡¨Ω”µΩÀ˚µƒexpµƒŒªøÌ
 \begin{lemma}\label{Sem-wd-geq}
 $\forall v,e \models tm(v) \ is \ implicit \wedge (v <= e) \in ss \Rightarrow \typecompatible(\typeofref(v, \\ tmap), \typeofexp(e,tmap)).$
-\end{lemma}       
+\end{lemma}
 
-    Note that $(v <= e) \in ss$ include the case of $v$ is a sub component of $x$ and $e$ is the corresponding sub expression connected to $v$ in expression $e_x$ and $x <= e_x$ is the actual statement appears in $ss$. Only consider of widths, we have : 
+    Note that $(v <= e) \in ss$ include the case of $v$ is a sub component of $x$ and $e$ is the corresponding sub expression connected to $v$ in expression $e_x$ and $x <= e_x$ is the actual statement appears in $ss$. Only consider of widths, we have :
 
 \begin{lemma}\label{Sem-wd-geq'}
 $\forall v,e \models tm(v) \ is \ implicit \wedge (v <= e) \in ss \Rightarrow {\sf sizeOfGtyp}(\typeofref(v, \\ tmap)) \geq {\sf sizeOfGtyp}(\typeofexp(e,tmap)).$
-\end{lemma}       
-    
+\end{lemma}
+
     \item The previous Lemma provides constraints for every connection separately, but in the compilation pass, we update the maximum width for the sub component at one time. Therefore, we need to establish a connection between conjunction of constraints and constraint of maximum value:
 
-%geq_conj2muxÔºöÂ¶ÇÊûúxÂ§ß‰∫éÁ≠â‰∫élist‰∏≠ÁöÑ‰ªªÊÑèÔºåÂàôÂ§ß‰∫éÁ≠â‰∫élist‰∏≠ÁöÑÊúÄÂ§ß
+%geq_conj2mux£∫»Áπ˚x¥Û”⁄µ»”⁄list÷–µƒ»Œ“‚£¨‘Ú¥Û”⁄µ»”⁄list÷–µƒ◊Ó¥Û
 \begin{lemma}\label{geq-conj2mux}
 $\forall gt, tel \models \forall te, te \in tel \wedge {\sf sizeOfGtyp}(gt) \geq {\sf sizeOfGtyp}(te) \Rightarrow {\sf sizeOfGtyp}(gt) \geq {\sf sizeOfGtyp}({\sf maxFtList}(initt,tel)).$
-\end{lemma} 
+\end{lemma}
 
-    \item Denote that {\sf inferWidthsM($M$)}$ = M' = (pp',ss')$ is the inferred module, where ${\sf inferWidthsStage1(M)} = newtm$ infers widths for every implicit component and stores the results in $newtm$ and ${\sf inferWidthsStage2}(M,newtm) = M'$ rewrites the definition statements in $M$ by replacing all implicit widths with explicit and inferred widths stored in $newtm$. Denote $(tm', cm')\models M'$ and the procedure {\sf portsStmtsTmap}$(pp',ss',tm')$ generates $tmap'$. From the comform definition and {\sf portsStmtsTmap} function, we know that $tmap'$ is the same as $newtm$ except for $newtm$ could have implicit widths and $tmap'$ containing only explicit widths.    
-    
+    \item Denote that {\sf inferWidthsM($M$)}$ = M' = (pp',ss')$ is the inferred module, where ${\sf inferWidthsStage1(M)} = newtm$ infers widths for every implicit component and stores the results in $newtm$ and ${\sf inferWidthsStage2}(M,newtm) = M'$ rewrites the definition statements in $M$ by replacing all implicit widths with explicit and inferred widths stored in $newtm$. Denote $(tm', cm')\models M'$ and the procedure {\sf portsStmtsTmap}$(pp',ss',tm')$ generates $tmap'$. From the comform definition and {\sf portsStmtsTmap} function, we know that $tmap'$ is the same as $newtm$ except for $newtm$ could have implicit widths and $tmap'$ containing only explicit widths.
+
     \item From the formalization of {\sf inferWidthsFun} and {\sf inferWidthFun}, we know that \typeofref$(v,tmap')$ is updated to the \datatype \ with the maximum width of the connected sub expressions. If denote $[e_0,\dots e_n]$ as the connected sub expressions and ${\tt map}\; (fun\; e_x \Rightarrow \typeofexp(e_x, tmap))\,[e_0,\dots e_n] = tel$, then the width of $v$ equals to the largest width of expression in $[e_0,\dots e_n]$, which is ${\sf sizeOfGtyp}({\sf maxFtList}(initt, tel))$.
 
     \item From Lemma4.7 we have ${\sf sizeOfGtyp}(\typeofref(v, tmap)) \geq {\sf sizeOfGtyp}({\sf maxFtList}(initt,tel))$. Meanwhile we have ${\sf sizeOfGtyp}(\typeofref(v, tmap')) = {\sf sizeOfGtyp}({\sf maxFtList}(initt,tel))$ from above, we can prove that $$\forall v, {\sf sizeOfGtyp}(\typeofref(v, tmap)) \geq {\sf sizeOfGtyp}(\typeofref(v, tmap')).$$
 
-%Áî±formalizationÁü•ÔºåÊàë‰ª¨‰ΩøÁî®list‰∏≠ÁöÑÊúÄÂ§ßÊù•Êõ¥Êñ∞ÔºåÂõ†Ê≠§tmap‰∏≠‰ªñÁöÑ‰ΩçÂÆΩÁ≠â‰∫élist‰∏≠ÁöÑÊúÄÂ§ß„ÄÇ‰ªéËÄåvm‚Äô‰∏≠ÁöÑ‰ΩçÂÆΩÊòØvm‰∏≠ÁöÑÊúÄÂ∞è
-%Ë°•inferWidthsStage2ÁöÑÂÆûÁé∞Ôºü
-    
+%”…formalization÷™£¨Œ“√« π”√list÷–µƒ◊Ó¥Û¿¥∏¸–¬£¨“Ú¥Àtmap÷–À˚µƒŒªøÌµ»”⁄list÷–µƒ◊Ó¥Û°£¥”∂¯vm°Ø÷–µƒŒªøÌ «vm÷–µƒ◊Ó–°
+%≤πinferWidthsStage2µƒ µœ÷£ø
+
 \end{itemize}
-    
+
 \end{enumerate}
