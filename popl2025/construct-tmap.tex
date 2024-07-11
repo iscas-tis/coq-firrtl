@@ -13,7 +13,7 @@ Note that, in addition to the typing information, the \emph{orientation} of comp
 %The rational behind 
 The orientation of components and references is defined: 
 (1) wires and registers: $\duplex$, (2) 
-inputs and nodes:\source, (3) outputs: \sink, 
+input ports and nodes: \source, (3) output ports: \sink,
 (4) reference $t[n]$: the same as that of $t$, (5) reference $x.f$ (where $f$ is a field): determined by the orientation of $x$ and the flipping status of the field $f$.  
  
 %\begin{itemize}
@@ -336,21 +336,21 @@ For instance, in the rule {\madeexplicit: \vtype}, if the $n$ ground-type sequen
 
 The mapping $tmap$ is defined by the procedure $\portsstmtstmap(pp, ss, tm)$ given in Fig.~\ref{fig:ports-stmts-tmap}, which 
 \begin{wrapfigure}{r}{0.3\textwidth} 
-%\centering
+\centering
 %\begin{tabular}{c}
 %[basicstyle=\footnotesize\ttfamily]
-\hspace{1cm}
+\begin{minipage}{0.25\textwidth}
 \begin{lstlisting}
-    input c: UInt<1>
-    wire x: SInt<4>
-    wire y: SInt<4>
-    when c
+  input c: UInt<1>
+  wire x: SInt<4>
+  wire y: SInt<4>
+  when c
       wire z: SInt
       z <= x
-    z <= y
-\end{lstlisting}
+  z <= y
+\end{lstlisting}\end{minipage}
 %\end{tabular}
-%\label{fig:example}
+\caption{Scoping error for \prettyll{z}\label{fig:example}}
 \end{wrapfigure}
 calls $\portstmap(pp, tm)$ to define a mapping $pmap$ which  intuitively produces an initial version for $tmap$ and $scope$, then calls $\stmtstmap$ %((pmap, pmap), ss, tm)$ 
 to update $tmap$ and $scope$. % (see Figure~\ref{fig:ports-stmts-tmap}). 
@@ -538,7 +538,7 @@ some (less important error handling) rules for $\portstmap$ and $\stmtstmap$ are
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 The procedure $\stmttmap$ %, defined in Fig.~\ref{fig:stmts-tmap}, 
-is the core to process the statement. %, the intuitions of which is as follows. 
+is the core to process a statement. %, the intuitions of which is as follows.
 %
 If $s$ is a declaration statement, $\stmttmap((tmap, scope), s, tm)$ utilizes $tm$ to instantiate the types in $s$ and updates $(tmap, scope)$ to $(tmap', scope')$. We distinguish different declaration statements. 
 \begin{itemize}
@@ -565,7 +565,7 @@ If $s$ is a declaration statement, $\stmttmap((tmap, scope), s, tm)$ utilizes $t
 	\item Case s = \prettyll{node x = e}. It checks $tmap(id(x)) = \svnone$, computes $t= \typeofexp(e, scope)$, and calls $\madeexplicit$
 	%(t, (id(x), 0), tm)$ 
 	to obtain $newt$. $(id(x), (newt, \source))$ is then added to $tmap$ and $scope$. %, and obtains the return value $(tmap', scope')$. 
-%	Note that in the function call $\typeofexp(e, scope)$, $scope$ instead of $tmap$ is used to check whether the references in $e$ are well-scoped. %Moreover, the orientation of a \prettyll{node} component is \source. 
+%	Note that in the function call $\typeofexp(e, scope)$, $scope$ instead of $tmap$ is used to check whether the references in $e$ are well-scoped. %Moreover, the orientation of a \prettyll{node} component is \source.
 %	(Cf.\ \stmttmap: node in Fig.~\ref{fig:stmts-tmap})
 \[
 	\inferii[\stmttmap: node]
@@ -582,7 +582,7 @@ If $s$ is a declaration statement, $\stmttmap((tmap, scope), s, tm)$ utilizes $t
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%	%
 \item Case s = \prettyll{reg  x: t clk  with: reset => (rsig, rval)}.
 	
-	We assume $\typeofexp(rsig, scope) = (\gtype, \asyncreset)$. It checks $tmap(id(x)) = \svnone$, $\typeofexp(clk, scope) \neq \svnone$, and $\typeofexp(rval, scope) \neq \svnone$, calls $\madeexplicit$ %(t, (id(x), 0), tm)$ 
+	We assume $\typeofexp(rsig, scope) = (\gtype, \asyncreset)$. It checks $tmap(id(x)) = \svnone$, $\typeofexp(clk, scope) \neq \svnone$, and $\typeofexp(rval, scope) \neq \svnone$, then it calls $\madeexplicit$ %(t, (id(x), 0), tm)$
 	to obtain $newt$.  $(id(x), (newt, \duplex))$ is added to both $tmap$ and $scope$. %, and obtains the return value $(tmap', scope')$. 
 %	Note that in $\typeofexp(clk, scope)$, $\typeofexp(rsig, scope)$ and $\typeofexp(rval, scope)$, $scope$, instead of $tmap$, is used to check that the references in $clk, rsig, rval$ are well-scoped. Moreover, the orientation of a \prettyll{reg} component is \duplex. (Cf. \stmttmap: reg-asyncreset in Fig.~\ref{fig:stmts-tmap})
 	%
