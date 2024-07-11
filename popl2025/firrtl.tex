@@ -141,11 +141,11 @@ m & ::= & \mbox{``\fnprettyll{module}''} \ id \{p\} \{s\}\\
 p & ::= & (\mbox{``\fnprettyll{input}''} \mid \mbox{``\fnprettyll{output}''})\ id\mbox{``:''}t \\
 %
  %\mbox{\bf Statment} &
- s & ::= & \mbox{``\fnprettyll{wire}''}\ id \mbox{``:''}t  \mid \mbox{``\fnprettyll{reg}''}\ id \mbox{``:''}t\ e [\mbox{``(\fnprettyll{with}:\{\fnprettyll{reset}=$>$(''} e\mbox{``,''} e \mbox{``)\})''}] \\
+ s & ::= & \mbox{``\fnprettyll{wire}''}\ id \mbox{``:''}t  \mid \mbox{``\fnprettyll{reg}''}\ id \mbox{``:''}t\ e [\mbox{``(\fnprettyll{with}:\{\fnprettyll{reset}{\tt =>}(''} e\mbox{``,''} e \mbox{``)\})''}] \\
  %&
   &   &  \mid
 %  \mid memory \mid
-  \mbox{``\fnprettyll{inst}''}\ id\ \mbox{``\fnprettyll{of}''}\ id\ \mid \mbox{``\fnprettyll{node}''}\ id\ \mbox{``=''} id\  \mid r \mbox{``$<$=''} e  \\
+  \mbox{``\fnprettyll{inst}''}\ id\ \mbox{``\fnprettyll{of}''}\ id\ \mid \mbox{``\fnprettyll{node}''}\ id\ \mbox{``{\tt =}''} id\  \mid r \mbox{``{\tt <=}''} e  \\
   &  & \mid r\ \mbox{``\fnprettyll{is invalid}''}  \mid \mbox{``\fnprettyll{when}''}\ e\mbox{``:''}\{s\} [\mbox{``\fnprettyll{else}:''} \{s\}] \mid \mbox{``\fnprettyll{skip}''}\\
 %\mid r \mbox{``$<$--''} e
 %
@@ -184,7 +184,7 @@ r & ::= & sr \mid r \mbox{``[''} e \mbox{``]''}\\
 %
 sr & ::= & id \mid sr\mbox{``.''}id \mid sr\mbox{``[''}int\mbox{``]''}\\
 %&
-w & ::= & \mbox{``$<$''} int \mbox{``$>$''}\\
+w & ::= & \mbox{``{\tt <}''} int \mbox{``{\tt >}''}\\
 %
 %&
 %binarypoint & = & \mbox{``<''}, \mbox{``<''}, int, \mbox{``>''}, \mbox{``>''};\\
@@ -538,11 +538,11 @@ and satisfies that in each module, each component is connected to at most once.
 {\small
 \[
 \begin{array}{l l l}
- s & ::= & \mbox{``\fnprettyll{wire}''}\ id\mbox{``:''}t  \mid \mbox{``\fnprettyll{reg}''}\ id\mbox{``:''}t\ e [\mbox{``(\fnprettyll{with}:\{\fnprettyll{reset}=$>$(''} e\mbox{``,''} e \mbox{``)\})''}] \\
+ s & ::= & \mbox{``\fnprettyll{wire}''}\ id\mbox{``:''}t  \mid \mbox{``\fnprettyll{reg}''}\ id\mbox{``:''}t\ e [\mbox{``(\fnprettyll{with}:\{\fnprettyll{reset}{\tt =>}(''} e\mbox{``,''} e \mbox{``)\})''}] \\
  %&
   &   &  \mid
 %  \mid memory \mid
-  \mbox{``\fnprettyll{inst}''}\ id\ \mbox{``\fnprettyll{of}''}\ id \mid \mbox{``\fnprettyll{node}''}\ id \mbox{``=''} id  \mid r \mbox{``$<$=''} e  \mid r\ \mbox{``\fnprettyll{is invalid}''}\mid \mbox{``\fnprettyll{skip}''}\\
+  \mbox{``\fnprettyll{inst}''}\ id\ \mbox{``\fnprettyll{of}''}\ id \mid \mbox{``\fnprettyll{node}''}\ id \mbox{``{\tt =}''} id  \mid r \mbox{``{\tt <=}''} e  \mid r\ \mbox{``\fnprettyll{is invalid}''}\mid \mbox{``\fnprettyll{skip}''}\\
 %
 %\mbox{\bf Expression} &
 e & ::= & (\mbox{``\fnprettyll{UInt}''} | \mbox{``\fnprettyll{SInt}''})\ w \mbox{``(''}int\mbox{``)''} \mid r \mid \mbox{``\fnprettyll{mux}(''}e\mbox{``,''} e\mbox{``,''} e\mbox{``)''}
@@ -554,7 +554,7 @@ r & ::= & sr \mid r \mbox{``[''} e \mbox{``]''}\\
 %
 sr & ::= & id \mid sr\mbox{``.''}id \mid sr\mbox{``[''}int\mbox{``]''}\\
 %&
-w & ::= & \mbox{``$<$''} int \mbox{``$>$''}\\
+w & ::= & \mbox{``{\tt <}''} int \mbox{``{\tt >}''}\\
 %
 %&
 %binarypoint & = & \mbox{``<''}, \mbox{``<''}, int, \mbox{``>''}, \mbox{``>''};\\
