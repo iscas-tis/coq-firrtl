@@ -121,11 +121,93 @@ $s(and(e_1, e_2))$ is the bitwise and of $bv_{\theta\bwidth{\max(n_1, n_2)}(s(e_
 %%%%%%%%%%%%%%
 %%%%%%%%%%%%%%
 
+Next, let us define the rules for $\updatecm$, $\updatecmref$, and $\invalidateref$.
 
-We explain the rules for $\updatecm$, $\updatecmref$, and $\invalidateref$ in Fig.~\ref{tab:update-vm-ct}.
+The function $\updatecm(cm_1, id, ft, ls)$ is defined the following rule. It updates $cm_1$ into $cm_2$ by modifying $cm_1(v, m+n)$ to $ls[n]$ for each $0 \le n < sz$, where $id = (v, m)$, $sz = \sizeofftype(ft)$. 
+%
+\begin{gather*}
+		\infer[]
+		{\updatecm(cm_1, id, ft, ls) = cm_2}
+		{
+			\begin{array}{c}
+				id = (v, m) \wedge \sizeofftype(ft) = sz \\
+				\forall n.\ 0 \le n < sz \Rightarrow cm_2(v, m+n) = ls[n] \\
+				\forall v', n'.\ (v' \neq v \vee n' < m \vee n' \ge m+sz) \Rightarrow cm_2(v', n') = cm_1(v', n') \\
+			\end{array}
+		}
+\end{gather*}	
+
+The function $\updatecmref(cm_1, id, ft, ls, id', ft', ls')$ is defined the following rule. It first calls $lgt = \listgtyperef(ft, false)$ to compute a list $lgt$ from $ft$ (the type of $r$), where each element in $lgt$ is a pair $(gt, flipped)$ such that $gt \in \gtypes$ and $flipped$ is a Boolean value denoting whether the corresponding field is flipped or not. Then for each $n: 0 \le n < sz$, it updates $cm_1(v, m+n)$ to $ls'[n]$ if $lgt[n] = (\_, \lfalse)$, and updates $cm_1(v', m'+n)$ to $ls[n]$ if $lg[n] = (\_, \ltrue)$, where $id = (v, m)$ and $id' = (v', m')$. 
+%
+\begin{gather*}
+		\infer[]
+		{\updatecmref(cm_1, id, ft, ls, id', ft', ls') = cm_2}
+		{
+			\begin{array}{c}
+				id = (v, m) \wedge id' = (v', m') \hspace{15pt} \sizeofftype(ft) = sz \hspace{15pt} \listgtyperef(ft, \lfalse) = lgt \\
+				\forall n.\ (0 \le n < sz \wedge lgt[n] = (\_, \lfalse)) \Rightarrow \\
+				\big(
+				%    \begin{array}{l}
+					cm_2(v, m+n) = ls'[n] \wedge ((v',m') \neq (v, m)  \rightarrow cm_2(v', m' + n) = cm_1(v', m'+n)) 
+					%    \end{array}
+				\big)
+				\\ 
+				\forall n.\ (0 \le n < sz \wedge lgt[n] = (\_, \ltrue)) \Rightarrow \\
+				\big(
+				%    \begin{array}{l}
+					cm_2(v', m'+n) = ls[n] \wedge  
+					((v, m) \neq (v', m')  \rightarrow cm_2(v, m + n) = cm_1(v, m+n))
+					%    \end{array}
+				\big)
+				\\
+				\forall v'', n''.\ 
+				\left(
+				\begin{array}{l}
+					(v'' \neq v \vee n'' < m \vee n'' \ge m+sz)\ \wedge \\
+					(v'' \neq v' \vee n'' < m' \vee n'' \ge m'+sz)
+				\end{array}
+				\right)
+				\Rightarrow cm_2(v'', n'') = cm_1(v'', n'') 
+			\end{array}
+		}
+\end{gather*}
+
+The function $\invalidateref(cm_1, id, ft, ori)$ is defined by the following rule. It first calls $lgt = \listgtyperef(ft, false)$ to compute a list $lgt$ from $ft$ (the type of $r$), where each element in $lgt$ is a pair $(gt, \flipped)$ such that $gt \in \gtypes$ and $\flipped$ is a Boolean value denoting whether the corresponding field is flipped or not. Then for each $n: 0 \le n < sz$, it updates $cm_1(v, m+n)$ to $\svinvalid$ if either ($lgt[n] = (\_, \lfalse)$ and $ori = \duplex$ or $\sink$), or ($lgt[n] = (\_, \ltrue)$ and $ori = \duplex$ or $\source$), where $id = (v, m)$. 
+%
+\begin{gather*}
+		\infer[]
+		{\invalidateref(cm_1, id, ft, ori) = cm_2}
+		{
+			\begin{array}{c}
+				id = (v, m) \hspace{15pt} \sizeofftype(ft) = sz \hspace{15pt} \listgtyperef(ft, false) = lgt \\
+				\forall n.\ 0 \le n < sz \wedge 
+				\left(
+				\begin{array}{l}
+					(lgt[n] = (\_, false) \wedge (ori = \sink \vee ori = \duplex))\ \vee \\
+					(lgt[n] = (\_, true) \wedge (ori = \source \vee ori = \duplex))
+				\end{array}
+				\right) \Rightarrow\\
+				\hspace{1cm}  cm_2(v, m+n) = \svinvalid  \\
+				\forall n.\ 0 \le n < sz \wedge 
+				\left(
+				\begin{array}{l}
+					(lgt[n] = (\_, false) \wedge ori = \source)\ \vee \\
+					(lgt[n] = (\_, true) \wedge ori = \sink)
+				\end{array}
+				\right)  
+				\Rightarrow \\
+				cm_2(v, m+n) = cm_1(v, m+n)  \\
+				\forall v', n'.\ (v' \neq v \vee n' < m  \vee n' \ge m+sz)  \rightarrow cm_2(v', n') = cm_1(v', n')
+			\end{array}
+		}
+\end{gather*}
+
+
+%%%%%%%%%%% the original updatecm and updatecmref, invalidateref
+\hide{
 \begin{itemize}
 	\item The function $\updatecm(cm_1, id, ft, ls)$ updates $cm_1$ into $cm_2$ by modifying $cm_1(v, m+n)$ to $ls[n]$ for each $0 \le n < sz$, where $id = (v, m)$, $sz = \sizeofftype(ft)$. 
-	%
+
 	\item The function $\updatecmref(cm_1, id, ft, ls, id', ft', ls')$ first calls $lgt = \listgtyperef(ft, false)$ to compute a list $lgt$ from $ft$ (the type of $r$), where each element in $lgt$ is a pair $(gt, flipped)$ such that $gt \in \gtypes$ and $flipped$ is a Boolean value denoting whether the corresponding field is flipped or not. Then for each $n: 0 \le n < sz$, it updates $cm_1(v, m+n)$ to $ls'[n]$ if $lgt[n] = (\_, \lfalse)$, and updates $cm_1(v', m'+n)$ to $ls[n]$ if $lg[n] = (\_, \ltrue)$, where $id = (v, m)$ and $id' = (v', m')$. 
 	%
 	\item The function $\invalidateref(cm_1, id, ft, ori)$ first calls $lgt = \listgtyperef(ft, false)$ to compute a list $lgt$ from $ft$ (the type of $r$), where each element in $lgt$ is a pair $(gt, \flipped)$ such that $gt \in \gtypes$ and $\flipped$ is a Boolean value denoting whether the corresponding field is flipped or not. Then for each $n: 0 \le n < sz$, it updates $cm_1(v, m+n)$ to $\svinvalid$ if either ($lgt[n] = (\_, \lfalse)$ and $ori = \duplex$ or $\sink$), or ($lgt[n] = (\_, \ltrue)$ and $ori = \duplex$ or $\source$), where $id = (v, m)$. 
@@ -206,7 +288,9 @@ We explain the rules for $\updatecm$, $\updatecmref$, and $\invalidateref$ in Fi
 	\caption{$\updatecm$, $\updatecmref$, and $\invalidateref$}
 	\label{tab:update-vm-ct}
 \end{figure}
-
+}
+%%%%%%%%%%%
+%%%%%%%%%%%
 
 
 The function $\listgexp(e, ft)$ is defined in Fig.~\ref{fig:list-gexp}. 
@@ -228,25 +312,28 @@ Let us explain the rules $\listgexp: mux$ and $\listgexp: vector$. The explanati
 				%    	ft = (ground, t) \wedge l = [e]
 				%    \end{array}
 			%    }
+		\quad
 		\\[1ex]
 		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 		\infer[\listgexp: mux]
 		{\listgexp(e, ft) = l}
 		{
 			\begin{array}{c}
-				e = \mux(c, e1, e2) \wedge \listgexp(e1, ft) = l1 \wedge \listgexp(e2, ft) = l2\  \wedge\\
-				length(l1) = length(l2) \wedge l = \mux(c, l1, l2)
+				e = \mux(c, e1, e2) \hspace{15pt} \listgexp(e1, ft) = l1 \hspace{15pt} \listgexp(e2, ft) = l2\  \wedge\\
+				length(l1) = length(l2) \hspace{15pt} l = \mux(c, l1, l2)
 			\end{array}
 		}
+		\quad
 		\\[1ex]
 		\infer[\listgexp: vector]
 		{\listgexp(e, ft) = l}
 		{
 			\begin{array}{c}
-				e= r[n] \wedge \typeofref(r) = (ft', ori) \wedge \sizeofftype(ft) = sz \\
-				l' = \listgexp(r, ft') \wedge l = (l'[0])[n]\ ++ \ \cdots \ ++ (l'[sz-1])[n]
+				e= r[n] \hspace{15pt} \typeofref(r) = (ft', ori) \hspace{15pt} \sizeofftype(ft) = sz \\
+				l' = \listgexp(r, ft') \hspace{15pt} l = (l'[0])[n]\ ++ \ \cdots \ ++ (l'[sz-1])[n]
 			\end{array}
 		}
+		\quad
 		\\[1ex]
 		\infernone[\listgexp: bundle]
 		{\listgexp(e,  (bundle, ff) ) = \listgexpfields(e, ff)}
@@ -255,7 +342,8 @@ Let us explain the rules $\listgexp: mux$ and $\listgexp: vector$. The explanati
 				%    	 ft = (bundle, ff) \wedge l = \listgexpfields(e, ff)
 				%    \end{array}
 			%    }
-		\\[1ex]
+		\quad
+		\\[2ex]
 		\infernone[\listgexpfields: nil]
 		{\listgexpfields(e, \nil) = []}
 		%    {
@@ -264,6 +352,7 @@ Let us explain the rules $\listgexp: mux$ and $\listgexp: vector$. The explanati
 				%    \end{array}
 			%    }
 		%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+		\quad
 		\\[1ex]
 		\infernone[\listgexpfields: $\neq$nil]
 		{\listgexpfields(e, (f, b, t) ff1) = \listgexp(e.f, t)\ ++\ \listgexpfields(e, ff1)}
@@ -277,28 +366,122 @@ Let us explain the rules $\listgexp: mux$ and $\listgexp: vector$. The explanati
 	\label{fig:list-gexp}
 \end{figure}
 
-The relations $\typecompatible(ft, ft', \flipped)$ and  $\typecompatiblefields(\myvec{f}, \myvec{f'}, \flipped)$ are defined in Fig.~\ref{fig:type-compatible}. Let us explain the rules for them. 
+The relations $\typecompatible(ft, ft', \flipped)$ and  $\typecompatiblefields(\myvec{f}, \myvec{f'}, \flipped)$ are defined by the following rules. 
 \begin{itemize}
 	\item In the rule ``exp-gt'', $ft$ and $ft'$ are explicit ground types, that is, types from $\{\uint, \sint\} \times \Nat \cup \{\clock, \reset, \asyncreset\}$, and required to be equal. 
 	%
+	\begin{gather*}
+		\infer[exp-gt]
+		{\typecompatible(ft, ft', \flipped)}
+		{
+			\begin{array}{c}
+				ft = (\gtype, t) \hspace{15pt} ft' = (\gtype, t) \\
+				t \in \{\uint, \sint\} \times \Nat \cup \{\clock, \reset, \asyncreset\}
+			\end{array}
+		}
+	\end{gather*}
 	\item In the rule ``imp-gt-1'',  $ft = (\gtype, t)$, $ft' = (\gtype, t')$, $t$ is implicit and $t'$ is explicit, that is, either $t= (\uintimp, n)$ and $t' = (\uint, n')$, or $t= (\sintimp, n)$ and $t' = (\sint, n')$.  If $\flipped = \lfalse$, then the connection flow is from $ft'$ to $ft$, thus it is required that $n \ge n'$. 
+	\begin{gather*}
+		\infer[imp-gt-1]
+		{\typecompatible(ft, ft', \flipped)}
+		{
+			\begin{array}{c}
+				ft = (\gtype, t) \hspace{15pt} ft' = (\gtype, t') \\
+				(t = (\uintimp, n) \wedge t' = (\uint, n')) \vee (t = (\sintimp, n) \wedge t' = (\sint, n')) \\
+				\flipped = \lfalse \rightarrow n \ge n'
+			\end{array}
+		}	
+	\end{gather*}	
 	%
 	\item In the rule ``imp-gt-2'',  $ft = (\gtype, t)$, $ft' = (\gtype, t')$, $t$ is explicit and $t'$ is implicit, that is, either $t= (\uint, n)$ and $t' = (\uintimp, n')$, or $t= (\sint, n)$ and $t' = (\sintimp, n')$.  If $\flipped = \ltrue$, then the connection flow is from $ft$ to $ft'$, thus it is required $n \le n'$. 
 	%
+	\begin{gather*}
+		\infer[imp-gt-2]
+		{\typecompatible(ft, ft', \flipped)}
+		{
+			\begin{array}{c}
+				ft = (\gtype, t) \hspace{15pt} ft' = (\gtype, t') \\
+				(t = (\uint, n) \wedge t' = (\uintimp, n')) \vee (t = (\sint, n) \wedge t' = (\sintimp, n')) \\
+				\flipped = \ltrue \rightarrow n \le n'
+			\end{array}
+		}	
+	\end{gather*}
 	\item In the rule ``imp-gt-3'',  $ft = (\gtype, t)$, $ft' = (\gtype, t')$, both $t$ and $t'$ are implicit, that is, $t= (\uintimp, n)$ and $t' = (\uintimp, n')$, or $t= (\sintimp, n)$ and $t' = (\sintimp, n')$.  If $\flipped = \lfalse$, then $n \ge n'$, and $n \le n'$ otherwise. 
 	%
+	\begin{gather*}
+		\infer[imp-gt-3]
+		{\typecompatible(ft, ft', \flipped)}
+		{
+			\begin{array}{c}
+				ft = (\gtype, t) \hspace{15pt} ft' = (\gtype, t') \\
+				(t = (\uintimp, n) \wedge t' = (\uintimp, n')) \vee (t = (\sintimp, n) \wedge t' = (\sintimp, n')) \\
+				(\flipped = \lfalse \wedge n \ge n') \vee (\flipped = \ltrue \wedge n \le n')
+			\end{array}
+		}	
+	\end{gather*}
 	\item In the rule ``vector'', $ft = (\vtype, t[n])$ and $ft' = (\vtype, t'[n])$, then it is required that $t$ and $t'$ is compatible, that is, $\typecompatible(t, t', \flipped)$ holds. 
 	%
+	\begin{gather*}
+		\infer[vector]
+		{\typecompatible(ft, ft', \flipped)}
+		{
+			\begin{array}{c}
+				ft = (\vtype, t[n]) \hspace{15pt} ft' = (\vtype, t'[n]) \hspace{15pt} \typecompatible(t, t', \flipped)
+			\end{array}
+		}	
+	\end{gather*}
 	\item In the rule ``bundle'', $ft = (\btype, \myvec{f})$ and $ft' = (\btype, \myvec{f'})$. Then it is required that $\typecompatiblefields(\myvec{f}, \myvec{f'}, \flipped)$ holds. 
 	%
+	\begin{gather*}
+		\infer[bundle]
+		{\typecompatible(ft, ft', \flipped)}
+		{
+		\begin{array}{c}
+			ft = (\btype, \myvec{f}) \hspace{15pt} ft' = (\btype, \myvec{f'}) \hspace{15pt}  \typecompatiblefields(\myvec{f}, \myvec{f'}, \flipped)
+		\end{array}
+		}	
+	\end{gather*}
 	\item In the rule ``nil'', $\typecompatiblefields(\myvec{f}, \myvec{f'}, \flipped)$ holds iff $\myvec{f} = \myvec{f'} = \nil$. 
 	%
+	\begin{gather*}
+		\infer[nil]
+		{\typecompatiblefields(\myvec{f}, \myvec{f'}, \flipped)}
+		{
+			\begin{array}{c}
+				\myvec{f} = \nil \hspace{15pt} \myvec{f'} = \nil
+			\end{array}
+		}	
+	\end{gather*}
 	\item In the rule ``$\neq$nil-false'', $\myvec{f} = (x, b, t)\ \myvec{f_1}$, $ff' = (x', b, t')\ \myvec{f'_1}$, and $b = \lfalse$. Then it is required that $\typecompatible(t, t', \flipped)$ and $\typecompatiblefields(\myvec{f_1}, \myvec{f'_1}, \flipped)$ hold. 
 	%
+	\begin{gather*}
+		\infer[$\neq$nil-false]
+		{\typecompatiblefields(\myvec{f}, \myvec{f'}, \flipped)}
+		{
+			\begin{array}{c}
+				\myvec{f} = (x, b, t)\ \myvec{f_1} \hspace{15pt} \myvec{f'} = (x', b, t')\ \myvec{f'_1} \hspace{15pt} b = \lfalse \\
+				\typecompatible(t, t', \flipped) \hspace{15pt}
+				\typecompatiblefields(\myvec{f_1}, \myvec{f'_1}, \flipped)
+			\end{array}
+		}	
+	\end{gather*}
 	\item In the rule ``$\neq$nil-true'', $\myvec{f} = (x, b, t)\ \myvec{f_1}$, $\myvec{f'} = (x', b, t')\ \myvec{f'_1}$, and $b = \ltrue$. Then it is required that $\typecompatible(t, t', \neg \flipped)$ and $\typecompatiblefields(\myvec{f_1}, \myvec{f'_1}, \flipped)$  hold. Note that because $b = \ltrue$, that is, $x$ and $x'$ are flipped fields, the value $\neg \flipped$, instead of $\flipped$, is used in $\typecompatible(t, t', \neg \flipped)$. 
+	\begin{gather*}
+		\infer[$\neq$nil-true]
+		{\typecompatiblefields(\myvec{f}, \myvec{f'}, \flipped)}
+		{
+			\begin{array}{c}
+				\myvec{f} = (x, b, t)\ \myvec{f_1} \hspace{15pt} \myvec{f'} = (x', b, t') \myvec{f'_1} \hspace{15pt} b = \ltrue \\
+				\typecompatible(t, t', \neg \flipped) \hspace{15pt}
+				\typecompatiblefields(\myvec{f_1}, \myvec{f'_1}, \flipped)
+			\end{array}
+		}	
+	\end{gather*}
 \end{itemize}
 
-
+%%%%%%%%%%%% the original definition of typecompatible and typecompatiblefields
+%%%%%%%%%%%%
+\hide{
 %%%%%% typecompatible
 \begin{figure}[htbp]
 	\begin{gather*}
@@ -391,33 +574,171 @@ The relations $\typecompatible(ft, ft', \flipped)$ and  $\typecompatiblefields(\
 	\caption{$\typecompatible$ and $\typecompatiblefields$}
 	\label{fig:type-compatible}
 \end{figure}
-
+}
+%%%%%%%%%%%%
+%%%%%%%%%%%%
 
 The functions $\typeofref(r, tmap)$ and $\listgtyperef(ft, \flipped)$ compute the type and list of ground types respectively for references. 
 Moreover, $\typeofref(r, tmap)$ calls $\typeoffield(f, \myvec{f'}, ori)$ to compute $(t, ori')$ such that $ori$ is the orientation of $\myvec{f'}$, $t$ is the type of $f$ in $\myvec{f'}$, and $ori'$ is the orientation of $f$. 
-They are defined in Fig.~\ref{fig:type-ref} and Fig.~\ref{fig:list-ftype-fields}.
-Let us explain some rules here. 
+They are defined by the following rules.
+% Fig.~\ref{fig:type-ref} and Fig.~\ref{fig:list-ftype-fields}.
+%Let us explain some rules here. 
 \begin{itemize}
+	\item In the rule ``{\typeofref: id}'', if $r$ is a name $x$, then $\typeofref(r, tmap) $ is defined as $tmap(id(x))$. 
+	\begin{gather*}
+		\inferii[\typeofref: id]
+		{\seqq{\typeofref(r, tmap) = (ft, ori)}}
+		{\seqq{r = x}} {\seqq{tmap(id(x)) = (ft, ori)}}
+	\end{gather*}
+	%
 	\item In the rule ``{\typeofref: vector}'', if $r= r'[n]$, then it recursively calls $\typeofref(r', tmap)$ to obtain $(t[m], ori)$. If $n  < m$, then it returns $(t, ori)$. 
 	%
+	\begin{gather*}
+		\inferiii[\typeofref: vector]
+		{\seqq{\typeofref(r, tmap) = (t, ori)}}
+		{\seqq{r = r'[n]}} {\seqq{\typeofref(r', tmap) =  (t[m], ori)}} {\seqq{n < m}}
+	\end{gather*}
+	
 	\item In the rule ``{\typeofref: field}'', if $r = r'.f$, then it computes $(ft', ori')= \typeofref(r', tmap)$ and returns $\typeoffield(f, ft', ori')$. 
 	%
+	\begin{gather*}
+		\infer[\typeofref: field]
+		{\seqq{\typeofref(r, tmap) = (ft, ori)}}
+		{
+		\begin{array}{c}
+			\seqq{r = r'.f} \hspace{15pt} \typeofref(r', tmap) = (ft', ori') \\
+			 \typeoffield(f, ft', ori') = (ft, ori)
+		\end{array}
+		}
+	\end{gather*}
+%
+	\item In the rule ``{\typeoffield: nil}'', if $\myvec{f'} = \nil$, then it returns $\svnone$. 
+	\begin{gather*}	
+	\infer[\typeoffield: nil]
+	{\seqq{\typeoffield(f, \myvec{f'}, ori) = \svnone}}
+	{\seqq{\myvec{f'} = \nil}}
+	\end{gather*}
+%	
+	\item In the rule ``\typeoffield: neq'', if $\myvec{f'} = (f_1, b, t)\ \myvec{f''}$ and  $f \neq f_1$, then it returns the result $\typeoffield(f, \myvec{f''}, ori)$. 
+	\begin{gather*}
+	\infer[\typeoffield: neq]
+	{\seqq{\typeoffield(f, \myvec{f'}, ori) = (ft, ori')}}
+	{
+	\begin{array}{c}
+		\myvec{f'} = (f_1, b, t)\ \myvec{f''} \hspace{15pt} f \neq f_1 \hspace{15pt}
+		\typeoffield(f, \myvec{f''}, ori) = (ft, ori')
+	\end{array}
+	}	
+	\end{gather*}
 	\item In the rule ``{\typeoffield: eq-1}'', if $\myvec{f'} = (f_1, b, t)\ \myvec{f''}$ and $f = f_1$, moreover, $b = \lfalse$ or ($b = \ltrue$ and $ori = \duplex$), then  it returns $(t, ori)$. 
 	%
+	\begin{gather*}
+	\infer[\typeoffield: eq-1]
+	{\seqq{\typeoffield(f, \myvec{f'}, ori) = (t, ori)}}
+	{
+	\begin{array}{c}
+		\myvec{f'} = (f_1, b, t)\ \myvec{f''} \hspace{15pt} f = f_1  \hspace{15pt}
+		b = \lfalse \vee (b = \ltrue \wedge ori = \duplex)
+	\end{array}
+	}
+	\end{gather*}
+
 	\item In the rule ``{\typeoffield: eq-2}'', if $\myvec{f'} = (f_1, b, t)\ \myvec{f''}$ and $f = f_1$, then it returns $(t, \sink)$ if $b = \ltrue$ and $ori = \source$. 
 	%
-	\item In the rule ``{\listgtyperef: ground}'', if $ft = (\gtype, gt)$, then it returns $[(gt, \flipped)]$. 
-	%
+	\begin{gather*}
+	\infer[\typeoffield: eq-2]
+	{\seqq{\typeoffield(f, \myvec{f'}, ori) = (t, \sink)}}
+	{
+	\begin{array}{c}
+		\myvec{f'} = (f_1, b, t)\ \myvec{f''} \hspace{15pt} f = f_1  \hspace{15pt}
+		b = \ltrue \hspace{15pt} ori = \source
+	\end{array}
+	}
+	\end{gather*}
+%
+	\item In the rule ``\typeoffield: eq-3'', if $\myvec{f'} = (f_1, b, t)\  \myvec{f''} $ and $f = f_1$, then it returns $(t, \source)$ if $b = \ltrue$ and $ori = \sink$. 
+	\begin{gather*}
+	\infer[\typeoffield: eq-3]
+	{\seqq{\typeoffield(f, \myvec{f'}, ori) = (t, \source)}}
+	{
+	\begin{array}{c}
+ 		\myvec{f'} = (f_1, b, t)\  \myvec{f''} \hspace{15pt} f = f_1 \hspace{15pt} b = \ltrue \hspace{15pt} ori = \sink
+	\end{array}
+	}
+	\end{gather*}
+%	
+	\item In the rule  ``\listgtyperef: ground'',  it simply returns $[(gt, \flipped)]$.
+	
+	\begin{gather*}
+	\infer[\listgtyperef: ground]
+	{
+	 \seqq{\listgtyperef((\gtype, gt), \flipped)  = [(gt, \flipped)]}
+	}
+	{
+	}
+	\end{gather*}
+%	
 	\item In the rule ``{\listgtyperef: vector}'', if $ft = (\vtype, ft'[m])$ and $\listgtyperef(ft', \flipped) = l'$, then it returns $m$ copies of $l'$. %$\underbrace{l' \ ++\ \cdots\ ++\ l'}_{m}$.   
 	%
+	
+	\begin{gather*}
+	\infer[\listgtyperef: vector]
+	{
+	\seqq{\listgtyperef((\vtype, ft'[m]), \flipped) = \conc{m}(\listgtyperef(ft', \flipped))}
+	}
+	{ 
+	}
+	\end{gather*}
+%
 	\item In the rule ``{\listgtyperef: bundle}'', if $ft= (\btype, \myvec{f})$, then it returns 
-	$$\listgtypereffields(\myvec{f}, \flipped).$$ 
+	$\listgtypereffields(\myvec{f}, \flipped)$.
 	%
+	
+	\begin{gather*}
+		\infer[\listgtyperef: bundle]
+		{
+		 \listgtyperef(\btype, \myvec{f}, \flipped) =  \listgtypereffields(\myvec{f}, \flipped)
+		}
+		{
+		}
+	\end{gather*}
+%	
+	\item In the rule ``\listgtypereffields: nil'', it returns the empty list. 
+	
+	\begin{gather*}
+		\infernone[\listgtypereffields: nil]
+	{\seqq{\listgtypereffields(\nil, \flipped) = []}}
+	\end{gather*}	
+%
+	\item In the rule ``{\listgtypereffields: $\neq$nil-1}'', if $\myvec{f} = (\_, \lfalse, ft')\  \myvec{f'}$, then it returns the concatenation of $\listgtyperef(ft', \flipped)$ and $\listgtypereffields(\myvec{f'}, \flipped)$. 
+	\begin{gather*}
+	\infer[\listgtypereffields: $\neq$nil-1]
+	{\seqq{\listgtypereffields(\myvec{f}, \flipped) = l'\ {++}\ l''}}
+	{
+		\begin{array}{c}
+			\myvec{f} = (\_, \lfalse, ft')\  \myvec{f'} \hspace{15pt} \listgtyperef(ft', \flipped) = l' \\
+			 \listgtypereffields(\myvec{f'}, \flipped) = l''
+		\end{array}
+	}
+	\end{gather*}	
+%
 	\item In the rule ``{\listgtypereffields: $\neq$nil-2}'', if   $\myvec{f} = (\_, \flipped', ft')\ \myvec{f'}$ and $\flipped' = \ltrue$, then it calls $\listgtyperef(ft', \neg \flipped)$ and $\listgtypereffields(\myvec{f'}, \flipped)$ to get $l'$ and $l''$ respectively, and finally returns $l' \ ++\ l''$. Note that $\neg \flipped$, instead of $\flipped$, is used in $\listgtyperef(ft', \neg \flipped)$ since $\flipped' = \ltrue$. 
+	\begin{gather*}
+	\infer[\listgtypereffields: $\neq$nil-2]
+	{\seqq{\listgtypereffields(\myvec{f}, \flipped) = l'\ {++}\ l''}}
+	{
+		\begin{array}{c}
+			\myvec{f} = (\_, \ltrue, ft')\  \myvec{f'} \hspace{15pt} \listgtyperef(ft', \neg \flipped) = l' \\
+			 \listgtypereffields(\myvec{f'}, \flipped) = l''
+		\end{array}
+	}
+	\end{gather*}
 \end{itemize}
 
 
-
+%%%%% removed 
+%%%%% removed 
+\hide{
 %%%%%% typeofref
 \begin{figure}[htbp]
 	\def\defaultHypSeparation{\hskip 10pt}
@@ -593,3 +914,5 @@ Let us explain some rules here.
 \caption{$\listgtyperef$ and $\listgtypereffields$}
 \label{fig:list-ftype-fields}
 \end{figure}
+}
+
