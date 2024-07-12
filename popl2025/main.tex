@@ -320,7 +320,7 @@ FIRRTL features a multitude of high-level, domain-specific language constructs
 which facilitate circuit design considerably, but have to be removed by a sequence of lowering transformations,
 resulting in LoFIRRTL which is close to RTL Verilog.
 %
-This paper presents VeFir, a framework to formally reason about programs in FIRRTL and its lowering transformations. We provide a denotational semantics for FIRRTL, where the LoFIRRTL module is represented by a pair of type and connection mappings, and we define a conformance relation between a LoFIRRTL module and a HiFIRRTL program. As such, the latter is interpreted as a set of LoFIRRTL modules which conform to it.
+This paper presents VeFir, a framework to formally reason about programs in FIRRTL and its lowering transformations. We provide a denotational semantics for FIRRTL, where the LoFIRRTL (Low FIRRTL) module is represented by a pair of type and connection mappings, and we define a conformance relation between a LoFIRRTL module and a FIRRTL program. As such, the latter is interpreted as a set of LoFIRRTL modules which conform to it.
 We formalize three key lowering transformations for FIRRTL, i.e., InferWidths, ExpandConnect and ExpandWhens,
 and specify their functional correctness based on the semantics. We then verify formally that these transformations preserve the semantics of a FIRRTL program. All of the formalizations and proofs are mechanized in the interactive theorem prover Coq. On top, we extract an OCaml FIRRTL compiler, which is verified by construction and is validated against the official MLIR FIRRTL compiler on a benchmark suite comprising 113 FIRRTL programs.
 %
