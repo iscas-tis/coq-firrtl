@@ -16,7 +16,7 @@ $$
 Note here a function $\madeimplicit(tm, M)$ is used here to transform $tm$ where its range is a subset of $\{\uint, \sint\} \times \Nat$ into a $tm'$ where $\uint$ (resp. $\sint$) is replaced by $\uintimp$ (resp. $\sintimp$) if the corresponding ground-type component is flattened from some component in $M$ where the widths are implicit. 
 %
 
-The first formula states that if the pair $(tm, cm)$ conforms to the program $\inferwidths(M)$, then the pair $(\madeimplicit(M), cm)$ should conform to the original program $M$.
+The first formula states that if the pair $(tm, cm)$ conforms to the program $\inferwidths(M)$, then the pair $(\madeimplicit(tm, M), cm)$ should conform to the original program $M$.
 The second formula, on the other hand, specifies that the widths inferred by $\inferwidths(M)$ are actually the minimum widths that can be assigned to the implicit-width components in $M$ so that all the width constraints brought upon by the connect statements are respected. 
 
 %Since the $tm'$ comform to {\sf inferWidths(M)} contains only explicit typing information.
