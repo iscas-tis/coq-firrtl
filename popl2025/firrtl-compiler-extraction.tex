@@ -15,7 +15,7 @@ typically, high-level circuit design generators in Chisel are compiled
 and executed using the convertor \textsf{ChiselStage} of the Chisel compiler framework,
 resulting in {\firrtl} programs, which in turn are compiled into {\lofirrtl} programs by a {\firrtl} compiler.
 The {\lofirrtl} programs are further transformed into circuits in synthesizable Verilog using, e.g.,
-{\sf firtool}, a tool provided with CIRCT.
+{\firtool}, a tool provided with CIRCT.
 
 To bridge the input and output gap between our OCaml {\firrtl} compiler and other tools, we develop
 a {\firrtl} parser and a {\lofirrtl} emitter both in OCaml.
@@ -23,7 +23,7 @@ We implement the parser by defining the grammar of {\firrtl} in the BNF-like for
 semantic-actions to produce the abstract syntax tree representation of the {\firrtl} program in the OCaml types,
 which can be processed by our OCaml {\firrtl} compiler.
 The {\lofirrtl} emitter visits the abstract syntax tree representation of the LoFIRRTL program
-and prints it in the MLIR syntax\footnote{https://mlir.llvm.org} which can be processed by {\sf firtool}.
+and prints it in the MLIR syntax\footnote{https://mlir.llvm.org} which can be processed by {\firtool}.
 
  %
 %
