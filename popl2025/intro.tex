@@ -44,7 +44,7 @@ To the best our knowledge, the only exception is \cite{HarrisonHA21}, where a co
 In general, a framework where programs in {\hifirrtl} and its lowering transformations can be  reasoned about formally
 %is still elusive. %The establishment of 
 %Such a framework would require
-requires at least (1) a mechanized semantics of both {\hifirrtl} and {\lofirrtl},
+requires at least (1) a mechanized semantics of {\hifirrtl},
 %validation of the conformance of the semantics to the FIRRTL reference interpreter,
 (2) formalization of %HiFIRRTL and its 
 the lowering transformations (aka compilation passes) from {\hifirrtl} to {\lofirrtl}, together with (3) the %as well as 
@@ -59,9 +59,9 @@ transformations. %In this work, we present for the first time such a framework. 
 %In this work, we fill in this gap and establish a general framework called Vefirrtl for formally reasoning about programs in FIRRTL and its lowering transformations. Specifically, we make the following major contributions.
 
 For (1), we define a denotational semantics for \hifirrtl.
-We represent a \lofirrtl program by a pair $(tm, cm)$ of type and connection mappings, and define a conformance relation between a {\lofirrtl} module and a {\hifirrtl} program $M$, namely, $(tm, cm)\models M$.
-As such, the semantics $M$, i.e., $\llbracket M\rrbracket$  is interpreted as all $(tm,cm)$ such that $(tm, cm)\models M$.
-The main challenge is that there is a semantics gap between {\hifirrtl} and {\lofirrtl} programs:
+We represent a {\lofirrtl} program by a pair $(tm, cm)$ of type and connection mappings, and define a conformance relation between a {\lofirrtl} module and a {\hifirrtl} program $M$, namely, $(tm, cm)\models M$.
+As such, the semantics $M$, i.e., $\llbracket M\rrbracket$  is interpreted as the set of $(tm,cm)$ such that $(tm, cm)\models M$.
+The main challenge is that there is a abstraction-level gap between {\hifirrtl} and {\lofirrtl} programs:
 the former embrace high-level constructs such as aggregate types (i.e., bundle and vector types), implicit bit-widths for their components, and conditional statements (when),
 whereas the latter are very close to circuits where all components are of ground type and all bit-widths must be explicitly given.
 
@@ -71,13 +71,12 @@ whereas the latter are very close to circuits where all components are of ground
 For (2), we formalize the three key lowering transformations, i.e., InferWidths, ExpandConnect and ExpandWhens,
 and we prove their functional correctness based on the semantics.
 Based on the denotational semantics, a {\hifirrtl} program may contain underspecified parts, which may be satisfied by many {\lofirrtl} programs.
-The transformations can be viewed as a refinement process, and eventually produce an ``optimal" {\lofirrtl} program, which should respect all the constraints of the {\hifirrtl} program but also admits the lowest bit-widths.
+The transformations can be viewed as a refinement process, and eventually produce an ``optimal" {\lofirrtl} program, which should respect all the constraints of the {\hifirrtl} program but also admits the minimum bit-widths.
 
 
-For (3), we verify formally that these transformations preserve the semantics.
+For (3), we formally verify that these transformations preserve the semantics.
 All semantic definitions, the correctness specification and the proofs are mechanized in
-the interactive theorem prover Coq. In total, 22,703 lines of Coq code are used for specifying the syntax and semantics of {\hifirrtl} programs, and 14,450 lines of Coq code are used for the formalization of the three lowering transformations and their correctness proofs. 
-The Coq source code and benchmarks are available at \url{https://anonymous.4open.science/r/VeFir-D081}.
+the interactive theorem prover Coq. 
 %Vefirrtl is built using the Coq interactive theorem prover.
 %It provides a mechanized formal semantics for low FIRRTL,
 %and Moreover, it formalizes the syntax of FIRRTL and its lowering transformations.
@@ -92,6 +91,9 @@ on a benchmark suite comprising 113 {\firrtl} programs.
 %We extract an OCaml compiler and empirically evaluate its performance against the official compiler. 
 The experiments show that our OCaml compiler can deal with all programs while %produces 112 programs that are semantically equivalent with those produced by {\firtool}, 
 {\firtool} fails one. On the 112 programs which can be successfully compiled, our compiler produces semantically equivalent {\lofirrtl} programs as, but is (on average) considerably more efficient than, those implemented in {\firtool}.  
+
+In total, 22,703 lines of Coq code are used for specifying the syntax and semantics of {\hifirrtl} programs, and 14,450 lines of Coq code are used for the formalization of the three lowering transformations and their correctness proofs. 
+The Coq source code and benchmarks are available at \url{https://anonymous.4open.science/r/VeFir-D081}.
 
 
 %
