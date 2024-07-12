@@ -52,18 +52,17 @@ specification and verification of the correctness of these %lowering
 transformations. %In this work, we present for the first time such a framework.  %that formally reasons about programs in FIRRTLand its lowering transformations .
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
 \smallskip
 \noindent
 {\bf Contributions.} In this paper, we present \textbf{VeFir}, a framework to formally reason about programs in {\firrtl} and its lowering transformations.
 %In this work, we fill in this gap and establish a general framework called Vefirrtl for formally reasoning about programs in FIRRTL and its lowering transformations. Specifically, we make the following major contributions.
 
 For (1), we define a denotational semantics for \hifirrtl.
-We represent a {\lofirrtl} program by a pair $(tm, cm)$ of type and connection mappings, and define a conformance relation between a {\lofirrtl} module and a {\hifirrtl} program $M$, namely, $(tm, cm)\models M$.
-As such, the semantics of $M$, i.e., $\llbracket M\rrbracket$,  is interpreted as the set of {\lofirrtl} modules $(tm,cm)$ such that $(tm, cm)\models M$.
-The main challenge is that there is an abstraction-level gap between {\hifirrtl} and {\lofirrtl} programs:
-the former embrace high-level constructs such as aggregate types (i.e., bundle and vector types), implicit bit-widths for their components, and conditional statements (when),
-whereas the latter are very close to circuits where all components are of ground type and all bit-widths must be explicitly given.
+We represent a {\lofirrtl} program by a pair $(tm, cm)$ of type and connection mappings, and define a conformance relation between a {\lofirrtl} module and a {\hifirrtl} program $M$, i.e., $(tm, cm)\models M$.
+As such, the semantics of $M$ is interpreted as the set of {\lofirrtl} modules $(tm,cm)$ such that $(tm, cm)\models M$.
+The challenge is that there is an abstraction-level gap between {\hifirrtl} and {\lofirrtl} programs:
+the former embraces high-level constructs such as aggregate types (i.e., bundle and vector types), implicit bit-widths for their components, and conditional statements (when),
+whereas the latter is close to circuits where all components are of ground type and all bit-widths must be explicitly given.
 
 
 %VeFir provides a mechanized formal semantics for low FIRRTL,
@@ -74,8 +73,8 @@ Based on the denotational semantics, a {\hifirrtl} program may contain underspec
 The transformations can be viewed as a refinement process, and eventually produce an ``optimal" {\lofirrtl} program, which should respect all the constraints of the {\hifirrtl} program but also admits the minimum bit-widths.
 
 
-For (3), we formally verify that these transformations preserve the semantics.
-All semantic definitions, the correctness specification and the proofs are mechanized in
+For (3), we verify that these transformations preserve the semantics.
+All the semantic definitions, correctness specification and proofs are mechanized in
 the interactive theorem prover Coq.
 %Vefirrtl is built using the Coq interactive theorem prover.
 %It provides a mechanized formal semantics for low FIRRTL,
