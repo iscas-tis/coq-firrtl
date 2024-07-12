@@ -68,7 +68,7 @@ whereas the latter are very close to circuits where all components are of ground
 
 %VeFir provides a mechanized formal semantics for low FIRRTL,
 %and formalizes the syntax of FIRRTL and
-For (2), we formalize the three key lowering transformations, i.e., InferWidths, ExpandConnect and ExpandWhens,
+For (2), we formalize the three key lowering transformations, i.e., InferWidths, ExpandConnects and ExpandWhens,
 and we prove their functional correctness based on the semantics.
 Based on the denotational semantics, a {\hifirrtl} program may contain underspecified parts, which may be satisfied by many {\lofirrtl} programs.
 The transformations can be viewed as a refinement process, and eventually produce an ``optimal" {\lofirrtl} program, which should respect all the constraints of the {\hifirrtl} program but also admits the minimum bit-widths.
