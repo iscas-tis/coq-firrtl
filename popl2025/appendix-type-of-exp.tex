@@ -1,8 +1,14 @@
 %!TEX root = main.tex
 
 \begin{itemize}
-\item $\typeofexp(x, tmap) =tmap(id(x))$, where $x$ is a name in $M$.
-  If $x$ is defined as an implicit ground type in $tmap$, the {\typeofexp} will change it to explict width for $x$. If $x$ is explicit in $tmap$, then the same explicit type is returned. If $x$ is an aggregate type in $tmap$, {\typeofexp} inductively change implicit to explicit for all the implicit subfields. Since expressions are used on the right-hand side of connections, it is not necessary to have implict type for expressions.
+\item $\typeofexp(x, tmap)$ for name $x$ in $M$ is defined as follows. 
+\begin{itemize}
+  \item If $tmap(id(x)) = (\uintimp, n)$ or $(\sintimp, n)$ for some $n \in \Nat$, then the $\typeofexp(x, tmap)$ is defined as $(\uintimp, n')$ or $(\sintimp, n')$ where $n' \in \Nat$ is nondeterministically chosen. This nondeterministic choice is safe since expressions are used on the right-hand side of connect statements and all the chosen widths have to satisfy the {\typecompatible} constraints. 
+%
+\item If $tmap(id(x)) \in \gtypes \setminus \{(\uintimp, n), (\sintimp, n) \mid n \in \Nat\}$, then $\typeofexp(x, tmap) = tmap(id(x))$.
+%
+\item If $tmap(id(x))$ is an aggregate type, then {\typeofexp} inductively make nondeterministic choices for all the ground types of implicit widths in it. 
+\end{itemize}
 %
 \item $\typeofexp(x.f, tmap)$ 
   is inductively defined as follows: Suppose $\typeofexp(x, tmap) = (\btype, ft)$. If $f$ occurs in $ft$, that is, $ft$ contains a triple $(f, b, t)$, then $\typeofexp(x.f, tmap)$ is defined as $t$, otherwise, $\typeofexp(x.f, tmap) = \svnone$. 

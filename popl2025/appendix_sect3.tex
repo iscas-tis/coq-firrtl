@@ -7,7 +7,7 @@
 
 In this section, we present the missing definitions of functions and relations in Section~\ref{sec-form-firrtl}.
 
-Let us first define $\typeofexp(e, tmap)$.
+Let us first define $\typeofexp(e, tmap)$, the type of $e$ with respect to $tmap$. 
 %
 \input{appendix-type-of-exp}
 
@@ -121,7 +121,7 @@ $s(and(e_1, e_2))$ is the bitwise and of $bv_{\theta\bwidth{\max(n_1, n_2)}(s(e_
 %%%%%%%%%%%%%%
 %%%%%%%%%%%%%%
 
-Next, let us define the rules for $\updatecm$, $\updatecmref$, and $\invalidateref$.
+Next, let us define the rules for the functions $\updatecm$, $\updatecmref$, and $\invalidateref$.
 
 The function $\updatecm(cm_1, id, ft, ls)$ is defined the following rule. It updates $cm_1$ into $cm_2$ by modifying $cm_1(v, m+n)$ to $ls[n]$ for each $0 \le n < sz$, where $id = (v, m)$, $sz = \sizeofftype(ft)$. 
 %
@@ -137,8 +137,6 @@ The function $\updatecm(cm_1, id, ft, ls)$ is defined the following rule. It upd
 		}
 \end{gather*}	
 
-The function $\updatecmref(cm_1, id, ft, ls, id', ft', ls')$ is defined the following rule. It first calls $lgt = \listgtyperef(ft, false)$ to compute a list $lgt$ from $ft$ (the type of $r$), where each element in $lgt$ is a pair $(gt, flipped)$ such that $gt \in \gtypes$ and $flipped$ is a Boolean value denoting whether the corresponding field is flipped or not. Then for each $n: 0 \le n < sz$, it updates $cm_1(v, m+n)$ to $ls'[n]$ if $lgt[n] = (\_, \lfalse)$, and updates $cm_1(v', m'+n)$ to $ls[n]$ if $lg[n] = (\_, \ltrue)$, where $id = (v, m)$ and $id' = (v', m')$. 
-%
 \begin{gather*}
 		\infer[]
 		{\updatecmref(cm_1, id, ft, ls, id', ft', ls') = cm_2}
@@ -171,6 +169,10 @@ The function $\updatecmref(cm_1, id, ft, ls, id', ft', ls')$ is defined the foll
 			\end{array}
 		}
 \end{gather*}
+
+The function $\updatecmref(cm_1, id, ft, ls, id', ft', ls')$ is defined the rule above. It first calls $lgt = \listgtyperef(ft, false)$ to compute a list $lgt$ from $ft$ (the type of $r$), where each element in $lgt$ is a pair $(gt, flipped)$ such that $gt \in \gtypes$ and $flipped$ is a Boolean value denoting whether the corresponding field is flipped or not. Then for each $n: 0 \le n < sz$, it updates $cm_1(v, m+n)$ to $ls'[n]$ if $lgt[n] = (\_, \lfalse)$, and updates $cm_1(v', m'+n)$ to $ls[n]$ if $lg[n] = (\_, \ltrue)$, where $id = (v, m)$ and $id' = (v', m')$. 
+%
+
 
 The function $\invalidateref(cm_1, id, ft, ori)$ is defined by the following rule. It first calls $lgt = \listgtyperef(ft, false)$ to compute a list $lgt$ from $ft$ (the type of $r$), where each element in $lgt$ is a pair $(gt, \flipped)$ such that $gt \in \gtypes$ and $\flipped$ is a Boolean value denoting whether the corresponding field is flipped or not. Then for each $n: 0 \le n < sz$, it updates $cm_1(v, m+n)$ to $\svinvalid$ if either ($lgt[n] = (\_, \lfalse)$ and $ori = \duplex$ or $\sink$), or ($lgt[n] = (\_, \ltrue)$ and $ori = \duplex$ or $\source$), where $id = (v, m)$. 
 %
