@@ -3,7 +3,7 @@
 %\subsubsection{Formalization of InferWidths}
 %By Keyin
 
-The InferWidth pass infer the types of components of $M$ and additionally infers the unknown widths in these types. The InferWidths pass only modifies the declaration statements in the original program, and does not modify the other statements. 
+The InferWidth pass infers the types of components of $M$ and additionally infers the unknown widths in these types. The InferWidths pass only modifies the declaration statements in the original program, and does not modify the other statements. 
 
 \smallskip
 \noindent\emph{Formalization.}
@@ -19,7 +19,7 @@ We formalize the InferWidths pass as a function $\inferwidths$ such that for eac
     \end{array}
     }
   \end{gather*}
-The main idea is to focus on the ground-type components that are flattened from the components in $M$, infer the widths of the ground types, assemble the ground types into aggregate types where all the widths are explicit, and finally replace the aggregate types in $M$ by the inferred aggregate types and obtain the new module $M'$. Specifically, the computation of $\inferwidths(M)$ comprises the following steps. 
+The main idea is to focus on the ground-type components that are flattened from the components in $M$, infer the widths of the ground types, assemble the ground types into aggregate types where all the widths are explicit, and finally replace the types in $M$ by the inferred types and obtain the new module $M'$. Specifically, the computation of $\inferwidths(M)$ comprises the following steps. 
 \begin{enumerate}
 \item We first call $\tycnmap(M)$ to compute a triple $(atm, gtm, gcm)$ where $atm$ is a type mapping from $\range{id}$ to $\ftypes$, $gtm$ is a ground-type mapping from $\gidset_M$ to $\gtypes$,  and $gcm$ is a ground-type connection mapping which assigns to each $(v, m) \in \gidset_M$ a list of ground-type expressions that are connected to $(v, m)$. 
 %
@@ -29,7 +29,7 @@ Moreover, $E$ is defined as follows: if $(v, m) \in V$ and a component of identi
 %
 \item We assume that \emph{$G$ is acyclic} and compute a topological sorting $ts$ of $G$. For convenience, we represent $ts$ as a vertex sequence. 
 %
-\item We define a recursive function $gtm_1 \xrightarrow[cm]{vs} gtm_2$ where $gtm_1, gtm_2: \range{id} \rightarrow \ftypes$ and $vs$ is a sequence of vertices in $G$. Let $gtm'$ be the ground-type mapping such that $gtm \xrightarrow[cm]{ts} gtm'$. 
+\item We define a recursive function $gtm_1 \xrightarrow[cm]{vs} gtm_2$ where $gtm_1, gtm_2: \gidset_M \rightarrow \gtypes$ and $vs$ is a sequence of vertices in $G$. Let $gtm'$ be the ground-type mapping such that $gtm \xrightarrow[cm]{ts} gtm'$. 
 %
 \item We construct $atm':\range{id} \rightarrow \ftypes$ by calling $\detwidths(atm, gtm')$ to determine the implicit widths in $atm$ according to $gtm'$. 
 %
@@ -44,7 +44,7 @@ We briefly explain how   $\tycnmap(M)$ and $\topsort(G)$ work.
 \begin{itemize}
 \item $\tycnmap(M)$ for the computation of $(atm, gtm, gcm)$ is roughly the combination of the function $\portsstmtstmap$ and the relation $cm_1 \xrightarrow[tm, tmap]{ss} cm_2$ in Section~\ref{sec-form-firrtl}. 
 %
-\item The construction of a dependency graph from $cm$, i.e.,  the procedure $\depgraph(cm)$, is straightforward.  
+%\item The construction of a dependency graph from $cm$, i.e.,  the procedure $\depgraph(cm)$, is straightforward.  
 %easy to define. 
 % 
 \item $\topsort(G)$ is adapted from a depth-first search (DFS) algorithm in the graph library of the mathematical components repository~\cite{DP20,CoqGraph}. Given a directed graph $G$, $\topsort(G)$ either reports that $G$ is acyclic together with its topological sorting, or reports that $G$ is cyclic with a cycle as witness. Accordingly, we prove the correctness of the topological sorting algorithm by adapting the correctness proof of the DFS algorithm. 
@@ -52,13 +52,13 @@ We briefly explain how   $\tycnmap(M)$ and $\topsort(G)$ work.
 %\item The procedure $\detwidths(tm, gtm')$ can also be easily defined.  
 \end{itemize}
 %Moreover, the readers can also intuitively figure out 
-The definitions of $\depgraph(gcm)$, $\detwidths(atm, gtm')$, and $\replacewidths(M, atm')$ are more standard and are omitted here. 
+The definitions of $\depgraph(gcm)$, $\detwidths(atm, gtm')$, and $\replacewidths(M, atm')$ are more standard and omitted here. 
 %Therefore, to avoid tediousness, we omit the detailed definitions of these procedures. 
 
 %We now show how $gtm \xrightarrow[cm]{ts} gtm'$ is defined. 
-$gtm \xrightarrow[cm]{ts} gtm'$ is defined by two rules,  for the cases $ts = \nil$ and $ts \neq \nil$ respectively. The first rule is trivial, that is, $gtm \xrightarrow[gcm]{\nil} gtm$. For the case $ts \neq \nil$, let $ts = (v, m)\ ts'$,   
+The relation $gtm \xrightarrow[cm]{ts} gtm'$ is defined by two rules,  for the cases $ts = \nil$ and $ts \neq \nil$ respectively. The first rule is trivial, that is, $gtm \xrightarrow[gcm]{\nil} gtm$. For the case $ts \neq \nil$, let $ts = (v, m)\ ts'$,   
 \begin{itemize}
-\item it obtains the ground type $gt = gtm(v, m)$ and the list of ground-type expressions $cgels = gcm(v, m)$ connected to $(v, m)$, and computes the corresponding list $cgtls$ of ground types for $cgels$, 
+\item it obtains the ground type $gt = gtm(v, m)$ and the list of ground-type expressions $cgels = gcm(v, m)$ connected to $(v, m)$, and computes the corresponding list $cgtls$ of ground types for $cgels$ (where $gtm(e)$ means the ground type of $e$ computed by assuming that the types of the references in $e$ are those from $gtm$), 
 \item it calls $\maxgtlist(gt, cgtls)$ to choose the maximum width and obtains $newgt$, 
 \item let $gtm'' = gtm[newgt/(v, m)]$, i.e. the ground-type mapping obtained from $gtm$ by assigning $nwegt$ to $(v, m)$, finally, it recursively calls $gtm'' \xrightarrow[gcm]{ts'} gtm'$ to compute $gtm'$. 
 \end{itemize}
@@ -84,7 +84,7 @@ $gtm \xrightarrow[cm]{ts} gtm'$ is defined by two rules,  for the cases $ts = \n
     }
 \end{gather*}
 
-$\maxgtlist(gt, cgtls)$ is defined by the rules in Fig.~\ref{fig:maxgtlist}, where the maximum is chosen among the widths for the implicit types. 
+The function $\maxgtlist(gt, cgtls)$ is defined by the rules in Fig.~\ref{fig:maxgtlist}, where the maximum is chosen among the widths for the implicit types. 
 
 %We formalize the ``InferWidths'' pass by defining a Coq function ${\sf inferWidthsM}:{\sf M} \rightarrow {\sf M}$, which contains two process. The first process ${\sf inferWidthsStage1 : M \rightarrow tmap}$ calculates the topological order of dependency graph of $M$ and iterates on the topological sorted order to updates a $tmap$, so that the bit widths of all the components with undefined bit widths can be determined. Then the second process ${\sf inferWidthsStage2 : M \times tmap \rightarrow M}$ produce a new module with inferred bit widths and explicit widths instead of implicit widths in the original module.
 
