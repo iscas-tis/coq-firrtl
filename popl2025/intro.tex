@@ -61,7 +61,7 @@ transformations. %In this work, we present for the first time such a framework. 
 For (1), we define a denotational semantics for \hifirrtl.
 We represent a {\lofirrtl} program by a pair $(tm, cm)$ of type and connection mappings, and define a conformance relation between a {\lofirrtl} module and a {\hifirrtl} program $M$, namely, $(tm, cm)\models M$.
 As such, the semantics of $M$, i.e., $\llbracket M\rrbracket$,  is interpreted as the set of {\lofirrtl} modules $(tm,cm)$ such that $(tm, cm)\models M$.
-The main challenge is that there is a abstraction-level gap between {\hifirrtl} and {\lofirrtl} programs:
+The main challenge is that there is an abstraction-level gap between {\hifirrtl} and {\lofirrtl} programs:
 the former embrace high-level constructs such as aggregate types (i.e., bundle and vector types), implicit bit-widths for their components, and conditional statements (when),
 whereas the latter are very close to circuits where all components are of ground type and all bit-widths must be explicitly given.
 
