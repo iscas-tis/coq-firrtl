@@ -96,8 +96,10 @@ against the official MLIR FIRRTL compiler  %interpreter from the formal semantic
 %can execute low FIRRTL programs,
 %and empirically check its consistency against Treadle,
 %the low FIRRTL reference interpreter,
-on a benchmark suite comprising 113 low FIRRTL programs. 
+on a benchmark suite comprising 113 {\firrtl} programs. 
 %We extract an OCaml compiler and empirically evaluate its performance against the official compiler. 
+The experiments show that our OCaml compiler can deal with all programs while %produces 112 programs that are semantically equivalent with those produced by {\firtool}, 
+{\firtool} fails one. On the 112 programs which can be successfully compiled, our compiler produces semantically equivalent {\lofirrtl} programs as, but is (on average) considerably more efficient than, those implemented in {\firtool}.  
 
 %
 %
