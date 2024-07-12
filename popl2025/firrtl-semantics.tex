@@ -11,7 +11,7 @@ is interpreted as the set of (low-level) {\lofirrtl} programs that conform to it
 whose bit-widths are all explicitly given, (2) there are no \prettyll{when} statements, and (3) each component is connected at most once.
 As a result, the semantics definition is essentially to specify which low-level RTL circuits conform to a given {\hifirrtl} program.
 
-Furthermore, we can define an operational semantics of {\lofirrtl} programs, thus obtain a complete account of the formal semantics of {\firrtl}. However, as the operational semantics is not directly related to the formalization and verification of lowering transformations which is the main focus of this paper, they are relegated to the supplementary material, Section~\ref{app:lofirrtl-op-sem}. 
+Furthermore, we can define an operational semantics of {\lofirrtl} programs, thus obtain a complete account of the formal semantics of {\firrtl}. However, as the operational semantics is not directly related to the formalization and verification of lowering transformations which is the main focus of this paper, they are relegated to Supplementary Material, Section~\ref{app:lofirrtl-op-sem}. 
 
 Fix a {\hifirrtl} module $M$ which consists of a sequence of port declarations followed by statements. We shall represent a {\lofirrtl} module  %by a data structure called \emph{module graphs}. A module graph $G = (vm, ct)$ represents a module in {\hifirrtl} programs,
 as a pair $(tm, cm)$ where $tm$ is a \emph{type mapping} that records the typing information of ground-type components in $M$, and $cm$ is a \emph{connection mapping} that records the connections between these components.
