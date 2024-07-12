@@ -9,18 +9,11 @@ In this section, we present the missing definitions of functions and relations i
 
 Let us first define $\typeofexp(e, tmap)$.
 %
-\begin{itemize}
-\item $\typeofexp(x, tmap) =tmap(id(x))$, where $x$ is a name in $M$, 
-%
-\item $\typeofexp()$ requires to iteratively match the type of $id$ to find the same $fid$ and then to return the $ftype$ associated. If the field identifier $fid$ can not be found in the $btyp$ of the reference $id$ or the type of $id$ is not $btyp$, it returns $\bot$.
-%
-\item ${\tt type\_of\_expr}(\mbox{\prettyll{id[n]}})$ returns the base $ftype$ of reference $id$. If the nature number $n=0$ or the type of reference $id$ is other than a $vtyp$, it returns $\bot$.
-\item let ${\tt type\_of\_expr}(e_1)=t_1$ and ${\tt type\_of\_expr}(e_2)=t_2$, then ${\tt type\_of\_expr}(\mbox{\prettyll{mux}}(e_0,e_1,e_2))={\tt max\_width}(e_1,e_2)$, where the {\tt max\_width} compute recursively the max width of the (sub) components, iff $t_1$ $t_2$ are type equivalent, otherwise it returns $\bot$.
-%
-\item ${\tt type\_of\_expr}(\mbox{\prettyll{validif}}(e_1,e_2))={\tt type\_of\_expr}(e_2)$, regardless the type of $e1$.
-\item ${\tt type\_of\_expr}(op)$, $op$ includes all the binary and unary operations, in which only $gtyp$ operation will involve. The {\tt type\_of\_expr} computes the type as same as $te$.
-\end{itemize}
+\input{appendix-type-of-exp}
 
+%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%
+\hide{
 %
 For $\theta \bwidth{n}(n')$ such that $\theta \in \{\mbox{\prettyll{UInt}, \prettyll{SInt}}\}$, $n > 0$, and $n'$ is an integer, we define $bv_{\theta \bwidth{n}(n')}$ as follows.
 \begin{itemize}
@@ -124,7 +117,9 @@ $s(and(e_1, e_2))$ is the bitwise and of $bv_{\theta\bwidth{\max(n_1, n_2)}(s(e_
 \end{itemize}
 %
 \end{itemize}
-
+}
+%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%
 
 
 We explain the rules for $\updatecm$, $\updatecmref$, and $\invalidateref$ in Fig.~\ref{tab:update-vm-ct}.
