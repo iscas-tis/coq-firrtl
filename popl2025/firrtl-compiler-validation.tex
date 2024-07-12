@@ -1,16 +1,16 @@
 %!TEX root = main.tex
 
 We conduct conformance testing of our OCaml FIRRTL compiler to validate the
-consistency with the official MLIR FIRRTL compiler, integrated in {\sf firtool} and deployed in CIRCT.
+consistency with the official MLIR FIRRTL compiler, integrated in {\firtool} and deployed in CIRCT.
 
 
 
 \smallskip\noindent
 {\bf Benchmarks}. To extensively evaluate our OCaml FIRRTL compiler,
-we mainly consider the tests of the MLIR FIRRTL compiler {\sf firtool}\footnote{\url{https://github.com/llvm/circt/tree/main/test/firtool}.} and the examples
+we mainly consider the tests of the MLIR FIRRTL compiler {\firtool}\footnote{\url{https://github.com/llvm/circt/tree/main/test/firtool}.} and the examples
 of the Chisel Book--Digital Design with Chisel~\cite{chisel:book}.
 %
-There are 121 tests for {\sf firtool}, among which 77 tests are excluded because they are not self-contained (i.e., dependent upon external modules),
+There are 121 tests for {\firtool}, among which 77 tests are excluded because they are not self-contained (i.e., dependent upon external modules),
 or contain undefined semantics for memories, or have no output ports, or have illegal connections, or have probe and instance statements
 which are not considered in this work. Thus, we consider the remaining 44 tests.
 %
@@ -28,16 +28,16 @@ to each subclass of the class {\tt Module} in Scala. (Note that some Chisel exam
 %Beside, we generated 76 LoFIRRTL circuits from book project of Digital Design with Chisel, which containing 51 Chisel examples inside the ``schoeberl/chisel-book/src/main/scala'' directory. The transformation is executed by Chisel stage for each class extends from class $\tt Module$, as it is legal to define multi-class in one Scala program, it is possible to execute 76 LoFIRRTL circuits from 51 Chisel programs. The generated LoFIRRTL circuits including 66 single module circuits and 10 with instance structure.
 Besides the above  {\firrtl} programs, we also collect five issues reported as bugs of the three lowering transformations in the GitHub repository
 of CIRCT, four of which are about the InferWidths pass and the remaining one is about the ExpandConnects pass.
-While four issues have been fixed in the latest {\sf firtool}, one issue related to the InferWidths pass remains unresolved.
+While four issues have been fixed in the latest {\firtool}, one issue related to the InferWidths pass remains unresolved.
 We develop 7 FIRRTL programs to reproduce these issues.
 %
 In summary, we collect 113 (44+62+7)  {\firrtl} programs as our evaluation subjects. % all of which can be handled by {\sf firtool}.
 
 \smallskip\noindent
 {\bf Testing method}.
-To validate the consistency between our OCaml  {\firrtl} compiler and the official MLIR  {\firrtl} compiler {\sf firtool},
+To validate the consistency between our OCaml  {\firrtl} compiler and the official MLIR  {\firrtl} compiler {\firtool},
 for each  {\firrtl} program, we check the functional equivalence (i.e., sequential equivalence) of two  {\lofirrtl} programs produced by the two compilers.
-However, to the best of our knowledge, there are no functional equivalence checkers for  {\lofirrtl} programs (and it is highly non-trivial to implement such a tool). To address this issue, we transform {\lofirrtl} programs into Verilog by {\sf firtool} which in turn are transformed  to AIGER format~\cite{aiger} via {\sf Yosys}~\cite{Yosys}.
+However, to the best of our knowledge, there are no functional equivalence checkers for  {\lofirrtl} programs (and it is highly non-trivial to implement such a tool). To address this issue, we transform {\lofirrtl} programs into Verilog by {\firtool} which in turn are transformed  to AIGER format~\cite{aiger} via {\sf Yosys}~\cite{Yosys}.
 The equivalence of two programs in AIGER format is checked
 by applying the CEC engine of the tool {\sf UC Berkeley-ABC}~\cite{MishchenkoCBE06,BraytonM10}.
 (Here, we assume that the transformation from  {\lofirrtl} programs to their AIGER counterparts and the equivalence checking of {\sf UC Berkeley-ABC} are correct.)
@@ -49,13 +49,13 @@ by applying the CEC engine of the tool {\sf UC Berkeley-ABC}~\cite{MishchenkoCBE
 The summary of the compiler conformance testing is reported in Table~\ref{tab:compilerconformancetesting}.
 The first column shows the benchmark suit and the number of {\firrtl} programs therein.
 Column (\#LOC) shows the average number of locations for each benchmark suit.
-Column ({\sf firtool}) shows the average compilation time $t_1$ of {\sf firtool} in millisecond (ms) for each benchmark suit.
+Column ({\firtool}) shows the average compilation time $t_1$ of {\firtool} in millisecond (ms) for each benchmark suit.
 Column (Ours) shows the average compilation time $t_2$ of our OCaml {\firrtl} compiler (in ms) for each benchmark suit.
 Column (Speedup) is calculated via $\frac{t_1}{t_2}$ for each benchmark suit.
 Column (Verification time) shows the average time $t_v$ of equivalence checking (in ms) for each benchmark suit.
 Column (Result) shows the result of equivalence checking for each benchmark suit,
 where \ding{51} indicates that the two programs in AIGER format are equivalent and \ding{55}(1) indicates
-that {\sf firtool} fails to compile one {\firrtl} program.
+that {\firtool} fails to compile one {\firrtl} program.
 The last row (Average) shows the average results over all 113 benchmarks when they are available.
 Detailed results are given in Appendix~\ref{sec-detailed-results}. %due to space limits.
 
@@ -65,7 +65,7 @@ Detailed results are given in Appendix~\ref{sec-detailed-results}. %due to space
 \scalebox{0.85}{\begin{tabular}{|c|c|c|c|c|c|c|}
   \hline
 \multirow{2}{*}{\bf Benchmark suit} & \multirow{2}{*}{\bf \#LOC} & \multicolumn{2}{c|}{\bf Compilation time (ms)}&\multirow{2}{*}{\bf Speedup}  & \multirow{2}{*}{\bf Verification time (ms)} & \multirow{2}{*}{\bf Result} \\ \cline{3-4}
-                              &                        & {\sf firtool}  &  {\bf Ours}  &     & & \\ \hline \hline
+                              &                        & {\firtool}  &  {\bf Ours}  &     & & \\ \hline \hline
       CIRCT (44 programs) & 36.43  & 1.10  & 0.32  & 3.50  & 0.00 & \ding{51} \\ \hline
          Chisel Book (62 programs) & 79.13 & 9.89  & 7.68  &  1.29 & 0.00 & \ding{51} \\ \hline
         Issue (7 programs) & 44.29 & 1.35  & 0.044  & 30.68 & 0.00 & \ding{55}(1) \\ \hline \hline
@@ -75,8 +75,8 @@ Detailed results are given in Appendix~\ref{sec-detailed-results}. %due to space
  	 	 	
 
 Overall, our OCaml {\firrtl} compiler successfully compiled all the 113 FIRRTL programs, all of which
-are equivalent to the programs produced by {\sf firtool} except for one {\firrtl} program that reproduces an unsolved issue of {\sf firtool}.
-After an in-depth investigation, we found that {\sf firtool} uses a lightweight %constraint solving based
+are equivalent to the programs produced by {\firtool} except for one {\firrtl} program that reproduces an unsolved issue of {\firtool}.
+After an in-depth investigation, we found that {\firtool} uses a lightweight %constraint solving based
 algorithm to infer bit widths during the InferWidths pass which wrongly detected a loop in the program.
 (In fact, the program does not have a loop and its bit widths should be successfully inferred.)
 Our OCaml {\firrtl} compiler successfully compiled this program because we implement a verified topological sorting algorithm in Coq to infer bit widths
@@ -85,13 +85,13 @@ so that the {\firrtl} program can be successfully lowered.
 
  %all the 106 benchmarks from CIRCT and Chiselbook and produces the same circuit structure as {\sf firtool}. In the official CIRCT database, there are five bugs associated with these three passes, four of which is about inferwidths and one is about expandconnects. Four of these have been resolved, ensuring they can be executed correctly in the latest {\sf firtool}. One of the bugs related to inferwidths remains unresolved. This issue arises from the fact that {\sf firtool} uses constraint solver to infer bit widths, and their algorithm detected a loop in the circuit. However, the circuit does not form a loop and should be solvable. Our Coq compiler implement a verified topological sorting algorithm so that LoFIRRTL can be successfully generated.
 
-In terms of efficiency, our OCaml {\firrtl} compiler is generally faster (1.37 times on average) than {\sf firtool}.
-Only on 3 benchmarks from ChiselBook, it used more compilation time than {\sf firtool}.
+In terms of efficiency, our OCaml {\firrtl} compiler is generally faster (1.37 times on average) than {\firtool}.
+Only on 3 benchmarks from ChiselBook, it used more compilation time than {\firtool}.
 After an in-depth analysis, we found that this is attributed to our topological sorting algorithm based implementation of
 the InferWidths transformation whose cost increases with the dependency graph.
 For instance, on the program \texttt{DeepExecution} with 1220 lines,
- our compiler used 3 times more compilation time than {\sf firtool} but
- the Inferwidths pass used 30 times more   time than {\sf firtool}.
+ our compiler used 3 times more compilation time than {\firtool} but
+ the Inferwidths pass used 30 times more   time than {\firtool}.
 
   %We plan to implement a constraint solver as well and provide these two methods as an option.
 
