@@ -209,7 +209,7 @@ We select the most important semantics definitions. %are given in Fig.~\ref{fig:
 	}
 	\]
 	%
-	\item The ``connect:exp'' rule checks that %$ori$,
+	\item The ``connect: exp'' rule checks that %$ori$,
 	the orientation of $r$ is $\duplex$ or $\sink$,  then checks the compatibility of $rft$ and $eft$, and updates $cm_1(v, m), \cdots, cm_1(v, m+sz-1)$ to $ls[0], \cdots, ls[sz-1]$, where $s = r <= e$ such that $e$ is not a reference, $id(r) = (v, m)$, $(rft, ori) = \typeofref(r, tmap)$, $\typeofexp(e, tmap) = eft$, $sz = \sizeofftype(rft)$, and $ls = \listgexp(e, eft)$.
 	%
 	\[
@@ -227,7 +227,7 @@ We select the most important semantics definitions. %are given in Fig.~\ref{fig:
 	}
 	\]
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%	
-	\item The ``connect:ref'' rule checks that the orientation of $r$ is $\duplex$ or $\sink$, and  the orientation of $r'$ is $\duplex$ or $\source$, then checks the compatibility of $ft$ and $ft'$, and  updates $cm_1$ to $cm_2$ by calling $\updatecmref(cm, (v, m), ft, ls, (v', m'), ft', ls')$, where $s = r <= r'$, $id(r)=(v,m)$, $id(r') = (v', m')$, $(ft, ori) = \typeofref(r, tmap)$, $(ft', ori') = \typeofref(r', tmap)$, $\listgexp(r, ft) = ls$, and $\listgexp(r', ft') = ls'$.
+	\item The ``connect: ref'' rule checks that the orientation of $r$ is $\duplex$ or $\sink$, and  the orientation of $r'$ is $\duplex$ or $\source$, then checks the compatibility of $ft$ and $ft'$, and  updates $cm_1$ to $cm_2$ by calling $\updatecmref(cm, (v, m), ft, ls, (v', m'), ft', ls')$, where $s = r <= r'$, $id(r)=(v,m)$, $id(r') = (v', m')$, $(ft, ori) = \typeofref(r, tmap)$, $(ft', ori') = \typeofref(r', tmap)$, $\listgexp(r, ft) = ls$, and $\listgexp(r', ft') = ls'$.
 	%
 	\[
 	\infer[connect: ref]
