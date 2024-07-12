@@ -40,6 +40,7 @@ $(x, y)\in E_A$, i.e., $y$ depends on $x$, iff $A$ contains a generalized connec
 To forbid illegal behaviors, we assume that the dependency graph $G_A$ is \emph{acyclic},
 otherwise the module $A$ has some combinational loops\footnote{A combinatorial loop is when the output of some combinatorial logic, that is a section of logic with no registers between gates, is fed back into the input of that combinatorial logic with no intervening register.}, which are usually taken as ``bad'' in digital circuit design.
 %We develop a verified topological sorting algorithm for checking if a dependency graph $G_A$ is cyclic or not.
+This is checked by the formally verified topological sorting algorithm mentioned in Section~\ref{sec-form-verif-transform}.
 To have a well-defined semantics, we also assume that each component $z \in \ccpnts(A)$ should be connected to exactly \emph{once}, that is,
 there is exactly one generalized connect statement whose head is $z$. This assumption
 is checked by the ``ExpandWhens'' compilation pass and an error will be reported if the assumption

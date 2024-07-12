@@ -31,7 +31,7 @@ circuit A :
 \end{lstlisting}
 \end{tabular}\vspace{-2mm}
 \caption{An example {\firrtl} program \label{fig:example_sect2}}
-\vspace{-4mm}
+\vspace{-5mm}
 \end{figure}
 
 %%%%%%%%%%%%%%%%%%%%%%%
@@ -129,6 +129,7 @@ In the syntax, memory is also omitted since its semantics is still under active 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \begin{figure}[htbp]
+\vspace{-2mm}
 { %\footnotesize
 \[
 \begin{array}{l l l}
@@ -257,8 +258,10 @@ $d$ (resp. $d\_b$, $d\_o$ and $d\_h$) denotes a decimal (resp. binary, octal and
 }
 \caption{Syntax of {\firrtl} }
 \label{fig-firrtl-synt-simp}
-\vspace{-2mm}
+\vspace{-4mm}
 \end{figure}
+
+
 
 \hide{
 \begin{figure}[htbp]
@@ -540,6 +543,7 @@ and satisfies that in each module, each component is connected to at most once.
 
 
 \begin{figure}[htbp]
+\vspace{-3mm}
 {
 \[
 \begin{array}{l l l}
@@ -583,10 +587,10 @@ t & ::= & tg \\
 \end{array}
 \]
 }
-\vspace{-2mm}
+\vspace{-3mm}
 \caption{Syntax of {\lofirrtl} (Rules that are identical to those in Figure~\ref{fig-firrtl-synt-simp} are not repeated)}
 \label{fig-lofirrtl-synt}
-\vspace{-2mm}
+\vspace{-4mm}
 \end{figure}
 
 \hide{
@@ -684,9 +688,10 @@ module MyModule :
 \end{lstlisting}
 \caption{}
 \end{subfigure}
+\vspace{-2mm}
 \caption{Examples for illustrating the syntactic restrictions of {\lofirrtl}}
 \label{fig-lofirrtl-exmp}
-\vspace{-2mm}
+\vspace{-4mm}
 \end{figure}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -736,6 +741,7 @@ For instance, the ExpandConnects pass transforms the program shown in Figure~\re
 
 
 \begin{figure}[h]
+\vspace{-2mm}
 \centering
 \begin{subfigure}[b]{0.47\textwidth}
          \centering
@@ -763,8 +769,10 @@ module MyModule:
 \end{lstlisting}
 \caption{}
 \end{subfigure}
+\vspace{-2mm}
 \caption{Examples for illustrating the ExpandConnects pass}
 \label{fig-lofirrtl-exmp2}
+\vspace{-3mm}
 \end{figure}
 
 %
@@ -803,6 +811,7 @@ If the (sub)component is declared under multiple conditions,
 ExpandWhens selects between them using a multiplexer.
 
 \begin{figure}[h]
+\vspace{-2mm}
 \centering
 \begin{subfigure}[b]{0.4\textwidth}
          \centering
@@ -843,8 +852,10 @@ module TestCondition:
 \end{lstlisting}
 \caption{}
 \end{subfigure}
+\vspace{-2mm}
 \caption{Examples for illustrating the ExpandWhens pass}
 \label{fig-lofirrtl-exmp3}
+\vspace{-2mm}
 \end{figure}
 %
 %\begin{figure}[h]
