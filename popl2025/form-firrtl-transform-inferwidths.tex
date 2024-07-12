@@ -29,7 +29,7 @@ Moreover, $E$ is defined as follows: if $(v, m) \in V$ and a component of identi
 %
 \item We assume that \emph{$G$ is acyclic} and compute a topological sorting $ts$ of $G$. For convenience, we represent $ts$ as a vertex sequence. 
 %
-\item We define a recursive function $gtm_1 \xrightarrow[cm]{vs} gtm_2$ where $gtm_1, gtm_2: \gidset_M \rightarrow \gtypes$ and $vs$ is a sequence of vertices in $G$. Let $gtm'$ be the ground-type mapping such that $gtm \xrightarrow[cm]{ts} gtm'$. 
+\item We define a recursive function $gtm_1 \xrightarrow[gcm]{vs} gtm_2$ where $gtm_1, gtm_2: \gidset_M \rightarrow \gtypes$ and $vs$ is a sequence of vertices in $G$. Let $gtm'$ be the ground-type mapping such that $gtm \xrightarrow[gcm]{ts} gtm'$. 
 %
 \item We construct $atm':\range{id} \rightarrow \ftypes$ by calling $\detwidths(atm, gtm')$ to determine the implicit widths in $atm$ according to $gtm'$. 
 %
@@ -56,7 +56,7 @@ The definitions of $\depgraph(gcm)$, $\detwidths(atm, gtm')$, and $\replacewidth
 %Therefore, to avoid tediousness, we omit the detailed definitions of these procedures. 
 
 %We now show how $gtm \xrightarrow[cm]{ts} gtm'$ is defined. 
-The relation $gtm \xrightarrow[cm]{ts} gtm'$ is defined by two rules,  for the cases $ts = \nil$ and $ts \neq \nil$ respectively. The first rule is trivial, that is, $gtm \xrightarrow[gcm]{\nil} gtm$. For the case $ts \neq \nil$, let $ts = (v, m)\ ts'$,   
+The relation $gtm \xrightarrow[gcm]{ts} gtm'$ is defined by two rules,  for the cases $ts = \nil$ and $ts \neq \nil$ respectively. The first rule is trivial, that is, $gtm \xrightarrow[gcm]{\nil} gtm$. For the case $ts \neq \nil$, let $ts = (v, m)\ ts'$,   
 \begin{itemize}
 \item it obtains the ground type $gt = gtm(v, m)$ and the list of ground-type expressions $cgels = gcm(v, m)$ connected to $(v, m)$, and computes the corresponding list $cgtls$ of ground types for $cgels$ (where $gtm(e)$ means the ground type of $e$ computed by assuming that the types of the references in $e$ are those from $gtm$), 
 \item it calls $\maxgtlist(gt, cgtls)$ to choose the maximum width and obtains $newgt$, 
