@@ -1,11 +1,13 @@
 %!TEX root = main.tex
 
 \begin{itemize}
-\item $\typeofexp(x, tmap) =tmap(id(x))$, where $x$ is a name in $M$, 
+\item $\typeofexp(x, tmap) =tmap(id(x))$, where $x$ is a name in $M$.
+  If $x$ is defined as an implicit ground type in $tmap$, the {\typeofexp} will choose a possible explict width for $x$. If $x$ is explicit in $tmap$, then the same explicit type is returned. If $x$ is an aggregate type in $tmap$, {\typeofexp} inductively make a choice on width for all the implicit subfields. Since expressions are used on the right-hand side of connections, all the chosen widths have to satisfy the {\typecompatible} constraints. 
 %
-\item $\typeofexp(x.f, tmap)$ is inductively defined as follows: Suppose $\typeofexp(x, tmap) = (\btype, ft)$. If $f$ occurs in $ft$, that is, $ft$ contains a triple $(f, b, t)$, then $\typeofexp(x.f, tmap)$ is defined as $t$, otherwise, $\typeofexp(x.f, tmap) = \svnone$. 
+\item $\typeofexp(x.f, tmap)$ 
+  is inductively defined as follows: Suppose $\typeofexp(x, tmap) = (\btype, ft)$. If $f$ occurs in $ft$, that is, $ft$ contains a triple $(f, b, t)$, then $\typeofexp(x.f, tmap)$ is defined as $t$, otherwise, $\typeofexp(x.f, tmap) = \svnone$. 
 %
-\item $\typeofexp(r[n], tmap)$ is inductively defined as follows: Suppose $\typeofexp(r, tmap) = (\vtype, t[m])$ for some $m \in \Nat$. If $n < m$, then $\typeofexp(r[e], tmap) = t$, otherwise, $\typeofexp(r[n], tmap) = \svnone$. 
+\item $\typeofexp(r[n], tmap)$ is inductively defined as follows: Suppose $\typeofexp(r, tmap) = (\vtype, t[m])$ for some $m \in \Nat$. If $n < m$, then $\typeofexp(r[n], tmap) = t$, otherwise, $\typeofexp(r[n], tmap) = \svnone$. 
 %
 \item $\typeofexp(\mbox{\prettyll{mux}}(c, e_1,e_2), tmap)= t$ is defined as follows: If $\typeofexp(c, tmap)= (\uint, 1)$ or $(\uintimp, 1)$, and $t_1 = \typeofexp(e_1, tmap)$ is equivalent to $t_2 = \typeofexp(e_2, tmap)$ after ignoring the widths (e.g. $\uint$ is equivalent to $\uint$, but not $\sint$), then $t$ is obtained from $t_1, t_2$ by taking the maximum of the widths. 
 %
