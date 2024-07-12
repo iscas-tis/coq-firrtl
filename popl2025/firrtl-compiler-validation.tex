@@ -87,7 +87,7 @@ so that the {\firrtl} program can be successfully lowered.
 
 In terms of efficiency, our OCaml {\firrtl} compiler is generally faster (1.37 times speedup on average) than {\firtool}.
 Only on 3 benchmarks from ChiselBook, it used more compilation time than {\firtool}.
-After an in-depth analysis, we found that this is attributed to our topological sorting algorithm based implementation of
+After an in-depth analysis, we found that this is attributed to our topological-sorting based implementation of
 the InferWidths transformation whose cost increases with the dependency graph.
 For instance, on the program \texttt{DeepExecution} with 1220 lines,
  our compiler used 3 times more compilation time than {\firtool} but
