@@ -15,7 +15,7 @@ We formalize the InferWidths pass as a function $\inferwidths$ such that for eac
      {
      \begin{array}{c}
       \tycnmap(M) = (atm, gtm, gcm) \hspace{15pt} G = \depgraph(gcm) \hspace{15pt} \topsort(G) = ts\\
-    gtm \xrightarrow[gcm]{ts} gtm'  \hspace{15pt}  atm' = \detwidths(itm, gtm') \hspace{15pt} M' = \replacewidths(M, atm')
+    gtm \xrightarrow[gcm]{ts} gtm'  \hspace{15pt}  atm' = \detwidths(atm, gtm') \hspace{15pt} M' = \replacewidths(M, atm')
     \end{array}
     }
   \end{gather*}
