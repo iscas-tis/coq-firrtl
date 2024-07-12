@@ -10,6 +10,7 @@
 \subsection{FIRRTL IR}
  
 \begin{figure}[t]
+\vspace{-2mm}
 \centering
 \begin{tabular}{c}
 %[basicstyle=\footnotesize\ttfamily]
@@ -30,7 +31,7 @@ circuit A :
 \end{lstlisting}
 \end{tabular}\vspace{-2mm}
 \caption{An example {\firrtl} program \label{fig:example_sect2}}
-\vspace{-2mm}
+\vspace{-4mm}
 \end{figure}
 
 %%%%%%%%%%%%%%%%%%%%%%%
@@ -255,7 +256,8 @@ int & ::= & [\mbox{``-''}] d \{d\} \mid \mbox{``{\tt "}b''} [\mbox{``-''}] d\_b 
 $d$ (resp. $d\_b$, $d\_o$ and $d\_h$) denotes a decimal (resp. binary, octal and hexadecimal) digit, and $l$ denotes a letter
 }
 \caption{Syntax of {\firrtl} }
-\label{fig-firrtl-synt-simp}%\vspace{-2mm}
+\label{fig-firrtl-synt-simp}
+\vspace{-2mm}
 \end{figure}
 
 \hide{
@@ -731,7 +733,7 @@ For instance, the ExpandConnects pass transforms the program shown in Figure~\re
 
 \begin{figure}[h]
 \centering
-\begin{subfigure}[b]{0.4\textwidth}
+\begin{subfigure}[b]{0.47\textwidth}
          \centering
 %[basicstyle=\footnotesize\ttfamily]
 \begin{lstlisting}[boxpos=t,aboveskip=0pt]
@@ -745,7 +747,7 @@ module MyModule:
 \end{subfigure}
 \hspace{4mm}
 %     \hfill
-\begin{subfigure}[b]{0.4\textwidth}
+\begin{subfigure}[b]{0.47\textwidth}
          \centering
 %[basicstyle=\footnotesize\ttfamily]
 \begin{lstlisting}
