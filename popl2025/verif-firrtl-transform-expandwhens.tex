@@ -25,34 +25,35 @@ also, the ports of $M$ and $tm$ are not supposed to change.
 Therefore, {\sf expandWhens} mostly works on $cm$.
 %Because $\expandwhens(M)$ does not affect $tm$. As a result, we focus on $cm$.
 We first use the following lemma:
+%
 \begin{lemma}\label{lem:expand-whens-auxiliary}
-$\connstmts(ecm)$ leads to a connect map $cm$ that contains $ecm$ as a submap,
+$\connstmts(ecm)$ leads to a connection mapping $cm$ that contains $ecm$ as a submap,
 i.e. if $ecm(x) \notin \{ \svnone, \svundefined \}$, then $ecm(x) = cm(x)$
-for $cm_0 \xrightarrow[tm, tmap]{\connstmts(ecm)} cm$.
+for $cm_0 \xrightarrow[tm, tm]{\connstmts(ecm)} cm$.
 \end{lemma}
-This is proven by induction over the elements of $ecm$,
+%
+This lemma is proven by induction over the elements of $ecm$,
 using the property that $ecm$ cannot contain duplicate elements
 (and therefore, $\connstmts(ecm)$ contains at most one connect statement to any given component).
-Consequently, it is sufficient to prove that $\expandbranch(ss)$ constructs a map $ecm$
-that contains the same assignments as the $cm$ constructed in the semantics $cm_0 \xrightarrow[tm, tmap]{ss} cm$.
 
+With Lemma~\ref{lem:expand-whens-auxiliary}, to prove the formula, it is sufficient to prove that $\expandbranch(ss)$ constructs a map $ecm$
+that contains the same assignments as the $cm$ constructed in the semantics $cm_0 \xrightarrow[tm, tmap]{ss} cm$.
+%
 The main inductive theorem is then essentially the following.
 \begin{theorem}\label{thm:expand-whens-inductive}
-If $\stmtstmap((tmap_0, scope_0), ss, tm) = (tmap, scope)$
-and $\expandbranch(ss, \linebreak[0] ecm_0) = (ss_{\sf dcl}, ecm)$
-and $cm_0 \xrightarrow[tm, tmap]{ss_{\sf dcl} ; \connstmts(ecm)} cm$,
+If $\expandbranch(ss, \linebreak[0] ecm_0) = (ss_{\sf dcl}, ecm)$ and $cm_0 \xrightarrow[tm, tm]{ss_{\sf dcl} ; \connstmts(ecm)} cm$, moreover, $\stmtstmap((tmap_0, scope_0), ss, tm) = (tmap, scope)$,
 then $cm_0 \xrightarrow[tm, tmap]{ss} cm$
 (under some technical side conditions, e.g. that $ecm_0$ contains a connection for everything in scope according to $scope_0$).
 \end{theorem}
-This is proven by unfolding the constructions and checks in $\stmtstmap$, the semantics and $\expandbranch$ at the same pace.
+%
+This result is proven by unfolding $\expandbranch$ and the relation $\xrightarrow[tm, tm]{ss_{\sf dcl} ; \connstmts(ecm)}$ on the one hand, and unfolding the constructions and checks in $\stmtstmap$ and the relation $\xrightarrow[tm, tmap]{ss}$ on the other hand. To let the proof go through, the two unfoldings should be kept at the same pace.
 We need to go through all the cases (e.g. in which branch a component is declared, in which branch(es) it is connected, whether it is still in scope),
 leading to a long list of many cases to be handled.
-We apply Lemma~\ref{lem:expand-whens-auxiliary} to unfold the semantic of $\connstmts$.
-For every case, we show that the two mappings are (extensionally) equal.
+%We apply Lemma~\ref{lem:expand-whens-auxiliary} to unfold the semantic of $\connstmts$.
+%For every case, we show that the two mappings are (extensionally) equal.
 
-Because of the recursive definition of $\stmtstmap$, the semantics and $\expandbranch$,
-we use a mutual induction over statements and statement sequences.
-The mutual induction also requires us to define the two Coq datatypes for statements and statement sequences mutually inductive;
+Recall that $\stmtstmap$, the semantics and $\expandbranch$ are all recursively defined by a mutual induction over statements and statement sequences.
+As a result, we should define the two Coq datatypes for statements and statement sequences that are mutually inductive;
 we cannot just use the sequence or list types from the standard Coq library.
 
 The complexity of the correctness proof lies mostly in the number of cases that need to be distinguished

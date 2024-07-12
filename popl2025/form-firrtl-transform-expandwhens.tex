@@ -118,13 +118,15 @@ Moreover, to initialize, the empty statement sequence does not change a connecti
 
 Finally, we formalize the ExpandWhens pass as a function $\expandwhens$ defined as follows: Let $M$ be a module where $ss$ is a sequence of statements (including port declarations).
 Then $\expandwhens$ is defined by the following two rules, where {\sf emp} is the empty connection mapping and the function $\connstmts(ecm)$ generates from $ecm$ a sequence of connect and \prettyll{is invalid} statements.
-Note that if in the end some component $x$ is still assigned the value $\svnone$ by $ecm$,
+Note that if in the end some component $x$ is still assigned the value $\svundefined$ by $ecm$,
 then the output of $\expandwhens(M)$ is $\svundefined$ and an appropriate error message can be generated.
 {\begin{gather*}
-    \inferiii{\seqq{\expandwhens(M) = ss'}}
-    {\expandbranch(ss, {\sf emp}) = (ss_{\sf dcl}, ecm)}
-    {\seqq{\forall x \in \gidset_M.\ ecm(x) \neq \svundefined}}
-    {ss'  = ss_{\sf dcl}\ ++\ \connstmts(ecm)}
+    \infer{\seqq{\expandwhens(M) = ss'}}
+    {\begin{array}{c}
+    \expandbranch(ss, {\sf emp}) = (ss_{\sf dcl}, ecm) \hspace{15pt} \seqq{\forall x \in \gidset_M.\ ecm(x) \neq \svundefined} \\
+    ss'  = ss_{\sf dcl}\ ++\ \connstmts(ecm)
+   \end{array}
+   }
 \\[1ex]
     \inferii{\seqq{\expandwhens(M) = \svnone}}
     {\seqq{\expandbranch(ss, {\sf emp}) = (ss_{\sf dcl}, ecm)}}
