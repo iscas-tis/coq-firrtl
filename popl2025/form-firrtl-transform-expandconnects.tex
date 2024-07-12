@@ -45,7 +45,7 @@ For an input port declaration statement $\expandconnects(\mbox{\prettyll{input} 
            \end{array}
          }
  \end{gather*}
-In the rule, the reference $x$ are expanded as a list $rl$ of ground-type components and the type $t$ are expanded as a list $tl$ of ground types.  Note that $rl$ and $tl$ have the same length, moreover, each element in $tl$ is of the form $(gt, flipped)$, where $gt$ is a ground type and $flipped$ is a Boolean value denoting the flipping status of $gt$. Then for each pair of elements in the same position $rl$ and $tl$, say $(v, (gt, flipped))$, if $flipped = \ltrue$, then a statement $\mbox{\prettyll{output}}\ v: gt$ is generated, otherwise, $\mbox{\prettyll{input} }v: gt)$ is generated. The function $\fmaptwo(f, l_1, l_2)$ used in the rule 
+In the rule, the reference $x$ are expanded as a list $rl$ of ground-type components and the type $t$ are expanded as a list $tl$ of ground types.  Note that $rl$ and $tl$ have the same length, moreover, each element in $tl$ is of the form $(gt, flipped)$, where $gt$ is a ground type and $flipped$ is a Boolean value denoting the flipping status of $gt$. Then for each pair of elements in the same position $rl$ and $tl$, say $(v, (gt, flipped))$, if $flipped = \ltrue$, then a statement $\mbox{\prettyll{output}}\ v: gt$ is generated, otherwise, $\mbox{\prettyll{input} }v: gt$ is generated. The function $\fmaptwo(f, l_1, l_2)$ used in the rule 
 %Here, the {\tt map2}
 is an operation that combines two lists $l_1, l_2$ of the same length into one list by traversing $l_1, l_2$ in the same pace and applying the binary function $f$ to each pair of elements that are currently visited. 
 %The {\expandconnects} function takes a statement as input and
