@@ -85,7 +85,7 @@ so that the {\firrtl} program can be successfully lowered.
 
  %all the 106 benchmarks from CIRCT and Chiselbook and produces the same circuit structure as {\sf firtool}. In the official CIRCT database, there are five bugs associated with these three passes, four of which is about inferwidths and one is about expandconnects. Four of these have been resolved, ensuring they can be executed correctly in the latest {\sf firtool}. One of the bugs related to inferwidths remains unresolved. This issue arises from the fact that {\sf firtool} uses constraint solver to infer bit widths, and their algorithm detected a loop in the circuit. However, the circuit does not form a loop and should be solvable. Our Coq compiler implement a verified topological sorting algorithm so that LoFIRRTL can be successfully generated.
 
-In terms of efficiency, our OCaml {\firrtl} compiler is generally faster (1.37 times on average) than {\firtool}.
+In terms of efficiency, our OCaml {\firrtl} compiler is generally faster (1.37 times speedup on average) than {\firtool}.
 Only on 3 benchmarks from ChiselBook, it used more compilation time than {\firtool}.
 After an in-depth analysis, we found that this is attributed to our topological sorting algorithm based implementation of
 the InferWidths transformation whose cost increases with the dependency graph.
