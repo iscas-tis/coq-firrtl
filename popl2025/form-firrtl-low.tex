@@ -39,12 +39,13 @@ $(x, y)\in E_A$, i.e., $y$ depends on $x$, iff $A$ contains a generalized connec
 
 To forbid illegal behaviors, we assume that the dependency graph $G_A$ is \emph{acyclic},
 otherwise the module $A$ has some combinational loops\footnote{A combinatorial loop is when the output of some combinatorial logic, that is a section of logic with no registers between gates, is fed back into the input of that combinatorial logic with no intervening register.}, which are usually taken as ``bad'' in digital circuit design.
-We develop a verified topological sorting algorithm for checking if a dependency graph $G_A$ is cyclic or not.
+%We develop a verified topological sorting algorithm for checking if a dependency graph $G_A$ is cyclic or not.
 To have a well-defined semantics, we also assume that each component $z \in \ccpnts(A)$ should be connected to exactly \emph{once}, that is,
 there is exactly one generalized connect statement whose head is $z$. This assumption
 is checked by the ``ExpandWhens'' compilation pass and an error will be reported if the assumption
-is violated. Furthermore, the functional correctness of the ``ExpandWhens'' compilation pass is also proved in Coq.
-Finally, in this work, we focus on synchronization circuits, that is, there is one unique global clock.
+is violated. 
+%Furthermore, the functional correctness of the ``ExpandWhens'' compilation pass is also proved in Coq.
+%Finally, in this work, we focus on synchronization circuits, that is, there is one unique global clock.
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -118,8 +119,114 @@ A \emph{configuration} of the module $A$ is a triple $(\tEnv, \sEnv, \rEnv)$, wh
 $\sEnv: \cpnts(A)\rightarrow \bv \cup \{\bot\}$ is a state, and $\rEnv: \registers(A)\rightarrow \bv \cup \{\bot\}$ is a register state,
 $\bot$ denotes undefined.
 Intuitively, $\tEnv$ denotes the types of the components, $\sEnv$ denotes the (signal) values of the components in the beginning of the current clock cycle, and $\rEnv$ denotes the new values of the registers in the beginning of the next clock cycle which will be committed to the next state at the arriving of the next clock signal.
-The type environment $te$ and state $s$ are lift to expressions $e$ as usual, whose definitions can be found in the supplementary material. % Appendix~\ref{app-lofirrtl}.
+The type environment $te$ and state $s$ are lift to expressions $e$ as usual, whose definitions are given in the sequel. % Appendix~\ref{app-lofirrtl}.
 
+\paragraph*{The definitions of $te(e)$ and $s(e)$}
+%
+For $\theta \bwidth{n}(n')$ such that $\theta \in \{\mbox{\prettyll{UInt}, \prettyll{SInt}}\}$, $n > 0$, and $n'$ is an integer, we define $bv_{\theta \bwidth{n}(n')}$ as follows.
+\begin{itemize}
+\item For $n > 0$ and $n' \ge 0$ such that $n' < 2^n$, let $bv_{\mbox{\prettyll{UInt}}<n>(n')}$ denote the bit vector of length $n$ representing the unsigned integer $n'$.
+%
+\item For $n > 0$ and an integer $n'$ such that $-2^{n-1} \le n' < 2^{n-1}$, let $bv_{\mbox{\prettyll{SInt}}<n>(n')}$ denote the bit vector of length $n$ representing the signed integer $n'$.
+\end{itemize}
+The function $te$ and $s$ from $\cpnts(A)$ to $\expgtypes$ are extended to expressions as follows.
+\begin{itemize}
+\item $te(\theta \bwidth{n}(c)) = \theta \bwidth{n}$ and $s(\theta \bwidth{n}(c)) = bv_{\theta \bwidth{n}(c)}$, where $\theta \in \{\mbox{\prettyll{UInt}}, \mbox{\prettyll{SInt}}\}$,
+%\item $te(\sint{n}(c)) = \sint{n}$,
+%
+\item let $te(e_1) = \theta \bwidth{n_1}$ and $te(e_2) = \theta \bwidth{n_2}$, where $\theta \in \{\mbox{\prettyll{UInt}}, \mbox{\prettyll{SInt}}\}$, then $te(mux(e_0, e_1, e_2)) = \theta\bwidth{\max(n_1, n_2)}$, moreover, if $s(e_0) = 1$, then $s(mux(e_0, e_1, e_2)) = bv_{\theta\bwidth{n_0}(s(e_1))}$, otherwise, $s(mux(e_0, e_1, e_2)) = bv_{\theta\bwidth{n_0}(s(e_2))}$,
+%
+\item $te(validif(e_1, e_2)) = te(e_2)$, moreover, if $s(e_1) = 1$, then $s(validif(e_1, e_2)) = s(e_2)$, otherwise, $s(validif(e_1, e_2))  = \bot$,
+%
+\item let $te(e_1) = \theta \bwidth{n_1}$ and $te(e_2) = \theta \bwidth{n_2}$, where $\theta \in \{\mbox{\prettyll{UInt}}, \mbox{\prettyll{SInt}}\}$, then
+\begin{itemize}
+\item $te(add(e_1, e_2)) =\theta \bwidth{\max(n_1, n_2)+1}$ and $te(sub(e_1, e_2)) = \theta \bwidth{\max(n_1, n_2)+1}$, moreover, $s(add(e_1, e_2)) = bv_{\theta \bwidth{\max(n_1,n_2)+1} (s(e_1) + s(e_2))}$ and \\
+$s(sub(e_1, e_2)) = bv_{\theta \bwidth{\max(n_1,n_2)+1} (s(e_1) - s(e_2))}$,
+%
+\item $te(mul(e_1, e_2)) = \theta \bwidth{n_1+n_2}$ and $s(mul(e_1, e_2)) = bv_{\theta \bwidth{n_1+n_2} (s(e_1) \times s(e_2))}$,
+%
+\item  if $\theta = \mbox{\prettyll{UInt}}$, then $te(div(e_1, e_2)) =\mbox{\prettyll{UInt}} \bwidth{n_1}$ and $s(div(e_1, e_2)) = bv_{\mbox{\prettyll{UInt}} \bwidth{n_1} (s(e_1) \div s(e_2))}$, otherwise, $te(div(e_1, e_2)) = \mbox{\prettyll{SInt}} \bwidth{n_1+1}$ and $s(div(e_1, e_2)) = bv_{\mbox{\prettyll{SInt}} \bwidth{n_1+1} (s(e_1) \div s(e_2))}$,
+%
+\item $te(mod(e_1, e_2)) = \theta \bwidth{\min(n_1,n_2)}$ and $s(mod(e_1, e_2)) = bv_{\theta \bwidth{\min(n_1,n_2)} (s(e_1) \bmod s(e_2))}$,
+%
+\item $te(cp(e_1, e_2)) = \mbox{\prettyll{UInt}} \bwidth{1}$, moreover, $s(cp(e_1, e_2)) = 1$ iff $s(e_1)\ cp\ s(e_2)$, \\ where $cp \in \{lt, leq, gt, geq, eq, neq\}$,
+%
+\item $te(dshl(e_1, e_2)) = \theta \bwidth{n_1+2^{n_2}-1}$ and $s(dshl(e_1, e_2)) = bv_{\theta \bwidth{n_1+2^{n_2}-1}(s(e_1) \times 2^{s(e_2)})}$,
+%
+\item $te(dshr(e_1, e_2)) = \theta \bwidth{n_1}$ and $s(dshr(e_1, e_2)) = bv_{\theta \bwidth{n_1}(s(e_1) \div 2^{s(e_2)})}$,
+%
+\item $te(and(e_1, e_2)) = te(or(e_1, e_2)) =  te(xor(e_1, e_2)) = \mbox{\prettyll{UInt}} \bwidth{\max(n_1, n_2)}$, moreover,
+$s(and(e_1, e_2))$ is the bitwise and of $bv_{\theta\bwidth{\max(n_1, n_2)}(s(e_1))}$ and $bv_{\theta\bwidth{\max(n_1, n_2)}(s(e_2))}$,  $s(or(e_1, e_2))$ is the bitwise or of $bv_{\theta\bwidth{\max(n_1, n_2)}(s(e_1))}$ and $bv_{\theta\bwidth{\max(n_1, n_2)}(s(e_2))}$, $s(xor(e_1, e_2))$ is the bitwise xor of $bv_{\theta\bwidth{\max(n_1, n_2)}(s(e_1))}$ and $bv_{\theta\bwidth{\max(n_1, n_2)}(s(e_2))}$,
+%
+\item $te(cat(e_1, e_2)) = \mbox{\prettyll{UInt}} \bwidth{n_1 + n_2}$, moreover,
+\begin{itemize}
+\item if either $\theta = \mbox{\prettyll{UInt}}$, or $\theta=\mbox{\prettyll{SInt}}$, $s(e_1) \ge 0$, and $s(e_2) \ge 0$, then \\ $s(cat(e_1, e_2))$ is $bv_{\mbox{\prettyll{UInt}}\bwidth{n_1+n_2}(s(e_1) \times 2^{n_2} + s(e_2))}$,
+%
+\item if  $\theta=\mbox{\prettyll{SInt}}$, $s(e_1) \ge 0$, and $s(e_2) < 0$, then \\ $s(cat(e_1, e_2))$ is $bv_{\mbox{\prettyll{UInt}}\bwidth{n_1+n_2}(s(e_1) \times 2^{n_2} + 2^{n_2} + s(e_2))}$,
+%
+\item if  $\theta=\mbox{\prettyll{SInt}}$ and $s(e_1) < 0, s(e_2) \ge 0$, then \\  $s(cat(e_1, e_2))$ is $bv_{\mbox{\prettyll{UInt}}\bwidth{n_1+n_2}((2^{n_1}+s(e_1)) \times 2^{n_2} + s(e_2))}$,
+%
+\item if  $\theta=\mbox{\prettyll{SInt}}$ and $s(e_1) < 0, s(e_2) < 0$ then \\  $s(cat(e_1, e_2))$ is $bv_{\mbox{\prettyll{UInt}}\bwidth{n_1+n_2}((2^{n_1}-s(e_1)) \times 2^{n_2} + 2^{n_2}-s(e_2))}$,
+\end{itemize}
+\end{itemize}
+%
+\item let $te(e_1) = \theta \bwidth{n_1}$ and $te(e_2) = \mbox{\prettyll{UInt}} \bwidth{n_2}$, where $\theta \in \{\mbox{\prettyll{UInt}}, \mbox{\prettyll{SInt}}\}$, then
+\begin{itemize}
+\item $te(dshl(e_1, e_2)) = \theta \bwidth{n_1+2^{n_2}-1}$ and $s(dshl(e_1, e_2)) = bv_{\theta \bwidth{n_1+2^{n_2}-1}(s(e_1) \times 2^{s(e_2)})}$,
+%
+\item $te(dshr(e_1, e_2)) = \theta \bwidth{n_1}$ and $s(dshr(e_1, e_2)) = bv_{\theta \bwidth{n_1}(s(e_1) \div 2^{s(e_2)})}$,
+%
+\end{itemize}
+%
+\item let $te(e_1) = \theta \bwidth{n_1}$, where $\theta \in \{\mbox{\prettyll{UInt}}, \mbox{\prettyll{SInt}}\}$, then
+\begin{itemize}
+\item $te(andr(e_1)) = te(orr(e_1)) =  te(xorr(e_1)) = \uint{1}$, moreover, $s(andr(e_1))$ (resp. $s(orr(e_1))$, $s(xorr(e_1))$) is the and (resp. or, xor) of all the bits in the bit vector $s(e_1)$,
+%
+\item $te(neg(e_1)) = \sint{n_1 +1}$, $te(not(e_1)) =  \uint{n_1}$, moreover,
+\begin{itemize}
+\item $s(neg(e_1)) = bv_{\mbox{\prettyll{SInt}}\bwidth{n_1+1}(-s(e_1))}$,
+%
+\item $s(not(e_1))$ is obtained by applying the logical not to each bit of the bit vector $s(e_1)$,
+\end{itemize}
+%\begin{itemize}
+%\item if $\theta = UInt$, then $s(neg(e_1)) = bv_{SInt\bwidth{n_1+1}(-s(e_1))}$,
+%
+%\item if $\theta = SInt$, then $s(neg(e_1)) = bv_{SInt\bwidth{n_1+1}(-s(e_1))}$.
+%\end{itemize}
+%
+\item $te(cvt(e_1)) = \sint{n_1 +1}$ if $\theta = \mbox{\prettyll{UInt}}$, and $te(cvt(e_1)) =  \sint{n_1}$ otherwise,  moreover,
+\begin{itemize}
+\item if $\theta = \mbox{\prettyll{UInt}}$, then $s(cvt(e_1)) = bv_{\mbox{\prettyll{SInt}}\bwidth{n_1+1}(s(e_1))}$,
+%
+\item if $\theta = \mbox{\prettyll{SInt}}$, then $s(cvt(e_1)) = s(e_1)$,
+\end{itemize}
+\end{itemize}
+%
+\item let $te(e_1) = \theta \bwidth{n_1}$, where $\theta \in \{\mbox{\prettyll{UInt}}, \mbox{\prettyll{SInt}}\}$, then
+\begin{itemize}
+\item $te(pad(e_1, n)) = \theta\bwidth{\max(n_1, n)}$, moreover, if $n_1 < n$, then $s(pad(e_1,n)) = bv_{\theta\bwidth{n}(s(e_1))}$, otherwise, $s(pad(e_1,n)) = s(e_1)$,
+%
+\item $te(shl(e_1,n)) = \theta \bwidth{n_1 + n}$, moreover, $s(shl(e_1,n)) =  bv_{\theta\bwidth{n_1 + n}(2^{n} \times s(e_1))}$,
+%\begin{itemize}
+%\item if $\theta = UInt$, then $s(shl(e_1,n)) =  bv_{UInt\bwidth{n_1 + n}(2^{n} \times s(e_1))}$,
+%\item if $\theta = SInt$, then $s(shl(e_1,n)) = bv_{SInt\bwidth{n_1 + n}(2^{n} \times s(e_1))}$,
+%\end{itemize}
+%
+\item $te(shr(e_1, n)) = \theta \bwidth{n_1-n}$ if $n_1 > n$, and $te(shr(e_1, n)) =  \theta \bwidth{1}$ otherwise,  moreover,
+\begin{itemize}
+\item if $n_1 > n$, then $s(shr(e_1, n))$ is obtained from $s(e_1)$ by shifting $n$ bits right,
+%
+\item otherwise, if $\theta = \mbox{\prettyll{UInt}}$, then $s(shr(e_1, n))=bv_{\mbox{\prettyll{UInt}}<1>(0)}$, otherwise, $s(shr(e_1, n))=bv_{\mbox{\prettyll{SInt}}<1>(0)}$ if $s(e_1) \ge 0$, and $s(shr(e_1, n))=bv_{\mbox{\prettyll{SInt}}<1>(1)}$ if $s(e_1) < 0$,
+\end{itemize}
+%
+\item $te(head(e_1, n)) = { \mbox{\prettyll{UInt}}}{n}$, $te(tail(e_1, n)) = { \mbox{\prettyll{UInt}}}{n_1-n}$, moreover, $s(head(e_1, n))$ is the most significant $n$ bits of $s(e_1)$, $s(tail(e_1, n))$ is obtained from $s(e_1)$ by truncating the $n$ most significant bits of $s(e_1)$,
+%
+\item $te(bits(e_1, n, n')) = \uint{n'-n+1}$, and $s(bits(e_1, n, n'))$ is the bit vector comprising the $n, n+1, \cdots, n'$-th bit of $s(e_1)$.
+\end{itemize}
+%
+\end{itemize}
+
+\paragraph*{The operational semantics}
 The operational semantics of each statement $st$ in the module $A$ is defined as a transition relation between configurations
 $$(te, s, rs) \xrightarrow{st} (te', s', rs'),$$
 which denotes that the execution of the statement $st$ from a configuration $(te, s, rs)$ leads to a configuration $(te', s', rs')$.
@@ -127,8 +234,8 @@ Moreover, the operational semantics of a sequence of statements is defined as th
 For instance, we have $(te, s, rs) \xrightarrow{st_1\ st_2} (te'', s'', rs'')$, if $(te, s, rs) \xrightarrow{st_1} (te', s', rs')$
 and  $(te', s', rs') \xrightarrow{st_2} (te'', s'', rs'')$.
 
-\begin{table}[t]
-  \small
+\begin{table}[htbp]
+%  \small
   \begin{gather*}
     \infer[skip]
     {\seqq{(te, s, rs) \xrightarrow{\mbox{skip}} (te, s, rs)}}
