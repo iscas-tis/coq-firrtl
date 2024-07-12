@@ -1,15 +1,15 @@
 %!TEX root = main.tex
 
-In the sequel, we introduce an operational semantics of LoFIRRTL programs,
-based on which LoFIRRTL is formalized in Coq.
-We first present the operational semantics for LoFIRRTL programs that are free of \prettyll{inst of} statements
-and later consider the general LoFIRRTL programs.
+In the sequel, we introduce an operational semantics of LoFIRRTL programs, 
+which is also formalized in Coq.
+We present the operational semantics for LoFIRRTL programs that are free of \prettyll{inst of} statements.
+%and later consider the general LoFIRRTL programs.
 
 %the situation that the module $A$ contains no occurrences of ``inst of'' statements. Later on, we will consider the more general case.
 
 %At first, let us make it more precise the syntactical constraints of LoFIRRTL stated in Section~\ref{sec-firrtl}.
 
-\subsubsection{\protect\prettyll{inst of}-free LoFIRRTL}
+%\subsubsection{\protect\prettyll{inst of}-free LoFIRRTL}
 Let us fix a LoFIRRTL circuit $A$ that is free of \prettyll{inst of} statements. According to the syntax of LoFIRRTL, the top-level module of the circuit must be module $A$.
 
 We first introduce some notations required to present the operational semantics.
@@ -26,7 +26,7 @@ and $\ccpnts(A)$ to denote the set of components $\oports(A) \uplus \wires(A) \u
 where a component $z$ is connected to via a generalized connect statement whose head is $z$.
 Note that the input ports $\iports(A)$ are not connected to, moreover, the registers may not be connected to, thus they
 are not included in $\ccpnts(A)$. (If a register is not connected to, then it keeps the current value.)
-We denote by $\gtypes$  the set of ground types $(\{\mbox{\prettyll{UInt}}, \mbox{\prettyll{SInt}}\} \times \Nat) \cup \{\mbox{\prettyll{Clock}},
+We denote by $\expgtypes$ the set of explicit ground types $(\{\mbox{\prettyll{UInt}}, \mbox{\prettyll{SInt}}\} \times \Nat) \cup \{\mbox{\prettyll{Clock}},
 \mbox{\prettyll{Reset}}, \mbox{\prettyll{AsyncReset}}\}$ and by $\bv$ the set of bit vectors $\{0,1\}^+$.
 For each $t = (\tau, n) \in \{\mbox{\prettyll{UInt}}, \mbox{\prettyll{SInt}}\} \times \Nat$, we define the \emph{width} of $t$, denoted by $wd(t)$, as $n$.
 
@@ -114,7 +114,7 @@ In the sequel, we assume that the module $A$ is in the pseudo-SSA form.
 
 
 The operational semantics of LoFIRRTL relies on a concept of configurations.
-A \emph{configuration} of the module $A$ is a triple $(\tEnv, \sEnv, \rEnv)$, where $\tEnv:\cpnts(A)\rightarrow \gtypes$ is a type environment,
+A \emph{configuration} of the module $A$ is a triple $(\tEnv, \sEnv, \rEnv)$, where $\tEnv:\cpnts(A)\rightarrow \expgtypes$ is a type environment,
 $\sEnv: \cpnts(A)\rightarrow \bv \cup \{\bot\}$ is a state, and $\rEnv: \registers(A)\rightarrow \bv \cup \{\bot\}$ is a register state,
 $\bot$ denotes undefined.
 Intuitively, $\tEnv$ denotes the types of the components, $\sEnv$ denotes the (signal) values of the components in the beginning of the current clock cycle, and $\rEnv$ denotes the new values of the registers in the beginning of the next clock cycle which will be committed to the next state at the arriving of the next clock signal.
@@ -301,20 +301,20 @@ In the sequel, we require that $A$ is in the pseudo-SSA form.
 
 The operational semantics of $A$ relies on a concept of configurations defined below.
 
-Let $\gtypes$ denote the set of ground types, that is, $(\{UInt, SInt\} \times \Nat) \cup \{Clock, Reset, AsyncReset\}$. Let $\bv$ denote the set of bit vectors, that is, $\{0,1\}^+$.
+Let $\expgtypes$ denote the set of ground types, that is, $(\{UInt, SInt\} \times \Nat) \cup \{Clock, Reset, AsyncReset\}$. Let $\bv$ denote the set of bit vectors, that is, $\{0,1\}^+$.
 For $t = (\tau, n) \in \{UInt, SInt\} \times \Nat$, we define the \emph{width} of $t$, denoted by $wd(t)$, as $n$.
 
 A \emph{configuration} of $A$ is a triple $(te, s, rs)$, where $te$ is a type environment, $s$ is a state, and $rs$ is a register state. Intuitively, $te$ denotes the types of the components, $s$ denotes the values of the components in the beginning of the current clock cycle, and $rs$ denotes the new values of the registers in the beginning of the next clock cycle. Formally,
 \begin{itemize}
-\item a \emph{type environment} $te$ of $A$ is a function from $\cpnts(A)$ to $\gtypes$,
+\item a \emph{type environment} $te$ of $A$ is a function from $\cpnts(A)$ to $\expgtypes$,
 %
 \item a \emph{state} $s$ of $A$ is a function from $\cpnts(A)$ to $\bv \cup \{\bot\}$,
 %
 \item a \emph{register state} $rs$ of $A$ is a function from $\registers(A)$ to $\bv \cup \{\bot\}$.
 \end{itemize}
 
-%A \emph{type environment} of $M$ is a function from $\varset(M)$ to $\gtypes$.
-%A \emph{state} of $M$ is a function from $\varset(M)$ to $\bv \cup \{\bot\}$. A \emph{register state} $rs$ of $M$ is a function from $\varset(M)$ to $\bv \cup \{\bot\}$ such that $rs(v) = \bot$ for every $v \in \gtypes \setminus \registers(M)$. Note that $\bot$ is a special symbol denoting the fact that the value of a variable is not determined yet.
+%A \emph{type environment} of $M$ is a function from $\varset(M)$ to $\expgtypes$.
+%A \emph{state} of $M$ is a function from $\varset(M)$ to $\bv \cup \{\bot\}$. A \emph{register state} $rs$ of $M$ is a function from $\varset(M)$ to $\bv \cup \{\bot\}$ such that $rs(v) = \bot$ for every $v \in \expgtypes \setminus \registers(M)$. Note that $\bot$ is a special symbol denoting the fact that the value of a variable is not determined yet.
 
 
 The operational semantics of each statement $st$ in $A$ is defined as a relation $(te, s, rs) \xrightarrow{st} (te', s', rs')$, which denotes that the execution of $st$ from a configuration $(te, s, rs)$ results into a configuration $(te', s', rs')$. Moreover, the operational semantics of a sequence of statements is defined as the composition of the relations of statements therein and the operational semantics of module $A$ is defined as the operational semantics of its statement sequence.
@@ -356,6 +356,10 @@ More formally, $(te, s, rs) \xrightarrow{A, it, j, m} (te', s', rs')$ is defined
 %\end{itemize}
 \end{comment}
 
+
+%%%% general LoFIRRTL  removed
+%%%% general LoFIRRTL  removed
+\hide{
 \subsubsection{General LoFIRRTL}
 W.l.o.g., we assume that the circuit $A$ contains at least two instances of modules, namely,
 the top-level module $A$ contains at least one \prettyll{inst of} statement.
@@ -395,7 +399,9 @@ Then $M_{(id, B)}$ is obtained from the module $B$ by first replacing all identi
 Finally, the \prettyll{inst of}-free LoFIRRTL module $M_A$ is $M_{A, A}$.
 
 Furthermore, $M_A$ can be turned into $M'_A$ in pseudo-SSA form by constructing the dependency graph $G_{M_A}$, building a topological sorting of $G_{M_A}$, and reordering the generalized connect statements of $M_A$ according to the topological sorting.
-
+}
+%%%% general LoFIRRTL  removed
+%%%% general LoFIRRTL  removed
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%% comment out by Fu %%%%%%%%%
