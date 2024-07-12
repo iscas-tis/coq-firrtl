@@ -7,130 +7,6 @@
 \section{Missing details in Section~\ref{sec-form-firrtl}}\label{app-lofirrtl}
 
 
-\zhilin{define $\typeofexp(e, tmap)$ here}
-
-\paragraph*{The definitions of $te(e)$ and $s(e)$}
-%
-For $\theta \bwidth{n}(n')$ such that $\theta \in \{\mbox{\prettyll{UInt}, \prettyll{SInt}}\}$, $n > 0$, and $n'$ is an integer, we define $bv_{\theta \bwidth{n}(n')}$ as follows.
-\begin{itemize}
-\item For $n > 0$ and $n' \ge 0$ such that $n' < 2^n$, let $bv_{\mbox{\prettyll{UInt}}<n>(n')}$ denote the bit vector of length $n$ representing the unsigned integer $n'$.
-%
-\item For $n > 0$ and an integer $n'$ such that $-2^{n-1} \le n' < 2^{n-1}$, let $bv_{\mbox{\prettyll{SInt}}<n>(n')}$ denote the bit vector of length $n$ representing the signed integer $n'$.
-\end{itemize}
-The function $te$ and $s$ from $\cpnts(A)$ to $\gtypes$ are extended to expressions as follows.
-\begin{itemize}
-\item $te(\theta \bwidth{n}(c)) = \theta \bwidth{n}$ and $s(\theta \bwidth{n}(c)) = bv_{\theta \bwidth{n}(c)}$, where $\theta \in \{\mbox{\prettyll{UInt}}, \mbox{\prettyll{SInt}}\}$,
-%\item $te(\sint{n}(c)) = \sint{n}$,
-%
-\item let $te(e_1) = \theta \bwidth{n_1}$ and $te(e_2) = \theta \bwidth{n_2}$, where $\theta \in \{\mbox{\prettyll{UInt}}, \mbox{\prettyll{SInt}}\}$, then $te(mux(e_0, e_1, e_2)) = \theta\bwidth{\max(n_1, n_2)}$, moreover, if $s(e_0) = 1$, then $s(mux(e_0, e_1, e_2)) = bv_{\theta\bwidth{n_0}(s(e_1))}$, otherwise, $s(mux(e_0, e_1, e_2)) = bv_{\theta\bwidth{n_0}(s(e_2))}$,
-%
-\item $te(validif(e_1, e_2)) = te(e_2)$, moreover, if $s(e_1) = 1$, then $s(validif(e_1, e_2)) = s(e_2)$, otherwise, $s(validif(e_1, e_2))  = \bot$,
-%
-\item let $te(e_1) = \theta \bwidth{n_1}$ and $te(e_2) = \theta \bwidth{n_2}$, where $\theta \in \{\mbox{\prettyll{UInt}}, \mbox{\prettyll{SInt}}\}$, then
-\begin{itemize}
-\item $te(add(e_1, e_2)) =\theta \bwidth{\max(n_1, n_2)+1}$ and $te(sub(e_1, e_2)) = \theta \bwidth{\max(n_1, n_2)+1}$, moreover, $s(add(e_1, e_2)) = bv_{\theta \bwidth{\max(n_1,n_2)+1} (s(e_1) + s(e_2))}$ and \\
-$s(sub(e_1, e_2)) = bv_{\theta \bwidth{\max(n_1,n_2)+1} (s(e_1) - s(e_2))}$,
-%
-\item $te(mul(e_1, e_2)) = \theta \bwidth{n_1+n_2}$ and $s(mul(e_1, e_2)) = bv_{\theta \bwidth{n_1+n_2} (s(e_1) \times s(e_2))}$,
-%
-\item  if $\theta = \mbox{\prettyll{UInt}}$, then $te(div(e_1, e_2)) =\mbox{\prettyll{UInt}} \bwidth{n_1}$ and $s(div(e_1, e_2)) = bv_{\mbox{\prettyll{UInt}} \bwidth{n_1} (s(e_1) \div s(e_2))}$, otherwise, $te(div(e_1, e_2)) = \mbox{\prettyll{SInt}} \bwidth{n_1+1}$ and $s(div(e_1, e_2)) = bv_{\mbox{\prettyll{SInt}} \bwidth{n_1+1} (s(e_1) \div s(e_2))}$,
-%
-\item $te(mod(e_1, e_2)) = \theta \bwidth{\min(n_1,n_2)}$ and $s(mod(e_1, e_2)) = bv_{\theta \bwidth{\min(n_1,n_2)} (s(e_1) \bmod s(e_2))}$,
-%
-\item $te(cp(e_1, e_2)) = \mbox{\prettyll{UInt}} \bwidth{1}$, moreover, $s(cp(e_1, e_2)) = 1$ iff $s(e_1)\ cp\ s(e_2)$, \\ where $cp \in \{lt, leq, gt, geq, eq, neq\}$,
-%
-\item $te(dshl(e_1, e_2)) = \theta \bwidth{n_1+2^{n_2}-1}$ and $s(dshl(e_1, e_2)) = bv_{\theta \bwidth{n_1+2^{n_2}-1}(s(e_1) \times 2^{s(e_2)})}$,
-%
-\item $te(dshr(e_1, e_2)) = \theta \bwidth{n_1}$ and $s(dshr(e_1, e_2)) = bv_{\theta \bwidth{n_1}(s(e_1) \div 2^{s(e_2)})}$,
-%
-\item $te(and(e_1, e_2)) = te(or(e_1, e_2)) =  te(xor(e_1, e_2)) = \mbox{\prettyll{UInt}} \bwidth{\max(n_1, n_2)}$, moreover,
-$s(and(e_1, e_2))$ is the bitwise and of $bv_{\theta\bwidth{\max(n_1, n_2)}(s(e_1))}$ and $bv_{\theta\bwidth{\max(n_1, n_2)}(s(e_2))}$,  $s(or(e_1, e_2))$ is the bitwise or of $bv_{\theta\bwidth{\max(n_1, n_2)}(s(e_1))}$ and $bv_{\theta\bwidth{\max(n_1, n_2)}(s(e_2))}$, $s(xor(e_1, e_2))$ is the bitwise xor of $bv_{\theta\bwidth{\max(n_1, n_2)}(s(e_1))}$ and $bv_{\theta\bwidth{\max(n_1, n_2)}(s(e_2))}$,
-%
-\item $te(cat(e_1, e_2)) = \mbox{\prettyll{UInt}} \bwidth{n_1 + n_2}$, moreover,
-\begin{itemize}
-\item if either $\theta = \mbox{\prettyll{UInt}}$, or $\theta=\mbox{\prettyll{SInt}}$, $s(e_1) \ge 0$, and $s(e_2) \ge 0$, then \\ $s(cat(e_1, e_2))$ is $bv_{\mbox{\prettyll{UInt}}\bwidth{n_1+n_2}(s(e_1) \times 2^{n_2} + s(e_2))}$,
-%
-\item if  $\theta=\mbox{\prettyll{SInt}}$, $s(e_1) \ge 0$, and $s(e_2) < 0$, then \\ $s(cat(e_1, e_2))$ is $bv_{\mbox{\prettyll{UInt}}\bwidth{n_1+n_2}(s(e_1) \times 2^{n_2} + 2^{n_2} + s(e_2))}$,
-%
-\item if  $\theta=\mbox{\prettyll{SInt}}$ and $s(e_1) < 0, s(e_2) \ge 0$, then \\  $s(cat(e_1, e_2))$ is $bv_{\mbox{\prettyll{UInt}}\bwidth{n_1+n_2}((2^{n_1}+s(e_1)) \times 2^{n_2} + s(e_2))}$,
-%
-\item if  $\theta=\mbox{\prettyll{SInt}}$ and $s(e_1) < 0, s(e_2) < 0$ then \\  $s(cat(e_1, e_2))$ is $bv_{\mbox{\prettyll{UInt}}\bwidth{n_1+n_2}((2^{n_1}-s(e_1)) \times 2^{n_2} + 2^{n_2}-s(e_2))}$,
-\end{itemize}
-\end{itemize}
-%
-\item let $te(e_1) = \theta \bwidth{n_1}$ and $te(e_2) = \mbox{\prettyll{UInt}} \bwidth{n_2}$, where $\theta \in \{\mbox{\prettyll{UInt}}, \mbox{\prettyll{SInt}}\}$, then
-\begin{itemize}
-\item $te(dshl(e_1, e_2)) = \theta \bwidth{n_1+2^{n_2}-1}$ and $s(dshl(e_1, e_2)) = bv_{\theta \bwidth{n_1+2^{n_2}-1}(s(e_1) \times 2^{s(e_2)})}$,
-%
-\item $te(dshr(e_1, e_2)) = \theta \bwidth{n_1}$ and $s(dshr(e_1, e_2)) = bv_{\theta \bwidth{n_1}(s(e_1) \div 2^{s(e_2)})}$,
-%
-\end{itemize}
-%
-\item let $te(e_1) = \theta \bwidth{n_1}$, where $\theta \in \{\mbox{\prettyll{UInt}}, \mbox{\prettyll{SInt}}\}$, then
-\begin{itemize}
-\item $te(andr(e_1)) = te(orr(e_1)) =  te(xorr(e_1)) = \uint{1}$, moreover, $s(andr(e_1))$ (resp. $s(orr(e_1))$, $s(xorr(e_1))$) is the and (resp. or, xor) of all the bits in the bit vector $s(e_1)$,
-%
-\item $te(neg(e_1)) = \sint{n_1 +1}$, $te(not(e_1)) =  \uint{n_1}$, moreover,
-\begin{itemize}
-\item $s(neg(e_1)) = bv_{\mbox{\prettyll{SInt}}\bwidth{n_1+1}(-s(e_1))}$,
-%
-\item $s(not(e_1))$ is obtained by applying the logical not to each bit of the bit vector $s(e_1)$,
-\end{itemize}
-%\begin{itemize}
-%\item if $\theta = UInt$, then $s(neg(e_1)) = bv_{SInt\bwidth{n_1+1}(-s(e_1))}$,
-%
-%\item if $\theta = SInt$, then $s(neg(e_1)) = bv_{SInt\bwidth{n_1+1}(-s(e_1))}$.
-%\end{itemize}
-%
-\item $te(cvt(e_1)) = \sint{n_1 +1}$ if $\theta = \mbox{\prettyll{UInt}}$, and $te(cvt(e_1)) =  \sint{n_1}$ otherwise,  moreover,
-\begin{itemize}
-\item if $\theta = \mbox{\prettyll{UInt}}$, then $s(cvt(e_1)) = bv_{\mbox{\prettyll{SInt}}\bwidth{n_1+1}(s(e_1))}$,
-%
-\item if $\theta = \mbox{\prettyll{SInt}}$, then $s(cvt(e_1)) = s(e_1)$,
-\end{itemize}
-\end{itemize}
-%
-\item let $te(e_1) = \theta \bwidth{n_1}$, where $\theta \in \{\mbox{\prettyll{UInt}}, \mbox{\prettyll{SInt}}\}$, then
-\begin{itemize}
-\item $te(pad(e_1, n)) = \theta\bwidth{\max(n_1, n)}$, moreover, if $n_1 < n$, then $s(pad(e_1,n)) = bv_{\theta\bwidth{n}(s(e_1))}$, otherwise, $s(pad(e_1,n)) = s(e_1)$,
-%
-\item $te(shl(e_1,n)) = \theta \bwidth{n_1 + n}$, moreover, $s(shl(e_1,n)) =  bv_{\theta\bwidth{n_1 + n}(2^{n} \times s(e_1))}$,
-%\begin{itemize}
-%\item if $\theta = UInt$, then $s(shl(e_1,n)) =  bv_{UInt\bwidth{n_1 + n}(2^{n} \times s(e_1))}$,
-%\item if $\theta = SInt$, then $s(shl(e_1,n)) = bv_{SInt\bwidth{n_1 + n}(2^{n} \times s(e_1))}$,
-%\end{itemize}
-%
-\item $te(shr(e_1, n)) = \theta \bwidth{n_1-n}$ if $n_1 > n$, and $te(shr(e_1, n)) =  \theta \bwidth{1}$ otherwise,  moreover,
-\begin{itemize}
-\item if $n_1 > n$, then $s(shr(e_1, n))$ is obtained from $s(e_1)$ by shifting $n$ bits right,
-%
-\item otherwise, if $\theta = \mbox{\prettyll{UInt}}$, then $s(shr(e_1, n))=bv_{\mbox{\prettyll{UInt}}<1>(0)}$, otherwise, $s(shr(e_1, n))=bv_{\mbox{\prettyll{SInt}}<1>(0)}$ if $s(e_1) \ge 0$, and $s(shr(e_1, n))=bv_{\mbox{\prettyll{SInt}}<1>(1)}$ if $s(e_1) < 0$,
-\end{itemize}
-%
-\item $te(head(e_1, n)) = { \mbox{\prettyll{UInt}}}{n}$, $te(tail(e_1, n)) = { \mbox{\prettyll{UInt}}}{n_1-n}$, moreover, $s(head(e_1, n))$ is the most significant $n$ bits of $s(e_1)$, $s(tail(e_1, n))$ is obtained from $s(e_1)$ by truncating the $n$ most significant bits of $s(e_1)$,
-%
-\item $te(bits(e_1, n, n')) = \uint{n'-n+1}$, and $s(bits(e_1, n, n'))$ is the bit vector comprising the $n, n+1, \cdots, n'$-th bit of $s(e_1)$.
-\end{itemize}
-%
-\end{itemize}
-
-
-\paragraph*{The definition of ${\tt type\_of\_expr}(e)$ }%\zhilin{@Xiaomu, please add the definition here}
-We define the type of HiFIRRTL program in the Coq as $ftype$. In general, it can be used to represent either a {\it ground type} ($gtyp$), a {\it vector type} ($vtyp$), or a {\tt bundle type} ($btyp$),
-$$ftype::=gtyp\;|\;vtyp\,(ftype\,n)\;|\;btyp\;fields$$
-where $$fields::=fnil\;|\;field\;fid\;flip\;ftype\;fields.$$
-For each kind of expression of HiFIRRRL, we derived its type $t$ in $ftype$ as follow.
-\begin{itemize}
-\item ${\tt type\_of\_expr}(\mbox{\prettyll{id}})=t$, where reference $id$ is the entry in the component environment $ce$.
-\item ${\tt type\_of\_expr}(\mbox{\prettyll{id.fid}})$ requires to iteratively match the type of $id$ to find the same $fid$ and then to return the $ftype$ associated. If the field identifier $fid$ can not be found in the $btyp$ of the reference $id$ or the type of $id$ is not $btyp$, it returns $\bot$.
-\item ${\tt type\_of\_expr}(\mbox{\prettyll{id[n]}})$ returns the base $ftype$ of reference $id$. If the nature number $n=0$ or the type of reference $id$ is other than a $vtyp$, it returns $\bot$.
-\item let ${\tt type\_of\_expr}(e_1)=t_1$ and ${\tt type\_of\_expr}(e_2)=t_2$, then ${\tt type\_of\_expr}(\mbox{\prettyll{mux}}(e_0,e_1,e_2))={\tt max\_width}(e_1,e_2)$, where the {\tt max\_width} compute recursively the max width of the (sub) components, iff $t_1$ $t_2$ are type equivalent, otherwise it returns $\bot$.
-\item ${\tt type\_of\_expr}(\mbox{\prettyll{validif}}(e_1,e_2))={\tt type\_of\_expr}(e_2)$, regardless the type of $e1$.
-\item ${\tt type\_of\_expr}(op)$, $op$ includes all the binary and unary operations, in which only $gtyp$ operation will involve. The {\tt type\_of\_expr} computes the type as same as $te$.
-\end{itemize}
-
-
-
 \input{appendix_sect3.tex}
 
 
@@ -140,6 +16,11 @@ For each kind of expression of HiFIRRRL, we derived its type $t$ in $ftype$ as f
 
 
 \input{appendix_sect4.tex}
+
+\section{Detailed Results in Section~\ref{sect:ocamlcompiler}}\label{sec-detailed-results}
+
+\input{appendix-detailed-results.tex}
+
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
