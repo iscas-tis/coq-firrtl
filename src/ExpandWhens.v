@@ -6788,7 +6788,8 @@ apply Hinductive.
   *)
   admit.
 * (* How can we prove scope_sub_vm tm_tmap vm?
-     1. It is easy to see that we must have subdomain tm_tmap vm.
+     1. It is easy to see that we must have subdomain tm_tmap vm;
+        (every time something is added to tm_tmap, stmt_tmap called code_type_find_vm_widths).
      2. Sem_frag_stmts ensures that for every statement in (component_stmts_of m_stmts),
         the types of the corresponding entries in tm_tmap and vm fit together. *)
   admit.
