@@ -2,1061 +2,8 @@ From Coq Require Import FunInd FMaps FMapAVL OrderedType ZArith.
 From mathcomp Require Import ssreflect ssrbool ssrnat ssrint eqtype seq ssrfun fintype.
 From simplssrlib Require Import Types SsrOrder FSets FMaps Tactics Var Store.
 (*From nbits Require Import NBits.*)
-From firrtl Require Import Firrtl Env HiEnv HiFirrtl .
+From firrtl Require Import Env Firrtl HiEnv HiFirrtl .
 (* From firrtl Require Import InferWidth_rewritten. *)
-
-(* Inductive vertex_type := *)
-(*    (* what kind of vertices can be in the module graph *) *)
-(*    OutPort : fgtyp (* within the module there is only an input *)
-(*                                 (the output goes to some place outside the module) *) -> vertex_type | *)
-(*    InPort : fgtyp -> vertex_type | (* main module only at present *) *)
-(*    (* register, wire etc. *) *)
-(*    Register : fgtyp -> HiFP.hfexpr (* clock *) -> HiFP.rst -> bool (* true if the reset is Fasyncreset *) -> vertex_type | (* Register, possibly with reset. The boolean is true if it is Fasyncreset. *) *)
-(*    Wire : fgtyp -> vertex_type | *)
-(*    (*memory : ? *)
-(*    inst : ?*) *)
-(*    Node : fgtyp -> vertex_type. *)
-
-(* (* equality of vertex_type is decidable *) *)
-(* Lemma vertex_type_eq_dec : forall {x y : vertex_type}, {x = y} + {x <> y}. *)
-(* Admitted. *)
-(* Lemma rst_eq_dec : forall {x y : HiFP.rst} , {x = y} + {x <> y}. *)
-(* Admitted. *)
-
-(*   Parameter rst_eqn : forall (x y : HiFP.rst), bool. *)
-(*   Axiom rst_eqP : Equality.axiom rst_eqn. *)
-(*   Canonical rst_eqMixin := EqMixin rst_eqP. *)
-(*   Canonical rst_eqType := Eval hnf in EqType HiFP.rst rst_eqMixin. *)
-
-(* Definition vertex_type_eqn (x y : vertex_type) : bool := *)
-(* match x, y with *)
-(* | OutPort tx, OutPort ty *)
-(* | InPort tx, InPort ty *)
-(* (*| Reference a, Reference b*) *)
-(* | Wire tx, Wire ty *)
-(* (*memory : ? *)
-(* inst : ?*) *)
-(* | Node tx, Node ty => tx == ty *)
-(* | Register tx cx rx bx, Register ty cy ry by_ => *)
-(*     (tx == ty) && (cx == cy) && (rx == ry)  && (bx == by_) *)
-(* | _, _ => false *)
-(* end. *)
-(* Lemma vertex_type_eqP : Equality.axiom vertex_type_eqn. *)
-(* Proof. *)
-(* rewrite /Equality.axiom ; intros. *)
-(* case: (@vertex_type_eq_dec x y) => H. *)
-(* * rewrite H /vertex_type_eqn ; clear -y. *)
-(*   destruct y ; rewrite eq_refl ; try rewrite andTb eq_refl ; *)
-(*   try rewrite andTb eq_refl ; try rewrite andTb eq_refl ; *)
-(*   apply ReflectT ; reflexivity. *)
-(* * rewrite /vertex_type_eqn. *)
-(*   destruct x, y ; try contradiction ; try (apply ReflectF ; exact H). *)
-(*   + 3: *)
-(*     destruct (b == b0) eqn: Hb ; *)
-(*     last (by rewrite andbF ; apply ReflectF ; exact H) ; *)
-(*     rewrite andbT ; *)
-(*     destruct (r == r0) eqn: Hr ; *)
-(*     last (by rewrite andbF ; apply ReflectF ; exact H) ; *)
-(*     rewrite andbT ; *)
-(*     destruct (h == h0) eqn: Hh ; *)
-(*     last (by rewrite andbF ; apply ReflectF ; exact H) ; *)
-(*     rewrite andbT ; *)
-(*     destruct (f == f0) eqn: Hf ; *)
-(*     last (by apply ReflectF ; exact H) ; *)
-(*     apply ReflectT ; move /eqP : Hb => Hb ; move /eqP : Hr => Hr ; *)
-(*     move /eqP : Hh => Hh ; move /eqP: Hf => Hf ; *)
-(*     rewrite Hb Hr Hh Hf //. *)
-(*   + all: *)
-(*     assert (f <> f0) by (contradict H ; rewrite H ; reflexivity) ; *)
-(*     move /eqP : H0 => H0 ; apply negbTE in H0 ; *)
-(*     rewrite H0 ; apply ReflectF ; exact H. *)
-(* Qed. *)
-(* Canonical vertex_type_eqMixin := EqMixin vertex_type_eqP. *)
-(* Canonical vertex_type_eqType := Eval hnf in EqType vertex_type vertex_type_eqMixin. *)
-
-(* (* Some abbreviations for explicit-width data types *) *)
-
-(* Definition Fsint_exp (w : nat) : fgtyp_explicit := *)
-(*    (* convert Fsint w to an fgtyp_explicit *) *)
-(*    exist not_implicit_width (Fsint w) I. *)
-
-(* Definition Fuint_exp (w : nat) : fgtyp_explicit := *)
-(*    (* convert Fuint w to an output data type *) *)
-(*    exist not_implicit_width (Fuint w) I. *)
-
-(* Definition Fclock_exp : fgtyp_explicit := *)
-(*    (* convert Fclock to an explicit-width data type *) *)
-(*    exist not_implicit_width Fclock I. *)
-
-(* Definition Fasyncreset_exp : fgtyp_explicit := *)
-(*    (* convert Fasyncreset to an explicit-width data type *) *)
-(*    exist not_implicit_width Fasyncreset I. *)
-
-(* (* vertex set of a module graph (using pairs of natural numbers as keys) *) *)
-
-(* (* The vertex set should have type CEP.t vertex_type. *) *)
-(* (* *)
-(* Module MakeVtypFMap (V : SsrOrder) (VM : SsrFMap with Module SE := V) *)
-(* <: SsrFMap with Module SE := V. *)
-(*   Include VM. *)
-(*   Include FMapLemmas VM. *)
-(*   Definition env : Type := t vertex_type. *)
-(* End MakeVtypFMap. *)
-
-(* Module ProdVarOrder := MakeProdOrder VarOrder VarOrder. *)
-(* Module PVM <: SsrFMap := FMaps.MakeTreeMap ProdVarOrder. *)
-(* Module module_graph_vertex_set_p <: SsrFMap := MakeVtypFMap ProdVarOrder PVM. *)
-(* *) *)
-
-
-(* Inductive def_expr : Type := *)
-(*   | D_undefined (* declared but not connected, no "is invalid" statement *) *)
-(*   | D_invalidated (* declared but not connected, there is a "is invalid" statement *) *)
-(*   | D_fexpr : HiFP.hfexpr -> def_expr (* declared and connected *) *)
-(*   . *)
-
-(* (* equality of def_expr is decidable [because equality of hfexpr is decidable] *) *)
-(* Lemma def_expr_eq_dec : forall {x y : def_expr}, {x = y} + {x <> y}. *)
-(*   Proof. *)
-(*   decide equality. *)
-(*   apply hfexpr_eq_dec. *)
-(* Qed. *)
-
-(* Definition def_expr_eqn (x y : def_expr) : bool := *)
-(*   match x, y with *)
-(*   | D_undefined, D_undefined => true *)
-(*   | D_invalidated, D_invalidated => true *)
-(*   | D_fexpr expr1, D_fexpr expr2 => expr1 == expr2 *)
-(*   | _, _ => false *)
-(*   end. *)
-
-(* Lemma def_expr_eqP : Equality.axiom def_expr_eqn. *)
-(* Proof. *)
-(*   unfold Equality.axiom, def_expr_eqn. *)
-(*   intros ; induction x, y ; try (apply ReflectF ; discriminate) ; try (apply ReflectT ; reflexivity). *)
-(*   case Eq: (h == h0). *)
-(*   all: move /hfexpr_eqP : Eq => Eq. *)
-(*   apply ReflectT ; replace h0 with h ; reflexivity. *)
-(*   apply ReflectF ; injection ; apply Eq. *)
-(* Qed. *)
-
-(* Canonical def_expr_eqMixin := EqMixin def_expr_eqP. *)
-(* Canonical def_expr_eqType := Eval hnf in EqType def_expr def_expr_eqMixin. *)
-
-
-(* (*---------------------------------------------------------------------------*) *)
-(* (* Helper functions for connecting                                           *) *)
-
-(* Fixpoint connect_type_compatible (can_flip : bool) (ft_tgt ft_src : ftype) (flipped : bool) : bool := *)
-(* (* Returns true if a connection from ft_src to ft_tgt is allowed. *)
-(*    flipped == true indicates that the connection should be the other way actually. *)
-(*    If can_flip == false, no flipped fields are allowed in bundle types. *) *)
-(* match ft_tgt, ft_src with *)
-(* | Gtyp (Fuint _), Gtyp (Fuint _) *)
-(* | Gtyp (Fsint _), Gtyp (Fsint _) *)
-(* | Gtyp Fclock, Gtyp Fclock *)
-(* | Gtyp Fasyncreset, Gtyp Fasyncreset => true *)
-(* | Gtyp (Fuint_implicit w_tgt), Gtyp (Fuint w_src) *)
-(* | Gtyp (Fsint_implicit w_tgt), Gtyp (Fsint w_src) => flipped || (w_tgt >= w_src) *)
-(* | Gtyp (Fuint w_tgt), Gtyp (Fuint_implicit w_src) *)
-(* | Gtyp (Fsint w_tgt), Gtyp (Fsint_implicit w_src) => (~~flipped) || (w_tgt <= w_src) *)
-(* | Gtyp (Fuint_implicit w_tgt), Gtyp (Fuint_implicit w_src) *)
-(* | Gtyp (Fsint_implicit w_tgt), Gtyp (Fsint_implicit w_src) => *)
-(*     if flipped then w_tgt <= w_src else w_tgt >= w_src *)
-(* | Atyp ft_tgt' n_tgt, Atyp ft_src' n_src => *)
-(*        (n_tgt == n_src) *)
-(*     && *)
-(*        connect_type_compatible can_flip ft_tgt' ft_src' flipped *)
-(* | Btyp ff_tgt, Btyp ff_src => connect_type_compatible_fields can_flip ff_tgt ff_src flipped *)
-(* | _, _ => false *)
-(* end *)
-(* with connect_type_compatible_fields (can_flip : bool) (ff_tgt ff_src : ffield) (flipped : bool) : bool := *)
-(* (* Returns true if a connection from (Btyp ff_src) to (Btyp ff_tgt) is allowed. *)
-(*    flipped == true indicates that the connection should be the other way actually. *)
-(*    If can_flip == false, no flipped fields are allowed in bundle types. *) *)
-(* match ff_tgt, ff_src with *)
-(* | Fnil, Fnil => true *)
-(* | Fflips v_tgt Nflip ft_tgt ff_tgt', Fflips v_src Nflip ft_src ff_src' => *)
-(*        (v_tgt == v_src) *)
-(*     && *)
-(*        connect_type_compatible can_flip ft_tgt ft_src flipped *)
-(*     && *)
-(*        connect_type_compatible_fields can_flip ff_tgt' ff_src' flipped *)
-(* | Fflips v_tgt Flipped ft_tgt ff_tgt', Fflips v_src Flipped ft_src ff_src' => *)
-(*        can_flip *)
-(*     && *)
-(*        (v_tgt == v_src) *)
-(*     && *)
-(*        connect_type_compatible can_flip ft_tgt ft_src (~~flipped) *)
-(*     && *)
-(*        connect_type_compatible_fields can_flip ff_tgt' ff_src' flipped *)
-(* | _, _ => false *)
-(* end. *)
-
-(* Definition connect_fgtyp (ct_old : CEP.t def_expr) *)
-(*                          (ref_tgt : HiFP.href) (lst_tgt : list CEP.key) *)
-(*                          (ref_src : HiFP.href) (lst_src : list CEP.key) *)
-(*                          (flipped : bool) *)
-(*                          (ct_new : CEP.t def_expr) : bool := *)
-(* (* The predicate checks whether ct_new contains the correct connection that connects from lst_src to lst_tgt, *)
-(*    and it does not change the connection into lst_src. *)
-(*    These lists must be one-element lists for output and input connectors of compatible types. *)
-(*    It assumes that the types are compatible. *) *)
-(* match flipped, ref_tgt, lst_tgt, ref_src, lst_src with *)
-(* | false, _, [:: ic], ref_src, [:: oc] *)
-(* | true,  ref_src, [:: oc], _, [:: ic] => *)
-(*        (CEP.find ic ct_new == Some (D_fexpr (Eref ref_src))) *)
-(*     && *)
-(*        (CEP.find oc ct_new == CEP.find oc ct_old) *)
-(*        (* why this is compared? *)
-(*           In Sem_frag_stmt, it is ensured that connection trees NOT related to tgt or src are not changed. *)
-(*           Here, we need to ensure that the connection tree of tgt is changed *)
-(*           and the connection tree of src remains the same. *) *)
-(* | _, _, _, _, _ => false *)
-(* end. *)
-
-(* Fixpoint connect (ct_old : CEP.t def_expr) *)
-(*                  (ref_tgt : HiFP.href) (lst_tgt : list CEP.key) (ft_tgt : ftype) *)
-(*                  (ref_src : HiFP.href) (lst_src : list CEP.key) (ft_src : ftype) *)
-(*                  (flipped : bool) *)
-(*                  (ct_new : CEP.t def_expr) : bool := *)
-(* (* The predicate returns true if the correct connection trees are in ct_new *)
-(*    that connect from lst_src to lst_tgt, and that the connection trees that *)
-(*    connect to lst_src are not changed.  Other connection trees are not checked. *)
-(*    The type of lst_tgt is ft_tgt, and the type of lst_src is ft_src. *)
-(*    These references are *not* required to have passive types. *) *)
-(* match ft_tgt, ft_src with *)
-(* | Gtyp gt_tgt, Gtyp gt_src => connect_fgtyp ct_old ref_tgt lst_tgt ref_src lst_src flipped ct_new *)
-(* | Atyp elt_tgt n1, Atyp elt_src n2 => *)
-(*        (n1 == n2) *)
-(*    && *)
-(*        let type_len := size_of_ftype elt_tgt in *)
-(*        [forall n : ordinal n1, *)
-(*           connect ct_old *)
-(*                   (Esubindex ref_tgt n) (take type_len (drop (n * type_len) lst_tgt)) elt_tgt *)
-(*                   (Esubindex ref_src n) (take type_len (drop (n * type_len) lst_src)) elt_src *)
-(*                   flipped ct_new] *)
-(* | Btyp ff_tgt, Btyp ff_src => connect_fields ct_old ref_tgt lst_tgt ff_tgt ref_src lst_src ff_src flipped ct_new *)
-(* | _, _ => false *)
-(* end *)
-(* with connect_fields (ct_old : CEP.t def_expr) *)
-(*                     (ref_tgt : HiFP.href) (lst_tgt : list CEP.key) (ft_tgt : ffield) *)
-(*                     (ref_src : HiFP.href) (lst_src : list CEP.key) (ft_src : ffield) *)
-(*                     (flipped : bool) *)
-(*                     (ct_new : CEP.t def_expr) : bool := *)
-(* (* The predicate returns true if the correct connection trees are in ct_new *)
-(*    that connect from lst_src to lst_tgt, and that the connection trees that *)
-(*    connect to lst_src are not changed.  Other connection trees are not checked. *)
-(*    The type of lst_tgt is (Btyp ft_tgt), and the type of lst_src is (Btyp ft_src). *)
-(*    These references are *not* required to have passive types. *) *)
-(* match ft_tgt, ft_src with *)
-(* | Fnil, Fnil => true *)
-(* | Fflips v1 Nflip gtt ft, Fflips v2 Nflip gts fs => *)
-(*        (v1 == v2) *)
-(*     && *)
-(*        let type_len := size_of_ftype gtt in *)
-(*               connect ct_old (Esubfield ref_tgt v1) (take type_len lst_tgt) gtt (Esubfield ref_src v2) (take type_len lst_src) gts flipped ct_new *)
-(*            && *)
-(*               connect_fields ct_old ref_tgt (drop type_len lst_tgt) ft ref_src (drop type_len lst_src) fs flipped ct_new *)
-(* | Fflips v1 Flipped gtt ft, Fflips v2 Flipped gts fs => *)
-(*        (v1 == v2) *)
-(*     && *)
-(*        let type_len := size_of_ftype gts in *)
-(*               connect ct_old (Esubfield ref_tgt v1) (take type_len lst_tgt) gtt (Esubfield ref_src v2) (take type_len lst_src) gts (~~flipped) ct_new *)
-(*            && *)
-(*               connect_fields ct_old ref_tgt (drop type_len lst_tgt) ft ref_src (drop type_len lst_src) fs flipped ct_new *)
-(* | _, _ => false *)
-(* end. *)
-
-
-(* Fixpoint type_of_ffield (v : VarOrder.T) (ff : ffield) : option ftype := *)
-(* (* Find the type of field v in bundle type (Btyp ff). *) *)
-(* match ff with *)
-(* | Fnil => None *)
-(* | Fflips v0 _ t ff' => if v == v0 then Some t else type_of_ffield v ff' *)
-(* end. *)
-
-(* Fixpoint type_of_ref (ref : HiFP.href) (tmap : CEP.t ftype) : option ftype := *)
-(* (* Find the type of reference ref, using the type information from tmap. *)
-(*    Note that widths of implicit-width components may be wrong. *)
-
-(*    This function is similar to base_ref; check whether they can be made more similar. *) *)
-(* match ref with *)
-(* | Eid v => CEP.find v tmap *)
-(* | Esubindex ref' n => *)
-(*     match type_of_ref ref' tmap with *)
-(*     | Some (Atyp t m) => if n < m then Some t else None *)
-(*     | _ => None *)
-(*     end *)
-(* | Esubfield ref' v => *)
-(*     match type_of_ref ref' tmap with *)
-(*     | Some (Btyp ff) => type_of_ffield v ff *)
-(*     | _ => None *)
-(*     end *)
-(* | Esubaccess _ _ => None *)
-(* end. *)
-
-(* Definition fgtyp_mux (x y : fgtyp_explicit) : option fgtyp_explicit := *)
-(* (* Find the type of a multiplexer whose two inputs have types x and y, for ground types *) *)
-(*     match x, y with *)
-(*     | exist (Fuint wx) _, exist (Fuint wy) _ => Some (Fuint_exp (Nat.max wx wy)) *)
-(*     | exist (Fsint wx) _, exist (Fsint wy) _ => Some (Fsint_exp (Nat.max wx wy)) *)
-(*     | exist Fclock _, exist Fclock _ => Some Fclock_exp *)
-(*   (*| exist Freset _, exist Freset _ => Some Freset_exp*) *)
-(*     | exist Fasyncreset _, exist Fasyncreset _ => Some Fasyncreset_exp *)
-(*     | _, _ => None *)
-(*     end. *)
-
-(* Fixpoint ftype_mux' (x : ftype) (px : ftype_not_implicit_width x) (y : ftype) (py : ftype_not_implicit_width y) : option ftype_explicit := *)
-(* (* Find the type of a multiplexer whose two inputs have types (exist ftype_not_implicit_width x px) *)
-(*    and (exist ftype_not_implicit_width y py). *)
-(*    The function needs to take apart the ftype_explicit so Coq can guess the decreasing argument. *) *)
-(*   match x, px, y, py with *)
-(*   | Gtyp tx, px, Gtyp ty, py => *)
-(*        match fgtyp_mux (exist not_implicit_width tx px) (exist not_implicit_width ty py) with *)
-(*        | Some (exist fgt p) => Some (exist ftype_not_implicit_width (Gtyp fgt) p) *)
-(*        | None => None *)
-(*        end *)
-(*   | Atyp tx nx, px, Atyp ty ny, py => *)
-(*        if (nx == ny) then match ftype_mux' tx px ty py with *)
-(*                           | Some (exist fat p) => Some (exist ftype_not_implicit_width (Atyp fat nx) p) *)
-(*                           | None => None *)
-(*                           end *)
-(*                      else None *)
-(*   | Btyp fx, px, Btyp fy, py => ffield_mux' fx px fy py *)
-(*   | _, _, _, _ => None *)
-(*   end *)
-(* with ffield_mux' (f1 : ffield) (p1 : ffield_not_implicit_width f1) (f2 : ffield) (p2 : ffield_not_implicit_width f2) : option ftype_explicit := *)
-(*        match f1, p1, f2, p2 with *)
-(*        | Fnil, _, Fnil, _ => Some (exist ftype_not_implicit_width (Btyp Fnil) I) *)
-(*        | Fflips v1 Nflip t1 fs1, p1, Fflips v2 Nflip t2 fs2, p2 *)
-(*          => if v1 == v2 then *)
-(*                match ftype_mux'  t1  (proj1 p1) t2  (proj1 p2), *)
-(*                      ffield_mux' fs1 (proj2 p1) fs2 (proj2 p2) with *)
-(*                | Some (exist ft pt), Some (exist (Btyp bf) pf) => *)
-(*                    Some (exist ftype_not_implicit_width (Btyp (Fflips v1 Nflip ft bf)) (conj pt pf)) *)
-(*                | _, _ => None *)
-(*                end *)
-(*             else None *)
-(*        | _, _, _, _ => None *)
-(*        end. *)
-
-(* Definition ftype_mux (x : ftype_explicit) (y : ftype_explicit) : option ftype_explicit := *)
-(* (* return the type of mux expression on ftypes *)
-
-(*    Similar to mux_types in InferWidths *) *)
-(*    ftype_mux' (proj1_sig x) (proj2_sig x) (proj1_sig y) (proj2_sig y). *)
-
-(* Fixpoint type_of_expr (expr : HiFP.hfexpr) (tmap: CEP.t ftype) : option ftype_explicit := *)
-(*    (* Find the type of expression expr. *)
-
-(*    Similar to type_of_hfexpr in InferWidths *) *)
-(*    match expr with *)
-(*    | Econst t bs => match t with *)
-(*                     | Fuint_implicit w => Some (exist ftype_not_implicit_width (Gtyp (Fuint w)) I) *)
-(*                     | Fsint_implicit w => Some (exist ftype_not_implicit_width (Gtyp (Fsint w)) I) *)
-(*                     | t => Some (exist ftype_not_implicit_width (Gtyp t) I) *)
-(*                     end *)
-(*    | Eref r => match type_of_ref r tmap with *)
-(*                | Some t => Some (make_ftype_explicit t) *)
-(*                | _ => None *)
-(*                end *)
-(*    | Ecast AsUInt e1 => match type_of_expr e1 tmap with *)
-(*                          | Some (exist (Gtyp (Fsint w)) _) *)
-(*                          | Some (exist (Gtyp (Fuint w)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fuint w)) I) *)
-(*                          | Some (exist (Gtyp Fclock) _) *)
-(*                          | Some (exist (Gtyp Freset) _) *)
-(*                          | Some (exist (Gtyp Fasyncreset) _) => Some (exist ftype_not_implicit_width (Gtyp (Fuint 1)) I) *)
-(*                          | _ => None *)
-(*                          end *)
-(*    | Ecast AsSInt e1 => match type_of_expr e1 tmap with *)
-(*                          | Some (exist (Gtyp (Fsint w)) _) *)
-(*                          | Some (exist (Gtyp (Fuint w)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fsint w)) I) *)
-(*                          | Some (exist (Gtyp Fclock) _) *)
-(*                          | Some (exist (Gtyp Freset) _) *)
-(*                          | Some (exist (Gtyp Fasyncreset) _) => Some (exist ftype_not_implicit_width (Gtyp (Fsint 1)) I) *)
-(*                          | _ => None *)
-(*                          end *)
-(*    | Ecast AsClock e1 => match type_of_expr e1 tmap with *)
-(*                          | Some (exist (Gtyp _) _) => Some (exist ftype_not_implicit_width (Gtyp Fclock) I) *)
-(*                          | _ => None *)
-(*                          end *)
-(*    | Ecast AsAsync e1 => match type_of_expr e1 tmap with *)
-(*                          | Some (exist (Gtyp _) _) => Some (exist ftype_not_implicit_width (Gtyp Fasyncreset) I) *)
-(*                          | _ => None *)
-(*                          end *)
-(*    | Eprim_unop (Upad n) e1 => match type_of_expr e1 tmap with *)
-(*                                 | Some (exist (Gtyp (Fsint w)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fsint (maxn w n))) I) *)
-(*                                 | Some (exist (Gtyp (Fuint w)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fuint (maxn w n))) I) *)
-(*                                 | _ => None *)
-(*                                 end *)
-(*    | Eprim_unop (Ushl n) e1 => match type_of_expr e1 tmap with *)
-(*                                 | Some (exist (Gtyp (Fsint w)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fsint (w + n))) I) *)
-(*                                 | Some (exist (Gtyp (Fuint w)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fuint (w + n))) I) *)
-(*                                 | _ => None *)
-(*                                 end *)
-(*    | Eprim_unop (Ushr n) e1 => match type_of_expr e1 tmap with *)
-(*                                 | Some (exist (Gtyp (Fsint w)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fsint (maxn (w - n) 1))) I) *)
-(*                                 | Some (exist (Gtyp (Fuint w)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fuint (maxn (w - n) 1))) I) *)
-(*                                 | _ => None *)
-(*                                 end *)
-(*    | Eprim_unop Ucvt e1 => match type_of_expr e1 tmap with *)
-(*                             | Some (exist (Gtyp (Fsint w)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fsint w)) I) *)
-(*                             | Some (exist (Gtyp (Fuint w)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fsint (w + 1))) I) *)
-(*                             | _ => None *)
-(*                             end *)
-(*    | Eprim_unop Uneg e1 => match type_of_expr e1 tmap with *)
-(*                             | Some (exist (Gtyp (Fsint w)) _) *)
-(*                             | Some (exist (Gtyp (Fuint w)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fsint (w + 1))) I) *)
-(*                             | _ => None *)
-(*                             end *)
-(*    | Eprim_unop Unot e1 => match type_of_expr e1 tmap with *)
-(*                             | Some (exist (Gtyp (Fsint w)) _) *)
-(*                             | Some (exist (Gtyp (Fuint w)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fuint w)) I) *)
-(*                             | _ => None *)
-(*                             end *)
-(*    | Eprim_unop (Uextr n1 n2) e1 => match type_of_expr e1 tmap with *)
-(*                                      | Some (exist (Gtyp (Fsint w)) _) *)
-(*                                      | Some (exist (Gtyp (Fuint w)) _) => *)
-(*                                           if (n2 <= n1) && (n1 < w) then Some (exist ftype_not_implicit_width (Gtyp (Fuint (n1 - n2 + 1))) I) *)
-(*                                                                     else None *)
-(*                                      | _ => None *)
-(*                                      end *)
-(*    | Eprim_unop (Uhead n) e1 => match type_of_expr e1 tmap with *)
-(*                                  | Some (exist (Gtyp (Fsint w)) _) *)
-(*                                  | Some (exist (Gtyp (Fuint w)) _) => *)
-(*                                       if n <= w then Some (exist ftype_not_implicit_width (Gtyp (Fuint n)) I) *)
-(*                                                 else None *)
-(*                                  | _ => None *)
-(*                                  end *)
-(*    | Eprim_unop (Utail n) e1 => match type_of_expr e1 tmap with *)
-(*                                  | Some (exist (Gtyp (Fsint w)) _) *)
-(*                                  | Some (exist (Gtyp (Fuint w)) _) => *)
-(*                                       if n <= w then Some (exist ftype_not_implicit_width (Gtyp (Fuint (w - n))) I) *)
-(*                                                 else None *)
-(*                                  | _ => None *)
-(*                                  end *)
-(*    | Eprim_unop _ e1 => match type_of_expr e1 tmap with *)
-(*                          | Some (exist (Gtyp (Fsint _)) _) *)
-(*                          | Some (exist (Gtyp (Fuint _)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fuint 1)) I) *)
-(*                          | _ => None *)
-(*                          end *)
-(*    | Eprim_binop (Bcomp _) e1 e2 => match type_of_expr e1 tmap, type_of_expr e2 tmap with *)
-(*                                      | Some (exist (Gtyp (Fsint _)) _), Some (exist (Gtyp (Fsint _)) _) *)
-(*                                      | Some (exist (Gtyp (Fuint _)) _), Some (exist (Gtyp (Fuint _)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fuint 1)) I) *)
-(*                                      | _, _ => None *)
-(*                                      end *)
-(*    | Eprim_binop Badd e1 e2 *)
-(*    | Eprim_binop Bsub e1 e2 => match type_of_expr e1 tmap, type_of_expr e2 tmap with *)
-(*                                 | Some (exist (Gtyp (Fuint w1)) _), Some (exist (Gtyp (Fuint w2)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fuint (maxn w1 w2 + 1))) I) *)
-(*                                 | Some (exist (Gtyp (Fsint w1)) _), Some (exist (Gtyp (Fsint w2)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fsint (maxn w1 w2 + 1))) I) *)
-(*                                 | _, _ => None *)
-(*                                 end *)
-(*    | Eprim_binop Bmul e1 e2 => match type_of_expr e1 tmap, type_of_expr e2 tmap with *)
-(*                                 | Some (exist (Gtyp (Fuint w1)) _), Some (exist (Gtyp (Fuint w2)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fuint (w1 + w2))) I) *)
-(*                                 | Some (exist (Gtyp (Fsint w1)) _), Some (exist (Gtyp (Fsint w2)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fsint (w1 + w2))) I) *)
-(*                                 | _, _ => None *)
-(*                                 end *)
-(*    | Eprim_binop Bdiv e1 e2  => match type_of_expr e1 tmap, type_of_expr e2 tmap with *)
-(*                                  | Some (exist (Gtyp (Fuint w1)) _), Some (exist (Gtyp (Fuint w2)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fuint w1)) I) *)
-(*                                  | Some (exist (Gtyp (Fsint w1)) _), Some (exist (Gtyp (Fsint w2)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fsint (w1 + 1))) I) *)
-(*                                  | _, _ => None *)
-(*                                  end *)
-(*    | Eprim_binop Brem e1 e2 => match type_of_expr e1 tmap, type_of_expr e2 tmap with *)
-(*                                  | Some (exist (Gtyp (Fuint w1)) _), Some (exist (Gtyp (Fuint w2)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fuint (minn w1 w2))) I) *)
-(*                                  | Some (exist (Gtyp (Fsint w1)) _), Some (exist (Gtyp (Fsint w2)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fsint (minn w1 w2))) I) *)
-(*                                  | _, _ => None *)
-(*                                  end *)
-(*    | Eprim_binop Bdshl e1 e2 => match type_of_expr e1 tmap, type_of_expr e2 tmap with *)
-(*                                  | Some (exist (Gtyp (Fuint w1)) _), Some (exist (Gtyp (Fuint w2)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fuint (w1 + 2 ^ w2 - 1))) I) *)
-(*                                  | Some (exist (Gtyp (Fsint w1)) _), Some (exist (Gtyp (Fuint w2)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fsint (w1 + 2 ^ w2 - 1))) I) *)
-(*                                  | _, _ => None *)
-(*                                  end *)
-(*    | Eprim_binop Bdshr e1 e2 => match type_of_expr e1 tmap, type_of_expr e2 tmap with *)
-(*                                  | Some (exist (Gtyp (Fuint w1)) _), Some (exist (Gtyp (Fuint w2)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fuint w1)) I) *)
-(*                                  | Some (exist (Gtyp (Fsint w1)) _), Some (exist (Gtyp (Fuint w2)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fsint w1)) I) *)
-(*                                  | _, _ => None *)
-(*                                  end *)
-(*    | Eprim_binop Bcat e1 e2 => match type_of_expr e1 tmap, type_of_expr e2 tmap with *)
-(*                                 | Some (exist (Gtyp (Fuint w1)) _), Some (exist (Gtyp (Fuint w2)) _) *)
-(*                                 | Some (exist (Gtyp (Fsint w1)) _), Some (exist (Gtyp (Fsint w2)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fuint (w1 + w2))) I) *)
-(*                                 | _, _ => None *)
-(*                                 end *)
-(*    | Eprim_binop Band e1 e2 *)
-(*    | Eprim_binop Bor e1 e2 *)
-(*    | Eprim_binop Bxor e1 e2 => match type_of_expr e1 tmap, type_of_expr e2 tmap with *)
-(*                                 | Some (exist (Gtyp (Fuint w1)) _), Some (exist (Gtyp (Fuint w2)) _) *)
-(*                                 | Some (exist (Gtyp (Fsint w1)) _), Some (exist (Gtyp (Fsint w2)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fuint (maxn w1 w2))) I) *)
-(*                                 | _, _ => None *)
-(*                                 end *)
-(*    | Emux c e1 e2 => match type_of_expr c tmap, type_of_expr e1 tmap, type_of_expr e2 tmap with *)
-(*                       | Some (exist (Gtyp (Fuint 1)) _), Some t1, Some t2 => ftype_mux t1 t2 *)
-(*                       | _, _, _ => None *)
-(*                       end *)
-(*    | Evalidif c e1 => match type_of_expr c tmap with *)
-(*                       | Some (exist (Gtyp (Fuint 1)) _) => type_of_expr e1 tmap *)
-(*                       | _ => None *)
-(*                       end *)
-(*    (* | _ => None (* Some (exist ftype_not_implicit_width (Gtyp (Fuint 0)) I) *) *) *)
-(*    end. *)
-
-
-(* (*---------------------------------------------------------------------------*) *)
-(* (* Construct lists of input connectors and expressions (for connecting)      *) *)
-
-(* Fixpoint select_field (f : VarOrder.t) (l : seq CEP.key) (ff : ffield) : option (seq CEP.key * ftype) := *)
-(* (* select field f from the list of input connectors l, which corresponds to type ff. *)
-(*    ff does not need to be passive, but its direction is ignored. *)
-(*    Return the corresponding output connectors, and also return the type of the field f. *) *)
-(* match ff with *)
-(* | Fflips v _ ft ff' => *)
-(*     let elsize := size_of_ftype ft in *)
-(*     if size l < elsize then None *)
-(*     else if f == v then Some (take elsize l, ft) *)
-(*          else select_field f (drop elsize l) ff' *)
-(* | _ => None *)
-(* end. *)
-
-(* Lemma select_field_size : *)
-(* forall (v : VarOrder.T) (ff : ffield) (input_list : seq CEP.key), *)
-(*    size_of_fields ff <= size input_list -> *)
-(*       match select_field v input_list ff with *)
-(*       | Some (output_list, ft) => size output_list = size_of_ftype ft *)
-(*       | None => True *)
-(*       end. *)
-(* Proof. *)
-(* induction ff ; simpl ; first by trivial. *)
-(* intros. *)
-(* assert (size input_list < size_of_ftype f0 = false) *)
-(*       by (apply negbTE ; rewrite -leqNgt ; *)
-(*           apply (leq_trans (n := size_of_ftype f0 + size_of_fields ff)) ; *)
-(*           try apply H ; *)
-(*           apply leq_addr). *)
-(* rewrite H0. *)
-(* destruct (v == v0). *)
-(* * rewrite size_take. *)
-(*   destruct (size_of_ftype f0 < size input_list) eqn: H1 ; first by reflexivity. *)
-(*   apply anti_leq. *)
-(*   rewrite leqNgt H1 andTb leqNgt H0 //. *)
-(* * specialize (IHff (drop (size_of_ftype f0) input_list)). *)
-(*   destruct (select_field v (drop (size_of_ftype f0) input_list) ff) as [[output_list ff']|] ; last by trivial. *)
-(*   apply IHff. *)
-(*   rewrite size_drop leq_subRL ; first by exact H. *)
-(*   rewrite leqNgt H0 //. *)
-(* Qed. *)
-
-(* Lemma list_rhs_ref_p_ffield : *)
-(* forall (v : VarOrder.T) (ff : ffield) (input_list : seq CEP.key), *)
-(*    match type_of_ffield v ff, select_field v input_list ff with *)
-(*    | Some type_ff, Some (_, list_ff) => type_ff = list_ff *)
-(*    | Some _, None => size input_list < size_of_fields ff *)
-(*    | None, Some _ => False *)
-(*    | None, None => True *)
-(*    end. *)
-(* Proof. *)
-(* induction ff ; simpl ; first by trivial. *)
-(* intro ; destruct (v == v0). *)
-(* * destruct (size input_list < size_of_ftype f0) eqn: Hshort ; *)
-(*         last by reflexivity. *)
-(*   apply ltn_addr. *)
-(*   rewrite Hshort //. *)
-(* * destruct (type_of_ffield v ff). *)
-(*   + destruct (size input_list < size_of_ftype f0) eqn: Hshort. *)
-(*     - apply ltn_addr. *)
-(*       rewrite Hshort //. *)
-(*     - specialize (IHff (drop (size_of_ftype f0) input_list)). *)
-(*       destruct (select_field v (drop (size_of_ftype f0) input_list) ff) as [[t list_ff]|] eqn: Hselect ; *)
-(*             first by exact IHff. *)
-(*       rewrite size_drop ltn_subLR in IHff ; first by exact IHff. *)
-(*       apply negbT in Hshort. *)
-(*       rewrite -leqNgt in Hshort. *)
-(*       by exact Hshort. *)
-(*   + destruct (size input_list < size_of_ftype f0) eqn: Hshort ; *)
-(*           first by trivial. *)
-(*     specialize (IHff (drop (size_of_ftype f0) input_list)). *)
-(*     destruct (select_field v (drop (size_of_ftype f0) input_list) ff) as [[t list_ff]|] eqn: Hselect ; *)
-(*           done. *)
-(* Qed. *)
-
-(* Fixpoint list_lhs_ref_p (ref : HiFP.href) (tmap : CEP.t ftype) : option (seq CEP.key * ftype) := *)
-(* (* find which input connectors of ground-type identifiers correspond to reference ref. *)
-(*    ground-type identifiers are vertices in the module graph (identified by a pair of N); *)
-(*    input connectors are always the triple (vertex identifier, N0). *)
-(*    Also find the type of reference ref. *) *)
-(* match ref with *)
-(* | Eid v => *)
-(*     (* Construct a list of identifiers and find the type of v *) *)
-(*     match CEP.find v tmap with *)
-(*     | Some t => *)
-(*         Some (mkseq (fun i => (fst v, N.add (snd v) (N.of_nat i))) (size_of_ftype t), t) *)
-(*     | None => None *)
-(*     end *)
-(* | Esubfield ref' f => *)
-(*     match list_lhs_ref_p ref' tmap with *)
-(*     | Some (l, Btyp ff) => *)
-(*         (* Select from list l the relevant part for field f. *)
-(*            Determine which part this is based on t *) *)
-(*         select_field f l ff *)
-(*     | _ => None *)
-(*     end *)
-(* | Esubindex ref' n => *)
-(*     match list_lhs_ref_p ref' tmap with *)
-(*     | Some (l, Atyp t m) => *)
-(*         (* Select from list l the relevant part for array element n. *)
-(*            Determine which part this is based on t *) *)
-(*         let elsize := size_of_ftype t in *)
-(*         if (n < m) && (size l == m * elsize) *)
-(*         then Some (take elsize (drop (n * elsize) l), t) *)
-(*         else None *)
-(*     | _ => None *)
-(*     end *)
-(* | Esubaccess _ _ => None *)
-(* end. *)
-
-(* Lemma list_lhs_ref_p_size : *)
-(* forall (tmap : CEP.t ftype) (ref : HiFP.href), *)
-(* match list_lhs_ref_p ref tmap with *)
-(* | Some (input_list, ft) => size input_list = size_of_ftype ft *)
-(* | None => True *)
-(* end. *)
-(* Proof. *)
-(* induction ref ; simpl ; try done. *)
-(* * destruct (CEP.find s tmap) as [ft|] ; last by trivial. *)
-(*   rewrite size_mkseq //. *)
-(* * destruct (list_lhs_ref_p ref tmap) as [[input_list [| |ff]]|] ; try apply IHref ; try done. *)
-(*   generalize (select_field_size v ff input_list) ; intro. *)
-(*   destruct (select_field v input_list ff) as [[output_list ft]|]; last by trivial. *)
-(*   apply H, eq_leq. *)
-(*   rewrite IHref //. *)
-(* * destruct (list_lhs_ref_p ref tmap) as [[input_list [|t m|]]|] ; try by trivial. *)
-(*   destruct ((n < m) && (size input_list == m * size_of_ftype t)) eqn: Hshort ; last by trivial. *)
-(*   move /andP : Hshort => [Hnm /eqP Hshort]. *)
-(*   rewrite size_take size_drop Hshort -mulnBl. *)
-(*   destruct (size_of_ftype t < (m - n) * size_of_ftype t) eqn: Hsize ; first by reflexivity. *)
-(*   apply anti_leq. *)
-(*   rewrite leqNgt Hsize andTb -subnSK // mulSn leq_addr //. *)
-(* Qed. *)
-
-(* Lemma list_lhs_ref_p_type : *)
-(* forall (tmap : CEP.t ftype) (ref : HiFP.href), *)
-(*    match type_of_ref ref tmap, list_lhs_ref_p ref tmap with *)
-(*    | Some type_ft, Some (list_lst, list_ft) => type_ft = list_ft *)
-(*    | Some _, None *)
-(*    | None, Some _ => False *)
-(*    | None, None => True *)
-(*    end. *)
-(* Proof. *)
-(* intros. *)
-(* induction ref ; simpl ; try by done. *)
-(* * destruct (CEP.find s tmap) ; by done. *)
-(* * destruct (type_of_ref ref tmap) as [type_ft|] ; *)
-(*         last by destruct (list_lhs_ref_p ref tmap) ; done. *)
-(*   generalize (list_lhs_ref_p_size tmap ref) ; intro. *)
-(*   destruct (list_lhs_ref_p ref tmap) as [[input_list list_ft]|] ; try done. *)
-(*   rewrite IHref ; clear type_ft IHref. *)
-(*   destruct (list_ft) ; try done. *)
-(*   generalize (list_rhs_ref_p_ffield v f input_list) ; intro. *)
-(*   simpl size_of_ftype in H. *)
-(*   destruct (type_of_ffield v f) as [type_ff|] eqn: Hfield ; try done. *)
-(*   destruct (select_field v input_list f) ; try done. *)
-(*   rewrite H ltnn // in H0. *)
-(* * destruct (type_of_ref ref tmap) as [type_ft|] ; *)
-(*         last by destruct (list_lhs_ref_p ref tmap) ; done. *)
-(*   generalize (list_lhs_ref_p_size tmap ref) ; intro. *)
-(*   destruct (list_lhs_ref_p ref tmap) as [[input_list list_ft]|] ; try done. *)
-(*   rewrite IHref ; clear type_ft IHref. *)
-(*   destruct (list_ft) ; try done. *)
-(*   simpl size_of_ftype in H. *)
-(*   destruct (n < n0) ; last by rewrite andFb //. *)
-(*   rewrite andTb H mulnC eq_refl //. *)
-(* Qed. *)
-
-(* Fixpoint list_rhs_ref_p (ref : HiFP.href) (ft : ftype) : option (seq HiFP.hfexpr) := *)
-(* (* Finds expressions for the ground-type components of the reference ref, which is of type ft. *)
-(*    ft must be a passive type. *) *)
-(* match ft with *)
-(* | Gtyp _ => Some [:: Eref ref] *)
-(* | Atyp t n => *)
-(*     iteri n (fun (i : nat) (ol : option (seq HiFP.hfexpr)) => *)
-(*                  match ol, list_rhs_ref_p (Esubindex ref i) t with *)
-(*                  | Some l, Some li => Some (l ++ li) *)
-(*                  | _, _ => None *)
-(*                  end) *)
-(*           (Some [::]) *)
-(* | Btyp ff => list_rhs_ref_p_fields ref ff *)
-(* end *)
-(* with list_rhs_ref_p_fields (ref : HiFP.href) (ff : ffield) : option (seq HiFP.hfexpr) := *)
-(* match ff with *)
-(* | Fnil => Some [::] *)
-(* | Fflips v Nflip t ff' => *)
-(*     match list_rhs_ref_p (Esubfield ref v) t, list_rhs_ref_p_fields ref ff' with *)
-(*     | Some l1, Some l2 => Some (l1 ++ l2) *)
-(*     | _, _ => None *)
-(*     end *)
-(* | Fflips _ Flipped _ _ => None *)
-(* end. *)
-
-(* Lemma list_rhs_ref_p_size : *)
-(* forall (ft : ftype) (ref : HiFP.href), *)
-(*    match list_rhs_ref_p ref ft with *)
-(*    | Some expr_list => size expr_list = size_of_ftype ft *)
-(*    | None => True *)
-(*    end *)
-(* with list_rhs_ref_p_fields_size : *)
-(* forall (ff : ffield) (ref : HiFP.href), *)
-(*    match list_rhs_ref_p_fields ref ff with *)
-(*    | Some expr_list => size expr_list = size_of_fields ff *)
-(*    | None => True *)
-(*    end. *)
-(* Proof. *)
-(* * clear list_rhs_ref_p_size. *)
-(*   induction ft ; intro ; simpl ; first by done. *)
-(*   + induction n ; simpl ; first by rewrite muln0 //. *)
-(*     destruct (iteri n *)
-(*               (fun (i : nat) (ol : option (seq HiFP.hfexpr)) => *)
-(*                match ol with *)
-(*                | Some l => *)
-(*                    match list_rhs_ref_p (Esubindex ref i) ft with *)
-(*                    | Some li => Some (l ++ li) *)
-(*                    | None => None *)
-(*                    end *)
-(*                | None => None *)
-(*                end) (Some [::])) ; last by done. *)
-(*     specialize (IHft (Esubindex ref n)). *)
-(*     destruct (list_rhs_ref_p (Esubindex ref n) ft) ; last by done. *)
-(*     rewrite size_cat IHn IHft mulnSr //. *)
-(*   + apply list_rhs_ref_p_fields_size. *)
-(* * clear list_rhs_ref_p_fields_size. *)
-(*   induction ff ; intro ; simpl ; first by done. *)
-(*   destruct f ; first by done. *)
-(*   specialize (list_rhs_ref_p_size f0 (Esubfield ref v)). *)
-(*   destruct (list_rhs_ref_p (Esubfield ref v) f0) ; last by done. *)
-(*   specialize (IHff ref). *)
-(*   destruct (list_rhs_ref_p_fields ref ff) ; last by done. *)
-(*   rewrite size_cat list_rhs_ref_p_size IHff //. *)
-(* Qed. *)
-
-(* Fixpoint list_rhs_expr_p (expr : HiFP.hfexpr) (ft : ftype) : option (seq HiFP.hfexpr) := *)
-(* (* Finds ground-type components of the expression expr, which is of type ft. *)
-(*    Does not do type checking but just assumes that expr has type ft. *)
-(*    If the type is not a ground type, then the expression must be either a reference or a multiplexer. *) *)
-(* if ft is Gtyp _ then Some [:: expr] *)
-(* else match expr with *)
-(*      | Emux c e1 e2 => *)
-(*          match list_rhs_expr_p e1 ft, list_rhs_expr_p e2 ft with *)
-(*          | Some l1, Some l2 => *)
-(*              if size l1 == size l2 *)
-(*              then Some (map (fun (e12 : HiFP.hfexpr * HiFP.hfexpr) => Emux c (fst e12) (snd e12)) (zip l1 l2)) *)
-(*              else None *)
-(*          | _, _ => None *)
-(*          end *)
-(*    (*| Evalidif c e => *)
-(*          match list_rhs_expr_p e ft with *)
-(*          | Some l => *)
-(*              Some (map (fun (ee : HiFP.hfexpr) => Evalidif c ee) l) *)
-(*          | None => None *)
-(*          end*) *)
-(*      | Eref ref => list_rhs_ref_p ref ft *)
-(*      | _ => None *)
-(*      end. *)
-
-(* Lemma list_rhs_expr_p_size : *)
-(* forall (ft : ftype) (expr : HiFP.hfexpr), *)
-(*    match list_rhs_expr_p expr ft with *)
-(*    | Some expr_list => size expr_list = size_of_ftype ft *)
-(*    | None => True *)
-(*    end. *)
-(* Proof. *)
-(* induction ft ; intro ; first by destruct expr ; simpl ; done. *)
-(* * induction expr ; simpl ; try done. *)
-(*   + destruct (list_rhs_expr_p expr2 (Atyp ft n)) ; last by done. *)
-(*     destruct (list_rhs_expr_p expr3 (Atyp ft n)) ; last by done. *)
-(*     rewrite IHexpr2 IHexpr3 eq_refl. *)
-(*     simpl size_of_ftype in IHexpr2, IHexpr3. *)
-(*     rewrite size_map size_zip IHexpr2 IHexpr3 /minn ltnn //. *)
-(*   + induction n ; simpl ; first by rewrite muln0 //. *)
-(*     destruct (iteri n *)
-(*           (fun (i : nat) (ol : option (seq HiFP.hfexpr)) => *)
-(*            match ol with *)
-(*            | Some l => *)
-(*                match list_rhs_ref_p (Esubindex h i) ft with *)
-(*                | Some li => Some (l ++ li) *)
-(*                | None => None *)
-(*                end *)
-(*            | None => None *)
-(*            end) (Some [::])) ; last by trivial. *)
-(*     generalize (list_rhs_ref_p_size ft (Esubindex h n)) ; intro. *)
-(*     destruct (list_rhs_ref_p (Esubindex h n) ft) ; last by done. *)
-(*     rewrite size_cat IHn H mulnSr //. *)
-(* * induction expr ; simpl ; try done. *)
-(*   + destruct (list_rhs_expr_p expr2 (Btyp f)) ; last by done. *)
-(*     destruct (list_rhs_expr_p expr3 (Btyp f)) ; last by done. *)
-(*     rewrite IHexpr2 IHexpr3 eq_refl. *)
-(*     simpl size_of_ftype in IHexpr2, IHexpr3. *)
-(*     rewrite size_map size_zip IHexpr2 IHexpr3 /minn ltnn //. *)
-(*   + induction f ; simpl ; first by done. *)
-(*     destruct f ; first by done. *)
-(*     generalize (list_rhs_ref_p_size f0 (Esubfield h v)) ; intro. *)
-(*     destruct (list_rhs_ref_p (Esubfield h v) f0) ; last by done. *)
-(*     destruct (list_rhs_ref_p_fields h f1) ; last by done. *)
-(*     rewrite size_cat H IHf //. *)
-(* Qed. *)
-
-(* Fixpoint list_rhs_type_p (ft : ftype) : seq fgtyp := *)
-(* (* Finds the types of ground-type components of type ft. *)
-(*    (In contrast to the older function vtype_list, this function does not convert Freset to *)
-(*    Fuint 1 or Fasyncreset.) *)
-
-(*    Probably the same as ft_find_sub. *) *)
-(* match ft with *)
-(* | Gtyp gt => [:: gt] *)
-(* | Atyp ft' m => let elt_list := list_rhs_type_p ft' in *)
-(*                 (* append m copies of elt_list to the empty list: *) *)
-(*                 iter m (fun (ll : seq fgtyp) => ll ++ elt_list) [::] *)
-(* | Btyp ff => list_rhs_ffield_p ff *)
-(* end *)
-(* with list_rhs_ffield_p (ff : ffield) : seq fgtyp := *)
-(* match ff with *)
-(* | Fnil => [::] *)
-(* | Fflips _ _ ft' ff' => (list_rhs_type_p ft') ++ (list_rhs_ffield_p ff') *)
-(* end. *)
-
-(* Lemma list_rhs_type_p_size : *)
-(* forall (ft : ftype), *)
-(*    size (list_rhs_type_p ft) = size_of_ftype ft *)
-(* with list_rhs_ffield_p_size : *)
-(* forall (ff : ffield), *)
-(*    size (list_rhs_ffield_p ff) = size_of_fields ff. *)
-(* Proof. *)
-(* * clear list_rhs_type_p_size. *)
-(*   induction ft ; simpl ; try done. *)
-(*   induction n ; simpl ; first by rewrite muln0 //. *)
-(*   rewrite size_cat IHn IHft -mulnSr //. *)
-(* * clear list_rhs_ffield_p_size. *)
-(*   induction ff ; simpl ; first by done. *)
-(*   rewrite size_cat list_rhs_type_p_size IHff //. *)
-(* Qed. *)
-
-
-(* Fixpoint ftype_is_passive (ft : ftype) : bool := *)
-(* (* returns true if ft is a passive type *) *)
-(* match ft with *)
-(* | Gtyp _ => true *)
-(* | Atyp ft' _ => ftype_is_passive ft' *)
-(* | Btyp ff => ffield_is_passive ff *)
-(* end *)
-(* with ffield_is_passive (ff : ffield) : bool := *)
-(* match ff with *)
-(* | Fnil => true *)
-(* | Fflips _ Nflip ft' ff' => ftype_is_passive ft' && ffield_is_passive ff' *)
-(* | Fflips _ Flipped _ _ => false *)
-(* end. *)
-
-
-(* Definition Swhen_map2_helper (cond : HiFP.hfexpr) (d_true d_false : option def_expr) : option def_expr := *)
-(* match d_true, d_false with *)
-(* | Some (D_fexpr expr_true), Some (D_fexpr expr_false) => *)
-(*     if expr_true == expr_false then d_true *)
-(*     else Some (D_fexpr (Emux cond expr_true expr_false)) *)
-(* | _, None *)
-(* | _, Some D_invalidated *)
-(* | Some D_undefined, _ => d_true *)
-(* | None, _ *)
-(* | Some D_invalidated, _ *)
-(* | _, Some D_undefined => d_false *)
-(* end. *)
-
-(* Fixpoint Sem_frag_stmt (vm_old : CEP.t vertex_type) (ct_old : CEP.t def_expr) (s : HiFP.hfstmt) (vm_new : CEP.t vertex_type) (ct_new : CEP.t def_expr) (tmap : CEP.t ftype) : Prop := *)
-(*    (* The predicate returns True if vm_new/ct_new can be constructed from vm_old/ct_old by applying s. *)
-(*    type checking, constraints *) *)
-(*    match s with *)
-(*    | Sskip => vm_old = vm_new /\ ct_old = ct_new *)
-(*    | Sfcnct ref_tgt (Eref ref_src) => (* allow non-passive types *) *)
-(*           CEP.Equal vm_old vm_new *)
-(*        /\ *)
-(*           match list_lhs_ref_p ref_tgt tmap, list_lhs_ref_p ref_src tmap with *)
-(*           | Some (lst_tgt, ft_tgt), Some (lst_src, ft_src) => *)
-(*                  connect_type_compatible true ft_tgt ft_src false *)
-(*               /\ *)
-(*                  connect ct_old ref_tgt lst_tgt ft_tgt ref_src lst_src ft_src false ct_new *)
-(*               /\ *)
-(*                  forall v0 : CEP.key, *)
-(*                     if (v0 \in lst_tgt) || (v0 \in lst_src) then True (* already checked in connect_non_passive *) *)
-(*                     else CEP.find v0 ct_old = CEP.find v0 ct_new *)
-(*           | _, _ => False *)
-(*           end *)
-(*    | Sfcnct ref expr => *)
-(*           CEP.Equal vm_old vm_new *)
-(*        /\ *)
-(*           match type_of_ref ref tmap, type_of_expr expr tmap with *)
-(*           | Some ft_ref, Some (exist ft_expr _) => *)
-(*                  connect_type_compatible false ft_ref ft_expr false *)
-(*               /\ *)
-(*                  match list_lhs_ref_p ref tmap, list_rhs_expr_p expr ft_expr with *)
-(*                  | Some (input_list, _), Some expr_list => *)
-(*                         (forall n : nat, *)
-(*                              match List.nth_error input_list n, List.nth_error expr_list n with *)
-(*                              | Some ic, Some ex => CEP.find ic ct_new = Some (D_fexpr ex) *)
-(*                              (* connect_type_compatible already checked that the lists have the same length. *)
-(*                                 There is no need to add a check here: *)
-(*                              | Some _, None | None, Some _ => False *) *)
-(*                              | _, _ => True *)
-(*                              end) *)
-(*                      /\ *)
-(*                         forall v0 : CEP.key, *)
-(*                             if v0 \in input_list then True *)
-(*                             else CEP.find v0 ct_old = CEP.find v0 ct_new *)
-(*                  | _, _ => False *)
-(*                  end *)
-(*           | _, _ => False *)
-(*           end *)
-(*    | Sinvalid ref => *)
-(*           CEP.Equal vm_old vm_new *)
-(*        /\ *)
-(*           match list_lhs_ref_p ref tmap with *)
-(*           | Some (input_list, ft_ref) => *)
-(*                  (forall n : nat, *)
-(*                       match List.nth_error input_list n with *)
-(*                       | Some ic => CEP.find ic ct_new = Some D_invalidated *)
-(*                       | None => True *)
-(*                       end) *)
-(*               /\ *)
-(*                  forall v0 : CEP.key, *)
-(*                      if v0 \in input_list then True *)
-(*                      else CEP.find v0 ct_old = CEP.find v0 ct_new *)
-(*           | _ => False *)
-(*           end *)
-(*    | Swire v _ => *)
-(*        match CEP.find v tmap with *)
-(*        | Some newft => *)
-(*               (* ground-type wires are defined *) *)
-(*               (forall n : nat, *)
-(*                    match List.nth_error (list_rhs_type_p newft) n with *)
-(*                    | Some gt => CEP.find (fst v, N.add (snd v) (N.of_nat n)) vm_new = Some (Wire gt) *)
-(*                    | None => True *)
-(*                    end) *)
-(*            /\ (* other vertices do not change *) *)
-(*               (forall (v0 n0 : N), v0 <> fst v \/ n0 < snd v \/ n0 >= N.add (snd v) (N.of_nat (size_of_ftype newft)) -> *)
-(*                    CEP.find (v0, n0) vm_old = *)
-(*                    CEP.find (v0, n0) vm_new) *)
-(*            /\ (* other connections do not change *) *)
-(*               (forall (v0 n0 : N), v0 <> fst v \/ n0 < snd v \/ n0 >= N.add (snd v) (N.of_nat (size_of_ftype newft)) -> *)
-(*                    CEP.find (v0, n0) ct_old = *)
-(*                    CEP.find (v0, n0) ct_new) *)
-(*            /\ (* set wires to undefined *) *)
-(*               forall n0 : N, n0 < size_of_ftype newft -> *)
-(*                   CEP.find (fst v, N.add (snd v) n0) ct_new = Some D_undefined *)
-(*        | None => False (* should not happen *) *)
-(*        end *)
-(*    | Sreg v reg => *)
-(*        match CEP.find v tmap with *)
-(*        | Some newft => (* aggregate-type register *) *)
-(*               match reset reg with *)
-(*               | Rst rst_sig rst_val => (* type check rst_sig *) *)
-(*                      match type_of_expr rst_sig tmap with *)
-(*                      | Some (exist (Gtyp (Fuint 1)) _) *)
-(*                      | Some (exist (Gtyp Fasyncreset) _) => true *)
-(*                      | _ => false *)
-(*                      end *)
-(*                   /\ (* type check rst_val -- also ensures that newft is passive *) *)
-(*                      match type_of_expr rst_val tmap with *)
-(*                      | Some (exist rst_val_type _) => connect_type_compatible false newft rst_val_type false *)
-(*                      | None => false *)
-(*                      end *)
-(*               | NRst => (* type check newft: we only need to verify newft is passive *) *)
-(*                    ftype_is_passive newft *)
-(*               end *)
-(*            /\ (* module graph contains ground-type registers *) *)
-(*               (forall n : nat, *)
-(*                    match List.nth_error (list_rhs_type_p newft) n with *)
-(*                    | Some gt => CEP.find (fst v, N.add (snd v) (N.of_nat n)) vm_new = *)
-(*                        Some (Register gt (clock reg) (reset reg) *)
-(*                                       (if reset reg is Rst rst_sig rst_val *)
-(*                                        then if type_of_expr rst_sig tmap is Some (exist (Gtyp Fasuncreset) _) *)
-(*                                             then true else false *)
-(*                                        else false)) *)
-(*                    | None => True *)
-(*                    end) *)
-(*            /\ (* type check clock *) *)
-(*               match type_of_expr (clock reg) tmap with *)
-(*               | Some (exist (Gtyp Fclock) _) => True *)
-(*               | _ => False *)
-(*               end *)
-(*            /\ (* connect default value for register *) *)
-(*               match list_rhs_expr_p (Eref (Eid v)) newft with *)
-(*               | Some expr_list => *)
-(*                   forall n : nat, *)
-(*                       match List.nth_error expr_list n with *)
-(*                       | Some ex => CEP.find (fst v, N.add (snd v) (N.of_nat n)) ct_new = Some (D_fexpr ex) *)
-(*                       | None => True *)
-(*                       end *)
-(*               | None => False *)
-(*               end *)
-(*            /\ (* other vertices do not change *) *)
-(*               (forall (v0 n0 : N), v0 <> fst v \/ n0 < snd v \/ n0 >= N.add (snd v) (N.of_nat (size_of_ftype newft)) -> *)
-(*                   CEP.find (v0, n0) vm_old = *)
-(*                   CEP.find (v0, n0) vm_new) *)
-(*            /\ (* other connections do not change *) *)
-(*               (forall (v0 n0 : N), v0 <> fst v \/ n0 < snd v \/ n0 >= N.add (snd v) (N.of_nat (size_of_ftype newft)) -> *)
-(*                   CEP.find (v0, n0) ct_old = *)
-(*                   CEP.find (v0, n0) ct_new) *)
-(*        | None => False (* should not happen *) *)
-(*        end *)
-(*    | Snode v expr => *)
-(*        match type_of_expr expr tmap with *)
-(*        | Some (exist newft _) => (* (fst v, N0), ... all have changed *) *)
-(*               (* ground-type nodes are defined *) *)
-(*               (forall n : nat, *)
-(*                    match List.nth_error (list_rhs_type_p newft) n with *)
-(*                    | Some gt => CEP.find (fst v, N.add (snd v) (N.of_nat n)) vm_new = Some (Node gt) *)
-(*                    | None => True *)
-(*                    end) *)
-(*            /\ (* other vertices do not change *) *)
-(*               (forall (v0 n0 : N), v0 <> fst v \/ n0 < snd v \/ n0 >= N.add (snd v) (N.of_nat (size_of_ftype newft)) -> *)
-(*                    CEP.find (v0, n0) vm_old = *)
-(*                    CEP.find (v0, n0) vm_new) *)
-(*            /\ (* other connections do not change *) *)
-(*               (forall (v0 n0 : N), v0 <> fst v \/ n0 < snd v \/ n0 >= N.add (snd v) (N.of_nat (size_of_ftype newft)) -> *)
-(*                    CEP.find (v0, n0) ct_old = *)
-(*                    CEP.find (v0, n0) ct_new) *)
-(*            /\ (* set nodes to the respective part of the expression *) *)
-(*               match list_rhs_expr_p expr newft with *)
-(*               | Some expr_list => *)
-(*                   forall n : nat, *)
-(*                       match List.nth_error expr_list n with *)
-(*                       | Some ex => CEP.find (fst v, N.add (snd v) (N.of_nat n)) ct_new = Some (D_fexpr ex) *)
-(*                       | None => True *)
-(*                       end *)
-(*               | None => False *)
-(*               end *)
-(*        | None => False *)
-(*        end *)
-(*    | Smem v mem => False (* ? *) *)
-(*    | Sinst var1 var2 => False (* ? *) *)
-(*    | Swhen cond ss_true ss_false => *)
-(*        if type_of_expr cond tmap is Some (exist (Gtyp (Fuint 1)) _) *)
-(*        then exists (vm_true : CEP.t vertex_type) (ct_true ct_false : CEP.t def_expr), *)
-(*                    Sem_frag_stmts vm_old ct_old ss_true vm_true ct_true tmap *)
-(*                 /\ *)
-(*                    Sem_frag_stmts vm_true ct_old ss_false vm_new ct_false tmap *)
-(*                 /\ *)
-(*                    CEP.Equal ct_new *)
-(*                        (CEP.map2 (Swhen_map2_helper cond) ct_true ct_false) *)
-(*        else False *)
-(* end *)
-(* with Sem_frag_stmts (vm_old : CEP.t vertex_type) (ct_old : CEP.t def_expr) (ss : HiFP.hfstmt_seq) (vm_new : CEP.t vertex_type) (ct_new : CEP.t def_expr) (tmap : CEP.t ftype) : Prop := *)
-(* match ss with *)
-(* | Qnil => *)
-(*        CEP.Equal vm_old vm_new *)
-(*     /\ *)
-(*        CEP.Equal ct_old ct_new *)
-(* | Qcons s ss' => *)
-(*     exists (vm' : CEP.t vertex_type) (ct' : CEP.t def_expr), *)
-(*            Sem_frag_stmt vm_old ct_old s vm' ct' tmap *)
-(*         /\ *)
-(*            Sem_frag_stmts vm' ct' ss' vm_new ct_new tmap *)
-(* end. *)
-
 
 (*---------------------------------------------------------------------------*)
 (* Vertices                                                                  *)
@@ -1209,17 +156,18 @@ Fixpoint type_of_ref (ref : HiFP.href) (tmap : CEP.t (ftype * HiFP.forient)) : o
    This function is similar to base_ref; check whether they can be made more similar. *)
 match ref with
 | Eid v => CEP.find v tmap
-| Esubindex ref' n =>
-    match type_of_ref ref' tmap with
-    | Some (Atyp t m, ori) => if n < m then Some (t, ori) else None
-    | _ => None
-    end
-| Esubfield ref' v =>
-    match type_of_ref ref' tmap with
-    | Some (Btyp ff, ori) => type_of_ffield v ff ori
-    | _ => None
-    end
-| Esubaccess _ _ => None
+(* | Esubindex ref' n => *)
+(*     match type_of_ref ref' tmap with *)
+(*     | Some (Atyp t m, ori) => if n < m then Some (t, ori) else None *)
+(*     | _ => None *)
+(*     end *)
+(* | Esubfield ref' v => *)
+(*     match type_of_ref ref' tmap with *)
+(*     | Some (Btyp ff, ori) => type_of_ffield v ff ori *)
+(*     | _ => None *)
+(*     end *)
+(* | Esubaccess _ _ => None *)
+| _ => None
 end.
 
 Definition fgtyp_mux (x y : fgtyp_explicit) : option fgtyp_explicit :=
@@ -1664,13 +612,28 @@ match s with
 end.
 
 
+
+Fixpoint ftype_list_all (ft : ftype) (l : list ftype) : list ftype :=
+    match ft with
+    | Gtyp t => cons ft l
+    | Atyp t n => cons ft (flatten (repeat (ftype_list_all t l) n))
+    | Btyp Fnil => nil
+    | Btyp b => cons ft (ftype_list_btyp_all b l)
+    end
+  with ftype_list_btyp_all (b : ffield) (l : list ftype) : list ftype :=
+         match b with
+         | Fnil => l
+         | Fflips v fl t fs => (ftype_list_all t l) ++ (ftype_list_btyp_all fs nil)
+         end.
+
+
 Fixpoint select_field (f : VarOrder.t) (l : seq CEP.key) (ff : ffield) (ori : HiFP.forient) : option (seq CEP.key * (ftype * HiFP.forient)) :=
 (* select field f from the list of input connectors l, which corresponds to type ff.
    ff does not need to be passive.
    Return the corresponding output connectors, and also return the type of the field f. *)
 match ff with
 | Fflips v flp ft ff' =>
-    let elsize := size_of_ftype ft in
+    let elsize := size (ftype_list_all ft nil) in
     if size l < elsize then None
     else if f != v then select_field f (drop elsize l) ff' ori
          else match flp, ori with
@@ -1683,6 +646,52 @@ match ff with
 | _ => None
 end.
 
+  Definition is_gtyp t := match t with | Gtyp _ => true | _ => false end.
+
+Fixpoint expand_eref_aux_ft_pmap' (r : pvar) (sz : nat) (cnt : nat) (ce : CEP.t (ftype * HiFP.forient)) (rs : seq HiFP.hfexpr) : seq HiFP.hfexpr :=
+    match sz with
+    | 0 => rs
+    | S n => match (CEP.find (r.1, (r.2 + N.of_nat cnt)%num) ce) with
+             | Some (t,_) => if is_gtyp t
+                              then expand_eref_aux_ft_pmap' r n (cnt.+1) ce (rcons rs (HiFP.eref (HiFP.eid (r.1, r.2 + N.of_nat cnt)%num)))
+                              else expand_eref_aux_ft_pmap' r n (cnt.+1) ce rs
+             | None => rs
+             end                                              
+    end.
+
+  Definition expand_eref_ft_pmap' (r : pvar) (ce : CEP.t (ftype * HiFP.forient)) l : seq HiFP.hfexpr :=
+    match (CEP.find r ce) with
+    | Some (t,_) =>
+        let ts := ftype_list_all t nil in
+        let sz := size ts in
+        expand_eref_aux_ft_pmap' r sz 0 ce l
+    | None => l
+    end.
+
+  Fixpoint expand_emux' (c : HiFP.hfexpr) (ze : seq (HiFP.hfexpr * HiFP.hfexpr)) (es : seq HiFP.hfexpr) : seq HiFP.hfexpr :=
+    match ze with
+    | nil => es
+    | (e1, e2) :: zes => expand_emux' c zes (rcons es (HiFP.emux c e1 e2))
+    end.
+  
+  (*recursively expand expr on rhs*) 
+  Fixpoint expand_expr_ft_pmap' (e : HiFP.hfexpr) (ce : CEP.t (ftype * HiFP.forient)) (es : seq HiFP.hfexpr) : seq HiFP.hfexpr :=
+    match e with
+    | Eref (Eid (r, o)) => expand_eref_ft_pmap' (r, o) ce es
+    | Emux c e1 e2 => expand_emux' c (zip (* (HiFP.econst (Fuint 0) nil) (HiFP.econst (Fuint 0) nil) *) (expand_expr_ft_pmap' e1 ce nil) (expand_expr_ft_pmap' e2 ce nil)) es
+    (* | Evalidif c e => expand_evalidif c (expand_expr e ce nil) es *)
+    | Eref _ => rcons es (HiFP.econst (Fuint 0) [::])
+    | e => rcons es e
+    end.
+  Definition list_rhs_expr_p' := expand_expr_ft_pmap'.
+  
+  Definition list_lhs_ref_p' (ref : pvar) (tmap : CEP.t (ftype * HiFP.forient)) : option (seq HiFP.hfexpr * (ftype * HiFP.forient)) :=
+    (* Construct a list of identifiers and find the type of v *)
+    match CEP.find ref tmap with
+    | Some (t, ori) =>
+        Some (expand_eref_ft_pmap' ref tmap nil, (t, ori))
+    | None => None
+    end.
 
 Definition list_lhs_ref_p (ref : pvar) (tmap : CEP.t (ftype * HiFP.forient)) : option (seq pvar * (ftype * HiFP.forient)) :=
 (* find which input connectors of ground-type identifiers correspond to reference ref.
@@ -1701,7 +710,7 @@ match ref with
     (* Construct a list of identifiers and find the type of v *)
     match CEP.find v tmap with
     | Some (t, ori) =>
-        Some (mkseq (fun i => (fst v, N.add (snd v) (bin_of_nat i))) (size_of_ftype t), (t, ori))
+        Some (mkseq (fun i => (fst v, N.add (snd v) (bin_of_nat i))) (size (ftype_list_all t nil)), (t, ori))
     | None => None
     end
 (* | Esubfield ref' f => *)
@@ -1780,7 +789,7 @@ else match expr with
      end.
 
 
-Fixpoint list_rhs_type_p (ft : ftype) : seq fgtyp :=
+Fixpoint list_rhs_type_p_tmp (ft : ftype) : seq fgtyp :=
 (* Finds the types of ground-type components of type ft.
    (In contrast to the older function vtype_list, this function does not convert Freset to
    Fuint 1 or Fasyncreset.)
@@ -1788,15 +797,15 @@ Fixpoint list_rhs_type_p (ft : ftype) : seq fgtyp :=
    Probably the same as ft_find_sub. *)
 match ft with
 | Gtyp gt => [:: gt]
-| Atyp ft' m => let elt_list := list_rhs_type_p ft' in
+| Atyp ft' m => let elt_list := list_rhs_type_p_tmp ft' in
                 (* append m copies of elt_list to the empty list: *)
                 iter m (fun (ll : seq fgtyp) => ll ++ elt_list) [::]
-| Btyp ff => list_rhs_ffield_p ff
+| Btyp ff => list_rhs_ffield_p_tmp ff
 end
-with list_rhs_ffield_p (ff : ffield) : seq fgtyp :=
+with list_rhs_ffield_p_tmp (ff : ffield) : seq fgtyp :=
 match ff with
 | Fnil => [::]
-| Fflips _ _ ft' ff' => (list_rhs_type_p ft') ++ (list_rhs_ffield_p ff')
+| Fflips _ _ ft' ff' => (list_rhs_type_p_tmp ft') ++ (list_rhs_ffield_p_tmp ff')
 end.
 
 
@@ -1832,10 +841,10 @@ match ft, p with
             &&
                 (CEP.find v ct_new == Some (D_undefined)))
 | Atyp elt n, Finput v _ =>
-    let type_len := size_of_ftype elt in
+    let type_len := size (ftype_list_all elt nil) in
         [forall i : ordinal n, connect_port vm_old ct_old (HiFP.hinport  (fst v, bin_of_nat (i * type_len + snd v)) elt) elt vm_new ct_new]
 | Atyp elt n, Foutput v _ =>
-    let type_len := size_of_ftype elt in
+    let type_len := size (ftype_list_all elt nil) in
         [forall i : ordinal n, connect_port vm_old ct_old (HiFP.houtport (fst v, bin_of_nat (i * type_len + snd v)) elt) elt vm_new ct_new]
 | Btyp ff, _ => connect_port_fields vm_old ct_old p ff vm_new ct_new
 end
@@ -1850,7 +859,7 @@ with connect_port_fields (vm_old : CEP.t vertex_type) (ct_old : CEP.t def_expr)
 match ff with
 | Fnil => true
 | Fflips v flp gt ff' =>
-    let type_len := size_of_ftype gt in
+    let type_len := size (ftype_list_all  gt  nil) in
             match flp with
             | Nflip => connect_port vm_old ct_old p gt vm_new ct_new
             | Flipped =>
@@ -1889,7 +898,7 @@ match p with
     | Some (ft, _) =>
             connect_port vm_old ct_old p ft vm_new ct_new
         /\ (* other vertices and connections do not change *)
-           forall (v0 n0 : N), v0 <> fst v \/ n0 < snd v \/ n0 >= (size_of_ftype ft) + (snd v) ->
+           forall (v0 n0 : N), v0 <> fst v \/ n0 < snd v \/ n0 >= (size (ftype_list_all ft nil)) + (snd v) ->
                    CEP.find (v0, n0) vm_old = CEP.find (v0, n0) vm_new
                /\
                    CEP.find (v0, n0) ct_old = CEP.find (v0, n0) ct_new
@@ -1957,11 +966,14 @@ match ff_tgt, ff_src with
 end.
 
 
+
+
+
 Definition connect_fgtyp (ct_old : CEP.t def_expr)
                          (flipped : bool)
                          (ct_new : CEP.t def_expr)
-                         (ref_tgt : pvar) 
-                         (ref_src : pvar) 
+                         (ref_tgt : HiFP.hfexpr) 
+                         (ref_src : HiFP.hfexpr) 
                          (* (lst_tgt : CEP.key) (lst_src : CEP.key) *)
   : bool :=
 (* The predicate checks whether ct_new contains the correct connection that connects from lst_src to lst_tgt,
@@ -1969,23 +981,23 @@ Definition connect_fgtyp (ct_old : CEP.t def_expr)
    These lists must be one-element lists for output and input connectors of compatible types.
    It assumes that the types are compatible. *)
 match (* lst_tgt, lst_src, flipped,*) ref_tgt, ref_src, flipped with
-| ic, oc, false (* , _, ref_src *)
-| oc, ic, true (* , ref_src, _ *) =>
+| Eref (Eid ic), Eref (Eid oc), false (* , _, ref_src *)
+| Eref (Eid oc), Eref (Eid ic), true (* , ref_src, _ *) =>
        (CEP.find ic ct_old != None)
     &&
        (CEP.find ic ct_new == Some (D_fexpr (Eref (Eid oc))))
-    &&
-       ((ic == oc) || (CEP.find oc ct_new == CEP.find oc ct_old))
+    (*&&*)
+       (* ((ic == oc) ||  (CEP.find oc ct_new == CEP.find oc ct_old)*)
        (* why this is compared?
           In Sem_frag_stmt, it is ensured that connection trees NOT related to tgt or src are not changed.
           Here, we need to ensure that the connection tree of tgt is changed
           and the connection tree of src remains the same. *)
-(* | _, _, _, _, _ => false *)
+ | _, _, _ => false 
 end.
 
 Fixpoint connect (ct_old : CEP.t def_expr)
-                 (ref_tgt : pvar) (lst_tgt : list pvar) (ft_tgt : ftype)
-                 (ref_src : pvar) (lst_src : list pvar) (ft_src : ftype)
+                 (ref_tgt : HiFP.hfexpr) (lst_tgt : list HiFP.hfexpr) (ft_tgt : ftype)
+                 (ref_src : HiFP.hfexpr) (lst_src : list HiFP.hfexpr) (ft_src : ftype)
                  (flipped : bool)
                  (ct_new : CEP.t def_expr) : bool :=
 (* The predicate returns true if the correct connection trees are in ct_new
@@ -1998,7 +1010,7 @@ match ft_tgt, ft_src with
 | Atyp elt_tgt n1, Atyp elt_src n2 =>
        (n1 == n2)
    &&
-     let type_len := size_of_ftype elt_tgt in
+     (* let type_len := size (ftype_list_all elt_tgt nil) in *)
      all2 (connect_fgtyp ct_old (* ref_tgt ref_src *) flipped ct_new) lst_tgt lst_src
        (* [forall n : ordinal n1, *)
        (*    connect ct_old *)
@@ -2009,8 +1021,8 @@ match ft_tgt, ft_src with
 | _, _ => false
 end
 with connect_fields (ct_old : CEP.t def_expr)
-                    (ref_tgt : pvar) (lst_tgt : list CEP.key) (ft_tgt : ffield)
-                    (ref_src : pvar) (lst_src : list CEP.key) (ft_src : ffield)
+                    (ref_tgt : HiFP.hfexpr) (lst_tgt : list HiFP.hfexpr) (ft_tgt : ffield)
+                    (ref_src : HiFP.hfexpr) (lst_src : list HiFP.hfexpr) (ft_src : ffield)
                     (flipped : bool)
                     (ct_new : CEP.t def_expr) : bool :=
 (* The predicate returns true if the correct connection trees are in ct_new
@@ -2023,14 +1035,14 @@ match ft_tgt, ft_src with
 | Fflips v1 Nflip gtt ft, Fflips v2 Nflip gts fs =>
        (v1 == v2)
     &&
-       let type_len := size_of_ftype gtt in
+       let type_len := size (ftype_list_all gtt nil) in
               connect ct_old ref_tgt (take type_len lst_tgt) gtt ref_src (take type_len lst_src) gts flipped ct_new
            &&
               connect_fields ct_old ref_tgt (drop type_len lst_tgt) ft ref_src (drop type_len lst_src) fs flipped ct_new
 | Fflips v1 Flipped gtt ft, Fflips v2 Flipped gts fs =>
        (v1 == v2)
     &&
-       let type_len := size_of_ftype gts in
+       let type_len := size (ftype_list_all gts nil) in
               connect ct_old ref_tgt (take type_len lst_tgt) gtt ref_src (take type_len lst_src) gts (~~flipped) ct_new
            &&
               connect_fields ct_old ref_tgt (drop type_len lst_tgt) ft ref_src (drop type_len lst_src) fs flipped ct_new
@@ -2076,7 +1088,7 @@ Fixpoint invalidate (ct_old : CEP.t def_expr)
 match ft_tgt with
 | Gtyp gt_tgt => invalidate_fgtyp ct_old lst_tgt ori ct_new
 | Atyp elt_tgt n1 =>
-       let type_len := size_of_ftype elt_tgt in
+       let type_len := size (ftype_list_all elt_tgt nil) in
        [forall n : ordinal n1,
           invalidate ct_old
                   (take type_len (drop (n * type_len) lst_tgt)) elt_tgt
@@ -2094,12 +1106,12 @@ with invalidate_fields (ct_old : CEP.t def_expr)
 match ft_tgt with
 | Fnil => true
 | Fflips v1 Nflip gtt ft =>
-       let type_len := size_of_ftype gtt in
+       let type_len := size (ftype_list_all gtt nil) in
               invalidate ct_old (take type_len lst_tgt) gtt ori ct_new
            &&
               invalidate_fields ct_old (drop type_len lst_tgt) ft ori ct_new
 | Fflips v1 Flipped gtt ft =>
-       let type_len := size_of_ftype gtt in
+       let type_len := size (ftype_list_all gtt nil) in
               invalidate ct_old (take type_len lst_tgt) gtt (flip_ori ori) ct_new
            &&
               invalidate_fields ct_old (drop type_len lst_tgt) ft ori ct_new
@@ -2137,20 +1149,6 @@ Definition extend_map_with {T : Type} (m dflt : CEP.t T) : CEP.t T :=
 (* Returns map m, except that undefined elements are copied from dflt *)
 CEP.map2 (fun (elm eld : option T) => if elm is Some e then Some e else eld) m dflt.
 
-
-  Fixpoint ftype_list_all (ft : ftype) (l : list ftype) : list ftype :=
-    match ft with
-    | Gtyp t => cons ft l
-    | Atyp t n => cons ft (flatten (repeat (ftype_list_all t l) n))
-    | Btyp Fnil => nil
-    | Btyp b => cons ft (ftype_list_btyp_all b l)
-    end
-  with ftype_list_btyp_all (b : ffield) (l : list ftype) : list ftype :=
-         match b with
-         | Fnil => l
-         | Fflips v fl t fs => (ftype_list_all t l) ++ (ftype_list_btyp_all fs nil)
-         end.
-
   (* Fixpoint ftype_list' (ft : ftype) (l : list ftype) : list ftype := *)
   (*   match ft with *)
   (*   | Gtyp t => rcons l ft *)
@@ -2185,7 +1183,7 @@ CEP.map2 (fun (elm eld : option T) => if elm is Some e then Some e else eld) m d
   (*        | Fflips v fl t fs => ftype_list_btyp_all_r fs (ftype_list_all_r t l) *)
   (*        end. *)
 
-  Definition is_gtyp t := match t with | Gtyp _ => true | _ => false end.
+  Definition is_gtyp' t := match t with | Gtyp _ => true | _ => false end.
 
   Fixpoint ftype_list_flip (ft : ftype) f (l : list (ftype * bool * bool)) : list (ftype * bool * bool) :=
     match ft with
@@ -2206,7 +1204,25 @@ CEP.map2 (fun (elm eld : option T) => if elm is Some e then Some e else eld) m d
   Compute (ftype_list_all agt nil).
   Compute (ftype_list_all (Btyp Fnil) nil).
 
+  
+    Fixpoint hfstmt_seq_to_seq (hs : HiFP.hfstmt_seq) (ls : seq HiFP.hfstmt) {struct hs} :=
+      match hs with
+      | Qnil => ls
+      | Qcons h tl => hfstmt_seq_to_seq tl (cons h ls)
+      end.
 
+    Fixpoint seq_to_hfstmt_seq (ls : seq HiFP.hfstmt) (hs : HiFP.hfstmt_seq) :=
+      match ls with
+      | nil => hs
+      | cons h tl => seq_to_hfstmt_seq tl (HiFP.qcons h hs)
+      end.
+
+    Definition sem_swires (r_wr : pvar) (vm_new : CEP.t vertex_type) (tmap : CEP.t (ftype * HiFP.forient)) : Prop :=
+      match CEP.find r_wr tmap with
+      | Some (Gtyp gt, _) =>
+          CEP.find (r_wr) vm_new == Some (Wire gt)
+      | _ => True
+      end.
 
 Fixpoint Sem_frag_stmt (vm_old : CEP.t vertex_type) (ct_old : CEP.t def_expr) (s : HiFP.hfstmt) (vm_new : CEP.t vertex_type) (ct_new : CEP.t def_expr) (tmap : CEP.t (ftype * HiFP.forient)) : Prop :=
    (* The predicate returns True if vm_new/ct_new can be constructed from vm_old/ct_old by applying s.
@@ -2216,21 +1232,23 @@ Fixpoint Sem_frag_stmt (vm_old : CEP.t vertex_type) (ct_old : CEP.t def_expr) (s
    | Sfcnct (Eid ref_tgt) (Eref (Eid ref_src)) => (* allow non-passive types *)
           CEP.Equal vm_old vm_new
        /\
-          match list_lhs_ref_p ref_tgt tmap with
+          match list_lhs_ref_p' ref_tgt tmap with
           | Some (lst_tgt, (ft_tgt, HiFP.Duplex))
           | Some (lst_tgt, (ft_tgt, HiFP.Sink)) =>
-              match list_lhs_ref_p ref_src tmap with
+              match list_lhs_ref_p' ref_src tmap with
               | Some (lst_src, (ft_src, HiFP.Duplex))
               | Some (lst_src, (ft_src, HiFP.Source)) =>
-                     (* we should allow flipped fields even if the orientation is “Sink” and “Source”
-                        because the flip will turn around the orientation as well *)
+                     (* we should allow flipped fields even if the orientation is “Sink” and “Source” *)
+   (*                      because the flip will turn around the orientation as well *)
                      connect_type_compatible true ft_tgt ft_src false
-                  /\
-                     connect ct_old ref_tgt lst_tgt ft_tgt ref_src lst_src ft_src false ct_new
-                  /\
-                     forall v0 : CEP.key,
-                        if (v0 \in lst_tgt) || (v0 \in lst_src) then True (* already checked in connect_non_passive *)
-                        else CEP.find v0 ct_old = CEP.find v0 ct_new
+                     /\
+                       all2 (connect_fgtyp ct_old false ct_new) lst_tgt lst_src
+                     (* connect ct_old (HiFP.eref (HiFP.eid ref_tgt)) lst_tgt ft_tgt (HiFP.eref (HiFP.eid ref_src)) lst_src ft_src false ct_new *)
+
+                     (* /\ *)
+                     (* forall v0 : CEP.key, *)
+                     (*    if ((Eref (Eid v0)) \in lst_tgt) || ((Eref (Eid v0)) \in lst_src) then True (* already checked in connect_non_passive *) *)
+                     (*    else CEP.find v0 ct_old = CEP.find v0 ct_new *)
               | _ => False
               end
           | _ => False
@@ -2247,20 +1265,23 @@ Fixpoint Sem_frag_stmt (vm_old : CEP.t vertex_type) (ct_old : CEP.t def_expr) (s
                   /\
                      match list_rhs_expr_p expr ft_expr with
                      | Some expr_list =>
-                            (forall n : nat,
-                                 match List.nth_error input_list n, List.nth_error expr_list n with
-                                 | Some ic, Some ex =>
-                                        CEP.find ic ct_old <> None
-                                     /\ CEP.find ic ct_new = Some (D_fexpr ex)
-                                 (* connect_type_compatible already checked that the lists have the same length.
-                                    There is no need to add a check here:
-                                 | Some _, None | None, Some _ => False *)
-                                 | _, _ => True
-                                 end)
-                         /\
-                            forall v0 : CEP.key,
-                                if v0 \in input_list then True
-                                else CEP.find v0 ct_old = CEP.find v0 ct_new
+                         all2 (fun v ex => ~~(CEP.find v ct_old == None)
+                                     && CEP.find v ct_new == Some (D_fexpr ex)) input_list expr_list
+                         
+   (*                          (forall n : nat, *)
+   (*                               match List.nth_error input_list n, List.nth_error expr_list n with *)
+   (*                               | Some ic, Some ex => *)
+   (*                                      CEP.find ic ct_old <> None *)
+   (*                                   /\ CEP.find ic ct_new = Some (D_fexpr ex) *)
+   (*                               (* connect_type_compatible already checked that the lists have the same length. *) *)
+   (* (*                                  There is no need to add a check here: *) *)
+   (* (*                               | Some _, None | None, Some _ => False *) *)
+   (*                               | _, _ => True *)
+   (*                               end) *)
+                         (* /\ *)
+                         (*    forall v0 : CEP.key, *)
+                         (*        if v0 \in input_list then True *)
+                         (*        else CEP.find v0 ct_old = CEP.find v0 ct_new *)
                      | _ => False
                      end
               | _ => False
@@ -2284,27 +1305,30 @@ Fixpoint Sem_frag_stmt (vm_old : CEP.t vertex_type) (ct_old : CEP.t def_expr) (s
    | Swire v _ =>
        match CEP.find v tmap with
        | Some (newft, _) =>
+           sem_swires v vm_new tmap
            (* ground-type wires are defined *)
-
-              (let n := size (ftype_list_all newft nil) in
-                   match List.nth_error (list_rhs_type_p newft) n with
-                   | Some gt =>
-                          CEP.find (fst v, bin_of_nat (n + snd v)) vm_old = None
-                       /\ CEP.find (fst v, bin_of_nat (n + snd v)) vm_new = Some (Wire gt)
-                   | None => True
-                   end)
-           /\ (* other vertices do not change *)
-              (forall (v0 n0 : N), v0 <> fst v \/ n0 < snd v \/ n0 >= (size_of_ftype newft) + (snd v) ->
-                   CEP.find (v0, n0) vm_old =
-                   CEP.find (v0, n0) vm_new)
+              (* (let n := size (ftype_list_all newft nil) in *)
+              (*      match List.nth_error (ftype_list_all newft nil) n with *)
+              (*      | Some (Gtyp gt) => *)
+              (*             CEP.find (fst v, bin_of_nat (n + snd v)) vm_old = None *)
+              (*             /\ CEP.find (fst v, bin_of_nat (n + snd v)) vm_new = Some (Wire gt) *)
+              (*             CEP.find (fst v, bin_of_nat (n + snd v)) vm_old = None *)
+              (*             /\ CEP.find (v.1, (v.2 + N.of_nat n)%num) vm_new = Some (Wire gt) *)
+              (*      | Some _ => True *)
+              (*      | None => True *)
+              (*      end) *)
+           (* /\ (* other vertices do not change *) *)
+           (*    (forall (v0 n0 : N), v0 <> fst v (* \/ n0 < snd v \/ n0 >= (size (ftype_list_all newft nil)) + (snd v) *) -> *)
+           (*         CEP.find (v0, n0) vm_old = *)
+           (*         CEP.find (v0, n0) vm_new) *)
            /\ (* other connections do not change *)
-              (forall (v0 n0 : N), v0 <> fst v \/ n0 < snd v \/ n0 >= (size_of_ftype newft) + (snd v) ->
+              (forall (v0 n0 : N), (* v0 <> fst v \/ n0 < snd v \/ n0 >= (size (ftype_list_all newft nil)) + (snd v) -> *)
                    CEP.find (v0, n0) ct_old =
                    CEP.find (v0, n0) ct_new)
-           /\ (* set wires to undefined *)
-              forall n0 : nat, n0 < size_of_ftype newft ->
-                     (*CEP.find (fst v, bin_of_nat (n0 + snd v)) ct_old = None
-                  /\*) CEP.find (fst v, bin_of_nat (n0 + snd v)) ct_new = Some D_undefined
+           (* /\ (* set wires to undefined *) *)
+           (*    forall n0 : nat, n0 < size (ftype_list_all newft nil) -> *)
+           (*           (*CEP.find (fst v, bin_of_nat (n0 + snd v)) ct_old = None *)
+           (*        /\*) CEP.find (fst v, bin_of_nat (n0 + snd v)) ct_new = Some D_undefined *)
        | None => False (* should not happen *)
        end
    | Sreg v reg =>
@@ -2323,8 +1347,8 @@ Fixpoint Sem_frag_stmt (vm_old : CEP.t vertex_type) (ct_old : CEP.t def_expr) (s
               end
            /\ (* module graph contains ground-type registers *)
               (forall n : nat,
-                   match List.nth_error (list_rhs_type_p newft) n with
-                   | Some gt =>
+                   match List.nth_error (ftype_list_all newft nil) n with
+                   | Some (Gtyp gt) =>
                           CEP.find (fst v, bin_of_nat (n + snd v)) vm_old = None
                        /\ CEP.find (fst v, bin_of_nat (n + snd v)) vm_new =
                              Some (Register gt (clock reg) (reset reg)
@@ -2332,6 +1356,7 @@ Fixpoint Sem_frag_stmt (vm_old : CEP.t vertex_type) (ct_old : CEP.t def_expr) (s
                                        then if type_of_expr rst_sig tmap is Some (exist (Gtyp Fasyncreset) _)
                                             then true else false
                                        else false))
+                   | Some _ => True
                    | None => True
                    end)
            /\ (* type check clock *)
@@ -2352,11 +1377,11 @@ Fixpoint Sem_frag_stmt (vm_old : CEP.t vertex_type) (ct_old : CEP.t def_expr) (s
               | None => False
               end
            /\ (* other vertices do not change *)
-              (forall (v0 n0 : N), v0 <> fst v \/ n0 < snd v \/ n0 >= size_of_ftype newft + snd v ->
+              (forall (v0 n0 : N), v0 <> fst v \/ n0 < snd v \/ n0 >= size (ftype_list_all newft nil) + snd v ->
                   CEP.find (v0, n0) vm_old =
                   CEP.find (v0, n0) vm_new)
            /\ (* other connections do not change *)
-              (forall (v0 n0 : N), v0 <> fst v \/ n0 < snd v \/ n0 >= size_of_ftype newft + snd v ->
+              (forall (v0 n0 : N), v0 <> fst v \/ n0 < snd v \/ n0 >= size (ftype_list_all newft nil) + snd v ->
                   CEP.find (v0, n0) ct_old =
                   CEP.find (v0, n0) ct_new)
        | None => False (* should not happen *)
@@ -2366,19 +1391,41 @@ Fixpoint Sem_frag_stmt (vm_old : CEP.t vertex_type) (ct_old : CEP.t def_expr) (s
        | Some (exist newft _) => (* (fst v, N0), ... all have changed *)
               (* ground-type nodes are defined *)
               (forall n : nat,
-                   match List.nth_error (list_rhs_type_p newft) n with
-                   | Some gt =>
+                   match List.nth_error (ftype_list_all newft nil) n with
+                   | Some (Gtyp gt) =>
                           CEP.find (fst v, bin_of_nat (n + snd v)) vm_old = None
                        /\ CEP.find (fst v, bin_of_nat (n + snd v)) vm_new = Some (Node gt)
+                   | Some _ => True
                    | None => True
                    end)
            /\ (* other vertices do not change *)
-              (forall (v0 n0 : N), v0 <> fst v \/ n0 < snd v \/ n0 >= size_of_ftype newft + snd v ->
+              (forall (v0 n0 : N), v0 <> fst v \/ n0 < snd v \/ n0 >= size (ftype_list_all newft nil) + snd v ->
                    CEP.find (v0, n0) vm_old =
-                   CEP.find (v0, n0) vm_new)
-           /\ (* connections do not change *)
-              CEP.Equal ct_old ct_new
-         (*/\ (* also ensure that the type is passive?
+                     CEP.find (v0, n0) vm_new)
+              /\ ftype_is_passive newft  
+              /\ (* connections do not change? *)
+                    match type_of_expr expr tmap with
+                    | Some (exist ft_expr _) =>
+                        connect_type_compatible false newft ft_expr false
+                        /\
+                          match list_rhs_expr_p expr ft_expr with
+                          | Some expr_list =>
+                              (forall n : nat,
+                                  match List.nth_error expr_list n with
+                                  |  Some ex =>
+                                      CEP.find (v.1, N.of_nat n) ct_old <> None
+                                      /\ CEP.find (v.1, N.of_nat n) ct_new = Some (D_fexpr ex)
+                                 (* connect_type_compatible already checked that the lists have the same length.
+                                    There is no need to add a check here:
+                                 | Some _, None | None, Some _ => False *)
+                                  | _ => True
+                                  end)
+                          | _ => False
+                          end
+                    | _ => False
+                    end
+                       
+                       (*/\ (* also ensure that the type is passive?
                  This is what we infer from the FIRRTL specification,
                  although it is not completely clear to us. *)
               ftype_is_passive newft *)
@@ -2387,15 +1434,15 @@ Fixpoint Sem_frag_stmt (vm_old : CEP.t vertex_type) (ct_old : CEP.t def_expr) (s
    | Smem v mem => False (* ? *)
    | Sinst var1 var2 => False (* ? *)
    | Swhen cond ss_true ss_false =>
-       if type_of_expr cond tmap is Some (exist (Gtyp (Fuint 1)) _)
-       then exists (vm_true : CEP.t vertex_type) (ct_true ct_false : CEP.t def_expr),
-                   Sem_frag_stmts vm_old ct_old ss_true vm_true ct_true tmap
-                /\
-                   Sem_frag_stmts vm_true (extend_map_with ct_old ct_true) ss_false vm_new ct_false tmap
-                /\
-                   CEP.Equal ct_new
-                       (CEP.map2 (Swhen_map2_helper cond) ct_true ct_false)
-       else False
+       (* if type_of_expr cond tmap is Some (exist (Gtyp (Fuint 1)) _) *)
+       (* then exists (vm_true : CEP.t vertex_type) (ct_true ct_false : CEP.t def_expr), *)
+       (*             Sem_frag_stmts vm_old ct_old ss_true vm_true ct_true tmap *)
+       (*          /\ *)
+       (*             Sem_frag_stmts vm_true (extend_map_with ct_old ct_true) ss_false vm_new ct_false tmap *)
+       (*          /\ *)
+       (*             CEP.Equal ct_new *)
+       (*                 (CEP.map2 (Swhen_map2_helper cond) ct_true ct_false) *)
+       (* else False *) True
 end
 with Sem_frag_stmts (vm_old : CEP.t vertex_type) (ct_old : CEP.t def_expr) (ss : HiFP.hfstmt_seq) (vm_new : CEP.t vertex_type) (ct_new : CEP.t def_expr) (tmap : CEP.t (ftype * HiFP.forient)) : Prop :=
 match ss with
@@ -2411,17 +1458,61 @@ match ss with
 end.
 
 
+Definition Sem (F : HiFP.hfmodule) (vm vm' : CEP.t vertex_type) (ct ct': CEP.t def_expr) tmap : Prop :=
+(* The predicate returns True if G = (vm, ct) conforms to F.
+   (If F has errors, there is no such G.)
+   (If F has implicit width components, then there are many such Gs.)
+
+   Problem: I made some assumption about identifiers of aggregate-type components;
+   is that what you need? *)
+match F with
+| FInmod n pp ss =>
+    (* match ports_stmts_tmap pp ss vm with *)
+    (* | Some tmap => *)
+    (*        (forall v1 v2: N, *)
+    (*             match CEP.find (v1, v2) tmap with *)
+    (*             | Some (Gtyp _, _) *)
+    (*             | None => True *)
+    (*             | _ => (* (v1, v2) identifies an aggregate-type component; *)
+    (*                       then there should not be any other component with the same v1 *) *)
+    (*                    forall v2' : N, v2' <> v2 -> CEP.find (v1, v2') tmap = None *)
+    (*             end) *)
+    (*     /\ *)
+    (*        (exists (vm' : CEP.t vertex_type) (ct' : CEP.t def_expr), *)
+    (*               Sem_frag_ports (CEP.empty vertex_type) *)
+    (*                              (CEP.empty def_expr) *)
+    (*                              pp vm' ct' tmap *)
+    (*            /\ *)
+                  Sem_frag_stmts vm' ct' ss vm ct tmap
+    (* | None => False *)
+    (* end *)
+| FExmod _ _ _ => False
+ end.
+
 (** Pass ExpandConnect *)
 Section ExpandConnectsP.
 
+
+  
+  Notation ft_pmap := (CEP.t ftype).
+  Notation ft_flp_pmap := (CEP.t (ftype * bool * bool)).
+  Notation ft_find := CEP.find.
+  Definition ft_find_def v m := match ft_find v m with
+                                | Some t => t
+                                | None => (Gtyp (Fuint_implicit 1))
+                                end.
   
 (* use type of expressions, returns optional ftype (from inferwidth_rewritten by ky) *)
 
 
   (* similar type of exp*)
   
-Definition type_ref (v : ProdVarOrder.t) (tmap : CEP.t ftype) : option ftype :=
-  CEP.find (fst v, snd v) tmap .
+  Definition type_ref (v : ProdVarOrder.t) (ftmap : ft_pmap) : option ftype :=
+    CEP.find (fst v, snd v) ftmap.
+  (* match CEP.find (fst v, snd v) ftmap with *)
+  (* | Some (t) => Some t *)
+  (* | None => None *)
+  (* end. *)
 
 (* type of mux expression *)
 Definition mux_gtyp (t1 : fgtyp) (t2 : fgtyp) : option fgtyp :=
@@ -2471,7 +1562,7 @@ with mux_btyps (bs1 : ffield) (bs2 : ffield) : option ffield :=
     end.
 
 
-Fixpoint type_of_hfexpr (e : HiFP.hfexpr) (ce : CEP.t ftype) : option ftype :=
+Fixpoint type_of_hfexpr (e : HiFP.hfexpr) (ce : ft_pmap) : option ftype :=
 match e with
 | Econst t bs => match t with
                | Fuint_implicit w => Some (Gtyp (Fuint (Nat.max (size bs) w)))
@@ -2689,15 +1780,7 @@ match e with
                    | _ => None
                    end
 end.
-
   
-  Notation ft_pmap := (CEP.t ftype).
-  Notation ft_flp_pmap := (CEP.t (ftype * bool * bool)).
-  Notation ft_find := CEP.find.
-  Definition ft_find_def v m := match ft_find v m with
-                                | Some t => t
-                                | None => (Gtyp (Fuint_implicit 1))
-                                end.
   
   (* Record types from the output of inferwidth *)
 
@@ -2779,7 +1862,7 @@ end.
     | Qcons x ss1 => Qcons x (qcat ss1 s2)
     end.
 
-  (* Record flip info from the output of inferwidth *)
+  (* Record flip info from the output of inferwidth, record also whether the orientation can is sink/duplex (true) or source (false) *)
   
   Fixpoint gen_ft_pmap r cnt (tls : list (ftype * bool *bool)) (mt : ft_flp_pmap) :=
     match tls with
@@ -2850,23 +1933,23 @@ end.
   (* Compute (ft_find (100,2)%num (rcd_flip_from_sts (Qcons (HiFP.swire (100,0)%num agt) (Qcons (HiFP.swire (101,0)%num agt) HiFP.qnil)) (CEP.empty (ftype * bool)))). *)
   
   (*recursively expand reference on rhs with ft_pmap*) 
-  Fixpoint expand_eref_aux_ft_pmap (r : pvar) (sz : nat) (cnt : nat) (ce : ft_pmap) (rs : seq HiFP.hfexpr) : seq HiFP.hfexpr :=
+  Fixpoint expand_eref_aux_ft_pmap (r : pvar) (sz : nat) (cnt : nat) (ftmap : ft_flp_pmap) (rs : seq HiFP.hfexpr) : seq HiFP.hfexpr :=
     match sz with
     | 0 => rs
-    | S n => match (ft_find (r.1, (r.2 + N.of_nat cnt)%num) ce) with
-             | Some t => if is_gtyp t
-                              then expand_eref_aux_ft_pmap r n (cnt.+1) ce (rcons rs (HiFP.eref (HiFP.eid (r.1, r.2 + N.of_nat cnt)%num)))
-                              else expand_eref_aux_ft_pmap r n (cnt.+1) ce rs
+    | S n => match (ft_find (r.1, (r.2 + N.of_nat cnt)%num) ftmap) with
+             | Some (t,_,_) => if is_gtyp t
+                              then expand_eref_aux_ft_pmap r n (cnt.+1) ftmap (rcons rs (HiFP.eref (HiFP.eid (r.1, r.2 + N.of_nat cnt)%num)))
+                              else expand_eref_aux_ft_pmap r n (cnt.+1) ftmap rs
              | None => rs
              end                                              
     end.
 
-  Definition expand_eref_ft_pmap (r : pvar) (ce : ft_pmap) l : seq HiFP.hfexpr :=
-    match (ft_find r ce) with
-    | Some t =>
+  Definition expand_eref_ft_pmap (r : pvar) (ftmap : ft_flp_pmap) l : seq HiFP.hfexpr :=
+    match (ft_find r ftmap) with
+    | Some (t,_,_) =>
         let ts := ftype_list_all t nil in
         let sz := size ts in
-        expand_eref_aux_ft_pmap r sz 0 ce l
+        expand_eref_aux_ft_pmap r sz 0 ftmap l
     | None => l
     end.
 
@@ -2879,10 +1962,10 @@ end.
     end.
   
   (*recursively expand expr on rhs*) 
-  Fixpoint expand_expr_ft_pmap (e : HiFP.hfexpr) (ce : ft_pmap) (es : seq HiFP.hfexpr) : seq HiFP.hfexpr :=
+  Fixpoint expand_expr_ft_pmap (e : HiFP.hfexpr) (ftmap : ft_flp_pmap) (es : seq HiFP.hfexpr) : seq HiFP.hfexpr :=
     match e with
-    | Eref (Eid (r, o)) => expand_eref_ft_pmap (r, o) ce es
-    | Emux c e1 e2 => expand_emux c (zip (* (HiFP.econst (Fuint 0) nil) (HiFP.econst (Fuint 0) nil) *) (expand_expr_ft_pmap e1 ce nil) (expand_expr_ft_pmap e2 ce nil)) es
+    | Eref (Eid (r, o)) => expand_eref_ft_pmap (r, o) ftmap es
+    | Emux c e1 e2 => expand_emux c (zip (* (HiFP.econst (Fuint 0) nil) (HiFP.econst (Fuint 0) nil) *) (expand_expr_ft_pmap e1 ftmap nil) (expand_expr_ft_pmap e2 ftmap nil)) es
     (* | Evalidif c e => expand_evalidif c (expand_expr e ce nil) es *)
     | Eref _ => rcons es (HiFP.econst (Fuint 0) [::])
     | e => rcons es e
@@ -2899,8 +1982,8 @@ end.
                 match (ft_find v2 mt) with
                 | Some (t2, true, true) =>
                     expand_fcnct ess1 ess2 mt (Qrcons l (Sfcnct (Eid v2) (Eref (Eid v)) ))
-                | _ =>
-                    expand_fcnct ess1 ess2 mt (Qrcons l (Sfcnct (Eid v) ee2))
+                | None => l
+                | _ => expand_fcnct ess1 ess2 mt (Qrcons l (Sfcnct (Eid v) ee2))
                 end
             | _ => l
             end
@@ -2913,7 +1996,7 @@ end.
   (* Expand invalid *)
   Fixpoint expand_invalid_aux (r : pvar) (sz : nat) (cnt : nat) (mt : ft_flp_pmap) (rs : HiFP.hfstmt_seq) : HiFP.hfstmt_seq :=
     match sz with
-    | 0 => rs
+    | 0 =>  rs
     | S n => match (ft_find (r.1, (r.2 + N.of_nat cnt)%num) mt) with
              | Some (t, _, b) =>
                  if is_gtyp t then
@@ -2935,120 +2018,129 @@ end.
     end.
 
   (* Expand wires *)
-  Fixpoint expand_wire_aux (r : pvar) (sz : nat) (cnt : nat) (ce : ft_pmap) (rs : HiFP.hfstmt_seq) : HiFP.hfstmt_seq :=
+  Fixpoint expand_wire_aux (r : pvar) (sz : nat) (cnt : nat) (ftmap : ft_flp_pmap) (rs : HiFP.hfstmt_seq) : HiFP.hfstmt_seq :=
     match sz with
     | 0 => rs
-    | S n => match (ft_find (r.1, (r.2 + N.of_nat cnt)%num) ce) with
-             | Some t => if is_gtyp t
-                              then expand_wire_aux r n (cnt.+1) ce (Qrcons rs (HiFP.swire (r.1, r.2 + N.of_nat cnt)%num t))
-                              else expand_wire_aux r n (cnt.+1) ce rs
+    | S n => match (ft_find (r.1, (r.2 + N.of_nat cnt)%num) ftmap) with
+             | Some (t,_,_) => if is_gtyp t
+                              then expand_wire_aux r n (cnt.+1) ftmap (Qrcons rs (HiFP.swire (r.1, r.2 + N.of_nat cnt)%num t))
+                              else expand_wire_aux r n (cnt.+1) ftmap rs
              | None => rs
              end                                              
     end.
 
-  Definition expand_wire (r : pvar) t ce l : HiFP.hfstmt_seq :=
+  Definition expand_wire (r : pvar) t ftmap l : HiFP.hfstmt_seq :=
         let ts := ftype_list_all t nil in
         let sz := size ts in
-        expand_wire_aux r sz 0 ce l.
+        expand_wire_aux r sz 0 ftmap l.
 
   (* Expand registers *)
-  Fixpoint expand_reg_aux_nrst (r : pvar) (sz : nat) (cnt : nat) cl (ce : ft_pmap) (rs : HiFP.hfstmt_seq) : HiFP.hfstmt_seq :=
+  Fixpoint expand_reg_aux_nrst (r : pvar) (sz : nat) (cnt : nat) cl (ftmap : ft_flp_pmap) (rs : HiFP.hfstmt_seq) : HiFP.hfstmt_seq :=
     match sz with
     | 0 => rs
-    | S n => match (ft_find (r.1, (r.2 + N.of_nat cnt)%num) ce) with
-             | Some t => if is_gtyp t
-                               then expand_reg_aux_nrst r n (cnt.+1) cl ce (Qrcons rs (HiFP.sreg (r.1, r.2 + N.of_nat cnt)%num (mk_freg t cl (NRst _))))
-                               else expand_reg_aux_nrst r n (cnt.+1) cl ce rs
+    | S n => match (ft_find (r.1, (r.2 + N.of_nat cnt)%num) ftmap) with
+             | Some (t,_,_) => if is_gtyp t
+                               then expand_reg_aux_nrst r n (cnt.+1) cl ftmap (Qrcons rs (HiFP.sreg (r.1, r.2 + N.of_nat cnt)%num (mk_freg t cl (NRst _))))
+                               else expand_reg_aux_nrst r n (cnt.+1) cl ftmap rs
              | None => rs
              end                                              
     end.
 
-  Fixpoint expand_reg_aux_rst (r : pvar) (sz : nat) (cnt : nat) cl c es (ce : ft_pmap) (rs : HiFP.hfstmt_seq) : HiFP.hfstmt_seq :=
+  Fixpoint expand_reg_aux_rst (r : pvar) (sz : nat) (cnt : nat) cl c es (ftmap : ft_flp_pmap) (rs : HiFP.hfstmt_seq) : HiFP.hfstmt_seq :=
     match sz with
-    | 0 => rs
-    | S n => match (ft_find (r.1, (r.2 + N.of_nat cnt)%num) ce) with
-             | Some t => if is_gtyp t
-                         then expand_reg_aux_rst r n (cnt.+1) cl c es ce (Qrcons rs (HiFP.sreg (r.1, r.2 + N.of_nat cnt)%num (mk_freg t cl (Rst c (nth (HiFP.eref (HiFP.eid (0,0)%num)) es cnt.-1)))))
-                         else expand_reg_aux_rst r n (cnt.+1) cl c es ce rs
+    | 0 =>  rs
+    | S n => match (ft_find (r.1, (r.2 + N.of_nat cnt)%num) ftmap) with
+             | Some (t,_,_) => if is_gtyp t
+                         then expand_reg_aux_rst r n (cnt.+1) cl c es ftmap (Qrcons rs (HiFP.sreg (r.1, r.2 + N.of_nat cnt)%num (mk_freg t cl (Rst c (nth (HiFP.eref (HiFP.eid (0,0)%num)) es cnt.-1)))))
+                         else expand_reg_aux_rst r n (cnt.+1) cl c es ftmap rs
              | None => rs
              end                                              
     end.
 
-  Definition expand_reg (r : pvar) t mt l : HiFP.hfstmt_seq :=
+  Definition expand_reg (r : pvar) t (ftmap : ft_flp_pmap) l : HiFP.hfstmt_seq :=
     match t with
     | mk_freg tp cl NRst => 
         let ts := ftype_list_all tp nil in
         let sz := size ts in
-        expand_reg_aux_nrst r sz 0 cl mt l
+        expand_reg_aux_nrst r sz 0 cl ftmap l
     | mk_freg tp cl (Rst c re) =>
         let ts := ftype_list_all tp nil in
         let sz := size ts in
-        expand_reg_aux_rst r sz 0 cl c (expand_expr_ft_pmap re mt nil) mt l
+        expand_reg_aux_rst r sz 0 cl c (expand_expr_ft_pmap re ftmap nil) ftmap l
     end.
 
   (* Expand Nodes *)
   (* If the node is not of passive types, then return nil for the rest *)
-  Fixpoint expand_node_aux r sz cnt es (ce : ft_pmap) (rs : HiFP.hfstmt_seq)  : HiFP.hfstmt_seq :=
+  Fixpoint expand_node_aux r sz cnt es (ftmap : ft_flp_pmap) (rs : HiFP.hfstmt_seq)  : HiFP.hfstmt_seq :=
     match sz with
     | 0 => rs
-    | S n => match (ft_find (r.1, (r.2 + N.of_nat cnt)%num) ce) with
-             | Some t => if is_gtyp t
-                         then expand_node_aux r n (cnt.+1) es ce (Qrcons rs (HiFP.snode (r.1, r.2 + N.of_nat cnt)%num (nth (HiFP.eref (HiFP.eid (0,0)%num)) es cnt.-1)))
-                         else expand_node_aux r n (cnt.+1) es ce rs
+    | S n => match (ft_find (r.1, (r.2 + N.of_nat cnt)%num) ftmap) with
+             | Some (t,_,_) => if is_gtyp t
+                         then expand_node_aux r n (cnt.+1) es ftmap (Qrcons rs (HiFP.snode (r.1, r.2 + N.of_nat cnt)%num (nth (HiFP.eref (HiFP.eid (0,0)%num)) es cnt.-1)))
+                         else expand_node_aux r n (cnt.+1) es ftmap rs
              | None => rs
              end
     end.
   
-  Definition expand_node v e (mt : ft_pmap) (l : HiFP.hfstmt_seq) : HiFP.hfstmt_seq :=
-    match ft_find v mt with
-    | Some t => if ftype_is_passive t then
-                  let ts := ftype_list_all t nil in
-                  let sz := size ts in
-                  expand_node_aux v sz 0 (expand_expr_ft_pmap e mt nil) mt l
-                else l
+  Definition expand_node v e (ftmap : ft_flp_pmap) (l : HiFP.hfstmt_seq) : HiFP.hfstmt_seq :=
+    match ft_find v ftmap with
+    | Some (t,_,_) =>
+        if ftype_is_passive t then
+          let ts := ftype_list_all t nil in
+          let sz := size ts in
+          expand_node_aux v sz 0 (expand_expr_ft_pmap e ftmap nil) ftmap l
+        else l
     | None => l
     end.
-
+  
   (* Expand statements *)
   (* If types not match, then returns qnil for the connections sts *)
-  Fixpoint expandconnects_stmt_ft_pmap (s : HiFP.hfstmt) (ce : ft_pmap) (mt : ft_flp_pmap) (sts : HiFP.hfstmt_seq) : HiFP.hfstmt_seq :=
+  Fixpoint expandconnects_stmt_ft_pmap (s : HiFP.hfstmt) (ce : ft_pmap) (ftmap : ft_flp_pmap) (sts : HiFP.hfstmt_seq) : HiFP.hfstmt_seq :=
     match s with
-    | Sskip => Qrcons sts s
-    | Swire v t => expand_wire v t ce sts
-    | Sreg v r => expand_reg v r ce sts
-    | Smem _ _ =>Qrcons sts s
-    | Sinvalid (Eid v) => expand_invalid v mt sts
-    | Sinvalid _ => Qrcons sts s
-    | Sinst _ _=> Qrcons sts s
-    | Snode v e => expand_node v e ce sts
+    | Sskip =>  (Qrcons sts s)
+    | Swire v t => expand_wire v t ftmap sts
+    | Sreg v r => expand_reg v r ftmap sts
+    | Smem _ _ =>  (Qrcons sts s)
+    | Sinvalid (Eid v) => expand_invalid v ftmap sts
+    | Sinvalid _ => (Qrcons sts s)
+    | Sinst _ _=>  (Qrcons sts s)
+    | Snode v e => expand_node v e ftmap sts
     | Sfcnct (Eid r1) e2 =>
-        match (ft_find r1 ce), type_of_hfexpr e2 ce (* , (ft_find r1 ce) *) with
-        | Some t1, Some t2 =>
-
-        if (is_gtyp t1 && is_gtyp t2) || (t1 == t2) then
-        (match e2 with
-         | Eref _
-         | Emux _ _ _ =>
-             expand_fcnct (expand_expr_ft_pmap (Eref (Eid r1)) ce nil) (expand_expr_ft_pmap e2 ce nil) mt sts
-         (* | Econst _ _ => Qrcons sts s *)
-         | _ => Qrcons  sts s
-         end)
-        else (*(~~(is_gtyp t1) && (t1 != t2)) then*) Qrcons sts s
-        | _  , _ => sts
+        match (ft_find r1 ftmap), type_of_hfexpr e2 ce (* , (ft_find r1 ce) *) with
+        | Some (t1,_,_), Some t2 =>
+            if connect_type_compatible true t1 t2 false then
+              (* if (is_gtyp t1 && is_gtyp t2) || (t1 == t2) then *)
+              (match e2 with
+               | Eref _
+               | Emux _ _ _ =>
+                   expand_fcnct (expand_expr_ft_pmap (Eref (Eid r1)) ftmap nil) (expand_expr_ft_pmap e2 ftmap nil) ftmap sts
+               (* | Econst _ _ => Qrcons sts s *)
+               | _ =>  Qrcons sts s
+               end)
+            else (*(~~(is_gtyp t1) && (t1 != t2)) then*) Qrcons sts s
+        | _  , _ => Qrcons sts s
         end
-    | Sfcnct _ _ => sts
-    | Swhen c s1 s2 => Qrcons sts (Swhen c (expandconnects_stmt_seq_ft_pmap s1 ce mt HiFP.qnil) (expandconnects_stmt_seq_ft_pmap s2 ce mt HiFP.qnil))
+    | Sfcnct _ _ => Qrcons sts s
+    | Swhen c s1 s2 =>
+        match (expandconnects_stmt_seq_ft_pmap s1 ce ftmap HiFP.qnil), (expandconnects_stmt_seq_ft_pmap s2 ce ftmap HiFP.qnil) with
+        | sts1,  sts2 =>
+            (Qrcons sts (Swhen c sts1 sts2))
+        end
     end
       with expandconnects_stmt_seq_ft_pmap (ss : HiFP.hfstmt_seq) (ce : ft_pmap) (mt : ft_flp_pmap) (sts : HiFP.hfstmt_seq) : HiFP.hfstmt_seq :=
       match ss with
       | Qnil => sts
-      | Qcons s ss => expandconnects_stmt_seq_ft_pmap ss ce mt (expandconnects_stmt_ft_pmap s ce mt sts)
-    end.
+      | Qcons s ss =>
+          match (expandconnects_stmt_ft_pmap s ce mt sts) with
+          | sts' =>
+              expandconnects_stmt_seq_ft_pmap ss ce mt sts'
+          end
+      end.
 
   (* Expand ports *)
-  Fixpoint expand_inport_aux (r : pvar) (sz : nat) (cnt : nat) (mt : ft_flp_pmap) (rs : seq HiFP.hfport) : seq HiFP.hfport * ft_flp_pmap :=
+  Fixpoint expand_inport_aux (r : pvar) (sz : nat) (cnt : nat) (mt : ft_flp_pmap) (rs : seq HiFP.hfport) : (seq HiFP.hfport * ft_flp_pmap) :=
     match sz with
-    | 0 => (rs, mt)
+    | 0 =>  (rs, mt)
     | S n => match (ft_find (r.1, (r.2 + N.of_nat cnt)%num) mt) with
              | Some (t, false, _) => if is_gtyp t
                               then expand_inport_aux r n (cnt.+1) (CEP.add (r.1, (r.2 + N.of_nat cnt)%num) (t, false, false) mt) (rcons rs (HiFP.hinport (r.1, r.2 + N.of_nat cnt)%num t))
@@ -3057,16 +2149,16 @@ end.
                                  then expand_inport_aux r n (cnt.+1) (CEP.add (r.1, (r.2 + N.of_nat cnt)%num) (t, true, true) mt)
                                         (rcons rs (HiFP.houtport (r.1, r.2 + N.of_nat cnt)%num t))
                               else expand_inport_aux r n (cnt.+1) mt rs
-             | None => (rs, mt)
+             | None => (rs,mt)
              end                                              
     end.
 
-  Definition expand_inport (r : pvar) (t: ftype) mt l : seq HiFP.hfport * ft_flp_pmap :=
+  Definition expand_inport (r : pvar) (t: ftype) mt l : (seq HiFP.hfport * ft_flp_pmap) :=
     let ts := ftype_list_all t nil in
     let sz := size ts in
     expand_inport_aux r sz 0 mt l.
   
-  Fixpoint expand_outport_aux (r : pvar) (sz : nat) (cnt : nat) (mt : ft_flp_pmap) (rs : seq HiFP.hfport) : seq HiFP.hfport * ft_flp_pmap :=
+  Fixpoint expand_outport_aux (r : pvar) (sz : nat) (cnt : nat) (mt : ft_flp_pmap) (rs : seq HiFP.hfport) : (seq HiFP.hfport * ft_flp_pmap) :=
     match sz with
     | 0 => (rs, mt)
     | S n => match (ft_find (r.1, (r.2 + N.of_nat cnt)%num) mt) with
@@ -3076,27 +2168,30 @@ end.
              | Some (t, true, _) => if is_gtyp t
                               then expand_outport_aux r n (cnt.+1) (CEP.add (r.1, (r.2 + N.of_nat cnt)%num) (t, true, false) mt) (rcons rs (HiFP.hinport (r.1, r.2 + N.of_nat cnt)%num t))
                               else expand_outport_aux r n (cnt.+1) mt rs
-             | None => (rs, mt)
+             | None => (rs,mt)
              end                                              
     end.
 
-  Definition expand_outport (r : pvar) t mt l : seq HiFP.hfport * ft_flp_pmap :=
+  Definition expand_outport (r : pvar) t mt l : (seq HiFP.hfport * ft_flp_pmap) :=
         let ts := ftype_list_all t nil in
         let sz := size ts in
         expand_outport_aux r sz 0 mt l.
 
-  Definition expand_port p l mt :seq HiFP.hfport * ft_flp_pmap :=
+  Definition expand_port p l mt : (seq HiFP.hfport * ft_flp_pmap) :=
     match p with
     | Finput v t => expand_inport v t mt l
     | Foutput v t => expand_outport v t mt l
     end.
 
-  Fixpoint expand_ports (ps : seq HiFP.hfport) l mt : seq HiFP.hfport * ft_flp_pmap :=
+  Fixpoint expand_ports (ps : seq HiFP.hfport) l mt : (seq HiFP.hfport * ft_flp_pmap) :=
     match ps with
     | nil => (l, mt)
     | hd :: tl =>
-        let (l', mt') := expand_port hd l mt in
-        expand_ports tl l' mt'
+        match expand_port hd l mt with
+        | s => let (l',mt') := s in expand_ports tl l' mt'
+        end
+        (* let (l', mt') := expand_port hd l mt in *)
+        (* expand_ports tl l' mt' *)
     end.
 
   Definition ft_flp_pmap_empty := CEP.empty (ftype * bool * bool).
@@ -3108,10 +2203,303 @@ end.
     | FInmod v ps ss =>
         let mt := rcd_flip_m m inf_mp (ft_flp_pmap_empty) in
         let ce := rcd_pmap_m m inf_mp (ft_pmap_empty) in
-        let (exp_ps, mt') := expand_ports ps nil mt in
-        FInmod v exp_ps (expandconnects_stmt_seq_ft_pmap ss ce mt' HiFP.qnil)
+        match (expand_ports ps nil mt) with
+        | ps => let (exp_ps, mt') := ps in
+                     match (expandconnects_stmt_seq_ft_pmap ss ce mt' HiFP.qnil) with
+                     | sts =>  (FInmod v exp_ps sts)
+                     (* let (exp_ps, mt') := expand_ports ps nil mt in *)
+                     (* (expandconnects_stmt_seq_ft_pmap ss ce mt' HiFP.qnil) *)
+                     end
+        end
     | m => m
     end.
+  
+  (* (*recursively expand reference on rhs with ft_pmap*)  *)
+  (* Fixpoint expand_eref_aux_ft_pmap (r : pvar) (sz : nat) (cnt : nat) (ftmap : ft_flp_pmap) (rs : seq HiFP.hfexpr) : seq HiFP.hfexpr := *)
+  (*   match sz with *)
+  (*   | 0 => rs *)
+  (*   | S n => match (ft_find (r.1, (r.2 + N.of_nat cnt)%num) ftmap) with *)
+  (*            | Some (t,_,_) => if is_gtyp t *)
+  (*                             then expand_eref_aux_ft_pmap r n (cnt.+1) ftmap (rcons rs (HiFP.eref (HiFP.eid (r.1, r.2 + N.of_nat cnt)%num))) *)
+  (*                             else expand_eref_aux_ft_pmap r n (cnt.+1) ftmap rs *)
+  (*            | None => rs *)
+  (*            end                                               *)
+  (*   end. *)
+
+  (* Definition expand_eref_ft_pmap (r : pvar) (ftmap : ft_flp_pmap) l : seq HiFP.hfexpr := *)
+  (*   match (ft_find r ftmap) with *)
+  (*   | Some (t,_,_) => *)
+  (*       let ts := ftype_list_all t nil in *)
+  (*       let sz := size ts in *)
+  (*       expand_eref_aux_ft_pmap r sz 0 ftmap l *)
+  (*   | None => l *)
+  (*   end. *)
+
+
+  (* (*recursively expand mux, output a sequence of expressions*)  *)
+  (* Fixpoint expand_emux (c : HiFP.hfexpr) (ze : seq (HiFP.hfexpr * HiFP.hfexpr)) (es : seq HiFP.hfexpr) : seq HiFP.hfexpr := *)
+  (*   match ze with *)
+  (*   | nil => es *)
+  (*   | (e1, e2) :: zes => expand_emux c zes (rcons es (HiFP.emux c e1 e2)) *)
+  (*   end. *)
+  
+  (* (*recursively expand expr on rhs*)  *)
+  (* Fixpoint expand_expr_ft_pmap (e : HiFP.hfexpr) (ftmap : ft_flp_pmap) (es : seq HiFP.hfexpr) : seq HiFP.hfexpr := *)
+  (*   match e with *)
+  (*   | Eref (Eid (r, o)) => expand_eref_ft_pmap (r, o) ftmap es *)
+  (*   | Emux c e1 e2 => expand_emux c (zip (* (HiFP.econst (Fuint 0) nil) (HiFP.econst (Fuint 0) nil) *) (expand_expr_ft_pmap e1 ftmap nil) (expand_expr_ft_pmap e2 ftmap nil)) es *)
+  (*   (* | Evalidif c e => expand_evalidif c (expand_expr e ce nil) es *) *)
+  (*   | Eref _ => rcons es (HiFP.econst (Fuint 0) [::]) *)
+  (*   | e => rcons es e *)
+  (*   end. *)
+
+  (* (* Expand connections by creating new connections from the lists of lhs and rhs *) *)
+  (* Fixpoint expand_fcnct es1 es2 (mt : ft_flp_pmap) (l : HiFP.hfstmt_seq)  : option HiFP.hfstmt_seq := *)
+  (*   match es1, es2 with *)
+  (*   | cons (Eref (Eid v)) ess1, cons ee2 ess2 => *)
+  (*       match (ft_find v mt) with *)
+  (*       | Some (t, true, _) => *)
+  (*           match ee2 with *)
+  (*           | Eref (Eid v2) => *)
+  (*               match (ft_find v2 mt) with *)
+  (*               | Some (t2, true, true) => *)
+  (*                   expand_fcnct ess1 ess2 mt (Qrcons l (Sfcnct (Eid v2) (Eref (Eid v)) )) *)
+  (*               | None => None *)
+  (*               | _ => expand_fcnct ess1 ess2 mt (Qrcons l (Sfcnct (Eid v) ee2)) *)
+  (*               end *)
+  (*           | _ => None *)
+  (*           end *)
+  (*       | Some (t, _ , _) => expand_fcnct ess1 ess2 mt (Qrcons l (Sfcnct (Eid v) ee2)) *)
+  (*       | None => None *)
+  (*       end *)
+  (*   | _, _ => None *)
+  (*   end. *)
+
+  (* (* Expand invalid *) *)
+  (* Fixpoint expand_invalid_aux (r : pvar) (sz : nat) (cnt : nat) (mt : ft_flp_pmap) (rs : HiFP.hfstmt_seq) : option HiFP.hfstmt_seq := *)
+  (*   match sz with *)
+  (*   | 0 => Some rs *)
+  (*   | S n => match (ft_find (r.1, (r.2 + N.of_nat cnt)%num) mt) with *)
+  (*            | Some (t, _, b) => *)
+  (*                if is_gtyp t then *)
+  (*                  if b then *)
+  (*                    expand_invalid_aux r n (cnt.+1) mt (Qrcons rs (HiFP.sinvalid (HiFP.eid (r.1, r.2 + N.of_nat cnt)%num))) *)
+  (*                  else expand_invalid_aux r n (cnt.+1) mt rs *)
+  (*                else expand_invalid_aux r n (cnt.+1) mt rs *)
+  (*            | None => None *)
+  (*            end                                               *)
+  (*   end. *)
+
+  (* Definition expand_invalid (r : pvar) mt l : option HiFP.hfstmt_seq := *)
+  (*   match ft_find r mt with *)
+  (*   | None => None *)
+  (*   | Some (t, _, _) => *)
+  (*     let ts := ftype_list_all t nil in *)
+  (*     let sz := size ts in *)
+  (*     expand_invalid_aux r sz 0 mt l *)
+  (*   end. *)
+
+  (* (* Expand wires *) *)
+  (* Fixpoint expand_wire_aux (r : pvar) (sz : nat) (cnt : nat) (ftmap : ft_flp_pmap) (rs : HiFP.hfstmt_seq) : option HiFP.hfstmt_seq := *)
+  (*   match sz with *)
+  (*   | 0 => Some rs *)
+  (*   | S n => match (ft_find (r.1, (r.2 + N.of_nat cnt)%num) ftmap) with *)
+  (*            | Some (t,_,_) => if is_gtyp t *)
+  (*                             then expand_wire_aux r n (cnt.+1) ftmap (Qrcons rs (HiFP.swire (r.1, r.2 + N.of_nat cnt)%num t)) *)
+  (*                             else expand_wire_aux r n (cnt.+1) ftmap rs *)
+  (*            | None => None *)
+  (*            end                                               *)
+  (*   end. *)
+
+  (* Definition expand_wire (r : pvar) t ftmap l : option HiFP.hfstmt_seq := *)
+  (*       let ts := ftype_list_all t nil in *)
+  (*       let sz := size ts in *)
+  (*       expand_wire_aux r sz 0 ftmap l. *)
+
+  (* (* Expand registers *) *)
+  (* Fixpoint expand_reg_aux_nrst (r : pvar) (sz : nat) (cnt : nat) cl (ftmap : ft_flp_pmap) (rs : HiFP.hfstmt_seq) : option HiFP.hfstmt_seq := *)
+  (*   match sz with *)
+  (*   | 0 => Some rs *)
+  (*   | S n => match (ft_find (r.1, (r.2 + N.of_nat cnt)%num) ftmap) with *)
+  (*            | Some (t,_,_) => if is_gtyp t *)
+  (*                              then expand_reg_aux_nrst r n (cnt.+1) cl ftmap (Qrcons rs (HiFP.sreg (r.1, r.2 + N.of_nat cnt)%num (mk_freg t cl (NRst _)))) *)
+  (*                              else expand_reg_aux_nrst r n (cnt.+1) cl ftmap rs *)
+  (*            | None => None *)
+  (*            end                                               *)
+  (*   end. *)
+
+  (* Fixpoint expand_reg_aux_rst (r : pvar) (sz : nat) (cnt : nat) cl c es (ftmap : ft_flp_pmap) (rs : HiFP.hfstmt_seq) : option HiFP.hfstmt_seq := *)
+  (*   match sz with *)
+  (*   | 0 => Some rs *)
+  (*   | S n => match (ft_find (r.1, (r.2 + N.of_nat cnt)%num) ftmap) with *)
+  (*            | Some (t,_,_) => if is_gtyp t *)
+  (*                        then expand_reg_aux_rst r n (cnt.+1) cl c es ftmap (Qrcons rs (HiFP.sreg (r.1, r.2 + N.of_nat cnt)%num (mk_freg t cl (Rst c (nth (HiFP.eref (HiFP.eid (0,0)%num)) es cnt.-1))))) *)
+  (*                        else expand_reg_aux_rst r n (cnt.+1) cl c es ftmap rs *)
+  (*            | None => None *)
+  (*            end                                               *)
+  (*   end. *)
+
+  (* Definition expand_reg (r : pvar) t (ftmap : ft_flp_pmap) l : option HiFP.hfstmt_seq := *)
+  (*   match t with *)
+  (*   | mk_freg tp cl NRst =>  *)
+  (*       let ts := ftype_list_all tp nil in *)
+  (*       let sz := size ts in *)
+  (*       expand_reg_aux_nrst r sz 0 cl ftmap l *)
+  (*   | mk_freg tp cl (Rst c re) => *)
+  (*       let ts := ftype_list_all tp nil in *)
+  (*       let sz := size ts in *)
+  (*       expand_reg_aux_rst r sz 0 cl c (expand_expr_ft_pmap re ftmap nil) ftmap l *)
+  (*   end. *)
+
+  (* (* Expand Nodes *) *)
+  (* (* If the node is not of passive types, then return nil for the rest *) *)
+  (* Fixpoint expand_node_aux r sz cnt es (ftmap : ft_flp_pmap) (rs : HiFP.hfstmt_seq)  : option HiFP.hfstmt_seq := *)
+  (*   match sz with *)
+  (*   | 0 => Some rs *)
+  (*   | S n => match (ft_find (r.1, (r.2 + N.of_nat cnt)%num) ftmap) with *)
+  (*            | Some (t,_,_) => if is_gtyp t *)
+  (*                        then expand_node_aux r n (cnt.+1) es ftmap (Qrcons rs (HiFP.snode (r.1, r.2 + N.of_nat cnt)%num (nth (HiFP.eref (HiFP.eid (0,0)%num)) es cnt.-1))) *)
+  (*                        else expand_node_aux r n (cnt.+1) es ftmap rs *)
+  (*            | None => None *)
+  (*            end *)
+  (*   end. *)
+  
+  (* Definition expand_node v e (ftmap : ft_flp_pmap) (l : HiFP.hfstmt_seq) : option HiFP.hfstmt_seq := *)
+  (*   match ft_find v ftmap with *)
+  (*   | Some (t,_,_) => *)
+  (*       if ftype_is_passive t then *)
+  (*         let ts := ftype_list_all t nil in *)
+  (*         let sz := size ts in *)
+  (*         expand_node_aux v sz 0 (expand_expr_ft_pmap e ftmap nil) ftmap l *)
+  (*       else None *)
+  (*   | None => None *)
+  (*   end. *)
+  
+  (* (* Expand statements *) *)
+  (* (* If types not match, then returns qnil for the connections sts *) *)
+  (* Fixpoint expandconnects_stmt_ft_pmap (s : HiFP.hfstmt) (ce : ft_pmap) (ftmap : ft_flp_pmap) (sts : HiFP.hfstmt_seq) : option HiFP.hfstmt_seq := *)
+  (*   match s with *)
+  (*   | Sskip => Some (Qrcons sts s) *)
+  (*   | Swire v t => expand_wire v t ftmap sts *)
+  (*   | Sreg v r => expand_reg v r ftmap sts *)
+  (*   | Smem _ _ => Some (Qrcons sts s) *)
+  (*   | Sinvalid (Eid v) => expand_invalid v ftmap sts *)
+  (*   | Sinvalid _ => Some (Qrcons sts s) *)
+  (*   | Sinst _ _=> Some (Qrcons sts s) *)
+  (*   | Snode v e => expand_node v e ftmap sts *)
+  (*   | Sfcnct (Eid r1) e2 => *)
+  (*       match (ft_find r1 ftmap), type_of_hfexpr e2 ce (* , (ft_find r1 ce) *) with *)
+  (*       | Some (t1,_,_), Some t2 => *)
+  (*           if connect_type_compatible true t1 t2 false then *)
+  (*             (* if (is_gtyp t1 && is_gtyp t2) || (t1 == t2) then *) *)
+  (*             (match e2 with *)
+  (*              | Eref _ *)
+  (*              | Emux _ _ _ => *)
+  (*                  expand_fcnct (expand_expr_ft_pmap (Eref (Eid r1)) ftmap nil) (expand_expr_ft_pmap e2 ftmap nil) ftmap sts *)
+  (*              (* | Econst _ _ => Qrcons sts s *) *)
+  (*              | _ => None *)
+  (*              end) *)
+  (*           else (*(~~(is_gtyp t1) && (t1 != t2)) then*) None *)
+  (*       | _  , _ => None *)
+  (*       end *)
+  (*   | Sfcnct _ _ => None *)
+  (*   | Swhen c s1 s2 => *)
+  (*       match (expandconnects_stmt_seq_ft_pmap s1 ce ftmap HiFP.qnil), (expandconnects_stmt_seq_ft_pmap s2 ce ftmap HiFP.qnil) with *)
+  (*       | Some sts1, Some sts2 => *)
+  (*           Some (Qrcons sts (Swhen c sts1 sts2)) *)
+  (*       | _, _ => None *)
+  (*       end *)
+  (*   end *)
+  (*     with expandconnects_stmt_seq_ft_pmap (ss : HiFP.hfstmt_seq) (ce : ft_pmap) (mt : ft_flp_pmap) (sts : HiFP.hfstmt_seq) : option HiFP.hfstmt_seq := *)
+  (*     match ss with *)
+  (*     | Qnil => Some sts *)
+  (*     | Qcons s ss => *)
+  (*         match (expandconnects_stmt_ft_pmap s ce mt sts) with *)
+  (*         | Some sts' => *)
+  (*             expandconnects_stmt_seq_ft_pmap ss ce mt sts' *)
+  (*         | None => None *)
+  (*         end *)
+  (*     end. *)
+
+  (* (* Expand ports *) *)
+  (* Fixpoint expand_inport_aux (r : pvar) (sz : nat) (cnt : nat) (mt : ft_flp_pmap) (rs : seq HiFP.hfport) : option (seq HiFP.hfport * ft_flp_pmap) := *)
+  (*   match sz with *)
+  (*   | 0 => Some (rs, mt) *)
+  (*   | S n => match (ft_find (r.1, (r.2 + N.of_nat cnt)%num) mt) with *)
+  (*            | Some (t, false, _) => if is_gtyp t *)
+  (*                             then expand_inport_aux r n (cnt.+1) (CEP.add (r.1, (r.2 + N.of_nat cnt)%num) (t, false, false) mt) (rcons rs (HiFP.hinport (r.1, r.2 + N.of_nat cnt)%num t)) *)
+  (*                             else expand_inport_aux r n (cnt.+1) mt rs *)
+  (*            | Some (t, true, _) => if is_gtyp t *)
+  (*                                then expand_inport_aux r n (cnt.+1) (CEP.add (r.1, (r.2 + N.of_nat cnt)%num) (t, true, true) mt) *)
+  (*                                       (rcons rs (HiFP.houtport (r.1, r.2 + N.of_nat cnt)%num t)) *)
+  (*                             else expand_inport_aux r n (cnt.+1) mt rs *)
+  (*            | None => None *)
+  (*            end                                               *)
+  (*   end. *)
+
+  (* Definition expand_inport (r : pvar) (t: ftype) mt l : option (seq HiFP.hfport * ft_flp_pmap) := *)
+  (*   let ts := ftype_list_all t nil in *)
+  (*   let sz := size ts in *)
+  (*   expand_inport_aux r sz 0 mt l. *)
+  
+  (* Fixpoint expand_outport_aux (r : pvar) (sz : nat) (cnt : nat) (mt : ft_flp_pmap) (rs : seq HiFP.hfport) : option (seq HiFP.hfport * ft_flp_pmap) := *)
+  (*   match sz with *)
+  (*   | 0 => Some (rs, mt) *)
+  (*   | S n => match (ft_find (r.1, (r.2 + N.of_nat cnt)%num) mt) with *)
+  (*            | Some (t, false, _) => if is_gtyp t *)
+  (*                             then expand_outport_aux r n (cnt.+1) (CEP.add (r.1, (r.2 + N.of_nat cnt)%num) (t, false, true) mt) (rcons rs (HiFP.houtport (r.1, r.2 + N.of_nat cnt)%num t)) *)
+  (*                             else expand_outport_aux r n (cnt.+1) mt rs *)
+  (*            | Some (t, true, _) => if is_gtyp t *)
+  (*                             then expand_outport_aux r n (cnt.+1) (CEP.add (r.1, (r.2 + N.of_nat cnt)%num) (t, true, false) mt) (rcons rs (HiFP.hinport (r.1, r.2 + N.of_nat cnt)%num t)) *)
+  (*                             else expand_outport_aux r n (cnt.+1) mt rs *)
+  (*            | None => None *)
+  (*            end                                               *)
+  (*   end. *)
+
+  (* Definition expand_outport (r : pvar) t mt l : option (seq HiFP.hfport * ft_flp_pmap) := *)
+  (*       let ts := ftype_list_all t nil in *)
+  (*       let sz := size ts in *)
+  (*       expand_outport_aux r sz 0 mt l. *)
+
+  (* Definition expand_port p l mt : option (seq HiFP.hfport * ft_flp_pmap) := *)
+  (*   match p with *)
+  (*   | Finput v t => expand_inport v t mt l *)
+  (*   | Foutput v t => expand_outport v t mt l *)
+  (*   end. *)
+
+  (* Fixpoint expand_ports (ps : seq HiFP.hfport) l mt : option (seq HiFP.hfport * ft_flp_pmap) := *)
+  (*   match ps with *)
+  (*   | nil => Some (l, mt) *)
+  (*   | hd :: tl => *)
+  (*       match expand_port hd l mt with *)
+  (*       | Some s => let (l',mt') := s in expand_ports tl l' mt' *)
+  (*       | None => None *)
+  (*       end *)
+  (*       (* let (l', mt') := expand_port hd l mt in *) *)
+  (*       (* expand_ports tl l' mt' *) *)
+  (*   end. *)
+
+ (*  Definition ft_flp_pmap_empty := CEP.empty (ftype * bool * bool). *)
+ (*  Definition ft_pmap_empty := CEP.empty (ftype). *)
+ 
+ (* (* Output a firrtl module *) *)
+ (*  Definition expandconnects_fmodule (m : HiFP.hfmodule) (inf_mp : ft_pmap) : option HiFP.hfmodule := *)
+ (*    match m with *)
+ (*    | FInmod v ps ss => *)
+ (*        let mt := rcd_flip_m m inf_mp (ft_flp_pmap_empty) in *)
+ (*        let ce := rcd_pmap_m m inf_mp (ft_pmap_empty) in *)
+ (*        match (expand_ports ps nil mt) with *)
+ (*        | Some ps => let (exp_ps, mt') := ps in *)
+ (*                     match (expandconnects_stmt_seq_ft_pmap ss ce mt' HiFP.qnil) with *)
+ (*                     | Some sts => Some (FInmod v exp_ps sts) *)
+ (*                     (* let (exp_ps, mt') := expand_ports ps nil mt in *) *)
+ (*                     (* (expandconnects_stmt_seq_ft_pmap ss ce mt' HiFP.qnil) *) *)
+ (*                     | None => None *)
+ (*                     end *)
+ (*        | None => None *)
+ (*        end *)
+ (*    | m => None *)
+ (*    end. *)
 
   (* Output a ft_pmap *)
   Definition output_ft_pmap m (inf_mp : ft_pmap) : ft_pmap :=
@@ -3242,33 +2630,34 @@ Compute (expandconnects_fmodule test_flip_module (rcd_pmap_from_m test_flip_modu
 Lemma connect_type_compatible_size :
     forall (can_flip : bool) (ft_tgt ft_src : ftype) (flipped : bool),
         connect_type_compatible can_flip ft_tgt ft_src flipped ->
-            size_of_ftype ft_tgt = size_of_ftype ft_src
+            size (ftype_list_all ft_tgt nil) = size (ftype_list_all ft_src nil)
 with connect_type_compatible_fields_size :
     forall (can_flip : bool) (ff_tgt ff_src : ffield) (flipped : bool),
         connect_type_compatible_fields can_flip ff_tgt ff_src flipped ->
-            size_of_fields ff_tgt = size_of_fields ff_src.
+            size (ftype_list_btyp_all ff_tgt nil) = size (ftype_list_btyp_all ff_src nil).
 Proof.
-* clear connect_type_compatible_size.
-  induction ft_tgt ; simpl.
-  + (* Gtyp *) destruct ft_src ; simpl ; try done ; by (destruct f ; done).
-  + (* Atyp *) destruct ft_src ; simpl ; try done.
-    move => flipped /andP [/eqP H1 H2].
-    apply IHft_tgt in H2.
-    rewrite H1 H2 //.
-  + (* Btyp *) destruct ft_src ; simpl ; try done.
-    apply connect_type_compatible_fields_size.
-* clear connect_type_compatible_fields_size.
-  induction ff_tgt ; simpl.
-  + (* Fnil *) destruct ff_src ; simpl ; done.
-  + (* Fflips *) destruct ff_src ; simpl ; first by (destruct f ; done).
-    destruct f, f1 ; simpl ; try done.
-    1,2: move => flipped /andP [/andP [_ Ht] Hf].
-    1,2: apply connect_type_compatible_size in Ht.
-    1,2: apply IHff_tgt in Hf.
-    1,2: rewrite Ht Hf //.
-Qed.
+(* * clear connect_type_compatible_size. *)
+(*   induction ft_tgt ; simpl. *)
+(*   + (* Gtyp *) destruct ft_src ; simpl ; try done ; by (destruct f ; done). *)
+(*   + (* Atyp *) destruct ft_src ; simpl ; try done. *)
+(*     move => flipped /andP [/eqP H1 H2]. *)
+(*     apply IHft_tgt in H2. *)
+(*     rewrite H1 H2 //. *)
+(*   + (* Btyp *) destruct ft_src ; simpl ; try done. *)
+(*     apply connect_type_compatible_fields_size. *)
+(* * clear connect_type_compatible_fields_size. *)
+(*   induction ff_tgt ; simpl. *)
+(*   + (* Fnil *) destruct ff_src ; simpl ; done. *)
+(*   + (* Fflips *) destruct ff_src ; simpl ; first by (destruct f ; done). *)
+(*     destruct f, f1 ; simpl ; try done. *)
+(*     1,2: move => flipped /andP [/andP [_ Ht] Hf]. *)
+(*     1,2: apply connect_type_compatible_size in Ht. *)
+(*     1,2: apply IHff_tgt in Hf. *)
+(*     1,2: rewrite Ht Hf //. *)
+(* Qed. *)
+Admitted.
 
-
+  (*maps should be prepared after inferwidth*)
   Definition rel_tfmap_tomap (tf:ft_flp_pmap) (to: CEP.t (ftype * HiFP.forient)) :=
     forall v,
       match CEP.find v tf with
@@ -3288,62 +2677,97 @@ Qed.
       end.
 
   Definition rel_tomap_ct (to: CEP.t (ftype * HiFP.forient)) (ct : CEP.t def_expr) :=
-    forall v t exp, CEP.find v to = Some (t, HiFP.Sink) ->
-                    CEP.find v ct = Some exp. 
- 
+    forall v t s exp, CEP.find v to = Some (t,s) -> CEP.find v ct = Some exp.
+      (* match CEP.find v to with *)
+      (* | Some (t, HiFP.Sink) => CEP.find v ct = Some exp *)
+      (* | Some (t, HiFP.Source) => CEP.find v ct = Some exp *)
+      (* | None => CEP.find v ct = None *)
+  (* end.  *)
+
+  (* no delete operation in maps for connections *)
+  Axiom rel_tomap_ct_next : 
+     forall to ct0 vm0 s vm1 ct1 , rel_tomap_ct to ct0 -> Sem_frag_stmts vm0 ct0 s vm1 ct1 to
+                                       -> rel_tomap_ct to ct1.
+
   Lemma ExpandConnects_skip_correct :
-    forall vm_old ct_old vm_new ct_new tmap tfmap tm ss0,
-      Sem_frag_stmts vm_old ct_old (expandconnects_stmt_ft_pmap HiFP.sskip tmap tfmap ss0) vm_new ct_new tm ->
+    forall vm_old ct_old vm_new ct_new tmap tfmap tm ss0 ,
+      Sem_frag_stmts vm_old ct_old       (expandconnects_stmt_ft_pmap HiFP.sskip tmap tfmap ss0) vm_new ct_new tm ->
       Sem_frag_stmts vm_old ct_old (Qrcons ss0 HiFP.sskip) vm_new ct_new tm.
   Proof.
-    rewrite /=//.
+    intros. rewrite/=//.
   Qed.
+  
+  (* Lemma ExpandConnects_skip_correct : *)
+  (*   forall vm_old ct_old vm_new ct_new tmap tfmap tm ss0 sts, *)
+  (*     (expandconnects_stmt_ft_pmap HiFP.sskip tmap tfmap ss0) = Some sts -> *)
+  (*     Sem_frag_stmts vm_old ct_old sts vm_new ct_new tm -> *)
+  (*     Sem_frag_stmts vm_old ct_old (Qrcons ss0 HiFP.sskip) vm_new ct_new tm. *)
+  (* Proof. *)
+  (*   intros. rewrite/= in H. injection H. intro. rewrite H1/=//. *)
+  (* Qed. *)
+  
+  (* Lemma expandConnects_smem_correct : *)
+  (*   forall (s : ProdVarOrder.T) (h : hfmem ProdVarOrder.T) (ct0 : CEP.t def_expr) *)
+  (*   (vm0 : CEP.t vertex_type) (ct1 : CEP.t def_expr) (vm1 : CEP.t vertex_type) *)
+  (*   (tmap : ft_pmap) (tfmap : ft_flp_pmap) (tomap : CEP.t (ftype * HiFP.forient)) ss0 sts, *)
+  (*     (expandconnects_stmt_ft_pmap (Smem s h) tmap tfmap ss0) = Some sts -> *)
+  (*     Sem_frag_stmts vm0 ct0 sts vm1 ct1 tomap -> *)
+  (*     Sem_frag_stmts vm0 ct0 (Qrcons ss0 (HiFP.smem s h)) vm1 ct1 tomap. *)
+  (* Proof. *)
+  (*   intros. rewrite/= in H. injection H. intro. rewrite H1/=//. *)
+  (* Qed. *)
+
+  (* Lemma expandConnects_sinst_correct : *)
+  (*   forall (s s0 : ProdVarOrder.T) (ct0 : CEP.t def_expr) (vm0 : CEP.t vertex_type) *)
+  (*   (ct1 : CEP.t def_expr) (vm1 : CEP.t vertex_type) (tmap : ft_pmap) *)
+  (*   (tfmap : ft_flp_pmap) (tomap : CEP.t (ftype * HiFP.forient)) ss0 sts, *)
+  (*     (expandconnects_stmt_ft_pmap (Sinst (var:=ProdVarOrder.T) s s0) tmap tfmap *)
+  (*      ss0) = Some sts -> *)
+  (*     Sem_frag_stmts vm0 ct0 sts *)
+  (*       vm1 ct1 tomap -> *)
+  (*     Sem_frag_stmts vm0 ct0 (Qrcons ss0 (Sinst (var:=ProdVarOrder.T) s s0)) vm1 ct1 tomap. *)
+  (*   Proof. *)
+  (*     intros. rewrite/= in H. injection H. intro. rewrite H1/=//. *)
+  (*   Qed. *)
     
   Lemma expandConnects_smem_correct :
     forall (s : ProdVarOrder.T) (h : hfmem ProdVarOrder.T) (ct0 : CEP.t def_expr)
     (vm0 : CEP.t vertex_type) (ct1 : CEP.t def_expr) (vm1 : CEP.t vertex_type)
-    (tmap : ft_pmap) (tfmap : ft_flp_pmap) (tomap : CEP.t (ftype * HiFP.forient)) ss0,
-      Sem_frag_stmts vm0 ct0 (expandconnects_stmt_ft_pmap (Smem s h) tmap tfmap ss0)
-    vm1 ct1 tomap -> Sem_frag_stmts vm0 ct0 (Qrcons ss0 (HiFP.smem s h)) vm1 ct1 tomap.
-  Proof. rewrite /=//. Qed.
+    (tmap : ft_pmap) (tfmap : ft_flp_pmap) (tomap : CEP.t (ftype * HiFP.forient)) ss0 ,
+      Sem_frag_stmts vm0 ct0       (expandconnects_stmt_ft_pmap (Smem s h) tmap tfmap ss0) vm1 ct1 tomap ->
+      Sem_frag_stmts vm0 ct0 (Qrcons ss0 (HiFP.smem s h)) vm1 ct1 tomap.
+  Proof.
+    intros. rewrite/=//.
+  Qed.
 
   Lemma expandConnects_sinst_correct :
     forall (s s0 : ProdVarOrder.T) (ct0 : CEP.t def_expr) (vm0 : CEP.t vertex_type)
     (ct1 : CEP.t def_expr) (vm1 : CEP.t vertex_type) (tmap : ft_pmap)
-    (tfmap : ft_flp_pmap) (tomap : CEP.t (ftype * HiFP.forient)) ss0,
-  Sem_frag_stmts vm0 ct0
-    (expandconnects_stmt_ft_pmap (Sinst (var:=ProdVarOrder.T) s s0) tmap tfmap
-       ss0) vm1 ct1 tomap ->
-  Sem_frag_stmts vm0 ct0 (Qrcons ss0 (Sinst (var:=ProdVarOrder.T) s s0)) vm1 ct1 tomap.
-    Proof. rewrite /=//. Qed.
-    
-  (* Lemma expand_fcnct_rcons : *)
-  (*   forall v1 sz1 v2 sz2 ofs1 ofs2 tm ss0 tfm ss, *)
-  (*   expand_fcnct *)
-  (*      (expand_eref_aux_ft_pmap v1 sz1 ofs2 tm ss0) *)
-  (*      (expand_eref_aux_ft_pmap v2 sz2 ofs2 tm ss0) *)
-  (*      tfm ss = *)
-  (*     qcat ss (expand_fcnct *)
-  (*             (expand_eref_aux_ft_pmap v1 sz1 ofs1 tm ss0) *)
-  (*             (expand_eref_aux_ft_pmap v2 sz2 ofs2 tm ss0) *)
-  (*             tfm HiFP.qnil). *)
-  (* Proof. Admitted. *)
+    (tfmap : ft_flp_pmap) (tomap : CEP.t (ftype * HiFP.forient)) ss0 ,
+      Sem_frag_stmts vm0 ct0       (expandconnects_stmt_ft_pmap (Sinst (var:=ProdVarOrder.T) s s0) tmap tfmap
+       ss0)
+        vm1 ct1 tomap ->
+      Sem_frag_stmts vm0 ct0 (Qrcons ss0 (Sinst (var:=ProdVarOrder.T) s s0)) vm1 ct1 tomap.
+    Proof.
+      intros. rewrite/=//.
+    Qed.
 
-  (* Lemma sem_frag_stmts_cat : *)
-  (*   forall vm0 ct0 s1 s2 vm1 ct1 tm vm' ct', *)
-  (*     Sem_frag_stmts vm0 ct0 (qcat s1 s2) vm1 ct1 tm <-> *)
-  (*       (* exists vm' ct' , *) Sem_frag_stmts vm0 ct0 s1 vm' ct' tm /\ Sem_frag_stmts vm' ct' s2 vm1 ct1 tm. *)
-  (* Proof. Admitted. *)
- 
+(*     Lemma expand_wire_cat_aux : *)
+(*       forall sz r cnt tmap a l, *)
+(*         (forall exp, (expand_wire_aux r sz cnt tmap HiFP.qnil) != Some exp -> *)
+(*                      expand_wire_aux r sz cnt tmap (Qcons a l) = *)
+(*                        Some (Qcons a (Qcat l exp))). *)
+(*   Proof. *)
+(*     elim; intros. *)
+(*     - rewrite /= in H *. injection H => H'. rewrite -H' Qcats0//. *)
+(*     - intros; move : H0; rewrite /=. *)
+(*       case Hfd : (ft_find (r.1, (r.2 + N.of_nat cnt)%num) tmap) => [[[t f] s]|]; last discriminate. *)
+(*       case Hisg : (is_gtyp t). *)
+(*       +  *)
+(*         rewrite (H r cnt.+1 tmap (HiFP.swire (r.1, (r.2 + N.of_nat cnt)%num) t) HiFP.qnil exp).  *)
+(* Admitted. *)
 
-  (* Lemma sem_frag_stmts_rcons : *)
-  (*   forall vm0 ct0 ss st vm' ct' tm vm1 ct1, *)
-  (*   Sem_frag_stmts vm0 ct0 *)
-  (*   (Qrcons ss st) *)
-  (*   vm' ct' tm <-> *)
-  (*     (* exists vm1 ct1,  *)Sem_frag_stmt vm1 ct1 st vm' ct' tm /\ Sem_frag_stmts vm0 ct0 ss vm1 ct1 tm. *)
-  (* Proof. Admitted. *)
-
+        
   Lemma expand_wire_cat_aux :
     forall sz r cnt tmap a l,
     expand_wire_aux r sz cnt tmap (Qcons a l) =
@@ -3352,7 +2776,7 @@ Qed.
     elim; intros.
     - rewrite /= Qcats0//.
     - intros; rewrite /=.
-      case Hfd : (ft_find (r.1, (r.2 + N.of_nat cnt)%num) tmap) => [t|]; last rewrite Qcats0//.
+      case Hfd : (ft_find (r.1, (r.2 + N.of_nat cnt)%num) tmap) => [[[t f] s]|]; last rewrite Qcats0//.
       case Hisg : (is_gtyp t).
       + rewrite (H r cnt.+1 tmap (HiFP.swire (r.1, (r.2 + N.of_nat cnt)%num) t) HiFP.qnil).
         rewrite qcat0s.
@@ -3366,6 +2790,20 @@ Qed.
       expand_wire s f tmap (Qcons a l) = Qcons a (Qcat l (expand_wire s f tmap HiFP.qnil)).
   Proof.
     intros. rewrite /expand_wire expand_wire_cat_aux//.
+  Qed.
+
+  Lemma expand_fcnct_cat :
+    forall es1 es2 tmap a l ,
+      expand_fcnct es1 es2 tmap (Qcons a l) = Qcons a (Qcat l (expand_fcnct es1 es2 tmap HiFP.qnil)).
+  Proof.
+    elim => [|hd1 tl1 Hn]; elim => [|hd2 tl2 Hm] tmap a l; try (rewrite /= Qcats0//).
+    rewrite /=. case hd1; try rewrite Qcats0//. case ; rewrite Qcats0//.
+    rewrite /=. case hd1; try rewrite Qcats0//. case; try rewrite Qcats0//.
+    intros. case (ft_find s tmap ) => [ [[t1 f1] s1]|]; last rewrite Qcats0//.
+    case f1; [| rewrite Hn Qcat_rcons Hn//].
+    case hd2; try rewrite Qcats0//. case; try rewrite Qcats0//.
+    intros. case (ft_find s0 tmap) => [[[t2 f2] s2]|]; last rewrite Qcats0//. 
+    case f2; case s2; rewrite Hn Qcat_rcons Hn//.
   Qed.
 
   Lemma expandconnects_stmt_cat :
@@ -3384,7 +2822,11 @@ Qed.
     - admit.
     - admit.
     - admit.
-    - admit.
+    - intros. rewrite /=. case h; try rewrite Qcats0//. intros.
+      case (ft_find s tfmap) => [[[ft1 f1] s1]|]; last rewrite -Qcat_rcons Qcats0//.
+      case (type_of_hfexpr h0 tmap) => [ft2|]; last rewrite -Qcat_rcons Qcats0//.
+      case (connect_type_compatible true ft1 ft2 false); last rewrite Qcats1//.
+      case h0; intros; try (rewrite Qcats1//|| rewrite expand_fcnct_cat//).
     - admit.
     - admit.
     - admit.
@@ -3396,11 +2838,11 @@ Qed.
       CEP.find (r2, o2) tmap = Some (Gtyp t2) ->
       CEP.find (r1, o1) tfmap = Some (Gtyp t1, false, s1) ->
       CEP.find (r2, o2) tfmap = Some (Gtyp t2, f2, s2) ->
+      connect_type_compatible true (Gtyp t1) (Gtyp t2) false ->
       expandconnects_stmt_ft_pmap (HiFP.sfcnct (HiFP.eid (r1, o1)) (HiFP.eref(HiFP.eid (r2, o2)))) tmap tfmap ss0 = 
       Qrcons ss0 (HiFP.sfcnct (HiFP.eid (r1, o1)) (HiFP.eref(HiFP.eid (r2, o2)))).
   Proof.
-    intros. rewrite /= H/=. rewrite /type_ref/= H0.
-    rewrite /= /expand_eref_ft_pmap H H0/= !N.add_0_r H/= H0/= H1//.
+    intros. rewrite /= H1 /type_ref H0 H3 /= /expand_eref_ft_pmap H1 H2/= !N.add_0_r H1 /= H2/= H1//.
   Qed.
 
   Lemma expandconnects_sfcnct_gtyp_flip :
@@ -3409,10 +2851,11 @@ Qed.
       CEP.find (r2, o2) tmap = Some (Gtyp t2) ->
       CEP.find (r1, o1) tfmap = Some (Gtyp t1, true, s1) ->
       CEP.find (r2, o2) tfmap = Some (Gtyp t2, true, true) ->
+      connect_type_compatible true (Gtyp t1) (Gtyp t2) false ->
       expandconnects_stmt_ft_pmap (HiFP.sfcnct (HiFP.eid (r1, o1)) (HiFP.eref(HiFP.eid (r2, o2)))) tmap tfmap ss0 = 
       Qrcons ss0 (HiFP.sfcnct (HiFP.eid (r2, o2)) (HiFP.eref(HiFP.eid (r1, o1)))).
   Proof.
-    intros. rewrite /=H/= /expand_eref_ft_pmap /type_ref/= H0/= !N.add_0_r H H0/= N.add_0_r H/= H1 H2//.
+    intros. rewrite /=H1 /type_ref H0 H3 /expand_eref_ft_pmap/= H1 H2/= !N.add_0_r H1 H2/= H1 H2//.
   Qed.
 
    (* Lemma expandconnects_sfcnct_atyp_nflip : *)
@@ -3423,41 +2866,41 @@ Qed.
    (*    CEP.find (r2, o2) tfmap = Some (Atyp t2 n, f2, s2) -> *)
    (*    expandconnects_stmt_ft_pmap (HiFP.sfcnct (HiFP.eid (r1, o1)) (HiFP.eref(HiFP.eid (r2, o2)))) tmap tfmap ss0 = (mkseq (fun i => (HiFP.sfcnct (HiFP.eid (r2, bin_of_nat i)) (HiFP.eref(HiFP.eid (r1, bin_of_nat i))))) (size_of_ftype (Atyp t1 n))). *)
 
-  Lemma sem_frag_stmts_sfcnct_refs_vm_same :
-    forall vm0 ct0 ct1 tm r1 r2 t1 t2 o2 oe1,
-      CEP.find r1 tm = Some (t1, HiFP.Sink) ->
-      CEP.find r2 tm = Some (t2, o2) ->
-      (o2 = HiFP.Source) \/ (o2 = HiFP.Duplex) ->
-      connect_type_compatible true t1 t2 false ->
-      CEP.find r1 ct0 = Some oe1 ->
-      CEP.find r2 ct0 = CEP.find r2 ct1 ->
-      CEP.find r1 ct1 = Some (D_fexpr (HiFP.eref (HiFP.eid r2))) ->
-      Sem_frag_stmt vm0 ct0 (HiFP.sfcnct (HiFP.eid r1) (HiFP.eref (HiFP.eid r2))) vm0 ct1 tm.
-  Proof. 
-    intros. rewrite /=. 
-    split; first done.
-    rewrite /list_lhs_ref_p H H0. move : H1.
-    case Ho2: o2; intros [Ho21| Ho22]; try (inversion Ho21 || inversion Ho22).
-    - split; first done.
-      split. move : H2.
-      case t1, t2; try (done || by case f) ; try rewrite /= !N.add_0_r -!surjective_pairing. 
-      (* + rewrite H3 -H4 H5/= !eq_refl andTb orbT//. *)
-      (* rewrite /= => /andP [Hnn0 Hcp]. rewrite/eqP Hnn0 andTb. *)
-      + move => Hcp. rewrite /= H3 H4 H5/= !eq_refl andTb orbT//.
-      + rewrite/= all2E/=. move/andP => [/eqP Hnn0 Hcp].
-        rewrite Hnn0 eq_refl !size_mkseq/=.
-        move : (connect_type_compatible_size _ _ _ _ Hcp) => Hsz.
-        rewrite Hsz eq_refl andTb.
-   (*      ft_find r1 ct = Some (D_fexpr (HiFP.eref (HiFP.eid r2))) -> *)
-   (* all *)
-   (*  [pred xy | *)
-   (*    (ft_find xy.1 ct0 != None) && *)
-   (*    (ft_find xy.1 ct1 == Some (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) xy.2)))) & *)
-   (*    (xy.1 == xy.2) || (ft_find xy.2 ct1 == ft_find xy.2 ct0)] *)
-   (*  (zip *)
-   (*     (mkseq (fun i : nat => (r1.1, (r1.2 + bin_of_nat i)%num)) (size_of_ftype t2 * n0)) *)
-   (*     (mkseq (fun i : nat => (r2.1, (r2.2 + bin_of_nat i)%num)) (size_of_ftype t2 * n0))) *)
-  Admitted.
+  (* Lemma sem_frag_stmts_sfcnct_refs_vm_same : *)
+  (*   forall vm0 ct0 ct1 tm r1 r2 t1 t2 o2 oe1, *)
+  (*     CEP.find r1 tm = Some (t1, HiFP.Sink) -> *)
+  (*     CEP.find r2 tm = Some (t2, o2) -> *)
+  (*     (o2 = HiFP.Source) \/ (o2 = HiFP.Duplex) -> *)
+  (*     connect_type_compatible true t1 t2 false -> *)
+  (*     CEP.find r1 ct0 = Some oe1 -> *)
+  (*     CEP.find r2 ct0 = CEP.find r2 ct1 -> *)
+  (*     CEP.find r1 ct1 = Some (D_fexpr (HiFP.eref (HiFP.eid r2))) -> *)
+  (*     Sem_frag_stmt vm0 ct0 (HiFP.sfcnct (HiFP.eid r1) (HiFP.eref (HiFP.eid r2))) vm0 ct1 tm. *)
+  (* Proof.  *)
+  (*   intros. rewrite /=.  *)
+  (*   split; first done. *)
+  (*   rewrite /list_lhs_ref_p_lhs_ref_p H H0. move : H1. *)
+  (*   case Ho2: o2; intros [Ho21| Ho22]; try (inversion Ho21 || inversion Ho22). *)
+  (*   - split; first done. *)
+  (*     split. move : H2. *)
+  (*     case t1, t2; try (done || by case f) ; try rewrite /= !N.add_0_r -!surjective_pairing.  *)
+  (*     (* + rewrite H3 -H4 H5/= !eq_refl andTb orbT//. *) *)
+  (*     (* rewrite /= => /andP [Hnn0 Hcp]. rewrite/eqP Hnn0 andTb. *) *)
+  (*     + move => Hcp. rewrite /= H3 H4 H5/= !eq_refl andTb orbT//. *)
+  (*     + rewrite/= all2E/=. move/andP => [/eqP Hnn0 Hcp]. *)
+  (*       rewrite Hnn0 eq_refl !size_mkseq/=. *)
+  (*       move : (connect_type_compatible_size _ _ _ _ Hcp) => Hsz. *)
+  (*       rewrite Hsz eq_refl andTb. *)
+  (*  (*      ft_find r1 ct = Some (D_fexpr (HiFP.eref (HiFP.eid r2))) -> *) *)
+  (*  (* all *) *)
+  (*  (*  [pred xy | *) *)
+  (*  (*    (ft_find xy.1 ct0 != None) && *) *)
+  (*  (*    (ft_find xy.1 ct1 == Some (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) xy.2)))) & *) *)
+  (*  (*    (xy.1 == xy.2) || (ft_find xy.2 ct1 == ft_find xy.2 ct0)] *) *)
+  (*  (*  (zip *) *)
+  (*  (*     (mkseq (fun i : nat => (r1.1, (r1.2 + bin_of_nat i)%num)) (size_of_ftype t2 * n0)) *) *)
+  (*  (*     (mkseq (fun i : nat => (r2.1, (r2.2 + bin_of_nat i)%num)) (size_of_ftype t2 * n0))) *) *)
+  (* Admitted. *)
 
   Axiom sem_frag_stmts_qrcons :
     forall vm0 ct0 vm1 ct1 vm2 ct2 tomap ss0 s,
@@ -3469,6 +2912,12 @@ Qed.
       Sem_frag_stmts vm0 ct0 (Qcat ss1 ss2) vm2 ct2 tomap <->
       Sem_frag_stmts vm0 ct0 ss1 vm1 ct1 tomap /\ Sem_frag_stmts vm1 ct1 ss2 vm2 ct2 tomap.
 
+  Axiom expandconnects_stmt_qcons_neq_qnil :
+    forall h h0 tmap tfmap ss0,
+    expandconnects_stmt_seq_ft_pmap (Qcons h h0) tmap tfmap ss0 != HiFP.qnil ->
+     expandconnects_stmt_ft_pmap h tmap tfmap ss0 != HiFP.qnil
+     /\ expandconnects_stmt_seq_ft_pmap h0 tmap tfmap ss0 != HiFP.qnil.
+  
   Lemma expandConnects_sfcnct_eideid_gtyp_correct :
     forall vm00 ct00 ct0 ct1 vm0 tmap tfmap tomap ss0 r1 o1 r2 o2 t1 t2 f2 s2,
       ft_find (r1, o1) tmap = Some (Gtyp t1) ->
@@ -3481,12 +2930,12 @@ Qed.
       Sem_frag_stmts vm00 ct00 (expandconnects_stmt_ft_pmap (HiFP.sfcnct (HiFP.eid (r1, o1)) (HiFP.eref(HiFP.eid (r2, o2)))) tmap tfmap ss0) vm0 ct1 tomap ->
       Sem_frag_stmt vm0 ct0 (HiFP.sfcnct (HiFP.eid (r1, o1)) (HiFP.eref(HiFP.eid (r2, o2)))) vm0 ct1 tomap.
   Proof.
-    intros; rewrite /=. split; first done. move : H6; rewrite /= H /type_ref/=.
-    rewrite H0/=.
-    have -> : expand_fcnct (expand_eref_ft_pmap (r1, o1) tmap [::])
-                (expand_eref_ft_pmap (r2, o2) tmap [::]) tfmap ss0 =
+    intros; rewrite /=. split; first done.
+    move : H6; rewrite (lock connect_type_compatible) /= H1 /type_ref H0 H4 /=.
+    have -> : expand_fcnct (expand_eref_ft_pmap (r1, o1) tfmap [::])
+                (expand_eref_ft_pmap (r2, o2) tfmap [::]) tfmap ss0 =
                 expandconnects_stmt_ft_pmap (Sfcnct (HiFP.eid (r1, o1)) (HiFP.eref (HiFP.eid (r2, o2)))) tmap tfmap ss0.
-    by rewrite /= H /type_ref H0//.
+    by rewrite /= H1 /type_ref H0 H4//.
     rewrite (expandconnects_sfcnct_gtyp_nflip r1 o1 t1 true r2 o2 t2 f2 s2)//.
     move : (H3 (r1, o1)). rewrite H1 => Ho. move : (H3 (r2, o2)). rewrite H2 => Ho2.
     intro Hsfs.
@@ -3494,16 +2943,17 @@ Qed.
     (* move : (sem_frag_stmts_qrcons vm00 ct00 vm0 ct0 vm0 ct1 tomap ss0 _ Hsfs). *) rewrite /= in Hs0.
     move : Hs0 => [_ Hs0]. move : Hs0.
     move : Ho => [Hs| Hd]. 
-    rewrite /list_lhs_ref_p Hs. move : Ho2 H2. case Hs2b: s2. move => [Hs2 | Hd2] Ho2.
-    rewrite Hs2//. rewrite Hd2 H4. split; first done.
+    rewrite /list_lhs_ref_p' Hs. move : Ho2 H2. case Hs2b: s2. move => [Hs2 | Hd2] Ho2.
+    rewrite Hs2//. rewrite Hd2 H4. split; first (rewrite -lock; exact : H4).
     move : Hs0 => [_ Hs0]. 
-    move : Hs0 => [Hcn Hin]. done.
-    move => [Hs2| Hd2] Hfd2; first rewrite Hs2 H4//; last rewrite Hd2 H4//.
-    rewrite /list_lhs_ref_p Hd. move : Ho2 H2. case Hs2b: s2. move => [Hs2 | Hd2] Ho2; first rewrite Hs2 //; last rewrite Hd2 H4//.
+    (* move : Hs0 => [Hcn Hin].  *) done.
+    rewrite -lock.
+    move => [Hs2| Hd2] Hfd2; first rewrite Hs2 H4/=//; last rewrite Hd2 H4//.
+    rewrite /list_lhs_ref_p' Hd -lock. move : Ho2 H2. case Hs2b: s2. move => [Hs2 | Hd2] Ho2; first rewrite Hs2 //; last rewrite Hd2 H4//.
     move => [Hs2| Hd2] Hfd2; first rewrite Hs2 H4//; last rewrite Hd2 H4//.
   Qed.
 
-    Lemma expandConnects_sfcnct_eideid_gtyp_flip_correct :
+  Lemma expandConnects_sfcnct_eideid_gtyp_flip_correct :
     forall vm00 ct00 ct0 ct1 vm0 tmap tfmap tomap ss0 r1 o1 r2 o2 t1 t2 f2 ,
       ft_find (r1, o1) tmap = Some (Gtyp t1) ->
       ft_find (r2, o2) tmap = Some (Gtyp t2) ->
@@ -3515,9 +2965,9 @@ Qed.
       Sem_frag_stmts vm00 ct00 (expandconnects_stmt_ft_pmap (HiFP.sfcnct (HiFP.eid (r2, o2)) (HiFP.eref(HiFP.eid (r1, o1)))) tmap tfmap ss0) vm0 ct1 tomap ->
       Sem_frag_stmt vm0 ct0 (HiFP.sfcnct (HiFP.eid (r1, o1)) (HiFP.eref(HiFP.eid (r2, o2)))) vm0 ct1 tomap.
   Proof.
-    intros; rewrite /=. split; first done. move : H6; rewrite /= H0 /type_ref/=H/=.
-    have -> : expand_fcnct (expand_eref_ft_pmap (r2, o2) tmap [::])
-                (expand_eref_ft_pmap (r1, o1) tmap [::]) tfmap ss0 =
+    intros; rewrite /=. split; first done. move : H6; rewrite /= H2 /type_ref/=H/=.
+    have -> : expand_fcnct (expand_eref_ft_pmap (r2, o2) tfmap [::])
+                (expand_eref_ft_pmap (r1, o1) tfmap [::]) tfmap ss0 =
                 expandconnects_stmt_ft_pmap (Sfcnct (HiFP.eid (r1, o1)) (HiFP.eref (HiFP.eid (r2, o2)))) tmap tfmap ss0.
   Admitted.
 
@@ -3529,81 +2979,77 @@ Qed.
   (ft_find (r1, o1) ct1 != None) &&
   (ft_find (r1, o1) ct_new ==
    Some (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (r2, o2))))) &&
-  (((r1, o1) == (r2, o2)) || (ft_find (r2, o2) ct_new == ft_find (r2, o2) ct1)) /\
+  (* (((r1, o1) == (r2, o2)) || *) (ft_find (r2, o2) ct_new == ft_find (r2, o2) ct1) /\
   (forall v0 : CEP.key,
-   if
-    (v0 \in mkseq (fun i : nat => (r1, (o1 + bin_of_nat i)%num)) 1)
-    || (v0 \in mkseq (fun i : nat => (r2, (o2 + bin_of_nat i)%num)) 1)
-   then True
-   else ft_find v0 ct1 = ft_find v0 ct_new).
+  (*  if *)
+  (*   (v0 \in mkseq (fun i : nat => (r1, (o1 + bin_of_nat i)%num)) 1) *)
+  (*   || (v0 \in mkseq (fun i : nat => (r2, (o2 + bin_of_nat i)%num)) 1) *)
+  (*  then True *)
+(* else *)
+  ft_find v0 ct1 = ft_find v0 ct_new).
   Proof. Admitted.
 
-Lemma expandconnects_sfcnct_eideid_r1r2_atyp_t :
-    forall vm1 ct1 r1 o1 r2 o2 ct_new tomap tmap tfmap f0 f n,
-  Sem_frag_stmts vm1 ct1
-    (expand_fcnct (expand_eref_ft_pmap (r1, o1) tmap [::])
-       (expand_eref_ft_pmap (r2, o2) tmap [::]) tfmap HiFP.qnil) vm1 ct_new tomap ->
-  all2 (connect_fgtyp ct1 false ct_new)
-    (mkseq (fun i : nat => (r1, (o1 + bin_of_nat i)%num)) (size_of_ftype f0 * n))
-    (mkseq (fun i : nat => (r2, (o2 + bin_of_nat i)%num)) (size_of_ftype f * n)) /\
-  (forall v0 : CEP.key,
-   if
-    (v0 \in mkseq (fun i : nat => (r1, (o1 + bin_of_nat i)%num)) (size_of_ftype f0 * n))
-    || (v0
-          \in mkseq (fun i : nat => (r2, (o2 + bin_of_nat i)%num))
-                (size_of_ftype f * n))
-   then True
-   else ft_find v0 ct1 = ft_find v0 ct_new).  Proof. Admitted.
+(* Lemma expandconnects_sfcnct_eideid_r1r2_atyp_t : *)
+(*     forall vm1 ct1 r1 o1 r2 o2 ct_new tomap tmap tfmap f0 f n, *)
+(*   Sem_frag_stmts vm1 ct1 *)
+(*     (expand_fcnct (expand_eref_ft_pmap (r1, o1) tmap [::]) *)
+(*        (expand_eref_ft_pmap (r2, o2) tmap [::]) tfmap HiFP.qnil) vm1 ct_new tomap -> *)
+(*   all2 (connect_fgtyp ct1 false ct_new) *)
+(*     (mkseq (fun i : nat => (r1, (o1 + bin_of_nat i)%num)) (size_of_ftype f0 * n)) *)
+(*     (mkseq (fun i : nat => (r2, (o2 + bin_of_nat i)%num)) (size_of_ftype f * n)). (* /\ *) *)
+(* Proof. *)
+(*   intros. move : H. rewrite /=. *)
+(* Admitted. *)
   
-  Lemma expandconnects_sfcnct_eideid_r1r2_atyp_f :
-    forall vm1 ct1 r1 o1 r2 o2 ct_new tomap f0 f n0 n,
-  Sem_frag_stmts vm1 ct1
-    (Qcons (Sfcnct (HiFP.eid (r1, o1)) (HiFP.eref (HiFP.eid (r2, o2))))
-       (Qnil ProdVarOrder.T)) vm1 ct_new tomap ->
-  all2 (connect_fgtyp ct1 false ct_new)
-    (mkseq (fun i : nat => (r1, (o1 + bin_of_nat i)%num)) (size_of_ftype f0 * n0))
-    (mkseq (fun i : nat => (r2, (o2 + bin_of_nat i)%num)) (size_of_ftype f * n)) /\
-  (forall v0 : CEP.key,
-   if
-    (v0 \in mkseq (fun i : nat => (r1, (o1 + bin_of_nat i)%num)) (size_of_ftype f0 * n))
-    || (v0
-          \in mkseq (fun i : nat => (r2, (o2 + bin_of_nat i)%num))
-                (size_of_ftype f * n))
-   then True
-   else ft_find v0 ct1 = ft_find v0 ct_new).
-  Proof. Admitted.
+(*   Lemma expandconnects_sfcnct_eideid_r1r2_atyp_f : *)
+(*     forall vm1 ct1 r1 o1 r2 o2 ct_new tomap f0 f n0 n, *)
+(*   Sem_frag_stmts vm1 ct1 *)
+(*     (Qcons (Sfcnct (HiFP.eid (r1, o1)) (HiFP.eref (HiFP.eid (r2, o2)))) *)
+(*        (Qnil ProdVarOrder.T)) vm1 ct_new tomap -> *)
+(*   all2 (connect_fgtyp ct1 false ct_new) *)
+(*     (mkseq (fun i : nat => (r1, (o1 + bin_of_nat i)%num)) (size_of_ftype f0 * n0)) *)
+(*     (mkseq (fun i : nat => (r2, (o2 + bin_of_nat i)%num)) (size_of_ftype f * n)) /\ *)
+(*   (forall v0 : CEP.key, *)
+(*    if *)
+(*     (v0 \in mkseq (fun i : nat => (r1, (o1 + bin_of_nat i)%num)) (size_of_ftype f0 * n)) *)
+(*     || (v0 *)
+(*           \in mkseq (fun i : nat => (r2, (o2 + bin_of_nat i)%num)) *)
+(*                 (size_of_ftype f * n)) *)
+(*    then True *)
+(*    else ft_find v0 ct1 = ft_find v0 ct_new). *)
+(*   Proof. Admitted. *)
 
-  Lemma expandconnects_sfcnct_eideid_r1r2_btyp_t :
-    forall vm1 ct1 r1 o1 r2 o2 ct_new tomap tmap tfmap f0 f ,
-  Sem_frag_stmts vm1 ct1
-    (expand_fcnct (expand_eref_ft_pmap (r1, o1) tmap [::])
-       (expand_eref_ft_pmap (r2, o2) tmap [::]) tfmap HiFP.qnil) vm1 ct_new tomap ->
-  connect_fields ct1 (r1, o1)
-    (mkseq (fun i : nat => (r1, (o1 + bin_of_nat i)%num)) (size_of_fields f0)) f0
-    (r2, o2) (mkseq (fun i : nat => (r2, (o2 + bin_of_nat i)%num)) (size_of_fields f))
-    f false ct_new /\
-  (forall v0 : CEP.key,
-   if
-    (v0 \in mkseq (fun i : nat => (r1, (o1 + bin_of_nat i)%num)) (size_of_fields f0))
-    || (v0 \in mkseq (fun i : nat => (r2, (o2 + bin_of_nat i)%num)) (size_of_fields f))
-   then True
-   else ft_find v0 ct1 = ft_find v0 ct_new). Proof. Admitted.
+(*   Lemma expandconnects_sfcnct_eideid_r1r2_btyp_t : *)
+(*     forall vm1 ct1 r1 o1 r2 o2 ct_new tomap tmap tfmap f0 f , *)
+(*   Sem_frag_stmts vm1 ct1 *)
+(*     (expand_fcnct (expand_eref_ft_pmap (r1, o1) tmap [::]) *)
+(*        (expand_eref_ft_pmap (r2, o2) tmap [::]) tfmap HiFP.qnil) vm1 ct_new tomap -> *)
+(*   connect_fields ct1 (r1, o1) *)
+(*     (mkseq (fun i : nat => (r1, (o1 + bin_of_nat i)%num)) (size_of_fields f0)) f0 *)
+(*     (r2, o2) (mkseq (fun i : nat => (r2, (o2 + bin_of_nat i)%num)) (size_of_fields f)) *)
+(*     f false ct_new /\ *)
+(*   (forall v0 : CEP.key, *)
+(*    if *)
+(*     (v0 \in mkseq (fun i : nat => (r1, (o1 + bin_of_nat i)%num)) (size_of_fields f0)) *)
+(*     || (v0 \in mkseq (fun i : nat => (r2, (o2 + bin_of_nat i)%num)) (size_of_fields f)) *)
+(*    then True *)
+(*    else ft_find v0 ct1 = ft_find v0 ct_new). Proof. Admitted. *)
 
-  Lemma expandconnects_sfcnct_eideid_r1r2_btyp_f :
-    forall vm1 ct1 r1 o1 r2 o2 ct_new tomap  f0 f ,
-      Sem_frag_stmts vm1 ct1
-        (Qcons (Sfcnct (HiFP.eid (r1, o1)) (HiFP.eref (HiFP.eid (r2, o2))))
-           (Qnil ProdVarOrder.T)) vm1 ct_new tomap ->
-      connect_fields ct1 (r1, o1)
-        (mkseq (fun i : nat => (r1, (o1 + bin_of_nat i)%num)) (size_of_fields f0)) f0
-        (r2, o2) (mkseq (fun i : nat => (r2, (o2 + bin_of_nat i)%num)) (size_of_fields f))
-        f false ct_new /\
-        (forall v0 : CEP.key,
-            if
-              (v0 \in mkseq (fun i : nat => (r1, (o1 + bin_of_nat i)%num)) (size_of_fields f0))
-              || (v0 \in mkseq (fun i : nat => (r2, (o2 + bin_of_nat i)%num)) (size_of_fields f))
-            then True
-            else ft_find v0 ct1 = ft_find v0 ct_new). Proof. Admitted.
+(*   Lemma expandconnects_sfcnct_eideid_r1r2_btyp_f : *)
+(*     forall vm1 ct1 r1 o1 r2 o2 ct_new tomap  f0 f , *)
+(*       Sem_frag_stmts vm1 ct1 *)
+(*         (Qcons (Sfcnct (HiFP.eid (r1, o1)) (HiFP.eref (HiFP.eid (r2, o2)))) *)
+(*            (Qnil ProdVarOrder.T)) vm1 ct_new tomap -> *)
+(*       connect_fields ct1 (r1, o1) *)
+(*         (mkseq (fun i : nat => (r1, (o1 + bin_of_nat i)%num)) (size_of_fields f0)) f0 *)
+(*         (r2, o2) (mkseq (fun i : nat => (r2, (o2 + bin_of_nat i)%num)) (size_of_fields f)) *)
+(*         f false ct_new /\ *)
+(*         (forall v0 : CEP.key, *)
+(*             if *)
+(*               (v0 \in mkseq (fun i : nat => (r1, (o1 + bin_of_nat i)%num)) (size_of_fields f0)) *)
+(*               || (v0 \in mkseq (fun i : nat => (r2, (o2 + bin_of_nat i)%num)) (size_of_fields f)) *)
+(*             then True *)
+(*             else ft_find v0 ct1 = ft_find v0 ct_new). Proof. Admitted. *)
 
   Lemma expandconnects_swire_atyp :
     forall vm0 ct0 r o gt n tmap tomap vm1 ct1,
@@ -3611,23 +3057,26 @@ Lemma expandconnects_sfcnct_eideid_r1r2_atyp_t :
     (expand_wire_aux (r, o) (size (ftype_list_all (Atyp gt n) [::])) 0 tmap HiFP.qnil)
     vm1 ct1 tomap ->
   match
-    nth_error (list_rhs_type_p (Atyp gt n)) (size (ftype_list_all (Atyp gt n) [::]))
+    nth_error (ftype_list_all (Atyp gt n) nil) (size (ftype_list_all (Atyp gt n) [::]))
   with
-  | Some gt0 =>
+  | Some (Gtyp gt0) =>
       ft_find (r, bin_of_nat (size (ftype_list_all (Atyp gt n) [::]) + o)) vm0 = None /\
       ft_find (r, bin_of_nat (size (ftype_list_all (Atyp gt n) [::]) + o)) vm1 =
       Some (Wire gt0)
-  | None => True
+  | _ => True
   end /\
   (forall v0 n0 : N,
-   v0 <> r \/ n0 < o \/ size_of_ftype (Atyp gt n) + o <= n0 ->
+   v0 <> r \/ n0 < o \/ size (ftype_list_all (Atyp gt n) nil) + o <= n0 ->
    ft_find (v0, n0) vm0 = ft_find (v0, n0) vm1) /\
   (forall v0 n0 : N,
-   v0 <> r \/ n0 < o \/ size_of_ftype (Atyp gt n) + o <= n0 ->
+   v0 <> r \/ n0 < o \/ size (ftype_list_all (Atyp gt n) nil) + o <= n0 ->
    ft_find (v0, n0) ct0 = ft_find (v0, n0) ct1) /\
   (forall n0 : nat,
-   n0 < size_of_ftype (Atyp gt n) ->
-   ft_find (r, bin_of_nat (n0 + o)) ct1 = Some D_undefined). Proof. Admitted.
+   n0 < size (ftype_list_all (Atyp gt n) nil) ->
+   ft_find (r, bin_of_nat (n0 + o)) ct1 = Some D_undefined).
+  Proof.
+    intros. 
+  Admitted.
 
   Lemma expandconnects_swire_btyp : 
     forall vm0 ct0 r o f tmap tomap vm1 ct1,
@@ -3635,22 +3084,22 @@ Lemma expandconnects_sfcnct_eideid_r1r2_atyp_t :
     (expand_wire_aux (r, o) (size (ftype_list_all (Btyp f) [::])) 0 tmap HiFP.qnil)
     vm1 ct1 tomap ->
   match
-    nth_error (list_rhs_type_p (Btyp f)) (size (ftype_list_all (Btyp f) [::]))
+    nth_error (ftype_list_all (Btyp f) nil) (size (ftype_list_all (Btyp f) [::]))
   with
-  | Some gt =>
+  | Some (Gtyp gt) =>
       ft_find (r, bin_of_nat (size (ftype_list_all (Btyp f) [::]) + o)) vm0 = None /\
       ft_find (r, bin_of_nat (size (ftype_list_all (Btyp f) [::]) + o)) vm1 =
       Some (Wire gt)
-  | None => True
+  | _ => True
   end /\
   (forall v0 n0 : N,
-   v0 <> r \/ n0 < o \/ size_of_ftype (Btyp f) + o <= n0 ->
+   v0 <> r \/ n0 < o \/ size (ftype_list_all (Btyp f) nil) + o <= n0 ->
    ft_find (v0, n0) vm0 = ft_find (v0, n0) vm1) /\
   (forall v0 n0 : N,
-   v0 <> r \/ n0 < o \/ size_of_ftype (Btyp f) + o <= n0 ->
+   v0 <> r \/ n0 < o \/ size (ftype_list_all (Btyp f) nil) + o <= n0 ->
    ft_find (v0, n0) ct0 = ft_find (v0, n0) ct1) /\
   (forall n0 : nat,
-   n0 < size_of_ftype (Btyp f) ->
+   n0 < size (ftype_list_all (Btyp f) nil) ->
    ft_find (r, bin_of_nat (n0 + o)) ct1 = Some D_undefined). Proof. Admitted.
 
   (*   Lemma expandConnects_sfcnct_eideid_atyp_correct : *)
@@ -3671,101 +3120,840 @@ Lemma expandconnects_sfcnct_eideid_r1r2_atyp_t :
       Sem_frag_stmts vm0 ct0 (Qcons s (Qnil ProdVarOrder.T))
         vm1 ct1 tomap = Sem_frag_stmt vm0 ct0 s vm1 ct1 tomap.
   Proof. Admitted.
+
+    Lemma sem_frag_stmt_qrcons_qnil :
+    forall vm0 ct0 vm1 ct1 s tomap,
+      Sem_frag_stmts vm0 ct0 (Qrcons (Qnil ProdVarOrder.T) s)
+        vm1 ct1 tomap = Sem_frag_stmt vm0 ct0 s vm1 ct1 tomap.
+  Proof. Admitted.
+
+  Lemma expand_fcnct_qrcons :
+    forall tl1 tl2 tfmap l s,
+      (expand_fcnct tl1 tl2 tfmap
+         (Qrcons l s) = Qcat (Qrcons l s) (expand_fcnct tl1 tl2 tfmap HiFP.qnil)).
+  Proof. 
+  Admitted.
+
+  Lemma expand_wire_aux_qrcons :
+    forall p n sz tfmap l s,
+      (expand_wire_aux p n sz tfmap
+         (Qrcons l s) = Qcat (Qrcons l s) (expand_wire_aux p n sz tfmap HiFP.qnil)).
+  Proof. 
+  Admitted.
+
+  Lemma expand_fcnct_neq_nil :
+    forall tl1 tl2 tfmap l s,
+      (expand_fcnct tl1 tl2 tfmap (Qrcons l s)
+         != Qrcons l s).
+  Proof.
+    elim. rewrite /=.
+  Admitted.
+
+  Definition is_expr_eid (e : HiFP.hfexpr) : bool :=
+    match e with Eref (Eid r2) => true | _ => false end.
+
+  Definition is_expr_emux (e : HiFP.hfexpr) : bool :=
+    match e with Emux _ _ _ => true | _ => false end.
+  
+  Lemma sem_expand_fcnct_lists :
+    forall ls1 ls2 l vm1 ct1 tfmap ct_new tomap,
+      size ls1 = size ls2 ->
+      rel_tfmap_tomap tfmap tomap ->
+      rel_tomap_ct tomap ct1 ->
+      all (is_expr_eid) ls2 ->
+      ~~((expand_fcnct ls1 ls2 tfmap l) == l) ->
+      Sem_frag_stmts vm1 ct1
+        (expand_fcnct ls1 ls2 tfmap l) vm1 ct_new tomap ->
+      all2 (connect_fgtyp ct1 false ct_new) ls1 ls2.
+  Proof.
+    elim => [|h1 tl1 Hn]; elim => [|h2 tl2 Hm]; try done.
+    move => l vm1 ct1 tfmap ct_new tomap Hsz Hrel Hrelct Heid Hnil.
+    rewrite/= {1}/connect_fgtyp. move : Hnil.
+    case Hexp1 : h1 => [| | | | | |r1]; rewrite /=; try (rewrite eq_refl; discriminate). move : Hexp1.
+    case Href1 : r1 => [[v1 o1]| | |]; try (rewrite eq_refl; discriminate). move => Hexp1 .
+    case Hfd1 : (ft_find (v1, o1) tfmap) => [[[t1 f1] s1]|]; last (rewrite eq_refl; discriminate); rewrite /=. 
+    case Hf1 : f1.
+    case Hexp2 : h2 => [| | | | | |r2]; rewrite /=; try (rewrite eq_refl; discriminate). move : Hexp2.
+    case Href2 : r2  => [[v2 o2]| | |]; try (rewrite eq_refl; discriminate). move => Hexp2.
+    case Hfd2 : (ft_find (v2, o2) tfmap) => [[[t2 f2] s2]|]; rewrite /=.
+    generalize Hsz. rewrite /= => Hsz'. move : (eq_add_S _ _ Hsz') => Hsz''.
+    have Hneq2 :  (expand_fcnct tl1 tl2 tfmap
+     (Qrcons l
+        (Sfcnct (Eid (var:=CEP.SE.T) (v2, o2))
+           (Eref (Eid (var:=CEP.SE.T) (v1, o1)))))
+   != Qrcons l
+        (Sfcnct (Eid (var:=CEP.SE.T) (v2, o2))
+           (Eref (Eid (var:=CEP.SE.T) (v1, o1))))).
+    by rewrite expand_fcnct_neq_nil.
+    have Hneq1 :  (expand_fcnct tl1 tl2 tfmap
+     (Qrcons l
+        (Sfcnct (Eid (var:=CEP.SE.T) (v1, o1))
+           (Eref (Eid (var:=CEP.SE.T) (v2, o2)))))
+   != Qrcons l
+        (Sfcnct (Eid (var:=CEP.SE.T) (v1, o1))
+           (Eref (Eid (var:=CEP.SE.T) (v2, o2))))).
+    by rewrite expand_fcnct_neq_nil.
+    generalize Heid. rewrite /= => /andP [Heidhd Heidtl].
+    move : (Hn tl2 (Qrcons l
+                      (Sfcnct (Eid (var:=CEP.SE.T) (v2, o2)) (Eref (Eid (var:=CEP.SE.T) (v1, o1))))) vm1 ct1 tfmap ct_new tomap Hsz'' Hrel Hrelct Heidtl Hneq2) => Haux2.
+    move : (Hn tl2 (Qrcons l
+                      (Sfcnct (Eid (var:=CEP.SE.T) (v1, o1)) (Eref (Eid (var:=CEP.SE.T) (v2, o2))))) vm1 ct1 tfmap ct_new tomap Hsz'' Hrel Hrelct Heidtl Hneq1) => Haux1.
+    case Hf2 : f2; case Hs2 : s2; rewrite /=; intro.
+    - intros. generalize H => Hrec.
+      move : (rel_tomap_ct_next tomap ct1 vm1 (expand_fcnct tl1 tl2 tfmap
+                                                 (Qrcons l
+                                                    (Sfcnct (Eid (var:=CEP.SE.T) (v2, o2)) (Eref (Eid (var:=CEP.SE.T) (v1, o1)))))) vm1 ct_new Hrelct Hrec) => Hrelnew.
+    move : H. rewrite expand_fcnct_qrcons. rewrite (sem_frag_stmts_qcat vm1 ct1 vm1 ct_new).
+    rewrite (sem_frag_stmts_qrcons vm1 ct1 vm1 ct1).
+    move : (Hrel (v1, o1)). rewrite Hfd1.
+    case Hs1 : s1.
+    {
+      move : (Hrel (v2, o2)). rewrite Hfd2. rewrite Hs2.
+      move => [Hos2|Hod2]. move => [Hos1| Hod1]. 
+      move: (Hrelct (v1, o1) t1 HiFP.Sink (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hos1) => Hrelct1.
+      move => [[Hseml Hsemfc] Hseml12].
+      move : Hsemfc. rewrite/= /list_lhs_ref_p' Hos1 Hos2. by move => [_ Hf]. 
+      move => [[Hseml Hsemfc] Hseml12].
+      move : Hsemfc. rewrite/= /list_lhs_ref_p' Hod1 Hos2. (* move => [Heq [Hctc [Hctnew Hin]]]. *) move => [Heq [Hctc Hctnew]].
+      (* rewrite (Hin (v2,o2)) eq_refl. *)
+      move: (Hrelct (v1, o1) t1 HiFP.Duplex (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hod1) => Hrelct1.
+      move : (Hrelnew (v1, o1) t1 HiFP.Duplex (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hod1)=> Hrelctnew.
+      rewrite  -Hrelctnew Hrelct1/= eq_refl !andTb.
+      by apply Haux2.
+      move => [Hos1| Hod1].
+      move: (Hrelct (v1, o1) t1 HiFP.Sink (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hos1) => Hrelct1.
+      move => [[Hseml Hsemfc] Hseml12].
+      move : Hsemfc. rewrite/= /list_lhs_ref_p' Hos1 Hod2. by move => [_ Hf]. 
+      move => [[Hseml Hsemfc] Hseml12].
+      move : Hsemfc. rewrite/= /list_lhs_ref_p' Hod1 Hod2. move => [Heq [Hctc Hctnew]].
+      move: (Hrelct (v1, o1) t1 HiFP.Duplex (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hod1) => Hrelct1.
+      rewrite  -(Hrelnew (v1, o1) t1 HiFP.Duplex (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hod1) Hrelct1 /= eq_refl !andTb.
+      by apply Haux2.
+    }
+    {
+      move : (Hrel (v2, o2)). rewrite Hfd2. rewrite Hs2.
+      move => [Hos2|Hod2]. 
+      move => [Hos1| Hod1]. 
+      move: (Hrelct (v1, o1) t1 HiFP.Source (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hos1) => Hrelct1.
+      move => [[Hseml Hsemfc] Hseml12].
+      move : Hsemfc. rewrite/= /list_lhs_ref_p'. rewrite Hos1 Hos2.
+      move => [Heq [Hctc Hctnew]].
+      rewrite  -(Hrelnew (v1, o1) t1 HiFP.Source (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hos1) Hrelct1/= !eq_refl !andTb.
+      by apply Haux2.
+      move: (Hrelct (v1, o1) t1 HiFP.Duplex (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hod1) => Hrelct1.
+      move => [[Hseml Hsemfc] Hseml12].
+      move : Hsemfc. rewrite/= /list_lhs_ref_p'. rewrite Hod1 Hos2.
+      move => [Heq [Hctc Hctnew]].
+      rewrite -(Hrelnew (v1, o1) t1 HiFP.Duplex (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hod1) Hrelct1/= !eq_refl !andTb.
+      by apply Haux2.
+      move => [Hos1| Hod1]. 
+      move: (Hrelct (v1, o1) t1 HiFP.Source (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hos1) => Hrelct1.
+      move => [[Hseml Hsemfc] Hseml12].
+      move : Hsemfc. rewrite/= /list_lhs_ref_p'. rewrite Hos1 Hod2.
+      move => [Heq [Hctc Hctnew]].
+      rewrite -(Hrelnew (v1, o1) t1 HiFP.Source (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hos1) Hrelct1/= !eq_refl !andTb.
+      by apply Haux2.
+      move: (Hrelct (v1, o1) t1 HiFP.Duplex (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hod1) => Hrelct1.
+      move => [[Hseml Hsemfc] Hseml12].
+      move : Hsemfc. rewrite/= /list_lhs_ref_p'. rewrite Hod1 Hod2.
+      move => [Heq [Hctc Hctnew]].
+      rewrite -(Hrelnew (v1, o1) t1 HiFP.Duplex (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hod1) Hrelct1/= !eq_refl !andTb.
+      by apply Haux2.
+    }
+
+    -intros. generalize H => Hrec.
+     move : (rel_tomap_ct_next tomap ct1 vm1 (expand_fcnct tl1 tl2 tfmap
+                                                (Qrcons l
+                                                   (Sfcnct (Eid (var:=CEP.SE.T) (v1, o1)) (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))))) vm1 ct_new Hrelct Hrec) => Hrelnew.
+    move : H. rewrite expand_fcnct_qrcons. rewrite (sem_frag_stmts_qcat vm1 ct1 vm1 ct_new).
+    rewrite (sem_frag_stmts_qrcons vm1 ct1 vm1 ct1).
+    move : (Hrel (v1, o1)). rewrite Hfd1.
+    case Hs1 : s1.
+    {
+      move : (Hrel (v2, o2)). rewrite Hfd2. rewrite Hs2.
+      move => [Hos2|Hod2]. move => [Hos1| Hod1]. 
+      move: (Hrelct (v2, o2) t2 HiFP.Source (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v1, o1)))) Hos2) => Hrelct2.
+      move: (Hrelct (v1, o1) t1 HiFP.Sink (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hos1) => Hrelct1.
+      move => [[Hseml Hsemfc] Hseml12].
+      move : Hsemfc. rewrite/= /list_lhs_ref_p' Hos1 Hos2. 
+      move => [Heq [Hctc Hctnew]].
+      rewrite -(Hrelnew (v1, o1) t1 HiFP.Sink (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hos1) Hrelct1/= eq_refl !andTb.
+      by apply Haux1.
+      move: (Hrelct (v1, o1) t1 HiFP.Duplex (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hod1) => Hrelct1.
+      move => [[Hseml Hsemfc] Hseml12].
+      move : Hsemfc. rewrite/= /list_lhs_ref_p' Hod1 Hos2.
+      move => [Heq [Hctc Hctnew ]].
+      rewrite -(Hrelnew (v1, o1) t1 HiFP.Duplex (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hod1) Hrelct1/= eq_refl !andTb.
+      by apply Haux1.
+      move => [Hos1| Hod1]. 
+      move: (Hrelct (v1, o1) t1 HiFP.Sink (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hos1) => Hrelct1.
+      move => [[Hseml Hsemfc] Hseml12].
+      move : Hsemfc. rewrite/= /list_lhs_ref_p' Hos1 Hod2. 
+      move => [Heq [Hctc Hctnew]].
+      rewrite -(Hrelnew (v1, o1) t1 HiFP.Sink (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hos1) Hrelct1/= eq_refl !andTb.
+      by apply Haux1.
+      move: (Hrelct (v1, o1) t1 HiFP.Duplex (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hod1) => Hrelct1.
+      move => [[Hseml Hsemfc] Hseml12].
+      move : Hsemfc. rewrite/= /list_lhs_ref_p' Hod1 Hod2.
+      move => [Heq [Hctc Hctnew]].
+      rewrite -(Hrelnew (v1, o1) t1 HiFP.Duplex (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hod1) Hrelct1/= eq_refl !andTb.
+      by apply Haux1.
+    }
+    {
+      move : (Hrel (v2, o2)). rewrite Hfd2. rewrite Hs2.
+      move => [Hos2|Hod2]. 
+      move => [Hos1| Hod1]. 
+      move: (Hrelct (v1, o1) t1 HiFP.Source (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hos1) => Hrelct1.
+      move => [[Hseml Hsemfc] Hseml12].
+      move : Hsemfc. rewrite/= /list_lhs_ref_p'. rewrite Hos1.
+      by move => [_ Hf]. 
+      move => [[Hseml Hsemfc] Hseml12].
+      move : Hsemfc. rewrite/= /list_lhs_ref_p' Hod1 Hos2. move => [Heq [Hctc Hctnew]].
+      move: (Hrelct (v1, o1) t1 HiFP.Duplex (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hod1) => Hrelct1.
+      rewrite -(Hrelnew (v1, o1) t1 HiFP.Duplex (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hod1) Hrelct1/= eq_refl !andTb.
+      by apply Haux1.
+      move => [Hos1| Hod1].
+      move: (Hrelct (v1, o1) t1 HiFP.Source (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hos1) => Hrelct1.
+      move => [[Hseml Hsemfc] Hseml12].
+      move : Hsemfc. rewrite/= /list_lhs_ref_p' Hos1.  by move => [_ Hf]. 
+      move => [[Hseml Hsemfc] Hseml12].
+      move : Hsemfc. rewrite/= /list_lhs_ref_p' Hod1 Hod2. move => [Heq [Hctc Hctnew]].
+      move: (Hrelct (v1, o1) t1 HiFP.Duplex (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hod1) => Hrelct1.
+      rewrite -(Hrelnew (v1, o1) t1 HiFP.Duplex (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hod1) Hrelct1/= eq_refl !andTb.
+      by apply Haux1.
+    }
+    
+    -intros. generalize H => Hrec.
+     move : (rel_tomap_ct_next tomap ct1 vm1 (expand_fcnct tl1 tl2 tfmap
+                                                (Qrcons l
+                                                   (Sfcnct (Eid (var:=CEP.SE.T) (v1, o1)) (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))))) vm1 ct_new Hrelct Hrec) => Hrelnew.
+    move : H. rewrite expand_fcnct_qrcons. rewrite (sem_frag_stmts_qcat vm1 ct1 vm1 ct_new).
+    rewrite (sem_frag_stmts_qrcons vm1 ct1 vm1 ct1).
+    move : (Hrel (v1, o1)). rewrite Hfd1.
+    case Hs1 : s1.
+    {      
+      move : (Hrel (v2, o2)). rewrite Hfd2. rewrite Hs2.
+      move => [Hos2|Hod2]. move => [Hos1| Hod1]. 
+      move: (Hrelct (v2, o2) t2 HiFP.Sink (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v1, o1)))) Hos2) => Hrelct2.
+      move: (Hrelct (v1, o1) t1 HiFP.Sink (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hos1) => Hrelct1.
+      move => [[Hseml Hsemfc] Hseml12].
+      move : Hsemfc. rewrite/= /list_lhs_ref_p' Hos1 Hos2.   by move => [_ Hf]. 
+      move: (Hrelct (v1, o1) t1 HiFP.Duplex (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hod1) => Hrelct1.
+      move => [[Hseml Hsemfc] Hseml12].
+      move : Hsemfc. rewrite/= /list_lhs_ref_p' Hod1 Hos2. by move => [_ Hf]. 
+      move => [Hos1| Hod1]. 
+      move: (Hrelct (v1, o1) t1 HiFP.Sink (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hos1) => Hrelct1.
+      move => [[Hseml Hsemfc] Hseml12].
+      move : Hsemfc. rewrite/= /list_lhs_ref_p' Hos1 Hod2. 
+      move => [Heq [Hctc Hctnew]].
+      rewrite -(Hrelnew (v1, o1) t1 HiFP.Sink (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hos1) Hrelct1/= eq_refl !andTb.
+      by apply Haux1.
+      move: (Hrelct (v1, o1) t1 HiFP.Duplex (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hod1) => Hrelct1.
+      move => [[Hseml Hsemfc] Hseml12].
+      move : Hsemfc. rewrite/= /list_lhs_ref_p' Hod1 Hod2.
+      move => [Heq [Hctc Hctnew]].
+      rewrite -(Hrelnew (v1, o1) t1 HiFP.Duplex (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hod1) Hrelct1/= eq_refl !andTb.
+      by apply Haux1.
+    }
+    {
+      move : (Hrel (v2, o2)). rewrite Hfd2. rewrite Hs2.
+      move => [Hos2|Hod2]. 
+      move => [Hos1| Hod1]. 
+      move: (Hrelct (v1, o1) t1 HiFP.Source (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hos1) => Hrelct1.
+      move => [[Hseml Hsemfc] Hseml12].
+      move : Hsemfc. rewrite/= /list_lhs_ref_p'. rewrite Hos1.
+      by move => [_ Hf]. 
+      move => [[Hseml Hsemfc] Hseml12].
+      move : Hsemfc. rewrite/= /list_lhs_ref_p' Hod1 Hos2.   by move => [_ Hf]. 
+      move => [Hos1| Hod1].
+      move: (Hrelct (v1, o1) t1 HiFP.Source (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hos1) => Hrelct1.
+      move => [[Hseml Hsemfc] Hseml12].
+      move : Hsemfc. rewrite/= /list_lhs_ref_p' Hos1.  by move => [_ Hf]. 
+      move => [[Hseml Hsemfc] Hseml12].
+      move : Hsemfc. rewrite/= /list_lhs_ref_p' Hod1 Hod2. move => [Heq [Hctc Hctnew]].
+      move: (Hrelct (v1, o1) t1 HiFP.Duplex (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hod1) => Hrelct1.
+      rewrite -(Hrelnew (v1, o1) t1 HiFP.Duplex (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hod1) Hrelct1/= eq_refl !andTb.
+      by apply Haux1.
+    }
+    -intros. generalize H => Hrec.
+     move : (rel_tomap_ct_next tomap ct1 vm1 (expand_fcnct tl1 tl2 tfmap
+                                                (Qrcons l
+                                                   (Sfcnct (Eid (var:=CEP.SE.T) (v1, o1)) (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))))) vm1 ct_new Hrelct Hrec) => Hrelnew.
+    move : H. rewrite expand_fcnct_qrcons. rewrite (sem_frag_stmts_qcat vm1 ct1 vm1 ct_new).
+    rewrite (sem_frag_stmts_qrcons vm1 ct1 vm1 ct1).
+    move : (Hrel (v1, o1)). rewrite Hfd1.
+    case Hs1 : s1.
+    {      
+      move : (Hrel (v2, o2)). rewrite Hfd2. rewrite Hs2.
+      move => [Hos2|Hod2]. move => [Hos1| Hod1]. 
+      move: (Hrelct (v2, o2) t2 HiFP.Source (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v1, o1)))) Hos2) => Hrelct2.
+      move: (Hrelct (v1, o1) t1 HiFP.Sink (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hos1) => Hrelct1.
+      move => [[Hseml Hsemfc] Hseml12].
+      move : Hsemfc. rewrite/= /list_lhs_ref_p' Hos1 Hos2.
+      move => [Heq [Hctc Hctnew]].
+      rewrite -(Hrelnew (v1, o1) t1 HiFP.Sink (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hos1) Hrelct1/= eq_refl !andTb.
+      by apply Haux1.
+      move: (Hrelct (v1, o1) t1 HiFP.Duplex (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hod1) => Hrelct1.
+      move => [[Hseml Hsemfc] Hseml12].
+      move : Hsemfc. rewrite/= /list_lhs_ref_p' Hod1 Hos2.
+      move => [Heq [Hctc Hctnew]].
+      rewrite -(Hrelnew (v1, o1) t1 HiFP.Duplex (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hod1) Hrelct1/= eq_refl !andTb.
+      by apply Haux1.
+      move => [Hos1| Hod1]. 
+      move: (Hrelct (v1, o1) t1 HiFP.Sink (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hos1) => Hrelct1.
+      move => [[Hseml Hsemfc] Hseml12].
+      move : Hsemfc. rewrite/= /list_lhs_ref_p' Hos1 Hod2.
+      move => [Heq [Hctc Hctnew]].
+      rewrite -(Hrelnew (v1, o1) t1 HiFP.Sink (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hos1) Hrelct1/= eq_refl !andTb.
+      by apply Haux1.
+      move: (Hrelct (v1, o1) t1 HiFP.Duplex (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hod1) => Hrelct1.
+      move => [[Hseml Hsemfc] Hseml12].
+      move : Hsemfc. rewrite/= /list_lhs_ref_p' Hod1 Hod2.
+      move => [Heq [Hctc Hctnew]].
+      rewrite -(Hrelnew (v1, o1) t1 HiFP.Duplex (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hod1) Hrelct1/= eq_refl !andTb.
+      by apply Haux1.
+    }
+    {      
+      move : (Hrel (v2, o2)). rewrite Hfd2. rewrite Hs2.
+      move => [Hos2|Hod2]. move => [Hos1| Hod1]. 
+      move: (Hrelct (v2, o2) t2 HiFP.Source (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v1, o1)))) Hos2) => Hrelct2.
+      move: (Hrelct (v1, o1) t1 HiFP.Source (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hos1) => Hrelct1.
+      move => [[Hseml Hsemfc] Hseml12].
+      move : Hsemfc. rewrite/= /list_lhs_ref_p' Hos1.  by move => [_ Hf].
+      move: (Hrelct (v1, o1) t1 HiFP.Duplex (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hod1) => Hrelct1.
+      move => [[Hseml Hsemfc] Hseml12].
+      move : Hsemfc. rewrite/= /list_lhs_ref_p' Hod1 Hos2.
+      move => [Heq [Hctc Hctnew]].
+      rewrite -(Hrelnew (v1, o1) t1 HiFP.Duplex (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hod1) Hrelct1/= eq_refl !andTb.
+      by apply Haux1.
+      move => [Hos1| Hod1]. 
+      move: (Hrelct (v1, o1) t1 HiFP.Source (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hos1) => Hrelct1.
+      move => [[Hseml Hsemfc] Hseml12].
+      move : Hsemfc. rewrite/= /list_lhs_ref_p' Hos1. by move => [_ Hf].
+      move: (Hrelct (v1, o1) t1 HiFP.Duplex (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hod1) => Hrelct1.
+      move => [[Hseml Hsemfc] Hseml12].
+      move : Hsemfc. rewrite/= /list_lhs_ref_p' Hod1 Hod2.
+      move => [Heq [Hctc Hctnew]].
+      rewrite -(Hrelnew (v1, o1) t1 HiFP.Duplex (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hod1) Hrelct1/= eq_refl !andTb.
+      by apply Haux1.
+    }
+    - rewrite eq_refl//.
+    (* -intros. generalize H => Hrec. *)
+    (*  move : (rel_tomap_ct_next tomap ct1 vm1 (expand_fcnct tl1 tl2 tfmap *)
+    (*                                             (Qrcons l *)
+    (*                                                (Sfcnct (Eid (var:=CEP.SE.T) (v1, o1)) (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))))) vm1 ct_new Hrelct Hrec) => Hrelnew. *)
+    (* move : H. rewrite expand_fcnct_qrcons. rewrite (sem_frag_stmts_qcat vm1 ct1 vm1 ct_new). *)
+    (* rewrite (sem_frag_stmts_qrcons vm1 ct1 vm1 ct1). *)
+    (* move : (Hrel (v1, o1)). rewrite Hfd1. *)
+    (* case Hs1 : s1. *)
+    (* {       *)
+    (*   move : (Hrel (v2, o2)). rewrite Hfd2.  *)
+    (*   move => Hn2. move => [Hos1| Hod1].  *)
+    (*   move: (Hrelct (v1, o1) t1 HiFP.Sink (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hos1) => Hrelct1. *)
+    (*   move => [[Hseml Hsemfc] Hseml12]. *)
+    (*   move : Hsemfc. rewrite/= /list_lhs_ref_p' Hos1 Hn2.   by move => [_ Hf].  *)
+    (*   move: (Hrelct (v1, o1) t1 HiFP.Duplex (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hod1) => Hrelct1. *)
+    (*   move => [[Hseml Hsemfc] Hseml12]. *)
+    (*   move : Hsemfc. rewrite/= /list_lhs_ref_p' Hod1 Hn2. by move => [_ Hf].  *)
+    (* } *)
+    (* { *)
+    (*   move : (Hrel (v2, o2)). rewrite Hfd2.  *)
+    (*   move => Hn2.  *)
+    (*   move => [Hos1| Hod1].  *)
+    (*   move: (Hrelct (v1, o1) t1 HiFP.Source (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hos1) => Hrelct1. *)
+    (*   move => [[Hseml Hsemfc] Hseml12]. *)
+    (*   move : Hsemfc. rewrite/= /list_lhs_ref_p'. rewrite Hos1. *)
+    (*   by move => [_ Hf].  *)
+    (*   move => [[Hseml Hsemfc] Hseml12]. *)
+    (*   move : Hsemfc. rewrite/= /list_lhs_ref_p' Hod1 Hn2.   by move => [_ Hf]. *)
+    (* } *)
+
+    move : Heid.
+    case Hexp2 : h2 => [| | | | | |r2]; rewrite /=; try discriminate. move : Hexp2.
+    case Href2 : r2  => [[v2 o2]| | |]; try (rewrite andFb; discriminate). move => Hexp2.
+    rewrite andTb; move => Heid.
+    case Hfd2 : (ft_find (v2, o2) tfmap) => [[[t2 f2] s2]|]; rewrite /=.
+    generalize Hsz. rewrite /= => Hsz'. move : (eq_add_S _ _ Hsz') => Hsz''.
+    have Hneq2 :  (expand_fcnct tl1 tl2 tfmap
+     (Qrcons l
+        (Sfcnct (Eid (var:=CEP.SE.T) (v2, o2))
+           (Eref (Eid (var:=CEP.SE.T) (v1, o1)))))
+   != Qrcons l
+        (Sfcnct (Eid (var:=CEP.SE.T) (v2, o2))
+           (Eref (Eid (var:=CEP.SE.T) (v1, o1))))).
+    by rewrite expand_fcnct_neq_nil.
+    have Hneq1 :  (expand_fcnct tl1 tl2 tfmap
+     (Qrcons l
+        (Sfcnct (Eid (var:=CEP.SE.T) (v1, o1))
+           (Eref (Eid (var:=CEP.SE.T) (v2, o2)))))
+   != Qrcons l
+        (Sfcnct (Eid (var:=CEP.SE.T) (v1, o1))
+           (Eref (Eid (var:=CEP.SE.T) (v2, o2))))).
+    by rewrite expand_fcnct_neq_nil.
+    move : (Hn tl2 (Qrcons l
+                      (Sfcnct (Eid (var:=CEP.SE.T) (v2, o2)) (Eref (Eid (var:=CEP.SE.T) (v1, o1))))) vm1 ct1 tfmap ct_new tomap Hsz'' Hrel Hrelct Heid Hneq2) => Haux2.
+    move : (Hn tl2 (Qrcons l
+                      (Sfcnct (Eid (var:=CEP.SE.T) (v1, o1)) (Eref (Eid (var:=CEP.SE.T) (v2, o2))))) vm1 ct1 tfmap ct_new tomap Hsz'' Hrel Hrelct Heid Hneq1) => Haux1.
+    move => Hnil.
+    case Hf2 : f2; case Hs2 : s2; rewrite /=; intro. 
+    - intros. generalize H => Hrec.
+      move : (rel_tomap_ct_next tomap ct1 vm1 (expand_fcnct tl1 tl2 tfmap
+                                                (Qrcons l
+                                                   (Sfcnct (Eid (var:=CEP.SE.T) (v1, o1)) (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))))) vm1 ct_new Hrelct Hrec) => Hrelnew.
+      move : H.
+      rewrite expand_fcnct_qrcons. rewrite (sem_frag_stmts_qcat vm1 ct1 vm1 ct_new).
+      rewrite (sem_frag_stmts_qrcons vm1 ct1 vm1 ct1). rewrite/=.
+      move : (Hrel (v1, o1)). rewrite Hfd1.
+      case Hs1 : s1.
+      {
+      move : (Hrel (v2, o2)). rewrite Hfd2. rewrite Hs2.
+      move => [Hos2|Hod2]. move => [Hos1| Hod1]. 
+      move: (Hrelct (v1, o1) t1 HiFP.Sink (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hos1) => Hrelct1.
+      move => [[Hseml Hsemfc] Hseml12].
+      move : Hsemfc. rewrite/= /list_lhs_ref_p' Hos1 Hos2. by move => [_ Hf]. 
+      move => [[Hseml Hsemfc] Hseml12].
+      move : Hsemfc. rewrite/= /list_lhs_ref_p' Hod1 Hos2.  by move => [_ Hf]. 
+      move => [Hos1| Hod1].
+      move: (Hrelct (v1, o1) t1 HiFP.Sink (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hos1) => Hrelct1.
+      move => [[Hseml Hsemfc] Hseml12].
+      move : Hsemfc. rewrite/= /list_lhs_ref_p' Hos1 Hod2. 
+      move => [Heq [Hctc Hctnew]].
+      rewrite (Hrelnew (v1, o1) t1 HiFP.Sink (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hos1) eq_refl Hrelct1 /=.
+      by apply Haux1.
+      move => [[Hseml Hsemfc] Hseml12].
+      move : Hsemfc. rewrite/= /list_lhs_ref_p' Hod1 Hod2.
+      move => [Heq [Hctc Hctnew]].
+      move: (Hrelct (v1, o1) t1 HiFP.Duplex (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hod1) => Hrelct1.
+      rewrite  (Hrelnew (v1, o1) t1 HiFP.Duplex (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hod1) Hrelct1/= eq_refl !andTb.
+      by apply Haux1.
+    }
+    {
+      move : (Hrel (v2, o2)). rewrite Hfd2. rewrite Hs2.
+      move => [Hos2|Hod2]. 
+      move => [Hos1| Hod1]. 
+      move: (Hrelct (v1, o1) t1 HiFP.Source (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hos1) => Hrelct1.
+      move => [[Hseml Hsemfc] Hseml12].
+      move : Hsemfc. rewrite/= /list_lhs_ref_p' Hos1.  by move => [_ Hf]. 
+      move: (Hrelct (v1, o1) t1 HiFP.Duplex (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hod1) => Hrelct1.
+      move => [[Hseml Hsemfc] Hseml12].
+      move : Hsemfc. rewrite/= /list_lhs_ref_p' Hod1 Hos2. by move => [_ Hf].
+      move => [Hos1| Hod1]. 
+      move: (Hrelct (v1, o1) t1 HiFP.Source (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hos1) => Hrelct1.
+      move => [[Hseml Hsemfc] Hseml12].
+      move : Hsemfc. rewrite/= /list_lhs_ref_p' Hos1. by move => [_ Hf].
+      move: (Hrelct (v1, o1) t1 HiFP.Duplex (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hod1) => Hrelct1.
+      move => [[Hseml Hsemfc] Hseml12].
+      move : Hsemfc. rewrite/= /list_lhs_ref_p' Hod1 Hod2.
+      move => [Heq [Hctc Hctnew]].
+      rewrite (Hrelnew (v1, o1) t1 HiFP.Duplex (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hod1) Hrelct1/= eq_refl andTb.
+      by apply Haux1.
+    }
+    
+    -intros. generalize H => Hrec.
+     move : (rel_tomap_ct_next tomap ct1 vm1 (expand_fcnct tl1 tl2 tfmap
+                                                (Qrcons l
+                                                   (Sfcnct (Eid (var:=CEP.SE.T) (v1, o1)) (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))))) vm1 ct_new Hrelct Hrec) => Hrelnew.
+    move : H. rewrite expand_fcnct_qrcons. rewrite (sem_frag_stmts_qcat vm1 ct1 vm1 ct_new).
+    rewrite (sem_frag_stmts_qrcons vm1 ct1 vm1 ct1).
+    move : (Hrel (v1, o1)). rewrite Hfd1.
+    case Hs1 : s1.
+    {
+      move : (Hrel (v2, o2)). rewrite Hfd2. rewrite Hs2.
+      move => [Hos2|Hod2]. move => [Hos1| Hod1]. 
+      move: (Hrelct (v2, o2) t2 HiFP.Source (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v1, o1)))) Hos2) => Hrelct2.
+      move: (Hrelct (v1, o1) t1 HiFP.Sink (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hos1) => Hrelct1.
+      move => [[Hseml Hsemfc] Hseml12].
+      move : Hsemfc. rewrite/= /list_lhs_ref_p' Hos1 Hos2. 
+      move => [Heq [Hctc Hctnew]].
+      rewrite (Hrelnew (v1, o1) t1 HiFP.Sink (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hos1) Hrelct1/= eq_refl !andTb.
+      by apply Haux1.
+      move: (Hrelct (v1, o1) t1 HiFP.Duplex (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hod1) => Hrelct1.
+      move => [[Hseml Hsemfc] Hseml12].
+      move : Hsemfc. rewrite/= /list_lhs_ref_p' Hod1 Hos2.
+      move => [Heq [Hctc Hctnew]].
+      rewrite (Hrelnew (v1, o1) t1 HiFP.Duplex (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hod1) Hrelct1/= eq_refl !andTb.
+      by apply Haux1.
+      move => [Hos1| Hod1]. 
+      move: (Hrelct (v1, o1) t1 HiFP.Sink (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hos1) => Hrelct1.
+      move => [[Hseml Hsemfc] Hseml12].
+      move : Hsemfc. rewrite/= /list_lhs_ref_p' Hos1 Hod2. 
+      move => [Heq [Hctc Hctnew]].
+      rewrite (Hrelnew (v1, o1) t1 HiFP.Sink (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hos1) Hrelct1/= eq_refl !andTb.
+      by apply Haux1.
+      move: (Hrelct (v1, o1) t1 HiFP.Duplex (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hod1) => Hrelct1.
+      move => [[Hseml Hsemfc] Hseml12].
+      move : Hsemfc. rewrite/= /list_lhs_ref_p' Hod1 Hod2.
+      move => [Heq [Hctc Hctnew]].
+      rewrite (Hrelnew (v1, o1) t1 HiFP.Duplex (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hod1) Hrelct1/= eq_refl !andTb.
+      by apply Haux1.
+    }
+    {
+      move : (Hrel (v2, o2)). rewrite Hfd2. rewrite Hs2.
+      move => [Hos2|Hod2]. 
+      move => [Hos1| Hod1]. 
+      move: (Hrelct (v1, o1) t1 HiFP.Source (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hos1) => Hrelct1.
+      move => [[Hseml Hsemfc] Hseml12].
+      move : Hsemfc. rewrite/= /list_lhs_ref_p'. rewrite Hos1.
+      by move => [_ Hf]. 
+      move => [[Hseml Hsemfc] Hseml12].
+      move : Hsemfc. rewrite/= /list_lhs_ref_p' Hod1 Hos2. move => [Heq [Hctc Hctnew]].
+      move: (Hrelct (v1, o1) t1 HiFP.Duplex (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hod1) => Hrelct1.
+      rewrite (Hrelnew (v1, o1) t1 HiFP.Duplex (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hod1) Hrelct1/= eq_refl !andTb.
+      by apply Haux1.
+      move => [Hos1| Hod1].
+      move: (Hrelct (v1, o1) t1 HiFP.Source (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hos1) => Hrelct1.
+      move => [[Hseml Hsemfc] Hseml12].
+      move : Hsemfc. rewrite/= /list_lhs_ref_p' Hos1.  by move => [_ Hf]. 
+      move => [[Hseml Hsemfc] Hseml12].
+      move : Hsemfc. rewrite/= /list_lhs_ref_p' Hod1 Hod2. move => [Heq [Hctc Hctnew]].
+      move: (Hrelct (v1, o1) t1 HiFP.Duplex (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hod1) => Hrelct1.
+      rewrite (Hrelnew (v1, o1) t1 HiFP.Duplex (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hod1) Hrelct1/= eq_refl !andTb.
+      by apply Haux1.
+    }
+
+    -intros. generalize H => Hrec.
+     move : (rel_tomap_ct_next tomap ct1 vm1 (expand_fcnct tl1 tl2 tfmap
+                                                (Qrcons l
+                                                   (Sfcnct (Eid (var:=CEP.SE.T) (v1, o1)) (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))))) vm1 ct_new Hrelct Hrec) => Hrelnew.
+    move : H. rewrite expand_fcnct_qrcons. rewrite (sem_frag_stmts_qcat vm1 ct1 vm1 ct_new).
+    rewrite (sem_frag_stmts_qrcons vm1 ct1 vm1 ct1).
+    move : (Hrel (v1, o1)). rewrite Hfd1.
+    case Hs1 : s1.
+    {      
+      move : (Hrel (v2, o2)). rewrite Hfd2. rewrite Hs2.
+      move => [Hos2|Hod2]. move => [Hos1| Hod1]. 
+      move: (Hrelct (v2, o2) t2 HiFP.Sink (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v1, o1)))) Hos2) => Hrelct2.
+      move: (Hrelct (v1, o1) t1 HiFP.Sink (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hos1) => Hrelct1.
+      move => [[Hseml Hsemfc] Hseml12].
+      move : Hsemfc. rewrite/= /list_lhs_ref_p' Hos1 Hos2.   by move => [_ Hf]. 
+      move: (Hrelct (v1, o1) t1 HiFP.Duplex (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hod1) => Hrelct1.
+      move => [[Hseml Hsemfc] Hseml12].
+      move : Hsemfc. rewrite/= /list_lhs_ref_p' Hod1 Hos2. by move => [_ Hf]. 
+      move => [Hos1| Hod1]. 
+      move: (Hrelct (v1, o1) t1 HiFP.Sink (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hos1) => Hrelct1.
+      move => [[Hseml Hsemfc] Hseml12].
+      move : Hsemfc. rewrite/= /list_lhs_ref_p' Hos1 Hod2. 
+      move => [Heq [Hctc Hctnew]].
+      rewrite (Hrelnew (v1, o1) t1 HiFP.Sink (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hos1) Hrelct1/= eq_refl !andTb.
+      by apply Haux1.
+      move: (Hrelct (v1, o1) t1 HiFP.Duplex (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hod1) => Hrelct1.
+      move => [[Hseml Hsemfc] Hseml12].
+      move : Hsemfc. rewrite/= /list_lhs_ref_p' Hod1 Hod2.
+      move => [Heq [Hctc Hctnew]].
+      rewrite (Hrelnew (v1, o1) t1 HiFP.Duplex (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hod1) Hrelct1/= eq_refl !andTb.
+      by apply Haux1.
+    }
+    {
+      move : (Hrel (v2, o2)). rewrite Hfd2. rewrite Hs2.
+      move => [Hos2|Hod2]. 
+      move => [Hos1| Hod1]. 
+      move: (Hrelct (v1, o1) t1 HiFP.Source (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hos1) => Hrelct1.
+      move => [[Hseml Hsemfc] Hseml12].
+      move : Hsemfc. rewrite/= /list_lhs_ref_p'. rewrite Hos1.
+      by move => [_ Hf]. 
+      move => [[Hseml Hsemfc] Hseml12].
+      move : Hsemfc. rewrite/= /list_lhs_ref_p' Hod1 Hos2.   by move => [_ Hf]. 
+      move => [Hos1| Hod1].
+      move: (Hrelct (v1, o1) t1 HiFP.Source (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hos1) => Hrelct1.
+      move => [[Hseml Hsemfc] Hseml12].
+      move : Hsemfc. rewrite/= /list_lhs_ref_p' Hos1.  by move => [_ Hf]. 
+      move => [[Hseml Hsemfc] Hseml12].
+      move : Hsemfc. rewrite/= /list_lhs_ref_p' Hod1 Hod2. move => [Heq [Hctc Hctnew]].
+      move: (Hrelct (v1, o1) t1 HiFP.Duplex (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hod1) => Hrelct1.
+      rewrite (Hrelnew (v1, o1) t1 HiFP.Duplex (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hod1) Hrelct1/= eq_refl !andTb.
+      by apply Haux1.
+    }
+    -intros. generalize H => Hrec.
+     move : (rel_tomap_ct_next tomap ct1 vm1 (expand_fcnct tl1 tl2 tfmap
+                                                (Qrcons l
+                                                   (Sfcnct (Eid (var:=CEP.SE.T) (v1, o1)) (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))))) vm1 ct_new Hrelct Hrec) => Hrelnew.
+     move : H. rewrite expand_fcnct_qrcons. rewrite (sem_frag_stmts_qcat vm1 ct1 vm1 ct_new).
+     rewrite (sem_frag_stmts_qrcons vm1 ct1 vm1 ct1).
+    move : (Hrel (v1, o1)). rewrite Hfd1.
+    case Hs1 : s1.
+    {      
+      move : (Hrel (v2, o2)). rewrite Hfd2. rewrite Hs2.
+      move => [Hos2|Hod2]. move => [Hos1| Hod1]. 
+      move: (Hrelct (v2, o2) t2 HiFP.Source (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v1, o1)))) Hos2) => Hrelct2.
+      move: (Hrelct (v1, o1) t1 HiFP.Sink (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hos1) => Hrelct1.
+      move => [[Hseml Hsemfc] Hseml12].
+      move : Hsemfc. rewrite/= /list_lhs_ref_p' Hos1 Hos2.
+      move => [Heq [Hctc Hctnew]].
+      rewrite (Hrelnew (v1, o1) t1 HiFP.Sink (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hos1) Hrelct1/= eq_refl !andTb.
+      by apply Haux1.
+      move: (Hrelct (v1, o1) t1 HiFP.Duplex (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hod1) => Hrelct1.
+      move => [[Hseml Hsemfc] Hseml12].
+      move : Hsemfc. rewrite/= /list_lhs_ref_p' Hod1 Hos2.
+      move => [Heq [Hctc Hctnew]].
+      rewrite (Hrelnew (v1, o1) t1 HiFP.Duplex (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hod1) Hrelct1/= eq_refl !andTb.
+      by apply Haux1.
+      move => [Hos1| Hod1]. 
+      move: (Hrelct (v1, o1) t1 HiFP.Sink (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hos1) => Hrelct1.
+      move => [[Hseml Hsemfc] Hseml12].
+      move : Hsemfc. rewrite/= /list_lhs_ref_p' Hos1 Hod2.
+      move => [Heq [Hctc Hctnew]].
+      rewrite (Hrelnew (v1, o1) t1 HiFP.Sink (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hos1)  Hrelct1/= eq_refl !andTb.
+      by apply Haux1.
+      move: (Hrelct (v1, o1) t1 HiFP.Duplex (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hod1) => Hrelct1.
+      move => [[Hseml Hsemfc] Hseml12].
+      move : Hsemfc. rewrite/= /list_lhs_ref_p' Hod1 Hod2.
+      move => [Heq [Hctc Hctnew]].
+      rewrite (Hrelnew (v1, o1) t1 HiFP.Duplex (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hod1) Hrelct1/= eq_refl !andTb.
+      by apply Haux1.
+    }
+    {      
+      move : (Hrel (v2, o2)). rewrite Hfd2. rewrite Hs2.
+      move => [Hos2|Hod2]. move => [Hos1| Hod1]. 
+      move: (Hrelct (v2, o2) t2 HiFP.Source (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v1, o1)))) Hos2) => Hrelct2.
+      move: (Hrelct (v1, o1) t1 HiFP.Source (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hos1) => Hrelct1.
+      move => [[Hseml Hsemfc] Hseml12].
+      move : Hsemfc. rewrite/= /list_lhs_ref_p' Hos1.  by move => [_ Hf].
+      move: (Hrelct (v1, o1) t1 HiFP.Duplex (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hod1) => Hrelct1.
+      move => [[Hseml Hsemfc] Hseml12].
+      move : Hsemfc. rewrite/= /list_lhs_ref_p' Hod1 Hos2.
+      move => [Heq [Hctc Hctnew]].
+      rewrite (Hrelnew (v1, o1) t1 HiFP.Duplex (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hod1) Hrelct1/= eq_refl !andTb.
+      by apply Haux1.
+      move => [Hos1| Hod1]. 
+      move: (Hrelct (v1, o1) t1 HiFP.Source (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hos1) => Hrelct1.
+      move => [[Hseml Hsemfc] Hseml12].
+      move : Hsemfc. rewrite/= /list_lhs_ref_p' Hos1. by move => [_ Hf].
+      move: (Hrelct (v1, o1) t1 HiFP.Duplex (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hod1) => Hrelct1.
+      move => [[Hseml Hsemfc] Hseml12].
+      move : Hsemfc. rewrite/= /list_lhs_ref_p' Hod1 Hod2.
+      move => [Heq [Hctc Hctnew]].
+      rewrite (Hrelnew (v1, o1) t1 HiFP.Duplex (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hod1) Hrelct1/= eq_refl !andTb.
+      by apply Haux1.
+    }
+    -intros. generalize H => Hrec.
+     move : (rel_tomap_ct_next tomap ct1 vm1 (expand_fcnct tl1 tl2 tfmap
+                                                (Qrcons l
+                                                   (Sfcnct (Eid (var:=CEP.SE.T) (v1, o1)) (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))))) vm1 ct_new Hrelct Hrec) => Hrelnew.
+    move : H. rewrite expand_fcnct_qrcons. rewrite (sem_frag_stmts_qcat vm1 ct1 vm1 ct_new).
+    rewrite (sem_frag_stmts_qrcons vm1 ct1 vm1 ct1).
+    move : (Hrel (v1, o1)). rewrite Hfd1.
+    case Hs1 : s1.
+    {      
+      move : (Hrel (v2, o2)). rewrite Hfd2. 
+      move => Hn2. move => [Hos1| Hod1]. 
+      move: (Hrelct (v1, o1) t1 HiFP.Sink (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hos1) => Hrelct1.
+      move => [[Hseml Hsemfc] Hseml12].
+      move : Hsemfc. rewrite/= /list_lhs_ref_p' Hos1 Hn2.   by move => [_ Hf]. 
+      move: (Hrelct (v1, o1) t1 HiFP.Duplex (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hod1) => Hrelct1.
+      move => [[Hseml Hsemfc] Hseml12].
+      move : Hsemfc. rewrite/= /list_lhs_ref_p' Hod1 Hn2. by move => [_ Hf]. 
+    }
+    {
+      move : (Hrel (v2, o2)). rewrite Hfd2. 
+      move => Hn2. 
+      move => [Hos1| Hod1]. 
+      move: (Hrelct (v1, o1) t1 HiFP.Source (D_fexpr (Eref (Eid (var:=ProdVarOrder.T) (v2, o2)))) Hos1) => Hrelct1.
+      move => [[Hseml Hsemfc] Hseml12].
+      move : Hsemfc. rewrite/= /list_lhs_ref_p'. rewrite Hos1.
+      by move => [_ Hf]. 
+      move => [[Hseml Hsemfc] Hseml12].
+      move : Hsemfc. rewrite/= /list_lhs_ref_p' Hod1 Hn2.   by move => [_ Hf].
+    }
+  Qed.
+
+  Lemma ftype_list_all_cat :
+    forall t1 ltp ,
+      ftype_list_all t1 ltp = ftype_list_all t1 nil ++ltp
+  with ftype_list_all_btyp_all_cat :
+    forall l bs, (ftype_list_btyp_all bs) l = ftype_list_btyp_all bs nil ++ l.
+  Proof.
+  Admitted.
+
+  Lemma expand_eref_aux_ft_pmap_cat :
+    forall n r1 o1 sz tmap l,
+      expand_eref_aux_ft_pmap' (r1, o1) n sz tmap l = l ++ expand_eref_aux_ft_pmap' (r1, o1) n sz tmap nil .
+  Proof.
+    elim; intros; rewrite /=; first by rewrite cats0.
+    case Hft : (ft_find (r1, (o1 + N.of_nat sz)%num) tmap) => [t|]; last by rewrite cats0.
+  Admitted.
+    
+  Lemma size_expand_ref :
+    forall r1 o1 tomap t1 s1, (* lexp ltp, *)
+      CEP.find (r1, o1) tomap = Some (t1, s1) ->
+      (* size lexp = size ltp-> *)
+      size (expand_eref_ft_pmap' (r1, o1) tomap nil) = size (ftype_list_all t1 nil).
+  Proof.
+    intros. rewrite /expand_eref_ft_pmap' H. move : tomap H.
+    elim : (size (ftype_list_all t1 nil)). rewrite /=//. 
+    intros. rewrite /= N.add_0_r H0. case (is_gtyp t1).
+  Admitted.
+
+  Lemma all_is_expr_eid :
+    forall n r2 o2 tmap sz,
+      all is_expr_eid (expand_eref_aux_ft_pmap' (r2, o2) n sz tmap nil).
+  Proof.
+    elim; first rewrite /=//.
+    intros. rewrite /=.
+    case Hfd : (ft_find (r2, (o2 + N.of_nat sz)%num) tmap) => [[t s]|]; last done.
+    case (is_gtyp t); first (rewrite expand_eref_aux_ft_pmap_cat cat1s/=; apply H); last apply H.
+  Qed.
+
+  Lemma all_is_expr_eid_exp_eref :
+    forall r2 o2 tmap ,
+      all is_expr_eid (expand_eref_ft_pmap' (r2, o2) tmap nil).
+  Proof.
+    rewrite /expand_eref_ft_pmap'; intros. case Hft : (ft_find (r2, o2) tmap) => [[t s]|]; last done.
+    rewrite all_is_expr_eid//.
+  Qed.
+
+  Lemma epand_eref_ft_pamp_same :
+    forall r1 o1 tmap tfmap tomap l,
+      rel_tmap_tfmap tmap tfmap ->
+      rel_tfmap_tomap tfmap tomap ->
+      (expand_eref_ft_pmap (r1, o1) tfmap l) = (expand_eref_ft_pmap' (r1, o1) tomap l).
+  Proof.
+  Admitted.
+
+  Lemma expandConnects_fcnct_eidemux_correct :
+    forall ct0 vm0 ct1 vm1 ct_new tmap tfmap tomap ss0 r1 o1 h h1 h2 t1 t2 ,
+      rel_tfmap_tomap tfmap tomap ->
+      rel_tmap_tfmap tmap tfmap ->
+      rel_tomap_ct tomap ct0 ->
+      ft_find (r1, o1) tmap = Some (t1) ->
+      type_of_hfexpr (Emux h h1 h2) tmap = Some (t2) ->
+      expand_fcnct (expand_eref_ft_pmap (r1, o1) tfmap [::])
+        (expand_expr_ft_pmap (Emux h h1 h2) tfmap [::]) tfmap HiFP.qnil != HiFP.qnil ->
+      connect_type_compatible true t1 t2 false ->
+      Sem_frag_stmts vm0 ct0 ss0 vm1 ct1 tomap ->
+      Sem_frag_stmts vm0 ct0
+        (expand_fcnct (expand_eref_ft_pmap (r1, o1) tfmap [::])
+           (expand_expr_ft_pmap (Emux h h1 h2) tfmap [::]) tfmap ss0) vm1 ct_new tomap ->
+      Sem_frag_stmts vm0 ct0 (Qrcons ss0 (Sfcnct (Eid (var:=ProdVarOrder.T) (r1, o1)) (Emux h h1 h2)))
+        vm1 ct_new tomap.
+  Proof.
+  Admitted.
     
   Lemma expandConnects_fcnct_eideid_correct :
     forall ct0 vm0 ct1 vm1 ct_new tmap tfmap tomap ss0 r1 o1 r2 o2 t1 t2 ,
-      (* Sem_frag_stmt vm_new ct1 ((HiFP.sfcnct (HiFP.eid (r1, o1)) (HiFP.eref(HiFP.eid (r2, o2))))) vm_new ct_new tmap -> *)
       rel_tfmap_tomap tfmap tomap ->
       rel_tmap_tfmap tmap tfmap ->
+      rel_tomap_ct tomap ct0 ->
       ft_find (r1, o1) tmap = Some (t1) ->
       ft_find (r2, o2) tmap = Some (t2) ->
+      expand_fcnct (expand_eref_ft_pmap (r1, o1) tfmap [::]) (expand_eref_ft_pmap (r2, o2) tfmap [::])
+        tfmap HiFP.qnil != HiFP.qnil ->
       connect_type_compatible true t1 t2 false ->
       Sem_frag_stmts vm0 ct0 ss0 vm1 ct1 tomap ->
       Sem_frag_stmts vm0 ct0 (expandconnects_stmt_ft_pmap (HiFP.sfcnct (HiFP.eid (r1, o1)) (HiFP.eref(HiFP.eid (r2, o2)))) tmap tfmap ss0) vm1 ct_new tomap ->
       Sem_frag_stmts vm0 ct0 (Qrcons ss0 (HiFP.sfcnct (HiFP.eid (r1, o1)) (HiFP.eref(HiFP.eid (r2, o2))))) vm1 ct_new tomap.
   Proof.
     intros.
-    move : H5.
+    move : H7.
     rewrite (expandconnects_stmt_cat (HiFP.sfcnct (HiFP.eid (r1, o1)) (HiFP.eref (HiFP.eid (r2, o2)))) tmap tfmap ss0).
     move => Hexpcat.
     rewrite (sem_frag_stmts_qcat vm0 ct0 vm1 ct1 vm1 ct_new tomap ss0 _) in Hexpcat.
     move : Hexpcat =>[Hsemss0 Hsemfc].
     rewrite (sem_frag_stmts_qrcons vm0 ct0 vm1 ct1 vm1 ct_new tomap _). split; first done.
     rewrite /=. split; first done.
-    move : Hsemfc. rewrite /= /list_lhs_ref_p.
-    move : (H0 (r1, o1) false true). rewrite H1 => Htfm1.
-    move : (H (r1, o1)). rewrite Htfm1 => Hs1. move : Hs1 => [Hs1 | Hd1].
-    move : (H0 (r2, o2) false false). rewrite H2 => Htfm2.
-    move : (H (r2, o2)). rewrite Htfm2 => Hs2. move : Hs2 => [Hs2 | Hd2].
-    rewrite /type_ref/= H2 Hs1 Hs2.  
-    move : H1 H2 H3 Htfm1 Htfm2 Hs1 Hs2.
-    case t1; case t2; intros; move : H3; rewrite /=//. move => Hcom . rewrite Hcom; split; first done.
-    move : Hsemfc; rewrite/=. intro. apply expandconnects_sfcnct_eideid_r1r2 with vm1 tmap tfmap tomap. done.
-    case f0; done. case f0; done.
-    move => Hcom . rewrite Hcom; split; first done.
-    move : Hcom Hsemfc; rewrite/=. move => /andP[/eqP Hnn0 Hcmp]. rewrite Hnn0/= eq_refl andTb.
-    case Hatyp : (Atyp f0 n == Atyp f n); rewrite (lock Sem_frag_stmts)/=-lock.
-    exact : expandconnects_sfcnct_eideid_r1r2_atyp_t .
-    exact : expandconnects_sfcnct_eideid_r1r2_atyp_f .
-    move => Hcom . rewrite Hcom; split; first done.
-    move : Hsemfc; rewrite/=.
-    case Hbtyp : (Btyp f0 == Btyp f).
-    exact : expandconnects_sfcnct_eideid_r1r2_btyp_t .
-    exact : expandconnects_sfcnct_eideid_r1r2_btyp_f .
-    rewrite /type_ref/= H2 Hs1 Hd2.  
-    move : H1 H2 H3 Htfm1 Htfm2 Hs1 Hd2.
-    case t1; case t2; intros; move : H3; rewrite /=//. move => Hcom . rewrite Hcom; split; first done.
-    move : Hsemfc; rewrite/=. intro. apply expandconnects_sfcnct_eideid_r1r2 with vm1 tmap tfmap tomap. done.
-    case f0; done. case f0; done.
-    move => Hcom . rewrite Hcom; split; first done.
-    move : Hcom Hsemfc; rewrite/=. move => /andP[/eqP Hnn0 Hcmp]. rewrite Hnn0/= eq_refl andTb.
-    case Hatyp : (Atyp f0 n == Atyp f n); rewrite (lock Sem_frag_stmts)/=-lock.
-    exact : expandconnects_sfcnct_eideid_r1r2_atyp_t .
-    exact : expandconnects_sfcnct_eideid_r1r2_atyp_f .
-    move => Hcom . rewrite Hcom; split; first done.
-    move : Hsemfc; rewrite/=.
-    case Hbtyp : (Btyp f0 == Btyp f).
-    exact : expandconnects_sfcnct_eideid_r1r2_btyp_t .
-    exact : expandconnects_sfcnct_eideid_r1r2_btyp_f .
-    rewrite /type_ref/= H2 Hd1 .
-    move : (H0 (r2, o2) false false). rewrite H2 => Htfm2.
-    move : (H (r2, o2)). rewrite Htfm2 => Hs2. move : Hs2 => [Hs2 | Hd2].
-    rewrite Hs2.  
-    move : H1 H2 H3 Htfm1 Htfm2 Hd1 Hs2.
-    case t1; case t2; intros; move : H3; rewrite /=//. move => Hcom . rewrite Hcom; split; first done.
-    move : Hsemfc; rewrite/=. intro. apply expandconnects_sfcnct_eideid_r1r2 with vm1 tmap tfmap tomap. done.
-    case f0; done. case f0; done.
-    move => Hcom . rewrite Hcom; split; first done.
-    move : Hcom Hsemfc; rewrite/=. move => /andP[/eqP Hnn0 Hcmp]. rewrite Hnn0/= eq_refl andTb.
-    case Hatyp : (Atyp f0 n == Atyp f n); rewrite (lock Sem_frag_stmts)/=-lock.
-    exact : expandconnects_sfcnct_eideid_r1r2_atyp_t .
-    exact : expandconnects_sfcnct_eideid_r1r2_atyp_f .
-    move => Hcom . rewrite Hcom; split; first done.
-    move : Hsemfc; rewrite/=.
-    case Hbtyp : (Btyp f0 == Btyp f).
-    exact : expandconnects_sfcnct_eideid_r1r2_btyp_t .
-    exact : expandconnects_sfcnct_eideid_r1r2_btyp_f .
-    rewrite Hd2.
-    move : H1 H2 H3 Htfm1 Htfm2 Hd1 Hd2.
-    case t1; case t2; intros; move : H3; rewrite /=//. move => Hcom . rewrite Hcom; split; first done.
-    move : Hsemfc; rewrite/=. intro. apply expandconnects_sfcnct_eideid_r1r2 with vm1 tmap tfmap tomap. done.
-    case f0; done. case f0; done.
-    move => Hcom . rewrite Hcom; split; first done.
-    move : Hcom Hsemfc; rewrite/=. move => /andP[/eqP Hnn0 Hcmp]. rewrite Hnn0/= eq_refl andTb.
-    case Hatyp : (Atyp f0 n == Atyp f n); rewrite (lock Sem_frag_stmts)/=-lock.
-    exact : expandconnects_sfcnct_eideid_r1r2_atyp_t .
-    exact : expandconnects_sfcnct_eideid_r1r2_atyp_f .
-    move => Hcom . rewrite Hcom; split; first done.
-    move : Hsemfc; rewrite/=.
-    case Hbtyp : (Btyp f0 == Btyp f).
-    exact : expandconnects_sfcnct_eideid_r1r2_btyp_t .
-    exact : expandconnects_sfcnct_eideid_r1r2_btyp_f .
-  Qed.
+    move : Hsemfc. rewrite /= /list_lhs_ref_p' (lock connect_fgtyp).
+    move : (H0 (r1, o1) false true). rewrite H2 => Htfm1.
+    move : (H0 (r2, o2) false false). rewrite H3 => Htfm2.
+    move : (H (r1, o1)). rewrite Htfm1 => Hs1. 
+    move : (H (r2, o2)). rewrite Htfm2 => Hs2.
+    move : Hs1 => [Hs1 | Hd1]; move : Hs2 => [Hs2 | Hd2].
+    
+    -
+      rewrite /type_ref/= H3 H5 Hs1 Hs2 H5 .  split; first done.
+      have Hszexp : (size (expand_eref_ft_pmap' (r1, o1) tomap [::]) =
+                     size (expand_eref_ft_pmap' (r2, o2) tomap [::])).
+      {
+        move : (connect_type_compatible_size _ _ _ _ H5) => Hsz.
+        by rewrite (size_expand_ref _ _ tomap t2 _ Hs2) (size_expand_ref _ _ tomap t1 _ Hs1).}
+      have Hall : (all is_expr_eid (expand_eref_ft_pmap' (r2, o2) tomap [::])).
+      by apply : all_is_expr_eid_exp_eref.
+      move : (rel_tomap_ct_next tomap ct0 vm0 ss0 vm1 ct1 H1 H6) => Hrelt1.
+      rewrite (epand_eref_ft_pamp_same r1 o1 _ _ _ _ H0 H) (epand_eref_ft_pamp_same r2 o2 _ _ _ _ H0 H) in H4, Hsemfc.
+      move : ( sem_expand_fcnct_lists (expand_eref_ft_pmap' (r1, o1) tomap [::]) (expand_eref_ft_pmap' (r2, o2) tomap [::]) HiFP.qnil vm1 ct1 tfmap ct_new tomap Hszexp H Hrelt1 Hall H4 Hsemfc) => Hallc.
+      rewrite -lock; apply Hallc.
+    - rewrite /type_ref/= H3 H5 Hs1 Hd2 H5 .  split; first done.
+      have Hszexp : (size (expand_eref_ft_pmap' (r1, o1) tomap [::]) =
+                     size (expand_eref_ft_pmap' (r2, o2) tomap [::])).
+      {
+        move : (connect_type_compatible_size _ _ _ _ H5) => Hsz.
+        by rewrite (size_expand_ref _ _ tomap t2 _ Hd2) (size_expand_ref _ _ tomap t1 _ Hs1).}
+      have Hall : (all is_expr_eid (expand_eref_ft_pmap' (r2, o2) tomap [::])).
+      by apply : all_is_expr_eid_exp_eref.
+      move : (rel_tomap_ct_next tomap ct0 vm0 ss0 vm1 ct1 H1 H6) => Hrelt1.
+      rewrite (epand_eref_ft_pamp_same r1 o1 _ _ _ _ H0 H) (epand_eref_ft_pamp_same r2 o2 _ _ _ _ H0 H) in H4, Hsemfc.
+      move : ( sem_expand_fcnct_lists (expand_eref_ft_pmap' (r1, o1) tomap [::]) (expand_eref_ft_pmap' (r2, o2) tomap [::]) HiFP.qnil vm1 ct1 tfmap ct_new tomap Hszexp H Hrelt1 Hall H4 Hsemfc) => Hallc.
+      rewrite -lock; apply Hallc.
+    - rewrite /type_ref/= H3 H5 Hd1 Hs2 H5 .  split; first done.
+      have Hszexp : (size (expand_eref_ft_pmap' (r1, o1) tomap [::]) =
+                     size (expand_eref_ft_pmap' (r2, o2) tomap [::])).
+      {
+        move : (connect_type_compatible_size _ _ _ _ H5) => Hsz.
+        by rewrite (size_expand_ref _ _ tomap t2 _ Hs2) (size_expand_ref _ _ tomap t1 _ Hd1).}
+      have Hall : (all is_expr_eid (expand_eref_ft_pmap' (r2, o2) tomap [::])).
+      by apply : all_is_expr_eid_exp_eref.
+      move : (rel_tomap_ct_next tomap ct0 vm0 ss0 vm1 ct1 H1 H6) => Hrelt1.
+      rewrite (epand_eref_ft_pamp_same r1 o1 _ _ _ _ H0 H) (epand_eref_ft_pamp_same r2 o2 _ _ _ _ H0 H) in H4, Hsemfc.
+      move : ( sem_expand_fcnct_lists (expand_eref_ft_pmap' (r1, o1) tomap [::]) (expand_eref_ft_pmap' (r2, o2) tomap [::]) HiFP.qnil vm1 ct1 tfmap ct_new tomap Hszexp H Hrelt1 Hall H4 Hsemfc) => Hallc.
+      rewrite -lock; apply Hallc.
+     - rewrite /type_ref/= H3 H5 Hd1 Hd2 H5 .  split; first done.
+      have Hszexp : (size (expand_eref_ft_pmap' (r1, o1) tomap [::]) =
+                     size (expand_eref_ft_pmap' (r2, o2) tomap [::])).
+      {
+        move : (connect_type_compatible_size _ _ _ _ H5) => Hsz.
+        by rewrite (size_expand_ref _ _ tomap t2 _ Hd2) (size_expand_ref _ _ tomap t1 _ Hd1).}
+      have Hall : (all is_expr_eid (expand_eref_ft_pmap' (r2, o2) tomap [::])).
+      by apply : all_is_expr_eid_exp_eref.
+      move : (rel_tomap_ct_next tomap ct0 vm0 ss0 vm1 ct1 H1 H6) => Hrelt1.
+      rewrite (epand_eref_ft_pamp_same r1 o1 _ _ _ _ H0 H) (epand_eref_ft_pamp_same r2 o2 _ _ _ _ H0 H) in H4, Hsemfc.
+      move : ( sem_expand_fcnct_lists (expand_eref_ft_pmap' (r1, o1) tomap [::]) (expand_eref_ft_pmap' (r2, o2) tomap [::]) HiFP.qnil vm1 ct1 tfmap ct_new tomap Hszexp H Hrelt1 Hall H4 Hsemfc) => Hallc.
+      rewrite -lock; apply Hallc.  
+Qed.      
 
+
+  Definition corresponding_tmap (tm : ft_pmap) := forall r o t, ft_find (r, o) tm = Some t.
+  
+  Definition corresponding_ftmap (tm : ft_flp_pmap) := forall r o t f s, ft_find (r, o) tm = Some (t,f,s).
+
+  Definition is_sfcnct (ss : HiFP.hfstmt) : bool :=
+    match ss with
+    | Sfcnct _ _ => true
+    | _ => false
+    end.
+  
+  Lemma all_is_sfcnct_vm_same :
+    forall ss1 ss2 tfmap l vm0 ct0 vm1 ct1 tomap,
+      Sem_frag_stmts vm0 ct0 (expand_fcnct ss1 ss2 tfmap l) vm1 ct1 tomap ->
+      CEP.Equal vm0 vm1.
+  Proof.
+  Admitted.
+
+    (* forall ct0 vm0 ct1 vm1 ct_new tmap tfmap tomap ss0 r1 o1 r2 o2 t1 t2 , *)
+    (*   rel_tfmap_tomap tfmap tomap -> *)
+    (*   rel_tmap_tfmap tmap tfmap -> *)
+    (*   rel_tomap_ct tomap ct0 -> *)
+    (*   ft_find (r1, o1) tmap = Some (t1) -> *)
+    (*   ft_find (r2, o2) tmap = Some (t2) -> *)
+    (*   expand_fcnct (expand_eref_ft_pmap (r1, o1) tmap [::]) (expand_eref_ft_pmap (r2, o2) tmap [::]) *)
+    (*     tfmap HiFP.qnil != HiFP.qnil -> *)
+    (*   connect_type_compatible true t1 t2 false -> *)
+    (*   Sem_frag_stmts vm0 ct0 ss0 vm1 ct1 tomap -> *)
+    (*   Sem_frag_stmts vm0 ct0 (expandconnects_stmt_ft_pmap (HiFP.sfcnct (HiFP.eid (r1, o1)) (HiFP.eref(HiFP.eid (r2, o2)))) tmap tfmap ss0) vm1 ct_new tomap -> *)
+  (*   Sem_frag_stmts vm0 ct0 (Qrcons ss0 (HiFP.sfcnct (HiFP.eid (r1, o1)) (HiFP.eref(HiFP.eid (r2, o2))))) vm1 ct_new tomap. *)
 
   
-  Definition corresponding_tmap (tm : ft_pmap) := forall r o t, ft_find (r, o) tm = Some t.
+  Lemma expand_connect_neq_nil :
+    forall s0 s1 h0 tmap tfmap,
+      expandconnects_stmt_ft_pmap (Sfcnct (Eid (var:=ProdVarOrder.T) (s0, s1)) h0) tmap
+        tfmap HiFP.qnil != HiFP.qnil->
+        expand_fcnct (expand_eref_ft_pmap (s0, s1) tfmap [::]) (expand_expr_ft_pmap h0 tfmap [::])
+          tfmap HiFP.qnil != HiFP.qnil.
+  Proof. Admitted.
 
+  Lemma expand_connect_hd_neq_nil :
+    forall h h0 tmap tfmap ,
+      expandconnects_stmt_seq_ft_pmap (Qcons h h0) tmap tfmap HiFP.qnil != HiFP.qnil -> expandconnects_stmt_ft_pmap h tmap tfmap HiFP.qnil != HiFP.qnil.
+  Proof.
+  Admitted.
+  
   Lemma expandConnects_sfcnct_correct :
   forall (h : ProdVarOrder.T) (h0 : hfexpr ProdVarOrder.T) 
     (ct0 : CEP.t def_expr) (vm0 : CEP.t vertex_type) (ct1 : CEP.t def_expr)
@@ -3774,11 +3962,35 @@ Lemma expandconnects_sfcnct_eideid_r1r2_atyp_t :
   corresponding_tmap tmap ->
   rel_tfmap_tomap tfmap tomap ->
   rel_tmap_tfmap tmap tfmap ->
+  rel_tomap_ct tomap ct0 ->
+  expand_fcnct (expand_eref_ft_pmap h tfmap [::])
+    (expand_expr_ft_pmap h0 tfmap [::]) tfmap HiFP.qnil  != HiFP.qnil ->
+  (expandconnects_stmt_ft_pmap (Sfcnct (Eid h) h0) tmap tfmap HiFP.qnil) != HiFP.qnil -> 
   Sem_frag_stmts vm0 ct0
     (expandconnects_stmt_ft_pmap (Sfcnct (Eid h) h0) tmap tfmap HiFP.qnil) vm1 ct1 tomap ->
   Sem_frag_stmt vm0 ct0 (Sfcnct (Eid h) h0) vm1 ct1 tomap.
-  Proof. Admitted.
+  Proof.
+    intro. case h => [r o].  intros. move : H4 H5. rewrite (lock Sem_frag_stmt) /=.
+    case Hfd1 : (ft_find (r, o) tfmap) => [[[t f] s]|]; last (move : (H1 (r,o) true true); rewrite (H r o (Gtyp (Fsint 1))) => Hsm; rewrite Hsm// in Hfd1). 
+    case Hfd2 : (type_of_hfexpr h0) => [t2|]; last (intro; rewrite sem_frag_stmt_qcons_qnil -lock//).
+    case Hcomp : (connect_type_compatible true t t2 false);
+      last (intro; rewrite sem_frag_stmt_qcons_qnil -lock//).
+    move : Hfd2. case Hexp2: h0 => [| | | | c h1 h2| | v2]; try (rewrite sem_frag_stmt_qcons_qnil -lock //).
+    intros. rewrite -lock -sem_frag_stmt_qrcons_qnil. move : (H1 (r, o) f s); rewrite Hfd1; case Hfd1':(ft_find (r, o) tmap) => [t'|]; last discriminate.
+    intro Hinj; injection Hinj => Heqt; rewrite -Heqt in Hfd1'.
+    apply (expandConnects_fcnct_eidemux_correct ct0 vm0 ct0 vm1 ct1 tmap tfmap tomap HiFP.qnil r o c h1 h2 t t2); try done.
+    rewrite /=.
+    rewrite (all_is_sfcnct_vm_same (expand_eref_ft_pmap (r, o) tfmap [::]) (expand_expr_ft_pmap (Emux c h1 h2) tfmap nil) tfmap HiFP.qnil vm0 ct0 vm1 ct1 tomap H5)//.
 
+    move : Hexp2.  case v2 => [[r2 o2]| | |]; try rewrite /=//. intros.
+    rewrite -lock -sem_frag_stmt_qrcons_qnil.
+    move : (H1 (r, o) f s); rewrite Hfd1; case Hfd1':(ft_find (r, o) tmap) => [t'|]; last discriminate.
+    intro Hinj; injection Hinj => Heqt; rewrite -Heqt in Hfd1'.
+    apply (expandConnects_fcnct_eideid_correct ct0 vm0 ct0 vm1 ct1 tmap tfmap tomap HiFP.qnil r o r2 o2 t t2); try done.
+    rewrite /=.
+    rewrite (all_is_sfcnct_vm_same (expand_eref_ft_pmap (r, o) tfmap [::]) (expand_expr_ft_pmap (Eref (Eid (var:=ProdVarOrder.T) (r2, o2))) tfmap nil) tfmap HiFP.qnil vm0 ct0 vm1 ct1 tomap H5)//.
+    rewrite /= in Hfd2. rewrite /= Hfd1 Hfd2 Hcomp//.
+  Qed.
                 
   Lemma expandConnects_sreg_correct :
     forall (s : ProdVarOrder.T) (h : hfreg ProdVarOrder.T) (ct0 : CEP.t def_expr)
@@ -3812,89 +4024,185 @@ Lemma expandconnects_sfcnct_eideid_r1r2_atyp_t :
   Sem_frag_stmts vm0 ct0
     (expandconnects_stmt_ft_pmap (Sinvalid (Eid h)) tmap tfmap HiFP.qnil) vm1 ct1 tomap ->
   Sem_frag_stmt vm0 ct0 (Sinvalid (Eid h)) vm1 ct1 tomap.
-      Proof. Admitted.
+    Proof. Admitted.
 
-  
+    Definition is_swire (s : HiFP.hfstmt) := match s with Swire _ _ => true | _ => false end.
+    
+    Lemma expand_wire_neq_nil :
+      forall r o t n sz tmap ,
+        (* all is_swire (hfstmt_seq_to_seq (expand_wire_aux (r, o) (size (ftype_list_all t [::])) n tmap HiFP.qnil) nil). *)
+        ft_find (r,o) tmap = Some t ->
+        expand_wire_aux (r, o) n sz tmap HiFP.qnil != HiFP.qnil.
+    Proof.
+    Admitted.
+
+    Lemma expandConnects_swire_aux_correct :
+      forall n sz ct0 vm0 ct1 vm1 tmap tfmap tomap r o t  ,
+        rel_tfmap_tomap tfmap tomap ->
+        rel_tmap_tfmap tmap tfmap ->
+        corresponding_tmap tmap ->
+        (expand_wire_aux (r, o) n sz tfmap HiFP.qnil) != HiFP.qnil ->
+        (* Sem_frag_stmts vm0 ct0 ss0 vm1 ct1 tomap -> *)
+        Sem_frag_stmts vm0 ct0 (expand_wire_aux (r, o) n sz tfmap HiFP.qnil) vm1 ct1 tomap ->
+        Sem_frag_stmt vm0 ct0 (HiFP.swire (r, o) t) vm1 ct1 tomap.
+      Proof.
+        elim; first discriminate.
+        intros. move : H4.
+        rewrite (lock Sem_frag_stmt)/=.
+        move : (H1 (r,o) true false).
+        move : (H2 r o t) => Hrot.
+        rewrite Hrot => Hftm.
+        move : (H0 (r,o)). rewrite Hftm. move => [Hs|Hs].
+        (* case Hts : (ft_find (r, (o + N.of_nat sz)%num) tfmap) => [[[ts fs] ss]|]; last (move : (H1 (r, (o + N.of_nat sz)%num) true true) => Hsm; rewrite (H2 r (o + N.of_nat sz)%num t) in Hsm; rewrite Hsm //in Hts). *)
+        move : (H1 (r,(o + N.of_nat sz)%num) true false).
+        move : (H2 r (o + N.of_nat sz)%num t) => Hrotn.
+        rewrite Hrotn => Hftmn.  rewrite Hftmn.
+        case Hgt: (is_gtyp t). rewrite expand_wire_cat_aux.
+        rewrite /= . move => [vm' [ct' Haux]]. 
+        (* move : (Haux vm0 ct0) => Haux1. move : (Haux vm1 ct1) => Haux2. *)
+        (* move : (H1 (r,(o + N.of_nat sz)%num) true false). rewrite Hts => Hftmts. *)
+        (* move : (H0 (r,(o + N.of_nat sz)%num)). rewrite Hts.  move => [[Hsts | Hdts]]. *)
+        move: (H0 (r, (o + N.of_nat sz)%num)). rewrite Hftmn => [[Hsts | Hdts]].
+        rewrite Hsts/= in Haux. move : Haux => [[Hssw1 Hct01 ]Hsemsz1].
+        (* rewrite Hsts in Haux2. move : Haux2 => [[Hssw2 Hct02 ]Hsemsz2]. *)
+        move : (expand_wire_neq_nil r o (t,true,false) n sz.+1 tfmap Hftm) => Hnil.
+        rewrite -lock. move : (H sz.+1 ct' vm' ct1 vm1 tmap tfmap tomap r o t H0 H1 H2 Hnil Hsemsz1).
+        rewrite /= Hs => [[Hsw Hft]]. split; first done. intros; rewrite (Hct01 v0 n0) (Hft v0 n0)//.
+        rewrite Hdts in Haux. move : Haux => [[Hssw1 Hct01 ]Hsemsz1].
+        (* rewrite Hdts in Haux2. move : Haux2 => [[Hssw2 Hct02 ]Hsemsz2]. *)
+        move : (expand_wire_neq_nil r o (t,true,false) n sz.+1 tfmap Hftm) => Hnil.
+        rewrite -lock. move : (H sz.+1 ct' vm' ct1 vm1 tmap tfmap tomap r o t H0 H1 H2 Hnil Hsemsz1).
+        rewrite /= Hs => [[Hsw Hft]]. split; first done. intros; rewrite (Hct01 v0 n0) (Hft v0 n0)//.
+        move : (expand_wire_neq_nil r o (t,true,false) n sz.+1 tfmap Hftm) => Hnil.
+        rewrite -lock. exact : (H sz.+1 ct0 vm0 ct1 vm1 tmap tfmap tomap r o t H0 H1 H2 Hnil ).
+        (* case Hts : (ft_find (r, (o + N.of_nat sz)%num) tmap) => [ts|]; last rewrite (H2 r (o + N.of_nat sz)%num t)// in Hts. *)
+
+        move : (H1 (r,(o + N.of_nat sz)%num) true false).
+        move : (H2 r (o + N.of_nat sz)%num t) => Hrotn.
+        rewrite Hrotn => Hftmn.  rewrite Hftmn.
+        case Hgt: (is_gtyp t).
+        rewrite expand_wire_cat_aux.
+        rewrite /= . move => [vm' [ct' Haux]]. (* move : (Haux vm0 ct0) => Haux1. move : (Haux vm1 ct1) => Haux2. *)
+        move: (H0 (r, (o + N.of_nat sz)%num)). rewrite Hftmn => [[Hsts | Hdts]].
+        rewrite Hsts in Haux. move : Haux => [[Hssw1 Hct01 ]Hsemsz1].
+        move : (expand_wire_neq_nil r o (t,true,false) n sz.+1 tfmap Hftm) => Hnil.
+        rewrite -lock. move : (H sz.+1 ct' vm' ct1 vm1 tmap tfmap tomap r o t H0 H1 H2 Hnil Hsemsz1).
+        rewrite /= Hs => [[Hsw Hft]]. split; first done. intros; rewrite (Hct01 v0 n0) (Hft v0 n0)//.
+        rewrite Hdts in Haux. move : Haux => [[Hssw1 Hct01 ]Hsemsz1].
+        move : (expand_wire_neq_nil r o (t,true,false) n sz.+1 tfmap Hftm) => Hnil.
+        rewrite -lock. move : (H sz.+1 ct' vm' ct1 vm1 tmap tfmap tomap r o t H0 H1 H2 Hnil Hsemsz1).
+        rewrite /= Hs => [[Hsw Hft]]. split; first done. intros; rewrite (Hct01 v0 n0) (Hft v0 n0)//.
+        move : (expand_wire_neq_nil r o (t,true,false) n sz.+1 tfmap Hftm) => Hnil.
+        rewrite -lock. exact : (H sz.+1 ct0 vm0 ct1 vm1 tmap tfmap tomap r o t H0 H1 H2 Hnil ).
+      Qed.
+        
   Lemma expandConnects_swire_correct :
     forall ct0 vm0 ct1 vm1 tmap tfmap tomap r o t ,
       rel_tfmap_tomap tfmap tomap ->
       rel_tmap_tfmap tmap tfmap ->
-      ft_find (r, o) tmap = Some (t) ->
+      corresponding_tmap tmap ->
+      (expandconnects_stmt_ft_pmap (HiFP.swire (r, o) t) tmap tfmap HiFP.qnil) != HiFP.qnil ->
       (* Sem_frag_stmts vm0 ct0 ss0 vm1 ct1 tomap -> *)
       Sem_frag_stmts vm0 ct0 (expandconnects_stmt_ft_pmap (HiFP.swire (r, o) t) tmap tfmap HiFP.qnil) vm1 ct1 tomap ->
       Sem_frag_stmt vm0 ct0 (HiFP.swire (r, o) t) vm1 ct1 tomap.
   Proof.
-    intros. move : H2. 
-    (* rewrite (sem_frag_stmts_qcat vm0 ct0 vm1 ct1 vm1 ct1 tomap ss0 _). move  => [_ Hsw].  *)
-    (* rewrite  (sem_frag_stmts_qrcons vm0 ct0 vm1 ct1 vm1 ct1 tomap ss0 _). *)
-    (* split; first done. *)
-    rewrite/= /expand_wire.  move : (H0 (r,o) true false). rewrite H1 => Hftm.
-    move : (H (r,o)). rewrite Hftm. move => [Hs|Hd]. rewrite Hs.
-    move : H1 Hftm Hs.
-    case Ht : t =>[gt|gt n|].
-    rewrite /= N.add_0_r. 
-    move => H1 Hftm Hs.  rewrite H1 (lock Sem_frag_stmts)/=-lock. 
-    rewrite sem_frag_stmt_qcons_qnil/= Hs/=. done.
-    move => H1 Hftm Hs. 
-    apply : expandconnects_swire_atyp.
-    move => H1 Hftm Hs. apply : expandconnects_swire_btyp.
-    rewrite Hd.
-    move : H1 Hftm Hd.
-    case Ht : t =>[gt|gt n|].
-    rewrite /= N.add_0_r. 
-    move => H1 Hftm Hs.  rewrite H1 (lock Sem_frag_stmts)/=-lock. 
-    rewrite sem_frag_stmt_qcons_qnil/= Hs/=. done.
-    move => H1 Hftm Hs. 
-    apply : expandconnects_swire_atyp.
-    move => H1 Hftm Hs. apply : expandconnects_swire_btyp.
+    intros.  
+    move : H3. rewrite (lock Sem_frag_stmt) /=/expand_wire. move => H3.
+    rewrite -lock . apply expandConnects_swire_aux_correct  with (size (ftype_list_all t [::])) 0 tmap tfmap; try done.
   Qed.
+
 
   Lemma expandConnects_correct :
     forall s ct0 vm0 ct1 vm1 tmap tfmap tomap ,
       corresponding_tmap tmap ->
       rel_tfmap_tomap tfmap tomap ->
       rel_tmap_tfmap tmap tfmap ->
+      rel_tomap_ct tomap ct0 ->
+      (expandconnects_stmt_ft_pmap s tmap tfmap HiFP.qnil) != HiFP.qnil ->
       (* Sem_frag_stmts vm0 ct0 ss0 vm1 ct1 tomap -> *)
       Sem_frag_stmts vm0 ct0 (expandconnects_stmt_ft_pmap s tmap tfmap HiFP.qnil) vm1 ct1 tomap ->
       Sem_frag_stmt vm0 ct0 s vm1 ct1 tomap
     with  expandConnects_seq_correct :
       forall ss ct0 vm0 ct1 vm1 tmap tfmap tomap ,
+      corresponding_tmap tmap ->
       rel_tfmap_tomap tfmap tomap ->
       rel_tmap_tfmap tmap tfmap ->
+      rel_tomap_ct tomap ct0 ->
+      expandconnects_stmt_seq_ft_pmap ss tmap tfmap HiFP.qnil  != HiFP.qnil ->
       (* Sem_frag_stmts vm0 ct0 ss0 vm1 ct1 tomap -> *)
       Sem_frag_stmts vm0 ct0 (expandconnects_stmt_seq_ft_pmap ss tmap tfmap HiFP.qnil) vm1 ct1 tomap ->
       Sem_frag_stmts vm0 ct0 ss vm1 ct1 tomap.
   Proof.
     elim.
-    - intros. move : (ExpandConnects_skip_correct vm0 ct0 vm1 ct1 tmap tfmap tomap HiFP.qnil H2).
+    - intros. move : (ExpandConnects_skip_correct vm0 ct0 vm1 ct1 tmap tfmap tomap HiFP.qnil H4).
       rewrite sem_frag_stmt_qcons_qnil//.
-    - intros. move : H2.
+    - intros. move : H4.
       case s => [r o].
+      rewrite (lock Sem_frag_stmt)/=/expand_wire.
+      move : (H1 (r, o) true false). rewrite (H r o f) => Hftm.
+      move : (expand_wire_neq_nil r o (f,true,false) (size (ftype_list_all f [::])) 0 tfmap Hftm) => Hnil.
+      rewrite -lock.
       apply (expandConnects_swire_correct ct0 vm0 ct1 vm1 tmap tfmap tomap r o f); try done.
-    - intros. move : H2.
+    - intros. move : H4.
       case s => [r o].
       apply (expandConnects_sreg_correct (r, o) h ct0 vm0 ct1 vm1 tmap tfmap tomap); try done.
-    - intros. move : (expandConnects_smem_correct s h ct0 vm0 ct1 vm1 tmap tfmap tomap HiFP.qnil H2).
+    - intros. move : (expandConnects_smem_correct s h ct0 vm0 ct1 vm1 tmap tfmap tomap HiFP.qnil H4).
       rewrite sem_frag_stmt_qcons_qnil//.
-    - intros. move : (expandConnects_sinst_correct s s0 ct0 vm0 ct1 vm1 tmap tfmap tomap HiFP.qnil H2).
+    - intros. move : (expandConnects_sinst_correct s s0 ct0 vm0 ct1 vm1 tmap tfmap tomap HiFP.qnil H4).
       rewrite sem_frag_stmt_qcons_qnil//.
-    - intros. move : H2.
+    - intros. move : H4.
       case s => [r o].
       apply (expandConnects_snode_correct (r, o) h ct0 vm0 ct1 vm1 tmap tfmap tomap); try done.
-    - intros. move : H2. case h. intros. move : H2. case s. intros.
+    - intros. move : H3 H4. case h. intros. move : H3 H4. case s. intros.
       apply (expandConnects_sfcnct_correct (s0, s1) h0 ct0 vm0 ct1 vm1 tmap tfmap tomap); try done.
-      + admit. + admit. admit.
+      by apply expand_connect_neq_nil with tmap.
+      (* no other kinds of ids*)
+      + rewrite /=; move => _ _ _ Haux; by move : Haux => [vm' [ct' [Hf _]]].
+        rewrite /=; move => _ _ _ Haux; by move : Haux => [vm' [ct' [Hf _]]].
+        rewrite /=; move => _ _ _ Haux; by move : Haux => [vm' [ct' [Hf _]]].
     - elim. intros.
       apply (expandConnects_sinvalid_correct s ct0 vm0 ct1 vm1 tmap tfmap tomap); try done.
-      + admit. + admit. +admit.
-    - admit.
-
+      (* no other kind of ids*)
+      + rewrite /=; intros; by move : H5 => [vm' [ct' [Hf _]]].
+      + rewrite /=; intros; by move : H5 => [vm' [ct' [Hf _]]].
+      + rewrite /=; intros; by move : H5 => [vm' [ct' [Hf _]]].
+    - done.
       elim.
       intros. move : H1. rewrite /=//. 
-      intros. move : H2. rewrite /=.
-      rewrite expandconnects_stmt_cat.
-  Admitted.
-      
+      intros. move : H5.
+      rewrite (lock Sem_frag_stmts) /= expandconnects_stmt_seq_cat -lock. 
+      rewrite (sem_frag_stmts_qcat vm0 ct0 vm1 ct1).
+      move => [Hsemhd Hsemtl].
+      rewrite /=. 
+      exists vm1, ct1. split.
+      apply expandConnects_correct with tmap tfmap; try done.
+      by apply expand_connect_hd_neq_nil with h0.
+      apply H with tmap tfmap; try done.
+      exact : (rel_tomap_ct_next tomap ct0 vm0 (expandconnects_stmt_ft_pmap h tmap tfmap HiFP.qnil)  vm1 ct1 H3 Hsemhd) => Hrelt1.
+      by move : (expandconnects_stmt_qcons_neq_qnil h h0 tmap tfmap HiFP.qnil H4) =>[Hhd Htl].
+  Qed.
+
+    (* Lemma expandConnects_Finmod_correct : *)
+    (* forall n p s ct0 vm0 ct1 vm1 tmap tfmap tomap , *)
+    (*   corresponding_tmap tmap -> *)
+    (*   rel_tfmap_tomap tfmap tomap -> *)
+    (*   rel_tmap_tfmap tmap tfmap -> *)
+    (*   rel_tomap_ct tomap ct0 -> *)
+    (*   (expandconnects_stmt_seq_ft_pmap s tmap tfmap HiFP.qnil) != HiFP.qnil -> *)
+    (*   Sem (expandconnects_fmodule (FInmod n p s) tmap )  vm0 vm1 ct0 ct1 tomap -> *)
+    (*   Sem (FInmod n p s)  vm0 vm1 ct0 ct1 tomap. *)
+    (* Proof. *)
+    (*   intros. move : H4. rewrite /=. *)
+    (*   case (expand_ports p [::] *)
+    (*           (rcd_flip_sts s tmap (rcd_flip_ps p tmap ft_flp_pmap_empty))) => [exp mt']. *)
+    (*   rewrite /=. intro. *)
+    (*   move : (rel_tomap_ct_next tomap ct1 vm1 (expandconnects_stmt_seq_ft_pmap s *)
+    (*       (rcd_pmap_sts s tmap (rcd_pmap_ps p tmap ft_pmap_empty)) mt' HiFP.qnil) vm0 ct0 H2 H4) => Hnxt. *)
+    (*   move : (rel_tomap_ct_next tomap ct1 vm1 (expandconnects_stmt_seq_ft_pmap s *)
+    (*    (rcd_pmap_sts s tmap (rcd_pmap_ps p tmap ft_pmap_empty)) mt' *)
+    (*    HiFP.qnil) vm0 ct0) => Hrelt1. *)
+    (*   intro. apply expandConnects_seq_correct with tmap tfmap; try done. *)
+  
 (* Print ftype_explicit. Print ftype_not_implicit_width. *)
 (*   Lemma ExpandConnects_fcnct_eidemux_correct : *)
 (*     forall ct0 vm0 ct1 vm_new ct_new tmap tfmap ss0 r1 o1 ec e1 e2 et1 et2, *)
