@@ -27,7 +27,8 @@ Section HiFirrtl.
   | Eprim_unop : eunop -> hfexpr -> hfexpr
   | Eprim_binop : ebinop -> hfexpr -> hfexpr -> hfexpr
   | Emux : hfexpr -> hfexpr -> hfexpr -> hfexpr
-  | Evalidif : hfexpr -> hfexpr -> hfexpr
+  | Evalidif : hfexpr -> hfexpr -> hfexpr (* This is no longer part of the HiFIRRTL standard, but we leave it because removing it would break some proofs;
+                                             changing the proofs would be simple but it is not important. *)
   | Eref : href -> hfexpr
   with href : Type :=
   | Eid : var -> href
