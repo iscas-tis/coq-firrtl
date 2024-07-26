@@ -34,20 +34,20 @@ Inductive vertex_type :=
    Wire : fgtyp -> vertex_type |
    (*memory : ?
    inst : ?*)
-   Node : fgtyp -> vertex_type.
+   Node : fgtyp -> HiFP.hfexpr -> vertex_type.
 
 (* equality of vertex_type is decidable *)
 Lemma vertex_type_eq_dec : forall {x y : vertex_type}, {x = y} + {x <> y}.
-Proof.  decide equality ; try apply fgtyp_eq_dec. decide equality. apply rst_eq_dec. apply hfexpr_eq_dec. Qed.
+Proof.  decide equality ; try apply fgtyp_eq_dec. decide equality. apply rst_eq_dec. all: apply hfexpr_eq_dec. Qed.
 Definition vertex_type_eqn (x y : vertex_type) : bool :=
 match x, y with
 | OutPort tx, OutPort ty
 | InPort tx, InPort ty
 (*| Reference a, Reference b*)
-| Wire tx, Wire ty
+| Wire tx, Wire ty => tx == ty
 (*memory : ?
 inst : ?*)
-| Node tx, Node ty => tx == ty
+| Node tx ex, Node ty ey => (tx == ty) && (ex == ey)
 | Register tx cx rx bx, Register ty cy ry by_ =>
     (tx == ty) && (cx == cy) && (rx == ry) && (bx == by_)
 | _, _ => false
@@ -66,17 +66,18 @@ case: (@vertex_type_eq_dec x y) => H.
     destruct (b == b0) eqn: Hb ;
     last (by rewrite andbF ; apply ReflectF ; exact H) ;
     rewrite andbT ;
+    move /eqP : Hb => Hb ;
     destruct (r == r0) eqn: Hr ;
     last (by rewrite andbF ; apply ReflectF ; exact H) ;
     rewrite andbT ;
+    move /eqP : Hr => Hr ;
+    subst b0 r0.
+  + 3,5:
     destruct (h == h0) eqn: Hh ;
     last (by rewrite andbF ; apply ReflectF ; exact H) ;
     rewrite andbT ;
-    destruct (f == f0) eqn: Hf ;
-    last (by apply ReflectF ; exact H) ;
-    apply ReflectT ; move /eqP : Hb => Hb ; move /eqP : Hr => Hr ;
-    move /eqP : Hh => Hh ; move /eqP: Hf => Hf ;
-    rewrite Hb Hr Hh Hf //.
+    move /eqP : Hh => Hh ;
+    subst h0.
   + all:
     assert (f <> f0) by (contradict H ; rewrite H ; reflexivity) ;
     move /eqP : H0 => H0 ; apply negbTE in H0 ;
@@ -436,6 +437,20 @@ Definition ftype_mux (x : ftype_explicit) (y : ftype_explicit) : option ftype_ex
    Similar to mux_types in InferWidths *)
    ftype_mux' (proj1_sig x) (proj2_sig x) (proj1_sig y) (proj2_sig y).
 
+Fixpoint ftype_is_passive (ft : ftype) : bool :=
+(* returns true if ft is a passive type *)
+match ft with
+| Gtyp _ => true
+| Atyp ft' _ => ftype_is_passive ft'
+| Btyp ff => ffield_is_passive ff
+end
+with ffield_is_passive (ff : ffield) : bool :=
+match ff with
+| Fnil => true
+| Fflips _ Nflip ft' ff' => ftype_is_passive ft' && ffield_is_passive ff'
+| Fflips _ Flipped _ _ => false
+end.
+
 Fixpoint type_of_expr (expr : HiFP.hfexpr) (tmap: CEP.t (ftype * HiF.forient)) : option ftype_explicit :=
    (* Find the type of expression expr for reading.
 
@@ -448,7 +463,9 @@ Fixpoint type_of_expr (expr : HiFP.hfexpr) (tmap: CEP.t (ftype * HiF.forient)) :
                     end
    | Eref r => match type_of_ref r tmap with
                | Some (t, HiF.Source)
-               | Some (t, HiF.Duplex) => Some (make_ftype_explicit t)
+               | Some (t, HiF.Duplex) =>
+                   if ftype_is_passive t then Some (make_ftype_explicit t)
+                                         else None
                | _ => None
                end
    | Ecast AsUInt e1 => match type_of_expr e1 tmap with
@@ -631,7 +648,7 @@ match code_t with
     | Some (InPort newgt)
     | Some (Register newgt _ _ _)
     | Some (Wire newgt)
-    | Some (Node newgt) =>
+    | Some (Node newgt _) =>
         if code_vm_type_equivalent oldgt newgt
         then Some (Gtyp newgt, bin_of_nat (snd v + 1))
         else None
@@ -1286,7 +1303,7 @@ induction expr ; simpl ; try trivial.
 * apply type_of_ref_submap with (ref := h) in H.
   destruct (type_of_ref h tmap1) ; try by trivial.
   rewrite H.
-  destruct p as [t []] ; by reflexivity.
+  destruct p as [t []], (ftype_is_passive t) ; by trivial.
 Qed.
 
 Lemma type_of_expr_Equal : forall (expr : HiFP.hfexpr) (tmap1 tmap2 : CEP.t (ftype * HiF.forient)),
@@ -2110,7 +2127,7 @@ forall (v : CEP.key),
     match CEP.find v vm with
     | None
     | Some (InPort _)
-    | Some (Node _) => CEP.find v ct = None
+    | Some (Node _ _) => CEP.find v ct = None
     | _ => CEP.find v ct <> None
     end.
 
@@ -2128,11 +2145,11 @@ forall (ft : ftype)
                | Foutput v _ =>
                    forall (n0 : N), n0 >= snd v -> n0 < (size_of_ftype ft) + (snd v) ->
                        match CEP.find (fst v, n0) vm_old with
-                       | None | Some (InPort _) | Some (Node _) => CEP.find (fst v, n0) ct_old = None
+                       | None | Some (InPort _) | Some (Node _ _) => CEP.find (fst v, n0) ct_old = None
                        | _ => CEP.find (fst v, n0) ct_old <> None
                        end ->
                            match CEP.find (fst v, n0) vm_new with
-                           | None | Some (InPort _) | Some (Node _) => CEP.find (fst v, n0) ct_new = None
+                           | None | Some (InPort _) | Some (Node _ _) => CEP.find (fst v, n0) ct_new = None
                            | _ => CEP.find (fst v, n0) ct_new <> None
                            end
                end
@@ -2147,11 +2164,11 @@ forall (ff : ffield)
                | Foutput v _ =>
                    forall (n0 : N), n0 >= snd v -> n0 < (size_of_fields ff) + (snd v) ->
                        match CEP.find (fst v, n0) vm_old with
-                       | None | Some (InPort _) | Some (Node _) => CEP.find (fst v, n0) ct_old = None
+                       | None | Some (InPort _) | Some (Node _ _) => CEP.find (fst v, n0) ct_old = None
                        | _ => CEP.find (fst v, n0) ct_old <> None
                        end ->
                            match CEP.find (fst v, n0) vm_new with
-                           | None | Some (InPort _) | Some (Node _) => CEP.find (fst v, n0) ct_new = None
+                           | None | Some (InPort _) | Some (Node _ _) => CEP.find (fst v, n0) ct_new = None
                            | _ => CEP.find (fst v, n0) ct_new <> None
                            end
                end.
@@ -3186,20 +3203,6 @@ Proof.
       ori ct_new1 ct_new2) //.
 Qed.
 
-Fixpoint ftype_is_passive (ft : ftype) : bool :=
-(* returns true if ft is a passive type *)
-match ft with
-| Gtyp _ => true
-| Atyp ft' _ => ftype_is_passive ft'
-| Btyp ff => ffield_is_passive ff
-end
-with ffield_is_passive (ff : ffield) : bool :=
-match ff with
-| Fnil => true
-| Fflips _ Nflip ft' ff' => ftype_is_passive ft' && ffield_is_passive ff'
-| Fflips _ Flipped _ _ => false
-end.
-
 Definition Swhen_map2_helper (cond : HiFP.hfexpr) (d_true d_false : option def_expr) : option def_expr :=
 match d_true, d_false with
 | Some (D_fexpr expr_true), Some (D_fexpr expr_false) =>
@@ -3399,14 +3402,19 @@ Fixpoint Sem_frag_stmt (vm_old : CEP.t vertex_type) (ct_old : CEP.t def_expr) (s
    | Snode v expr =>
        match type_of_expr expr tmap with
        | Some (exist newft _) => (* (fst v, N0), ... all have changed *)
-              (* ground-type nodes are defined *)
-              (forall n : nat,
-                   match List.nth_error (list_rhs_type_p newft) n with
-                   | Some gt =>
-                          CEP.find (fst v, bin_of_nat (n + snd v)) vm_old = None
-                       /\ CEP.find (fst v, bin_of_nat (n + snd v)) vm_new = Some (Node gt)
-                   | None => True
-                   end)
+              match list_rhs_expr_p expr newft with
+              | Some expr_list =>
+                  (* ground-type nodes are defined *)
+                  (forall n : nat,
+                       match List.nth_error (list_rhs_type_p newft) n, List.nth_error expr_list n with
+                       | Some gt, Some expr_elt =>
+                              CEP.find (fst v, bin_of_nat (n + snd v)) vm_old = None
+                           /\ CEP.find (fst v, bin_of_nat (n + snd v)) vm_new = Some (Node gt expr_elt)
+                       | None, None => True
+                       | _, _ => False
+                       end)
+              | None => False
+              end
            /\ (* other vertices do not change *)
               (forall (v0 n0 : N), v0 <> fst v \/ n0 < snd v \/ n0 >= size_of_ftype newft + snd v ->
                    CEP.find (v0, n0) vm_old =
@@ -3557,8 +3565,10 @@ Proof.
     clear tmap1 tmap2 H3.
     split.
     - destruct H4 as [H4 _].
+      destruct (list_rhs_expr_p expr newft) as [expr_list|] ; last by contradiction H4.
       intro ; specialize (H4 n).
       destruct (List.nth_error (list_rhs_type_p newft) n) ; last by trivial.
+      destruct (List.nth_error expr_list n) ; last by contradiction H4.
       by rewrite -H -H1 ; exact H4.
     destruct H4 as [_ H4] ; split.
     - destruct H4 as [H4 _].
@@ -3870,7 +3880,9 @@ Proof.
     2: by destruct (CEP.find k ct_old) ; done.
     3: by apply H0.
     1-3: destruct H as [Hvm [_ Hct]].
-    1-3: generalize (list_rhs_type_p_size newft) ; intro.
+    1-3: generalize (list_rhs_expr_p_size newft h) ; intro H1.
+    1-3: destruct (list_rhs_expr_p h newft) as [expr_list|] ; last by contradiction Hvm.
+    1-3: generalize (list_rhs_type_p_size newft) ; intro H.
     1-3: specialize (Hvm (snd k - snd s)).
     1-3: apply negbT in Hsnd_small.
     1-3: rewrite -leqNgt in Hsnd_small.
@@ -3878,8 +3890,11 @@ Proof.
     1-3: rewrite -ltnNge addnC -ltn_subLR // -H in Hsnd_large.
     (*specialize (Hct Hsnd_large).*)
     1-3: move /ltP : Hsnd_large => Hsnd_large.
-    1-3: generalize (proj2 (List.nth_error_Some (list_rhs_type_p newft) (snd k - snd s)) Hsnd_large) ; intro.
-    1-3: destruct (List.nth_error (list_rhs_type_p newft) (snd k - snd s)) ; last by done.
+    1-3: generalize (proj2 (List.nth_error_Some (list_rhs_type_p newft) (snd k - snd s)) Hsnd_large) ; intro H2.
+    1-3: destruct (List.nth_error (list_rhs_type_p newft) (snd k - snd s)) ; last (by contradiction H2) ; clear H2.
+    1-3: rewrite H -H1 in Hsnd_large.
+    1-3: generalize (proj2 (List.nth_error_Some expr_list (snd k - snd s)) Hsnd_large) ; intro H2.
+    1-3: destruct (List.nth_error expr_list (snd k - snd s)) ; last (by contradiction H2) ; clear H2.
     1-3: rewrite -Hfst subnK // nat_of_binK -surjective_pairing in Hvm.
     - by rewrite (proj1 Hvm) //.
     - by rewrite Hct ; destruct (CEP.find k ct_new) ; done.
