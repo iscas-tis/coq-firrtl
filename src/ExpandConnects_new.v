@@ -18,20 +18,20 @@ Inductive vertex_type :=
    Wire : fgtyp -> vertex_type |
    (*memory : ?
    inst : ?*)
-   Node : fgtyp -> vertex_type.
+   Node : fgtyp -> HiFP.hfexpr -> vertex_type.
 
 (* equality of vertex_type is decidable *)
 Lemma vertex_type_eq_dec : forall {x y : vertex_type}, {x = y} + {x <> y}.
-Proof.  decide equality ; try apply fgtyp_eq_dec. decide equality. apply rst_eq_dec. apply hfexpr_eq_dec. Qed.
+Proof.  decide equality ; try apply fgtyp_eq_dec. decide equality. apply rst_eq_dec. apply hfexpr_eq_dec. apply hfexpr_eq_dec. Qed.
 Definition vertex_type_eqn (x y : vertex_type) : bool :=
 match x, y with
 | OutPort tx, OutPort ty
 | InPort tx, InPort ty
 (*| Reference a, Reference b*)
-| Wire tx, Wire ty
+| Wire tx, Wire ty => (tx == ty)
 (*memory : ?
 inst : ?*)
-| Node tx, Node ty => tx == ty
+| Node tx cx, Node ty cy => (tx == ty) && (cx == cy)
 | Register tx cx rx bx, Register ty cy ry by_ =>
     (tx == ty) && (cx == cy) && (rx == ry) && (bx == by_)
 | _, _ => false
@@ -60,7 +60,11 @@ case: (@vertex_type_eq_dec x y) => H.
     last (by apply ReflectF ; exact H) ;
     apply ReflectT ; move /eqP : Hb => Hb ; move /eqP : Hr => Hr ;
     move /eqP : Hh => Hh ; move /eqP: Hf => Hf ;
-    rewrite Hb Hr Hh Hf //.
+                                            rewrite Hb Hr Hh Hf //.
+  + 4:
+    destruct (h == h0)eqn: Hb ;
+    last (by rewrite andbF ; apply ReflectF ; exact H); rewrite andbT ; 
+    move /eqP: Hb => Hb ; rewrite Hb // in H *.
   + all:
     assert (f <> f0) by (contradict H ; rewrite H ; reflexivity) ;
     move /eqP : H0 => H0 ; apply negbTE in H0 ;
@@ -412,8 +416,11 @@ match code_t with
     | Some (OutPort newgt)
     | Some (InPort newgt)
     | Some (Register newgt _ _ _)
-    | Some (Wire newgt)
-    | Some (Node newgt) =>
+    | Some (Wire newgt) =>
+        if code_vm_type_equivalent oldgt newgt
+        then Some (Gtyp newgt, bin_of_nat (snd v + 1))
+        else None
+    | Some (Node newgt newgex) =>
         if code_vm_type_equivalent oldgt newgt
         then Some (Gtyp newgt, bin_of_nat (snd v + 1))
         else None
@@ -883,7 +890,7 @@ forall (v : CEP.key),
     match CEP.find v vm with
     | None
     | Some (InPort _)
-    | Some (Node _) => CEP.find v ct = None
+    | Some (Node _ _) => CEP.find v ct = None
     | _ => CEP.find v ct <> None
     end.
 
@@ -1389,15 +1396,22 @@ Fixpoint Sem_frag_stmt (vm_old : CEP.t vertex_type) (ct_old : CEP.t def_expr) (s
    | Snode v expr =>
        match type_of_expr expr tmap with
        | Some (exist newft _) => (* (fst v, N0), ... all have changed *)
-              (* ground-type nodes are defined *)
-              (forall n : nat,
-                   match List.nth_error (ftype_list_all newft nil) n with
-                   | Some (Gtyp gt) =>
-                          CEP.find (fst v, bin_of_nat (n + snd v)) vm_old = None
-                       /\ CEP.find (fst v, bin_of_nat (n + snd v)) vm_new = Some (Node gt)
-                   | Some _ => True
-                   | None => True
-                   end)
+           (* ground-type nodes are defined *)
+           match type_of_expr expr tmap with
+              | Some (exist ft_expr _) =>
+                  match list_rhs_expr_p expr ft_expr with 
+                     | Some expr_list =>
+                         (forall n : nat,
+                             match List.nth_error (ftype_list_all newft nil) n, List.nth_error expr_list n with
+                             | Some (Gtyp gt), Some gex =>
+                                 CEP.find (fst v, bin_of_nat (n + snd v)) vm_old = None
+                                 /\ CEP.find (fst v, bin_of_nat (n + snd v)) vm_new = Some (Node gt gex)
+                             | _, _ => True
+                             end)
+                  | _ => True
+                  end
+           | _ => True
+           end
            /\ (* other vertices do not change *)
               (forall (v0 n0 : N), v0 <> fst v \/ n0 < snd v \/ n0 >= size (ftype_list_all newft nil) + snd v ->
                    CEP.find (v0, n0) vm_old =
