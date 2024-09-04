@@ -24,8 +24,7 @@ src/Extract.v
 src/HiEnv.v
 src/HiFirrtl.v
 src/TopoSort.v
-src/ModuleGraph_simplified.v
-src/InferWidth_rewritten.v 
-src/ExpandWhens_rewritten.v 
+src/ModuleGraph_oriented.v
+src/InferWidth_new.v 
+src/ExpandWhens.v 
 src/ExpandConnects_new.v
-src/Transform.v

@@ -348,7 +348,7 @@ Qed.
    the ports and statements in the module.  Note that the module graph might
    contain different widths for implicit-width components. *)
 
-Fixpoint type_of_ffield (v : VarOrder.T) (ff : ffield) (ori : HiF.forient) : option (ftype * HiF.forient) :=
+(*Fixpoint type_of_ffield (v : VarOrder.T) (ff : ffield) (ori : HiF.forient) : option (ftype * HiF.forient) :=
 (* Find the type of field v in bundle type (Btyp ff). *)
 match ff with
 | Fnil => None
@@ -380,7 +380,54 @@ match ref with
     | _ => None
     end
 | Esubaccess _ _ => None
+end.*)
+
+Fixpoint num_ref (ft : ftype) : nat :=
+   match ft with
+   | Gtyp _ => 1
+   | Atyp atyp n => (num_ref atyp) * n + 1
+   | Btyp ff => num_ff ff + 1
+   end
+with num_ff (ff : ffield) : nat :=
+   match ff with
+   | Fnil => 0
+   | Fflips _ _ ft ff' => (num_ref ft) + num_ff ff'
 end.
+
+Fixpoint ft_find_sub (checkt : ftype) (num : N) (ori : bool) : option (ftype * bool) :=
+  match checkt with
+  | Gtyp gt => if num == N0 then Some (checkt, ori) else None
+  | Atyp atyp n => if num == N0 then Some (checkt, ori)
+                   else if (((N.to_nat num) - 1) >= (num_ref atyp) * n) then None
+                   else if (((N.to_nat num) - 1) mod (num_ref atyp)) == 0 (* 对应标号是atyp，可能agg *)
+                   then Some (atyp, ori)
+                   else 
+                    ft_find_sub atyp (N.of_nat (((N.to_nat num) - 1) mod (num_ref atyp))) ori
+  | Btyp ff => if num == N0 then Some (checkt, ori)
+               else ft_find_sub_f ff num ori
+  end
+with ft_find_sub_f (ff : ffield) (num : N) (ori : bool) : option (ftype * bool) :=
+  match ff with
+  | Fflips _ Nflip ft ff' => if num == 1%num (* 找到被更新的标号, 所对应的field *)
+                              then Some (ft, ori)
+                              else if (N.to_nat num) > (num_ref ft) (* 不在该field中, 找下一个field *)
+                                  then ft_find_sub_f ff' (N.of_nat ((N.to_nat num) - (num_ref ft))) ori
+                              else (* 在field v0中 *)
+                                  ft_find_sub ft (N.sub num 1%num) ori
+   | Fflips _ Flipped ft ff' => if num == 1%num (* 找到被更新的标号, 所对应的field *)
+                              then Some (ft, (~~ori))
+                              else if (N.to_nat num) > (num_ref ft) (* 不在该field中, 找下一个field *)
+                                  then ft_find_sub_f ff' (N.of_nat ((N.to_nat num) - (num_ref ft))) ori
+                              else (* 在field v0中 *)
+                                  ft_find_sub ft (N.sub num 1%num) (~~ori)
+   | _ => None
+  end.
+  
+Definition type_of_ref (v : ProdVarOrder.t) (tmap : CEP.t (ftype * HiF.forient)) : option (ftype * bool) :=
+  match CEP.find (fst v, N0) tmap with
+  | Some (checkt, _) => ft_find_sub checkt (snd v) false
+  | None => None
+  end.
 
 Definition fgtyp_mux (x y : fgtyp_explicit) : option fgtyp_explicit :=
 (* Find the type of a multiplexer whose two inputs have types x and y, for ground types *)
