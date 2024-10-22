@@ -1,0 +1,119 @@
+%!TEX root = main.tex
+
+%The proof of the functional correctness of ExpandConnects and ExpandWhens.
+\hide{
+-- correctness of a compilation pass InferWidths: 
+for each high FIRRTL program P, if G(P) is nonempty, then IW(P) succeeds, and G(IW(P)) is the minimum one among G(P)
+
+-- ExpandConnects, ExpandWhens: G(T(P)) = G(P)
+
+
+The goal of this section is to prove that the Coq implementations of two most involved lowering transformations ``ExpandConnects'' and ``ExpandWhens'' are functionally correct. Recall that these two transformations were implemented as two functions {\tt expand\_cnct} and {\tt expand\_branch} in Section~\ref{sec-hi-firrtl-transform}. In the sequel, we first specify the correctness properties that are supposed to be satisfied by the two functions. Then, we prove that they indeed satisfy these correctness properties. Note that different from the verification of software compilers, e.g. CompCert, we are not proving the preservation of semantics for the compilation passes. This difference is attributed to the fact that it is hard, if not impossible, to define an executable semantics for HiFIRRTL, since some necessary information for the execution, e.g. bit widths of components, are still missing in HiFIRRTL programs. 
+
+%we first present the specifications of the ExpandConnects and ExpandWhens passes, 
+%then prove their correctness, namely, the Coq implementations conform to their specifications.
+}
+
+\subsubsection{Correctness of InferWidths}
+
+\input{verif-firrtl-transform-inferwidths}
+
+\subsubsection{Correctness of ExpandConnects}
+
+\input{verif-firrtl-transform-expandconnects}
+
+\subsubsection{Correctness of ExpandWhens}
+
+\input{verif-firrtl-transform-expandwhens}
+
+
+
+
+
+%%%%% the formal semantics of HiFIRRTL removed %%%%%%%%%%
+%%%%% the formal semantics of HiFIRRTL removed %%%%%%%%%%
+\hide{
+The formal semantics of HiFIRRTL will be defined by the axiomatic semantics of the compilation passes, plus the operational semantics of LoFIRRTL.
+%InferTypes, InferWidths, InferResets, ExpandConnects, ExpandWhens, LowerTypes, and RemoveReset.
+%
+More precisely, the axiomatic semantics of each compilation pass $\pi$ will be specified by a formula $\varphi_{\pi}(\cdots)$, and
+%Note that the sequence of statements in $ss$ will keep unchanged in the compilation passes.
+%
+%ce1 = φ_InferType(ss) /\
+%ce2 = φ_InferWidth(ss, ce1) /\
+%ce3 = φ_InferReset(ss, ce2) /\
+%(ss1, ce4) = φ_ExpandConnect(ss, ce3) /\
+%(ss2, cm) = φ_ExpandWhen(ss1, ce4) /\
+%(ss3, ce5, cm1) = φ_LowerTypes(ss2, ce4, cm) /\
+%(ss4, ce6, cm2) = φ_RemoveResets(ss3, ce5, cm1)
+the semantics of $M$ is defined by the formula
+\[
+\begin{array}{l c l}
+\varphi_M & \eqdef & \varphi_{ResolveKinds}(ss, ce_1)  \wedge  \varphi_{InferTypes}(ss, ce_1, ce_2)\ \wedge \\
+&& \varphi_{InferWidths}(ss, ce_2, ce_3) \wedge  \varphi_{InferResets}(ss, ce_3, ce_4)\ \wedge \\
+&& \varphi_{ExpandConnects}(ss, ce_4, ss_1, ce_5) \wedge \varphi_{ExpandWhens}(ss_1, ce_5, ss_2, cm)\ \wedge \\
+&& \varphi_{LowerTypes}(ss_2, ce_5, cm, ss_3, ce_6, cm_1) \wedge  \varphi_{RemoveReset}(ss_3, ce_6, cm_1, ss_4, ce_7, cm_2).
+\end{array}
+\]
+Note that each formula $\varphi_{\pi}$ actually specifies the graph of a function corresponding to $\pi$. For instance, the formula $\varphi_{InferWidths}(ss, ce_2, ce_3)$ specifies a function that takes $ss$ and $ce_2$ as inputs and produces the output $ce_3$.  The final output $ss_4$ is actually a sequence of statements already in LoFIRRTL form, whose operational semantics has been defined in Section~\ref{sec-lofirrtl-sem}.
+
+In the sequel, we shall illustrate the definition of the semantics of compilation passes by describing $\varphi_{InferWidths}$ and $\varphi_{ExpandWhens}$. The semantics of the other compilation passes can be found in Appendix~\ref{sec-appen-sem-cpass}.
+
+%Let us fix $ss = (s_1, \cdots, s_n)$ in the sequel.
+
+$\varphi_{InferWidths}(ss, ce, ce') \eqdef \varphi_{InferWidths}(ss, ce, ce')$
+
+
+$\varphi_{ExpandWhens}$
+
+last connect semantics
+
+four states of components $\{\bot, \sim, -\}$ (undefined, defined, invalid),
+
+For $v \in \varset(M)$, we construct an expression $EWRhsExp_{ss, ce, v}(rhs)$ inductively as follows,
+and for $i \in [n]$,
+\begin{itemize}
+\item If $ss = \varepsilon$, then $EWRhsExp_{ss, ce, v}(rhs) = rhs$,
+%
+\item If $ss = s \cdot tl$, then
+\begin{itemize}
+\item case $s \equiv v' \mbox{ is invalid}$: if $v = v'$ and $rhs = \bot$ or $\sim$, then $EWRhsExp_{ss, ce, v}(rhs) = EWRhsExp_{tl, v, -}$, otherwise, $EWRhsExp_{ss, v, rhs} = EWRhsExp_{tl, v, rhs}$,
+%
+\item case $s \equiv \mbox{wire } v': t$: if $v = v'$ and $rhs = \bot$, then $EWRhsExp_{ss, v, rhs} = EWRhsExp_{tl, v, \sim}$, otherwise,  $EWRhsExp_{ss, v, rhs} = EWRhsExp_{tl, v, rhs}$,
+%
+\item case $s \equiv \mbox{reg } v': t, c$: if $v = v'$ and $rhs = \bot$, then $EWRhsExp_{ss, v, rhs} = EWRhsExp_{tl, v, \sim}$, otherwise, $EWRhsExp_{ss, v}  = EWRhsExp_{tl, v, rhs}$,
+%
+\item case $s \equiv v'<= e$: if $v = v'$, then $EWRhsExp_{ss, v, rhs} = EWRhsExp_{tl, v, e}$, otherwise,  $EWRhsExp_{ss, v, rhs} = EWRhsExp_{tl, v, rhs}$,
+%
+\item case $s \equiv \mbox{when } c: sst \mbox{ else } ssf$: suppose $rhst = EWRhsExp_{sst, v, rhs}$ and $rhsf = EWRhsExp_{ssf, v, rhs}$, then
+$EWRhsExp_{ss, v, rhs} = EWRhsExp_{tl, v, mux(c, rhst, rhsf)}$,
+%
+%\item case $s \equiv v' \mbox{ inst of } v''$: if $v = v'$ and $rhs = \bot$, then $EWRhsExp_{ss, v, rhs} = EWRhsExp_{tl, v, \sim}$, otherwise, $EWRhsExp_{ss, v, rhs} = EWRhsExp_{tl, v, rhs}$,
+%
+\item for the other statements,  $EWRhsExp_{ss, v, rhs} = EWRhsExp_{tl, v, rhs}$.
+%\begin{itemize}
+%\item if $rhst = \bot$ or $\sim$, then $EWRhsExp_{ss, v, rhs} = EWRhsExp_{tl, v, rhst}$,
+%
+%\item otherwise, if $rhsf = \bot$, then $EWRhsExp_{ss, v, rhs} = EWRhsExp_{sst, v, rhs}$,
+%
+%\item if $rhst \neq \bot$ and $rhsf \neq \bot$, then if $rhst = rhsf$, then $EWRhsExp_{ss, v, rhs}  = rhst$, otherwise, $EWRhsExp_{ss, v, rhs} = EWRhsExp_{tl, v, mux(c, rhst, rhsf)}$,
+%
+%\item
+%\end{itemize}
+\end{itemize}
+\end{itemize}
+
+Finally, we transform $EWRhsExp_{ss, v, rhs}$ into $EWRhsExp'_{ss, v, rhs}$ as follows:
+\begin{itemize}
+\item If $EWRhsExp_{ss, v, rhs} = mux(c, e_1, e_2)$, then
+\begin{itemize}
+\item if both $e_1$ or $e_2$ contains occurrences of $\bot, \sim$, then $EWRhsExp'_{ss, v, rhs} = \bot$,
+%
+\item if both
+\end{itemize}
+\end{itemize}
+
+Define a recursive function $expandWhens$
+}
+%%%%% the formal semantics of HiFIRRTL removed %%%%%%%%%%
+%%%%% the formal semantics of HiFIRRTL removed %%%%%%%%%%

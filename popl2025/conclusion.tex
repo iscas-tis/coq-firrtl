@@ -1,0 +1,10 @@
+%!TEX root = main.tex
+
+In this paper, motivated by developing a formally verified compiler for the {\firrtl} language, we have proposed a denotational formal semantics of {\firrtl} programs. Specifically, we define the semantics of a {\firrtl} program as the set of low-level RTL circuits that conform to it. 
+%The definition of the semantics is technically challenging since we need to tackle the abstraction-level gap between low-level circuits and high-level programs. 
+With the formal semantics, we then formalized the three key lowering transformation passes of {\hifirrtl} programs, namely, ``InferWidths'', ``ExpandConnects'', and ``ExpandWhens''. Furthermore, we prove the functional correctness of these three passes, that is, the semantics is preserved by these passes. %For the ``InferWidths'' pass, we actually proved more than the preservation of the semantics. We show that the widths inferred by the ``InferWidths'' pass are the minimum ones among the feasible widths. 
+Finally, to validate our approach, we extracted an OCaml compiler out of the Coq implementation of the three passes and compared the OCaml compiler with {\firtool}, the official {\firrtl} compiler, on 113 programs. The experiment results confirms the effectiveness and efficiency of our compiler. 
+
+%show the pros of the OCaml compiler on the correctness with respect to {\firtool}: While the OCaml compiler produces 112 programs that are semantically equivalent with those produced by {\firtool}, {\firtool} fails to compile one of them. Moreover, the passes implemented in the OCaml compiler turn out to be more efficient  than those implemented in {\firtool} on average.  
+
+This work paves the way towards a fully fledged and formally verified compiler for {\firrtl} in the future, where more compilation passes e.g. various optimizations can be implemented and their correctness can be verified. 

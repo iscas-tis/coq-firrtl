@@ -1,0 +1,101 @@
+%!TEX root = main.tex
+
+%In the sequel, we first introduce a concept of expression trees to specify the correctness property of {\tt expand\_branch}, then prove that {\tt expand\_branch} satisfies the property. 
+
+\paragraph*{Specification}
+As in the other phases, the correctness of {ExpandWhens} is specified by the formula:
+%
+\begin{equation}\label{eqn:expand-whens-spec}
+    \forall tm, cm.\ (tm,\,cm) \models \, {\sf expandWhens}(M) \Rightarrow (tm,\,cm) \models \,M.
+\end{equation}
+%
+This formula states that if the pair of the type mapping $tm$ and the connection mapping $cm$ conform to the program produced by {\sf expandWhens}$(M)$,
+then the same pair of $tm$ and $cm$ should also conform to the original program $M$.
+Note that this requires that an incorrect program is not translated to a conforming program
+(for example, scoping errors like in Figure~\ref{fig:example}).
+%Therefore, {\sf expandBranch} also checks for such scoping errors.
+
+\paragraph*{Verification}
+To prove this formula, we can assume that all components in $M$ have ground types,
+and all connections are to ground-type components;
+this simplifies creating the correct multiplexers.
+%Let $(tm, cm) \models \expandwhens(M)$. We would like to show $(tm, cm) \models M$.
+The construction of $tmap$ (which would record the aggregate types of components) becomes rather trivial;
+also, the ports of $M$ and $tm$ are not supposed to change.
+Therefore, {\sf expandWhens} mostly works on $cm$.
+%Because $\expandwhens(M)$ does not affect $tm$. As a result, we focus on $cm$.
+We first use the following lemma:
+%
+\begin{lemma}\label{lem:expand-whens-auxiliary}
+$\connstmts(ecm)$ leads to a connection mapping $cm$ that contains $ecm$ as a submap,
+i.e. if $ecm(x) \notin \{ \svnone, \svundefined \}$, then $ecm(x) = cm(x)$
+for $cm_0 \xrightarrow[tm, tm]{\connstmts(ecm)} cm$.
+\end{lemma}
+%
+This lemma is proven by induction over the elements of $ecm$,
+using the property that $ecm$ cannot contain duplicate elements
+(and therefore, $\connstmts(ecm)$ contains at most one connect statement to any given component).
+
+With Lemma~\ref{lem:expand-whens-auxiliary}, to prove the formula, it is sufficient to prove that $\expandbranch(ss)$ constructs a map $ecm$
+that contains the same assignments as the $cm$ constructed in the semantics $cm_0 \xrightarrow[tm, tmap]{ss} cm$.
+%
+The main inductive theorem is then essentially the following.
+\begin{theorem}\label{thm:expand-whens-inductive}
+If $\expandbranch(ss, \linebreak[0] ecm_0) = (ss_{\sf dcl}, ecm)$ and $cm_0 \xrightarrow[tm, tm]{ss_{\sf dcl} ; \connstmts(ecm)} cm$, moreover, $\stmtstmap((tmap_0, scope_0), ss, tm) = (tmap, scope)$,
+then $cm_0 \xrightarrow[tm, tmap]{ss} cm$
+(under some technical side conditions, e.g. that $ecm_0$ contains a connection for everything in scope according to $scope_0$).
+\end{theorem}
+%
+This result is proven by unfolding $\expandbranch$ and the relation $\xrightarrow[tm, tm]{ss_{\sf dcl} ; \connstmts(ecm)}$ on the one hand, and unfolding the constructions and checks in $\stmtstmap$ and the relation $\xrightarrow[tm, tmap]{ss}$ on the other hand. To let the proof go through, the two unfoldings should be kept at the same pace.
+We need to go through all the cases (e.g. in which branch a component is declared, in which branch(es) it is connected, whether it is still in scope),
+leading to a long list of many cases to be handled.
+%We apply Lemma~\ref{lem:expand-whens-auxiliary} to unfold the semantic of $\connstmts$.
+%For every case, we show that the two mappings are (extensionally) equal.
+
+Recall that $\stmtstmap$, the semantics and $\expandbranch$ are all recursively defined by a mutual induction over statements and statement sequences.
+As a result, we should define the two Coq datatypes for statements and statement sequences that are mutually inductive;
+we cannot just use the sequence or list types from the standard Coq library.
+
+The complexity of the correctness proof lies mostly in the number of cases that need to be distinguished
+and in the multitude of bookkeeping information from the side conditions that needs to be dragged through.
+
+Using Theorem~\ref{thm:expand-whens-inductive},
+it is then relatively easy to prove the specification \eqref{eqn:expand-whens-spec},
+by filling the maps $tmap_0$, $scope_0$, $ecm_0$ and $cm_0$ with the information from the ports of module $M$.
+
+%%%%%%%%%%%%%%%%%%% the original texts by David 
+\hide{
+The proof uses in a mutual induction over statements and statement sequences.
+If a statement $s$ and a statement sequence $ss$ satisfy the correctness property, then also the statement sequence $s ; ss$.
+Moreover, a statement \prettyll{when} $c$ \prettyll{:} $sst$ \prettyll{else} $ssf$
+satisfies the correctness property if both $sst$ and $ssf$ satisfy it.
+The mutual induction also requires us to define the two Coq datatypes for statements and statement sequences mutually inductive;
+we cannot just use the sequence or list types from the standard Coq library.
+
+The proof compares in detail the constructions and checks executed by {\sf stmtsTmap},
+the construction of a connection mapping, and {\sf expandBranch}.
+The main maps that should fit together are:
+$scope$, $ecm$ (constructed by {\sf expandBranch}), $cm$, $tm$, and $tmap$ where $tmap$ is constructed from $tm$ by $\portsstmtstmap$.
+Generally speaking,
+the domain of every map in this list is a subdomain of the next map.
+Also, the information in these maps needs to be consistent with each other, e.g. sources cannot be connected to.
+
+We use these conditions (all types are ground-types, the five main maps fit together)
+as background for the main inductive statement of the proof:
+\begin{lemma}
+If the constructions mentioned in Section 3 ({\sf stmtTmap}, the connection mapping, and {\expandbranch}) can be applied to statement sequence $ss$,
+then 
+
+;
+\end{itemize}
+Then:
+\begin{itemize}
+\item   an extensionally equal $cm$ is constructed by running $\xrightarrow[tm, tmap]{ss}$;
+\item   the resulting maps fit together similarly;
+\item   the connection map $cm'$ constructed by {\sf expandBranch} contains the same additions for $ss$
+        as $cm$.
+\end{itemize}
+\end{lemma}
+}
+%%%%%%%%%%%%%%%%%%%%%%%
+

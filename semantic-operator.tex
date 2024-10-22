@@ -1,0 +1,159 @@
+\documentclass[a4paper]{article}
+
+\usepackage{amsmath}
+\usepackage{amsfonts}
+
+\title{A fixed point semantic for FIRRTL programs}
+\author{David N. Jansen\thanks{Institute of Software, Chinese Academy of Sciences, Beijing, China}}
+
+\newcommand{\sem}{\mathsf{Sem}}
+\newcommand{\expressions}{\mathsf{exprs}}
+\newcommand{\emptylist}{[\,]}
+\newcommand{\rconslist}[2]{[#1 \mathbin{::} #2]}
+\newcommand{\concatlist}[2]{#1 \mathrel{++} #2}
+\newcommand{\needtobedefined}{\text{\textsf{to-be-defined}}}
+\newcommand{\undefinedonpurpose}{\text{\textsf{undefined-on-purpose}}}
+\newcommand{\extractinput}[2]{\mathsf{inp}_{#2}(#1)}
+
+\begin{document}
+
+\maketitle
+
+\section{Introduction}
+
+FIRRTL is an intermediary language to describe hardware circuits.
+It allows some variation, from HiFIRRTL including a few higher-level constructs, e.g. case distinctions through “when” statements and aggregate data types, to LoFIRRTL, which can almost directly be mapped to a netlist.
+
+While there are existing LoFIRRTL semantics, more or less formal ones, the official documentation only provides an informal, textual description of the HiFIRRTL semantics.
+The reference implementation provides a kind of formal semantics through a translation from HiFIRRTL to LoFIRRTL.
+In discussions within our FIRRTL verified compiler working group, we formed several ideas for mathematically sound HiFIRRTL semantics.
+
+One difficulty with HiFIRRTL semantics is an allowed form of underspecification:
+in a module, one does not need to indicate all signal widths;
+the compiler is then supposed to find the smallest signal width that will not lead to data loss.
+Also, it is allowed to leave undetermined whether a reset wire shall be synchronous (i.e.\@ resets will happen only at a rising clock edge) or asynchronous (i.e.\@ resets will happen immediately when the reset wire gets high).
+When underspecified elements are connected with fully specified ones, the underspecification is resolved.
+It is an error if elements with inconsistent reset types are connected.
+This also shows that it is difficult to make the semantics fully compositional:
+some parts of the semantics are determined by the context of a component.
+
+We earlier tried to define a semantics along the following lines: underspecified components do not get a single semantic interpretation, but a set of possibilities.
+During the InferWidths pass of the compiler, the widths are then determined, leading to a circuit with a unique semantic interpretation, which is the possibility with the smallest signal widths.
+
+In this note, I want to propose another semantic, based on an idea brought into the discussion by Yicheng Liu (?).
+
+\section{Semantic Operators}
+
+A \emph{FIRRTL circuit} consists of a set of modules, together with an indication which module is the main module.
+(Intuitively, the main module is instantiated, and whatever the main module requires as submodules is instantiated as well.)
+
+A \emph{FIRRTL module} consists of a list of ports (describing the interface of the module) and a list of statements (describing the internal connections, registers, submodules etc.\@ of the module).
+
+A \emph{port} has a name, a direction (``input'' or ``output'') and a type.
+In HiFIRRTL, the type may be aggregate (a vector/array or a bundle/record type), and its numeric ground components may have underspecified widths or reset types.
+
+From a FIRRTL module, we construct a \emph{semantic operator.}
+The semantic operator is a function that maps the (input connectors of) elements in the module to expressions constructed from the (output connectors of) elements.
+The actual semantics of the module will be a fixed point of this semantic operator.
+If no fixed point exists, the module is erroneous.
+
+\textbf{TODO:} Perhaps the semantics of a circuit can be constructed similarly, as the fixed point of the mutual application of all the semantic operators of modules? \textbf{:END TODO}
+
+Assume given a FIRRTL module $(\mathit{name}, \mathit{portlist}, \mathit{stmtlist})$.
+The semantic operator $\sem$ is defined recursively as follows:
+
+\begin{description}
+\item[Empty module:]
+	$\sem(\mathit{name}, \linebreak[0] \emptylist, \linebreak[0] \emptylist) = (f: \emptyset \to \expressions(\emptyset))$.
+
+\item[Input port:]
+	If $\sem(\mathit{name}, \linebreak[0] \mathit{portlist}, \linebreak[0] \emptylist) = (f: D \to \expressions(R))$
+	and $\mathit{ip} \notin D \cup R$,
+	then $\sem(\mathit{name}, \linebreak[0] \rconslist{\mathit{portlist}}{\mathit{ip}}, \linebreak[0] \emptylist) = (f': D \to \expressions(R \cup \{ \mathit{ip} \}))$,
+	defined by $f'(d) = f(d)$ for all $d \in D$.
+
+\item[Output port:]
+	If $\sem(\mathit{name}, \linebreak[0] \mathit{portlist}, \linebreak[0] \emptylist) = (f: D \to \expressions(R))$
+	and $\mathit{op} \notin D \cup R$,
+	then $\sem(\mathit{name}, \linebreak[0] \rconslist{\mathit{portlist}}{\mathit{op}}, \linebreak[0] \emptylist) = (f': D  \cup \{ \mathit{op} \} \to \expressions(R))$,
+	defined by $f'(d) = f(d)$ if $d \in D$ and $f'(\mathit{op}) = \needtobedefined$.
+
+\item[Wire definition:]
+	If $\sem(\mathit{name}, \linebreak[0] \mathit{portlist}, \linebreak[0] \mathit{stmtlist}) = (f: D \to \expressions(R))$
+	and $\mathit{wr} \notin D \cup R$,
+	then $\sem(\mathit{name}, \linebreak[0] \mathit{portlist}, \linebreak[0] \rconslist{\mathit{stmtlist}}{\mathtt{wire~} \mathit{wr}, \mathit{type}}) = (f': D \cup \{ \mathit{wr} \} \to \expressions(R \cup \{ \mathit{wr} \}))$,
+	defined by $f'(d) = f(d)$ if $d \in D$ and $f'(\mathit{wr}) = \needtobedefined$.
+
+\item[Register definition:]
+	Similar to wire definition,
+	but there may be an additional connection in $f'$ to express the reset.
+
+\item[Bidirectional connect statement:]
+	If $\sem(\mathit{name}, \linebreak[0] \mathit{portlist}, \linebreak[0] \mathit{stmtlist}) = (f: D \to \expressions(R))$
+	and given $\mathit{ref_\mathrm{1}} \in D$ and $\mathit{ref_\mathrm{2}} \in D \cap \expressions(R)$ of compatible types,
+	then $\sem(\mathit{name}, \linebreak[0] \mathit{portlist}, \linebreak[0] \rconslist{\mathit{stmtlist}}{\mathit{ref_\mathrm{1}} \mathtt{~<=~} \mathit{ref_\mathrm{2}}}) = (f': D \to \expressions(R))$,
+	defined by $f'(\mathit{ref_\mathrm{1}}) = f(\mathit{ref_\mathrm{2}})$ and $f'(d) = f(d)$ for all $d \in D \setminus \{ \mathit{ref_\mathrm{1}} \}$.
+
+	\textbf{TODO:} Need to take into account flipped subcomponents of $\mathit{ref_\mathrm{1}}$ and $\mathit{ref_\mathrm{2}}$. \textbf{:END TODO}
+
+\item[Unidirectional connect statement:]
+	If $\sem(\mathit{name}, \linebreak[0] \mathit{portlist}, \linebreak[0] \mathit{stmtlist}) = (f: D \to \expressions(R))$
+	and given $\mathit{ref} \in D$ and $\mathit{expr} \in \expressions(R) \setminus \{ \needtobedefined, \linebreak[0] \undefinedonpurpose \}$ of compatible types,
+	then $\sem(\mathit{name}, \linebreak[0] \mathit{portlist}, \linebreak[0] \rconslist{\mathit{stmtlist}}{\mathit{ref} \mathtt{~<=~} \mathit{expr}}) = (f': D \to \expressions(R))$,
+	defined by $f'(\mathit{ref}) = f(\mathit{expr})$ and $f'(d) = f(d)$ for all $d \in D \setminus \{ \mathit{ref} \}$.
+
+	\textbf{TODO:} Actually the reference $\mathit{ref}$ might not be literally in $D$ but be an access to some subcomponent of an array or bundle. \textbf{:END TODO}
+
+\item[When statement:]
+	If $\sem(\mathit{name}, \linebreak[0] \mathit{portlist}, \linebreak[0] \mathit{stmtlist}) = (f: D \to \expressions(R))$
+	and given $\mathit{cond} \in \expressions(R) \setminus \{ \needtobedefined, \linebreak[0] \undefinedonpurpose \}$, and statement lists $\mathit{truestmtlist}$ and $\mathit{falsestmtlist}$,
+	then $\sem(\mathit{name}, \linebreak[0] \mathit{portlist}, \linebreak[0] \rconslist{\mathit{stmtlist}}{\mathtt{when~} \mathit{cond} \mathtt{~then~} \mathit{truestmtlist} \mathtt{~else~} \mathit{falsestmtlist}})$ is defined to be:
+	\begin{itemize}
+	\item	If the type of $\mathit{cond}$ is not \texttt{UInt<1>},
+		there is an error.
+	\item	If $f(\mathit{cond}) = 1$, then the resulting semantic is
+		$\sem(\mathit{name}, \linebreak[0] \mathit{portlist}, \linebreak[0] \concatlist{\mathit{stmtlist}}{\mathit{truestmtlist}})$.
+	\item	If $f(\mathit{cond}) = 0$, then the resulting semantic is
+		$\sem(\mathit{name}, \linebreak[0] \mathit{portlist}, \linebreak[0] \concatlist{\mathit{stmtlist}}{\mathit{falsestmtlist}})$.
+	\end{itemize}
+	\textbf{TODO:} If a component is defined only in $\mathit{truestmtlist}$ or in $\mathit{falsestmtlist}$, it will be assigned the value from that statement list always, irrespective of the condition.
+	This might be done by introducing some operator that only keeps ``new'' components and their connections. \textbf{:END TODO}
+
+	\textbf{TODO:} Such components defined in one of the two statement lists will fall out of scope at the end of the when statement;
+	this needs to be taken into account by distinguishing between the full $D$ and $R$ (needed for namespace conflicts when defining new components) and a reduced set (needed to determine whether a component can be read or written in a connect statement). \textbf{:END TODO}
+\end{description}
+
+\noindent
+In the above setting, we use the following notations:
+\begin{description}
+\item[$\emptylist$] is the empty list;
+\item[$\rconslist{l}{e}$] is the extension of list $l$ with an additional element $e$ at the end;
+\item[$\concatlist{l_1}{l_2}$] is the concatenation of the two lists $l_1$ and $l_2$ (in this order);
+\item[$\expressions(S)$] is the set of expressions over $S$;
+	additionally, $\expressions(S)$ contains an element $\needtobedefined$ to express that a value is currently undefined but needs to be defined,
+	and $\expressions(S)$ contains an element $\undefinedonpurpose$ to express that the programmer indicated that the value is undefined on purpose.
+\end{description}
+
+\section{Semantic of a module}
+
+Assume given a FIRRTL module $(\mathit{name}, \mathit{portlist}, \mathit{stmtlist})$.
+Let $f: D \to \expressions(R)$ be its semantic operator.
+This operator is regarded as a transformation of an assignment $s: S \to \mathbb{V}$
+(where $S$ can be $D$ or $R$, and $\mathbb{V}$ is the range of concrete values that the variables in $D$ can take, typically a subset of the integers).
+
+Given a semantic operator $f$ and an input assignment $s: R \to \mathbb{V}$ as above, we define the output assignment $f \circ s: D \to \mathbb{V}$ that results from applying $f$ to $s$ as:
+$f \circ s(d) = f(d) \circ s$, i.e.\@ we evaluate the expression $f(d)$ by inserting the values from $s$ for concrete elements of $R$.
+
+We also define an input extractor as follows: given an output assignment $s : D \to \mathbb{V}$ and a default input assignment $\mathit{dft} : R \to \mathbb{V}$,
+we set $\extractinput{s}{\mathit{dft}} = s(r)$ if $r \in R \cap D$ and $\mathit{dft}(r)$ otherwise.
+
+We then define the semantic of the module to be the least fixed point of $f$, in the sense:
+given an input assignment $\mathit{is} : R \to \mathbb{V}$ (defined on $R$),
+we take the output assignment $f \circ \mathit{is}$ as a starting point.
+Then we repeatedly apply $f \circ \extractinput{\,\cdot\,}{\mathit{is}}$ to the output assignment, until we reach a fixed point
+(or until it has become clear that no fixed point exists).
+The fixed point output assignment is the semantic of the module.
+
+\textbf{TODO:} Include registers and memories in this definition. \textbf{:END TODO}
+
+\end{document}

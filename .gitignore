@@ -1,3 +1,5 @@
+.DS_Store
+oopsla2023/.DS_Store
 *.bbl
 *.blg
 *.log
@@ -7,3 +9,7 @@
 *.vok
 *.aux
 *.glob
+popl2025/main.pdf
+*.gz
+popl2025/lstpatch.sty
+*.synctex(busy)

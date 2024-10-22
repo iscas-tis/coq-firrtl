@@ -1,0 +1,185 @@
+%!TEX root = main.tex
+
+The ExpandWhens pass ensures that every component in a module is connected to at most once.
+It reformulates the conditions in the \prettyll{when} statements by multiplex expressions and removes the \prettyll{when} statements. Moreover, for each component, it removes the non-last (redundant) connect statements for the component.
+
+\paragraph*{Formalization} We define two functions {\expandbranch} and {\combinebranches} to formalize the ExpandWhens pass.
+The function {\expandbranch} scans through the statement sequence $ss$, copies the declaration statements, and updates the connection mapping $cm$ when processing connect, \prettyll{is invalid}, and \prettyll{when} statements. The function {\combinebranches} is used to combine the connect mappings for branches of \prettyll{when} statements.
+%This is done by scanning through the statement sequence of the module:
+%declaration statements are copied without change,
+%and connect and \prettyll{is invalid} statements update a connect map
+%(so redundant connects are overwritten in the map).
+The  {\expandbranch} function is defined by the following rules, % (\ref{rule-expandwhen-declare})-(\ref{rule-expandwhen-when}),
+where $\mathit{declare}\ x$ represents a declaration statement for $x$, e.g. \prettyll{input x: t} or \prettyll{wire x: t}. Note that here for simplicity, we do not distinguish between port declarations and component declarations, moreover, we assume that the identifiers in {\hifirrtl} programs are already of the form $(v, m)$ since the {ExpandWhens} pass is after the {ExpandConnects} pass and it has flattened all the aggregate-type components into ground-type ones. 
+\begin{gather*}
+    \label{rule-expandwhen-declare}
+    \infer[]
+    {\seqq{\expandbranch(\mathit{declare}\ x ; ss, ecm_0) = (\mathit{declare}\ x ; ss_\mathrm{dcl}, ecm)}}
+    {\seqq{\expandbranch(ss, ecm_0[\svundefined/x]) = (ss_\mathrm{dcl}, ecm)}}
+\\[1ex]
+    \label{rule-expandwhen-connect}
+    \infer[]
+    {\seqq{\expandbranch(x <= e ; ss, ecm_0) = (ss_\mathrm{dcl}, ecm)}}
+    {\seqq{\expandbranch(ss, ecm_0[e/x]) = (ss_\mathrm{dcl}, ecm)}}
+\\[1ex]
+    \label{rule-expandwhen-invalid}
+    \infer[]
+    {\seqq{\expandbranch(x \text{ \prettyll{is invalid}} ; ss, ecm_0) = (ss_\mathrm{dcl}, ecm)}}
+    {\seqq{\expandbranch(ss, ecm_0[{\svinvalid}/x]) = (ss_\mathrm{dcl}, ecm)}}
+    \\[1ex]
+    \label{rule-expandwhen-when}
+    \infer[]
+    {\seqq{\expandbranch((\text{\prettyll{when c then} } ss^\mathsf{T} \text{ \prettyll{else} } ss^\mathsf{F}) ; ss, ecm_0) =
+        (ss_\mathrm{dcl}^\mathsf{T} ; ss_\mathrm{dcl}^\mathsf{F} ; ss_\mathrm{dcl}^{\phantom{\mathsf{F}}}, ecm)}}
+    {\begin{gathered} \seqq{\expandbranch(ss, \combinebranches(c, ecm^\mathsf{T}, ecm^\mathsf{F})) = (ss_\mathrm{dcl}, ecm)} \\[-0.4em]
+     \seqq{\expandbranch(ss^\mathsf{T}, ecm_0) = (ss_\mathrm{dcl}^\mathsf{T}, ecm^\mathsf{T})} \qquad
+     \seqq{\expandbranch(ss^\mathsf{F}, ecm_0) = (ss_\mathrm{dcl}^\mathsf{F}, ecm^\mathsf{F})} \end{gathered}}
+\end{gather*}
+%
+For the statement \prettyll{when c then} $ss^\mathsf{T}$ \prettyll{else} $ss^\mathsf{F}$,
+ the function {\expandbranch} first processes the branches $ss^\mathsf{T}$ and $ss^\mathsf{F}$ separately,
+ constructing two connect mappings $ecm^\mathsf{T}$ and $ecm^\mathsf{F}$ respectively.
+ These mappings are combined into one mapping by {\combinebranches};
+ the resulting mapping is the starting point for the statements $ss$ that follow after the \prettyll{when} statement.
+
+%For \prettyll{when} statements,
+%the true and false branches are similarly split
+%and the two resulting connect maps are then combined into one,
+%using multiplexer or \prettyll{validif} expressions where necessary.
+
+%In contrast to the operational LoFIRRTL semantics defined in Subsection~\ref{sec-lofirrtl-sem},
+%the connect statements do not need to be ordered topologically.
+%Therefore, we cannot evaluate expression $e$ in rule~\ref{rule-expandwhen-connect} immediately
+%but copy it as a syntactical object into the connect map.
+%This also implies that we cannot use the (register) state of a configuration in these rules.
+
+
+The function {\combinebranches} combines two connection mappings into one by the following fix rules %(\ref{rule-expandwhen-combine-1})-(\ref{rule-expandwhen-combine-6}),
+where an expression is constructed for each component, denoting the fact that the expression is connected to it according to the last-connect semantics.
+If both connection mappings assign the same value to a component, then no multiplexer %or \prettyll{validif}
+is needed in the combined expression.
+\begin{gather*}
+ \label{rule-expandwhen-combine-1}
+    \infer[]
+    {\combinebranches(c, ecm^\mathsf{T},ecm^\mathsf{F})(x) = e}
+    {ecm^\mathsf{T}(x) = ecm^\mathsf{F}(x) = e}
+\\[1ex]
+ \label{rule-expandwhen-combine-2}
+    \infer[]
+    {\combinebranches(c, ecm^\mathsf{T},ecm^\mathsf{F})(x) = {\svinvalid}}
+    {ecm^\mathsf{T}(x) = ecm^\mathsf{F}(x) = {\svinvalid}}
+\end{gather*}
+If the two connection mappings assign different values to a component, then a multiplexer %or \prettyll{validif}
+expression is obtained.
+\begin{gather*}
+ \label{rule-expandwhen-combine-3}
+    \inferiii[]
+    {\combinebranches(c, ecm^\mathsf{T},ecm^\mathsf{F})(x) = \text{\prettyll{mux}}(\text{\prettyll{c}},e^\mathsf{T},e^\mathsf{F})}
+    {ecm^\mathsf{T}(x) = e^\mathsf{T}}
+    {ecm^\mathsf{F}(x) = e^\mathsf{F}}
+    {e^\mathsf{T} \not= e^\mathsf{F}}
+\end{gather*}
+To make this rule work properly, $ecm_0$ (from which $ecm^\mathsf{T}$ and $ecm^\mathsf{F}$ are constructed)
+needs to contain all connections that are in scope.
+Then the case where only one branch assigns a value (like \prettyll{posv} in Figure~\ref{fig-lofirrtl-exmp3})
+is handled correctly.
+
+If only one branch declared the component, one can ignore the condition;
+similarly, if one branch explicitly invalidated the component,
+the other branch is chosen.
+\begin{gather*}
+ \label{rule-expandwhen-combine-4}
+    \inferii[]
+    {\combinebranches(c, ecm^\mathsf{T},ecm^\mathsf{F})(x) = e^\mathsf{T}}
+    {ecm^\mathsf{T}(x) = e^\mathsf{T}}
+    {ecm^\mathsf{F}(x) = {\svinvalid}}
+\\[1ex]
+ \label{rule-expandwhen-combine-5}
+    \inferii[]
+    {\combinebranches(c, ecm^\mathsf{T},ecm^\mathsf{F})(x) = e^\mathsf{T}}
+    {ecm^\mathsf{T}(x) = e^\mathsf{T}}
+    {ecm^\mathsf{F}(x) = \svnone}
+\end{gather*}
+If at least one branch did declare the component but erroneously did not connect it,
+register that it is still not (always) connected:
+\begin{gather*}
+ \label{rule-expandwhen-combine-6}
+    \infer[]
+    {\combinebranches(c, ecm^\mathsf{T},ecm^\mathsf{F})(x) =\svundefined}
+    {ecm^\mathsf{F}(x) = \svundefined}
+\end{gather*}
+For the last three rules, a symmetric variant exists where the roles of the true and false branches are swapped.
+
+Moreover, to initialize, the empty statement sequence does not change a connection mapping, specified by the following rule:
+{\begin{gather*}
+    \infer{\seqq{\expandbranch(\emptyset, ecm_0) = (\emptyset, ecm_0)}}
+    {} % no premise
+\end{gather*}}
+
+Finally, we formalize the ExpandWhens pass as a function $\expandwhens$ defined as follows: Let $M$ be a module where $ss$ is a sequence of statements (including port declarations).
+Then $\expandwhens$ is defined by the following two rules, where {\sf emp} is the empty connection mapping and the function $\connstmts(ecm)$ generates from $ecm$ a sequence of connect and \prettyll{is invalid} statements.
+Note that if in the end some component $x$ is still assigned the value $\svundefined$ by $ecm$,
+then the output of $\expandwhens(M)$ is $\svundefined$ and an appropriate error message can be generated.
+{\begin{gather*}
+    \infer{\seqq{\expandwhens(M) = ss'}}
+    {\begin{array}{c}
+    \expandbranch(ss, {\sf emp}) = (ss_{\sf dcl}, ecm) \hspace{15pt} \seqq{\forall x \in \gidset_M.\ ecm(x) \neq \svundefined} \\
+    ss'  = ss_{\sf dcl}\ ++\ \connstmts(ecm)
+   \end{array}
+   }
+\\[1ex]
+    \inferii{\seqq{\expandwhens(M) = \svnone}}
+    {\seqq{\expandbranch(ss, {\sf emp}) = (ss_{\sf dcl}, ecm)}}
+    {\seqq{\exists x \in \gidset_M.\ ecm(x) = \svundefined} }
+\end{gather*}}
+
+%such that $ss'$ is the statement sequence obtained by concatenating the declaration-statement sequence generated by the function $\expandbranch(ss, {\sf emp}) = (ss_{\sf dcl}, ecm)$ and the sequence of connect and \prettyll{is invalid} statements corresponding to the connection mapping generated by the function {\expandbranch}.
+%(possibly after topologically sorting them),
+%similar to the example in Subsection~\ref{subsec-lowering-transformations}.
+%On the other hand, if in the end some component is still assigned the value $\svnone$ by the connection mapping, an appropriate error message can be generated.
+
+%%%% the original texts of LowerTypes
+%%%% the original texts of LowerTypes
+\hide{
+\subsubsection{Formalization of LowerTypes}
+The ``LowerTypes'' pass flattens each component of an aggregate type into a collection of components of ground types.
+%The pass replaces certain defined components with
+%aggregate types by a new set of components defined with ground types.
+We formalize this pass by a function {\tt lower\_types}.
+The rationale behind the function {\tt lower\_types} is that except for the memories and module instances, each component of an aggregate type is replaced by
+      a collection of new components that have ground types, one for each field, where \emph{paired identifiers} are introduced for  naming the new components.
+%\begin{itemize}
+%\item components defined with ground types do not need to be modified,
+%
+%\item Except for memories and module instances, components defined with aggregate types need to be replaced by
+%      a group of coordinate components that have ground types.
+%\end{itemize}
+
+A paired identifier is of the form $(id_1, id_2)$, where $id_1$ is the identifier of a component of aggregate type, and $id_2$ is the name of a field in the aggregate type.
+%the first field represents the base reference adapted from the original
+%component identifier and the second field indicates the
+%sub-element offset computed from the aggregate type.
+%The original components defined with aggregate types are replaced by a new
+%set of components defined with paired identifiers and of ground types.
+The function {\tt lower\_types} processes the statements in the sequence $ss$ and updates the sequence  $ss$ and the component environment $ce$.
+The behavior of the function {\tt lower\_types} on the declaration statements is defined by the rule below, where $declare\ x$ denotes the declaration statement for a component $x$, and $ce=(t, \kappa)$ ($t$ is the aggregate type and $\kappa$ is the kind, e.g. \prettyll{wire}), moreover, a function  {\tt flatten} is used to flatten $declare\ x$ into a sequence of declaration statements.  Specifically, let the fields in $t$ be $f_1, \cdots, f_n$, of ground types $t_1, \cdots, t_n$ respectively, then the {\tt flatten} function generates from $(x, (t, \kappa))$ a sequence of declaration statements $\kappa\ (x, f_1): t_1, \cdots, \kappa\ (x, f_n): t_n$.
+%The process can be formalized as follow:
+  {\begin{gather*}
+    \inferiii[]
+    {\seqq{ce\vdash{\tt lower\_types}(declare\;x) \rightsquigarrow (ss',ce')}}
+    {\seqq{ce(x) = (t, \kappa)}}
+%    {\seqq{{\tt is\_aggr}(t_v)}}
+    {\seqq{ ss' ={\tt flatten}(x, (t, \kappa))}}
+    {\seqq{ce'=ce\uplus \{(x, f_1): (t_{1},\kappa), \dots,(x, f_n):(t_{n}, \kappa)\}}}.
+    \end{gather*}}
+%The {\tt flatten} function generates new statements that define
+%components in ground types with new identifiers, such as
+%$(v,o_1)$. The type and component information contained in $tc_v$
+%are used to determine the number of the certain new components.
+
+Note that the ``LowerTypes'' pass should be applied after the ``ExpandConnects'' pass.
+Therefore, before applying the function {\tt lower\_types} to the statements in the sequence $ss$, both sides of the connect statements are already in ground types.
+Then when the {\tt lower\_types} function  processes a connect statement, the references to the component fields in this statement should be replaced by the corresponding paired identifiers. Thus in this case, all the three components of the circuit diagram, namely, the statement sequence, the component environment, the connect mapping, are all updated to reflect the replacements of component fields by paired identifiers.
+}
+%%%% the original texts of LowerTypes
+%%%% the original texts of LowerTypes

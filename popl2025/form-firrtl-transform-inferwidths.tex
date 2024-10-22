@@ -1,0 +1,240 @@
+%%%!TEX root = main.tex
+
+%\subsubsection{Formalization of InferWidths}
+%By Keyin
+
+The InferWidth pass infers the types of components of $M$ and additionally infers the unknown widths in these types. The InferWidths pass only modifies the declaration statements in the original program, and does not modify the other statements. 
+
+\smallskip
+\noindent\emph{Formalization.}
+We formalize the InferWidths pass as a function $\inferwidths$ such that for each module $M$, $\inferwidths(M)$ generates a new module $M'$ where all bit-widths are explicit. The $\inferwidths$ function is defined by the rule below. 
+  \begin{gather*}
+ % \def\defaultHypSeparation{\hskip 10pt}
+    \infer[xx]
+     {\seqq{\inferwidths(M) = M'}}
+     {
+     \begin{array}{c}
+      \tycnmap(M) = (atm, gtm, gcm) \hspace{15pt} G = \depgraph(gcm) \hspace{15pt} \topsort(G) = ts\\
+    gtm \xrightarrow[gcm]{ts} gtm'  \hspace{15pt}  atm' = \detwidths(atm, gtm') \hspace{15pt} M' = \replacewidths(M, atm')
+    \end{array}
+    }
+  \end{gather*}
+The main idea is to focus on the ground-type components that are flattened from the components in $M$, infer the widths of the ground types, assemble the ground types into aggregate types where all the widths are explicit, and finally replace the types in $M$ by the inferred types and obtain the new module $M'$. Specifically, the computation of $\inferwidths(M)$ comprises the following steps. 
+\begin{enumerate}
+\item We first call $\tycnmap(M)$ to compute a triple $(atm, gtm, gcm)$ where $atm$ is a type mapping from $\range{id}$ to $\ftypes$, $gtm$ is a ground-type mapping from $\gidset_M$ to $\gtypes$,  and $gcm$ is a ground-type connection mapping which assigns to each $(v, m) \in \gidset_M$ a list of ground-type expressions that are connected to $(v, m)$. 
+%
+%Note that there is a gap between $tm$ and $cm$, $tm$ records the typing information for the (not necessarily ground-type) components in $M$, while $cm$ records the connections only for ground type components. 
+\item We call $\depgraph(gcm)$ to compute a dependency graph $G = (V, E)$ from $gcm$. As we choose to focus on the components of implicit widths, $V$ is the set of $(v, m) \in \gidset_M$ such that $gtm(v, m) \in \{(\uintimp, n), (\sintimp, n) \mid n \in \Nat\}$.  
+Moreover, $E$ is defined as follows: if $(v, m) \in V$ and a component of identifier $(v', m') \in V$ occurs in $cm(v, m)$, then there is an edge from $(v',m')$ to $(v, m)$. 
+%
+\item We assume that \emph{$G$ is acyclic} and compute a topological sorting $ts$ of $G$. For convenience, we represent $ts$ as a vertex sequence. 
+%
+\item We define a recursive function $gtm_1 \xrightarrow[gcm]{vs} gtm_2$ where $gtm_1, gtm_2: \gidset_M \rightarrow \gtypes$ and $vs$ is a sequence of vertices in $G$. Let $gtm'$ be the ground-type mapping such that $gtm \xrightarrow[gcm]{ts} gtm'$. 
+%
+\item We construct $atm':\range{id} \rightarrow \ftypes$ by calling $\detwidths(atm, gtm')$ to determine the implicit widths in $atm$ according to $gtm'$. 
+%
+\item Finally, we call  $\replacewidths(M, atm')$ to replace the types in $M$ by those in $atm'$ and generate $M'$. 
+\end{enumerate}
+
+Note here currently we require the dependency graph $G$ to be acyclic. The main reason is that %. This technical choice is justified by that 
+inferring widths for cyclic dependency graphs is error-prone\footnote{See e.g. \url{https://github.com/llvm/circt/issues/1271} and \url{https://github.com/llvm/circt/issues/6742} for the the bugs in {\firtool} related to this.} and the semantics is unclear %how the semantics should be defined 
+for the general case.  
+ 
+We briefly explain how   $\tycnmap(M)$ and $\topsort(G)$ work. 
+\begin{itemize}
+\item $\tycnmap(M)$ for the computation of $(atm, gtm, gcm)$ is roughly the combination of the function $\portsstmtstmap$ and the relation $cm_1 \xrightarrow[tm, tmap]{ss} cm_2$ in Section~\ref{sec-form-firrtl}. 
+%
+%\item The construction of a dependency graph from $cm$, i.e.,  the procedure $\depgraph(cm)$, is straightforward.  
+%easy to define. 
+% 
+\item $\topsort(G)$ is adapted from a depth-first search (DFS) algorithm in the graph library of the mathematical components repository~\cite{DP20,CoqGraph}. Given a directed graph $G$, $\topsort(G)$ either reports that $G$ is acyclic together with its topological sorting, or reports that $G$ is cyclic with a cycle as witness. Accordingly, we prove the correctness of the topological sorting algorithm by adapting the correctness proof of the DFS algorithm. 
+%
+%\item The procedure $\detwidths(tm, gtm')$ can also be easily defined.  
+\end{itemize}
+%Moreover, the readers can also intuitively figure out 
+The definitions of $\depgraph(gcm)$, $\detwidths(atm, gtm')$, and $\replacewidths(M, atm')$ are more standard and omitted here. 
+%Therefore, to avoid tediousness, we omit the detailed definitions of these procedures. 
+
+%We now show how $gtm \xrightarrow[cm]{ts} gtm'$ is defined. 
+The relation $gtm \xrightarrow[gcm]{ts} gtm'$ is defined by two rules,  for the cases $ts = \nil$ and $ts \neq \nil$ respectively. The first rule is trivial, that is, $gtm \xrightarrow[gcm]{\nil} gtm$. For the case $ts \neq \nil$, let $ts = (v, m)\ ts'$,   
+\begin{itemize}
+\item it obtains the ground type $gt = gtm(v, m)$ and the list of ground-type expressions $cgels = gcm(v, m)$ connected to $(v, m)$, and computes the corresponding list $cgtls$ of ground types for $cgels$ (where $gtm(e)$ means the ground type of $e$ computed by assuming that the types of the references in $e$ are those from $gtm$), 
+\item it calls $\maxgtlist(gt, cgtls)$ to choose the maximum width and obtains $newgt$, 
+\item let $gtm'' = gtm[newgt/(v, m)]$, i.e. the ground-type mapping obtained from $gtm$ by assigning $nwegt$ to $(v, m)$, finally, it recursively calls $gtm'' \xrightarrow[gcm]{ts'} gtm'$ to compute $gtm'$. 
+\end{itemize}
+%
+%  \begin{gather*}
+%    \infer[]
+%    {\seqq{gtm \xrightarrow[gcm]{ts} gtm}}
+%    {\seqq{ts = \nil}}
+%\end{gather*}
+
+  \begin{gather*}
+    \infer[]
+    {\seqq{gtm \xrightarrow[gcm]{ts} gtm'}}
+    {
+    \begin{array}{c}
+      ts = (v, m)\ ts' \hspace{15pt} gt = gtm(v, m) \hspace{15pt}
+      cgels = gcm(v, m) \\
+     cgtls = \fmap(fun (e \Rightarrow gtm(e)), cgels) \hspace{15pt}
+     newgt = \maxgtlist(gt, cgtls) \hspace{15pt} \\
+     gtm'' = gtm[newgt/(v, m)] \hspace{15pt}
+     gtm'' \xrightarrow[gcm]{ts'} gtm'
+    \end{array}
+    }
+\end{gather*}
+
+The function $\maxgtlist(gt, cgtls)$ is defined by the rules in Fig.~\ref{fig:maxgtlist}, where the maximum is chosen among the widths for the implicit types. 
+
+%We formalize the ``InferWidths'' pass by defining a Coq function ${\sf inferWidthsM}:{\sf M} \rightarrow {\sf M}$, which contains two process. The first process ${\sf inferWidthsStage1 : M \rightarrow tmap}$ calculates the topological order of dependency graph of $M$ and iterates on the topological sorted order to updates a $tmap$, so that the bit widths of all the components with undefined bit widths can be determined. Then the second process ${\sf inferWidthsStage2 : M \times tmap \rightarrow M}$ produce a new module with inferred bit widths and explicit widths instead of implicit widths in the original module.
+
+\begin{figure}[htbp]
+  \begin{gather*}
+    \infer[\nil]
+    {\seqq{\maxgtlist(gt, cgtls) = gt}}
+    {\seqq{cgtls = \nil}}
+    \quad
+   \\[1ex]
+    \infer[$\neq$\nil: \uintimp]
+    {\seqq{\maxgtlist(gt, cgtls) =  newgt'}}
+    {
+    \begin{array}{c}
+      cgtls = gt' \ ls' \hspace{15pt} 
+      gt = (\uintimp, n)  \hspace{15pt} 
+      gt' = (\uintimp, n') \\
+      newgt = (\uintimp, \max(n, n')) \hspace{15pt}  newgt' = \maxgtlist(newgt, ls')
+    \end{array}
+    }
+    \quad
+   \\[1ex]
+    \infer[$\neq$\nil: \sintimp]
+    {\seqq{\maxgtlist(gt, cgtls) =  newgt'}}
+    {
+    \begin{array}{c}
+      cgtls = gt' \ ls' \hspace{15pt} 
+      gt = (\sintimp, n)  \hspace{15pt} 
+      gt' = (\sintimp, n') \\
+      newgt = (\sintimp, \max(n, n')) \hspace{15pt}  newgt' = \maxgtlist(newgt, ls')
+    \end{array}
+    }
+  \end{gather*}
+  \caption{$\maxgtlist$}
+  \label{fig:maxgtlist}
+\end{figure}
+
+
+%%%%%%  the original texts by Keyin
+\hide{
+The rationale behind the {\sf inferWidthM} function is stated as follows: The function  {\sf inferWidthsStage1} always chooses the maximum width of the expressions that are connected to the component $v$. 
+
+The behavior of the function {\sf inferwidthsM} on a module contains the folowing steps :
+\begin{enumerate}
+    \item Record the original $tmap$ with aggerate types and the connection map $var2exprs{\sf : range(}id{\sf )} \rightarrow \exps$ with only ground type expressions according to ports sequecnse $pp$ and statement sequence $ss$ in the module $(pp,ss)$. 
+
+The Coq function ${\sf {\sf portsStmtsTmap'} : }(pp,ss){\sf \rightarrow}(tmap,var2exprs)$ shown in ? and ?, given ports list and statements list in the module, generates two corresponding maps, mapping from aggregate level components to types and ground type level components to expressions. Note that aggregate connections are not expanded yet so that flip field should be considered when generating the connection map. This is shown in the function ${\sf listGRef :\ }id \times \ftypes \times {\sf Boolean} \rightarrow {\sf seq\ (} id \times \gtypes \times {\sf Boolean} {\sf )}$, where given a identifier, its {\sf FType} and its flip case, generates a list of triples, including identifier of a {\sf GType}, the {\sf GType} and the flip case of the {\sf GType}. The Coq function ${\sf typeOfRef' : } id \times tmap \rightarrow {\sf FType} \times Boolean$ shown in ?  given identifier and $tmap$, generates a pair with the first element is {\sf FType} and the second element is a Boolean value shows whether the component is flipped or not.
+
+For a statement that declares a component $v$ of \datatype \ $\{{\sf flip}\ a : \uint, b : \sint\}$,
+the {\sf {\sf portsStmtsTmap'}} function will update $tmap$ by
+ $$ {tmap':= tmap \uplus \{v : \{{\sf flip} \  a : \uint, b : \sint\}\}} $$
+\\For a statement that connects $v$ to another component $w$ of \datatype \ $\{{\sf flip}\ a : \uint, b : \sint\}$,
+the {\sf {\sf portsStmtsTmap'}} function will update $var2exprs$ by
+ $$ {var2exprs':= var2exprs \uplus \{v.a : \{w.a\} \} \uplus \{v.b : \{w.b\} \}} $$
+
+    \item Draw the dependency graph $G$ according to the connection map. The Coq function ${\sf drawG :} var2expr \rightarrow G$, given elements in the connection map $var2exprs$, generates the dependency graph by adding edges from every component in a expression to the target component. To make the calculation simpler, only components with uninferred implicit width are involved in the dependency graph,
+    
+    
+    \item Generate the topological order of all the uninferred ground type components. Given the vertices set and the graph, the correctness of sorting algorithm ${\sf topoSort : } G \rightarrow {\sf seq} id $ is certified. Because the module components depends on each other through connections and operations, implicit widths should be inferred sequentially in the order of topological order,
+
+    \item Compare the widths of each expression connected to the same component, and chooses the larger width. Since the last connect semantics is not considered, each connection to the component provides a potential width. A function named ${\sf maxFtList : GType \times \gtypes \rightarrow GType}$ compares the potential widths and outputs the maximum one. Finally, we update the corresponding widths of $v$ in $tmap$.
+    
+the Coq function {\sf inferWidthsFun} calls {\sf {\sf inferWidthsFun}} on the list of topological soreted order, where the widths are inferred sequentially according to the dependencies. 
+\end{enumerate}
+}
+%%%%%%  the original texts by Keyin
+%%%%%%  the original texts by Keyin
+
+
+
+%%%%%%%%%%%%%%%
+%\hide{
+%It is allowed to leave the width of a component implicit in HiFIRRTL programs.
+%Such unspecified widths are inferred by the Infer Widths pass.
+%The general rules are,
+%\begin{itemize}
+%\item The only allowed width for an explicitly defined width is itself.
+%\item An implicitly defined width will be set to the largest width that can
+%  be found through connect statements.
+%\item The last connection semantics is not considered at this stage,
+%  all connect statements are taken into account.
+%\end{itemize}
+%
+%Following the rules, we first introduce an additional map $wm$, which
+%maps from variables to types. Then we scan through the statements in $ss$ to
+%find components with implicit width and create entries for
+%them in $wm$. For a statement that declares a component $v$,
+%the {\sf infer\_width} function will update $wm$ by
+%%
+%  \begin{gather}
+%    \inferii[]
+%    {\seqq{ce \vdash {\sf infer\_width} (declare\;v, wm) \rightsquigarrow wm'}}
+%    {\seqq{ce \vdash {\sf width}(t_v) = 0}} {\seqq{wm':= wm \uplus \{v : t_v\}}}.
+%    \end{gather}
+%
+%The width is inferred according to connect statements.
+%Since the last connect semantics is not considered, each
+%connection to the element provides a potential width. A function
+%named {\sf max\_width} compares the potential widths and outputs
+%the maximum one. For a statement which connects an expression $e$
+%to a component $v$, the {\sf infer\_width} function will update $wm$ by
+%
+%After applying {\sf infer\_width} to all the statements in $ss$,
+%$wm$ contains the inferred width for every implicitly defined
+%component. By merging the information from $wm$ for every entry into $ce$,
+%the component environment $ce$ contains the
+%result of the inferred width.
+%
+%Instead of applying {\sf infer\_width} directly on $ce$, the map
+%$wm$ contains only type information of the implicit ones that can be
+%manipulated more efficiently.
+%}
+%%%%%%%%%%%%%%%
+
+%% \begin{description}
+%% \item[The {\sf input}] of InferWidth takes the statments and the component
+%%   environment $ce$ that passed from the InferType.  In $ce$ the
+%%   unspecified widths are recorded by zero width .  The statements
+%%   are assumed to contain only legal connections, which means the two
+%%   sides of the connection have equivalent type (mentioned?) and the
+%%   flow is from a smaller width to a lager one.
+%% \item[The output] of InferWidth give a new component environment $ce'$
+%%   where all unspecified types have been infered.  Still it is possible
+%%   that after this pass, signals are infered to zero width.  The overall
+%%   compilation will use other passes to deal with zero width, which is
+%%   not concerned here.
+%% \end{description}
+
+%% To state the correctness of InferWidth that implement in Coq, we first
+%% recall the semantics of width infering.  There are statements that
+%% declare new component, or the statements that define connections. For
+%% those components declared with explicit widths, we state that the
+%% widths will be kept unchange after the pass.  The implicit width
+%% declarations will be collected and await to be assigned to a proper width.
+%% The connections give hints to the infering process. For example,
+%% \begin{lstlisting}
+%%   wire c: SInt
+%%   c <= shl(SInt("b-100101100101"), 1)
+%% \end{lstlisting}
+%% the width of wire $c$ is implicit defined. The connection from an
+%% shift-left expression to $c$ will provide the protential width for $c$.
+%% According to the rules, the width of c now is 13, because the
+%% shift-left expression is of type \lstinline!SInt<13>!. Before applying last
+%% connect semantics, the module may contain more than one connections to
+%% one target. For example,
+%% \begin{lstlisting}
+%%   wire c: SInt
+%%   wire d: SInt<14>
+%%   c <= shl(SInt("b-100101100101"), 1)
+%%   c <= d
+%% \end{lstlisting}
+%% Now, wire $c$ has the width as same as $d$, which is 14. The latter connection
+%% from d gives a larger width to the destination $c$.

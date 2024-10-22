@@ -1,0 +1,194 @@
+%!TEX root = main.tex
+
+\smallskip\noindent
+{\bf Benchmarks}. To extensively evaluate the OCaml LoFIRRTL Interpreter,
+we mainly collect LoFIRRTL circuits from the Chisel/FIRRTL execution engine--Treadle\footnote{\url{https://github.com/chipsalliance/treadle}.} and the Chisel Book--Digital Design with Chisel~\cite{chisel:book},
+because Treadle is more likely to execute correctly on them so that
+the correctness testing of the formalized operational semantics has high confidence.
+
+There are 55 LoFIRRTL circuits inside the ``chipsalliance/treadle/samples'' directory
+of Treadle, among which 18 LoFIRRTL circuits are excluded because they are not self-contained (i.e., dependent upon external modules),
+or contain undefined semantics for memories, or have no output ports or cannot be handled by Treadle due to cyclical connection of ports.
+Thus, we consider the remaining 37 LoFIRRTL circuits from Treadle, among which three circuits have some \prettyll{inst of} statements,
+i.e., hierarchies of the modules.
+
+There are 51 Chisel examples in Scala inside the ``schoeberl/chisel-book/src/main/scala'' directory of the Chisel Book.
+These 51 Chisel examples are transformed into 77 LoFIRRTL circuits by applying the convertor \textsf{ChiselStage} within the Chisel compiler framework
+to each subclass of the class $\tt Module$ in Scala. (Note that some Chisel examples contain multiple such subclasses, thus yield multiple LoFIRRTL circuits.)
+Among 77 LoFIRRTL circuits, there are 67 \prettyll{inst of}-free LoFIRRTL circuits and 10 none-\prettyll{inst of}-free LoFIRRTL circuits.
+
+%For those from Treadle are 55 LoFIRRTL circuits inside the ``chipsalliance/treadle/samples'' directory.
+%We consider those LoFIRRTL circuits because Treadle is more likely to execute correctly on them so that
+%the correctness testing of the formalized operational semantics has high confidence.
+%Among 55 LoFIRRTL circuits, we exclude 18 LoFIRRTL circuits because they violate the syntax of
+%LoFIRRTL (i.e., dependency of external modules), undefined semantics for memories, have no output ports or
+%cannot be handled by Treadle due to cyclical connection of ports.
+%Thus, we collected 37 LoFIRRTL circuits from Treadle, among them 3 circuits have instof statement,  which means a nested module structure.
+%Beside, we generated 76 LoFIRRTL circuits from book project of Digital Design with Chisel, which containing 51 Chisel examples inside the ``schoeberl/chisel-book/src/main/scala'' directory. The transformation is executed by Chisel stage for each class extends from class $\tt Module$, as it is legal to define multi-class in one Scala program, it is possible to execute 76 LoFIRRTL circuits from 51 Chisel programs. The generated LoFIRRTL circuits including 66 single module circuits and 10 with instance structure.
+Besides the above LoFIRRTL circuits, we also collect all the four LoFIRRTL circuits from
+\cite{HarrisonHA21} which have been tested using a formal Agda-based Interpreter designed for a subset of LoFIRRTL,
+and design two additional LoFIRRTL circuits in consideration of the branch coverage of the OCaml LoFIRRTL  Interpreter and different hierarchical structures of the modules.
+
+In summary, we use 120 (37+77+4+2) LoFIRRTL circuits all of which can be handled by Treadle.
+
+\smallskip\noindent
+{\bf Testing method}.
+Since the input LoFIRRTL circuits to our OCaml LoFIRRTL  Interpreter should be in the pseudo-SSA form
+while all the collected LoFIRRTL circuits are not necessary in a pseudo-SSA form,
+to resolve this issue, we preprocess them based on our verified
+topological sorting algorithm, as described above.
+Furthermore, LoFIRRTL circuits themselves require input signals to execute.
+For this purpose, we implement a deriver in OCaml which first automatically identifies
+all the input ports and their data types for each LoFIRRTL circuit and then randomly generates 100 input traces for
+the LoFIRRTL circuit. Finally, for each given LoFIRRTL circuit and each its input trace,
+we compare the equivalence of output ports produced by our OCaml LoFIRRTL  Interpreter and Treadle.
+We do not compare with the Agda-based Interpreter because it cannot directly execute LoFIRRTL circuits.
+
+\begin{table}[!t]
+\caption{Results of conformance testing}\small %\footnotesize\vspace*{-3mm}
+\label{tab:conformancetesting}
+\scalebox{0.95}{\begin{tabular}{|c|c|c|c|c|c|}
+  \hline
+\multirow{2}{*}{\bf Benchmark suit} & \multirow{2}{*}{\bf \#LOC} & \multicolumn{2}{c|}{\bf Execution time ($\mu$s)}&\multirow{2}{*}{\bf Speedup}  & \multirow{2}{*}{\bf Result} \\ \cline{3-4}
+                              &                        & {\bf Treadle}  &  {\bf Ours}  &     &  \\ \hline \hline
+      Treadle (37 circuits) & 38.08  & 12.18  & 3.13  & 7.16  & \ding{51} \\ \hline
+         Chisel Book (77 circuits) & 68.86  & 139.63  & 31.31  & 5.81  & \ding{55}(1) \\ \hline
+        \cite{HarrisonHA21} (4 circuits) & 15.00  & 18.05  & 0.60  & 29.81  & \ding{51} \\ \hline
+        Our own (2 circuits) & 50.50 & 188.80  & 62.52  & 3.20 & \ding{51} \\ \hline \hline
+        \textbf{Average} &  \textbf{57.21} & 	\textbf{97.86} & 	\textbf{22.45} & 	\textbf{6.95} &  \\ \hline
+ \end{tabular}}
+\end{table}
+ 	 	 	
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{table}[t]
+\caption{Results of conformance testing on the benchmarks from Treadle}\footnotesize\vspace*{-3mm}
+\label{tab:conformancetesting-Treadle}
+\scalebox{0.9}{\begin{tabular}{|c|c|c|c|c|c|}
+  \hline
+\multirow{2}{*}{\bf Benchmark name} & \multirow{2}{*}{\bf \#LOC} & \multicolumn{2}{c|}{\bf Execution time ($\mu$s)}&\multirow{2}{*}{\bf Speedup}  & \multirow{2}{*}{\bf Result} \\ \cline{3-4}
+                              &                        & {\bf Treadle}  &  {\bf Ours}  &     &  \\ \hline
+ \hline
+        AggregatePassThrough & 72 & 13.83 & 3.57 & 2.87  & \ding{51} \\ \hline
+        ALU & 61 & 24.65 & 2.58 & 8.56  & \ding{51} \\ \hline
+        BundlePassThrough & 27 & 8.71 & 2.16 & 3.04  & \ding{51} \\ \hline
+        ConstantTapTransposedStreamingFIR & 35 & 11.48 & 1.40 & 7.19  & \ding{51} \\ \hline
+        DoesAbs & 36 & 11.67 & 2.89 & 3.04  & \ding{51} \\ \hline
+        DriverTest & 8 & 6.43 & 0.63 & 9.14  & \ding{51} \\ \hline
+        EqModule & 9 & 8.29 & 0.64 & 12.05  & \ding{51} \\ \hline
+        ExampleModule & 44 & 11.47 & 2.00 & 4.72  & \ding{51} \\ \hline
+        FixedPointAdder & 11 & 9.36 & 0.47 & 18.89  & \ding{51} \\ \hline
+        FixedPointDivide & 10 & 7.30 & 0.40 & 17.22  & \ding{51} \\ \hline
+        FixedPointReduce & 43 & 18.40 & 2.38 & 6.72  & \ding{51} \\ \hline
+        FixedPointShifter & 15 & 10.11 & 1.59 & 5.36  & \ding{51} \\ \hline
+        FixedPrecisionChanger & 10 & 9.51 & 0.64 & 13.83  & \ding{51} \\ \hline
+        FixedRing1 & 26 & 9.26 & 2.81 & 2.30  & \ding{51} \\ \hline
+        GCD & 30 & 9.75 & 2.11 & 3.61  & \ding{51} \\ \hline
+        HardwareHashMaker & 122 & 28.38 & 31.49 & -0.10  & \ding{51} \\ \hline
+        IntegerModule & 11 & 7.35 & 0.74 & 8.88  & \ding{51} \\ \hline
+        OverflowTypeCircuit & 34 & 9.90 & 2.16 & 3.57  & \ding{51} \\ \hline
+        ParameterizedNumberOperation & 12 & 10.93 & 0.52 & 19.89  & \ding{51} \\ \hline
+        PeekPokeBundleSpecMyCircuit & 17 & 9.11 & 2.01 & 3.53  & \ding{51} \\ \hline
+        RealGCD2 & 44 & 9.98 & 2.60 & 2.84  & \ding{51} \\ \hline
+        RealGCD3 & 48 & 12.66 & 2.71 & 3.67  & \ding{51} \\ \hline
+        RemoveMantissa & 10 & 8.48 & 0.55 & 14.39  & \ding{51} \\ \hline
+        RingModule & 11 & 6.91 & 0.64 & 9.72  & \ding{51} \\ \hline
+        ShouldBeBadUIntSubtractWithGrow & 14 & 7.81 & 0.66 & 10.93  & \ding{51} \\ \hline
+        SignedAdder & 11 & 9.77 & 0.68 & 13.47  & \ding{51} \\ \hline
+        SignedModule & 34 & 6.79 & 1.36 & 4.01  & \ding{51} \\ \hline
+        SimpleAdder & 15 & 9.14 & 0.69 & 12.19  & \ding{51} \\ \hline
+        SimpleCaseClassModule & 10 & 8.78 & 0.52 & 15.87  & \ding{51} \\ \hline
+        SimpleComplexAdder & 40 & 12.68 & 1.56 & 7.11  & \ding{51} \\ \hline
+        Sort & 85 & 17.53 & 7.14 & 1.46  & \ding{51} \\ \hline
+        UseMyBundle & 59 & 8.75 & 3.11 & 1.82  & \ding{51} \\ \hline
+        VecPassThrough & 75 & 20.21 & 5.06 & 3.00  & \ding{51} \\ \hline
+        VF & 64 & 6.53 & 2.18 & 2.00  & \ding{51} \\ \hline
+        ContextNestingTop & 64 & 8.76 & 3.10 & 1.83  & \ding{51} \\ \hline
+        MultiGcdCalculator & 133 & 51.35 & 18.33 & 1.80  & \ding{51} \\ \hline
+        StreamingAutocorrelator & 59 & 8.78 & 1.56 & 4.62  & \ding{51} \\ \hline\hline
+        {\bf Average} & \textbf{38.08} & \textbf{12.18} & \textbf{3.13} & \textbf{7.16} &  \\ \hline
+\end{tabular}}
+\end{table}
+
+
+
+\begin{table}[t]
+\caption{Results of conformance testing on the benchmarks from \cite{HarrisonHA21}}\footnotesize\vspace*{-3mm}
+\label{tab:conformancetesting-Agda}
+\scalebox{0.9}{\begin{tabular}{|c|c|c|c|c|c|}
+  \hline
+\multirow{2}{*}{\bf Benchmark name} & \multirow{2}{*}{\bf \#LOC} & \multicolumn{2}{c|}{\bf Execution time ($\mu$s)}&\multirow{2}{*}{\bf Speedup}  & \multirow{2}{*}{\bf Result} \\ \cline{3-4}
+                              &                        & {\bf Treadle}  &  {\bf Ours}  &     &  \\ \hline
+ \hline
+        Accumulator & 13 & 17.47  & 0.67  & 25.15  & \ding{51} \\ \hline
+        Combinational & 12 & 16.70  & 0.66  & 24.15  & \ding{51} \\ \hline
+        FibCircuit & 14 & 19.02  & 0.46  & 40.80  & \ding{51} \\ \hline
+        ShiftRegister & 21 & 19.01  & 0.63  & 29.16  & \ding{51} \\ \hline \hline
+        \textbf{Average} & \textbf{15.00} & \textbf{18.05} & \textbf{0.60} & \textbf{29.81} & \\ \hline
+\end{tabular}}
+\end{table}
+
+
+
+\begin{table}[t]
+\caption{Results of conformance testing on our own benchmarks}\footnotesize\vspace*{-3mm}
+\label{tab:conformancetesting-ours}
+\scalebox{0.9}{\begin{tabular}{|c|c|c|c|c|c|}
+  \hline
+\multirow{2}{*}{\bf Benchmark name} & \multirow{2}{*}{\bf \#LOC} & \multicolumn{2}{c|}{\bf Execution time ($\mu$s)}&\multirow{2}{*}{\bf Speedup}  & \multirow{2}{*}{\bf Result} \\ \cline{3-4}
+                              &                        & {\bf Treadle}  &  {\bf Ours}  &     &  \\ \hline
+ \hline
+       Mytest & 52	&249.90 & 103.69 & 1.41 & \ding{51}\\ \hline
+        Mytestinst & 49& 127.70 &21.34&	4.98   & \ding{51}\\ \hline \hline
+        \textbf{Average} & \textbf{50.50} & \textbf{188.80}  & \textbf{62.52}  & \textbf{3.20} & \\ \hline
+\end{tabular}}
+\end{table}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+\smallskip\noindent
+{\bf Testing results}.
+The summary of conformance testing is reported in Table~\ref{tab:conformancetesting}.
+Column (\#LOC) shows the average number of locations for each benchmark suit.
+Column (Treadle) shows the average execution time $t_1$ of Treadle in microsecond ($\mu$s) for each benchmark suit.
+Column (Ours) shows the average execution time $t_2$ of our OCaml LoFIRRTL Interpreter in $\mu$s for each benchmark suit.
+Column (Speedup) is calculated via $\frac{t_1-t_2}{t_2}$ for each benchmark suit.
+Column (Result) shows the comparison result of output ports between Treadle and our OCaml LoFIRRTL Interpreter under the 100 input traces,
+where \ding{51} indicates that the values of the output ports produced by two tools are the same and \ding{55}(n) indicates
+that the values of the output ports of $n$ benchmarks produced by two tools are different.
+The last row (Average) shows the average results over all 120 benchmarks.
+Detailed results are given in Tables~\ref{tab:conformancetesting-Treadle}, \ref{tab:conformancetesting-Agda}, \ref{tab:conformancetesting-ours}, and \ref{tab:conformancetesting-Chisel-book}.
+
+Overall, our OCaml LoFIRRTL Interpreter successfully executes all the 120 benchmarks
+and produces the same values of the output ports as Treadle except for one benchmark \texttt{BundleVec} taken from the Chisel Book.
+This inconsistency is caused by the undefined semantics of the \prettyll{validif} expressions.
+More specifically, the LoFIRRTL specification states that \prettyll{validif (e1,e2)} evaluates to the expression \prettyll{e2}
+if the conditional expression \prettyll{e1} evaluates to true, otherwise undefined.
+In Treadle,  \prettyll{validif (e1,e2)} evaluates to \prettyll{e2}
+ regardless of the conditional expression \prettyll{e1}, while
+ in our operational semantics, \prettyll{validif (e1,e2)} evaluates to \prettyll{e2}
+if \prettyll{e1} evaluates true, otherwise $0$.
+
+
+In terms of efficiency, our OCaml LoFIRRTL Interpreter is significantly faster (6.95 times on average) than Treadle on almost all the benchmarks
+except for one benchmark \texttt{HardwareHashMaker} from Treadle.
+After an in-depth analysis, we found that \texttt{HardwareHashMaker} has 20 64-bit multiplication operations significantly more than the other benchmarks,
+our OCaml LoFIRRTL Interpreter is extracted from the bit-wise multiplication in Coq while Treadle uses integer multiplication.
+Though we could adopt integer multiplication as well,
+we chose bit-wise multiplication based on the bit-vector library in Coq whose correctness has been formally proved.
+%
+%
+%We can observe that our OCaml LoFIRRTL Interpreter produces the same results as Treadle on all the 37 benchmarks under all the input tests.
+%Furthermore, our OCaml LoFIRRTL Interpreter is significantly more efficient than Treadle on almost all the benchmarks except for HardwareHashMaker.
+%After an in-depth analysis, we found that HardwareHashMaker has 20 64-bit multiplication operations significantly more than the other benchmarks,
+%our OCaml LoFIRRTL Interpreter is extracted from the bit-wise multiplication in Coq while Treadle uses (bit) integer multiplication.
+%Though we could adopt (bit) integer multiplication as well,
+%we chose bit-wise multiplication based on the bit-vector library in Coq whose correctness has been formally proved. %and the ocaml bit-vector operations are extracted from coq code
+
+
+In order to have some measure of the effectiveness of our testing, we analyzed the branch coverage of our OCaml LoFIRRTL Interpreter.
+All the 120 benchmarks together cover all the 51 branches, as well as modules with instances of \prettyll{inst of}-free modules
+and none-\prettyll{inst of}-free modules. (Note that only 36 out of 51 branches and modules with instances of \prettyll{inst of}-free modules are covered without our own two benchmarks.)
+%To cover the remaining branches, we implement an additional benchmark, called mytest,
+%on which Treadle and our OCaml LoFIRRTL Interpreter also produce the same results.
+
