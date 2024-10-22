@@ -5,7 +5,7 @@ From mathcomp Require Import tuple.
 From nbits Require Import NBits.
 From simplssrlib Require Import Var.
 From firrtl Require Import Env Firrtl HiEnv HiFirrtl.
-From firrtl Require Import ModuleGraph_simplified Transform.
+From firrtl Require Import ModuleGraph_simplified InferWidth_rewritten ExpandWhens ExpandConnects_new.
 
 Extraction Language OCaml.
 
@@ -25,6 +25,7 @@ Separate Extraction
          Env.sizeof_fgtyp
          HiFirrtl.hfcircuit ModuleGraph_simplified.type_of_expr
          InferWidth_rewritten.InferWidths_m
-         ExpandConnects_new.expandconnects_fmodule ExpandWhens_rewritten.ExpandWhens_fun
-         Transform.transformF.
+         ExpandConnects_new.expandconnects_fmodule ExpandConnects_new.rcd_pmap_from_m ExpandConnects_new.output_ft_pmap
+         ExpandWhens.ExpandWhens_fun
+         .
 Cd "../../..".

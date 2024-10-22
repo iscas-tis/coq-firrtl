@@ -1,6 +1,6 @@
 open Hifirrtl_lang
-(*open Big_int_Z
-open Transform
+open Big_int_Z
+(*open Transform
 open ModuleGraph_simplified*)
 
 open Printf
@@ -47,28 +47,31 @@ let rec pp_ports_mlir out pl =
   | p :: [] -> pp_port_mlir out p
   | p :: tl -> pp_port_mlir out p; fprintf out ", "; pp_ports_mlir out tl
 
-(*let nat_of_bits bv = 
-  let rec helper i max lst res =
-    if i >= max then res
-    else match List.nth bv i with
-    | false -> helper (succ i) max lst res
-    | true -> helper (succ i) max lst ((power_int_positive_int (2) i) + res) in
-  helper 0 (List.length bv) bv zero_big_int
-
-let z_of_bits bits = 
-  let (v,sign) = splitmsb bv in
-  if sign then ((nat_of_bits v) - (power_int_positive_int (2) ((List.length bv)-1))) (*最高位true，负数*)
-  else
-    nat_of_bits v*)
-
 let sizeof_ftype ft =
   match ft with
   | HiEnv.Gtyp gt -> Env.sizeof_fgtyp gt
   | _ -> 0
 
+let nat_of_bits bv = 
+  let rec helper i max lst res =
+    if i >= max then res
+    else match List.nth bv i with
+    | false -> helper (succ i) max lst res
+    | true -> helper (succ i) max lst (add_big_int (power_int_positive_int (2) i) res) in
+  helper 0 (List.length bv) bv zero_big_int
+
+let z_of_bits bv = 
+  let (v,sign) = NBitsDef.splitmsb bv in
+  if sign then (sub_big_int (nat_of_bits v) (power_int_positive_int (2) ((List.length bv)-1))) (*最高位true，负数*)
+  else
+    nat_of_bits v
+
 let rec pp_expr_mlir out eflag tmap e = 
   match e with
-  | HiFirrtl.Econst (gt, bs) -> fprintf out "%%e%d = firrtl.constant %d : !firrtl." eflag (NBitsDef.to_nat bs); pp_fgtyp_mlir out gt; fprintf out "\n"; ("%e"^(Int.to_string eflag), eflag + 1)
+  | HiFirrtl.Econst (gt, bs) -> (match gt with
+                          | Env.Fuint _ -> fprintf out "%%e%d = firrtl.constant %s : !firrtl." eflag (string_of_big_int (nat_of_bits bs)); pp_fgtyp_mlir out gt; fprintf out "\n"; ("%e"^(Int.to_string eflag), eflag + 1)
+                          | Env.Fsint _ -> fprintf out "%%e%d = firrtl.constant %s : !firrtl." eflag (string_of_big_int (z_of_bits bs)); pp_fgtyp_mlir out gt; fprintf out "\n"; ("%e"^(Int.to_string eflag), eflag + 1)
+                          | _ -> printf "error const expression\n"; ("error const expression", eflag))
   | HiFirrtl.Ecast (c, e0) -> (let (eflag0, eflag1) = pp_expr_mlir out eflag tmap e0 in match c with
                           | Firrtl.AsUInt -> fprintf out "%%e%d = firrtl.asUInt %s : (!firrtl." eflag1 eflag0; (match ModuleGraph_simplified.type_of_expr e0 tmap, ModuleGraph_simplified.type_of_expr e tmap with
                                                                                                                 | Some te0, Some te -> pp_ftype_mlir out te0; fprintf out ") -> !firrtl."; pp_ftype_mlir out te; ("%e"^(Int.to_string eflag1), eflag1 + 1)
@@ -82,7 +85,7 @@ let rec pp_expr_mlir out eflag tmap e =
                           | Firrtl.AsAsync -> fprintf out "%%e%d = firrtl.asAsyncReset %s : (!firrtl." eflag1 eflag0; (match ModuleGraph_simplified.type_of_expr e0 tmap with
                                                                                                                 | Some te0 -> pp_ftype_mlir out te0; fprintf out ") -> !firrtl.asyncreset"; ("%e"^(Int.to_string eflag1), eflag1 + 1)
                                                                                                                 | _ -> fprintf out "wrong expression type"; ("%e"^(Int.to_string eflag1), eflag1 + 1))
-                          | Firrtl.AsReset -> fprintf out "wrong expression asreset"; ("%e"^(Int.to_string eflag1), eflag1 + 1))
+                          (*| Firrtl.AsReset -> fprintf out "wrong expression asreset"; ("%e"^(Int.to_string eflag1), eflag1 + 1)*))
   | HiFirrtl.Eprim_unop (op, e0) -> (let (eflag0, eflag1) = pp_expr_mlir out eflag tmap e0 in match op with
                           | Firrtl.Upad s -> fprintf out "%%e%d = firrtl.pad %s, %d : (!firrtl." eflag1 eflag0 s; (match ModuleGraph_simplified.type_of_expr e0 tmap, ModuleGraph_simplified.type_of_expr e tmap with
                                                                                                                 | Some te0, Some te -> pp_ftype_mlir out te0; fprintf out ") -> !firrtl."; pp_ftype_mlir out te; ("%e"^(Int.to_string eflag1), eflag1 + 1)
@@ -217,16 +220,17 @@ let pp_stmt_mlir out eflag tmap s =
                                                               (fprintf out "%%e%d = firrtl.tail %%%d, %d : (!firrtl." eflag (pair2nat (Obj.magic e)) ((sizeof_ftype te) - (sizeof_ftype tv)); pp_ftype_mlir out te; fprintf out ") -> !firrtl."; pp_ftype_mlir out tv;)
                                                             else fprintf out "";))
                                                      else
-                                                      (fprintf out "%%e%d = firrtl.widthCast %%%d : (!firrtl." eflag (pair2nat (Obj.magic e)); pp_ftype_mlir out te; fprintf out ") -> 3!firrtl."; pp_ftype_mlir out tv;));
+                                                      (fprintf out "%%e%d = firrtl.widthCast %%%d : (!firrtl." eflag (pair2nat (Obj.magic e)); pp_ftype_mlir out te; fprintf out ") -> !firrtl."; pp_ftype_mlir out tv;));
                                          fprintf out "firrtl.strictconnect %%%d, %%%d : !firrtl." (pair2nat (Obj.magic v)) (pair2nat (Obj.magic e)); pp_ftype_mlir out tv; eflag + 1
                                          | _ -> fprintf out "wrong variable name\n"; eflag)
                                   | _ -> fprintf out "wrong variable name\n"; eflag)
   | HiFirrtl.Sfcnct (Eid v, e) -> let (eflag0, eflag1) = pp_expr_mlir out eflag tmap e in (match CEP.find v tmap with
                                   | Some tv -> fprintf out "firrtl.strictconnect %%%d, %s : !firrtl." (pair2nat (Obj.magic v)) eflag0; pp_ftype_mlir out tv; fprintf out "\n"; eflag1
                                   | _ -> fprintf out "wrong variable name\n"; eflag1)
-  | HiFirrtl.Sinvalid (Eid v) -> fprintf out "%%%d = firrtl.invalidvalue : !firrtl." eflag; (match CEP.find v tmap with
-                                  | Some tv -> pp_ftype_mlir out tv; fprintf out "\n"; eflag
-                                  | _ -> fprintf out "wrong variable name\n"; eflag)
+  | HiFirrtl.Sinvalid (Eid v) -> fprintf out "%%e%d = firrtl.invalidvalue : !firrtl." eflag; (match CEP.find v tmap with
+                                  | Some tv -> pp_ftype_mlir out tv; fprintf out "\n"; 
+                                               fprintf out "firrtl.strictconnect %%%d, %%e%d : !firrtl." (pair2nat (Obj.magic v)) eflag; pp_ftype_mlir out tv; fprintf out "\n"; eflag + 1
+                                  | _ -> fprintf out "wrong variable name\n"; eflag + 1)
   | HiFirrtl.Snode (v, e) -> let (eflag0, eflag1) = pp_expr_mlir out eflag tmap e in (match CEP.find v tmap with
                                   | Some tv -> fprintf out "\n%%%d = firrtl.node %s : !firrtl." (pair2nat (Obj.magic v)) eflag0; pp_ftype_mlir out tv; eflag1
                                   | _ -> fprintf out "wrong variable name\n"; eflag1)
@@ -299,23 +303,41 @@ let hiparse f =
   let lexbuf = Lexing.from_channel (open_in f) in
   FirrtlParser.file FirrtlLexer.token lexbuf
 
-let hif_ast = hiparse "./demo/chiselhi/FormalSimple.fir"
+let hif_ast = hiparse "./demo/hifir/circt/pretest1.fir"
 
 let () =
   let out = open_out "./demo/output.txt" in
   match hif_ast with
-  | Ast.Fcircuit (_, ml) -> let (map0, tmap0, flag) = mapmod (initmap_s, 0) (List.hd ml) in 
-    StringMap.iter (fun key (value1, value2) -> (printf "%s: (%d, %d)" key value1 value2); printf "\n") map0;
-    StringMap.iter (fun key value -> (printf "%s: " key; Ast.pp_type stdout value); printf "\n") tmap0;
+  | Ast.Fcircuit (_, ml) -> let (map0, _, flag) = mapmod (initmap_s, 0) (List.hd ml) in 
+    (*StringMap.iter (fun key (value1, value2) -> (printf "%s: (%d, %d)" key value1 value2); printf "\n") map0;
+    StringMap.iter (fun key value -> (printf "%s: " key; Ast.pp_type stdout value); printf "\n") tmap0;*)
   (*let _ = trans_cir hif_ast map0 flag in*)
     let fmod = trans_mod (List.hd ml) map0 flag in
-    (*match InferWidth_rewritten.coq_InferWidths_stage1 fmod with*)
-    match InferWidth_rewritten.coq_InferWidths_m fmod with
-    | Some (m, tmap) -> pp_module_mlir out "Foo" tmap m; 
-                        pp_module_mlir out "Foo" (ExpandConnects_new.output_ft_pmap m tmap) (ExpandConnects_new.expandconnects_fmodule m (ExpandConnects_new.rcd_pmap_from_m m CEP.empty));
-                        (match (ExpandWhens_rewritten.coq_ExpandWhens_fun (ExpandConnects_new.expandconnects_fmodule m (ExpandConnects_new.rcd_pmap_from_m m CEP.empty))) with
-                        | Some fm ->
-                        pp_module_mlir out "Foo" (ExpandConnects_new.output_ft_pmap m tmap) fm
+    let ut1 = (Unix.times()).tms_utime in
+
+    (*match fmod with
+    | FInmod (_, ps, ss) -> (match InferWidth_new.ports_tmap' ps with
+      | Some pmap -> (match InferWidth_new.stmts_tmap' pmap CEP.empty ss with
+        | Some (tmap, _) -> (match InferWidth_new.type_of_expr (Eref (Eid (Obj.magic (4,0)))) tmap with 
+          | Some _ -> printf "1"
+          | _ -> printf "5")
+        | _ -> printf "4")
+      | _ -> printf "3")
+    | _ -> printf "2"*)
+
+    match InferWidth_new.coq_InferWidths_m fmod with
+    | Some (m, _) -> let ut2 = (Unix.times()).tms_utime in 
+                        (*pp_module_mlir out "Foo" tmap0 m; 
+                        pp_module_mlir out "Foo" (ExpandConnects_new.rcd_pmap_from_m m CEP.empty) (ExpandConnects_new.expandconnects_fmodule m (ExpandConnects_new.rcd_pmap_from_m m CEP.empty));*)
+                        (*match CEP.find (Obj.magic (0, 3)) (ExpandConnects_new.rcd_pmap_from_m m CEP.empty) with
+                        | Some t -> pp_ftype_mlir stdout t
+                        | _ -> printf "12"*)
+                        let m1 = (ExpandConnects_new.expandconnects_fmodule m (ExpandConnects_new.rcd_pmap_from_m m CEP.empty)) in
+                        let ut3 = (Unix.times()).tms_utime in
+                        (match (ExpandWhens.coq_ExpandWhens_fun m1) with
+                        | Some fm -> let ut4 = (Unix.times()).tms_utime in
+                        pp_module_mlir out "Foo" (*ExpandConnects_new.output_ft_pmap m tmap*)(ExpandConnects_new.rcd_pmap_from_m m CEP.empty) fm
+                        ; printf "%f\n%f\n%f\n" (Float.sub ut2 ut1) (Float.sub ut3 ut2) (Float.sub ut4 ut3)
                         | _ -> printf "12")
 
     | _ -> printf "11"

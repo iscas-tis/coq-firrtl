@@ -2,7 +2,7 @@ From Coq Require Import FunInd FMaps FMapAVL OrderedType ZArith.
 From mathcomp Require Import ssreflect ssrbool ssrnat ssrint eqtype seq ssrfun.
 From simplssrlib Require Import Types SsrOrder FSets FMaps Tactics Var Store.
 From nbits Require Import NBits.
-From firrtl Require Import Env HiEnv Firrtl HiFirrtl InferWidth_rewritten ExpandConnects_new ExpandWhens_rewritten.
+From firrtl Require Import Env HiEnv Firrtl HiFirrtl InferWidth_rewritten ExpandConnects_new ExpandWhens_2024_05_OLD.
 (*Inductive hfexpr : Type :=
   | Econst : fgtyp -> bits -> hfexpr
   | Ecast : ucast -> hfexpr -> hfexpr
@@ -239,7 +239,7 @@ Fixpoint seq_stmts ss : seq HiFP.hfstmt :=
 *)
 Definition transformF (F : HiFP.hfmodule) : option (HiFP.hfmodule * CEP.t ftype) :=
   match InferWidth_rewritten.InferWidths_m F with
-  | Some (m, tmap) => match ExpandWhens_rewritten.ExpandWhens_fun (expandconnects_fmodule m (rcd_pmap_from_m m (CEP.empty ftype))) with
+  | Some (m, tmap) => match ExpandWhens_2024_05_OLD.ExpandWhens_fun (expandconnects_fmodule m (rcd_pmap_from_m m (CEP.empty ftype))) with
                                               | Some m => Some (m, output_ft_pmap m tmap)
                                               | _ => None
                                               end

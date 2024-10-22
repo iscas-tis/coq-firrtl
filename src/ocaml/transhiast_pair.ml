@@ -123,7 +123,7 @@ let trans_ebinop a_ebinop =
   | Ast.Bxor -> Firrtl.Bxor
   | Ast.Bcat -> Firrtl.Bcat
 
-let bits_of_z (size : int) (z : Z.t) =
+(*let bits_of_z (size : int) (z : Z.t) =
     let binstr =
       if z >= Z.zero then
         Z.format ("%0" ^ (string_of_int size) ^ "b") z
@@ -136,7 +136,38 @@ let bits_of_z (size : int) (z : Z.t) =
       | '0' -> helper (succ i) max str (false::res)
       | '1' -> helper (succ i) max str (true::res)
       | _ -> assert false in
-    helper 0 (String.length binstr) binstr []
+    helper 0 (String.length binstr) binstr []*)
+
+(* 定义函数，计算二进制表示的长度 *)
+let binary_length (n: Z.t) : int =
+  if n = Z.zero then 1  (* 特殊情况：0 的补码表示为 "0"，长度为 1 *)
+  else
+    let bits = Z.numbits (Z.abs n) in
+    if n > Z.zero then
+      bits  (* 正数情况下，补码长度和原码长度相同 *)
+    else
+      bits + 1  (* 负数情况下，补码需要加一个符号位 *)
+
+(* 辅助函数：将整数转换为布尔列表表示的二进制数 *)
+let rec int_to_bool_list n bits_remaining =
+  if bits_remaining = 0 then []
+  else
+    let bit = Z.testbit n (bits_remaining - 1) in
+    bit :: int_to_bool_list n (bits_remaining - 1)
+
+(* 主函数：将整数转换为指定位长的二进制补码表示，并用 bool list 表示 *)
+let bits_of_z (n: Z.t) (bit_length: int) : bool list =
+  (* 计算 2^bit_length 的值 *)
+  let two_power_bit_length = Z.shift_left Z.one bit_length in
+  (* 计算补码表示 *)
+  let twos_complement =
+    if n >= Z.zero then
+      Z.rem n two_power_bit_length
+    else
+      Z.add two_power_bit_length (Z.rem n two_power_bit_length)
+  in
+  (* 将补码表示转换为布尔列表 *)
+  int_to_bool_list twos_complement bit_length
 
 let rec trans_ftype v ty map = 
   match ty with
@@ -165,7 +196,11 @@ let rec find_nat4v ref =
 
 let rec trans_expr e map = 
   match e with
-  | Ast.Econst (ty, s) -> HiFirrtl.Econst (trans_fgtyp ty, bits_of_z (Env.sizeof_fgtyp (trans_fgtyp ty)) s)
+  | Ast.Econst (ty, s) -> 
+    (match ty with
+    | Ast.Fuint_implicit _
+    | Ast.Fsint_implicit _ -> HiFirrtl.Econst (trans_fgtyp ty, bits_of_z s (binary_length s))
+    | _ -> HiFirrtl.Econst (trans_fgtyp ty, bits_of_z s (Env.sizeof_fgtyp (trans_fgtyp ty))))
   | Ast.Eref v -> HiFirrtl.Eref (HiFirrtl.Eid (Obj.magic (StringMap.find (find_nat4v v) map)))
   | Ast.Eprim_unop (op, e1) -> HiFirrtl.Eprim_unop(trans_eunop op, trans_expr e1 map)
   | Ast.Eprim_binop (bop, e1, e2) -> HiFirrtl.Eprim_binop(trans_ebinop bop, trans_expr e1 map, trans_expr e2 map)
@@ -291,9 +326,9 @@ let rec pp_expr e =
   | Ecast (_, e) -> printf "(ecast "; printf " "; pp_expr e; printf ")";
   | _ -> printf "wrong id"
 
-let hif_ast = hiparse "./demo/chiselhi/FormalSimple.fir"
+(*let hif_ast = hiparse "./demo/chiselhi/FormalSimple.fir"
 
-(*let () =
+let () =
   match hif_ast with
   | Ast.Fcircuit (_, ml) -> let (map0, tmap0, flag) = mapmod (initmap_s, 0) (List.hd ml) in 
     StringMap.iter (fun key (value1, value2) -> (printf "%s: (%d, %d)" key value1 value2); printf "\n") map0;

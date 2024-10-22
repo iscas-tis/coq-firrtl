@@ -217,10 +217,10 @@ match e with
                       | Some (Gtyp _) => Some (Gtyp Freset)
                       | _ => None
                       end
-| Ecast AsAsync e1 => match type_of_hfexpr e1 ce  with
+(*| Ecast AsAsync e1 => match type_of_hfexpr e1 ce  with
                       | Some (Gtyp _) => Some (Gtyp Fasyncreset)
                       | _ => None
-                      end
+                      end*)
 | Eprim_unop (Upad n) e1 => match type_of_hfexpr e1 ce with
                             | Some (Gtyp (Fsint w)) => Some (Gtyp (Fsint (maxn w n)))
                             | Some (Gtyp (Fuint w)) => Some (Gtyp (Fuint (maxn w n)))
@@ -533,6 +533,15 @@ Fixpoint add_expr_connect (vl : seq ProdVarOrder.t) (el : seq HiFP.hfexpr) (var2
   | _, _ => None
   end.
 
+Fixpoint add_nil_expr (vl : seq ProdVarOrder.t) (var2exprs : CEP.t (seq HiFP.hfexpr)) : (CEP.t (seq HiFP.hfexpr)) :=
+  match vl with
+  | nil => var2exprs
+  | vhd :: vtl => match CEP.find vhd var2exprs with
+                  | Some ls => add_nil_expr vtl var2exprs
+                  | None => add_nil_expr vtl (CEP.add vhd [::] var2exprs)
+                  end
+  end.
+
 Fixpoint add_expr_connect_non_passive (el1 el2 : seq (ProdVarOrder.t * bool)) (var2exprs : CEP.t (seq HiFP.hfexpr)) : option (CEP.t (seq HiFP.hfexpr)) :=
   match el1, el2 with
   | nil, nil => Some var2exprs
@@ -624,7 +633,14 @@ match s with
     | _,_ => None
     end
 | Sfcnct _ _ => None
-| Sinvalid _ => Some t_v
+| Sinvalid (Eid ref_tgt) => match type_ref ref_tgt (fst t_v) with 
+    | Some t_tgt => match split_expr ref_tgt t_tgt with
+        | Some vl => Some((fst t_v), add_nil_expr vl (snd t_v))
+        | None => None
+        end
+    | None => None
+    end
+| Sinvalid _ => None
 | Swhen c ss_t ss_f =>
     match stmts_tmap t_v ss_t with
     | Some t_v' => stmts_tmap t_v' ss_f

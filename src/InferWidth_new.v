@@ -5447,11 +5447,8 @@ Proof.
     rewrite -H5 -H12 in H7; clear H5 H12 theg0 vertices0.
     rewrite Htopo in H7; inversion H7; clear H7; rewrite -H5 in H8; clear H5 inferorder0.
     rewrite H in H8; inversion H8; clear H8; rewrite -H5 in H10 H11; clear H5 newtm0 H14 reg_vertices0 H13 regg0.
-    move : H1 Hsems H9 H10 H11.
-    (*apply infer_type_equiv in H.
-    Search (type_of_ref).
-    assert (forall c : ProdVarOrder.t,
-      match type_of_ref c tmap with
+      assert (forall c : ProdVarOrder.t,
+      match type_of_ref c tmap0 with
       | Some p =>
         let (t1, _) := p in
           match type_of_ref c newtm with
@@ -5464,9 +5461,26 @@ Proof.
           | None => true
         end
       end) by (apply (infer_type_equiv _ _ _ _ H)).
-    *)
+    move : H4.
+      assert (forall c : ProdVarOrder.t,
+      match type_of_ref c tmap0 with
+      | Some p =>
+        let (t1, _) := p in
+          match type_of_ref c tmap with
+          | Some p0 => let (t2, _) := p0 in ftype_equiv t1 t2
+          | None => false
+          end
+      | None =>
+          match type_of_ref c tmap with
+          | Some _ => false
+          | None => true
+        end
+      end).
+      move : H0 H1 Hpre Hps0.
+      admit.
+    move : H1 Hsems H9 H10 H11 H4.
     clear.
-    move : ss newtm tmap nss vm' vm0 ref e t_expr t_tgt ori.
+    move : ss newtm tmap tmap0 nss vm' vm0 ref e t_expr t_tgt ori.
     elim.
     - (* nil *)
       simpl; done.
@@ -5476,12 +5490,16 @@ Proof.
       - (* h = fcnct *)
         clear H9.
         assert (InferWidths_transs h newtm = InferWidths_transs (Sfcnct (Eid ref) e) newtm) by admit.
-        rewrite H0 in H1; clear Heq H0 h.
+        rewrite H2 in H1; clear Heq H2 h.
         simpl in H1.
         case Htransss : (InferWidths_transss h0 newtm) => [nh0|]; rewrite Htransss in H1; try discriminate.
-        inversion H1;clear H1; rewrite -H2 in Hsems; clear H2 nss; simpl in Hsems.
+        inversion H1; clear H1. rewrite -H3 in Hsems; clear H3 nss; simpl in Hsems.
         destruct Hsems as [vm [Hsems _]].
+        generalize H4; apply tmaps_type_eq with (e := e) in H4; intros Ht0.
+        generalize H0; apply tmaps_type_eq with (e := e) in H0; intros Ht.
+        specialize Ht0 with (c := ref); specialize Ht with (c := ref).
 
+        
 Admitted.
 
 Lemma InferWidths_correct_helper : forall (ss : hfstmt_seq ProdVarOrder.T)

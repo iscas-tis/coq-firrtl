@@ -6,5 +6,5 @@
 
 (executables
   (names            printmlir);transhiast_pair nodehelper hipparser printmlir transhiast transast1 pparser inline
-  (libraries        hifirrtl_lang);interpreter ocamlgraph unix
+  (libraries        hifirrtl_lang unix);interpreter ocamlgraph unix
 )
