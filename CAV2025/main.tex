@@ -1,0 +1,387 @@
+
+\documentclass[runningheads]{llncs}
+
+% \usepackage[utf8]{inputenc}\usepackage[UTF8]{ctex} 
+\usepackage{geometry}
+% \usepackage{semantic}
+\geometry{a4paper}
+\usepackage{graphicx}
+\usepackage{wrapfig}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{amsfonts}
+\usepackage{stmaryrd}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\usepackage{mathrsfs}
+\usepackage{mathabx}
+\usepackage{dutchcal}
+\usepackage{paralist}
+\usepackage{listings}
+\usepackage{hyperref}
+% \newtheorem{definition}{Definition}
+% \newtheorem{proposition}{Proposition}
+
+\usepackage[T1]{fontenc}
+\usepackage{lineno}
+\usepackage{textcomp}
+\usepackage{appendix}
+\usepackage{color}
+
+\newcommand\natnum{\mathbb{N}}
+
+\newcommand\intnum{\mathbb{Z}}
+
+\newcommand\firlis{FIRLIS}
+
+\newcommand\valset{\mathcal{V}}
+
+\newcommand\sccgraph{\mathcal{S}}
+
+\newcommand\hide[1] {}
+
+\usepackage{lipsum}
+%\usepackage[explicit]{titlesec}% http://ctan.org/pkg/titlesec
+%\def\Vhrulefill{\leavevmode\leaders\hrule height 0.7ex depth \dimexpr0.4pt-0.7ex\hfill\kern0pt}
+%\titleformat{\mylinetext}{\bfseries\large}{}{0pt}{\noindent\Vhrulefill~\thesection\quad#1~\Vhrulefill}
+
+
+%\newcommand{\zl}[1]{\color{orange}\textbf{ZL:} #1 \textbf{:LZ}\color{black}}
+%\newcommand{\lx}[1]{{\color{teal}\textbf{LX:} #1 \textbf{:XL}\color{black}}}
+%\newcommand{\tl}[1]{{\color{magenta}\textbf{TL:} #1 \textbf{:LT}\color{black}}}
+% \newtheorem{remark}{Remark}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%Regular papers (up to 15 pages in LNCS style, excluding references) 
+
+\title{On the Width Inference Problem of FIRRTL Programs}
+%\date{2021.12.15}
+
+\author{}
+
+\institute{}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+In this note, we investigate the width inference problem of FIRRTL programs. We first formulate the width inference problem of FIRRTL programs as the problem of finding the minimum solution of linear inequality systems of a special form (denoted by FIRLIS). Moreover, we show that for each satisfiable linear inequality system from FIRLIS, the minimum solution always exists. Finally, we present a procedure for computing the minimum solution of a given FIRLIS constraint. 
+\end{abstract}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{{\firlis} constraints}
+
+Let $x_1, \cdots, x_n$ be variables that range over $\natnum$, i.e. the set of natural numbers. 
+The width inference problem of FIRRTL programs can be formulated as finding the minimum solution of a formula $\varphi$ that is a conjunction of linear inequalities of the form
+\[x_i \ge a_{0} + \sum \limits_{j \in [n]} a_{j} x_j, \]
+where $a_{0} \in \intnum$ and $a_{j} \in \natnum$. 
+%The linear inequality $x_i \ge a_{i,0} + \sum \limits_{j \in [n]} a_{i,j} x_j$ is called the inequality for $x_i$.  
+Let us use {\firlis} to denote the class of formulas $\varphi$ of this form.  
+
+\begin{definition}[{\firlis} constraints]
+A linear constraint $\varphi$ is called a {\firlis} constraint if it is of the form $\varphi_1 \wedge \varphi_2$, where $\varphi_1$ is a conjunction of inequalities of the form
+\[x_i \ge a_{0} + \sum \limits_{j \in [n]} a_{j} x_j, \]
+such that $a_{0} \in \intnum$ and $a_{j} \in \natnum$, and $\varphi_2$ is a conjunction of inequalities of the form $b_0 \ge \sum \limits_{i \in [n]} b_i x_i$ where $b_i \in \natnum$ for each $i \in [0, n]$. The equalities $x_i \ge a_{0} + \sum \limits_{j \in [n]} a_{j} x_j$ are called the inequalities of $x_i$. 
+\end{definition}
+
+\begin{remark}
+Note here for technical convenience, we additionally include the inequalities of the form $b_0 \ge \sum \limits_{i \in [n]} b_i x_i$ in {\firlis} constraints. 
+\end{remark}
+
+For $n \ge 1$, let $\preceq_n$ denote the partial order over $\natnum^n$ such that $(u_1, \cdots, u_n) \preceq_n (v_1, \cdots, v_n)$ iff for each $i \in [n]$, $u_i \le v_i$. 
+
+For a {\firlis} constraint $\varphi$, a solution $(u_1, \cdots, u_n)$ is said to be the \emph{minimum solution} of $\varphi$ if for each solution $(v_1, \cdots, v_n)$ of $\varphi$, we have  $(u_1, \cdots, u_n) \preceq_n (v_1, \cdots, v_n)$.
+
+\begin{example}
+Consider the {\firlis} constraint $\varphi \equiv x_1 \ge 2 x_2 - 3 \wedge x_2 \ge 2x_1 + 1$. Then the minimum solution of $\varphi$ is $(0, 1)$. On the other hand, if $\varphi \equiv x_1 \ge 2 x_1 \wedge x_1 \ge 1$, then $\varphi$ is unsatisfiable, thus the minimum solution of $\varphi$ does not exist. 
+\end{example}
+
+\section{Existence of minimum solutions of FIRLIS}
+
+\begin{proposition}\label{prop-min-sol}
+The minimum (nonnegative) solution of a satisfiable {\firlis} constraint alway exists. 
+\end{proposition}
+
+\begin{proof}
+Let $\varphi = \varphi_1 \wedge \varphi_2$ be a {\firlis} constraint such that $\varphi$ is a conjunction of inequalities of the form
+\[\bigwedge \limits_{i \in [n]} x_i \ge a_{0} + \sum \limits_{j \in [n]} a_{j} x_j,\]
+where $a_{0} \in \intnum$ and $a_{j} \in \natnum$, and $\varphi_2$ is a conjunction of the inequalities of the form $b_0 \ge \sum \limits_{i \in [n]} b_i x_i$. 
+
+We show the following claim. 
+
+\begin{quote}
+{\bf  Claim}. 
+\it Let $(u_1, \cdots, u_n)$ and $(v_1, \cdots, v_n)$ be two solutions of $\varphi$ and 
+\[(w_1, \cdots, w_n) = (\min(u_1, v_1), \cdots, \min(u_n, v_n)).\]
+Then $(w_1, \cdots, w_n)$ is also a solution of $\varphi$.
+\end{quote}
+
+\smallskip
+
+\noindent {\it Proof of the claim}. 
+%
+Let $I_1$ denote the set of $i \in [n]$ such that $u_i \le v_i$. Then for each $i \in I_1$, $w_i = u_i$, and for each $i \in [n] \setminus I_1$, $w_i = v_i$.
+
+For each $i \in [n]$, we show that $w_i \ge a_{i,0} + \sum \limits_{j \in [n]} a_{i,j} w_j$.
+
+Evidently, for each inequality of the form $b_0 \ge \sum \limits_{i \in [n]} b_i x_i$ in $\varphi_2$, we have $b_0 \ge \sum \limits_{i \in [n]} b_i u_i \ge \sum \limits_{i \in [n]} b_i w_i$.
+
+Let us consider an inequality of $\varphi_1$, say $x_i \ge a_{0} + \sum \limits_{j \in [n]} a_{j} x_j$ with $a_0 \in \intnum$ and $a_j \in \natnum$.
+%
+%Let $i \in [n]$. Then $u_i \ge a_{i,0} + \sum \limits_{j \in [n]} a_{i,j} u_j$ and $v_i \ge a_{i,0} + \sum \limits_{j \in [n]} a_{i,j} v_j$.
+\begin{itemize}
+\item If $u_i \le v_i$, then 
+$$
+\begin{array}{l c l}
+w_i & = & u_i \ge a_{0} + \sum \limits_{j \in [n]} a_{j} u_j \\
+& = & a_{0} + \sum \limits_{j \in I_1} a_{j} u_j + \sum \limits_{j \in [n] \setminus I_1} a_{j} u_j \\
+& \ge & a_{0} + \sum \limits_{j \in I_1} a_{j} u_j + \sum \limits_{j \in [n] \setminus I_1} a_{j} v_j \\
+& = & a_{0} + \sum \limits_{j \in I_1} a_{j} w_j + \sum \limits_{j \in [n] \setminus I_1} a_{j} w_j \\
+& = & a_{0} + \sum \limits_{j \in [n]} a_{j} w_j. 
+\end{array}
+$$
+
+\item If $u_i > v_i$, then 
+$$
+\begin{array}{l c l}
+w_i & = & v_i \ge a_{0} + \sum \limits_{j \in [n]} a_{j} v_j \\
+& = & a_{0} + \sum \limits_{j \in I_1} a_{j} v_j + \sum \limits_{j \in [n] \setminus I_1} a_{j} v_j \\
+& \ge & a_{0} + \sum \limits_{j \in I_1} a_{j} u_j + \sum \limits_{j \in [n] \setminus I_1} a_{j} v_j \\
+& = & a_{0} + \sum \limits_{j \in I_1} a_{j} w_j + \sum \limits_{j \in [n] \setminus I_1} a_{j} w_j \\
+& = & a_{0} + \sum \limits_{j \in [n]} a_{j} w_j. 
+\end{array}
+$$
+\end{itemize}
+
+Therefore, $(w_1, \cdots, w_n)$ is a solution of $\varphi$.
+
+The proof of the claim is complete. 
+
+From the claim, we deduce that if $\varphi$ is satisfiable, then the minimum (nonnegative) solution exists. 
+\qed
+\end{proof}
+
+
+\hide{
+The following result follows from Proposition~\ref{prop-min-sol}. 
+\begin{corollary}\label{cor-min-sum}
+Let $\varphi$ be a {\firlis} constraint over the variables $x_1, \cdots, x_n$. 
+%conjunction of the inequalities $x_i \ge a_{0} + \sum \limits_{j \in [n]} a_{j} x_j$, where $a_{0} \in \intnum$ and $a_{j} \in \natnum$.
+Let $(u_1, \cdots, u_n)$ be a solution of $\varphi$ such that $\sum \limits_{i \in I} u_i$ is the minimum among the solutions of $\varphi$.  Moreover, let $I \subseteq [n]$ and $\varphi'$ be the {\firlis} constraint that is obtained from $\varphi$ by replacing $x_i$ with $u_i$ for each $i \in I$, and $(u'_i)_{i \in [n] \setminus I}$ be the minimum solution of $\varphi'$. 
+Then the solution $(v_1, \cdots, v_n)$ such that $v_i = u_i$ for each $i \in I$ and $v_i = u'_i$ for each $i \in [n] \setminus I$ is the minimum solution of $\varphi$. 
+\end{corollary}
+
+\begin{proof}
+Let $(u_1, \cdots, u_n)$ be a solution of $\varphi$ such that $\sum \limits_{i \in I} u_i$ is the minimum among the solutions of $\varphi$. 
+Moreover, let $I \subseteq [n]$, $\varphi'$ be the {\firlis} constraint that is obtained from $\varphi$ by replacing $x_i$ with $u_i$ for each $i \in I$, and $(u'_i)_{i \in [n] \setminus I}$ be the minimum solution of $\varphi'$. 
+Let $(v_1, \cdots, v_n)$ such that $v_i = u_i$ for each $i \in I$ and $v_i = u'_i$ for each $i \in [n] \setminus I$. Then $(v_1, \cdots, v_n)$ is a solution of $\varphi$. 
+
+Let $(w_1, \cdots, w_n)$ be the minimum solution of $\varphi$. We show that $(v_1, \cdots, v_n) = (w_1, \cdots, w_n)$. 
+
+From the fact that  $(w_1, \cdots, w_n)$ is the minimum solution of $\varphi$, we have that for each $i \in [n]$, $w_i \le v_i$.  
+
+Moreover, $\sum \limits_{i \in I} w_i \le \sum \limits_{i \in I} v_i = \sum \limits_{i \in I} u_i$.  From the assumption that $\sum \limits_{i \in I} u_i$ is the minimum among the solutions of $\varphi$, we deduce that $\sum \limits_{i \in I} w_i = \sum \limits_{i \in I} u_i$. From $w_i \le v_i = u_i$ for each $i \in I$, we deduce that $w_i = u_i$ for each $i \in I$. 
+
+From $w_i = u_i$ for each $i \in I$, we deduce that $(w_i)_{i \in [n] \setminus I}$ is a solution of $\varphi'$. From the fact that $(u'_i)_{i \in [n] \setminus I}$ is the minimum solution of $\varphi'$, we deduce that $u'_i \le w_i$ for each $i \in [n] \setminus I$. 
+Moreover, for each $i \in [n] \setminus I$, $w_i \le v_i = u'_i$. Therefore, for each $i \in [n] \setminus I$, $v_i = u'_i = w_i$. 
+
+We conclude that $(v_1, \cdots, v_n) = (w_1, \cdots, w_n)$ is the minimum solution of $\varphi$. \qed
+%
+\end{proof}
+
+Corollary~\ref{cor-min-sum} will be utilized to compute the minimum solution later on.
+}
+
+%%%%%%%%%%%%%%%%%%%%%%%%
+\hide{
+The following result follows from Proposition~\ref{prop-min-sol}. 
+\begin{corollary}\label{cor-min-sum}
+Let 
+\[\varphi \equiv \bigwedge \limits_{i \in [n]} x_i \ge a_{i,0} + \sum \limits_{j \in [n]} a_{i,j} x_j\]
+be a {\firlis} constraint, where $a_{i,0} \in \intnum$ and $a_{i,j} \in \natnum$.
+If $(u_1, \cdots, u_n)$ is a solution of $\varphi$ such that $\sum \limits_{i \in [n]} u_i$ is the minimum (among the solutions of $\varphi$), then $(u_1, \cdots, u_n)$ is the minimum solution. 
+\end{corollary}
+
+\begin{proof}
+Let $(u_1, \cdots, u_n)$ is a solution of $\varphi$ such that $\sum \limits_{i \in [n]} u_i$ is the minimum. Let $(v_1, \cdots, v_n)$ be a solution of $\varphi$. Then $\sum \limits_{i \in [n]} v_i \ge \sum \limits_{i \in [n]} u_i$.
+
+From Proposition~\ref{prop-min-sol}, $(w_1, \cdots, w_n)$ with $w_i = \min(u_i, v_i)$ for each $i \in [n]$ is a solution of $\varphi$. Moreover, $\sum \limits_{i \in [n]} w_i \le \sum  \limits_{i \in [n]} u_i $. From the assumption that $\sum \limits_{i \in [n]} u_i$ is the minimum among the solutions of $\varphi$, it follows that  $\sum \limits_{i \in [n]} w_i = \sum  \limits_{i \in [n]} u_i $. Moreover, from the fact that $w_i \le u_i$ for each $i \in [n]$, we deduce that $w_i = u_i$ for each $i \in [n]$. Therefore, $u_i \le v_i$ for each $i \in [n]$. That is, $(u_1, \cdots, u_n) \preceq_n (v_1, \cdots, v_n)$. We conclude that $(u_1, \cdots, u_n)$ is the minimum solution.
+\qed
+\end{proof}
+}
+%%%%%%%%%%%%%%%%%%%%%%%%
+
+\section{Computation of the minimum solution}
+
+In this section, we present a procedure to compute the minimum solution of a {\firlis} constraint. The procedure utilizes the concept of dependency graphs. 
+\begin{definition}[Dependency graph]
+Let $\varphi$ be a {\firlis} constraint over $x_1, \cdots, x_n$ such that there is $B \in \natnum$ such that for every $i \in [n]$, the number of inequalities of $x_i$ is at most $B$. For each $i \in [n]$, let us assign a label $l \in [B]$ to each inequality of $x_i$. For convenience, we write an equality $x_i \ge a_0 + \sum \limits_{j \in [n]} a_j x_j$ of label $l$ as $l: x_i \ge a_0 + \sum \limits_{j \in [n]} a_j x_j$.
+The dependency graph of $\varphi$, denoted by $G_\varphi$, is defined as $(V_\varphi, E_\varphi)$, where $V_\varphi=\{x_1,\cdots, x_n\}$ and $E_\varphi \subseteq V_\varphi \times [B] \times \natnum \times V_\varphi$ comprises the edges $(x_i, l, a_j, x_j)$ such that $\varphi$ contains an inequality $x_i \ge a_0 + \sum \limits_{j \in [n]} a_j x_j$ of label $l$ with $a_j > 0$. 
+\end{definition}
+Note that $G_\varphi$ is an edge-labeled and edge-weighted directed graph. 
+
+In the sequel, we shall present a procedure to decide the satisfiability of {\firlis} constraints and compute the minimum solutions for satisfiable formulas. 
+
+Let us first consider the special cases that the dependency graphs are acyclic or strongly connected. Later on, we shall consider the more general case. 
+
+\paragraph*{$G_\varphi$ is acyclic.} We compute the minimum solution $(u_1, \cdots, u_n)$ as follows.  
+\begin{enumerate}
+\item Compute a topological sorting of $G_\varphi$, say $x_{i_1}, \cdots, x_{i_n}$.  
+%
+\item Each inequality for $x_{i_n}$ is of the form $x_{i_n} \ge a_{0}$, since it does not depends on the other variables. 
+Let $a'_{i_n,0}$ denote the maximum of these $a_0$. (Without loss of generality, we assume that there is at least such $a_0$, since we can always add the inequality $x_{i_n} \ge 0$.) 
+
+\item Let $j := n$. We iterate the following procedure until $j = 0$.
+\begin{enumerate}
+\item Let $u_{i_j}$ be $\max(a'_{i_j,0},0)$. 
+
+\item If $j > 1$, then do the following: Replace each occurrence of $x_{i_j}$ in the right-hand sides of the inequalities for $x_{i_1}, \cdots, x_{i_{j-1}}$ by $u_{i_j}$ and simplify the resulting expressions (by evaluating the subexpressions involving only the constants). Then each inequality for $x_{i_{j-1}}$ is of the form $x_{i_{j-1}} \ge a_0$. Let $a'_{i_{j-1},0}$ be the maximum of these $a_0$. 
+%Let $\bigwedge \limits_{j' \in [j-1]} x_{i_{j'}} \ge a'_{i_{j'}, 0} + \sum \limits_{j'' \in [j-1]} a'_{i_{j'}, j''} x_{j''}$ be the resulting constraint. (In particular, in the inequality for $i_{j-1}$, we have $a'_{i_{j-1}, j''} = 0$ for each $j'' \in [j-1]$.)
+\item Let $j := j-1$.
+\end{enumerate}
+%
+\end{enumerate}
+
+\paragraph*{$G_\varphi$ is strongly connected.} We first prove the following result. 
+
+\begin{proposition}\label{prop-g-1}
+Suppose that $G_\varphi$ is strongly connected. If $G_\varphi$ contains an edge of weight greater than $1$ or two distinct edges out of some vertex $x_i$ of the same label, then there is a constant $C \in \natnum$ such that  the values of  the variables in every solution of $\varphi$ are bounded by $C$. As a result, the number of nonnegative solutions of $\varphi$ is finite. 
+\end{proposition}
+
+\begin{proof}
+Suppose that $G_\varphi$ is strongly connected. 
+
+Let us first consider the case that $G_\varphi$ contains an edge of weight greater than $1$, say $(x_i, l, a, x_j)$ with $a > 1$. Take an arbitrary vertex $x_k$. Then there is a path $\pi_1$ from $x_k$ to $x_i$, and a path $\pi_2$ from $x_j$ to $x_k$, since $G_\varphi$ is strongly connected. Therefore, the path $\pi_0$ obtained by concatenating $\pi_1$, $(x_i, l, a, x_j)$, and $\pi_2$ is a cycle from $x_k$ to $x_k$ that traverses the edge $(x_i, l, a, x_j)$. Let $\pi_0 = (z_0, l_1, a_1, z_1)  (z_1, l_2, a_2, z_2) \cdots (z_{m-1}, l_m, a_m, z_m)$, where $z_0 = z_m = x_k$. Moreover, for each $r \in [m]$, let the inequality of $z_{r-1}$ labeled by $l_r$ be $z_{r-1} \ge b_{r-1,0} + \sum \limits_{j' \in [n]} b_{r-1, j'} x_{j'}$. Then we compute the equalities $Ineq_r$ for $r \in [m]$ inductively as follows: Let $Ineq_1$ be $z_{0} \ge b_{0,0} + \sum \limits_{j' \in [n]} b_{0, j'} x_{j'}$. For each $r \in [m-1]$, $Ineq_{r+1}$ is obtained from $Ineq_{r}$ by replacing $z_{r}$ with  $b_{r,0} + \sum \limits_{j' \in [n]} b_{r, j'} x_{j'}$ and simplifying the resulting inequality. 
+Then the inequality $Ineq_m$ is of the form $z_0 \ge c_0 + \sum \limits_{j' \in [n]} c_{j'} x_{j'}$. From the inductive computation of $Ineq_m$ and the fact that $z_0 = z_m = x_k$, we know that $c_k = \prod_{j' \in [m]} a_{j'}$.  
+Because $(x_i, l, a, x_j)$ is a path on $\pi_0$ and $a > 1$, we deduce that $c_k > 1$. Therefore, $-c_0  \ge (c_k-1) x_k + \sum \limits_{j' \in [n], j' \neq k} c_{j'} x_{j'}$. This means that if $\varphi$ is satisfiable, then the value of $x_k$ is bounded by $-c_0$. 
+
+Consequently, in the case that $G_\varphi$ contains an edge of weight greater than $1$, there is a constant $C$ such that the values of variables in every solution are bounded by $C$. 
+
+Then let us consider the case that $G_\varphi$ contains two distinct edges out of some vertex $x_i$ of the same label, say $(x_i, l, a_1, x_{j_1})$ and $(x_i, l, a_2, x_{j_2})$ (where $a_1, a_2 \ge 1$ and $j_1 \neq j_2$). Let the inequality of $x_i$ labeled by $l$ be $x_i \ge a'_0 + \sum \limits_{j' \in [n]} a'_{j'} x_{j'}$. Then $a'_{j_1} = a_1$ and $a'_{j_2} = a_2$. 
+Take an arbitrary vertex $x_k$. Then there is a path $\pi_0$ from $x_k$ to $x_i$. Moreover, there are paths $\pi_1$ and $\pi_2$ from $x_{j_1}$ to $x_k$ and from $x_{j_2}$ to $x_k$ respectively. Let $\pi'_1$ be the concatenation of $\pi_0$, $(x_i, l, a_1, x_{j_1})$. Then $\pi'_1$ is a path from $x_k$ to $x_k$. Similarly, let $\pi'_2$ be the concatenation of $\pi_0$, $(x_i, l, a_2, x_{j_2})$. Then $\pi'_2$ is another path from $x_k$ to $x_k$. 
+Let the inequality corresponding to the first edge of $\pi'_1$ be $x_k \ge b_0 + \sum \limits_{j' \in [n]} b_{j'} x_{j'}$. Then similarly to the case that $G_\varphi$ contains an edge of weight greater than $1$, we utilize $\pi'_1$ to apply the replacements to the inequality $x_i \ge b_0 + \sum \limits_{j' \in [n]} b_{j'} x_{j'}$. Let the resulting inequality be $Ineq' \equiv x_k \ge c_0 + \sum \limits_{j' \in [n]} c_{j'} x_{j'}$. From the fact that $\pi'_1$ is a path from $x_k$ to $x_k$, we know that $c_k \ge 1$. Moreover, 
+$c_{j_2} \ge 1$ since $x_i$ is replaced by $a'_0 + \sum \limits_{j' \in [n]} a'_{j'} x_{j'}$ at least once and $a'_{j_2} = a_2 \ge 1$. Then we utilize $\pi_2$ to apply the replacements to the inequality $Ineq'$, and obtain the inequality $Ineq'' \equiv x_k \ge d_0 + \sum \limits_{j' \in [n]} d_{j'} x_{j'}$. Then from $c_k \ge 1$ and $c_{j_2} \ge 1$, we deduce that $d_k \ge 2$. Therefore, $-d_0 \ge (d_k - 1) x_k + \sum \limits_{j' \in [n], j \neq k} d_{j'} x_{j'}$. This means that if $\varphi$ is satisfiable, then the value of $x_k$ is bounded by $-c_0$.
+
+Consequently, in this case,  there is a constant $C$ such that the values of variables in every solution are bounded by $C$.
+\qed
+\end{proof}
+
+Therefore, from Proposition~\ref{prop-g-1}, if $G_\varphi$ contains an edge of weight greater than $1$ or two distinct edges out of some vertex $x_i$ of the same label, then the number of solutions satisfying $\varphi$ is finite and we can find the minimum solution by guessing the solution candidates from the least to the greatest one by one and check whether they are indeed solutions. 
+
+In the sequel, let us assume that \emph{the weight of each edge in $G_\varphi$ is $1$ and no two edges out of the same vertex are of the same label}. 
+Then for each vertex $x_i$, we guess all the simple cycles that involve $x_i$ and do the following for each such simple cycle.  
+Let $C = x_{l_1} \cdots x_{l_r} x_{l_{r+1}}$ be a simple cycle where $l_{r+1} = l_1 = i$. We compute $u_{C, l_1}, \cdots, u_{C, l_r}$ as follows. 
+ For each $j' \in [r]$, let the inequality corresponding to the $j'$-th edge of $C$ be $x_{l_{j'}} \ge b_{l_{j'}} + x_{l_{(j' \bmod r)+1}}$. 
+%$$x_{l_{j'}} \ge a_{l_{j'},0} + \sum \limits_{j'' \in I_1} a_{l_{j'}, j''} u_{j''} + \sum \limits_{x_{j''} \in V(C_i) \setminus V(C')} a_{l_{j'}, j''}  u_{j''} + x_{l_{(j' \bmod r)+1}}.$$ 
+%
+%For each $j' \in [r]$, let $b_{l_{j'}}$ denote 
+%$$a_{l_{j'},0} + \sum \limits_{j'' \in I_1} a_{l_{j'}, j''} u_{j''} + \sum \limits_{x_{j''} \in V(C_i) \setminus V(C')} a_{l_{j'}, j''}  u_{j''}.$$ 
+%
+%Then $x_{l_{j'}} \ge b_{l_{j'}} + x_{l_{(j' \bmod r)+1}}$ for each $j' \in [r]$.
+\begin{itemize}
+\item If $\sum \limits_{j' \in [r]} b_{l_{j'}} > 0 $, then $\varphi'$ is unsatisfiable. 
+%
+\item Otherwise, for each $j' \in [r]$, let $u_{C, l_{j'}} := \max(0, b_{l_{j'}}, b_{l_{j'}}+ b_{l_{j'+1}}, \cdots, b_{l_{j'}} + \cdots + b_{l_{(j'+r-3) \bmod r+1}})$.
+\end{itemize}
+Finally, for each $i \in [n]$, we compute the minimum solution as $(u_1, \cdots, u_n)$ such that for each $i \in [n]$, $u_i$ is the maximum of all $u_{C, l_1}$ such that $C = x_{l_1} \cdots x_{l_r} x_{l_{r+1}}$ is a simple cycle where $l_{r+1} = l_1 = i$. 
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\hide{
+Since the in-degree of each vertex in $G_\varphi$ is at least one, each variable $x_i$ occurs at least once in the right-hand sides of the inequalities, that is, there is at least one equality for some variable $x_{i'}$, say $x_{i'} \ge a_0 + \sum \limits_{j \in [n]} a_j x_j$, such that $a_i > 0$. For each $i \in [n]$, let $a'_i$ denote the sum of these coefficients $a_i$ in the right-side hands of the inequalities. 
+Let $I_1$ denote the set of $i \in [n]$ such that $a'_i > 1$. 
+
+It is easy to see that the sum of the left-hand sides of the inequalities for all the variables is greater than or equal to the sum of the right-hand sides of these inequalities, that is, 
+$$\sum \limits_{i \in [n]} x_i \ge \sum \limits_{i \in [n]} \left(a_{i,0} + \sum \limits_{j \in [n]} a_{i,j} x_j \right) \ge \sum \limits_{i \in [n]} a_{i,0} + \sum \limits_{i \in [n]} \left(\sum \limits_{j \in [n]} a_{j, i} \right) x_i.$$
+
+Then 
+$$0 \ge  \sum \limits_{i \in [n]} a_{i,0} + \sum \limits_{i \in I_1} \left(\sum \limits_{j \in [n]} a_{j, i} \right) x_i.$$
+That is, 
+$$- \sum \limits_{i \in [n]} a_{i,0}  \ge  \sum \limits_{i \in I_1} \left(\sum \limits_{j \in [n]} a_{j, i} \right) x_i.$$
+
+If $- \sum \limits_{i \in [n]} a_{i,0} < 0$, then $\varphi$ is unsatisfiable. Otherwise, we can enumerate the tuples $(u_i)_{i \in I_1}$ such that 
+$$- \sum \limits_{i \in [n]} a_{i,0}  \ge  \sum \limits_{i \in I_1} \left(\sum \limits_{j \in [n]} a_{j, i} \right) u_i.$$
+Let $\valset_{I_1}$ denote the set of such tuples $(u_i)_{i \in I_1}$.
+
+From Corollary~\ref{cor-min-sum}, we can compute the minimum solution of $\varphi$ as follows: 
+We enumerate the tuples $(u_i)_{i \in I_1}$ in $\valset_{I_1}$ one by one, in the order that $\sum \limits_{i \in I_1} u_i$ is nondecreasing. For each enumerated tuple $(u_i)_{i \in I_1}$, replace each occurrence of $x_i$ for $i \in I_1$ in the right-hand side of the inequalities by $u_i$ and obtain 
+%
+\[\varphi' \equiv \bigwedge \limits_{i \in I_1} u_i \ge a_{i,0} + \sum \limits_{j \in I_1} a_{i, j} u_j + \sum \limits_{j \in [n] \setminus I_1} a_{i, j} x_j \wedge \bigwedge \limits_{i \in [n] \setminus I_1} x_i \ge a_{i,0} + \sum \limits_{j \in I_1} a_{i, j} u_j + \sum \limits_{j \in [n] \setminus I_1} a_{i, j} x_j.
+\]
+If the minimum solution $(u_j)_{j \in [n] \setminus I_1}$ is found for $\varphi'$, then $(u_j)_{j \in [n]}$ is the minimum solution of $\varphi$ and the computation stops. If for each enumerated tuple from $\valset_{I_1}$, no solution is found for $\varphi'$, then $\varphi$ is unsatisfiable. 
+
+In the sequel, let us show how to compute the minimum solution for $\varphi'$ (if it exists).
+
+Let us first focus on 
+\[
+\psi  \equiv \bigwedge \limits_{i \in [n] \setminus I_1} x_i \ge a_{i,0} + \sum \limits_{j \in I_1} a_{i, j} u_j + \sum \limits_{j \in [n] \setminus I_1} a_{i, j} x_j.
+\]
+From the definition of $I_1$, we know that $\sum \limits_{j \in [n] \setminus I_1} a_{j, i} = 1$.  
+
+Then the dependency graph $G_\psi$ satisfies that the in-degree of each vertex in $G_\psi$ are at most $1$. Then \emph{each connected component of $G_\psi$ is either a tree, or a tree plus one additional edge from a leaf to the root}. Let $C_1, \cdots, C_k$ be an enumeration of the connected components of $G_\psi$. 
+
+For each $i \in [k]$, we compute a tuple $(u_j)_{x_j \in V(C_i)}$ as follows.  
+
+\begin{itemize}
+\item If $C_i$ is a tree, then we compute a tuple $(u_j)_{x_j \in V(C_i)}$ in a bottom-up way. Let $x_j \in V(C_i)$.  
+\begin{itemize}
+\item If $x_j$ is a leaf in $C_i$, then $x_j \ge a_{j,0} + \sum \limits_{j' \in I_1} a_{j, j'} u_{j'}$ and let $u_j := a_{j,0} + \sum \limits_{j' \in I_1} a_{j, j'} u_{j'}$.
+%
+\item Otherwise, $x_j \ge a_{j, 0} + \sum \limits_{j' \in I_1} a_{j, j'} u_{j'} + \sum \limits_{j' \in [n] \setminus I_1} a_{j, j'} x_{j'}$, where  $a_{j,j'} > 0$ for some $j' \in [n] \setminus I_1$. Moreover, for each $j' \in [n] \setminus I_1$ with $a_{j, j'} > 0$, $u_{j'}$ has been computed. Then  $x_j \ge a_{j, 0} + \sum \limits_{j' \in I_1} a_{j, j'} u_{j'} + \sum \limits_{j' \in [n] \setminus I_1} a_{j, j'} u_{j'}$, let $u_j = \max(0, a_{j, 0} + \sum \limits_{j' \in I_1} a_{j, j'} u_{j'} + \sum \limits_{j' \in [n] \setminus I_1} a_{j, j'} u_{j'})$.
+\end{itemize}
+
+\item If $C_i$ is a tree with one additional edge from a leaf $x_j$ to the root, then the path from the root to $x_j$ and the edge from $x_j$ to the root constitute  a simple cycle $C'$. Then for each vertex $x_{j'}$ not belonging to $C'$, we compute $u_{j'}$ as in the case that $C_i$ is a tree. Let $C' = x_{l_1} \cdots x_{l_r} x_{l_{r+1}}$ where $l_{r+1} = l_1$. Then for each $j' \in [r]$, $a_{l_{j'}, l_{(j' \bmod r)+1}} = 1$ and 
+$$x_{l_{j'}} \ge a_{l_{j'},0} + \sum \limits_{j'' \in I_1} a_{l_{j'}, j''} u_{j''} + \sum \limits_{x_{j''} \in V(C_i) \setminus V(C')} a_{l_{j'}, j''}  u_{j''} + x_{l_{(j' \bmod r)+1}}.$$ 
+%
+For each $j' \in [r]$, let $b_{l_{j'}}$ denote 
+$$a_{l_{j'},0} + \sum \limits_{j'' \in I_1} a_{l_{j'}, j''} u_{j''} + \sum \limits_{x_{j''} \in V(C_i) \setminus V(C')} a_{l_{j'}, j''}  u_{j''}.$$ 
+%
+Then $x_{l_{j'}} \ge b_{l_{j'}} + x_{l_{(j' \bmod r)+1}}$ for each $j' \in [r]$.
+\begin{itemize}
+\item If $\sum \limits_{j' \in [r]} b_{l_{j'}} > 0 $, then $\varphi'$ is unsatisfiable. 
+%
+\item Otherwise, for each $j' \in [r]$, let $u_{l_{j'}} := \max(0, b_{l_{j'}}, b_{l_{j'}}+ b_{l_{j'+1}}, \cdots, b_{l_{j'}} + \cdots + b_{l_{(j'+r-3) \bmod r+1}})$.
+\end{itemize}
+\end{itemize}
+
+Therefore, a tuple $(u_j)_{j \in [n] \setminus I_1}$ has been computed.
+\begin{itemize}
+\item If $u_i < a_{i,0} + \sum \limits_{j \in I_1} a_{i, j} u_j + \sum \limits_{j \in [n] \setminus I_1} a_{i, j} u_j$ for some $i \in I_1$, then $\varphi'$ is unsatisfiable. 
+%
+\item Otherwise, $(u_j)_{j \in [n] \setminus I_1}$ is the minimum solution of $\varphi'$.
+\end{itemize}
+}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\paragraph*{More general case.} Suppose that $G_\varphi$ is neither acyclic nor strongly connected. 
+%Therefore, $G_\varphi$ contains at least two nontrivial SCCs. 
+Let $\sccgraph_{G_\varphi}$ be the SCC graph of $G_\varphi$. We compute a topological sorting of $\sccgraph_{G_\varphi}$, say $C_1, \cdots, C_k$. Let $j := k$.  We iterate the following procedure, until $j=1$. 
+\begin{enumerate}
+\item Suppose $u_{j'} \in \natnum$ has been computed for each $x_{j'} \in V(C_{j+1}) \cup \cdots \cup V(C_k)$. For each $x_{j''} \in V(C_j)$, replace each occurrence of $x_{j'} \in V(C_{j+1}) \cup \cdots \cup V(C_k)$ in the right-hand sides of the inequalities of $x_{j''}$ with $u_{j'}$. 
+%For each $x_{j''} \in V(C_j)$, let the resulting inequality be $x_{j''} \ge b_0 + \sum \limits_{x_{j'} \in V(C_j)} b_{j'} x_{j'}$, where $b_{j''} \in \intnum$. 
+Let $\psi_{C_j}$ be the conjunction of the resulting inequalities of $x_{j''} \in V(C_j)$.
+Then we can utilize the aforementioned procedure for strongly connected dependency graphs to compute the minimum solution $(u_{j''})_{x_{j''} \in V(C_j)}$ for $\psi_{C_j}$. If during the computation, $\psi_{C_j}$ is discovered to be unsatisfiable, then $\varphi$ is unsatisfiable and the computation stops. 
+%
+\item Let $j:=j-1$. 
+\end{enumerate}
+
+%\paragraph*{Complexity analysis.} It is not hard to see that the time complexity of the aforementioned procedure is polynomial in the \emph{values of the integer constants in $\varphi$} and exponential over $n$, the number of variables in $\varphi$. 
+%Moreover, if $a_{i,j} \le 1$ for each $i \in [n]$ and $j \in [n]$, then the time complexity procedure is also polynomial in the number of variables in $\varphi$. 
+%Moreover, since the values of these constants involved in the width inference problem are polynomial in the size of a FIRRTL program, it follows that the width inference problem can be solved in polynomial time, if each ground component occurs at most once in the right-side hand of the connect statements.  
+
+\section{Discussions}
+
+In the width inference problem, we have not considered the expressions of the form $shl(x, y)$, where $y$ is an unsigned integer. It is left as the future work. 
+
+%\bibliographystyle{splncs}
+
+%\bibliography{}
+
+%\newpage
+
+\end{document}
