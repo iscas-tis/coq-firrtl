@@ -58,7 +58,8 @@ port
 ;
 
 btyp_def
-  : FLIP symbol KEYWORD typ_def          { Fflips ($2, Flipped, $4, Fnil) }
+  :                                      { Fnil }
+  | FLIP symbol KEYWORD typ_def          { Fflips ($2, Flipped, $4, Fnil) }
   | symbol KEYWORD typ_def               { Fflips ($1, Nflip, $3, Fnil) }
   | FLIP symbol KEYWORD typ_def SPRT btyp_def 
                                          { Fflips ($2, Flipped, $4, $6) }
@@ -98,6 +99,8 @@ statement
   | STM_REG symbol KEYWORD typ_def SPRT expr  { Sreg ($2, mk_freg_non $4 $6)}
   | STM_REG symbol KEYWORD typ_def SPRT expr REG_WITH KEYWORD REG_RST REG_RSTARR PAR_OPEN expr SPRT expr PAR_CLOSE
                                          { Sreg ($2, mk_freg $4 $6 $12 $14) }
+  | STM_REG symbol KEYWORD typ_def SPRT expr REG_WITH KEYWORD PAR_OPEN REG_RST REG_RSTARR PAR_OPEN expr SPRT expr PAR_CLOSE PAR_CLOSE
+                                         { Sreg ($2, mk_freg $4 $6 $13 $15) }
   | ref STM_INVALID                      { Sinvalid ($1) }
   /*| STM_MEM symbol KEYWORD STM_DATATYPE REG_RSTARR typ_def STM_DEPTH REG_RSTARR numeral STM_READ_L REG_RSTARR numeral STM_WRITE_L REG_RSTARR numeral memrdports memwrports STM_READWRITE REG_RSTARR ruw
                                          { Smem ($2, mk_fmem $6 $9 $12 $15 $16 $17 $20)}
