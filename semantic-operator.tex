@@ -2,13 +2,15 @@
 
 \usepackage{amsmath}
 \usepackage{amsfonts}
+\usepackage{tikz}
 
 \title{A fixed point semantic for FIRRTL programs}
 \author{David N. Jansen, Keyin Wang, Xiaomu Shi\thanks{Institute of Software, Chinese Academy of Sciences, Beijing, China}}
 
-\newcommand{\portsem}{\mathsf{PortSem}}
-\newcommand{\stmtsem}{\mathsf{StmtSem}}
+\newcommand{\portsem}{\mathsf{PortSumm}}
+\newcommand{\stmtsem}{\mathsf{StmtSumm}}
 \newcommand{\expressions}{\mathsf{exprs}}
+\newcommand{\flippedexpressions}{\mathsf{fexprs}}
 \newcommand{\emptylist}{[\,]}
 \newcommand{\rconslist}[2]{[#1 \mathbin{::} #2]}
 \newcommand{\concatlist}[2]{#1 \mathrel{++} #2}
@@ -42,8 +44,13 @@ We earlier tried to define a semantics along the following lines: underspecified
 During the InferWidths pass of the compiler, the widths are then determined, leading to a circuit with a unique semantic interpretation, which is the possibility with the smallest signal widths.
 
 In this note, I want to propose another semantic, based on an idea brought into the discussion by Yicheng Liu (?).
+The basic idea is to create a connection summary, that is a function describing all combinatorial connections in the module,
+and then iterate this function until a fixed point is reached.
+If no fixed point exists, the module is erroneous.
 
-\section{Semantic Operators}
+\textbf{TODO:} Perhaps the semantics of a circuit can be constructed similarly, as the fixed point of the mutual application of all the connection summaries of modules? \textbf{:END TODO}
+
+\section{Connection summaries}
 
 A \emph{FIRRTL circuit} consists of a set of modules, together with an indication which module is the main module.
 (Intuitively, the main module is instantiated, and whatever the main module requires as submodules is instantiated as well.)
@@ -51,84 +58,164 @@ A \emph{FIRRTL circuit} consists of a set of modules, together with an indicatio
 A \emph{FIRRTL module} consists of a list of ports (describing the interface of the module) and a list of statements (describing the internal connections, registers, submodules etc.\@ of the module).
 
 A \emph{port} has a name, a direction (``input'' or ``output'') and a type.
-In HiFIRRTL, the type may be aggregate (a vector/array or a bundle/record type), and its numeric ground components may have underspecified widths or reset types.
+In HiFIRRTL, the type may be aggregate (a vector/array or a bundle/record type), and its numeric ground components may have underspecified widths or abstract reset types.
 
-From a FIRRTL module, we construct a \emph{semantic operator.}
-The semantic operator is a function that maps the (input connectors of) components in the module to formal expressions constructed from the (output connectors of) components.
-The actual semantics of the module will be a fixed point of this semantic operator.
-If no fixed point exists, the module is erroneous.
+From a FIRRTL module, we construct a \emph{connection summary.}
+The connection summary is a function that maps the (input connectors of) components in the module to formal expressions constructed from the (output connectors and flipped input connectors of) components.
+Actually, because some data types may be flipped,
+we also include a function that maps the flipped (output connectors of) components in the module to formal expressions constructed from the (output connectors and flipped input connectors of) connectors.
 
-\textbf{TODO:} Perhaps the semantics of a circuit can be constructed similarly, as the fixed point of the mutual application of all the semantic operators of modules? \textbf{:END TODO}
+The set $\expressions(R,W)$ is the set of expressions that read from $R$ and from the flipped parts of $W$.
+The set $\flippedexpressions(R,W)$ is the set of flipped expressions that read from $R$ and from the flipped parts of $W$.
+A flipped expression indicates a (ground) expression for all flipped parts of its type; for the non-flipped parts it contains no value.
+These two types are the ranges of the two functions in the connection summary.
 
+We now define the connection summary recursively.
 Assume given a FIRRTL module $(\mathit{name}, \mathit{portlist}, \mathit{stmtlist})$.
-We first construct the semantics of the port list:
+We first construct the connection summary of the port list:
 \begin{description}
 \item[Empty port list:]
-        $\portsem(\mathit{name}, \linebreak[0] \emptylist)$ is the empty function $f : \emptyset \to \expressions(\emptyset)$.
+        $\portsem(\mathit{name}, \linebreak[0] \emptylist)$ is the pair of empty functions $f : \emptyset \to \expressions(\emptyset, \emptyset), g : \emptyset \to \flippedexpressions(\emptyset, \emptyset)$.
 
 \item[Input port:]
-	If $\portsem(\mathit{name}, \linebreak[0] \mathit{portlist}) = (f: D \to \expressions(R))$
-	and $\mathit{ip} \notin D \cup R$,
-	then $\portsem(\mathit{name}, \linebreak[0] \rconslist{\mathit{portlist}}{\mathit{ip}}) = (f': D \to \expressions(R \cup \{ \mathit{ip} \}))$,
-	defined by $f'(d) = f(d)$ for all $d \in D$.
+	If $\portsem(\mathit{name}, \linebreak[0] \mathit{portlist}) = (f: W \to \expressions(R,W), g : R \to \flippedexpressions(R,W))$
+	and $\mathit{ip} \notin R \cup W$,
+	then $\portsem(\mathit{name}, \linebreak[0] \rconslist{\mathit{portlist}}{\mathit{ip}}) = (f': W \to \expressions(R \cup \{ \mathit{ip} \}, W), g': R \cup \{ \mathit{ip} \} \to \flippedexpressions(R \cup \{ \mathit{ip} \}, W))$,
+	defined by $f'(w) = f(w)$ for all $w \in W$ and $g'(r) = g(r)$ for all $r \in R$, and $g'(\mathit{ip}) = \needtobedefined$.
 
 \item[Output port:]
-	If $\portsem(f_0, \mathit{name}, \linebreak[0] \mathit{portlist}) = (f: D \to \expressions(R))$
-	and $\mathit{op} \notin D \cup R$,
-	then $\portsem(\mathit{name}, \linebreak[0] \rconslist{\mathit{portlist}}{\mathit{op}}) = (f': D  \cup \{ \mathit{op} \} \to \expressions(R))$,
-	defined by $f'(d) = f(d)$ if $d \in D$ and $f'(\mathit{op}) = \needtobedefined$.
+	If $\portsem(\mathit{name}, \linebreak[0] \mathit{portlist}) = (f: W \to \expressions(R,W), g : R \to \flippedexpressions(R,W))$
+	and $\mathit{op} \notin R \cup W$,
+	then $\portsem(\mathit{name}, \linebreak[0] \rconslist{\mathit{portlist}}{\mathit{op}}) = (f': W \cup \{ \mathit{op} \} \to \expressions(R \cup \{ \mathit{op} \}, W \cup \{ \mathit{op} \}), g' : R \cup \{ \mathit{op} \} \to \flippedexpressions(R \cup \{ \mathit{op} \},W \cup \{ \mathit{op} \}))$,
+	defined by $f'(w) = f(w)$ for all $w \in W$ and $g'(r) = g(r)$ for all $r \in R$, and $f'(\mathit{op}) = \needtobedefined$ and $g'(\mathit{op}) = \needtobedefined$.
+
+	(Because output ports are defined to be duplex, while input ports are defined to be sources, we have the asymmetry here.)
 \end{description}
-Then we define the (combinatorial) semantic operator of the statement list.
-One of the inputs is $f_\mathrm{port}$, a function normally generated by the port list (but occasionally a different function).
+Then we define the (combinatorial) connection summary of the statement list.
+One of the inputs is $f_\mathrm{port}, g_\mathrm{port}$, the pair of functions normally generated by the port list (but occasionally different functions).
 \begin{description}
 \item[Empty statement list:]
-	$\stmtsem(\mathit{name}, \linebreak[0] f_\mathrm{port}, \linebreak[0] \emptylist) = f_\mathrm{port}$.
+	$\stmtsem(\mathit{name}, \linebreak[0] f_\mathrm{port}, \linebreak[0] g_\mathrm{port}, \linebreak[0] \emptylist) = (f_\mathrm{port}, g_\mathrm{port})$.
 
 \item[Wire definition:]
-	If $\stmtsem(\mathit{name}, \linebreak[0] f_\mathrm{port}, \linebreak[0] \mathit{stmtlist}) = (f: D \to \expressions(R))$
-	and $\mathit{wr} \notin D \cup R$,
-	then $\stmtsem(\mathit{name}, \linebreak[0] f_\mathrm{port}, \linebreak[0] \rconslist{\mathit{stmtlist}}{\linebreak[0] \mathtt{wire~} \mathit{wr}, \mathit{type}}) = (f': D \cup \{ \mathit{wr} \} \to \expressions(R \cup \{ \mathit{wr} \}))$,
-	defined by $f'(d) = f(d)$ if $d \in D$ and $f'(\mathit{wr}) = \needtobedefined$.
+	If $\stmtsem(\mathit{name}, \linebreak[0] f_\mathrm{port}, \linebreak[0] g_\mathrm{port}, \linebreak[0] \mathit{stmtlist}) = (f: W \to \expressions(R,W), g : R \to \flippedexpressions(R,W))$
+	and $\mathit{wr} \notin R \cup W$,
+	then $\stmtsem(\mathit{name}, \linebreak[0] f_\mathrm{port}, \linebreak[0] g_\mathrm{port}, \linebreak[0] \rconslist{\mathit{stmtlist}}{\linebreak[0] \mathtt{wire~} \mathit{wr}, \mathit{type}}) = (f': W \cup \{ \mathit{wr} \} \to \expressions(R \cup \{ \mathit{wr} \}, W \cup \{ \mathit{wr} \}), g' : R \cup \{ \mathit{wr} \} \to \flippedexpressions(R \cup \{ \mathit{wr} \},W \cup \{ \mathit{wr} \}))$,
+	defined by $f'(w) = f(w)$ for all $w \in W$ and $g'(r) = g(r)$ for all $r \in R$, and $f'(\mathit{wr}) = \needtobedefined$ and $g'(\mathit{wr}) = \needtobedefined$.
 
 \item[Register definition:]
-	If $\stmtsem(\mathit{name}, \linebreak[0] f_\mathrm{port}, \linebreak[0] \mathit{stmtlist}) = (f: D \to \expressions(R))$
-	and $\mathit{rg} \notin D \cup R$,
-	then $\stmtsem(\mathit{name}, \linebreak[0] f_\mathrm{port}, \linebreak[0] \rconslist{\mathit{stmtlist}}{\mathtt{reg~} \mathit{rg}, \mathit{type}}) = (f': D \cup \{ \mathit{rg}_\mathrm{new} \} \to \expressions(R \cup \{ \mathit{rg}_\mathrm{old} \}))$,
-	defined by $f'(d) = f(d)$ if $d \in D$ and $f'(\mathit{rg}_\mathrm{new}) = \mathit{rg}_\mathrm{old}$.
+	If $\stmtsem(\mathit{name}, \linebreak[0] f_\mathrm{port}, \linebreak[0] g_\mathrm{port}, \linebreak[0] \mathit{stmtlist}) = (f: W \to \expressions(R,W), g : R \to \flippedexpressions(R,W))$
+	and $\mathit{rg} \notin R \cup W$,
+	then $\stmtsem(\mathit{name}, \linebreak[0] f_\mathrm{port}, \linebreak[0] g_\mathrm{port}, \linebreak[0] \rconslist{\mathit{stmtlist}}{\mathtt{reg~} \mathit{rg}, \mathit{type}}) = (f': W \cup \{ \mathit{rg}_\mathrm{new} \} \to \expressions(R \cup \{ \mathit{rg}_\mathrm{old} \}, W \cup \{ \mathit{rg}_\mathrm{new} \}), g' : R \cup \{ \mathit{rg}_\mathrm{old} \} \to \flippedexpressions(R \cup \{ \mathit{rg}_\mathrm{old} \},W \cup \{ \mathit{rg}_\mathrm{new} \}))$,
+	defined by $f'(w) = f(w)$ for all $w \in W$ and $g'(r) = g(r)$ for all $r \in R$, and $f'(\mathit{rg}_\mathrm{new}) = \mathit{rg}_\mathrm{old}$ and $g'(\mathit{rg}_\mathrm{old}) = \undefinedonpurpose$.
+	(Because the type of a register must be passive, no connection will change $g'(\mathit{rg}_\mathrm{old})$.)
 
 	\textbf{TODO:} There may be an additional connection in $f'$ to express the reset. \textbf{:END TODO}
 
-\item[Bidirectional connect statement:]
-	If $\stmtsem(\mathit{name}, \linebreak[0] f_\mathrm{port}, \linebreak[0] \mathit{stmtlist}) = (f: D \to \expressions(R))$
-	and given $\mathit{ref_\mathrm{1}} \in D$ and $\mathit{ref_\mathrm{2}} \in D \cap \expressions(R)$ of compatible types,
-	then $\stmtsem(\mathit{name}, \linebreak[0] f_\mathrm{port}, \linebreak[0] \rconslist{\mathit{stmtlist}}{\mathit{ref_\mathrm{1}} \mathtt{~<=~} \mathit{ref_\mathrm{2}}}) = (f': D \to \expressions(R))$,
-	defined by $f'(\mathit{ref_\mathrm{1}}) = f(\mathit{ref_\mathrm{2}})$ and $f'(d) = f(d)$ for all $d \in D \setminus \{ \mathit{ref_\mathrm{1}} \}$.
-
-	\textbf{TODO:} Need to take into account flipped subcomponents of $\mathit{ref_\mathrm{1}}$ and $\mathit{ref_\mathrm{2}}$. \textbf{:END TODO}
-
 \item[Unidirectional connect statement:]
-	If $\stmtsem(\mathit{name}, \linebreak[0] f_\mathrm{port}, \linebreak[0] \mathit{stmtlist}) = (f: D \to \expressions(R))$
-	and given $\mathit{ref} \in D$ and $\mathit{expr} \in \expressions(R) \setminus \{ \needtobedefined, \linebreak[0] \undefinedonpurpose \}$ of compatible types,
-	then $\stmtsem(\mathit{name}, \linebreak[0] f_\mathrm{port}, \linebreak[0] \rconslist{\mathit{stmtlist}}{\linebreak[0] \mathit{ref} \mathtt{~<=~} \mathit{expr}}) = (f': D \to \expressions(R))$,
-	defined by $f'(\mathit{ref}) = f(\mathit{expr})$ and $f'(d) = f(d)$ for all $d \in D \setminus \{ \mathit{ref} \}$.
+	Assume $\stmtsem(\mathit{name}, \linebreak[0] f_\mathrm{port}, \linebreak[0] g_\mathrm{port}, \linebreak[0] \mathit{stmtlist}) = (f: W \to \expressions(R,W), g : R \to \flippedexpressions(R,W))$
+	and $\mathit{expr} \in \expressions(R, W) \setminus \{ \needtobedefined, \linebreak[0] \undefinedonpurpose \}$ of compatible types.
+	Given a reference $\mathit{ref}$ derived from $W$ (this is a normal connection),
+	then $\stmtsem(\mathit{name}, \linebreak[0] f_\mathrm{port}, \linebreak[0] g_\mathrm{port}, \linebreak[0] \rconslist{\mathit{stmtlist}}{\linebreak[0] \mathtt{connect~} \mathit{ref}, \mathit{expr}}) = (f': W \to \expressions(R, W), g)$,
+	defined by $f'(\mathit{base}(\mathit{ref})) = [f(\mathit{base}(\mathit{ref})) \text{ \textsc{except} } !\mathit{component}(\mathit{ref}) = \mathit{expr}]$ and $f'(w) = f(w)$ for all $w \in W \setminus \{ \mathit{base}(\mathit{ref}) \}$.
 
-	\textbf{TODO:} Actually the reference $\mathit{ref}$ might not be literally in $D$ but be an access to some subcomponent of an array or bundle. \textbf{:END TODO}
+	Given a reference $\mathit{ref}$ derived from a flipped part of an element of $R$ (this is a flipped connection),
+	then $\stmtsem(\mathit{name}, \linebreak[0] f_\mathrm{port}, \linebreak[0] g_\mathrm{port}, \linebreak[0] \rconslist{\mathit{stmtlist}}{\linebreak[0] \mathit{ref} \mathtt{~<=~} \mathit{expr}}) = (f, g' : R \to \expressions(R, W))$,
+	defined by $g'(\mathit{base}(\mathit{ref})) = [g(\mathit{base}(\mathit{ref})) \text{ \textsc{except} } !\mathit{component}(\mathit{ref}) = \mathit{expr}]$ and $g'(r) = f(r)$ for all $r \in R \setminus \{ \mathit{base}(\mathit{ref}) \}$.
+
+	Here, $\mathit{base}(\mathit{ref})$ is the base identifier of the reference $\mathit{ref}$.
+	The \textsc{except} clause indicates that the sub-component indicated in $\mathit{ref}$ is set to the new value
+	(and the rest remains the same).
+	These functions can be defined recursively
+	(they are partial functions because they require type compatibility).
+
+% hfexpr and href are mutually recursive
+
+%What is an aggregate expression? (always there is the requirement of type compatibility)
+%Gexpr : fgtyp -> hfexpr -> aggregate_expression
+%Aexpr : array_expr -> aggregate_expression
+%Bexpr : bundle_expr -> aggregate_expression
+%to_be_defined : ftype -> aggregate_expression
+%undefined_on_purpose : ftype -> aggregate_expression
+
+%array_expr : seq aggregate_expression -> array_expr
+
+%bundle_expr : name -> aggregate_expression -> bundle_expr -> bundle_expr
+%bundle_expr_flipped : name -> faggregate_expression -> bundle_expr -> bundle_expr
+%empty_bundle_expr : bundle_expr
+
+%To provide for flipped fields, we should have everything in a flipped variant as well...
+
+%fGexpr : fgtyp -> faggregate_expression (* only determine the type, do not really assign a value *)
+%fAexpr : farray_expr -> faggregate_expression (* only assign to flipped parts of the array *)
+%fBexpr : fbundle_expr -> faggregate_expression
+
+%farray_expr : ftype -> seq faggregate_expression -> farray_expr
+
+%fbundle_expr : name -> ftype -> faggregate_expression -> fbundle_expr -> fbundle_expr
+%fbundle_expr_flipped : name -> ftype -> aggregate_expression -> fbundle_expr -> fbundle_expr
+%fempty_bundle_expr : fbundle_expr
+
+%The type of an aggregate expression can be constructed from its structure and the types of the ground expressions.
+%The aggregate expressions in an array expression should all have the same / compatible types.
+%(Compatibility is tested similarly to multiplexer types.)
+%In bundle expressions, field names should be unique.
+%If the aggregate expression is not well-formed, its type is None.
+
+%-----
+
+%Then an assignment is a (partial) function from names to aggregate expressions.
+%Actually two functions: also a partial function from names to faggregate expressions.
+%(Non-passive) duplex and source values are defined in the second function;
+%Duplex and sink values are defined in the first function.
+%The types of the expressions of duplex components must be compatible.
+
+%(Registers are duplex but passive, so one does not actually need to assign an faggregate expression, as it must always be empty.)
+%Curiously, output ports are duplex (not sinks) and input ports are sources---not sure where this difference comes from. Perhaps because sometimes one wants to read from the output port?
+
+%Then a connect statement updates these functions.
+%The update can be defined recursively by a function
+%update_value : aggregate_expression (*old value*) -> href (*reference to the part that is updated*) -> aggregate_expression (*new value*) -> option aggregate_expression
+%fupdate_value : faggregate_expression etc.
+%
+%If href is a simple reference, the result is the new value (if the two types are compatible; otherwise it is None).
+%Flipped parts are not changed because flipped expressions do not contain a value!
+%If href is an array access, then the old value must be an array expression, and the update is composed from the old value and update_value of the one array element that was accessed
+%If href is a bundle access, then the old value must be a bundle expression, and the update is composed from the old value and update_value of the one field that was accessed.
+%If the field was flipped, then the update should go the other way--not sure how to implement that.
+
+%A bidirectional connect statement updates two values in the function. Perhaps we can have a flipped update function, which updates the flipped parts?
+%(Perhaps build this into the normal connect function with a boolean switch whether it's a flipped update or not.)
+
+\item[Bidirectional connect statement:]
+	If $\stmtsem(\mathit{name}, \linebreak[0] f_\mathrm{port}, \linebreak[0] g_\mathrm{port}, \linebreak[0] \mathit{stmtlist}) = (f: W \to \expressions(R,W), g : R \to \flippedexpressions(R,W))$
+	and given $\mathit{ref}_1$ derived from $W$ and $\mathit{ref}_2$ derived from $R$,
+	then $\stmtsem(\mathit{name}, \linebreak[0] f_\mathrm{port}, \linebreak[0] g_\mathrm{port}, \linebreak[0] \rconslist{\mathit{stmtlist}}{\mathtt{connect~} \mathit{ref}_1, \mathit{ref}_2}) = (f': W \to \expressions(R, W), g' : R \to \flippedexpressions(R, W))$,
+	defined by $f'(\mathit{base}(\mathit{ref}_1)) = [f(\mathit{base}(\mathit{ref}_1) \text{ \textsc{except} } !\mathit{component}(\mathit{ref}_1) = \mathit{ref}_2]$ and $f'(w) = f(w)$ for all $w \in W \setminus \{ \mathit{base}(\mathit{ref}_1) \}$,
+	and $g'(\mathit{base}(\mathit{ref}_2)) = [g(\mathit{base}(\mathit{ref}_2) \text{ \textsc{except} } !\mathit{component}(\mathit{ref}_2) = \mathit{ref}_1]$ and $g'(r) = g(r)$ for all $r \in R \setminus \{ \mathit{base}(\mathit{ref}_2) \}$.
+	(The second assignment will only assign the flipped sub-components.)
+
+	The cases where some references are flipped sub-components are handled analogously.
 
 \item[When statement:]
-	If $\stmtsem(\mathit{name}, \linebreak[0] f_\mathrm{port}, \linebreak[0] \mathit{stmtlist}) = (f: D \to \expressions(R))$
-	and given $\mathit{cond} \in \expressions(R)$, and statement lists $\mathit{truestmtlist}$ and $\mathit{falsestmtlist}$,
-	then $f' := \stmtsem(\mathit{name}, \linebreak[0] f_\mathrm{port}, \linebreak[0] \rconslist{\mathit{stmtlist}}{\linebreak[0] \mathtt{when~} \mathit{cond} \linebreak[0] \mathtt{~then~} \mathit{truestmtlist} \linebreak[0] \mathtt{~else~} \mathit{falsestmtlist}})$ is defined as follows.
+	If $\stmtsem(\mathit{name}, \linebreak[0] f_\mathrm{port}, \linebreak[0] g_\mathrm{port}, \linebreak[0] \mathit{stmtlist}) = (f: W \to \expressions(R,W), g : R \to \flippedexpressions(R,W))$
+	and given $\mathit{cond} \in \expressions(R,W)$, and statement lists $\mathit{truestmtlist}$ and $\mathit{falsestmtlist}$,
+	then $f', g' := \stmtsem(\mathit{name}, \linebreak[0] f_\mathrm{port}, \linebreak[0] g_\mathrm{port}, \linebreak[0] \rconslist{\mathit{stmtlist}}{\linebreak[0] \mathtt{when~} \mathit{cond} \linebreak[0] \mathtt{~then~} \mathit{truestmtlist} \linebreak[0] \mathtt{~else~} \mathit{falsestmtlist}})$ is defined as follows.
 
-	Let $(f_\mathrm{true} : D_\mathrm{true} \to \expressions(R_\mathrm{true}) := \stmtsem(\mathit{name}, \linebreak[0] f, \linebreak[0] \mathit{truestmtlist})$ and
-	$(f_\mathrm{false} : D_\mathrm{false} \to \expressions(R_\mathrm{false}) := \stmtsem(\mathit{name}, \linebreak[0] f, \linebreak[0] \mathit{falsestmtlist})$.
-	(Note that we do not use $f_\mathrm{port}$ but $f$ here.)
+	Let $(f_\mathrm{true} : W_\mathrm{true} \to \expressions(R_\mathrm{true}, W_\mathrm{true}), g_\mathrm{true} : R_\mathrm{true} \to \flippedexpressions(R_\mathrm{true}, W_\mathrm{true})) := \stmtsem(\mathit{name}, \linebreak[0] f, \linebreak[0] g, \linebreak[0] \mathit{truestmtlist})$ and
+	$(f_\mathrm{false} : W_\mathrm{false} \to \expressions(R_\mathrm{false}, W_\mathrm{false}), g_\mathrm{false} : R_\mathrm{false} \to \flippedexpressions(R_\mathrm{false}, W_\mathrm{false})) := \stmtsem(\mathit{name}, \linebreak[0] f, \linebreak[0] g, \linebreak[0] \mathit{falsestmtlist})$.
+	(Note that we do not use $f_\mathrm{port}, g_\mathrm{port}$ but $f, g$ here.)
 
-	We define $(f' : D_\mathrm{true} \cup D_\mathrm{false} \to \expressions(R_\mathrm{true} \cup R_\mathrm{false}))$ to be:
+	We define $(f' : W_\mathrm{true} \cup W_\mathrm{false} \to \expressions(R_\mathrm{true} \cup R_\mathrm{false}, W_\mathrm{true} \cup W_\mathrm{false}))$ to be:
 	\begin{itemize}
-	\item	If $(D_\mathrm{true} \setminus D) \cap (D_\mathrm{false} \setminus D) \not= \emptyset$, there is an error.
-	\item	For $d \in D_\mathrm{true} \setminus D$, we have $f'(d) = f_\mathrm{true}(d)$.
-	\item	For $d \in D_\mathrm{false} \setminus D$, we have $f'(d) = f_\mathrm{false}(d)$.
-	\item	For $d \in D$, we have $f'(d) = \mathsf{mux}(\mathit{cond}, f_\mathrm{true}(d), f_\mathrm{false}(d))$.
+	\item	If $(W_\mathrm{true} \setminus W) \cap (W_\mathrm{false} \setminus W) \not= \emptyset$, there is an error.
+	\item	If $(R_\mathrm{true} \setminus R) \cap (R_\mathrm{false} \setminus R) \not= \emptyset$, there is an error.
+	\item	For $w \in W_\mathrm{true} \setminus W$, we have $f'(w) = f_\mathrm{true}(w)$.
+	\item	For $w \in W_\mathrm{false} \setminus W$, we have $f'(w) = f_\mathrm{false}(w)$.
+	\item	For $w \in W$, we have $f'(w) = \mathsf{mux}(\mathit{cond}, f_\mathrm{true}(w), f_\mathrm{false}(w))$.
+	\item	For $r \in R_\mathrm{true} \setminus R$, we have $g'(r) = g_\mathrm{true}(r)$.
+	\item	For $r \in R_\mathrm{false} \setminus R$, we have $g'(r) = g_\mathrm{false}(r)$.
+	\item	For $r \in R$, we have $g'(r) = \mathsf{mux}(\mathit{cond}, g_\mathrm{true}(r), g_\mathrm{false}(r))$.
 	\end{itemize}
 	\textbf{TODO:} If a component is defined only in $\mathit{truestmtlist}$ or in $\mathit{falsestmtlist}$,
 	it will fall out of scope at the end of the when statement;
@@ -141,47 +228,51 @@ In the above setting, we use the following notations:
 \item[$\emptylist$] is the empty list;
 \item[$\rconslist{l}{e}$] is the extension of list $l$ with an additional element $e$ at the end;
 %\item[$\concatlist{l_1}{l_2}$] is the concatenation of the two lists $l_1$ and $l_2$ (in this order);
-\item[$\expressions(S)$] is the set of formal expressions over $S$;
-	additionally, $\expressions(S)$ contains an element $\needtobedefined$ to express that a value is currently undefined but needs to be defined,
-	and $\expressions(S)$ contains an element $\undefinedonpurpose$ to express that the programmer indicated that the value is undefined on purpose.
+\item[$\expressions(R,W)$] is the set of formal expressions constructed from the non-flipped parts of $R$ and the flipped parts of $W$;
+	additionally, $\expressions(R,W)$ contains an element $\needtobedefined$ to express that a value is currently undefined but needs to be defined,
+	and $\expressions(R,W)$ contains an element $\undefinedonpurpose$ to express that the programmer indicated that the value is undefined on purpose.
+\item[$\flippedexpressions(R,W)$] is the set of formal flipped expressions constructed from the non-flipped parts of $R$ and the flipped parts of $W$.
+	(So, it assigns an expression to every flipped sub-component of the result type).
 \end{description}
 
 \subsection{Example}
 
 The recursive construction of $f$ is illustrated by the example module below.
+As the module does not contain any flipped sub-components,
+$g$ would never contain any information and is omitted.
 
 \medskip
 
 \noindent
-\renewcommand{\arraystretch}{0.6}
-\begin{tabular}{l|r@{${}\to{}$}l|l}
-source code & \multicolumn{2}{l|}{type of $f$} & definition of $f$ \\[6pt]
-\texttt{module m} & \multicolumn{2}{l|}{} & \\
-          & $\emptyset$&$\expressions(\emptyset)$ & empty function \\
-\qquad\texttt{input i:UInt<3>} & \multicolumn{2}{l|}{} & \\
-          & $\emptyset$&$\expressions(\{ \mathtt{i} \})$ & empty function \\
-\qquad\texttt{output o:UInt<4>} & \multicolumn{2}{l|}{} & \\
-          & $\{ \mathtt{o} \}$&$\expressions(\{ \mathtt{i} \})$ & $f_1(\mathtt{o}) = \needtobedefined$ \\
-\qquad\texttt{wire w:UInt<4>} & \multicolumn{2}{l|}{} & \\
-          & $\{ \mathtt{o}, \mathtt{w} \}$&$\expressions(\{ \mathtt{w}, \mathtt{i} \})$ & $f_2(\mathtt{o}) = f_1(\mathtt{o})$, $f_2(\mathtt{w}) = \needtobedefined$ \\
-\qquad\texttt{w <= w + 1} & \multicolumn{2}{l|}{} & \\
-          & $\{ \mathtt{o}, \mathtt{w} \}$&$\expressions(\{ \mathtt{w}, \mathtt{i} \})$ & $f_3(\mathtt{o}) = f_2(\mathtt{o})$, $f_3(\mathtt{w}) = \mathtt{w} + 1$ \\
-\qquad\texttt{o <= w} & \multicolumn{2}{l|}{} & \\
-          & $\{ \mathtt{o}, \mathtt{w} \}$&$\expressions(\{ \mathtt{w}, \mathtt{i} \})$ & $f_4(\mathtt{o}) = {}\rlap{$\mathtt{w}$,}$\phantom{$f_2(\mathtt{o})$,} $f_4(\mathtt{w}) = f_3(\mathtt{w})$ \\
-\qquad\texttt{w <= i + 1} & \multicolumn{2}{l|}{} & \\
-          & $\{ \mathtt{o}, \mathtt{w} \}$&$\expressions(\{ \mathtt{w}, \mathtt{i} \})$ & $f_5(\mathtt{o}) = f_4(\mathtt{o})$, $f_5(\mathtt{w}) = \mathtt{i} + 1$
-\end{tabular}
-\renewcommand{\arraystretch}{1}
+\begin{tikzpicture}
+  \draw (0, 0.5) node[anchor=mid west]{source code}                  ++(4.2, 0)    node[anchor=mid west]{$W$}                             ++(1.3,0) node[anchor=mid west]{$R$}                                         ++(1.6,0) node[anchor=mid west]{definition of $f$};
+  \draw (0, 0)   node[anchor=mid west]{\texttt{module m}}            ++(4.2,-0.25) node[anchor=mid west]{$\emptyset$}                     ++(1.3,0) node[anchor=mid west]{$\emptyset$}                                 ++(1.6,0) node[anchor=mid west]{empty function}
+        (0,-0.5) node[anchor=mid west]{\texttt{~~~input i:UInt<3>}}  ++(4.2,-0.25) node[anchor=mid west]{$\emptyset$}                     ++(1.3,0) node[anchor=mid west]{$\{ \mathtt{i} \}$}                          ++(1.6,0) node[anchor=mid west]{empty function}
+        (0,-1.0) node[anchor=mid west]{\texttt{~~~output o:UInt<4>}} ++(4.2,-0.25) node[anchor=mid west]{$\{ \mathtt{o} \}$}              ++(1.3,0) node[anchor=mid west]{$\{ \mathtt{i}, \mathtt{o} \}$}              ++(1.6,0) node[anchor=mid west]{$f_1(\mathtt{o}) = \needtobedefined$}
+        (0,-1.5) node[anchor=mid west]{\texttt{~~~wire w:UInt<4>}}   ++(4.2,-0.25) node[anchor=mid west]{$\{ \mathtt{o}, \mathtt{w} \}$}  ++(1.3,0) node[anchor=mid west]{$\{ \mathtt{i}, \mathtt{o}, \mathtt{w} \}$}  ++(1.6,0) node[anchor=mid west]{$f_2(\mathtt{o}) = f_1(\mathtt{o}), f_2(\mathtt{w}) = \needtobedefined$}
+        (0,-2.0) node[anchor=mid west]{\texttt{~~~connect w, w + 1}} ++(4.2,-0.25) node[anchor=mid west]{$\{ \mathtt{o}, \mathtt{w} \}$}  ++(1.3,0) node[anchor=mid west]{$\{ \mathtt{i}, \mathtt{o}, \mathtt{w} \}$}  ++(1.6,0) node[anchor=mid west]{$f_3(\mathtt{o}) = f_2(\mathtt{o}), f_3(\mathtt{w}) = \mathtt{w} + 1$}
+        (0,-2.5) node[anchor=mid west]{\texttt{~~~connect o, w}}     ++(4.2,-0.25) node[anchor=mid west]{$\{ \mathtt{o}, \mathtt{w} \}$}  ++(1.3,0) node[anchor=mid west]{$\{ \mathtt{i}, \mathtt{o}, \mathtt{w} \}$}  ++(1.6,0) node[anchor=mid west]{$f_4(\mathtt{o}) = \mathtt{w}\phantom{f_2()}, f_4(\mathtt{w}) = f_3(\mathtt{w})$}
+        (0,-3.0) node[anchor=mid west]{\texttt{~~~connect w, i + 1}} ++(4.2,-0.25) node[anchor=mid west]{$\{ \mathtt{o}, \mathtt{w} \}$}  ++(1.3,0) node[anchor=mid west]{$\{ \mathtt{i}, \mathtt{o}, \mathtt{w} \}$}  ++(1.6,0) node[anchor=mid west]{$f_5(\mathtt{o}) = f_4(\mathtt{o}), f_5(\mathtt{w}) = \mathtt{i} + 1$};
+
+  \draw[very thin,gray] (4.1,0.03) -- ++(0.5,0) -- ++(-0.5,0)
+        -- ++(-0.3,-0.25) -- ++(-0.5,0) -- ++(0.5,0) -- ++(0.3,-0.25) -- ++(0.5,0) -- ++(-0.5,0)
+        -- ++(-0.3,-0.25) -- ++(-0.5,0) -- ++(0.5,0) -- ++(0.3,-0.25) -- ++(0.5,0) -- ++(-0.5,0)
+        -- ++(-0.3,-0.25) -- ++(-0.5,0) -- ++(0.5,0) -- ++(0.3,-0.25) -- ++(0.5,0) -- ++(-0.5,0)
+        -- ++(-0.3,-0.25) -- ++(-0.5,0) -- ++(0.5,0) -- ++(0.3,-0.25) -- ++(0.5,0) -- ++(-0.5,0)
+        -- ++(-0.3,-0.25) -- ++(-0.5,0) -- ++(0.5,0) -- ++(0.3,-0.25) -- ++(0.5,0) -- ++(-0.5,0)
+        -- ++(-0.3,-0.25) -- ++(-0.5,0) -- ++(0.5,0) -- ++(0.3,-0.25) -- ++(0.5,0) -- ++(-0.5,0)
+        -- ++(-0.3,-0.25) -- ++(-0.5,0) -- ++(0.5,0) -- ++(0.3,-0.25) -- ++(0.5,0) -- ++(-0.5,0);
+\end{tikzpicture}
 
 \section{Semantic of a module}
 
 Assume given a FIRRTL module $(\mathit{name}, \mathit{portlist}, \mathit{stmtlist})$.
-Let $f: D \to \expressions(R) = \stmtsem(\mathit{name}, \linebreak[0] \portsem(\mathit{name}, \linebreak[0] \mathit{portlist}), \linebreak[0] \mathit{stmtlist})$ be its semantic operator.
+Let $f: D \to \expressions(R) = \stmtsem(\mathit{name}, \linebreak[0] \portsem(\mathit{name}, \linebreak[0] \mathit{portlist}), \linebreak[0] \mathit{stmtlist})$ be its connection summary.
 This operator is regarded as a transformation of an assignment $s: R \to \mathbb{V}$
 to an assignment $f \circ s: D \to \mathbb{V}$
 (where $\mathbb{V}$ is the range of concrete values that the variables in $R$ and $D$ can take, typically a subset of the integers).
 
-Given a semantic operator $f$ and an input assignment $s: R \to \mathbb{V}$ as above, we define the output assignment $f \circ s: D \to \mathbb{V}$ that results from applying $f$ to $s$ as:
+Given a connection summary $f$ and an input assignment $s: R \to \mathbb{V}$ as above, we define the output assignment $f \circ s: D \to \mathbb{V}$ that results from applying $f$ to $s$ as:
 $f \circ s(d) = f(d) \circ s$, i.e.\@ we evaluate the formal expression $f(d)$ by inserting the values from $s$ for concrete elements of $R$.
 
 We also define an input extractor as follows: given an output assignment $s : D \to \mathbb{V}$ and a default input assignment $\mathit{dft} : R \to \mathbb{V}$,
