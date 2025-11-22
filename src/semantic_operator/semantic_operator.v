@@ -14,6 +14,7 @@
 
 From Coq Require Import ZArith.
 From mathcomp Require Import ssreflect ssrbool ssrnat ssralg ssrint eqtype seq div.
+From mathcomp Require Import fintype finfun choice fingraph.
 
 (* abstract syntax of HiFIRRTL *)
 
@@ -21,7 +22,14 @@ From mathcomp Require Import ssreflect ssrbool ssrnat ssralg ssrint eqtype seq d
 (*         identifiers        *)
 (******************************)
 
-Variable var : eqType.
+Variable var : choiceType.
+
+(* We may need the following fact that var is infinite.
+   The formulation will allow any finfun defined on a subset of var easily
+   to find a var that is not in the domain. 
+
+   xchoose (var_is_infinite (domain of summary)) *)
+Hypothesis var_is_infinite : forall s : seq var, exists v : var, v \notin s.
 
 (******************************)
 (*         data types         *)
@@ -651,6 +659,33 @@ Canonical href_eqType := Eval hnf in EqType href href_eqMixin.
 Inductive forient : Type :=
   | Source | Sink | Duplex | Passive | Illegal_orient.
 
+(* equality of orientations is decidable *)
+Lemma forient_eq_dec (x y : forient) : {x = y} + {x <> y}.
+Proof. decide equality. Qed.
+
+(* Boolean equality of orientations *)
+Definition forient_eqn (x y : forient) : bool :=
+  match x, y with
+  | Source, Source
+  | Sink, Sink
+  | Duplex, Duplex
+  | Passive, Passive
+  | Illegal_orient, Illegal_orient => true
+  | _, _ => false
+  end.
+
+(* reflection predicate for orientations *)
+Lemma forient_eqP : forall (x y : forient), reflect (x = y) (forient_eqn x y).
+  Proof.
+    destruct x, y ; simpl forient_eqn ;
+          try (apply ReflectF ; discriminate) ;
+          try (apply ReflectT ; reflexivity).
+  Qed.
+
+(* eqType for orientations *)
+Definition forient_eqMixin := EqMixin forient_eqP.
+Canonical forient_eqType := Eval hnf in EqType forient forient_eqMixin.
+
 (* flips the orientation *)
 Definition flip_orient (o : forient) : forient :=
   match o with
@@ -706,20 +741,120 @@ Lemma kind_eqP : forall (x y : kind), reflect (x = y) (kind_eqn x y).
 Definition kind_eqMixin := EqMixin kind_eqP.
 Canonical kind_eqType := Eval hnf in EqType kind kind_eqMixin.
 
-(**********************)
-(* connection summary *)
-(**********************)
 
-(* A connection summary is a map that indicates for every component some information.
+(**********************************)
+(* connection summary, dependency *)
+(**********************************)
+
+
+(* A connection summary is a finite function that indicates for every component some information.
    It is used to define the context of an expression and later to give the semantics
    of a module. *)
 
-Definition summaryType : Type := var -> option (kind * ftype * hfexpr * hfexpr).
-(* kind of the component, datatype of the component,
+Definition summaryType_func (dom : seq var) : Type := {ffun (seq_sub dom) -> kind * ftype * hfexpr * hfexpr}.
+(* The information given per component is:
+   kind of the component, datatype of the component,
    then an expression for the unflipped parts of the component (parts of this expression that correspond to flipped parts of the component are ignored),
-   then an expression for every flipped subfield that can be written *)
+   then an expression for every flipped subfield that can be written. *)
 
-Definition empty_summary : summaryType := (fun _ => None).
+(* We explicitly include the domain of the summary to make it easier to handle. 
+   So our connection summaries are actually dependent pairs: *)
+Definition summaryType := { dom : seq var & summaryType_func dom }.
+
+(* empty_summary is the empty function, defined on the empty sequence of variables *)
+Definition empty_summary : summaryType := existT summaryType_func [::] (ffun0 (card_seq_sub (s := @nil var) is_true_true)).
+
+(* Definition is_sub_summary (oldsumm newsumm : summaryType) : Prop := is_subset (projT1 oldsumm) (projT1 newsumm). *)
+
+(* function application: look up the value assoctiated with v in dict *)
+Definition app_summ_p (dict : summaryType) (v : var) (p : v \in projT1 dict) : kind * ftype * hfexpr * hfexpr :=
+    projT2 dict (SeqSub p).
+
+Definition app_summ (summ : summaryType) (v : var) : option (kind * ftype * hfexpr * hfexpr) :=
+match insub (sT := (seq_sub (projT1 summ))) v with
+| Some w => Some (projT2 summ w)
+| None => None
+end.
+
+(* Some alternative definitions follow.
+The above definition has the advantage that there exists a proof rule for insub,
+namely insubP, that allows us to easily formulate correctness properties.
+The alternatives below have some proof dependencies that make it difficult to handle.
+
+Definition app_summ_alt (summ : summaryType) (v : var) :  kind * ftype * hfexpr * hfexpr * (v \in projT1 summ) + (v \notin projT1 summ) :=
+    (if v \in projT1 summ as b 
+        return v \in projT1 summ = b -> kind * ftype * hfexpr * hfexpr * (v \in projT1 summ) + (v \notin projT1 summ)
+     then fun p => inl (projT2 summ (SeqSub p), p)
+     else fun p => inr (negbT p)) Logic.eq_refl.
+
+Lemma app_summ_alt_some {summ : summaryType} {v : var} :
+    v \in projT1 summ -> app_summ_alt summ v.
+Proof.
+intro Hvs.
+destruct (app_summ_alt summ v) as [p | Hvns].
+(* left branch *)
+  by done.
+(* right branch *)
+  exfalso.
+  by rewrite Hvs // in Hvns.
+Qed.
+
+Lemma app_summ_alt_none {summ : summaryType} {v : var} :
+    v \notin projT1 summ -> ~~app_summ_alt summ v.
+Proof.
+intro Hvns.
+destruct (app_summ_alt summ v) as [[kfee Hvs]|p].
+(* left branch *)
+  exfalso.
+  by rewrite Hvs // in Hvns.
+(* right branch *)
+  by done.
+Qed.
+
+Definition app_summ' (summ : summaryType) (v : var) : option (kind * ftype * hfexpr * hfexpr) :=
+    match app_summ_alt summ v with
+    | inl (kfee, _) => Some kfee
+    | inr _ => None
+    end.
+
+Lemma app_summ'_some {summ : summaryType} {v : var} :
+    v \in projT1 summ -> app_summ' summ v.
+Proof.
+intro Hvs.
+unfold app_summ'.
+destruct (app_summ_alt summ v) as [[kfee _] | Hvns].
+(* left branch *)
+  by done.
+(* right branch *)
+  by rewrite Hvs // in Hvns.
+Qed.
+
+Lemma app_summ'_none {summ : summaryType} {v : var} :
+    v \notin projT1 summ -> ~~app_summ' summ v.
+Proof.
+intro Hvns.
+unfold app_summ'.
+destruct (app_summ_alt summ v) as [[kfee Hvs]|p].
+(* left branch *)
+  by rewrite Hvs // in Hvns.
+(* right branch *)
+  by done.
+Qed.
+
+Lemma notin_cons_imp [T : eqType] (y : T) (s : seq T) (x : T) :
+    x != y -> x \notin s -> x \notin y :: s.
+Proof.
+intros Hxnoty Hxnis.
+by rewrite in_cons negb_or Hxnoty Hxnis //.
+Qed.
+
+Definition notin_cons' [T : eqType] (y : T) (s : seq T) (x : T) :=
+    eq_ind_r (fun b : bool => ~~ b = (x != y) && (x \notin s))
+             (eq_ind_r (fun b : bool => b = (x != y) && (x \notin s)) 
+                       Logic.eq_refl
+                       (negb_or (x == y) (x \in s)))
+             (in_cons y s x).
+*)
 
 (* find the type of expression e, when it is accessed as o [e.g. as source].
    The types of defined identifiers are indicated by dict. *)
@@ -806,7 +941,7 @@ Fixpoint type_of_hfexpr (o : forient) (e : hfexpr) (dict : summaryType) : option
   | Emux c e1 e2 => if readable_orient o
                     (* multiplexers in FIRRTL must be passive. But we use them also to store expressions of
                        when statements; these connections may not all be passive. *)
-                    then match type_of_hfexpr o c dict, type_of_hfexpr o e1 dict, type_of_hfexpr o e2 dict with
+                    then match type_of_hfexpr Passive c dict, type_of_hfexpr o e1 dict, type_of_hfexpr o e2 dict with
                          | Some (Gtyp (Fuint 1)), Some t1, Some t2 => match unified_type t1 t2 with
                                                                       | Some t => Some t
                                                                       | _ => None
@@ -861,7 +996,7 @@ with type_of_bundle_expr (o : forient) (b : bundle_expr)  (dict : summaryType) :
   end
 with type_of_href (r : href) (dict : summaryType) : option (forient * ftype) :=
   match r with
-  | Eid v => match dict v with
+  | Eid v => match app_summ dict v with
              | Some (Inport, t, _, _) => Some (Source, t)
              | Some (Outport, t, _, _)
              | Some (Wire, t, _, _) => Some (Duplex, t)
@@ -887,6 +1022,1515 @@ with type_of_href (r : href) (dict : summaryType) : option (forient * ftype) :=
                        | _, _ => None
                        end
   end.
+
+(* dependency relation -- to avoid creating cyclic dependencies.
+   However, we cannot use "well_founded (depends_on summ)" just anywhere
+   because this is in Prop and not in bool.  So, instead we will use
+   finite graphs to define acyclicity.  This is also the main reason
+   why we insist on summaries to be finite functions. *)
+
+(* A correct program has this property: there is never a combinatorial loop, i.e. a ground-level component part that is connected indirectly to itself.
+   (One does not look further down than ground-level component parts, e.g. when doing bit manipulation.)
+
+   This can be expressed as follows:
+   - define a relation between ground-level component parts; if the expression for part p1 contains a reference to part p2, then p1 depends on p2
+     (except if p1 is (part of) a register, then it's not a combinatorial dependency).
+   - state that this relation (or its transitive closure) is well-founded.
+     If a module would lead to a non-well-founded relation, it is illegal and has no semantics.
+
+   - To define this relation, one has to assign identifiers to ground-level parts of every component.
+*)
+
+Fixpoint number_of_parts (t : ftype) : nat :=
+  match t with
+  | Gtyp _ => 1
+  | Atyp t' n => n * (number_of_parts t')
+  | Btyp ff => number_of_bundle_parts ff
+  end
+with number_of_bundle_parts (ff : ffield) : nat :=
+  match ff with
+  | Fnil => 0
+  | Fflips _ _ t' ff' => number_of_parts t' + number_of_bundle_parts ff'
+  end.
+
+(* calculates the size of array s *)
+Fixpoint array_size (s : array_expr) : nat :=
+  match s with
+  | Aone _ => 1
+  | Acons _ s' => array_size s' + 1
+  end.
+
+Fixpoint number_of_parts_of_expr (e : hfexpr) (summ : summaryType) : option nat :=
+    match e with
+    | Econst _ _ => Some 1
+    | Ecast _ _ => (* if number_of_parts_of_expr e' != Some 1 then None else *)
+                   Some 1
+    | Eprim_unop _ _ => (* if number_of_parts_of_expr e' != Some 1 then None else *)
+                        Some 1
+    | Eprim_binop _ _ _ => (* if (number_of_parts_of_expr e1 != Some 1) || (number_of_parts_of_expr e2 != Some 1) then None else *)
+                           Some 1
+    | Emux _ e1 _ => (* if (number_of_parts_of_expr c != Some 1) || (number_of_parts_of_expr e1 != number_of_parts_of_expr e2) then None else *)
+                     number_of_parts_of_expr e1 summ
+    | Eref r => match type_of_href r summ with
+                | Some (_, ft) => Some (number_of_parts ft)
+                | None => None
+                end
+    | Earray ar => number_of_parts_of_array ar summ
+    | Ebundle bu => number_of_parts_of_bundle bu summ
+    | Etobedefined t => Some (number_of_parts t)
+    | Eundefinedonpurpose t => Some (number_of_parts t)
+    end
+with number_of_parts_of_array (ar : array_expr) (summ : summaryType) : option nat :=
+    match ar with
+    | Aone e => number_of_parts_of_expr e summ
+    | Acons e _ => match number_of_parts_of_expr e summ with
+                   | Some s => Some (s * array_size ar)
+                   | None => None
+                   end
+    end
+with number_of_parts_of_bundle (bu : bundle_expr) (summ : summaryType) : option nat :=
+    match bu with
+    | Bnil => Some 0
+    | Bflips _ _ e bu' => match number_of_parts_of_expr e summ, number_of_parts_of_bundle bu' summ with
+                          | Some s1, Some s2 => Some (s1 + s2)
+                          | _, _ => None
+                          end
+    end.
+
+Definition parts_of (summ : summaryType) : seq (var * nat) :=
+    (* flatten [seq parts_of_component summ v | v <- (enum [finType of seq_sub (projT1 summ)])]. *)
+    [seq (val v, i) | v <- (enum [finType of seq_sub (projT1 summ)]), 
+                      i <- iota 0 (number_of_parts (snd (fst (fst (projT2 summ v)))))].
+
+Definition component_part (summ : summaryType) : Type := [finType of seq_sub (parts_of summ)].
+
+Definition is_defined_part (summ : summaryType) (p : var * nat) : bool :=
+    match app_summ summ (fst p) with
+    | Some (_, t, _, _) => (snd p) < number_of_parts t
+    | None => false
+    end.
+
+(* Every component part in the sequence (parts_of summ) is defined *)
+Lemma parts_of_is_defined (summ : summaryType) :
+    forall p : var * nat, (p \in parts_of summ) ->
+        is_defined_part summ p.
+Proof.
+intros [v n].
+rewrite /parts_of.
+move /flattenP => [s /mapP [v' Hv' Hs] Hvns].
+assert (val v' = v).
+      rewrite Hs in Hvns.
+      move /mapP : Hvns => [vi _ Hvns2].
+      apply pair_equal_spec in Hvns2.
+      by rewrite (proj1 Hvns2) //.
+subst v.
+rewrite /is_defined_part /fst /snd /app_summ /insub.
+destruct idP ;
+      last by contradict n0 ;
+              rewrite enumT unlock in Hv' ; simpl in Hv' ;
+              rewrite /seq_sub_enum mem_undup mem_pmap /insub in Hv' ;
+              move /mapP : Hv' => [w _ Hsome] ;
+              (destruct idP in Hsome ; last by discriminate) ;
+              inversion Hsome ;
+              apply valP.
+rewrite (val_inj (SubK (seq_sub (projT1 summ)) i)).
+destruct (projT2 summ v') as [[[k t] enf] efl].
+rewrite Hs /snd /fst in Hvns.
+move /mapP : Hvns => [n' Hn_iota Hnn'].
+apply pair_equal_spec in Hnn'.
+rewrite -(proj2 Hnn') mem_iota // in Hn_iota.
+Qed.
+
+(* All defined parts are in parts_of *)
+Lemma defined_is_in_parts_of (summ : summaryType) :
+    forall p : var * nat, is_defined_part summ p ->
+        p \in parts_of summ.
+Proof.
+rewrite /is_defined_part /fst /snd.
+intros [v n] Hn.
+destruct (app_summ summ v) as [[[[k t] enf] efl]|] eqn: Has ;
+      last by done.
+rewrite /parts_of.
+apply (introT flattenP).
+exists [seq (v, i) | i <- iota 0 (number_of_parts t)] ;
+      last by (rewrite mem_map ;
+                    last by intros x1 x2 ; apply pair_equal_spec) ;
+              rewrite mem_iota //.
+
+rewrite /app_summ /insub in Has.
+destruct idP in Has ; last by discriminate.
+inversion Has as [Has'] ; clear Has.
+apply (introT mapP).
+exists (Sub (sT := seq_sub (projT1 summ)) v i).
+* rewrite enumT unlock ; simpl.
+  by apply mem_seq_sub_enum.
+* rewrite Has' SubK /fst /snd //.
+Qed.
+
+(* Select the ith array element from array expression ar *)
+Fixpoint select_array_element (ar : array_expr) (i : nat) : option hfexpr :=
+  match ar, i with
+  | Aone e, 0 => Some e
+  | Aone _, _ => None
+  | Acons e _, 0 => Some e
+  | Acons _ ar', i'.+1 => select_array_element ar' i'
+  end.
+
+(* splits reference r, which has an array type with size elements,
+   into an array expression containing r[i], r[i+1], ..., r[size-1].
+   This to prepare for replacing one of these expressions with a new value. *)
+Fixpoint split_ref_into_subindex (r : href) (i : nat) (size : nat) : option array_expr :=
+  match size with
+  | 0 => None
+  | 1 => Some (Aone (Eref (Esubindex r i)))
+  | size'.+1 => match split_ref_into_subindex r (i+1) size' with
+                | Some ar => Some (Acons (Eref (Esubindex r i)) ar)
+                | _ => None
+                end
+  end.
+
+(* splits a multiplexer expression "Emux c ar1 ar2", where ar1 and ar2 are array expressions,
+   into an array expression containing as many multiplexers as there are elements
+   (so that later one part of the array can be extracted or changed). *)
+Fixpoint make_array_mux (c : hfexpr) (ar1 ar2 : array_expr) : option array_expr :=
+  match ar1, ar2 with
+  | Aone e1, Aone e2 => Some (Aone (Emux c e1 e2))
+  | Acons e1 ar1', Acons e2 ar2' => match make_array_mux c ar1' ar2' with
+                                    | Some ar => Some (Acons (Emux c e1 e2) ar)
+                                    | None => None
+                                    end
+  | _, _ => None
+  end.
+
+(* Make an array expression that contains size copies of "Etobedefined t" *)
+Fixpoint make_array_tobedefined (t : ftype) (size : nat) : option array_expr :=
+  match size with
+  | 0 => None
+  | 1 => Some (Aone (Etobedefined t))
+  | size'.+1 => match make_array_tobedefined t size' with
+                | Some ar => Some (Acons (Etobedefined t) ar)
+                | None => None
+                end
+  end.
+
+(* Make an array expression that contains size copies of "Eundefinedonpurpose t" *)
+Fixpoint make_array_undefinedonpurpose (t : ftype) (size : nat) : option array_expr :=
+  match size with
+  | 0 => None
+  | 1 => Some (Aone (Eundefinedonpurpose t))
+  | size'.+1 => match make_array_undefinedonpurpose t size' with
+                | Some ar => Some (Acons (Eundefinedonpurpose t) ar)
+                | None => None
+                end
+  end.
+
+(* splits an expression that has an array type into an array expression over its parts
+   (so that later one part of that array can be extracted or changed) *)
+Fixpoint split_into_subindex (e : hfexpr) (size : nat) : option array_expr :=
+  match e with
+  | Earray ar => Some ar (* we assume that the size is right *)
+  | Emux c e1 e2 => match split_into_subindex e1 size, split_into_subindex e2 size with
+                    | Some ar1, Some ar2 => make_array_mux c ar1 ar2
+                    | _, _ => None
+                    end
+  | Eref r => split_ref_into_subindex r 0 size
+  | Etobedefined (Atyp t _) => make_array_tobedefined t size
+  | Eundefinedonpurpose (Atyp t _) => make_array_undefinedonpurpose t size
+  | _ => None
+  end.
+
+(* splits a multiplexer expression "Emux c b1 b2", where b1 and b2 are bundle expressions,
+   into a bundle expression containing as many multiplexers as there are elements
+   (so that later one part of that bundle can be extracted or changed). *)
+Fixpoint make_bundle_mux (c : hfexpr) (b1 b2 : bundle_expr) : option bundle_expr :=
+  match b1, b2 with
+  | Bnil, Bnil => Some Bnil
+  | Bflips v1 fl1 e1 b1', Bflips v2 fl2 e2 b2' => if (v1==v2) && (fl1==fl2)
+                                                  then match make_bundle_mux c b1' b2' with
+                                                       | Some b' => Some (Bflips v1 fl1 (Emux c e1 e2) b')
+                                                       | None => None
+                                                       end
+                                                  else None
+  | _, _ => None
+  end.
+
+(* splits reference r, which has type ff, into a bundle expression
+   (so that later one part of that bundle can be extracted or changed) *)
+Fixpoint split_ref_into_subfields (r : href) (ff : ffield) : bundle_expr :=
+  match ff with
+  | Fnil => Bnil
+  | Fflips v fl t ff' => Bflips v fl (Eref (Esubfield r v)) (split_ref_into_subfields r ff')
+  end.
+
+(* Make a bundle expression that contains suitable "Etobedefined t" expressions *)
+Fixpoint make_bundle_tobedefined (ff : ffield) : bundle_expr :=
+  match ff with
+  | Fnil => Bnil
+  | Fflips v fl t ff' => Bflips v fl (Etobedefined t) (make_bundle_tobedefined ff')
+  end.
+
+(* Make a bundle expression that contains suitable "Eundefinedonpurpose t" expressions *)
+Fixpoint make_bundle_undefinedonpurpose (ff : ffield) : bundle_expr :=
+  match ff with
+  | Fnil => Bnil
+  | Fflips v fl t ff' => Bflips v fl (Eundefinedonpurpose t) (make_bundle_undefinedonpurpose ff')
+  end.
+
+(* Split an expression that has a bundle type into a bundle expression over its parts
+   (so that later one part of that bundle can be extracted or changed) *)
+Fixpoint split_into_subfields (e : hfexpr) (ff : ffield) : option bundle_expr :=
+  match e with
+  | Ebundle b => Some b (* we assume that the type is right *)
+  | Emux c e1 e2 => match split_into_subfields e1 ff, split_into_subfields e2 ff with
+                    | Some b1, Some b2 => make_bundle_mux c b1 b2
+                    | _, _ => None
+                    end
+  | Eref r => Some (split_ref_into_subfields r ff)
+  | Etobedefined (Btyp _) => Some (make_bundle_tobedefined ff)
+  | Eundefinedonpurpose (Btyp _) => Some (make_bundle_undefinedonpurpose ff)
+  | _ => None
+  end.
+
+(* From expression e, which has type t, select part p.
+   It is assumed that p is in range. *)
+Fixpoint select_part (t : ftype) (e : hfexpr) (p : nat) : option (fflip * hfexpr) :=
+  match t with
+  | Gtyp _ => Some (Nflip, e)
+  | Atyp t' size => match split_into_subindex e size with
+                    | Some ar => let elementsize := number_of_parts t'
+                                 in match select_array_element ar (p %/ elementsize) with
+                                    | Some e' => select_part t' e' (p %% elementsize)
+                                    | None => None
+                                    end
+                    | None => None
+                    end
+  | Btyp ff => match split_into_subfields e ff with
+               | Some bu => select_bundle_part ff bu p
+               | None => None
+               end
+  end
+with select_bundle_part (ff : ffield) (b : bundle_expr) (p : nat) : option (fflip * hfexpr) :=
+  match ff, b with
+  | Fflips _ Nflip t' ff', Bflips _ Nflip e' b' => let siz := number_of_parts t'
+                                                   in if p<siz
+                                                      then select_part t' e' p
+                                                      else select_bundle_part ff' b' (p - siz)
+  | Fflips _ Flipped t' ff', Bflips _ Flipped e' b' => let siz := number_of_parts t'
+                                                       in if p<siz
+                                                          then match select_part t' e' p with
+                                                               | Some (Nflip, e'') => Some (Flipped, e'')
+                                                               | Some (Flipped, e'') => Some (Nflip, e'')
+                                                               | None => None
+                                                               end
+                                                          else select_bundle_part ff' b' (p - siz)
+  | _, _ => None
+  end.
+
+(* find which part of bundle type ff contains the subfield with name v *)
+Fixpoint part_of_subfield (ff : ffield) (v : var) : option (ftype * nat) :=
+  match ff with
+  | Fnil => None
+  | Fflips v' _ ft ff' => if v==v'
+                          then Some (ft, 0)
+                          else match part_of_subfield ff' v with
+                               | Some (ft', i) => Some (ft', i + number_of_parts ft)
+                               | None => None
+                               end
+  end.
+
+Lemma type_and_part_of_subfield :
+    forall (ff : ffield) (v : var),
+        match part_of_subfield ff v, type_of_subfield ff v with
+        | Some (tp, _), Some (_, ty) => tp == ty
+        | None, None => true
+        | _, _ => false
+        end.
+Proof.
+intros ff v.
+induction ff ; simpl ; first by done.
+destruct (v == s) ; first by rewrite eq_refl.
+destruct (part_of_subfield ff v) as [[ft' i]|],
+         (type_of_subfield ff v) as [[_ ty]|] ;
+    by done.
+Qed.
+
+Fixpoint href_depends_on {summ : summaryType} (r : href) (p2 : component_part summ) (error_result : option (ftype * nat)) : option (ftype * nat) :=
+(* checks whether reference r depends on p2.
+The result is Some (t, i1), meaning that reference r has type t and describes the parts [i1, i1 + number_of_parts t) of the base reference of p2.
+The result only looks at the reference, not at the expression in the subaccess part. 
+If the result is None, there is no (direct) dependency;
+however, the *value* of r could still be dependent on p2.
+But that should be handled by a transitive closure of expr_depends_on.
+
+If some type error happens, error_result is returned. *)
+  match r with
+  | Eid v => if v==fst (val p2)
+             then match (app_summ summ v) with
+                  | Some (_, t, _, _) => Some (t, 0)
+                  | None => error_result (* cannot happen *)
+                  end
+             else None
+  | Esubfield r' v => match href_depends_on r' p2 (Some (Gtyp (Fuint 0), 0)) with
+                      | Some (Btyp ff, f) => match part_of_subfield ff v with
+                                             | Some (t, offset) => if f + offset <= snd (val p2) < f + offset + number_of_parts t
+                                                                   then Some (t, f + offset)
+                                                                   else None
+                                             | None => None
+                                             end
+                      | Some _ => error_result
+                      | None => None
+                      end
+  | Esubindex r' i => match href_depends_on r' p2 (Some (Gtyp (Fuint 0), 0)) with
+                      | Some (Atyp t' siz, f) => let elementsize := number_of_parts t'
+                                                 in if f + i * elementsize <= snd (val p2) < f + (i+1) * elementsize
+                                                    then Some (t', f + i * elementsize)
+                                                    else None
+                      | Some _ => error_result
+                      | None => None
+                      end
+  | Esubaccess r' e' => match href_depends_on r' p2 (Some (Gtyp (Fuint 0), 0)) with
+                        | Some (Atyp t' siz, f) => let elementsize := number_of_parts t'
+                                                   in let i := (snd (val p2) - f) %/ elementsize (* we assume that the accessed element contains p2 *)
+                                                      in Some (t', f + i * elementsize)
+                        | Some _ => error_result
+                        | None => None
+                        end
+  end.
+
+Fixpoint subaccesses_in_href_type_correct (r : href) (summ : summaryType) : bool :=
+    match r with
+    | Eid _ => true
+    | Esubfield r' _
+    | Esubindex r' _ => subaccesses_in_href_type_correct r' summ
+    | Esubaccess r' e => match type_of_hfexpr Passive e summ with
+                         | Some (Gtyp (Fuint _))
+                         | Some (Gtyp (Fsint _)) => subaccesses_in_href_type_correct r' summ
+                         | _ => false
+                         end
+    end.
+
+(* checks whether a href overlaps with a component part.
+   The result is Some (begin, end, type) if the reference may refer to component parts (fst p, begin), (fst p, begin+1), ..., (fst p, end-1),
+   and this overlaps with component part p. 
+   If an error happens, a nonsensical result (a Gtyp having size 99) is returned. *)
+Fixpoint href_overlaps {summ : summaryType} (r : href) (p : component_part summ) : option (nat * nat * ftype) :=
+    match r with
+    | Eid v => if (v == fst (val p))
+               then match app_summ summ v with
+                    | Some (_, t, _, _) => Some (0, number_of_parts t, t)
+                    | _ => Some (0, 99, Gtyp (Fuint 0)) (* should not happen *)
+                    end
+               else None
+    | Esubfield r' v => match href_overlaps r' p with
+                        | Some (b, e, Btyp ff) => match part_of_subfield ff v with
+                                                  | Some (ft, offset) => if b + offset <= snd (val p) < b + offset + number_of_parts ft
+                                                                         then Some (b + offset, b + offset + number_of_parts ft, ft)
+                                                                         else None
+                                                  | None => None
+                                                  end
+                        | Some _ => Some (0, 99, Gtyp (Fuint 0)) (* error *)
+                        | None => None
+                        end
+    | Esubindex r' n => match href_overlaps r' p with
+                        | Some (b, e, Atyp t' m) => if (n < m) && (b + n * number_of_parts t' <= snd (val p) < b + n.+1 * number_of_parts t')
+                                                    then Some (b + n * number_of_parts t', b + n.+1 * number_of_parts t', t')
+                                                    else None
+                        | Some _ => Some (0, 99, Gtyp (Fuint 0)) (* error *)
+                        | None => None
+                        end
+    | Esubaccess r' e => match href_overlaps r' p with
+                        | Some (b, e, Atyp t' _) => Some (b + (snd (val p) - b) %/ number_of_parts t' * number_of_parts t', b + ((snd (val p) - b) %/ number_of_parts t').+1 * number_of_parts t', t')
+                        | Some _ => Some (0, 99, Gtyp (Fuint 0)) (* error *)
+                        | None => None
+                        end
+    end.
+
+Fixpoint base_ref (r : href) : var :=
+    match r with
+    | Eid v => v
+    | Esubfield r' _ | Esubindex r' _ | Esubaccess r' _ => base_ref r'
+    end.
+
+Lemma href_overlaps_is_correct {summ : summaryType} :
+    forall (r : href) (p : component_part summ),
+                (base_ref r <> fst (val p) -> href_overlaps r p = None)
+            /\
+                (base_ref r = fst (val p) ->
+                match href_overlaps r p with
+                | Some (0, _.+2, Gtyp (Fuint 0)) => type_of_href r summ == None
+                | Some (b, e, t) => (b <= snd (val p) < e) &&
+                                    (b + number_of_parts t == e) &&
+                                    match type_of_href r summ with
+                                    | Some (_, t') => t == t'
+                                    | None => ~~subaccesses_in_href_type_correct r summ
+                                    end
+                | None => true
+                end).
+Proof.
+intros r p.
+induction r ; simpl ; split ; intro Hbr.
+* (* Eid, first part *)
+  rewrite (introF eqP Hbr) //.
+* (* Eid, second part *)
+  rewrite (introT eqP Hbr) //.
+  generalize (valP p) ; move /flattenP => [ps /mapP [p1 _ Hp2] Hp3].
+  subst ps.
+  move /mapP : Hp3 => [p2 Hp1 Hp2].
+  rewrite /app_summ Hbr Hp2 /fst valK.
+  destruct (projT2 summ p1) as [[[k t] enf] efl].
+  rewrite mem_iota add0n /fst /snd in Hp1.
+  destruct (number_of_parts t) as [|[|]] eqn: Hnp.
+  + (* number_of_parts == 0 *)
+    by rewrite ltn0 andbF // in Hp1.
+  + (* number_of_parts == 1 *)
+    rewrite /snd Hp1 add0n eq_refl andTb andTb.
+    destruct k ; done.
+  + (* number_of_parts >= 2 *)
+    destruct t as [[[|]| | | |]| |] ; 
+          first ((* t = Gtyp (Fuint 0) *)
+                 by discriminate Hnp) ;
+          rewrite /snd Hp1 add0n eq_refl andTb andTb ;
+          destruct k ; done.
+* (* Esubfield, Esubindex and Esubaccess, first part *)
+  1,3,5: destruct IHr as [IHr _] ; specialize (IHr Hbr) ;
+         by rewrite IHr //.
+* (* Esubfield, second part *)
+  1-3: destruct IHr as [_ IHr] ; specialize (IHr Hbr).
+  1-3: destruct (href_overlaps r p) as [[[b e] t]|] eqn: Hro ; last by done.
+  (* e should be larger than 0: *)
+  1-3: destruct e as [|e'] ;
+             first by destruct b ; rewrite ltn0 andbF andFb andFb // in IHr.
+  (* t should be Btyp _: *)
+  1-3: destruct t as [[[|]| | | |]|eltyp arsiz|ff] ;
+       try by destruct b, e', (type_of_href r summ) as [[o t']|] ; try (by done) ;
+              move /andP : IHr => [_ /eqP IHr] ; subst t' ; done.
+  (* We now have that t is a Btyp: *)
+  assert (IHr' : (b <= snd (val p) < e'.+1) &&
+                 (b + number_of_parts (Btyp ff) == e'.+1) &&
+                 match type_of_href r summ with
+                 | Some (_, t') => Btyp ff == t'
+                 | None => ~~ subaccesses_in_href_type_correct r summ
+                 end) by (destruct b as [|b'] ; first destruct e' as [|e''] ; exact IHr).
+  clear IHr.
+  destruct (type_of_href r summ) as [[o t']|].
+  + (* type_of_href r summ = Some (o, t') *)
+    move /andP : IHr' => [IHr /eqP IHr2] ; subst t' ;
+    generalize (type_and_part_of_subfield ff s) ; intro Htypa ;
+    destruct (part_of_subfield ff s) as [[ft offset]|] ; last (by done) ;
+    destruct (type_of_subfield ff s) as [[fl ty]|] ; last (by done) ;
+    move /eqP : Htypa => Htypa ; subst ty.
+    destruct (b + offset <= snd (ssval p) < b + offset + number_of_parts ft) eqn: Hoffset ;
+    rewrite Hoffset //.
+    rewrite Hoffset eq_refl andTb andTb.
+    destruct fl.
+    1,2: destruct (b + offset) ; last (by done).
+    1,2: destruct (0 + number_of_parts ft) as [|[|]] eqn: Hnop ; try by done.
+    1,2: destruct ft as [[[|]| | | |]| |] ; by done.
+  + (* type_of_href r summ = None *)
+    move /andP : IHr' => [IHr IHr2] ;
+    destruct (part_of_subfield ff s) as [[ft offset]|] ; last by done.
+    destruct (b + offset <= snd (ssval p) < b + offset + number_of_parts ft) eqn: Hoffset ;
+    rewrite Hoffset // Hoffset eq_refl andTb andTb IHr2 eq_refl.
+    destruct (b + offset) ; last by done.
+    destruct (0 + number_of_parts ft) as [|[|]] ; try by done.
+    destruct ft as [[[|]| | | |]| |] ; by done.
+* (* Esubindex, first part -- already handled *)
+* (* Esubindex, second part *)
+  (* We already ensured that t is Atyp eltyp arsiz above. *)
+  1,2: assert (IHr' : (b <= snd (val p) < e'.+1) &&
+                 (b + number_of_parts (Atyp eltyp arsiz) == e'.+1) &&
+                 match type_of_href r summ with
+                 | Some (_, t') => Atyp eltyp arsiz == t'
+                 | None => ~~ subaccesses_in_href_type_correct r summ
+                 end) by (destruct b as [|b'] ; first destruct e' as [|e''] ; exact IHr).
+  1,2: clear IHr.
+  destruct (type_of_href r summ) as [[o t']|].
+  + (* type_of_href r summ = Some (o, t') *)
+    move /andP : IHr' => [IHr /eqP IHr2] ; subst t'.
+    destruct (n < arsiz) ; last by done.
+    rewrite andTb.
+    destruct (b + n * number_of_parts eltyp <= snd (ssval p) < b + n.+1 * number_of_parts eltyp) eqn: Hoffset ;
+    rewrite Hoffset // Hoffset eq_refl andTb andbT -addnA -mulSnr eq_refl.
+    destruct (b + n * number_of_parts eltyp) eqn: Helt1 ; last by done.
+    destruct (b + n.+1 * number_of_parts eltyp) as [|[|]] eqn: Helt2 ; try by done.
+    destruct eltyp as [[[|]| | | |]| |] ; try done.
+    (* The remaining case was to handle an error: *)
+    simpl in Helt1, Helt2.
+    move /eqP : Helt1 => Helt1.
+    rewrite addn_eq0 muln_eq0 orbF in Helt1.
+    move /andP : Helt1 => [/eqP Helt1 /eqP Helt1'].
+    move /eqP : Helt2 => Helt2.
+    rewrite Helt1 Helt1' eqSS // in Helt2.
+  + (* type_of_href r summ = None *)
+    move /andP : IHr' => [IHr IHr2].
+    destruct (n < arsiz) ; last by done.
+    rewrite andTb.
+    destruct (b + n * number_of_parts eltyp <= snd (ssval p) < b + n.+1 * number_of_parts eltyp) eqn: Hoffset ;
+    rewrite Hoffset // Hoffset eq_refl andTb -addnA -mulSnr eq_refl andTb IHr2.
+    destruct (b + n * number_of_parts eltyp) ; last by done.
+    destruct (b + n.+1 * number_of_parts eltyp) as [|[|]] ; try by done.
+    destruct eltyp as [[[|]| | | |]| |] ; by done.
+* (* Esubaccess, first part -- already handled earlier *)
+* (* Esubaccess, second part *)
+  (* We already ensured that t is Atyp eltyp arsiz above. *)
+  assert (0 < number_of_parts eltyp).
+        move /andP : IHr' => [/andP [/andP [IHr IHr0] /eqP IHr1] _].
+        generalize (leq_ltn_trans IHr IHr0) ; intro.
+        simpl number_of_parts in IHr1.
+        rewrite -IHr1 -addn1 leq_add2l muln_gt0 in H.
+        move /andP : H => [_ H] ; done.
+  destruct (type_of_href r summ) as [[o t']|].
+  + (* type_of_href r summ = Some (Atyp eltyp arsiz) *)
+    move /andP : IHr' => [/andP [/andP [IHr IHr0] IHr1] /eqP IHr2] ; subst t'.
+    rewrite -(leq_subRL _ IHr) leq_trunc_div -(ltn_subLR _ IHr) (ltn_ceil _ H) andTb andTb -addnA -mulSnr eq_refl andTb.
+    destruct (b + (snd (ssval p) - b) %/ number_of_parts eltyp * number_of_parts eltyp) eqn: Hoffset ;
+    rewrite Hoffset ;
+    last by destruct (type_of_hfexpr Passive h summ) as [[[[|]| | | |]| |]|] ; done.
+    destruct (b + ((snd (ssval p) - b) %/ number_of_parts eltyp).+1 * number_of_parts eltyp) as [|[|]] eqn: Hoffset2 ;
+    rewrite Hoffset2 ;
+    try by destruct (type_of_hfexpr Passive h summ) as [[[[|]| | | |]| |]|] ; done.
+    destruct eltyp as [[[|]| | | |]| |] ;
+    try by destruct (type_of_hfexpr Passive h summ) as [[[[|]| | | |]| |]|] ; done.
+    (* now remains an erroneous case *)
+    by rewrite mulSnr addnA Hoffset add0n /number_of_parts // in Hoffset2.
+  + (* type_of_href r summ = None *)
+    move /andP : IHr' => [/andP [/andP [IHr IHr0] IHr1] IHr2].
+    apply negbTE in IHr2.
+    rewrite eq_refl -(leq_subRL _ IHr) leq_trunc_div -(ltn_subLR _ IHr) (ltn_ceil _ H) andTb andTb -addnA -mulSnr eq_refl andTb IHr2.
+    destruct (b + (snd (ssval p) - b) %/ number_of_parts eltyp * number_of_parts eltyp) eqn: Hoffset ;
+    rewrite Hoffset // ;
+    last by destruct (type_of_hfexpr Passive h summ) as [[[[|]| | | |]| |]|] ; done.
+    destruct (b + ((snd (ssval p) - b) %/ number_of_parts eltyp).+1 * number_of_parts eltyp) as [|[|]] eqn: Hoffset2 ;
+    rewrite Hoffset2 // ;
+    try by destruct (type_of_hfexpr Passive h summ) as [[[[|]| | | |]| |]|] ; done.
+    destruct eltyp as [[[|]| | | |]| |] ; try by done.
+    all: by destruct (type_of_hfexpr Passive h summ) as [[[[|]| | | |]| |]|] ; done.
+Qed.
+
+Lemma href_depends_on_and_overlaps_agree {summ : summaryType} :
+    forall (r : href) (p : component_part summ) (err : option (ftype * nat)),
+        match href_depends_on r p err, href_overlaps r p with
+        | err', Some (0, _.+2, Gtyp (Fuint 0)) => err' == err
+        | Some (ftd, n), Some (b, e, fto) => (ftd == fto) && (n == b) && (n + number_of_parts ftd == e)
+        | None, None => true
+        | _, _ => false
+        end.
+Proof.
+intros r p ; induction r ; intro err ; simpl.
+* (* Eid *)
+  destruct (s == fst (ssval p)) eqn: Hs ; rewrite Hs //.
+  generalize (parts_of_is_defined summ (val p) (valP p)) ; intro Hp.
+  unfold is_defined_part in Hp ; simpl in Hp ; rewrite -(elimT eqP Hs) in Hp.
+  destruct (app_summ summ s) as [[[[k t] enf] efl]|] ; last by done.
+  rewrite eq_refl andTb eq_refl andTb add0n eq_refl.
+  destruct (number_of_parts t) as [|[|]] eqn: Hnop ; try done.
+  destruct t as [[[|]| | | |]| |] ; by done.
+* (* Esubfield *)
+  1-3: specialize (IHr (Some (Gtyp (Fuint 0), 0))).
+  1-3: destruct (href_depends_on r p (Some (Gtyp (Fuint 0), 0))) as [[ftd nd]|] eqn: Hdo,
+           (href_overlaps r p) as [[[b e] fto]|] eqn: Hro ; try done ;
+        last by destruct b ; last done ;
+                destruct e as [|[|]] ; try done ;
+                destruct fto as [[[|]| | | |]| |] ; done.
+  1-3: assert (IHr': (ftd == fto) && (nd == b) && (nd + number_of_parts ftd == e) \/
+          exists e, href_overlaps r p = Some (0, e.+2, Gtyp (Fuint 0)))
+        by (destruct b ; last (by left ; exact IHr) ;
+            destruct e as [|[|e'']] ; try (by left ; exact IHr) ;
+            destruct fto as [[[|]| | | |]| |] ; try (by left ; exact IHr) ;
+            right ; exists e'' ; exact Hro).
+  1-3: destruct IHr' as [IHr'|[e'' IHr']] ;
+       last by (rewrite Hro in IHr' ;
+                inversion IHr' ; subst b e fto ;
+                move /eqP : IHr => IHr ; inversion IHr ; subst ftd nd ;
+                destruct err as [[]|] ; done).
+  1-3: move /andP : IHr' => [/andP [/eqP IHr1 /eqP IHr2] /eqP IHr3].
+  1-3: subst fto b e ; clear IHr.
+  1-3: destruct ftd as [|eltype arsize|ff] ; try by destruct err as [[]|] ; rewrite /eq_refl //.
+  + (* Esubfield, first part *)
+    destruct (part_of_subfield ff s) as [[t offset]|] ; last by done.
+    destruct (nd + offset <= snd (ssval p) < nd + offset + number_of_parts t) eqn: Hp ; rewrite Hp //.
+    rewrite eq_refl eq_refl eq_refl andTb.
+    destruct (nd + offset) ; last by done.
+    rewrite add0n.
+    destruct (number_of_parts t) as [|[|]] eqn: Hnp ; try by done.
+    destruct t as [[[|]| | | |]| |] ; by done.
+  + (* Esubindex, first part *)
+    rewrite addn1.
+    destruct (nd + n * number_of_parts eltype <= snd (ssval p) < nd + n.+1 * number_of_parts eltype) eqn: Hp ;
+          rewrite Hp ;
+          last by rewrite andbF //.
+    assert (Helt_ars : (0 < number_of_parts eltype) && (n < arsize)).
+          generalize (href_overlaps_is_correct r p) ; move => [Hcorrf Hcorrt].
+          destruct (eq_comparable (base_ref r) (fst (val p))) as [Heq|Heq] ;
+                last by rewrite (Hcorrf Heq) // in Hro.
+          specialize (Hcorrt Heq) ; clear Hcorrf Heq.
+          rewrite Hro in Hcorrt.
+          move /andP : Hp => [Hp _].
+          apply (leq_ltn_trans (p := nd + number_of_parts (Atyp eltype arsize))) in Hp ;
+                first by simpl number_of_parts in Hp ; rewrite ltn_add2l ltn_mul2r // in Hp.
+          destruct nd as [|nd'] ;
+                last by move /andP : Hcorrt => [/andP [/andP [_ Hcorrt] _] _] ;
+                        exact Hcorrt.
+          destruct (0 + number_of_parts (Atyp eltype arsize)) as [|[|np'']] ;
+                by move /andP : Hcorrt => [/andP [/andP [_ Hcorrt] _] _] ;
+                   exact Hcorrt.
+    move /andP : Helt_ars => Helt_ars.
+    rewrite (proj2 Helt_ars) andTb eq_refl eq_refl andTb andTb -addnA -mulSnr eq_refl.
+    destruct (nd + n * number_of_parts eltype) eqn: Hn_parts ; last by done.
+    destruct (nd + n.+1 * number_of_parts eltype) as [|[|]] eqn: Hn1_parts ; try by done.
+    rewrite mulSnr addnA Hn_parts add0n in Hn1_parts.
+    destruct eltype as [[[|]| | | |]| |] ; by done.
+  + (* Esubaccess, first part *)
+    rewrite eq_refl eq_refl -addnA -mulSnr eq_refl andTb.
+    destruct (nd + (snd (ssval p) - nd) %/ number_of_parts eltype * number_of_parts eltype) eqn: Hnp ;
+          rewrite Hnp //.
+    destruct (nd + ((snd (ssval p) - nd) %/ number_of_parts eltype).+1 * number_of_parts eltype) as [|[|]] eqn: Hnp1 ;
+          rewrite Hnp1 //.
+    rewrite mulSnr addnA Hnp add0n in Hnp1.
+    destruct eltype as [[[|]| | | |]| |] ; by done.
+Qed.
+
+(* type_of_href checks that subaccesses are type correct;
+   href_depends_on does not check it and returns sometimes a result that makes no sense. *)
+
+Lemma type_of_href_no_error {summ : summaryType} :
+    forall (p : component_part summ) (r : href) (err1 err2 : option (ftype * nat)),
+        match type_of_href r summ, href_depends_on r p err1, href_depends_on r p err2 with
+        | Some (_, tr), Some (t1, n1), Some (t2, n2) => (base_ref r == fst (val p)) &&
+                                                        (n1 <= snd (val p) < n1 + number_of_parts t1) &&
+                                                        (tr == t1) && (t1 == t2) && (n1 == n2)
+        | Some _, None, None => ~~href_overlaps r p
+        | Some _, _, _ => false
+        | None, None, None => true (* there was some error that href_depends_on did not detect:
+                                      it has a type error but does not overlap *)
+        | None, res1, res2 => ((res1 == err1) && (res2 == err2)) ||
+                              (~~subaccesses_in_href_type_correct r summ &&
+                               match res1, res2 with
+                               | Some (t1, n1), Some (t2, n2) => (n1 <= snd (val p) < n1 + number_of_parts t1) &&
+                                                                 (t1 == t2) && (n1 == n2)
+                               | _, _ => false
+                               end)
+        end.
+Proof.
+induction r ; simpl ; intros err1 err2.
+* (* Eid *)
+  destruct (app_summ summ s) as [[[[[| | | |] t] enf] efl]|] eqn: Happ.
+  1-6: destruct (s == fst (ssval p)) eqn: Hs ; rewrite Hs //.
+  + (* app_summ summ s = Some _ *)
+    1-5: rewrite andTb eq_refl eq_refl andbT andbT andbT.
+    1-5: specialize (valP p) ; move /flattenP => [p1 /mapP [p2 _ Hp2] Hp3].
+    1-5: rewrite Hp2 in Hp3 ; clear Hp2 p1.
+    1-5: move /mapP : Hp3 => [p1 Hp3 Hp4].
+    1-5: rewrite mem_iota in Hp3.
+    1-5: rewrite Hp4 /snd.
+    1-5: rewrite Hp4 /fst in Hs.
+    1-5: rewrite (elimT eqP Hs) /app_summ valK in Happ.
+    1-5: inversion Happ ; by rewrite H0 /fst /snd // in Hp3.
+  + (* app_summ summ s = None, s == fst (ssval p)) *)
+    by destruct err1, err2 ; rewrite // eq_refl eq_refl //.
+* (* Esubfield r s *)
+  specialize (IHr (Some (Gtyp (Fuint 0), 0)) (Some (Gtyp (Fuint 0), 0))).
+  generalize (href_depends_on_and_overlaps_agree r p (Some (Gtyp (Fuint 0), 0))) ; intro Hagree.
+  destruct (type_of_href r summ) as [[o [| |]]|] eqn: Htr.
+  1-4: destruct (href_depends_on r p (Some (Gtyp (Fuint 0), 0))) as [[t1 n1]|] eqn: Hdo ; try done.
+  + (* type_of_href r summ = Some _ *)
+    1-3: rewrite eq_refl eq_refl andbT andbT in IHr.
+    1-3: move /andP : IHr => [IHr /eqP IHr'] ; subst t1.
+  + (* type_of_href r summ = Some _
+       href_depends_on r p ... = Some (Gtyp _, _) or Some (Atyp _ _, _) *)
+    1-2: destruct err1, err2 ; by rewrite // eq_refl eq_refl //.
+  + (* type_of_href r summ = Some (_, Btyp _)
+       href_depends_on r p ... = Some (Btyp _, _) *)
+    generalize (type_and_part_of_subfield f s) ; intro Htypa.
+    destruct (type_of_subfield f s) as [[[|] tt]|] eqn: Htos,
+             (part_of_subfield f s) as [[tp offs]|] eqn: Hpos ; try done.
+    1,2: move /eqP : Htypa => Htypa ; subst tt.
+    1,2: destruct (n1 + offs <= snd (ssval p) < n1 + offs + number_of_parts tp) eqn: Hn1p ;
+            rewrite Hn1p ;
+            first by rewrite Hn1p eq_refl eq_refl (proj1 (elimT andP IHr)) //.
+    1,2: move /andP : IHr => [/eqP IHr1 IHr].
+    1,2: generalize (proj2 (href_overlaps_is_correct r p) IHr1) ; intro Hro.
+    1,2: destruct (href_overlaps r p) as [[[b e] to]|] ; last by done.
+    1,2: destruct b as [|b'] ;
+            last by rewrite Htr in Hro ;
+                    move /andP : Hro => [Hro1 /eqP Hro2] ; subst to ;
+                    rewrite Hpos ;
+                    move /andP : Hagree => [/andP [_ /eqP Hagree] _] ;
+                    rewrite -Hagree Hn1p //.
+    1,2: destruct e as [|[|e'']] ;
+            try done ;
+            first by rewrite Htr in Hro ;
+                    move /andP : Hro => [Hro1 /eqP Hro2] ; subst to ;
+                    rewrite Hpos ;
+                    move /andP : Hagree => [/andP [_ /eqP Hagree] _] ;
+                    rewrite -Hagree Hn1p //.
+    1,2: destruct to as [[[|]| | | |]| |] ; try done.
+    1,2: rewrite Htr in Hro ; move /andP : Hro => [_ /eqP Hro].
+    1,2: inversion Hro ; subst f0.
+    1,2: move /andP : Hagree => [/andP [_ /eqP Hagree] _] ; subst n1.
+    1,2: by rewrite Hpos Hn1p //.
+  + (* type_of_href r summ = Some _
+       href_depends_on r p ... = None *)
+    destruct (type_of_subfield f s) as [[[|] _]|] ; last by done.
+    1,2: destruct (href_overlaps r p) ; by done.
+  + (* type_of_href r summ = None 
+       href_depends_on r p ... = Some _ *)
+    simpl in IHr.
+    move /orP : IHr => [/andP [/eqP IHr _]|/and3P [IHr1 /andP [IHr2 _] _]] ;
+          first by inversion IHr ;
+                   destruct err1, err2 ;
+                   rewrite // eq_refl eq_refl //.
+    rewrite IHr1 andTb.
+    destruct t1 as [| |ff1] ;
+          try by destruct err1, err2 ; rewrite // eq_refl eq_refl //.
+    destruct (part_of_subfield ff1 s) as [[t offset]|] ; last by done.
+    destruct (n1 + offset <= snd (ssval p) < n1 + offset + number_of_parts t) eqn: Hoffs ;
+    by rewrite Hoffs // Hoffs eq_refl eq_refl andTb andTb orbT //.
+* (* Esubindex r n (and partly Esubaccess r h) *)
+  1,2: specialize (IHr (Some (Gtyp (Fuint 0), 0)) (Some (Gtyp (Fuint 0), 0))).
+  1,2: generalize (href_depends_on_and_overlaps_agree r p (Some (Gtyp (Fuint 0), 0))) ; intro Hagree.
+  1,2: destruct (type_of_href r summ) as [[o [|eltype arsize|]]|] eqn: Htr.
+  + (* type_of_href r summ = Some (_, Gtyp _) -- with Esubaccess *)
+    1,5: destruct (href_depends_on r p (Some (Gtyp (Fuint 0), 0))) as [[[|eltype' arsize'|] offs]|] ; try done.
+    - (* href_depends_on r p ... = Some (Gtyp _, _) *)
+      1,3,4,6: by destruct err1, err2 ; rewrite // eq_refl eq_refl //.
+    - (* href_depends_on r p ... = Some (Atyp _, _) or Some (Btyp _, _) *)
+      1,2: destruct r as [v|r' n0|r' v'|r' e'].
+      4,8: destruct (type_of_hfexpr Passive e' summ) as [[[| | | |]| |]|].
+      1-22: try (by move /andP : IHr => [/eqP IHr _] ;
+                    discriminate IHr) ;
+            by move /andP : IHr => [/andP [/andP [_ /eqP IHr] _] _] ;
+               discriminate IHr.
+  + (* type_of_href r summ = Some (_, Atyp _) -- without Esubaccess *)
+    destruct (href_depends_on r p (Some (Gtyp (Fuint 0), 0))) as [[[|eltype' arsize'|] offs]|] eqn: Hrdo ; try done.
+    - (* href_depends_on r p ... = Some (Gtyp _, _) or Some (Btyp _, _) *)
+      1,3: destruct r as [v|r' n0|r' v'|r' e'] eqn: Hr.
+      4,8: destruct (type_of_hfexpr Passive e' summ) as [[[| | | |]| |]|] eqn:He'.
+      1-22: try (by move /andP : IHr => [/andP [/andP [_ /eqP IHr] _] _] ;
+                    discriminate IHr).
+    - (* href_depends_on r p ... = Some (Atyp _ _, _) *)
+      move /andP : IHr => [/andP [/andP [/and3P [IHr1 _ IHr2] /eqP IHr'] _] _] ;
+      inversion IHr' ; subst eltype' arsize' ; clear IHr'.
+      destruct (offs + n * number_of_parts eltype <= snd (ssval p) < offs + (n + 1) * number_of_parts eltype) eqn: Hp ;
+            rewrite Hp.
+      * move /andP : Hp => [Hp Hp1].
+        apply (leq_ltn_trans Hp) in IHr2 ; simpl number_of_parts in IHr2.
+        rewrite ltn_add2l ltn_mul2r in IHr2.
+        move /andP : IHr2 => [_ IHr2].
+        by rewrite IHr2 IHr1 Hp -addnA -mulSnr -(addn1 n) Hp1 eq_refl eq_refl //.
+      * destruct (n < arsize) eqn: Harsize ; last (by done).
+        destruct (href_overlaps r p) as [[[b e] [gt| |ff]]|] ; try done.
+        1,3: destruct b ; last (by move /andP : Hagree => [/andP [/eqP Hagree _] _] ; discriminate Hagree) ;
+             destruct e as [|[|e'']] ; try (by move /andP : Hagree => [/andP [/eqP Hagree _] _] ; discriminate Hagree) ;
+             by destruct gt as [[|]| | | |] ; try (by move /andP : Hagree => [/andP [/eqP Hagree _] _] ; discriminate Hagree) ;
+                discriminate (elimT eqP Hagree).
+        destruct b, e as [|[|e'']] ;
+              move /andP : Hagree => [/andP [/eqP Hagree1 /eqP Hagree2] _] ;
+              inversion Hagree1 ; subst f n0 offs ; clear Hagree1 ;
+              by rewrite -(addn1 n) Hp andbF //.
+    - (* href_depends_on r p ... = None *)
+      destruct (href_overlaps r p) ; first (by done).
+      destruct (n < arsize) ; by done.
+  + (* type_of_href r summ = Some (_, Btyp _) -- with Esubaccess *)
+    1,4: destruct (href_depends_on r p (Some (Gtyp (Fuint 0), 0))) as [[[|eltype' arsize'|] offs]|] ; last by done.
+    - (* href_depends_on r p ... = Some (Gtyp _, _) or Some (Btyp _, _) *)
+      1,3,4,6: by destruct err1, err2 ; rewrite // eq_refl eq_refl //.
+    - (* href_depends_on r p ... = Some (Atyp _, _) *)
+      1,2: move /andP : IHr => [/andP [/andP [_ /eqP IHr] _] _] ;
+      by discriminate IHr.
+  + (* type_of_href r summ = None -- with Esubaccess *)
+    1,3: destruct (href_depends_on r p (Some (Gtyp (Fuint 0), 0))) as [[[|eltype' arsize'|] offs]|] ; last by done.
+    - (* href_depends_on r p ... = Some (Gtyp _, _) or Some (Btyp _, _) *)
+      1,3,4,6: by destruct err1, err2 ; rewrite // eq_refl eq_refl //.
+    - (* href_depends_on r p ... = Some (Atyp _, _) *)
+      1,2: move /orP : IHr => [/andP[/eqP IHr _]|/and3P [IHr1 /andP [/andP [IHr2 IHr3] _] _]] ;
+           first by discriminate IHr.
+      1,2: rewrite (negbTE IHr1).
+      * (* Esubindex *)
+        destruct (offs + n * number_of_parts eltype' <= snd (ssval p) < offs + (n + 1) * number_of_parts eltype') eqn: Hp ;
+        by rewrite Hp // -addnA -mulSnr -(addn1 n) Hp eq_refl eq_refl orbT //.
+* (* Esubaccess r h -- partly handled by the above case *)
+      * (* type_of_href r summ = None and href_depends_on r p ... = Some (Atyp _, _) *)
+        assert (Hnot0 : (0 < arsize') && (0 < number_of_parts eltype'))
+              by rewrite -muln_gt0 -(ltn_add2l offs) addn0 (leq_ltn_trans IHr2 IHr3) //.
+        move /andP : Hnot0 => [_ Hnot0].
+        rewrite eq_refl eq_refl andbT andbT
+                -(leq_subRL _ IHr2) leq_trunc_div andTb
+                -addnA -mulSnr -(ltn_subLR _ IHr2) (ltn_ceil _ Hnot0) andbT.
+        destruct (type_of_hfexpr Passive h summ) as [[[| | | |]| |]|] ;
+        by rewrite orbT //.
+  + (* type_of_href r summ = Some (_, Atyp _) *)
+    destruct (href_depends_on r p (Some (Gtyp (Fuint 0), 0))) as [[[|eltype' arsize'|] offs]|] eqn: Hdo.
+    - (* href_depends_on r p ... = Some (Gtyp _, _) or Some (Btyp _, _) *)
+      1,3: move /andP : IHr => [/andP [/andP [_ /eqP IHr] _] _] ;
+           by discriminate IHr.
+    - (* href_depends_on r p ... = Some (Atyp _ _, _) *)
+      move /andP : IHr => [/andP [/andP [/and3P [IHr1 IHr2 IHr3] /eqP IHr'] _] _].
+      inversion IHr' ; subst eltype' arsize' ; clear IHr'.
+      assert (Hnot0 : (0 < arsize) && (0 < number_of_parts eltype))
+            by rewrite -muln_gt0 -(ltn_add2l offs) addn0 (leq_ltn_trans IHr2 IHr3) //.
+      move /andP : Hnot0 => [_ Hnot0].
+      destruct (type_of_hfexpr Passive h summ) as [[[_|_| | |]|_ _|_]|].
+      * (* type_of_hfexpr Passive h summ = Some (Gtyp (Fuint _)) or Some (Gtyp (Fsint _)) *)
+        1,2: rewrite IHr1 andTb eq_refl eq_refl andbT andbT andbT.
+        1,2: apply (introT andP) ; split ;
+             first by rewrite -(leq_subRL _ IHr2) leq_trunc_div //.
+        1,2: rewrite -addnA mulnC -mulnSr -(ltn_subLR _ IHr2) mulnC.
+        1,2: apply ltn_ceil.
+        1,2: generalize (leq_ltn_trans IHr2 IHr3) ; intro H0.
+        1,2: simpl number_of_parts in H0.
+        1,2: rewrite -addn1 leq_add2l muln_gt0 in H0.
+        1,2: by apply (elimT andP H0).
+      * (* type_of_hfexpr Passive h summ = Some (other type) *)
+        1-6: by rewrite andTb eq_refl eq_refl andbT andbT
+                        -(leq_subRL _ IHr2) leq_trunc_div andTb
+                        -addnA -mulSnr -(ltn_subLR _ IHr2) (ltn_ceil _ Hnot0) orbT //.
+    - (* href_depends_on r p ... = None *)
+      destruct (href_overlaps r p) ; first by done.
+      destruct (type_of_hfexpr Passive h summ) as [[[[|]| | | |]| |]|] ; by done.
+Qed.
+
+Fixpoint expr_depends_on {summ : summaryType} (e : hfexpr) (p2 : component_part summ) : bool :=
+(* checks whether any part of expression e depends on p2.
+   expr must be passive, i.e. it may not contain flipped bundle parts. *)
+  match e with
+  | Econst _ _ => false
+  | Ecast _ e' => expr_depends_on e' p2
+  | Eprim_unop _ e' => expr_depends_on e' p2
+  | Eprim_binop _ e1 e2 => expr_depends_on e1 p2 ||
+                           expr_depends_on e2 p2
+  | Emux c e1 e2 => expr_depends_on c p2 ||
+                    expr_depends_on e1 p2 ||
+                    expr_depends_on e2 p2
+  | Eref r => subaccess_index_in_expr_depends_on r p2 || 
+              href_depends_on r p2 (Some (Gtyp (Fuint 0), 0)) (* if an error happens, we return "true", i.e. the "bad" value *)
+  | Earray ar => array_expr_depends_on ar p2
+  | Ebundle bu => bundle_expr_depends_on bu p2
+  | Etobedefined _ => false
+  | Eundefinedonpurpose _ => false
+  end
+with array_expr_depends_on {summ : summaryType} (ar : array_expr) (p2 : component_part summ) : bool :=
+  match ar with
+  | Aone e => expr_depends_on e p2
+  | Acons e ar' => expr_depends_on e p2 ||
+                   array_expr_depends_on ar' p2
+  end
+with bundle_expr_depends_on {summ : summaryType} (bu : bundle_expr) (p2 : component_part summ) : bool :=
+  match bu with
+  | Bnil => false
+  | Bflips _ Nflip e bu' => expr_depends_on e p2 ||
+                            bundle_expr_depends_on bu' p2
+  | Bflips _ Flipped _ _ => true (* should not happen, so we return the "bad" value *)
+  end
+with subaccess_index_in_expr_depends_on {summ : summaryType} (r : href) (p2 : component_part summ): bool :=
+(* checks whether a subaccess index expression in r depends on p2. *)
+  match r with
+  | Eid _ => false
+  | Esubfield r' _ => subaccess_index_in_expr_depends_on r' p2
+  | Esubindex r' _ => subaccess_index_in_expr_depends_on r' p2
+  | Esubaccess r' e => expr_depends_on e p2 || subaccess_index_in_expr_depends_on r' p2
+  end.
+
+Definition depends_on {summ : summaryType} (p1 p2 : component_part summ) : bool :=
+(* defines whether p1 combinatorially depends on p2. 
+   This happens if component part p1, according to summ, is connected to component part p2. 
+   Later we shall need to take the transitive closure of (depends_on summ). *)
+  match app_summ summ (fst (val p1)), app_summ summ (fst (val p2)) with
+  | Some _, Some (Register, _, _, _)
+  | Some (Register, _, _, _), Some _ => false
+  | Some (Inport, t1, _, ew), Some (_, t2, _, _) => match select_part t1 ew (snd (val p1)) with
+                                                    | Some (Flipped, e) => expr_depends_on e p2
+                                                    | _ => false
+                                                    end
+  | Some (Outport, t1, er, _), Some (_, t2, _, _) => match select_part t1 er (snd (val p1)) with
+                                                     | Some (Nflip, e) => expr_depends_on e p2
+                                                     | _ => false
+                                                     end
+  | Some (Wire, t1, er, ew), Some (_, t2, _, _) => match select_part t1 er (snd (val p1)) with
+                                                   | Some (Nflip, e) => expr_depends_on e p2
+                                                   | Some (Flipped, _) => match select_part t1 ew (snd (val p1)) with
+                                                                          | Some (Flipped, e) => expr_depends_on e p2
+                                                                          | _ => false
+                                                                          end
+                                                   | None => false
+                                                   end
+  | Some (Node, t1, er, _), Some (_, t2, _, _) => match select_part t1 er (snd (val p1)) with
+                                                  | Some (Nflip, e) => expr_depends_on e p2
+                                                  | _ => false
+                                                  end
+  | Some _, None
+  | None, _ => true (* error --- should not happen, so we return the "bad" value *)
+  end.
+
+(* So we now can define the finite graph,
+with vertices defined_parts, and edges defined by depends_on. *)
+
+Definition dep_graph (summ : summaryType) := rgraph (@depends_on summ).
+(* the transitive closure of depends_on can be constructed in a finite number of steps, as the relation is finite.
+   However, to use well-foundedness, it is not necessary to construct the transitive closure. *)
+
+Fixpoint href_is_not_cyclic {summ : summaryType} (r : href) (fl : fflip) (t : ftype) (p2 : component_part summ) : bool :=
+    match t with
+    | Gtyp _ => if fl == Nflip
+                then [forall p1 : component_part summ, match href_depends_on r p1 (Some (Btyp Fnil, 0)) with
+                                                       | Some (Gtyp _, 1) => ~~connect (grel (dep_graph summ)) p1 p2
+                                                       | Some _ => (* error, so we return the "bad" value *) false
+                                                       | None => ~~(subaccess_index_in_expr_depends_on r p1 &&
+                                                                    connect (grel (dep_graph summ)) p1 p2)
+                                                       end]
+                else true
+    | Atyp t' n => match split_ref_into_subindex r 0 n with
+                   | Some ar => (fix array_href_is_not_cyclic (ar : array_expr) (p2 : component_part summ) : bool :=
+                                     (* Check for every ground-type part of the array expression ar
+                                        (which consists or references and whose elements have type t)
+                                        whether it depends on the corresponding part of p2, p2+1, ... *)
+                                         match ar with
+                                         | Aone (Eref r') => href_is_not_cyclic r' fl t' p2
+                                         | Acons (Eref r') ar' => match insub (sT := component_part summ) (fst (val p2), snd (val p2) + number_of_parts t) with
+                                                          | Some p2' => href_is_not_cyclic r' fl t' p2 && array_href_is_not_cyclic ar' p2'
+                                                          | None => (* error, so we return the "bad" value *) false
+                                                          end
+                                         | _ => (* error, so we return the "bad" value *) false
+                                         end) ar p2
+                   | None => (* error, so we return the "bad" value *) false
+                   end
+    | Btyp ff => bundle_href_is_not_cyclic (split_ref_into_subfields r ff) fl ff p2
+    end
+with bundle_href_is_not_cyclic {summ : summaryType} (bu : bundle_expr) (fl : fflip) (ff : ffield) (p2 : component_part summ) : bool :=
+(* Check for every ground-type part of the bundle expression bu
+   (which consists of references)
+   whether it depends on the corresponding part of p2, p2+1, ... *)
+    match ff, bu with
+    | Fnil, Bnil => true
+    | Fflips v2 fl2 t' ff', Bflips v1 fl1 (Eref r') bu' => if (v1 == v2) && (fl1 == fl2)
+                                                           then match insub (sT := component_part summ) (fst (val p2), snd (val p2) + number_of_parts t') with
+                                                                | Some p2' => href_is_not_cyclic r' (if fl == fl1 then Nflip else Flipped) t' p2 &&
+                                                                              bundle_href_is_not_cyclic bu' fl ff' p2'
+                                                                | None => (* error, so we return the "bad" value *) false
+                                                                end
+                                                           else (* error, so we return the "bad" value *) false
+    | _, _ => (* error, so we return the "bad" value *) false
+    end.
+
+
+
+Fixpoint expr_is_not_cyclic {summ : summaryType} (e : hfexpr) (fl : fflip) (p2 : component_part summ) : option nat :=
+(* Check for every ground-type part of e, whether it depends on the corresponding part of p2 cyclically --
+   for those parts that are fl-flipped.
+   The result is "Some i" if the expression is not cyclic and has i parts 
+   or "None" if the expression is cyclic. *)
+    match e with
+    | Econst _ _ => Some 1
+    | Ecast _ e'
+    | Eprim_unop _ e'
+    | Eprim_binop _ _ _ as e' => if (fl == Flipped) ||
+                                       [forall p1 : component_part summ, ~~(expr_depends_on e' p1 &&
+                                                                            connect (grel (dep_graph summ)) p1 p2)]
+                                    then Some 1
+                                    else None
+   | Emux c e1 e2 => match expr_is_not_cyclic e1 fl p2 with
+                      | Some siz => if [forall (p2' : component_part summ | (fst (val p2) == fst (val p2')) && 
+                                                              (snd (val p2) <= snd (val p2') < snd (val p2) + siz)), 
+                                                              expr_is_not_cyclic c fl p2'] &&
+                                       expr_is_not_cyclic e2 fl p2
+                                    then Some siz else None
+                      | None => None
+                      end
+    | Eref r => match type_of_href r summ with
+                | Some (_, t) => if href_is_not_cyclic r fl t p2
+                                 then Some (number_of_parts t)
+                                 else None
+                | _ => None
+                end
+    | Earray ar => array_expr_is_not_cyclic ar fl p2
+    | Ebundle bu => bundle_expr_is_not_cyclic bu fl p2
+    | Etobedefined t => Some (number_of_parts t)
+    | Eundefinedonpurpose t => Some (number_of_parts t)
+    end
+with array_expr_is_not_cyclic {summ : summaryType} (ar : array_expr) (fl : fflip) (p2 : component_part summ) : option nat :=
+(* Check for every ground-type part of the array expression ar whether it depends on the corresponding part of p2, p2+1, ... *)
+    match ar with
+    | Aone e => expr_is_not_cyclic e fl p2
+    | Acons e ar' => match expr_is_not_cyclic e fl p2 with
+                     | Some siz => match insub (sT := component_part summ) (fst (val p2), snd (val p2) + siz) with
+                                   | Some p2' => match array_expr_is_not_cyclic ar' fl p2' with
+                                                 | Some siz' => Some (siz + siz')
+                                                 | None => None
+                                                 end
+                                   | None => (* error, so we return the "bad" value *) None
+                                   end
+                     | None => None
+                     end
+    end
+with bundle_expr_is_not_cyclic {summ : summaryType} (bu : bundle_expr) (fl : fflip) (p2 : component_part summ) : option nat :=
+    match bu with
+    | Bnil => Some 0
+    | Bflips v1 fl1 e bu' => match expr_is_not_cyclic e (if fl == fl1 then Nflip else Flipped) p2 with
+                             | Some siz => match insub (sT := component_part summ) (fst (val p2), snd (val p2) + siz) with
+                                           | Some p2' => match bundle_expr_is_not_cyclic bu' fl p2' with
+                                                         | Some siz' => Some (siz + siz')
+                                                         | None => None
+                                                         end
+                                           | None => (* error, so we return the "bad" value *) None
+                                           end
+                             | None => None
+                             end
+    end.
+
+(* Probably we need a theorem here: if expr_is_not_cyclic, then no subexpression is cyclic.
+   This theorem may require that the expression is type-correct (so that should be checked) *)
+
+Fixpoint subexpr (e1 e2 : hfexpr) : bool :=
+    if e1 == e2 
+    then true
+    else match e2 with
+         | Econst _ _ => false
+         | Ecast _ e2'
+         | Eprim_unop _ e2' => subexpr e1 e2'
+         | Eprim_binop _ e2a e2b => subexpr e1 e2a || subexpr e1 e2b
+         | Emux c e2a e2b => subexpr e1 c || subexpr e1 e2a || subexpr e1 e2b
+         | Eref r => subexpr_ref e1 r
+         | Earray ar => subexpr_array e1 ar
+         | Ebundle bu => subexpr_bundle e1 bu
+         | Etobedefined _ => false
+         | Eundefinedonpurpose _ => false
+         end
+with subexpr_array (e : hfexpr) (ar : array_expr) : bool :=
+    match ar with
+    | Aone e' => subexpr e e'
+    | Acons e' ar' => subexpr e e' || subexpr_array e ar'
+    end
+with subexpr_bundle (e : hfexpr) (bu : bundle_expr) : bool :=
+    match bu with
+    | Bnil => false
+    | Bflips _ _ e' bu' => subexpr e e' || subexpr_bundle e bu'
+    end
+with subexpr_ref (e : hfexpr) (r : href) : bool :=
+    match r with
+    | Eid _ => false
+    | Esubfield r' _ => subexpr_ref e r'
+    | Esubindex r' _ => subexpr_ref e r'
+    | Esubaccess r' e' => subexpr_ref e r' || subexpr e e'
+    end.
+
+
+Lemma acyclic_Gtyp (summ : summaryType) :
+    forall (e : hfexpr) (o : forient),
+        match type_of_hfexpr o e summ with
+        | Some (Gtyp _) => forall (fl : fflip) (p : component_part summ),
+                               expr_is_not_cyclic e fl p =
+                               if (fl == Flipped) ||
+                                  [forall p1, ~~ (expr_depends_on e p1 &&
+                                                  connect (grel (dep_graph summ)) p1 p)]
+                               then Some 1
+                               else None
+        | _ => True
+        end.
+Proof.
+induction e as [ft n|u e|op e|op e1 IHe1 e2 IHe2|c IHc e1 IHe1 e2 IHe2|r| | | |] ; simpl.
+* (* Econst *)
+  intro o.
+  destruct (readable_orient o) ; last by done.
+  destruct fl ; first by done.
+  rewrite orFb.
+  destruct ([forall p1 : component_part summ, true]) eqn: Hforall ; rewrite Hforall ; first by reflexivity.
+  move /forallP : Hforall => Hforall ; done.
+* (* Ecast *)
+  intro o.
+  destruct (readable_orient o) ; last by done.
+  specialize (IHe Passive).
+  by destruct u, (type_of_hfexpr Passive e summ) as [[[w|w| | |]| |]|] ;
+        done.
+* (* Eunop *)
+  intro o.
+  destruct (readable_orient o) ; last by done.
+  specialize (IHe Passive).
+  by destruct op, (type_of_hfexpr Passive e summ) as [[[w|w| | |]| |]|] ;
+        try (by done) ;
+        try (destruct (n0 <= n < w) ; by done) ;
+        destruct (n <= w) ; done.
+* (* Ebinop *)
+  intro o.
+  destruct (readable_orient o) ; last by done.
+  specialize (IHe1 Passive) ; specialize (IHe2 Passive).
+  by destruct op, (type_of_hfexpr Passive e1 summ) as [[[w1|w1| | |]| |]|],
+                  (type_of_hfexpr Passive e2 summ) as [[[w2|w2| | |]| |]|] ;
+        done.
+* (* Emux *)
+  intro o.
+  destruct (readable_orient o) ; last by done.
+  specialize (IHc Passive).
+  destruct (type_of_hfexpr Passive c summ) as [[[[|[|]]| | | |]| |]|] ; try by done.
+  specialize (IHe1 o) ; specialize (IHe2 o).
+  destruct (type_of_hfexpr o e1 summ) as [[[w1|w1| | |]| |]|],
+           (type_of_hfexpr o e2 summ) as [[[w2|w2| | |]| |]|] ;
+        simpl ;
+        try (by done) ;
+        try (destruct (n == n0), (unified_type f f0) ; by trivial) ;
+        try (destruct (unified_ffield f f0) ; by trivial) ;
+  intros fl p ;
+  specialize (IHc fl p) ; specialize (IHe1 fl p) ; specialize (IHe2 fl p) ;
+  rewrite IHe1 //.
+  1-5: destruct fl.
+  + (* Flipped *)
+    1,3,5,7,9: rewrite orTb in IHc ; rewrite orTb in IHe1 ; rewrite orTb in IHe2.
+    1-5: rewrite orTb orTb IHe2 andbT.
+    1-5: destruct ([forall (p2' | [&& fst (ssval p) == fst (ssval p2'),
+                                 snd (ssval p) <= snd (ssval p2')
+                               & snd (ssval p2') < snd (ssval p) + 1]),
+                      expr_is_not_cyclic (summ := summ) c Flipped p2']) eqn: Hp2 ; rewrite Hp2 //.
+    1-5: move /forallP : Hp2 => Hp2.
+    1-5: contradict Hp2.
+    1-5: intro p2.
+    1-5: apply (introT implyP).
+    1-5: intro.
+    1-5: move /and3P : H => [H1 H2 H3].
+    1-5: assert (p = p2)
+          by (apply val_inj, injective_projections ;
+                    first (by simpl ; exact (elimT eqP H1)) ;
+                    apply (elimT eqP) ;
+                    rewrite eqn_leq H2 andTb -ltnS -(addn1 (snd (val p))) ; simpl ; exact H3).
+    1-5: by rewrite -H IHc //.
+  + (* Nflip *)
+    1-5: rewrite orFb in IHc ; rewrite orFb in IHe1 ; rewrite orFb in IHe2.
+    1-5: rewrite orFb orFb.
+    1-5: destruct ([forall p1, ~~((expr_depends_on c p1 ||
+                                   expr_depends_on e1 p1 ||
+                                   expr_depends_on e2 p1) &&
+                                  connect (grel (dep_graph summ)) p1 p)]) eqn: Hforallr ;
+          rewrite Hforallr ;
+          move /forallP : Hforallr => Hforallr.
+    - (* acyclicity is true, according to Hforallr *)
+      1,3,5,7,9: destruct ([forall p1, ~~(expr_depends_on e1 p1 &&
+                                          connect (grel (dep_graph summ)) p1 p)]) eqn: Hforall1 ;
+            move /forallP : Hforall1 => Hforall1 ;
+            last by (contradict Hforall1 ;
+                     intro p1 ; specialize (Hforallr p1) ;
+                     apply (elimT negP) in Hforallr ; apply (introT negP) ;
+                     contradict Hforallr ;
+                     rewrite (proj1 (elimT andP Hforallr)) (proj2 (elimT andP Hforallr)) orbT //).
+      1-5: destruct ([forall (p2' | [&& fst (ssval p) == fst (ssval p2'),
+                                   snd (ssval p) <= snd (ssval p2')
+                                 & snd (ssval p2') < snd (ssval p) + 1]),
+                        expr_is_not_cyclic (summ := summ) c Nflip p2'] &&
+                expr_is_not_cyclic e2 Nflip p) eqn: Hforall2 ;
+            rewrite Hforall2 ; first by reflexivity.
+      1-5: move /andP : Hforall2 => Hforall2.
+      1-5: contradict Hforall2.
+      1-5: split.
+      * 1,3,5,7,9: apply (introT forallP) ; intro p1 ; generalize (Hforallr p1) ; intro Hforallr_p1.
+        1-5: apply (introT implyP) ; intro Hp1.
+        1-5: move /and3P : Hp1 => [H1 H2 H3].
+        1-5: assert (p = p1)
+                  by (apply val_inj, injective_projections ; first (by simpl ; exact (elimT eqP H1)) ;
+                      apply (elimT eqP) ;
+                      rewrite eqn_leq H2 andTb -ltnS -(addn1 (snd (val p))) ; simpl ; exact H3).
+        1-5: rewrite -H IHc.
+        1-5: destruct ([forall p0, ~~(expr_depends_on c p0 &&
+                                      connect (grel (dep_graph summ)) p0 p)]) eqn: Hforallc ; first by done.
+        1-5: move /forallP : Hforallc => Hforallc.
+        1-5: contradict Hforallc.
+        1-5: intro p0 ; specialize (Hforallr p0).
+        1-5: apply (elimT negP) in Hforallr ; apply (introT negP) ; contradict Hforallr.
+        1-5: by rewrite (proj1 (elimT andP Hforallr)) (proj2 (elimT andP Hforallr)) //.
+      * 1-5: rewrite IHe2.
+        1-5: destruct ([forall p1, ~~(expr_depends_on e2 p1 &&
+                                      connect (grel (dep_graph summ)) p1 p)]) eqn: Hforall2 ; first by done.
+        1-5: move /forallP : Hforall2 => Hforall2.
+        1-5: contradict Hforall2.
+        1-5: intro p1 ; specialize (Hforallr p1).
+        1-5: apply (elimT negP) in Hforallr ; apply (introT negP) ; contradict Hforallr.
+        1-5: by rewrite (proj1 (elimT andP Hforallr)) (proj2 (elimT andP Hforallr)) orbT //.
+    - (* acyclicity is false, according to Hforallr *)
+      1-5: destruct ([forall p1, ~~(expr_depends_on e1 p1 &&
+                                    connect (grel (dep_graph summ)) p1 p)]) eqn: Hforall1 ; last by done.
+      1-5: move /forallP : Hforall1 => Hforall1.
+      1-5: destruct ([forall (p2' | [&& fst (ssval p) == fst (ssval p2'),
+                                   snd (ssval p) <= snd (ssval p2')
+                                 & snd (ssval p2') < snd (ssval p) + 1]),
+                        expr_is_not_cyclic (summ := summ) c Nflip p2'] &&
+                expr_is_not_cyclic e2 Nflip p) eqn: Hforallc ;
+            rewrite Hforallc ; last by done.
+      1-5: move /andP : Hforallc => [/forallP Hforallc He2nc].
+      1-5: specialize (Hforallc p).
+      1-5: rewrite eq_refl andTb addn1 ltnS -eqn_leq eq_refl implyTb in Hforallc.
+      1-5: rewrite IHc in Hforallc.
+      1-5: destruct ([forall p1, ~~(expr_depends_on c p1 &&
+                                    connect (grel (dep_graph summ)) p1 p)]) eqn: Hforallc' ; last by done.
+      1-5: move /forallP : Hforallc' => Hforallc'.
+      1-5: rewrite IHe2 in He2nc.
+      1-5: destruct ([forall p1, ~~(expr_depends_on e2 p1 &&
+                                    connect (grel (dep_graph summ)) p1 p)]) eqn: Hforall2 ; last by done.
+      1-5: move /forallP : Hforall2 => Hforall2.
+      1-5: contradict Hforallr.
+      1-5: intro p1 ; specialize (Hforallc' p1) ; specialize (Hforall1 p1) ; specialize (Hforall2 p1).
+      1-5: rewrite negb_and in Hforallc'.
+      1-5: move /orP : Hforallc' => [Hforallc' | Hforallc'] ;
+            last by rewrite (negbTE Hforallc') andbF //.
+      1-5: rewrite negb_and in Hforall1.
+      1-5: move /orP : Hforall1 => [Hforall1 | Hforall1] ;
+            last by rewrite (negbTE Hforall1) andbF //.
+      1-5: rewrite negb_and in Hforall2.
+      1-5: move /orP : Hforall2 => [Hforall2 | Hforall2] ;
+            last by rewrite (negbTE Hforall2) andbF //.
+      1-5: by rewrite (negbTE Hforallc') (negbTE Hforall1) (negbTE Hforall2) //.
+* (* Eref *)
+  intro o.
+  destruct (type_of_href r summ) as [[[| | | |] [| |]]|] eqn: Ht, o ; try by done.
+  1-8: intros fl p ; simpl.
+  1-8: destruct fl ; first (by reflexivity) ; rewrite eq_refl orFb //.
+  1-8: destruct ([forall p1, match href_depends_on r p1 (Some (Btyp Fnil, 0)) with
+                             | Some (Gtyp _, 1) => ~~connect (grel (dep_graph summ)) p1 p
+                             | None => ~~(subaccess_index_in_expr_depends_on r p1 &&
+                                          connect (grel (dep_graph summ)) p1 p)
+                             | _ => false
+                             end]) eqn: Hl,
+                ([forall p1, ~~((subaccess_index_in_expr_depends_on r p1 || 
+                                 href_depends_on r p1 (Some (Gtyp (Fuint 0), 0))) &&
+                                connect (grel (dep_graph summ)) p1 p)]) eqn: Hr ; rewrite Hl Hr //.
+  1-16: move /forallP : Hl => Hl ; move /forallP : Hr => Hr.
+  + 1,3,5,7,9,11,13,15: contradict Hr.
+    1-8: intro p1 ; specialize (Hl p1).
+
+
+
+(*
+
+
+Problem: it seems that the two definitions are not exactly the same.
+The right-hand side includes subaccess_index_in_expr, the left-hand side doesn't.
+(Both should include it.)
+
+I am in the course of correcting this.
+
+
+*)
+
+Admitted.
+
+
+Lemma acyclic_subexpressions {summ : summaryType} (fl : fflip) (p : component_part summ) :
+    forall (e2 e1 : hfexpr) (o : forient),
+        type_of_hfexpr o e2 summ <> None ->
+        subexpr e1 e2 -> expr_is_not_cyclic e2 fl p -> expr_is_not_cyclic e1 fl p
+with acyclic_sub_array_expression {summ: summaryType} (fl : fflip) (p : component_part summ) :
+    forall (ar : array_expr) (e1 : hfexpr) (o : forient),
+        type_of_array_expr o ar summ <> None ->
+        subexpr_array e1 ar -> array_expr_is_not_cyclic ar fl p -> expr_is_not_cyclic e1 fl p
+with acyclic_sub_bundle_expression {summ : summaryType} (fl : fflip) (p : component_part summ) :
+    forall (bu : bundle_expr) (e1 : hfexpr) (o : forient),
+        type_of_bundle_expr o bu summ <> None ->
+        subexpr_bundle e1 bu -> bundle_expr_is_not_cyclic bu fl p -> expr_is_not_cyclic e1 fl p.
+Proof.
+* (* proof of acyclic_subexpressions *)
+  clear acyclic_subexpressions.
+  induction e2 ; simpl ; intros e1 o Hte1 Hse He1nc.
+  + (* Econst *)
+    simpl ; simpl in Hse.
+    destruct (e1 == Econst f i) eqn: He1 ; last by done.
+    by rewrite (elimT eqP He1) //.
+  + (* Ecast *)
+    simpl ; simpl in Hte1.
+    destruct (e1 == Ecast u e2) eqn: He1 ; first by rewrite (elimT eqP He1) //.
+    apply (IHe2 e1 Passive).
+    - (* type_of_hfexpr ... e2 ... <> None *)
+      destruct (readable_orient o) ; last by done.
+      by destruct u, (type_of_hfexpr Passive e2 summ) as [[[w|w| | |]| |]|] ; done.
+    - by exact Hse. (* simpl in Hse ; by rewrite He1 // in Hse. *)
+    - (* Now we should use that according to Hte1, the type of e2 is a ground type.
+         Then He1nc is sufficient to determine that e2 is not cyclic. 
+         What kind of lemma could help us with this? *)
+
+
+Admitted.
+
+
+
+
+(**********************************)
+(* modifying connection summaries *)
+(**********************************)
+
+(* assign a new value to variable v, which may or may not be defined in oldsumm *)
+Definition chg_ext_summ_nocheck (oldsumm : summaryType) (v : var) (new_value : kind * ftype * hfexpr * hfexpr) : summaryType :=
+    existT summaryType_func
+           (v :: projT1 oldsumm)
+           (finfun (fun w => (if val w == v then new_value
+                              else match insub (sT := seq_sub (projT1 oldsumm)) (val w) with
+                                   | Some w' => projT2 oldsumm w'
+                                   | None => new_value (* a dummy value -- False_rect would be possible but is more difficult to handle in proofs *)
+                                   end))).
+
+Lemma chg_ext_summ_nocheck_is_correct (oldsumm : summaryType) (v : var) (new_value : kind * ftype * hfexpr * hfexpr) :
+        app_summ (chg_ext_summ_nocheck oldsumm v new_value) v = Some new_value
+    /\
+        forall w : var, w <> v ->
+            app_summ (chg_ext_summ_nocheck oldsumm v new_value) w = app_summ oldsumm w.
+Proof.
+split.
+* (* first conjunct *)
+  unfold app_summ, insub ; simpl.
+  destruct idP ; simpl.
+  + (* idP is ReflectT *)
+    by rewrite ffunE /ssval eq_refl //.
+  + (* idP is ReflectF *)
+    by rewrite in_cons eq_refl orTb // in n.
+* (* second conjunct *)
+  intros w Hwnotv.
+  unfold app_summ, insub at 1 ; simpl.
+  destruct idP ; simpl.
+  + (* idP is ReflectT *)
+    rewrite ffunE /ssval (introF eqP Hwnotv).
+    rewrite in_cons (introF eqP Hwnotv) orFb in i.
+    by rewrite (insubT (T := var) _ i) //.
+  + (* idP is ReflectF *)
+    rewrite in_cons (introF eqP Hwnotv) orFb in n.
+    by rewrite (insubN (seq_sub (projT1 oldsumm)) (introT negP n)) //.
+Qed.
+
+(* assign a new value to an element of oldsumm, or extend its domain with a new element *)
+Definition chg_ext_summ (oldsumm : summaryType) (v : var) (new_value : kind * ftype * hfexpr * hfexpr) : option summaryType :=
+    if number_of_parts (snd (fst (fst new_value))) == 0
+    then None
+    else let newsumm := chg_ext_summ_nocheck oldsumm v new_value
+         in match insub (sT := component_part newsumm) (v, 0) with
+            | Some v0 => if expr_is_not_cyclic (snd (fst new_value)) Nflip   v0 &&
+                            expr_is_not_cyclic (snd      new_value ) Flipped v0
+                         then Some newsumm
+                         else None
+            | None => None
+            end.
+
+Lemma chg_ext_summ_succeeds_correctly (oldsumm : summaryType) (v : var) (new_value : kind * ftype * hfexpr * hfexpr) :
+    match chg_ext_summ oldsumm v new_value with
+    | Some newsumm =>     app_summ newsumm v = Some new_value
+                      /\
+                          forall w : var, w <> v -> app_summ newsumm w = app_summ oldsumm w
+    | None => True
+    end.
+Proof.
+destruct (chg_ext_summ oldsumm v new_value) as [newsumm|] eqn: Happ_summ ; last by trivial.
+unfold chg_ext_summ in Happ_summ.
+destruct (number_of_parts (snd (fst (fst new_value))) == 0) ;
+      first by discriminate.
+destruct insub as [v0|] eqn: Hi_v0 in Happ_summ ;
+      last by discriminate.
+destruct (expr_is_not_cyclic (snd (fst new_value)) Nflip v0 &&
+              expr_is_not_cyclic (snd new_value) Flipped v0) eqn: Hacyclic ;
+      last by discriminate.
+inversion Happ_summ as [Happ_summ'] ; clear Happ_summ Happ_summ' newsumm.
+by apply chg_ext_summ_nocheck_is_correct.
+Qed.
+
+Lemma chg_ext_summ_fails_correctly (oldsumm : summaryType) (v : var) (new_value : kind * ftype * hfexpr * hfexpr) :
+        (forall (p1 p2 : component_part oldsumm), connect (grel (dep_graph oldsumm)) p1 p2 -> connect (grel (dep_graph oldsumm)) p2 p1 -> p1 = p2)
+    ->
+        chg_ext_summ oldsumm v new_value = None
+    <->
+        let t := snd (fst (fst new_value)) in let enf := snd (fst new_value) in let efl := snd new_value
+        in     number_of_parts t = 0
+           \/
+               exists i : nat,
+                   (* there is a cycle from the ith component of new_value to (v, i) *)
+                   let newsumm := chg_ext_summ_nocheck oldsumm v new_value
+                   in match insub (sT := component_part newsumm) (v, i) with
+                      | Some vi => match select_part t enf i, select_part t efl i with
+                                   | Some (Nflip, e'), Some (Nflip, _)
+                                   | Some (Flipped, _), Some (Flipped, e') => exists p1 : component_part newsumm,
+                                                                                      expr_depends_on e' p1
+                                                                                  /\
+                                                                                      connect (grel (dep_graph newsumm)) p1 vi
+                                   | _, _ => False
+                                   end
+                      | None => False
+                      end.
+Proof.
+intro Holdsumm_acyclic.
+specialize (chg_ext_summ_nocheck_is_correct oldsumm v new_value) ; intros [Hchg_ext_summ_nocheck_v Hchg_ext_summ_nocheck_other].
+destruct new_value as [[[k t] enf] efl] ; simpl fst ; simpl snd.
+split.
+* (* implication -> *)
+  intro Hchg_ext_summ.
+  destruct chg_ext_summ as [ces|] eqn: Hchg_ext_summ' in Hchg_ext_summ ;
+        first by discriminate.
+  clear Hchg_ext_summ.
+  rewrite /chg_ext_summ /fst /snd in Hchg_ext_summ'.
+  destruct (number_of_parts t == 0) eqn: Hnp0 ;
+        first by left ; exact (elimT eqP Hnp0).
+  apply negbT in Hnp0.
+  right.
+  destruct insub as [v0|] eqn: Hi_v0 in Hchg_ext_summ' ;
+  unfold insub in Hi_v0 ;
+  destruct idP in Hi_v0 ;
+  try (by discriminate) ;
+        last by specialize (defined_is_in_parts_of (chg_ext_summ_nocheck oldsumm v (k, t, enf, efl)) (v, 0)) ;
+                intro H ;
+                rewrite /is_defined_part /fst /snd Hchg_ext_summ_nocheck_v lt0n in H ;
+                apply H, n in Hnp0.
+  inversion Hi_v0 as [Hi_v0'].
+  replace v0 with (Sub (sT := seq_sub (parts_of (chg_ext_summ_nocheck oldsumm v (k, t, enf, efl)))) (v, 0) i) in Hchg_ext_summ'.
+  clear v0 Hi_v0 Hi_v0'.
+  destruct (expr_is_not_cyclic enf Nflip (Sub (v, 0) i) &&
+            expr_is_not_cyclic efl Flipped (Sub (v, 0) i)) eqn: Hacyclic ;
+        rewrite Hacyclic in Hchg_ext_summ' ;
+        first by discriminate.
+  clear Hchg_ext_summ'.
+  apply negbT in Hacyclic.
+  rewrite negb_and in Hacyclic.
+  move /orP : Hacyclic => [Hacyclic | Hacyclic].
+  * (* enf becomes cyclic *)
+    induction enf ; try done.
+  - (* Ecast *)
+    specialize (IHenf (proj1 (chg_ext_summ_nocheck_is_correct oldsumm v (k, t, enf, efl)))
+                      (proj2 (chg_ext_summ_nocheck_is_correct oldsumm v (k, t, enf, efl)))).
+    assert (forall i : (v, 0) \in parts_of (chg_ext_summ_nocheck oldsumm v (k, t, enf, efl)),
+                ~~ expr_is_not_cyclic enf Nflip (Sub (v, 0) i)).
+          intros i'.
+          apply (introT negP).
+          apply (elimT negP) in Hacyclic.
+          contradict Hacyclic.
+          simpl.
+
+(*
+
+The following proof step worked in an earlier version of the theorem...
+
+          destruct [forall p1,
+    match
+      app_summ
+        (chg_ext_summ_nocheck oldsumm v
+           (k, t, Ecast u enf, efl)) (fst (ssval p1))
+    with
+    | Some (_, t0, _, _) =>
+        ~~
+        (expr_depends_on enf p1 &&
+         connect
+           (grel
+              (T:=[finType of seq_sub
+                                (T:=prod_eqType var
+                                      nat_eqType)
+                                (parts_of
+                                   (chg_ext_summ_nocheck
+                                      oldsumm v
+                                      (k, t, 
+                                       Ecast u enf, efl)))])
+              (dep_graph
+                 (chg_ext_summ_nocheck oldsumm v
+                    (k, t, Ecast u enf, efl)))) p1
+           {| ssval := (v, 0); ssvalP := i |})
+    | None => false
+    end] eqn: Hforall ; rewrite Hforall //.
+    apply negbT, (elimT negP) in Hforall.
+    contradict Hforall.
+    apply (introT forallP).
+    
+Check (elimT forallP).
+    exfalso.
+    move /forallP : Hforall.
+
+*)
+
+Admitted.
 
 
 
@@ -928,13 +2572,6 @@ Inductive hfmodule : Type :=
 .
 
 (* connection summary *)
-
-(* calculates the size of array s *)
-Fixpoint array_size (s : array_expr) : nat :=
-  match s with
-  | Aone _ => 1
-  | Acons _ s' => array_size s' + 1
-  end.
 
 (* The following functions were intended to be used to initialize a component, but they can be simplified.
 
@@ -1022,11 +2659,13 @@ Fixpoint PortSumm (pp : seq hfport) : option summaryType :=
   match pp with 
   | [::] => Some empty_summary
   | Finput vi ti :: pp' => match PortSumm pp' with
-                           | Some ps => Some (fun v : var => if v == vi then Some (Inport, ti, Etobedefined ti, Etobedefined ti) else ps v)
+                           | Some ps => if vi \in projT1 ps then None
+                                        else chg_ext_summ ps vi (Inport, ti, Etobedefined ti, Etobedefined ti)
                            | None => None
                            end
   | Foutput vo to :: pp' => match PortSumm pp' with
-                            | Some ps => Some (fun v : var => if v == vo then Some (Outport, to, Etobedefined to, Etobedefined to) else ps v)
+                            | Some ps => if vo \in projT1 ps then None
+                                         else chg_ext_summ ps vo (Outport, to, Etobedefined to, Etobedefined to)
                             | None => None
                             end
   end.
@@ -1153,51 +2792,6 @@ with create_bundle_expr (e: hfexpr) (ff : ffield) : bundle_expr :=
   .
 *)
 
-Fixpoint make_bundle_mux (c : hfexpr) (b1 b2 : bundle_expr) : option bundle_expr :=
-  match b1, b2 with
-  | Bnil, Bnil => Some Bnil
-  | Bflips v1 fl1 e1 b1', Bflips v2 fl2 e2 b2' => if (v1==v2) && (fl1==fl2)
-                                                  then match make_bundle_mux c b1' b2' with
-                                                       | Some b' => Some (Bflips v1 fl1 (Emux c e1 e2) b')
-                                                       | None => None
-                                                       end
-                                                  else None
-  | _, _ => None
-  end.
-
-(* splits reference r, which has type ff, into a bundle expression
-   (so that later one part of that bundle can be changed) *)
-Fixpoint split_ref_into_subfields (r : href) (ff : ffield) : bundle_expr :=
-  match ff with
-  | Fnil => Bnil
-  | Fflips v fl t ff' => Bflips v fl (Eref (Esubfield r v)) (split_ref_into_subfields r ff')
-  end.
-
-Fixpoint make_bundle_tobedefined (ff : ffield) : bundle_expr :=
-  match ff with
-  | Fnil => Bnil
-  | Fflips v fl t ff' => Bflips v fl (Etobedefined t) (make_bundle_tobedefined ff')
-  end.
-
-Fixpoint make_bundle_undefinedonpurpose (ff : ffield) : bundle_expr :=
-  match ff with
-  | Fnil => Bnil
-  | Fflips v fl t ff' => Bflips v fl (Eundefinedonpurpose t) (make_bundle_undefinedonpurpose ff')
-  end.
-
-Fixpoint split_into_subfields (e : hfexpr) (ff : ffield) : option bundle_expr :=
-  match e with
-  | Ebundle b => Some b (* we assume that the type is right *)
-  | Emux c e1 e2 => match split_into_subfields e1 ff, split_into_subfields e2 ff with
-                    | Some b1, Some b2 => make_bundle_mux c b1 b2
-                    | _, _ => None
-                    end
-  | Eref r => Some (split_ref_into_subfields r ff)
-  | Etobedefined (Btyp _) => Some (make_bundle_tobedefined ff)
-  | Eundefinedonpurpose (Btyp _) => Some (make_bundle_undefinedonpurpose ff)
-  | _ => None
-  end.
-
 (*
 (* replaces one subfield of the expression with the new expression *)
 Fixpoint connect_subfield_fields (b : bundle_expr) (subfield : var) (new_subfield : hfexpr) : option bundle_expr :=
@@ -1232,65 +2826,6 @@ Definition connect_subfield (e : hfexpr) (subfield : var) (new_subfield : hfexpr
   | _ => None
   end.
 *)
-
-(* splits reference r, which has an array type with size elements,
-   into an array expression containing r[i], r[i+1], ..., r[size-1].
-   This to prepare for replacing one of these expressions with a new value. *)
-Fixpoint split_ref_into_subindex (r : href) (i : nat) (size : nat) : option array_expr :=
-  match size with
-  | 0 => None
-  | 1 => Some (Aone (Eref (Esubindex r i)))
-  | size'.+1 => match split_ref_into_subindex r (i+1) size' with
-                | Some ar => Some (Acons (Eref (Esubindex r i)) ar)
-                | _ => None
-                end
-  end.
-
-Fixpoint make_array_mux (c : hfexpr) (ar1 ar2 : array_expr) : option array_expr :=
-  match ar1, ar2 with
-  | Aone e1, Aone e2 => Some (Aone (Emux c e1 e2))
-  | Acons e1 ar1', Acons e2 ar2' => match make_array_mux c ar1' ar2' with
-                                    | Some ar => Some (Acons (Emux c e1 e2) ar)
-                                    | None => None
-                                    end
-  | _, _ => None
-  end.
-
-(* Make an array expression that contains size copies of "Etobedefined t" *)
-Fixpoint make_array_tobedefined (t : ftype) (size : nat) : option array_expr :=
-  match size with
-  | 0 => None
-  | 1 => Some (Aone (Etobedefined t))
-  | size'.+1 => match make_array_tobedefined t size' with
-                | Some ar => Some (Acons (Etobedefined t) ar)
-                | None => None
-                end
-  end.
-
-(* Make an array expression that contains size copies of "Eundefinedonpurpose t" *)
-Fixpoint make_array_undefinedonpurpose (t : ftype) (size : nat) : option array_expr :=
-  match size with
-  | 0 => None
-  | 1 => Some (Aone (Eundefinedonpurpose t))
-  | size'.+1 => match make_array_undefinedonpurpose t size' with
-                | Some ar => Some (Acons (Eundefinedonpurpose t) ar)
-                | None => None
-                end
-  end.
-
-(* splits an array expression into parts *)
-Fixpoint split_into_subindex (e : hfexpr) (size : nat) : option array_expr :=
-  match e with
-  | Earray ar => Some ar (* we assume that the size is right *)
-  | Emux c e1 e2 => match split_into_subindex e1 size, split_into_subindex e2 size with
-                    | Some ar1, Some ar2 => make_array_mux c ar1 ar2
-                    | _, _ => None
-                    end
-  | Eref r => split_ref_into_subindex r 0 size
-  | Etobedefined (Atyp t _) => make_array_tobedefined t size
-  | Eundefinedonpurpose (Atyp t _) => make_array_undefinedonpurpose t size
-  | _ => None
-  end.
 
 (* The following functions were an older version of an implementation of connect statements.
 
@@ -1345,181 +2880,6 @@ Definition connect_subaccess (e : hfexpr) (index : hfexpr) (new_subexpr : hfexpr
   | _ => None
   end.
 *)
-
-(* dependency relation -- to avoid creating cyclic dependencies.
-   However, we cannot use "well_founded (depends_on summ)" just anywhere
-   because this is in Prop and not in bool.  So, in hindsight it turns out
-   to be less useful than we would want. *)
-
-(* A correct program has this property: there is never a combinatorial loop, i.e. a ground-level component part that is connected indirectly to itself.
-   (One does not look further down than ground-level component parts, e.g. when doing bit manipulation.)
-
-   This can be expressed as follows:
-   - define a relation between ground-level component parts; if the expression for part p1 contains a reference to part p2, then p1 depends on p2
-     (except if p1 is (part of) a register, then it's not a combinatorial dependency).
-   - state that this relation (or its transitive closure) is well-founded.
-     If a module would lead to a non-well-founded relation, it is illegal and has no semantics.
-
-   - To define this relation, one has to assign identifiers to ground-level parts of every component.
-*)
-
-Definition component_part : Type := var * nat.
-
-Fixpoint number_of_parts (t : ftype) : nat :=
-  match t with
-  | Gtyp _ => 1
-  | Atyp t' n => n * (number_of_parts t')
-  | Btyp ff => number_of_bundle_parts ff
-  end
-with number_of_bundle_parts (ff : ffield) : nat :=
-  match ff with
-  | Fnil => 0
-  | Fflips _ _ t' ff' => number_of_parts t' + number_of_bundle_parts ff'
-  end.
-
-Fixpoint select_array_element (ar : array_expr) (i : nat) : option hfexpr :=
-  match ar, i with
-  | Aone e, 0 => Some e
-  | Aone _, _ => None
-  | Acons e _, 0 => Some e
-  | Acons _ ar', i'.+1 => select_array_element ar' i'
-  end.
-
-Fixpoint select_part (t : ftype) (e : hfexpr) (p : nat) : option (fflip * hfexpr) :=
-  match t with
-  | Gtyp _ => Some (Nflip, e)
-  | Atyp t' size => match split_into_subindex e size with
-                    | Some ar => let elementsize := number_of_parts t'
-                                 in match select_array_element ar (p %/ elementsize) with
-                                    | Some e' => select_part t' e' (p %% elementsize)
-                                    | None => None
-                                    end
-                    | None => None
-                    end
-  | Btyp ff => match split_into_subfields e ff with
-               | Some bu => select_bundle_part ff bu p
-               | None => None
-               end
-  end
-with select_bundle_part (ff : ffield) (b : bundle_expr) (p : nat) : option (fflip * hfexpr) :=
-  match ff, b with
-  | Fflips _ Nflip t' ff', Bflips _ Nflip e' b' => let siz := number_of_parts t'
-                                                   in if p<siz
-                                                      then select_part t' e' p
-                                                      else select_bundle_part ff' b' (p - siz)
-  | Fflips _ Flipped t' ff', Bflips _ Flipped e' b' => let siz := number_of_parts t'
-                                                       in if p<siz
-                                                          then match select_part t' e' p with
-                                                               | Some (Nflip, e'') => Some (Flipped, e'')
-                                                               | Some (Flipped, e'') => Some (Nflip, e'')
-                                                               | None => None
-                                                               end
-                                                          else select_bundle_part ff' b' (p - siz)
-  | _, _ => None
-  end.
-
-(* find which part of bundle type ff contains the subfield with name v *)
-Fixpoint part_of_subfield (ff : ffield) (v : var) : option (ftype * nat) :=
-  match ff with
-  | Fnil => None
-  | Fflips v' _ ft ff' => if v==v'
-                          then Some (ft, 0)
-                          else match part_of_subfield ff' v with
-                               | Some (ft', i) => Some (ft', i + number_of_parts ft)
-                               | None => None
-                               end
-  end.
-
-Fixpoint depends_on_href (r : href) (p2 : component_part) (base_type : ftype) : option (ftype * nat) :=
-(* checks whether reference r depends on p2.
-The result is Some (t, i1), meaning that reference r has type t and describes the parts [i1, i1 + number_of_parts t) of the base reference of p2.
-The result only looks at the reference, not at the expression in the subaccess part. *)
-  match r with
-  | Eid v => if v==fst p2
-             then Some (base_type, 0)
-             else None
-  | Esubfield r' v => match depends_on_href r' p2 base_type with
-                      | Some (Btyp ff, f) => match part_of_subfield ff v with
-                                             | Some (t, offset) => if f + offset <= snd p2 < f + offset + number_of_parts t
-                                                                   then Some (t, f + offset)
-                                                                   else None
-                                             | None => None
-                                             end
-                      | _ => None
-                      end
-  | Esubindex r' i => match depends_on_href r' p2 base_type with
-                      | Some (Atyp t' siz, f) => let elementsize := number_of_parts t'
-                                                 in if f + i * elementsize <= snd p2 < f + (i+1) * elementsize
-                                                    then Some (t', f + i * elementsize)
-                                                    else None
-                      | _ => None
-                      end
-  | Esubaccess r' e' => match depends_on_href r' p2 base_type with
-                        | Some (Atyp t' siz, f) => let elementsize := number_of_parts t'
-                                                   in let i := (snd p2 - f) %/ elementsize (* we assume that the accessed element contains p2 *)
-                                                      in Some (t', f + i * elementsize)
-                        | _ => None
-                        end
-  end.
-
-Fixpoint depends_on_expr (e : hfexpr) (p2 : component_part) (base_type : ftype) : bool :=
-(* checks whether expression e depends on p2. *)
-  match e with
-  | Econst _ _ => false
-  | Ecast _ e' => depends_on_expr e' p2 base_type
-  | Eprim_unop _ e' => depends_on_expr e' p2 base_type
-  | Eprim_binop _ e1 e2 => depends_on_expr e1 p2 base_type || depends_on_expr e2 p2 base_type
-  | Emux c e1 e2 => depends_on_expr c p2 base_type || depends_on_expr e1 p2 base_type || depends_on_expr e2 p2 base_type
-  | Eref r => depends_on_subaccess_index r p2 base_type || depends_on_href r p2 base_type
-  | Earray _ => false (* should not happen *)
-  | Ebundle _ => false (* should not happen *)
-  | Etobedefined _ => false
-  | Eundefinedonpurpose _ => false
-  end
-with depends_on_subaccess_index (r : href) (p2 : component_part) (base_type : ftype) : bool :=
-(* checks whether a subaccess index expression in r depends on p2. *)
-  match r with
-  | Eid _ => false
-  | Esubfield r' _ => depends_on_subaccess_index r' p2 base_type
-  | Esubindex r' _ => depends_on_subaccess_index r' p2 base_type
-  | Esubaccess r' e => depends_on_expr e p2 base_type || depends_on_subaccess_index r' p2 base_type
-  end.
-
-Definition depends_on (summ : summaryType) (p1 p2 : component_part) : bool :=
-(* defines whether p1 depends on p2. This happens if component part p1, according to summ, is connected to component part p2. *)
-  match summ (fst p1), summ (fst p2) with
-  | Some (Inport, t1, _, ew), Some (_, t2, _, _) => match select_part t1 ew (snd p1) with
-                                                    | Some (Flipped, e) => depends_on_expr e p2 t2
-                                                    | _ => false
-                                                    end
-  | Some (Outport, t1, er, _), Some (_, t2, _, _) => match select_part t1 er (snd p1) with
-                                                     | Some (Nflip, e) => depends_on_expr e p2 t2
-                                                     | _ => false
-                                                     end
-  | Some (Wire, t1, er, ew), Some (_, t2, _, _) => match select_part t1 er (snd p1) with
-                                                   | Some (Nflip, e) => depends_on_expr e p2 t2
-                                                   | Some (Flipped, _) => match select_part t1 ew (snd p1) with
-                                                                          | Some (Flipped, e) => depends_on_expr e p2 t2
-                                                                          | _ => false
-                                                                          end
-                                                   | None => false
-                                                   end
-  | Some (Node, t1, er, _), Some (_, t2, _, _) => match select_part t1 er (snd p1) with
-                                                  | Some (Nflip, e) => depends_on_expr e p2 t2
-                                                  | _ => false
-                                                  end
-  | _, _ => false (* includes the case that p1 is a part of a register *)
-  end.
-
-(* the transitive closure of depends_on can be constructed in a finite number of steps, as the relation is finite.
-   However, to use well-foundedness, it is not necessary to construct the transitive closure. *)
-
-(* Find the base of reference r. Return also whether it is a flipped subfield or not. *)
-Fixpoint base_ref (r : href) : option var :=
-   match r with
-   | Eid v => Some v
-   | Esubfield r' _ | Esubindex r' _ | Esubaccess r' _ => base_ref r'
-   end.
 
 (* Replace the subexpression of old_e (which is of type t) indicated by r by new_e *)
 Fixpoint replace_subexpr (old_e : hfexpr) (r : href) (t : ftype) (new_e : hfexpr) : option hfexpr :=
@@ -1607,125 +2967,394 @@ Fixpoint type_of_href_base (r : href) (base_type : ftype) : option (fflip * ftyp
 
 Definition unidirectional_connect (oldsumm : summaryType) (r : href) (new_e : hfexpr) : option summaryType :=
 (* unidirectional connect statement: reference r is assigned new_e as value. *)
-  match base_ref r with
-  | Some br => match oldsumm br with
-               | Some (k, t, enf, efl) => if k==Node
-                                          then None
-                                          else match type_of_href_base r t with
-                                               | Some (fl, _) => match (if fl==Nflip
-                                                                        then (replace_subexpr enf r t new_e, Some efl)
-                                                                        else (Some enf, replace_subexpr efl r t new_e)) with
-                                                                 | (Some enf', Some efl') => Some (fun v : var => if v==br then Some (k, t, enf', efl') else oldsumm v)
-                                                                 | _ => None
-                                                                 end
-                                               | None => None
-                                               end
-               | None => None
-               end
-  | None => None
-  end.
+    let br := base_ref r
+    in match app_summ oldsumm br with
+       | Some (k, t, enf, efl) => if k==Node
+                                  then None
+                                  else match type_of_href_base r t with
+                                       | Some (fl, _) => match (if fl==Nflip
+                                                                then (replace_subexpr enf r t new_e, Some efl)
+                                                                else (Some enf, replace_subexpr efl r t new_e)) with
+                                                         | (Some enf', Some efl') => chg_ext_summ oldsumm br (k, t, enf', efl')
+                                                         | _ => None
+                                                         end
+                                       | None => None
+                                       end
+       | None => None
+       end.
 
 Definition bidirectional_connect (oldsumm : summaryType) (r1 r2 : href) : option summaryType :=
 (* bidirectional connect statement: the writable parts of r1 and r2 are assigned the corresponding part of the other.
    (This obviously only works if the types of r1 and r2 are compatible. *)
-  match base_ref r1, base_ref r2 with
-  | Some br1,
-    Some br2 => match oldsumm br1, oldsumm br2 with
-                | Some (k1, t1, enf1, efl1),
-                  Some (k2, t2, enf2, efl2) => if (k1==Node) || (k2==Node)
-                                               then None
-                                               else match type_of_href_base r1 t2, type_of_href_base r2 t2 with
-                                                    | Some (fl1, rt1),
-                                                      Some (fl2, rt2) => match (if fl1==Nflip
-                                                                                then (replace_subexpr enf1 r1 t1 (Eref r2), Some efl1)
-                                                                                else (Some enf1, replace_subexpr efl1 r1 t1 (Eref r2))),
-                                                                               (if fl2==Flipped
-                                                                                then (replace_subexpr enf2 r2 t2 (Eref r1), Some efl2)
-                                                                                else (Some enf2, replace_subexpr efl2 r2 t2 (Eref r1))) with
-                                                                         | (Some enf1', Some efl1'), 
-                                                                           (Some enf2', Some efl2') => Some (fun v : var => if v==br1
-                                                                                                                            then Some (k1, t1, enf1', efl1')
-                                                                                                                            else if v==br2
-                                                                                                                                 then Some (k2, t2, enf2', efl2')
-                                                                                                                                 else oldsumm v)
-                                                                         | _, _ => None
-                                                                         end
-                                                    | _, _ => None
-                                                    end
-                | _, _ => None
-                end
-  | _, _ => None
-  end.
+    let br1 := base_ref r1 in let br2 := base_ref r2
+    in match app_summ oldsumm br1, app_summ oldsumm br2 with
+       | Some (k1, t1, enf1, efl1),
+         Some (k2, t2, enf2, efl2) => if (k1==Node) || (k2==Node)
+                                      then None
+                                      else match type_of_href_base r1 t2, type_of_href_base r2 t2 with
+                                           | Some (fl1, rt1),
+                                             Some (fl2, rt2) => match (if fl1==Nflip
+                                                                       then (replace_subexpr enf1 r1 t1 (Eref r2), Some efl1)
+                                                                       else (Some enf1, replace_subexpr efl1 r1 t1 (Eref r2))),
+                                                                      (if fl2==Flipped
+                                                                       then (replace_subexpr enf2 r2 t2 (Eref r1), Some efl2)
+                                                                       else (Some enf2, replace_subexpr efl2 r2 t2 (Eref r1))) with
+                                                                | (Some enf1', Some efl1'), 
+                                                                  (Some enf2', Some efl2') => match chg_ext_summ oldsumm br1 (k1, t1, enf1', efl1') with
+                                                                                              | Some newsumm => chg_ext_summ newsumm br2 (k2, t2, enf2', efl2')
+                                                                                              | None => None
+                                                                                              end
+                                                                | _, _ => None
+                                                                end
+                                           | _, _ => None
+                                           end
+       | _, _ => None
+       end.
 
 Definition invalidate (oldsumm : summaryType) (r : href) : option summaryType :=
   (* makes reference r "undefined on purpose".
      This is an undefined value that does not raise errors or warnings. *)
-  match base_ref r with
-  | Some br => match oldsumm br with
-               | Some (k, t, enf, efl) => if k==Node
-                                          then None
-                                          else match type_of_href_base r t with
-                                               | Some (fl, rt) => match (if fl==Nflip
-                                                                         then (replace_subexpr enf r t (Eundefinedonpurpose rt), Some efl)
-                                                                         else (Some enf, replace_subexpr efl r t (Eundefinedonpurpose rt))) with
-                                                                  | (Some enf', Some efl') => Some (fun v : var => if v==br then Some (k, t, enf', efl') else oldsumm v)
-                                                                  | _ => None
-                                                                  end
-                                               | None => None
-                                               end
-               | None => None
-               end
-  | None => None
-  end.
+    let br := base_ref r
+    in match app_summ oldsumm br with
+       | Some (k, t, enf, efl) => if k==Node
+                                  then None
+                                  else match type_of_href_base r t with
+                                       | Some (fl, rt) => match (if fl==Nflip
+                                                                 then (replace_subexpr enf r t (Eundefinedonpurpose rt), Some efl)
+                                                                 else (Some enf, replace_subexpr efl r t (Eundefinedonpurpose rt))) with
+                                                          | (Some enf', Some efl') => chg_ext_summ oldsumm br (k, t, enf', efl')
+                                                          | _ => None
+                                                          end
+                                       | None => None
+                                       end
+       | None => None
+       end.
 
-Fixpoint StmtSumm (oldsumm : summaryType) (p : has_finite_support oldsumm) (ss : hfstmt_seq) : option summaryType :=
-  (* statement summary: construct the function that contains all connections mandated by the statements in ss *)
-  match ss with
-  | Qnil => Some oldsumm
-  | Qcons Sskip ss' => StmtSumm oldsumm ss'
-  | Qcons (Swire vw t) ss' => if oldsumm vw == None
-                              then StmtSumm (fun v : var => if v == vw then Some (Wire, t, Etobedefined t, Etobedefined t) else oldsumm v) ss'
-                              else None
-  | Qcons (Sreg vr t) ss' => if oldsumm vr == None
-                             then StmtSumm (fun v : var => if v == vr then Some (Register, t, Eref (Eid v), Eref (Eid v)) else oldsumm v) ss'
-                             else None
-        (* note that t must be passive *)
-  | Qcons (Snode vn e) ss' => if oldsumm vn == None
-                              then match type_of_hfexpr Passive e oldsumm (* this requires that widths are already inferred; otherwise, the width of the node may be too small *) with
-                                   | Some t => StmtSumm (fun v : var => if v == vn then Some (Node, t, e, Eundefinedonpurpose t) else oldsumm v) ss'
-                                   | None => None
-                                   end
-                              else None
-        (* the expression must be passive *)
-  | Qcons (Sfcnct r1 (Eref r2)) ss' =>
-        match bidirectional_connect oldsumm r1 r2 with
-        | Some summ => (* if ~well_founded (depends_on summ) then None else *)
-                       StmtSumm summ ss'
-        | None => None
-        end
-  | Qcons (Sfcnct r e) ss' =>
-        match unidirectional_connect oldsumm r e with
-        | Some summ => (* if ~well_founded (depends_on summ) then None else *)
-                       StmtSumm summ ss'
-        | None => None
-        end
-  | Qcons (Sinvalid r) ss' =>
-        match invalidate oldsumm r with
-        | Some summ => StmtSumm summ ss'
-        | None => None
-        end
-  | Qcons (Swhen c sst ssf) ss' =>
-        match StmtSumm oldsumm sst, StmtSumm oldsumm ssf with
-        | Some truesumm, Some falsesumm => StmtSumm (fun v : var => match oldsumm v, truesumm v, falsesumm v with
-                                                                    | Some (k, t, _, _), Some (_, _, enft, eflt), Some (_, _, enff, eflf) => Some (k, t, if enft==enff then enft else Emux c enft enff, if eflt==eflf then eflt else Emux c eflt eflf)
-                                                                    | None, Some tv, None => Some tv
-                                                                    | None, None, Some fv => Some fv
-                                                                    | _, _, _ => None
-                                                                    end) ss'
-        | _, _ => None
-        end
-  end.
+(*
+Fixpoint seq_intersect (s1 s2 : seq var) : seq var :=
+    match s1 with
+    | [::] => [::]
+    | v :: s1' => if v \in s2
+                  then v :: seq_intersect s1' s2
+                  else seq_intersect s1' s2
+    end.
 
+Lemma when_summ_helper {v : var} {truesumm falsesumm : summaryType} :
+    v \in projT1 truesumm ++ projT1 falsesumm ->
+    app_summ truesumm v = None ->
+    app_summ falsesumm v = None -> False.
+Proof.
+intros vinconcat Ht Hf.
+rewrite mem_cat in vinconcat.
+move /orP : vinconcat => vinconcat.
+destruct vinconcat as [vinsumm | vinsumm].
+2 : rename falsesumm into summ ; rename Hf into H.
+rename truesumm into summ ; rename Ht into H.
+all: unfold app_summ in H.
+all: rewrite (insubT (fun v : var => v \in projT1 summ) vinsumm) // in H.
+Qed.
+
+Lemma when_true_empty_helper {v : var} {oldsumm truesumm : summaryType} {x : kind * ftype * hfexpr * hfexpr} :
+    is_subset (projT1 oldsumm) (projT1 truesumm) ->
+    app_summ oldsumm v = Some x ->
+    app_summ truesumm v = None -> False.
+Proof.
+intros Hsub Ho Ht.
+destruct (v \in projT1 oldsumm) eqn: Hvino.
+(* v \in projT1 oldsumm *)
+  assert (v \in projT1 truesumm).
+        revert Hsub Hvino.
+        clear Ho Ht.
+        generalize (projT1 oldsumm).
+        induction l ; intros Hsub Hvino.
+        (* base case *)
+          by rewrite in_nil // in Hvino.
+        (* induction step *)
+          simpl is_subset in Hsub ; move /andP : Hsub => Hsub.
+          rewrite in_cons in Hvino ; move /orP : Hvino => Hvino.
+          destruct Hvino as [Hvino | Hvino].
+          (* v == a *)
+            move /eqP : Hvino => Hvino ; rewrite Hvino //.
+            by apply Hsub.
+          (* v \in l *)
+            by apply (IHl (proj2 Hsub) Hvino).
+  unfold app_summ in Ht.
+  by rewrite (insubT (fun v : var => v \in projT1 truesumm) H) // in Ht.
+(* v \notin projT1 oldsumm *)
+  unfold app_summ in Ho.
+  by rewrite (insubF (seq_sub (projT1 oldsumm)) Hvino) // in Ho.
+Qed.
+
+Lemma when_old_empty_helper {v : var} {oldsumm truesumm falsesumm : summaryType} {x y : kind * ftype * hfexpr * hfexpr} :
+    [forall x : seq_sub (projT1 truesumm), (val x \in projT1 oldsumm) || (val x \notin projT1 falsesumm)] ->
+    app_summ oldsumm v = None ->
+    app_summ truesumm v = Some x ->
+    app_summ falsesumm v = Some y -> False.
+Proof.
+intros Htos Ho Ht Hf.
+move /forallP : Htos => Htos.
+destruct (v \in projT1 truesumm) eqn: Hvint.
+(* v \in projT1 truesumm *)
+  specialize (Htos (Sub v Hvint)).
+  rewrite SubK in Htos.
+  move /orP : Htos => [Htos | Htos].
+  (* v \in projT1 oldsumm *)
+    unfold app_summ in Ho.
+    by rewrite (insubT (fun v : var => v \in projT1 oldsumm) Htos) // in Ho.
+  (* v \notin projT1 falsesumm *)
+    unfold app_summ in Hf.
+    by rewrite (insubN (seq_sub (projT1 falsesumm)) Htos) // in Hf.
+(* v \notin projT1 truesumm *)
+  unfold app_summ in Ht.
+  by rewrite (insubF (seq_sub (projT1 truesumm)) Hvint) // in Ht.
+Qed. *)
+
+(* calculate the combination of true and false branches.
+   This checks one dependency, namely that components defined anew in 
+   the true branch are not defined in the false branch.  The present version
+   uses the proof that this check passed to create a False_rect in one case.
+   However, if this dependency leads to problems in proofs, one might just
+   return an arbitrary value there instead. *)
+Definition when_summ (c : hfexpr) (oldsumm truesumm falsesumm : summaryType) : option summaryType :=
+    if [forall x : seq_sub (projT1 truesumm), (val x \in projT1 oldsumm) || (val x \notin projT1 falsesumm)] 
+    then Some (existT summaryType_func (projT1 truesumm ++ projT1 falsesumm)
+                      (finfun (fun w => match app_summ oldsumm (val w) as ov',
+                                              app_summ truesumm (val w) as tv', 
+                                              app_summ falsesumm (val w) as fv' with
+                                        | Some (k, t, _, _), Some (_, _, enft, eflt), Some (_, _, enff, eflf) => (k, t, if enft==enff then enft else Emux c enft enff, if eflt==eflf then eflt else Emux c eflt eflf)
+                                        | _, Some tv, _ => tv
+                                        | _, _, Some fv => fv
+                                        | _, _, _ => (Inport, Gtyp (Fuint 0), Etobedefined (Gtyp (Fuint 0)), Etobedefined (Gtyp (Fuint 0))) (* cannot happen, so just give back a dummy value *)
+                                        end)))
+     else None.
+
+(* statement summary: construct the function that contains all connections mandated by the statements in ss *)
+Fixpoint StmtSumm (oldsumm : summaryType) (ss : hfstmt_seq) : option summaryType :=
+    match ss with
+    | Qnil => Some oldsumm
+    | Qcons s ss' => match StmtSumm_1 oldsumm s with
+                     | Some intsumm => StmtSumm intsumm ss'
+                     | None => None
+                     end
+    end
+with StmtSumm_1 (oldsumm : summaryType) (s : hfstmt) : option summaryType :=
+    match s with
+    | Sskip => Some oldsumm
+    | Swire vw t => if vw \notin projT1 oldsumm
+                    then chg_ext_summ oldsumm vw (Wire, t, Etobedefined t, Etobedefined t)
+                    else None
+    | Sreg vr t => (* note that t must be passive *)
+                   if vr \notin projT1 oldsumm
+                   then chg_ext_summ oldsumm vr (Register, t, Eref (Eid vr), Eref (Eid vr))
+                   else None
+    | Snode vn e => (* the expression must be passive *)
+                    if vn \notin projT1 oldsumm
+                    then match type_of_hfexpr Passive e oldsumm (* this requires that widths are already inferred; otherwise, the width of the node may be too small *) with
+                         | Some t => chg_ext_summ oldsumm vn (Node, t, e, Eundefinedonpurpose t)
+                         | None => None
+                         end
+                    else None
+    | Sfcnct r1 (Eref r2) => bidirectional_connect oldsumm r1 r2
+    | Sfcnct r e => unidirectional_connect oldsumm r e
+    | Sinvalid r => invalidate oldsumm r
+    | Swhen c sst ssf => match StmtSumm oldsumm sst, StmtSumm oldsumm ssf with
+                         | Some truesumm, Some falsesumm => when_summ c oldsumm truesumm falsesumm
+                         | _, _ => None
+                         end
+    end.
+
+Fixpoint is_subset (s1 s2 : seq var) : bool :=
+    match s1 with
+    | [::] => true
+    | v :: s1' => (v \in s2) && is_subset s1' s2
+    end.
+
+Lemma is_subset_cat (s t : seq var) : is_subset s (t ++ s).
+Proof.
+generalize t ; clear t.
+induction s ; simpl.
+(* base case for s *)
+  by done.
+(* induction step for s *)
+  intro t.
+  apply (introT andP).
+  split.
+  (* left conjunct *)
+    induction t ; simpl.
+    (* base case for t *)
+      by apply mem_head.
+    (* induction step for t *)
+      by rewrite in_cons IHt orbT //.
+  (* right conjunct *)
+    by rewrite -cat_rcons IHs //.
+Qed.
+
+Lemma is_subset_cons (a : var) (s : seq var) : is_subset s (a :: s).
+Proof.
+by rewrite -cat1s is_subset_cat //.
+Qed.
+
+Lemma is_subset_refl (s : seq var) : is_subset s s.
+Proof.
+induction s ; simpl.
+(* base case *)
+  by done.
+(* induction step *)
+  apply (introT andP).
+  split.
+  (* left conjunct *)
+    by apply mem_head.
+  (* right conjunct *)
+    by apply is_subset_cons.
+Qed.
+
+Lemma in_subset_trans {a : var} {s t : seq var} : a \in s -> is_subset s t -> a \in t.
+Proof.
+generalize t ; clear t.
+induction s ; simpl.
+(* base case *)
+  by rewrite in_nil //.
+(* induction step *)
+  rewrite in_cons.
+  intros t Has Hst.
+  move /andP : Hst => [Ha0t Hst].
+  destruct (a == a0) eqn: Haa0.
+  (* case a == a0 *)
+    by rewrite (elimT eqP Haa0) //.
+  (* case a != a0 *)
+    rewrite orFb in Has.
+    by exact (IHs t Has Hst).
+Qed.
+
+Lemma is_subset_trans {t s u : seq var} : is_subset s t -> is_subset t u -> is_subset s u.
+Proof.
+induction s ; simpl.
+(* base case *)
+  by done.
+(* induction step for s *)
+  intros Hast Htu.
+  move /andP : Hast => [Hat Hst].
+  apply (introT andP) ; split.
+  (* left conjunct *)
+    by exact (in_subset_trans Hat Htu).
+  (* right conjunct *)
+    by exact (IHs Hst Htu).
+Qed.
+
+
+Lemma StmtSumm_only_extends (oldsumm : summaryType) (ss : hfstmt_seq) (newsumm : summaryType) :
+    StmtSumm oldsumm ss = Some newsumm ->
+    is_subset (projT1 oldsumm) (projT1 newsumm)
+with StmtSumm_1_only_extends (oldsumm : summaryType) (s : hfstmt) (newsumm : summaryType) :
+    StmtSumm_1 oldsumm s = Some newsumm ->
+    is_subset (projT1 oldsumm) (projT1 newsumm).
+Proof.
+* clear StmtSumm_only_extends.
+  revert oldsumm.
+  induction ss as [|s ss'] ; intro oldsumm ; simpl.
+  + (* base case *)
+    intro Hss ; inversion Hss as [Hosns] ; clear Hss oldsumm Hosns.
+    apply is_subset_refl.
+  + (* induction step *)
+    specialize (StmtSumm_1_only_extends oldsumm s).
+    destruct (StmtSumm_1 oldsumm s) as [intsumm|] ; last by discriminate.
+    specialize (StmtSumm_1_only_extends intsumm Logic.eq_refl).
+    intro Hstmtsumm_ss'.
+    specialize (IHss' intsumm Hstmtsumm_ss').
+    by apply (is_subset_trans StmtSumm_1_only_extends), IHss'.
+* clear StmtSumm_1_only_extends.
+  destruct s as [|vw t|vr t|vn e|r e|r|c sst ssf] ; simpl.
+  + (* Skip *)
+    intro Hss ; inversion Hss as [Hosns] ; clear Hss oldsumm Hosns.
+    apply is_subset_refl.
+  + (* Swire *)
+    destruct (vw \notin projT1 oldsumm) eqn: Hvw ; rewrite Hvw ; last by discriminate.
+
+(* This proof worked on an old version of StmtSumm ...
+
+
+    intro Hss ; inversion Hss as [Hosns] ; clear Hss newsumm Hosns.
+    simpl.
+    by apply is_subset_cons.
+  + (* Sreg *)
+    destruct (vr \notin projT1 oldsumm) eqn: Hvr ; rewrite Hvr ; last by discriminate.
+    intro Hss ; inversion Hss as [Hosns] ; clear Hss newsumm Hosns.
+    simpl.
+    by apply is_subset_cons.
+  + (* Snode *)
+    destruct (vn \notin projT1 oldsumm) eqn: Hvn ; rewrite Hvn ; last by discriminate.
+    destruct (type_of_hfexpr Passive e oldsumm) as [t|] ; last by discriminate.
+    intro Hss ; inversion Hss as [Hosns] ; clear Hss newsumm Hosns.
+    simpl.
+    by apply is_subset_cons.
+  + (* Sfcnct *)
+    destruct e as [t w|c e|op e|op e1 e2|c e1 e2|r2|ar|bu|t|t].
+    1-5,7-10: unfold unidirectional_connect.
+    1-9: destruct (base_ref r) as [br|] ; last by discriminate.
+    1-9: destruct (app_summ oldsumm br) as [[[[k t0] enf] efl]|] ; last by discriminate.
+    1-9: destruct (k == Node) ; first by discriminate.
+    1-9: destruct (type_of_href_base r t0) as [[fl _]|] ; last by discriminate.
+    1: destruct (if fl == Nflip then (replace_subexpr enf r t0 (Econst t w), Some efl)
+                                else (Some enf, replace_subexpr efl r t0 (Econst t w))) as [[o|] [o0|]] ; try by discriminate.
+    2: destruct (if fl == Nflip then (replace_subexpr enf r t0 (Ecast c e), Some efl)
+                                else (Some enf, replace_subexpr efl r t0 (Ecast c e))) as [[o|] [o0|]] ; try by discriminate.
+    3: destruct (if fl == Nflip then (replace_subexpr enf r t0 (Eprim_unop op e), Some efl)
+                                else (Some enf, replace_subexpr efl r t0 (Eprim_unop op e))) as [[o|] [o0|]] ; try by discriminate.
+    4: destruct (if fl == Nflip then (replace_subexpr enf r t0 (Eprim_binop op e1 e2), Some efl)
+                                else (Some enf, replace_subexpr efl r t0 (Eprim_binop op e1 e2))) as [[o|] [o0|]] ; try by discriminate.
+    5: destruct (if fl == Nflip then (replace_subexpr enf r t0 (Emux c e1 e2), Some efl)
+                                else (Some enf, replace_subexpr efl r t0 (Emux c e1 e2))) as [[o|] [o0|]] ; try by discriminate.
+    6: destruct (if fl == Nflip then (replace_subexpr enf r t0 (Earray ar), Some efl)
+                                else (Some enf, replace_subexpr efl r t0 (Earray ar))) as [[o|] [o0|]] ; try by discriminate.
+    7: destruct (if fl == Nflip then (replace_subexpr enf r t0 (Ebundle bu), Some efl)
+                                else (Some enf, replace_subexpr efl r t0 (Ebundle bu))) as [[o|] [o0|]] ; try by discriminate.
+    8: destruct (if fl == Nflip then (replace_subexpr enf r t0 (Etobedefined t), Some efl)
+                                else (Some enf, replace_subexpr efl r t0 (Etobedefined t))) as [[o|] [o0|]] ; try by discriminate.
+    9: destruct (if fl == Nflip then (replace_subexpr enf r t0 (Eundefinedonpurpose t), Some efl)
+                                else (Some enf, replace_subexpr efl r t0 (Eundefinedonpurpose t))) as [[o|] [o0|]] ; try by discriminate.
+    1-9: intro Hss ; inversion Hss as [Hosns] ; clear Hss newsumm Hosns.
+    1-9: simpl.
+    1-9: by apply is_subset_cons.
+    unfold bidirectional_connect.
+    destruct (base_ref r) as [br1|], (base_ref r2) as [br2|] ; try by discriminate.
+    destruct (app_summ oldsumm br1) as [[[[k1 t1] enf1] efl1]|], (app_summ oldsumm br2) as [[[[k2 t2] enf2] efl2]|] ; try by discriminate.
+    destruct ((k1 == Node) || (k2 == Node)) ; first by discriminate.
+    destruct (type_of_href_base r t2) as [[fl1 _]|], (type_of_href_base r2 t2) as [[fl2 _]|] ; try by discriminate.
+    destruct (if fl1 == Nflip then (replace_subexpr enf1 r t1 (Eref r2), Some efl1)
+                              else (Some enf1, replace_subexpr efl1 r t1 (Eref r2))) as [[o|] [o0|]],
+             (if fl2 == Flipped then (replace_subexpr enf2 r2 t2 (Eref r), Some efl2)
+                                else (Some enf2, replace_subexpr efl2 r2 t2 (Eref r))) as [[o1|] [o2|]] ; try by discriminate.
+    intro Hss ; inversion Hss as [Hosns] ; clear Hss newsumm Hosns.
+    simpl.
+    by apply (is_subset_trans (is_subset_cons _ _) (is_subset_cons _ _)).
+  + (* Sinvalid *)
+    unfold invalidate.
+    destruct (base_ref r) as [br|] ; last by discriminate.
+    destruct (app_summ oldsumm br) as [[[[k t] enf] efl]|] ; last by discriminate.
+    destruct (k == Node) ; first by discriminate.
+    destruct (type_of_href_base r t) as [[fl rt]|] ; last by discriminate.
+    destruct (if fl == Nflip then (replace_subexpr enf r t (Eundefinedonpurpose rt), Some efl)
+                             else (Some enf, replace_subexpr efl r t (Eundefinedonpurpose rt))) as [[o|] [o0|]] ; try by discriminate.
+    intro Hss ; inversion Hss as [Hosns] ; clear Hss newsumm Hosns.
+    simpl.
+    by apply is_subset_cons.
+  + (* Swhen *)
+    (* generalize (StmtSumm_only_extends oldsumm sst) ; intro StmtSumm_only_extends_truesumm. *)
+    specialize (StmtSumm_only_extends oldsumm ssf).
+    destruct (StmtSumm oldsumm sst) as [truesumm|] ; last by discriminate.
+    (* specialize (StmtSumm_only_extends_truesumm truesumm Logic.eq_refl). *)
+    destruct (StmtSumm oldsumm ssf) as [falsesumm|] ; last by discriminate.
+    specialize (StmtSumm_only_extends falsesumm Logic.eq_refl).
+    unfold when_summ.
+    destruct ([forall x : seq_sub (projT1 truesumm), (val x \in projT1 oldsumm) || (val x \notin projT1 falsesumm)]) ; last by discriminate.
+    intro Hss ; inversion Hss as [Hosns] ; clear Hss newsumm Hosns.
+    simpl.
+    by apply (is_subset_trans StmtSumm_only_extends (is_subset_cat _ _)).
+Qed.
+
+*)
+
+Admitted.
 
 (**************************************)
 (*       Evaluating expressions       *)
@@ -2206,7 +3835,7 @@ Fixpoint iterate (inputs : evalType) (summ : summaryType) (n : nat) : evalType :
      (Register values are needed because reading from a register produces its "old" value.) *)
    match n with
    | 0 => inputs
-   | n'.+1 => iterate (fun v : var => match summ v with
+   | n'.+1 => iterate (fun v : var => match app_summ summ v with
                                       | Some (Inport, ft, _, ew) => match inputs v, eval_expr inputs ew with
                                                                     | Some in', Some ew' => combine_flip_evaluations ft in' ew'
                                                                     | _, _ => None
@@ -2249,7 +3878,7 @@ intros [p2 n2].
 apply Acc_intro.
 intros [p1 n1] H.
 contradict H.
-unfold depends_on ; simpl ; done.
+rewrite /depends_on /app_summ insubF //.
 Qed.
 
 Lemma PortSumm_is_tobedefined :
@@ -2257,7 +3886,7 @@ forall (pp : seq hfport) (summ : summaryType),
       PortSumm pp = Some summ
    ->
       forall (c : var) (k : kind) (t : ftype) (e1 e2 : hfexpr),
-            summ c = Some (k, t, e1, e2)
+            app_summ summ c = Some (k, t, e1, e2)
          ->
             (k = Inport \/ k = Outport) /\ e1 = Etobedefined t /\ e2 = Etobedefined t.
 Proof.
@@ -2265,13 +3894,18 @@ induction pp.
 * intros summ Hp c k t e1 e2 Hsumm.
   simpl PortSumm in Hp.
   inversion Hp.
-  by rewrite -H0 // in Hsumm.
+  by rewrite -H0 /app_summ insubF // in Hsumm.
 * intros summ Hp c k t e1 e2 Hsumm.
   simpl PortSumm in Hp.
   destruct a as [v' t'|v' t'].
-  1,2: destruct (PortSumm pp) as [summ'|] ; last by discriminate.
-  1,2: specialize (IHpp summ' Logic.eq_refl c k t e1 e2).
-  1,2: inversion Hp ; rewrite -H0 // in Hsumm ; clear Hp H0 summ.
+  1,2: destruct (PortSumm pp) as [intsumm|] ; last by discriminate.
+  1,2: specialize (IHpp intsumm Logic.eq_refl c k t e1 e2).
+  destruct (ext_summ intsumm v' (Inport, t', Etobedefined t', Etobedefined t')) as [[newsumm pin]|] eqn: Hext ; last by discriminate.
+  2: destruct (ext_summ intsumm v' (Outport, t', Etobedefined t', Etobedefined t')) as [[newsumm pin]|] eqn: Hext ; last by discriminate.
+  1,2: inversion Hp ; rewrite -H0 in Hsumm ; clear Hp H0 summ.
+  1,2: unfold ext_summ in Hext.
+(* We have to prove that ext_summ does not change existing values.
+   Probably we will also have to prove that chg_summ does not change the domain of the summary. *)
   1,2: destruct (c == v') ; last by apply IHpp, Hsumm.
   1,2: inversion Hsumm ; split ; last by split ; reflexivity.
   + by left ; reflexivity.
@@ -2362,6 +3996,30 @@ destruct Htbd as [[Hk|Hk] [He1 He2]] ; rewrite He1 He2 Hk // ; clear He1 He2 Hk 
 1,2: generalize (Etbd_part_is_Etbd t (snd p1)) ; intro Heie.
 1,2: destruct (select_part t (Etobedefined t) (snd p1)) as [[[] []]|]; by done.
 Qed.
+
+(* We'd need something like "the relation is acyclic". 
+The definition is perhaps first in Prop, then we can show that with finiteness of domain, it is in bool? 
+
+Would it be easier to define a graph of all defined points,
+the edge relation on it, and reject it if it contains a cycle? 
+
+When there is a connect statement Sfcnct r e,
+we should have that there is no connection from (any part of) e to r.
+As long as this holds, the connect statement should be allowed.
+
+The code then becomes something like:
+if connect (depends_on oldsumm) e r then None else ...
+
+Because connect requires a fingraph, we must have that depends_on is defined on a finType.
+So oldsum is a finfun.
+
+*)
+
+Definition acyclic {S : Type} (R : rel S) : Prop :=
+    forall (x : S) (p : seq S), ~~cycle R (x :: p).
+
+
+
 
 (* This lemma cannot be proved.
 Lemma StmtSumm_is_well_founded :
