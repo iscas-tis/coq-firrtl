@@ -1023,6 +1023,115 @@ with type_of_href (r : href) (dict : summaryType) : option (forient * ftype) :=
                        end
   end.
 
+Lemma orientation_cannot_change_type_of_hfexpr (o1 o2 : forient) (e : hfexpr) (summ : summaryType) :
+    match type_of_hfexpr o1 e summ, type_of_hfexpr o2 e summ with
+    | Some t1, Some t2 => t1 == t2
+    | _, _ => true
+    end
+with orientation_cannot_change_type_of_array_expr (o1 o2 : forient) (ar : array_expr) (summ : summaryType) :
+    match type_of_array_expr o1 ar summ, type_of_array_expr o2 ar summ with
+    | Some t1, Some t2 => t1 == t2
+    | _, _ => true
+    end
+with orientation_cannot_change_type_of_bundle_expr (o1 o2 : forient) (bu : bundle_expr) (summ : summaryType) :
+    match type_of_bundle_expr o1 bu summ, type_of_bundle_expr o2 bu summ with
+    | Some t1, Some t2 => t1 == t2
+    | _, _ => true
+    end.
+Proof.
+* clear orientation_cannot_change_type_of_hfexpr.
+  induction e ; simpl.
+  + (* Econst *)
+    by destruct (readable_orient o1), (readable_orient o2) ; done.
+  + (* Ecast *)
+    by destruct (readable_orient o1), (readable_orient o2) ;
+       try done ;
+       destruct u, (type_of_hfexpr Passive e summ) as [[[| | | |]| |]|] ;
+       done.
+  + (* Eunop *)
+    by destruct (readable_orient o1), (readable_orient o2) ;
+       try done ;
+       destruct e, (type_of_hfexpr Passive e0 summ) as [[[| | | |]| |]|] ;
+       try done ;
+       try (by destruct (n0 <= n < n1) ; done) ;
+       destruct (n <= n0) ; done.
+  + (* Ebinop *)
+    by destruct (readable_orient o1), (readable_orient o2) ;
+       try done ;
+       destruct e1, (type_of_hfexpr Passive e2 summ) as [[[| | | |]| |]|],
+                    (type_of_hfexpr Passive e3 summ) as [[[| | | |]| |]|] ;
+       done.
+  + (* Emux *)
+    clear IHe1.
+    destruct (readable_orient o1), (readable_orient o2) ;
+    try done ;
+    destruct (type_of_hfexpr Passive e1 summ) as [[[[|[|]]| | | |]| |]|] ;
+    try done.
+    1-2: destruct (type_of_hfexpr o1 e2 summ) as [|] ; last by done.
+    1-2: destruct (type_of_hfexpr o1 e3 summ) as [|] ; last by done.
+    1-2: destruct (type_of_hfexpr o2 e2 summ) as [|] ; last (by destruct (unified_type f f0) ; done).
+    1-2: destruct (type_of_hfexpr o2 e3 summ) as [|] ; last (by destruct (unified_type f f0) ; done).
+    1-2: move /eqP : IHe2 => IHe2 ; subst f1 ;
+         move /eqP : IHe3 => IHe3 ; subst f2 ;
+         destruct (unified_type f f0) ; done.
+  + (* Eref *)
+    destruct (type_of_href h summ) as [[[| | | |] t]|] ;
+    try done ;
+    destruct o1 ; try done ;
+    destruct o2 ; done.
+  + (* Earray *)
+    by apply orientation_cannot_change_type_of_array_expr.
+  + (* Ebundle *)
+    by apply orientation_cannot_change_type_of_bundle_expr.
+  + (* Etobedefined, Eundefinedonpurpose *)
+    1-2: destruct o1 ; try done ;
+         destruct o2 ; try done ;
+         destruct (is_passive f) ; done.
+* clear orientation_cannot_change_type_of_array_expr.
+  induction ar ; simpl.
+  + (* Aone *)
+    specialize (orientation_cannot_change_type_of_hfexpr o1 o2 h summ).
+    destruct (type_of_hfexpr o1 h summ), (type_of_hfexpr o2 h summ) ; try done.
+    move /eqP : orientation_cannot_change_type_of_hfexpr => orientation_cannot_change_type_of_hfexpr ;
+    subst f0 ; done.
+  + (* Acons *)
+    specialize (orientation_cannot_change_type_of_hfexpr o1 o2 h summ).
+    destruct (type_of_hfexpr o1 h summ), (type_of_hfexpr o2 h summ) ;
+          try done ;
+          last by destruct (type_of_array_expr o1 ar summ) as [[| |]|] ;
+               try done ;
+               destruct (unified_type f f0) ; done.
+    move /eqP : orientation_cannot_change_type_of_hfexpr => orientation_cannot_change_type_of_hfexpr ;
+    subst f0.
+    destruct (type_of_array_expr o1 ar summ) as [[|ta1 n1|]|] ; try done.
+    destruct (type_of_array_expr o2 ar summ) as [[|ta2 n2|]|] ; try by (destruct (unified_type f ta1) ; done).
+    move /eqP : IHar => IHar ; inversion IHar ; subst ta2 n2.
+    destruct (unified_type f ta1) ; done.
+* (* orientation_cannot_change_type_of_bundle_expr *)
+  clear orientation_cannot_change_type_of_bundle_expr.
+  induction bu ; simpl ; first by done.
+  destruct (type_of_bundle_expr o1 bu summ) as [[| |ff1]|], (type_of_bundle_expr o2 bu summ) as [[| |ff2]|] ;
+        try done ;
+        (destruct f ;
+         first try (by destruct (type_of_hfexpr (flip_orient o1) h summ) ; try done ;
+                       destruct (type_of_hfexpr (flip_orient o2) h summ) ; done) ;
+         last  try (by destruct (type_of_hfexpr o1 h summ) ; try done ;
+                       destruct (type_of_hfexpr o2 h summ) ; done)).
+  1-2: move /eqP : IHbu => IHbu ; inversion IHbu ; subst ff2.
+  + (* Flipped *)
+    specialize (orientation_cannot_change_type_of_hfexpr (flip_orient o1) (flip_orient o2) h summ).
+    destruct (type_of_hfexpr (flip_orient o1) h summ) ; last by done.
+    destruct (type_of_hfexpr (flip_orient o2) h summ) ; last by done.
+    move /eqP : orientation_cannot_change_type_of_hfexpr => orientation_cannot_change_type_of_hfexpr ;
+    subst f0 ; done.
+  + (* Nflip *)
+    specialize (orientation_cannot_change_type_of_hfexpr o1 o2 h summ).
+    destruct (type_of_hfexpr o1 h summ) ; last by done.
+    destruct (type_of_hfexpr o2 h summ) ; last by done.
+    move /eqP : orientation_cannot_change_type_of_hfexpr => orientation_cannot_change_type_of_hfexpr ;
+    subst f0 ; done.
+Qed.
+
 (* dependency relation -- to avoid creating cyclic dependencies.
    However, we cannot use "well_founded (depends_on summ)" just anywhere
    because this is in Prop and not in bool.  So, instead we will use
@@ -1102,6 +1211,8 @@ Definition parts_of (summ : summaryType) : seq (var * nat) :=
     [seq (val v, i) | v <- (enum [finType of seq_sub (projT1 summ)]), 
                       i <- iota 0 (number_of_parts (snd (fst (fst (projT2 summ v)))))].
 
+(* type of all ground-type parts of components.
+   The graph of dependencies uses this as its vertex set. *)
 Definition component_part (summ : summaryType) : Type := [finType of seq_sub (parts_of summ)].
 
 Definition is_defined_part (summ : summaryType) (p : var * nat) : bool :=
@@ -1960,6 +2071,8 @@ Definition depends_on {summ : summaryType} (p1 p2 : component_part summ) : bool 
                                                   end
   | Some _, None
   | None, _ => true (* error --- should not happen, so we return the "bad" value *)
+                    (* another possibility would have been to write a False_rec expression,
+                       i.e. a proof that this case does not occur. *)
   end.
 
 (* So we now can define the finite graph,
@@ -1973,7 +2086,7 @@ Fixpoint href_is_not_cyclic {summ : summaryType} (r : href) (fl : fflip) (t : ft
     match t with
     | Gtyp _ => if fl == Nflip
                 then [forall p1 : component_part summ, match href_depends_on r p1 (Some (Btyp Fnil, 0)) with
-                                                       | Some (Gtyp _, 1) => ~~connect (grel (dep_graph summ)) p1 p2
+                                                       | Some (Gtyp _, n1) => (n1 == snd (val p1)) && ~~connect (grel (dep_graph summ)) p1 p2
                                                        | Some _ => (* error, so we return the "bad" value *) false
                                                        | None => ~~(subaccess_index_in_expr_depends_on r p1 &&
                                                                     connect (grel (dep_graph summ)) p1 p2)
@@ -2029,6 +2142,12 @@ Fixpoint expr_is_not_cyclic {summ : summaryType} (e : hfexpr) (fl : fflip) (p2 :
                                     then Some 1
                                     else None
    | Emux c e1 e2 => match expr_is_not_cyclic e1 fl p2 with
+                     (* also needs to take into account that c might depend on p2. But c is a ground-type expression,
+                        while e1/e2 may be aggregate types.
+                        Example : a <= Emux (Eprim_binop (Bcmp Beq) (Esubindex a 2) 0) b c, 
+                                  where a b c are arrays of integers. Then the condition depends on a[2],
+                                  so there is a cyclic dependency for the element a[2] (not for the other elements).
+                                  a[0] <= Emux (...a[2]...) b[0] c[0] would be ok. *)
                       | Some siz => if [forall (p2' : component_part summ | (fst (val p2) == fst (val p2')) && 
                                                               (snd (val p2) <= snd (val p2') < snd (val p2) + siz)), 
                                                               expr_is_not_cyclic c fl p2'] &&
@@ -2276,76 +2395,217 @@ induction e as [ft n|u e|op e|op e1 IHe1 e2 IHe2|c IHc e1 IHe1 e2 IHe2|r| | | |]
       1-5: by rewrite (negbTE Hforallc') (negbTE Hforall1) (negbTE Hforall2) //.
 * (* Eref *)
   intro o.
+  generalize (@type_of_href_no_error summ) ; intro Hne ; specialize Hne with (r := r).
   destruct (type_of_href r summ) as [[[| | | |] [| |]]|] eqn: Ht, o ; try by done.
   1-8: intros fl p ; simpl.
   1-8: destruct fl ; first (by reflexivity) ; rewrite eq_refl orFb //.
   1-8: destruct ([forall p1, match href_depends_on r p1 (Some (Btyp Fnil, 0)) with
-                             | Some (Gtyp _, 1) => ~~connect (grel (dep_graph summ)) p1 p
+                             | Some (Gtyp _, n1) => (n1 == snd (ssval p1)) && ~~connect (grel (dep_graph summ)) p1 p
                              | None => ~~(subaccess_index_in_expr_depends_on r p1 &&
                                           connect (grel (dep_graph summ)) p1 p)
                              | _ => false
                              end]) eqn: Hl,
                 ([forall p1, ~~((subaccess_index_in_expr_depends_on r p1 || 
                                  href_depends_on r p1 (Some (Gtyp (Fuint 0), 0))) &&
-                                connect (grel (dep_graph summ)) p1 p)]) eqn: Hr ; rewrite Hl Hr //.
+                                connect (grel (dep_graph summ)) p1 p)]) eqn: Hr ;
+       rewrite Hl Hr //.
   1-16: move /forallP : Hl => Hl ; move /forallP : Hr => Hr.
   + 1,3,5,7,9,11,13,15: contradict Hr.
-    1-8: intro p1 ; specialize (Hl p1).
+    1-8: intro p1 ; specialize (Hl p1) ; specialize (Hne p1 (Some (Btyp Fnil, 0)) (Some (Gtyp (Fuint 0), 0))).
+    1-8: destruct (href_depends_on r p1 (Some (Btyp Fnil, 0))) as [[[| |] n1]|],
+                  (href_depends_on r p1 (Some (Gtyp (Fuint 0), 0))) as [[t2 n2]|] ;
+         try rewrite orbF ;
+         try done.
+    1-8: by move /andP : Hl => [_ Hl] ; rewrite (negbTE Hl) andbF //.
+  + 1-8: contradict Hl ; intro p1 ; specialize (Hr p1) ; specialize (Hne p1 (Some (Btyp Fnil, 0)) (Some (Gtyp (Fuint 0), 0))).
+    1-8: destruct (href_depends_on r p1 (Some (Btyp Fnil, 0))) as [[[| |] n1]|] eqn: Hdo1,
+                  (href_depends_on r p1 (Some (Gtyp (Fuint 0), 0))) as [[t2 n2]|] eqn: Hdo2 ;
+         try rewrite orbF in Hr ;
+         try done ;
+         try (by move /andP : Hne => [/andP [/andP [_ /eqP Hne4] _] _] ;
+                 discriminate Hne4).
+    1-8: by rewrite negb_and in Hr ; move /orP : Hr => [Hr|Hr] ;
+                first (by rewrite orbT // in Hr) ;
+            move /andP : Hne => [/andP [/andP [/and3P [_ Hne2 Hne3] _] _] _] ;
+            simpl in Hne3 ;
+            rewrite Hr andbT eqn_leq Hne2 andTb -ltnS -(addn1 n1) //.
+* (* Earray *)
+  intro o.
+  destruct (type_of_array_expr o a summ) as [[| |]|] eqn: Harray ; try done.
+  contradict Harray.
+  destruct a ; simpl ; destruct (type_of_hfexpr o h summ) ; try by discriminate.
+  destruct (type_of_array_expr o a summ) as [[| |]|] ; try by discriminate.
+  destruct (unified_type f0 f1) ; by discriminate.
+* (* Ebundle *)
+  intro o.
+  destruct (type_of_bundle_expr o b summ) as [[| |]|] eqn: Hbundle ; try by done.
+  contradict Hbundle.
+  destruct b ; simpl ; try by discriminate.
+  destruct f0, type_of_hfexpr ; try by discriminate.
+  1,2: destruct (type_of_bundle_expr o b summ) as [[| |]|] ; by discriminate.
+* (* Etobedefined and Eundefinedonpurpose *)
+  1,2: destruct o ; try done.
+  4,8: destruct (is_passive f) ; last by done.
+  1-8: destruct f ; try done.
+  1-8: intros fl _ ; simpl number_of_parts.
+  1-8: destruct ((fl == Flipped) || [forall p1 : component_part summ, true]) eqn: Hc ;
+       rewrite Hc //.
+  1-8: apply negbT in Hc ; rewrite negb_or in Hc ; move /andP : Hc => [_ /forallP Hc].
+  1-8: contradict Hc ; intros _ ; done.
+Qed.
 
-
-
-(*
-
-
-Problem: it seems that the two definitions are not exactly the same.
-The right-hand side includes subaccess_index_in_expr, the left-hand side doesn't.
-(Both should include it.)
-
-I am in the course of correcting this.
-
-
-*)
-
-Admitted.
-
-
+(* "Subexpressions of non-cyclic expressions are also non-cyclic."
+   The problem with the following lemma is that for references,
+   (Eid v) may indicate a larger reference than Esubfield (Eid v) ...
+   So this kind of lemma does not work for references.
+   To solve this problem, I restricted the lemma to ground-type component parts. *)
 Lemma acyclic_subexpressions {summ : summaryType} (fl : fflip) (p : component_part summ) :
     forall (e2 e1 : hfexpr) (o : forient),
-        type_of_hfexpr o e2 summ <> None ->
-        subexpr e1 e2 -> expr_is_not_cyclic e2 fl p -> expr_is_not_cyclic e1 fl p
-with acyclic_sub_array_expression {summ: summaryType} (fl : fflip) (p : component_part summ) :
-    forall (ar : array_expr) (e1 : hfexpr) (o : forient),
-        type_of_array_expr o ar summ <> None ->
-        subexpr_array e1 ar -> array_expr_is_not_cyclic ar fl p -> expr_is_not_cyclic e1 fl p
-with acyclic_sub_bundle_expression {summ : summaryType} (fl : fflip) (p : component_part summ) :
-    forall (bu : bundle_expr) (e1 : hfexpr) (o : forient),
-        type_of_bundle_expr o bu summ <> None ->
-        subexpr_bundle e1 bu -> bundle_expr_is_not_cyclic bu fl p -> expr_is_not_cyclic e1 fl p.
+        match type_of_hfexpr o e2 summ with
+        | Some (Gtyp _) => subexpr e1 e2 -> expr_is_not_cyclic e2 fl p -> expr_is_not_cyclic e1 fl p
+        | _ => True
+        end.
 Proof.
-* (* proof of acyclic_subexpressions *)
-  clear acyclic_subexpressions.
-  induction e2 ; simpl ; intros e1 o Hte1 Hse He1nc.
-  + (* Econst *)
-    simpl ; simpl in Hse.
-    destruct (e1 == Econst f i) eqn: He1 ; last by done.
-    by rewrite (elimT eqP He1) //.
-  + (* Ecast *)
-    simpl ; simpl in Hte1.
-    destruct (e1 == Ecast u e2) eqn: He1 ; first by rewrite (elimT eqP He1) //.
-    apply (IHe2 e1 Passive).
-    - (* type_of_hfexpr ... e2 ... <> None *)
-      destruct (readable_orient o) ; last by done.
-      by destruct u, (type_of_hfexpr Passive e2 summ) as [[[w|w| | |]| |]|] ; done.
-    - by exact Hse. (* simpl in Hse ; by rewrite He1 // in Hse. *)
-    - (* Now we should use that according to Hte1, the type of e2 is a ground type.
-         Then He1nc is sufficient to determine that e2 is not cyclic. 
-         What kind of lemma could help us with this? *)
+intros ; destruct (type_of_hfexpr o e2 summ) as [[gt2| |]|] eqn: Hte2 ; try by done.
+revert e1 o gt2 Hte2 ; induction e2 ; simpl ; intros e1 o gt2 Hte2 Hsub Hnce2.
++ (* Econst *)
+  destruct (e1 == Econst f i) eqn: He1 ; last by done.
+  by rewrite (elimT eqP He1) //.
++ (* Ecast *)
+  destruct (e1 == Ecast u e2) eqn: He1 ; first by rewrite (elimT eqP He1) //.
+  destruct (readable_orient o) ; last by discriminate Hte2.
+  specialize (IHe2 e1 Passive).
+  generalize (@acyclic_Gtyp summ e2 Passive) ; intro Hgt.
+  destruct u, (type_of_hfexpr Passive e2 summ) as [[gt2'| |]|] ;
+        try by discriminate Hte2.
+  1-4: apply (IHe2 gt2' Logic.eq_refl Hsub) ;
+       by rewrite Hgt //.
++ (* Eunop *)
+  destruct (e1 == Eprim_unop e e2) eqn: He1 ; first by rewrite (elimT eqP He1) //.
+  destruct (readable_orient o) ; last by discriminate Hte2.
+  specialize (IHe2 e1 Passive).
+  generalize (@acyclic_Gtyp summ e2 Passive) ; intro Hgt.
+  destruct e, (type_of_hfexpr Passive e2 summ) as [[gt2'| |]|] ;
+        try by discriminate Hte2.
+  1-12: apply (IHe2 gt2' Logic.eq_refl Hsub) ;
+        by rewrite Hgt //.
++ (* Ebinop *)
+  destruct (e1 == Eprim_binop e e2_1 e2_2) eqn: He1 ; first by rewrite (elimT eqP He1) //.
+  destruct (readable_orient o) ; last by discriminate Hte2.
+  specialize (IHe2_1 e1 Passive) ; specialize (IHe2_2 e1 Passive).
+  generalize (@acyclic_Gtyp summ e2_1 Passive) ; intro Hgt_1.
+  generalize (@acyclic_Gtyp summ e2_2 Passive) ; intro Hgt_2.
+  destruct e, (type_of_hfexpr Passive e2_1 summ) as [[gt2_1| |]|] eqn: Hte2_1 ;
+        try by discriminate Hte2.
+  1-12: destruct (type_of_hfexpr Passive e2_2 summ) as [[gt2_2| |]|] eqn: Hte2_2 ;
+        try by (destruct gt2_1 ; discriminate Hte2).
+  1-12: move /orP : Hsub => [Hsub|Hsub].
+  - (* subexpr e1 e2_1 *)
+    1,3,5,7,9,11,13,15,17,19,21,23:
+          apply (IHe2_1 gt2_1 Logic.eq_refl Hsub) ;
+          rewrite Hgt_1 // ; clear IHe2_1 IHe2_2 Hgt_1 Hgt_2.
+    1-12: destruct (fl == Flipped) ;
+          first (by rewrite orTb in Hnce2 ; rewrite orTb //) ;
+          last  (rewrite orFb in Hnce2 ; rewrite orFb).
+    1-12: destruct [forall p1, ~~((expr_depends_on e2_1 p1 || expr_depends_on e2_2 p1) &&
+                                  connect (grel (dep_graph summ)) p1 p)] eqn: Hf1,
+                   [forall p1, ~~(expr_depends_on e2_1 p1 &&
+                                  connect (grel (dep_graph summ)) p1 p)] eqn: Hf2 ;
+          rewrite Hf1 // in Hnce2.
+    1-12: move /forallP : Hf1 => Hf1 ; move /forallP : Hf2 => Hf2 ;
+          contradict Hf2 ;
+          intro p1 ; specialize (Hf1 p1).
+    1-12: rewrite negb_and in Hf1 ; move /orP : Hf1 => [Hf1|Hf1] ;
+          last by rewrite (negbTE Hf1) andbF //.
+    1-12: rewrite negb_or in Hf1 ; move /andP : Hf1 => [Hf1 _] ;
+          by rewrite (negbTE Hf1) andFb //.
+  - (* subexpr e1 e2_2 *)
+    1-12: apply (IHe2_2 gt2_2 Logic.eq_refl Hsub) ;
+          rewrite Hgt_2 // ; clear IHe2_1 IHe2_2 Hgt_1 Hgt_2.
+    1-12: destruct (fl == Flipped) ;
+          first (by rewrite orTb in Hnce2 ; rewrite orTb //) ;
+          last  (rewrite orFb in Hnce2 ; rewrite orFb).
+    1-12: destruct [forall p1, ~~((expr_depends_on e2_1 p1 || expr_depends_on e2_2 p1) &&
+                                  connect (grel (dep_graph summ)) p1 p)] eqn: Hf1,
+                   [forall p1, ~~(expr_depends_on e2_2 p1 &&
+                                  connect (grel (dep_graph summ)) p1 p)] eqn: Hf2 ;
+          rewrite Hf1 // in Hnce2.
+    1-12: move /forallP : Hf1 => Hf1 ; move /forallP : Hf2 => Hf2 ;
+          contradict Hf2 ;
+          intro p1 ; specialize (Hf1 p1).
+    1-12: rewrite negb_and in Hf1 ; move /orP : Hf1 => [Hf1|Hf1] ;
+          last by rewrite (negbTE Hf1) andbF //.
+    1-12: rewrite negb_or in Hf1 ; move /andP : Hf1 => [_ Hf1] ;
+          by rewrite (negbTE Hf1) andFb //.
++ (* Emux e2_1 e2_2 e2_3 *)
+  destruct (e1 == Emux e2_1 e2_2 e2_3) eqn: He1 ; first by rewrite (elimT eqP He1) //.
+  destruct (readable_orient o) ; last by discriminate Hte2.
+  specialize (IHe2_1 e1 Passive) ; specialize (IHe2_2 e1 o) ; specialize (IHe2_3 e1 o).
+  generalize (@acyclic_Gtyp summ e2_1 Passive) ; intro Hgt_1.
+  generalize (@acyclic_Gtyp summ e2_2 o) ; intro Hgt_2.
+  generalize (@acyclic_Gtyp summ e2_3 o) ; intro Hgt_3.
+  destruct (type_of_hfexpr Passive e2_1 summ) as [[[[|[|]]| | | |]| |]|] ;
+        try by discriminate Hte2.
+  destruct (type_of_hfexpr o e2_2 summ) as [[gt2_2| |]|],
+           (type_of_hfexpr o e2_3 summ) as [[gt2_3| |]|] ;
+  simpl in Hte2 ; try (by discriminate Hte2) ;
+        last (by destruct (unified_ffield f f0) ; discriminate Hte2) ;
+        last (by destruct (n == n0), (unified_type f f0) ; discriminate Hte2).
+  specialize (Hgt_2 fl p) ; destruct (expr_is_not_cyclic e2_2 fl p) as [siz|] ;
+        last by discriminate Hnce2.
+  destruct siz as [|[|]], ((fl == Flipped) ||
+                           [forall p1, ~~(expr_depends_on e2_2 p1 &&
+                                          connect (grel (dep_graph summ)) p1 p)]) eqn: Hf1 ;
+        try by discriminate Hgt_2.
+  destruct ([forall (p2'
+           | [&& fst (ssval p) == fst (ssval p2'),
+                 snd (ssval p) <= snd (ssval p2')
+               & snd (ssval p2') <
+                 snd (ssval p) + 1]),
+          expr_is_not_cyclic (summ := summ) e2_1 fl p2'] &&
+       expr_is_not_cyclic e2_3 fl p) eqn: Hf2 ; rewrite Hf2 // in Hnce2.
+  move /orP : Hsub => [/orP [Hsub|Hsub]|Hsub].
+  - (* subexpr e1 e2_1 *)
+    apply (IHe2_1 (Fuint 1) Logic.eq_refl Hsub) ; clear IHe2_1 IHe2_2 IHe2_3.
+    move /andP : Hf2 => [/forallP Hf2 _].
+    specialize (Hf2 p) ; move /implyP : Hf2 => Hf2 ; apply Hf2.
+    by rewrite eq_refl andTb addn1 ltnS -eqn_leq eq_refl //.
+  - (* subexpr e1 e2_2 *)
+    by apply (IHe2_2 gt2_2 Logic.eq_refl Hsub Logic.eq_refl).
+  - (* subexpr e1 e2_3 *)
+    apply (IHe2_3 gt2_3 Logic.eq_refl Hsub).
+    move /andP : Hf2 => [_ Hf2].
+    by exact Hf2.
+* (* Eref *)
+  (* perhaps need a separate lemma with a different induction
+     (on type_of_href?) to prove this part. 
+     Or need a more strict condition?
 
-
+     Here I could use some help. But let's first see whether this lemma is actually needed. *)
+  admit.
+* (* Earray *)
+  clear -Hte2.
+  destruct a ; simpl in Hte2.
+  + destruct (type_of_hfexpr o h summ) ; by discriminate Hte2.
+  + destruct (type_of_hfexpr o h summ) ; last by discriminate Hte2.
+    destruct (type_of_array_expr o a summ) as [[| |]|] ; try by discriminate Hte2.
+    destruct (unified_type f f0) ; by discriminate Hte2.
+* (* Ebundle *)
+  clear -Hte2.
+  destruct b ; simpl in Hte2.
+  + by discriminate Hte2.
+    destruct f ;
+        first (destruct (type_of_hfexpr (flip_orient o) h summ)) ;
+        last  (destruct (type_of_hfexpr o h summ)) ;
+        try by discriminate Hte2.
+    1,2: destruct (type_of_bundle_expr o b summ) as [[| |]|] ; by discriminate Hte2.
+* (* Etobedefined *)
+  destruct (e1 == Etobedefined f) eqn: He1 ; last by discriminate Hsub.
+  by rewrite (elimT eqP He1) //.
+* (* Eundefinedonpurpose *)
+  destruct (e1 == Eundefinedonpurpose f) eqn: He1 ; last by discriminate Hsub.
+  by rewrite (elimT eqP He1) //.
 Admitted.
-
-
-
 
 (**********************************)
 (* modifying connection summaries *)
@@ -2430,36 +2690,40 @@ Lemma chg_ext_summ_fails_correctly (oldsumm : summaryType) (v : var) (new_value 
         let t := snd (fst (fst new_value)) in let enf := snd (fst new_value) in let efl := snd new_value
         in     number_of_parts t = 0
            \/
-               exists i : nat,
-                   (* there is a cycle from the ith component of new_value to (v, i) *)
-                   let newsumm := chg_ext_summ_nocheck oldsumm v new_value
-                   in match insub (sT := component_part newsumm) (v, i) with
-                      | Some vi => match select_part t enf i, select_part t efl i with
-                                   | Some (Nflip, e'), Some (Nflip, _)
-                                   | Some (Flipped, _), Some (Flipped, e') => exists p1 : component_part newsumm,
-                                                                                      expr_depends_on e' p1
-                                                                                  /\
-                                                                                      connect (grel (dep_graph newsumm)) p1 vi
-                                   | _, _ => False
-                                   end
-                      | None => False
-                      end.
+               let newsumm := chg_ext_summ_nocheck oldsumm v new_value
+               in     type_of_hfexpr Source enf newsumm <> Some t
+                  \/
+                      type_of_hfexpr Sink efl newsumm <> Some t
+                  \/
+                      exists i : nat,
+                          (* there is a cycle from the ith component of new_value to (v, i) *)
+                          match insub (sT := component_part newsumm) (v, i) with
+                          | Some vi => match select_part t enf i, select_part t efl i with
+                                       | Some (Nflip, e'), Some (Nflip, _)
+                                       | Some (Flipped, _), Some (Flipped, e') => exists p1 : component_part newsumm,
+                                                                                          expr_depends_on e' p1
+                                                                                      /\
+                                                                                          connect (grel (dep_graph newsumm)) p1 vi
+                                       | _, _ => False
+                                       end
+                          | None => False
+                          end.
 Proof.
 intro Holdsumm_acyclic.
-specialize (chg_ext_summ_nocheck_is_correct oldsumm v new_value) ; intros [Hchg_ext_summ_nocheck_v Hchg_ext_summ_nocheck_other].
+specialize (chg_ext_summ_nocheck_is_correct oldsumm v new_value) ; intros [Hchg_ext_summ_nocheck_v _].
 destruct new_value as [[[k t] enf] efl] ; simpl fst ; simpl snd.
 split.
 * (* implication -> *)
   intro Hchg_ext_summ.
-  destruct chg_ext_summ as [ces|] eqn: Hchg_ext_summ' in Hchg_ext_summ ;
+  (*destruct chg_ext_summ as [ces|] eqn: Hchg_ext_summ' in Hchg_ext_summ ;
         first by discriminate.
-  clear Hchg_ext_summ.
-  rewrite /chg_ext_summ /fst /snd in Hchg_ext_summ'.
+  clear Hchg_ext_summ.*)
+  rewrite /chg_ext_summ /fst /snd in Hchg_ext_summ.
   destruct (number_of_parts t == 0) eqn: Hnp0 ;
         first by left ; exact (elimT eqP Hnp0).
   apply negbT in Hnp0.
   right.
-  destruct insub as [v0|] eqn: Hi_v0 in Hchg_ext_summ' ;
+  destruct insub as [v0|] eqn: Hi_v0 in Hchg_ext_summ ;
   unfold insub in Hi_v0 ;
   destruct idP in Hi_v0 ;
   try (by discriminate) ;
@@ -2468,71 +2732,136 @@ split.
                 rewrite /is_defined_part /fst /snd Hchg_ext_summ_nocheck_v lt0n in H ;
                 apply H, n in Hnp0.
   inversion Hi_v0 as [Hi_v0'].
-  replace v0 with (Sub (sT := seq_sub (parts_of (chg_ext_summ_nocheck oldsumm v (k, t, enf, efl)))) (v, 0) i) in Hchg_ext_summ'.
+  replace v0 with (Sub (sT := seq_sub (parts_of (chg_ext_summ_nocheck oldsumm v (k, t, enf, efl)))) (v, 0) i) in Hchg_ext_summ.
   clear v0 Hi_v0 Hi_v0'.
   destruct (expr_is_not_cyclic enf Nflip (Sub (v, 0) i) &&
             expr_is_not_cyclic efl Flipped (Sub (v, 0) i)) eqn: Hacyclic ;
-        rewrite Hacyclic in Hchg_ext_summ' ;
+        rewrite Hacyclic in Hchg_ext_summ ;
         first by discriminate.
-  clear Hchg_ext_summ'.
+  clear Hchg_ext_summ.
   apply negbT in Hacyclic.
   rewrite negb_and in Hacyclic.
   move /orP : Hacyclic => [Hacyclic | Hacyclic].
   * (* enf becomes cyclic *)
-    induction enf ; try done.
-  - (* Ecast *)
-    specialize (IHenf (proj1 (chg_ext_summ_nocheck_is_correct oldsumm v (k, t, enf, efl)))
-                      (proj2 (chg_ext_summ_nocheck_is_correct oldsumm v (k, t, enf, efl)))).
-    assert (forall i : (v, 0) \in parts_of (chg_ext_summ_nocheck oldsumm v (k, t, enf, efl)),
-                ~~ expr_is_not_cyclic enf Nflip (Sub (v, 0) i)).
-          intros i'.
-          apply (introT negP).
-          apply (elimT negP) in Hacyclic.
-          contradict Hacyclic.
-          simpl.
+    clear Hchg_ext_summ_nocheck_v.
+    induction enf ; simpl ; simpl in Hacyclic.
+    - (* Econst *)
+      by discriminate Hacyclic.
+    - (* Ecast *)
+      destruct [forall p1, ~~(expr_depends_on enf p1 &&
+                              connect (grel (dep_graph (chg_ext_summ_nocheck oldsumm v (k, t, Ecast u enf, efl))))
+                                      p1
+                                      {| ssval := (v, 0); ssvalP := i |})] eqn: Hf ;
+            rewrite Hf // in Hacyclic.
+      rewrite -negb_exists in Hf ; move /existsP : Hf => [p1 /andP Hf].
+      destruct t as [gt| |] ; simpl ;
+            try (by left ;
+                    destruct u, (type_of_hfexpr Passive enf) as [[[| | | |]| |]|] ;
+                    done).
+      right ; right.
+      exists 0.
+      rewrite insubT.
+      exists p1.
+      by exact Hf.
+    - (* Eprim_unop *)
+      destruct [forall p1, ~~(expr_depends_on enf p1 &&
+                               connect (grel (dep_graph (chg_ext_summ_nocheck oldsumm v (k, t, Eprim_unop e enf, efl))))
+                                       p1
+                                       {| ssval := (v, 0); ssvalP := i |})] eqn: Hf ;
+            rewrite Hf // in Hacyclic.
+      rewrite -negb_exists in Hf ; move /existsP : Hf => [p1 /andP Hf].
+      destruct t as [[w|w| | |]|t0 m|] ; simpl ;
+            try (by left ;
+                    destruct (type_of_hfexpr Passive enf) as [[[| | | |]| |]|], e ;
+                    try (by done) ;
+                    try (by destruct (n1 <= n0 < n) ; done) ;
+                    destruct (n0 <= n) ; done).
+      1,2: right ; right.
+      1,2: exists 0.
+      1,2: rewrite insubT.
+      1,2: exists p1.
+      1,2: by exact Hf.
+    - (* Eprim_binop *)
+      destruct [forall p1, ~~((expr_depends_on enf1 p1 || expr_depends_on enf2 p1) &&
+                              connect (grel (dep_graph (chg_ext_summ_nocheck oldsumm v (k, t, Eprim_binop e enf1 enf2, efl))))
+                                      p1
+                                      {| ssval := (v, 0); ssvalP := i |})] eqn: Hf ;
+            rewrite Hf // in Hacyclic.
+      rewrite -negb_exists in Hf ; move /existsP : Hf => [p1 /andP Hf].
+      destruct t as [[w|w| | |]|t0 m|] ; simpl ;
+            try (by left ;
+                    destruct (type_of_hfexpr Passive enf1) as [[[| | | |]| |]|], e ;
+                    try (by done) ;
+                    destruct (type_of_hfexpr Passive enf2) as [[[| | | |]| |]|] ;
+                    done).
+      1,2: right ; right.
+      1,2: exists 0.
+      1,2: rewrite insubT.
+      1,2: exists p1.
+      1,2: exact Hf.
+    - (* Emux *)
+      destruct (expr_is_not_cyclic enf2 Nflip {| ssval := (v, 0); ssvalP := i |}) as [siz2|] eqn: He2c ;
+            rewrite He2c // in Hacyclic.
+      destruct ([forall (p2' | (v == fst (ssval p2')) && (snd (ssval p2') < 0 + siz2)),
+                             expr_is_not_cyclic (summ := chg_ext_summ_nocheck oldsumm v (k, t, Emux enf1 enf2 enf3, efl)) enf1 Nflip p2'] &&
+                expr_is_not_cyclic enf3 Nflip {| ssval := (v, 0); ssvalP := i |}) eqn: Henf13 ;
+            rewrite Henf13 // in Hacyclic.
+      apply negbT in Henf13 ; rewrite negb_and in Henf13 ;
+      move /orP : Henf13 => [He1c|He3c].
+      (* now we have three cases: He1c, He3c, and He2c *)
+      * (* enf1 is cyclic *)
+        move /forallPn : He1c => [p2 He1c].
+        rewrite negb_imply in He1c.
+        move /andP : He1c => [/andP [/eqP Hp21 Hp22] He1c].
+        destruct (type_of_hfexpr Passive enf1 (chg_ext_summ_nocheck oldsumm v (k, t, Emux enf1 enf2 enf3, efl))) as [[[[|[|]]| | | |]| |]|] eqn: Htypenf1 ;
+              try (by left ; done).
+        destruct (type_of_hfexpr Source enf2 (chg_ext_summ_nocheck oldsumm v (k, t, Emux enf1 enf2 enf3, efl))) as [t2|] eqn: Htypenf2 ;
+              last (by left ; done).
+        destruct (type_of_hfexpr Source enf3 (chg_ext_summ_nocheck oldsumm v (k, t, Emux enf1 enf2 enf3, efl))) as [t3|] eqn: Htypenf3 ;
+              last (by left ; done).
+        destruct (unified_type t2 t3 == Some t) eqn: Ht2t3 ;
+              last (by left ;
+                       destruct (unified_type t2 t3) ;
+                       first exact (elimF eqP Ht2t3) ; last done).
+        move /eqP : Ht2t3 => Ht2t3.
+        right.
+        destruct (type_of_hfexpr Sink efl (chg_ext_summ_nocheck oldsumm v (k, t, Emux enf1 enf2 enf3, efl)) == Some t) eqn: Htypefl ;
+              last (by left ;
+                       destruct (type_of_hfexpr Sink efl (chg_ext_summ_nocheck oldsumm v (k, t, Emux enf1 enf2 enf3, efl))) ;
+                       first exact (elimF eqP Htypefl) ; last done).
+        move /eqP : Htypefl => Htypefl.
+        right.
+        assert (Htypemux : type_of_hfexpr Source (Emux enf1 enf2 enf3) (chg_ext_summ_nocheck oldsumm v (k, t, Emux enf1 enf2 enf3, efl)) = Some t)
+              by (simpl ; rewrite Htypenf1 Htypenf2 Htypenf3 Ht2t3 //).
+        (*generalize (parts_of_is_defined (chg_ext_summ_nocheck oldsumm v (k, t, Emux enf1 enf2 enf3, efl)) (val p2) (valP p2)) ;
+        intro Hp2 ; simpl in Hp2.
+        unfold is_defined_part, app_summ in Hp2.
+        destruct (insub (sT := seq_sub (projT1 (chg_ext_summ_nocheck oldsumm v (k, t, Emux enf1 enf2 enf3, efl)))) (fst (ssval p2))) eqn: Hins2 ;
+              rewrite Hins2 // in Hp2.
+        rewrite -Hp21 in Hins2.*)
+        exists (snd (ssval p2)).
+        rewrite {3}Hp21 -surjective_pairing valK.
+        assert (forall (o1 o2 : forient) (e1 e2 : hfexpr) (summ : summaryType) (n : nat),
+                type_of_hfexpr o1 e1 summ = Some t ->
+                type_of_hfexpr o2 e2 summ = Some t ->
+                match select_part t e1 n, select_part t e2 n with
+                | Some (fl1, _), Some (fl2, _) => fl1 == fl2
+                | _, _ => true
+                end) by admit.
+        specialize (H Source Sink (Emux enf1 enf2 enf3) efl
+                      (chg_ext_summ_nocheck oldsumm v (k, t, Emux enf1 enf2 enf3, efl))
+                      (snd (ssval p2))
+                      Htypemux Htypefl).
+        (* This is not yet sufficient, as the assertion does not cover the case
+           that one (Emux ...) and efl allows to select a part while the other doesn't.
+           This should be guarded against?
+           Perhaps a lemma: all operations on summ preserve the type correctness? *)
 
-(*
+(* More generally, while the above lemma is nice to have,
+   let's first continue and see whether it is actually needed. 
 
-The following proof step worked in an earlier version of the theorem...
-
-          destruct [forall p1,
-    match
-      app_summ
-        (chg_ext_summ_nocheck oldsumm v
-           (k, t, Ecast u enf, efl)) (fst (ssval p1))
-    with
-    | Some (_, t0, _, _) =>
-        ~~
-        (expr_depends_on enf p1 &&
-         connect
-           (grel
-              (T:=[finType of seq_sub
-                                (T:=prod_eqType var
-                                      nat_eqType)
-                                (parts_of
-                                   (chg_ext_summ_nocheck
-                                      oldsumm v
-                                      (k, t, 
-                                       Ecast u enf, efl)))])
-              (dep_graph
-                 (chg_ext_summ_nocheck oldsumm v
-                    (k, t, Ecast u enf, efl)))) p1
-           {| ssval := (v, 0); ssvalP := i |})
-    | None => false
-    end] eqn: Hforall ; rewrite Hforall //.
-    apply negbT, (elimT negP) in Hforall.
-    contradict Hforall.
-    apply (introT forallP).
-    
-Check (elimT forallP).
-    exfalso.
-    move /forallP : Hforall.
-
-*)
-
+   I could use some help here, but again let's first see if such a lemma is actually needed. *)
 Admitted.
-
-
 
 (*********************************)
 (* statements and FIRRTL modules *)
@@ -3241,6 +3570,19 @@ induction s ; simpl.
     by exact (IHs Hst Htu).
 Qed.
 
+Lemma test (x : var) (s : seq var) : x \in x :: s.
+Proof.
+rewrite in_cons eq_refl orTb //.
+Qed.
+
+Print test.
+
+Check (fun (x : var) (s : seq var) =>
+(eq_ind_r is_true
+          (eq_ind_r (fun xisx => xisx || (x \in s))
+                    (eq_ind_r is_true is_true_true (orTb (x \in s)))
+                    (eq_refl x))
+          (in_cons x s x))).
 
 Lemma StmtSumm_only_extends (oldsumm : summaryType) (ss : hfstmt_seq) (newsumm : summaryType) :
     StmtSumm oldsumm ss = Some newsumm ->
@@ -3268,93 +3610,117 @@ Proof.
     intro Hss ; inversion Hss as [Hosns] ; clear Hss oldsumm Hosns.
     apply is_subset_refl.
   + (* Swire *)
-    destruct (vw \notin projT1 oldsumm) eqn: Hvw ; rewrite Hvw ; last by discriminate.
-
-(* This proof worked on an old version of StmtSumm ...
-
-
-    intro Hss ; inversion Hss as [Hosns] ; clear Hss newsumm Hosns.
-    simpl.
+    intro Hss.
+    destruct (vw \notin projT1 oldsumm) eqn: Hvw ; rewrite Hvw // in Hss.
+    unfold chg_ext_summ in Hss ; simpl in Hss.
+    destruct (number_of_parts t == 0) ; first by discriminate Hss.
+    destruct (insub (vw, 0)) ; last by discriminate Hss.
+    inversion Hss ; clear Hss H0 newsumm.
+    unfold chg_ext_summ_nocheck ; simpl.
     by apply is_subset_cons.
   + (* Sreg *)
-    destruct (vr \notin projT1 oldsumm) eqn: Hvr ; rewrite Hvr ; last by discriminate.
-    intro Hss ; inversion Hss as [Hosns] ; clear Hss newsumm Hosns.
-    simpl.
+    intro Hss.
+    destruct (vr \notin projT1 oldsumm) eqn: Hvr ; rewrite Hvr // in Hss.
+    unfold chg_ext_summ in Hss ; simpl in Hss.
+    destruct (number_of_parts t == 0) ; first by discriminate Hss.
+    destruct (insub (vr, 0)) as [s|] ; last by discriminate Hss.
+    rewrite (proj1 (chg_ext_summ_nocheck_is_correct oldsumm vr (Register, t, Eref (Eid vr), Eref (Eid vr)))) in Hss.
+    destruct (href_is_not_cyclic (Eid vr) Nflip t s) ; last by rewrite andFb // in Hss.
+    rewrite andTb in Hss.
+    destruct (href_is_not_cyclic (Eid vr) Flipped t s) ; last by discriminate Hss.
+    simpl in Hss ; inversion Hss ; clear Hss H0 newsumm s.
+    unfold chg_ext_summ_nocheck ; simpl.
     by apply is_subset_cons.
   + (* Snode *)
-    destruct (vn \notin projT1 oldsumm) eqn: Hvn ; rewrite Hvn ; last by discriminate.
-    destruct (type_of_hfexpr Passive e oldsumm) as [t|] ; last by discriminate.
-    intro Hss ; inversion Hss as [Hosns] ; clear Hss newsumm Hosns.
-    simpl.
+    intro Hss.
+    destruct (vn \notin projT1 oldsumm) eqn: Hvn ; rewrite Hvn // in Hss.
+    destruct (type_of_hfexpr Passive e oldsumm) as [t|] ; last by discriminate Hss.
+    unfold chg_ext_summ in Hss ; simpl in Hss.
+    destruct (number_of_parts t == 0) ; first by discriminate Hss.
+    destruct (insub (vn, 0)) as [s|] ; last by discriminate Hss.
+    rewrite andbT in Hss.
+    destruct (expr_is_not_cyclic e Nflip s) ; last by discriminate Hss.
+    simpl in Hss ; inversion Hss ; clear Hss H0 newsumm s n.
+    unfold chg_ext_summ_nocheck ; simpl.
     by apply is_subset_cons.
   + (* Sfcnct *)
-    destruct e as [t w|c e|op e|op e1 e2|c e1 e2|r2|ar|bu|t|t].
-    1-5,7-10: unfold unidirectional_connect.
-    1-9: destruct (base_ref r) as [br|] ; last by discriminate.
-    1-9: destruct (app_summ oldsumm br) as [[[[k t0] enf] efl]|] ; last by discriminate.
-    1-9: destruct (k == Node) ; first by discriminate.
-    1-9: destruct (type_of_href_base r t0) as [[fl _]|] ; last by discriminate.
-    1: destruct (if fl == Nflip then (replace_subexpr enf r t0 (Econst t w), Some efl)
-                                else (Some enf, replace_subexpr efl r t0 (Econst t w))) as [[o|] [o0|]] ; try by discriminate.
-    2: destruct (if fl == Nflip then (replace_subexpr enf r t0 (Ecast c e), Some efl)
-                                else (Some enf, replace_subexpr efl r t0 (Ecast c e))) as [[o|] [o0|]] ; try by discriminate.
-    3: destruct (if fl == Nflip then (replace_subexpr enf r t0 (Eprim_unop op e), Some efl)
-                                else (Some enf, replace_subexpr efl r t0 (Eprim_unop op e))) as [[o|] [o0|]] ; try by discriminate.
-    4: destruct (if fl == Nflip then (replace_subexpr enf r t0 (Eprim_binop op e1 e2), Some efl)
-                                else (Some enf, replace_subexpr efl r t0 (Eprim_binop op e1 e2))) as [[o|] [o0|]] ; try by discriminate.
-    5: destruct (if fl == Nflip then (replace_subexpr enf r t0 (Emux c e1 e2), Some efl)
-                                else (Some enf, replace_subexpr efl r t0 (Emux c e1 e2))) as [[o|] [o0|]] ; try by discriminate.
-    6: destruct (if fl == Nflip then (replace_subexpr enf r t0 (Earray ar), Some efl)
-                                else (Some enf, replace_subexpr efl r t0 (Earray ar))) as [[o|] [o0|]] ; try by discriminate.
-    7: destruct (if fl == Nflip then (replace_subexpr enf r t0 (Ebundle bu), Some efl)
-                                else (Some enf, replace_subexpr efl r t0 (Ebundle bu))) as [[o|] [o0|]] ; try by discriminate.
-    8: destruct (if fl == Nflip then (replace_subexpr enf r t0 (Etobedefined t), Some efl)
-                                else (Some enf, replace_subexpr efl r t0 (Etobedefined t))) as [[o|] [o0|]] ; try by discriminate.
-    9: destruct (if fl == Nflip then (replace_subexpr enf r t0 (Eundefinedonpurpose t), Some efl)
-                                else (Some enf, replace_subexpr efl r t0 (Eundefinedonpurpose t))) as [[o|] [o0|]] ; try by discriminate.
-    1-9: intro Hss ; inversion Hss as [Hosns] ; clear Hss newsumm Hosns.
-    1-9: simpl.
-    1-9: by apply is_subset_cons.
-    unfold bidirectional_connect.
-    destruct (base_ref r) as [br1|], (base_ref r2) as [br2|] ; try by discriminate.
-    destruct (app_summ oldsumm br1) as [[[[k1 t1] enf1] efl1]|], (app_summ oldsumm br2) as [[[[k2 t2] enf2] efl2]|] ; try by discriminate.
-    destruct ((k1 == Node) || (k2 == Node)) ; first by discriminate.
-    destruct (type_of_href_base r t2) as [[fl1 _]|], (type_of_href_base r2 t2) as [[fl2 _]|] ; try by discriminate.
-    destruct (if fl1 == Nflip then (replace_subexpr enf1 r t1 (Eref r2), Some efl1)
-                              else (Some enf1, replace_subexpr efl1 r t1 (Eref r2))) as [[o|] [o0|]],
-             (if fl2 == Flipped then (replace_subexpr enf2 r2 t2 (Eref r), Some efl2)
-                                else (Some enf2, replace_subexpr efl2 r2 t2 (Eref r))) as [[o1|] [o2|]] ; try by discriminate.
-    intro Hss ; inversion Hss as [Hosns] ; clear Hss newsumm Hosns.
-    simpl.
-    by apply (is_subset_trans (is_subset_cons _ _) (is_subset_cons _ _)).
+    destruct e as [f t'|u e'|op e'|op e1 e2|c e1 e2|r'|ar|bu|t'|t'].
+    - (* Econst, Ecast, Eprim_unop, Eprim_binop, Emux, Earray, Ebundle, Etobedefined, Eundefinedonpurpose *)
+      1-5,7-10: intro Hss.
+      1-9: unfold unidirectional_connect in Hss.
+      1-9: destruct (app_summ oldsumm (base_ref r)) as [[[[[| | | |] t] enf] efl]|] ; simpl in Hss ; try by discriminate Hss.
+      1-36: destruct (type_of_href_base r t) as [[fl _]|] ; simpl ; last by discriminate Hss.
+      1-36: destruct (if fl == Nflip
+                     then (replace_subexpr enf r t _, Some efl)
+                     else (Some enf, replace_subexpr efl r t _)) as [[enf'|] [efl'|]] ; try by discriminate Hss.
+      1-36: unfold chg_ext_summ in Hss ; simpl in Hss.
+      1-36: destruct (number_of_parts t == 0) ; first by discriminate Hss.
+      1-36: destruct (insub (base_ref r, 0)) as [s|] ; last by discriminate Hss.
+      1-36: destruct (expr_is_not_cyclic enf' Nflip s) ; last by rewrite andFb // in Hss.
+      1-36: rewrite andTb in Hss.
+      1-36: destruct (expr_is_not_cyclic efl' Flipped s) ; last by discriminate Hss.
+      1-36: simpl in Hss ; inversion Hss ; clear Hss H0 newsumm s n.
+      1-36: unfold chg_ext_summ_nocheck ; simpl.
+      1-36: by apply is_subset_cons.
+    - (* Eref *)
+      intro Hss.
+      unfold bidirectional_connect in Hss.
+      destruct (app_summ oldsumm (base_ref r)) as [[[[[| | | |] t] enf] efl]|],
+               (app_summ oldsumm (base_ref r')) as [[[[[| | | |] t'] enf'] efl']|] ; simpl in Hss ; try by discriminate Hss.
+      1-16: destruct (type_of_href_base r t') as [[fl _]|],
+                     (type_of_href_base r' t') as [[fl' _]|] ; simpl ; try by discriminate Hss.
+      1-16: destruct (if fl == Nflip
+                      then (replace_subexpr enf r t (Eref r'), Some efl)
+                      else (Some enf, replace_subexpr efl r t (Eref r'))) as [[enf1|] [efl1|]],
+                     (if fl' == Flipped
+                      then (replace_subexpr enf' r' t' (Eref r), Some efl')
+                      else (Some enf', replace_subexpr efl' r' t' (Eref r))) as [[enf2|] [efl2|]] ;
+            try by discriminate Hss.
+      1-16: unfold chg_ext_summ at 1 in Hss ; simpl in Hss.
+      1-16: destruct (number_of_parts t == 0) ; first by discriminate Hss.
+      1-16: destruct (insub (base_ref r, 0)) as [s|] ; last by discriminate Hss.
+      1-16: destruct (expr_is_not_cyclic enf1 Nflip s) ; last by rewrite andFb // in Hss.
+      1-16: rewrite andTb in Hss.
+      1-16: destruct (expr_is_not_cyclic efl1 Flipped s) ; last by discriminate Hss.
+      1-16: simpl in Hss.
+      1-16: unfold chg_ext_summ in Hss ; simpl in Hss.
+      1-16: destruct (number_of_parts t' == 0) ; first by discriminate Hss.
+      1-16: destruct (insub (base_ref r', 0)) as [s'|] ; last by discriminate Hss.
+      1-16: destruct (expr_is_not_cyclic enf2 Nflip s') ; last by rewrite andFb // in Hss.
+      1-16: rewrite andTb in Hss.
+      1-16: destruct (expr_is_not_cyclic efl2 Flipped s') ; last by discriminate Hss.
+      1-16: simpl in Hss ; inversion Hss ; clear Hss H0 newsumm s s' n n0 n1 n2.
+      1-16: unfold chg_ext_summ_nocheck ; simpl.
+      1-16: rewrite -cat1s -cat_rcons ; by apply is_subset_cat.
   + (* Sinvalid *)
-    unfold invalidate.
-    destruct (base_ref r) as [br|] ; last by discriminate.
-    destruct (app_summ oldsumm br) as [[[[k t] enf] efl]|] ; last by discriminate.
-    destruct (k == Node) ; first by discriminate.
-    destruct (type_of_href_base r t) as [[fl rt]|] ; last by discriminate.
-    destruct (if fl == Nflip then (replace_subexpr enf r t (Eundefinedonpurpose rt), Some efl)
-                             else (Some enf, replace_subexpr efl r t (Eundefinedonpurpose rt))) as [[o|] [o0|]] ; try by discriminate.
-    intro Hss ; inversion Hss as [Hosns] ; clear Hss newsumm Hosns.
-    simpl.
-    by apply is_subset_cons.
+    intro Hss.
+    unfold invalidate in Hss.
+    destruct (app_summ oldsumm (base_ref r)) as [[[[[| | | |] t] enf] efl]|] ; simpl in Hss ; try by discriminate Hss.
+    1-4: destruct (type_of_href_base r t) as [[fl rt]|] ; last by discriminate Hss.
+    1-4: destruct (if fl == Nflip
+                   then (replace_subexpr enf r t (Eundefinedonpurpose rt), Some efl)
+                   else (Some enf, replace_subexpr efl r t (Eundefinedonpurpose rt))) as [[enf'|] [efl'|]] ;
+         try by discriminate Hss.
+    1-4: unfold chg_ext_summ in Hss ; simpl in Hss.
+    1-4: destruct (number_of_parts t == 0) ; first by discriminate Hss.
+    1-4: destruct (insub (base_ref r, 0)) as [s|] ; last by discriminate Hss.
+    1-4: destruct (expr_is_not_cyclic enf' Nflip s) ; last by rewrite andFb // in Hss.
+    1-4: rewrite andTb in Hss.
+    1-4: destruct (expr_is_not_cyclic efl' Flipped s) ; last by discriminate Hss.
+    1-4: simpl in Hss ; inversion Hss ; clear Hss H0 newsumm s n n0.
+    1-4: unfold chg_ext_summ_nocheck ; simpl.
+    1-4: by apply is_subset_cons.
   + (* Swhen *)
-    (* generalize (StmtSumm_only_extends oldsumm sst) ; intro StmtSumm_only_extends_truesumm. *)
-    specialize (StmtSumm_only_extends oldsumm ssf).
-    destruct (StmtSumm oldsumm sst) as [truesumm|] ; last by discriminate.
-    (* specialize (StmtSumm_only_extends_truesumm truesumm Logic.eq_refl). *)
-    destruct (StmtSumm oldsumm ssf) as [falsesumm|] ; last by discriminate.
-    specialize (StmtSumm_only_extends falsesumm Logic.eq_refl).
-    unfold when_summ.
-    destruct ([forall x : seq_sub (projT1 truesumm), (val x \in projT1 oldsumm) || (val x \notin projT1 falsesumm)]) ; last by discriminate.
-    intro Hss ; inversion Hss as [Hosns] ; clear Hss newsumm Hosns.
-    simpl.
-    by apply (is_subset_trans StmtSumm_only_extends (is_subset_cat _ _)).
+    intro Hss.
+    destruct (StmtSumm oldsumm sst) as [truesumm|] ; last by discriminate Hss.
+    specialize (StmtSumm_only_extends oldsumm ssf) ; rename StmtSumm_only_extends into Hssf.
+    destruct (StmtSumm oldsumm ssf) as [falsesumm|] ; last by discriminate Hss.
+    specialize (Hssf falsesumm Logic.eq_refl).
+    unfold when_summ in Hss.
+    destruct [forall x : seq_sub (projT1 truesumm), (val x \in projT1 oldsumm) || (val x \notin projT1 falsesumm)] ; last by discriminate Hss.
+    inversion Hss ; simpl.
+    by apply (is_subset_trans Hssf), is_subset_cat.
 Qed.
-
-*)
-
-Admitted.
 
 (**************************************)
 (*       Evaluating expressions       *)
@@ -4015,9 +4381,13 @@ So oldsum is a finfun.
 
 *)
 
+(* The following relation is generic, for any finite graph, and is not used currently.
 Definition acyclic {S : Type} (R : rel S) : Prop :=
     forall (x : S) (p : seq S), ~~cycle R (x :: p).
+*)
 
+a <= max(a, b) is a cyclic dependency that poses no problems in InferWidths,
+but if a is not a register, it is a 
 
 
 
