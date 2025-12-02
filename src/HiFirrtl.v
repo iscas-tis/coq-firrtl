@@ -173,6 +173,38 @@ it does not make sense to put effort in external modules.
 
   Inductive hfcircuit : Type := Fcircuit : var -> seq hfmodule -> hfcircuit.
 
+  Inductive forient : Type :=
+  | Source | Sink | Duplex | Passive | Other.
+
+  Definition forient_eqn (x y : forient) : bool :=
+  match x, y with Source, Source | Sink, Sink | Duplex, Duplex | Passive, Passive | Other, Other => true
+                | _, _ => false end.
+  Lemma forient_eqP : Equality.axiom forient_eqn.
+  Proof. unfold Equality.axiom, forient_eqn. induction x, y ; try (apply ReflectF ; discriminate) ; try (apply ReflectT ; reflexivity). Qed.
+  
+  Definition orient_of_comp c :=
+    match c with
+    | In_port | Instanceof | Memory | Node => Source
+    (* DNJ: Not sure whether a memory should be a source. It is written like that
+    in the specificiation, but actually the data type of a memory port is a bundle
+    defined as a sink (with some fields flipped). *)
+    | Out_port => Sink
+    | Register | Wire => Duplex
+    | Fmodule => Other
+    end.
+
+  Definition valid_lhs_orient o :=
+    match o with
+    | Sink | Duplex => true
+    | _ => false
+    end.
+
+  Definition valid_rhs_orient o :=
+    match o with
+    | Source | Duplex | Passive => true
+    | _ => false
+    end.
+
 End HiFirrtl.
 
 

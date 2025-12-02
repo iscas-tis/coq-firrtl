@@ -17,7 +17,31 @@ Section Ftype.
 
 (* Variable var : eqType. *)
 
+(* flipped direction for subfields *)
 Inductive fflip : Type := Flipped | Nflip.
+
+(* flipped direction type equality is decidable *)
+Lemma fflip_eq_dec (x y : fflip) : {x = y} + {x <> y}.
+  Proof. decide equality. Qed.
+
+(* Boolean equality of flipped direction type *)
+Definition fflip_eqn (x y : fflip) : bool :=
+  match x, y with
+  | Flipped, Flipped | Nflip, Nflip => true
+  | _, _ => false
+  end.
+
+(* reflection predicate for flipped direction type *)
+Lemma fflip_eqP : forall (x y : fflip), reflect (x = y) (fflip_eqn x y).
+  Proof.
+    destruct x, y ; simpl fflip_eqn ;
+          try (apply ReflectF ; discriminate) ;
+          try (apply ReflectT ; reflexivity).
+  Qed.
+
+(* eqType for flipped direction type *)
+Definition fflip_eqMixin := EqMixin fflip_eqP.
+Canonical fflip_eqType := Eval hnf in EqType fflip fflip_eqMixin.
 
 Inductive ftype : Type :=
 | Gtyp : fgtyp -> ftype
