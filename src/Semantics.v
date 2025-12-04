@@ -470,6 +470,7 @@ Definition eval_hfstmt (st : HiF.hfstmt) (rs : VM.t hvalue) (s : VM.t hvalue) (t
   | Sfcnct r (Emux c e1 e2) => (* 不考虑flip,考虑aggr *)
   | Sfcnct r e => (* 不考虑flip,不考虑aggr *)
    考虑是否为reg，更新rs/s *)
+  (* TBD *)
 
   | _ => (rs,s) (* not sure其他情况：wire、reg、isinvalid 是否要给变量赋0？是否有意义/必要？ *)
   end.
@@ -596,3 +597,24 @@ Definition compute_Sem (c : HiF.hfcircuit) (inputs : VM.t hvalue) : option (VM.t
         let (rs0,s0) := iterate n eval_hfstmts ss rs s tmap in Some s0
   | _, _ => None
   end.
+
+Definition flat_valmap (valmap : VM.t hvalue) (tmap: VM.t (ftype * fcomponent)) : VM.t hvalue := valmap.
+(* TBD *)
+
+Theorem Sem_preservation : 
+(* Proves pass func preserves the semantics *)
+  forall (c : HiF.hfcircuit) (inputs : VM.t hvalue),
+  match compute_Sem c inputs, circuit_tmap c with
+  | Some sem, Some tmap =>
+      forall (func(* pass *) : HiF.hfcircuit -> option HiF.hfcircuit) (newc : HiF.hfcircuit),
+      func c = Some newc ->
+      let flatten_inputs := flat_valmap inputs tmap in
+      let flatten_sem := flat_valmap sem tmap in
+      match compute_Sem newc flatten_inputs with
+      | Some new_sem => VM.equal (fun val1 val2 => hvalue_eqn val1 val2) flatten_sem new_sem
+      | _ => true
+      end
+  | _, _ => true
+  end.
+Proof.
+Admitted.
