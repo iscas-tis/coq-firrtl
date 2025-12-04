@@ -131,7 +131,7 @@ Compute (to_Zpos [::true;false]). 后为高位
 | Fuint _ => to_Zpos c *)
 
 (* type of ref expressions *)
-Fixpoint type_of_ref (r : HiF.href) (tmap : VM.t (ftype * forient)) : option ftype :=
+Fixpoint type_of_ref (r : HiF.href) (tmap : VM.t (ftype * fcomponent)) : option ftype :=
   match r with
   | Eid v => match VM.find v tmap with
             | Some (ft, _) => Some ft
@@ -155,7 +155,51 @@ Fixpoint type_of_ref (r : HiF.href) (tmap : VM.t (ftype * forient)) : option fty
   | Esubaccess r e => None
   end.
 
-Fixpoint type_of_hfexpr (e : HiF.hfexpr) (tmap: VM.t (ftype * forient)) : option ftype :=
+(* copied from ModuleGraph *)
+Definition fgtyp_mux (x y : fgtyp) : option fgtyp :=
+    match x, y with
+    | Fuint wx, Fuint wy => Some (Fuint (Nat.max wx wy))
+    | Fsint wx, Fsint wy => Some (Fsint (Nat.max wx wy))
+    | Fclock, Fclock => Some Fclock
+    | Freset, Freset => Some Freset
+    | Fasyncreset, Fasyncreset => Some Fasyncreset
+    | _, _ => None
+    end.
+
+Fixpoint ftype_mux (x y : ftype) : option ftype :=
+  match x, y with
+  | Gtyp tx, Gtyp ty => match fgtyp_mux tx ty with
+                        | Some fgt => Some (Gtyp fgt)
+                        | None => None
+                        end
+  | Atyp tx nx, Atyp ty ny => if (nx == ny)
+                              then match ftype_mux tx ty with
+                              | Some fat => Some (Atyp fat nx)
+                              | None => None
+                              end
+                              else None
+  | Btyp fx, Btyp fy => ffield_mux fx fy
+  | _, _ => None
+  end
+with ffield_mux (f1 f2 : ffield) : option ftype :=
+       match f1, f2 with
+       | Fnil, Fnil => Some (Btyp Fnil)
+       | Fflips v1 Nflip t1 fs1, Fflips v2 Nflip t2 fs2
+         => if v1 == v2 then
+               match ffield_mux fs1 fs2 with
+               | Some (Btyp bf) => match ftype_mux t1 t2 with
+                           | Some ft => Some (Btyp (Fflips v1 Nflip ft bf))
+                           | _ => None
+                           end
+               | _ => None
+               end
+            else None
+       | Fflips _ Flipped _ _, Fflips _ Flipped _ _
+         => None
+       | _, _ => None
+       end.
+
+Fixpoint type_of_hfexpr (e : HiF.hfexpr) (tmap: VM.t (ftype * fcomponent)) : option ftype :=
   match e with
   | Econst t bs => Some (Gtyp t)
   | Eref r => type_of_ref r tmap 
@@ -176,283 +220,379 @@ Fixpoint type_of_hfexpr (e : HiF.hfexpr) (tmap: VM.t (ftype * forient)) : option
                         | Some (Gtyp _) => Some (Gtyp Fasyncreset)
                         | _ => None
                         end
-  | _ => None
-  end.
-  
-  
-  (*TBD
+  | Ecast AsReset _ => None
   | Eprim_unop (Upad n) e1 => match type_of_hfexpr e1 tmap with
-                              | Some (exist (Gtyp (Fsint w)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fsint (maxn w n))) I)
-                              | Some (exist (Gtyp (Fuint w)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fuint (maxn w n))) I)
+                              | Some (Gtyp (Fsint w)) => Some (Gtyp (Fsint (maxn w n)))
+                              | Some (Gtyp (Fuint w)) => Some (Gtyp (Fuint (maxn w n)))
                               | _ => None
                               end
   | Eprim_unop (Ushl n) e1 => match type_of_hfexpr e1 tmap with
-                              | Some (exist (Gtyp (Fsint w)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fsint (w + n))) I)
-                              | Some (exist (Gtyp (Fuint w)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fuint (w + n))) I)
+                              | Some (Gtyp (Fsint w)) => Some (Gtyp (Fsint (w + n)))
+                              | Some (Gtyp (Fuint w)) => Some (Gtyp (Fuint (w + n)))
                               | _ => None
                               end
   | Eprim_unop (Ushr n) e1 => match type_of_hfexpr e1 tmap with
-                              | Some (exist (Gtyp (Fsint w)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fsint (maxn (w - n) 1))) I)
-                              | Some (exist (Gtyp (Fuint w)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fuint (maxn (w - n) 0))) I)
+                              | Some (Gtyp (Fsint w)) => Some (Gtyp (Fsint (maxn (w - n) 1)))
+                              | Some (Gtyp (Fuint w)) => Some (Gtyp (Fuint (maxn (w - n) 0)))
                               | _ => None
                               end
   | Eprim_unop Ucvt e1 => match type_of_hfexpr e1 tmap with
-                          | Some (exist (Gtyp (Fsint w)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fsint w)) I)
-                          | Some (exist (Gtyp (Fuint w)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fsint (w + 1))) I)
+                          | Some (Gtyp (Fsint w)) => Some (Gtyp (Fsint w))
+                          | Some (Gtyp (Fuint w)) => Some (Gtyp (Fsint (w + 1)))
                           | _ => None
                           end
   | Eprim_unop Uneg e1 => match type_of_hfexpr e1 tmap with
-                          | Some (exist (Gtyp (Fsint w)) _)
-                          | Some (exist (Gtyp (Fuint w)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fsint (w + 1))) I)
+                          | Some (Gtyp (Fsint w))
+                          | Some (Gtyp (Fuint w)) => Some (Gtyp (Fsint (w + 1)))
                           | _ => None
                           end
   | Eprim_unop Unot e1 => match type_of_hfexpr e1 tmap with
-                          | Some (exist (Gtyp (Fsint w)) _)
-                          | Some (exist (Gtyp (Fuint w)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fuint w)) I)
+                          | Some (Gtyp (Fsint w))
+                          | Some (Gtyp (Fuint w)) => Some (Gtyp (Fuint w))
                           | _ => None
                           end
   | Eprim_unop (Uextr n1 n2) e1 => match type_of_hfexpr e1 tmap with
-                                    | Some (exist (Gtyp (Fsint w)) _)
-                                    | Some (exist (Gtyp (Fuint w)) _) =>
-                                        (*if (n2 <= n1) && (n1 < w) then*) Some (exist ftype_not_implicit_width (Gtyp (Fuint (n1 - n2 + 1))) I)
-                                                                  (*else None*)
+                                    | Some (Gtyp (Fsint w))
+                                    | Some (Gtyp (Fuint w)) =>
+                                        if (n2 <= n1) && (n1 < w) then Some (Gtyp (Fuint (n1 - n2 + 1)))
+                                                                  else None
                                     | _ => None
                                     end
   | Eprim_unop (Uhead n) e1 => match type_of_hfexpr e1 tmap with
-                                | Some (exist (Gtyp (Fsint w)) _)
-                                | Some (exist (Gtyp (Fuint w)) _) =>
-                                    (*if n <= w then*) Some (exist ftype_not_implicit_width (Gtyp (Fuint n)) I)
-                                              (*else None*)
+                                | Some (Gtyp (Fsint w))
+                                | Some (Gtyp (Fuint w)) =>
+                                    if n <= w then Some (Gtyp (Fuint n))
+                                              else None
                                 | _ => None
                                 end
   | Eprim_unop (Utail n) e1 => match type_of_hfexpr e1 tmap with
-                                | Some (exist (Gtyp (Fsint w)) _)
-                                | Some (exist (Gtyp (Fuint w)) _) =>
-                                    (*if n <= w then*) Some (exist ftype_not_implicit_width (Gtyp (Fuint (w - n))) I)
-                                              (*else None*)
+                                | Some (Gtyp (Fsint w))
+                                | Some (Gtyp (Fuint w)) =>
+                                    if n <= w then Some (Gtyp (Fuint (w - n)))
+                                              else None
                                 | _ => None
                                 end
   | Eprim_unop _ e1 => match type_of_hfexpr e1 tmap with
-                        | Some (exist (Gtyp (Fsint _)) _)
-                        | Some (exist (Gtyp (Fuint _)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fuint 1)) I)
+                        | Some (Gtyp (Fsint _))
+                        | Some (Gtyp (Fuint _)) => Some (Gtyp (Fuint 1))
                         | _ => None
                         end
   | Eprim_binop (Bcomp _) e1 e2 => match type_of_hfexpr e1 tmap, type_of_hfexpr e2 tmap with
-                                    | Some (exist (Gtyp (Fsint _)) _), Some (exist (Gtyp (Fsint _)) _)
-                                    | Some (exist (Gtyp (Fuint _)) _), Some (exist (Gtyp (Fuint _)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fuint 1)) I)
+                                    | Some (Gtyp (Fsint _)), Some (Gtyp (Fsint _))
+                                    | Some (Gtyp (Fuint _)), Some (Gtyp (Fuint _)) => Some (Gtyp (Fuint 1))
                                     | _, _ => None
                                     end
   | Eprim_binop Badd e1 e2
   | Eprim_binop Bsub e1 e2 => match type_of_hfexpr e1 tmap, type_of_hfexpr e2 tmap with
-                              | Some (exist (Gtyp (Fuint w1)) _), Some (exist (Gtyp (Fuint w2)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fuint (maxn w1 w2 + 1))) I)
-                              | Some (exist (Gtyp (Fsint w1)) _), Some (exist (Gtyp (Fsint w2)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fsint (maxn w1 w2 + 1))) I)
+                              | Some (Gtyp (Fuint w1)), Some (Gtyp (Fuint w2)) => Some (Gtyp (Fuint (maxn w1 w2 + 1)))
+                              | Some (Gtyp (Fsint w1)), Some (Gtyp (Fsint w2)) => Some (Gtyp (Fsint (maxn w1 w2 + 1)))
                               | _, _ => None
                               end
   | Eprim_binop Bmul e1 e2 => match type_of_hfexpr e1 tmap, type_of_hfexpr e2 tmap with
-                              | Some (exist (Gtyp (Fuint w1)) _), Some (exist (Gtyp (Fuint w2)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fuint (w1 + w2))) I)
-                              | Some (exist (Gtyp (Fsint w1)) _), Some (exist (Gtyp (Fsint w2)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fsint (w1 + w2))) I)
+                              | Some (Gtyp (Fuint w1)), Some (Gtyp (Fuint w2)) => Some (Gtyp (Fuint (w1 + w2)))
+                              | Some (Gtyp (Fsint w1)), Some (Gtyp (Fsint w2)) => Some (Gtyp (Fsint (w1 + w2)))
                               | _, _ => None
                               end
   | Eprim_binop Bdiv e1 e2  => match type_of_hfexpr e1 tmap, type_of_hfexpr e2 tmap with
-                                | Some (exist (Gtyp (Fuint w1)) _), Some (exist (Gtyp (Fuint w2)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fuint w1)) I)
-                                | Some (exist (Gtyp (Fsint w1)) _), Some (exist (Gtyp (Fsint w2)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fsint (w1 + 1))) I)
+                                | Some (Gtyp (Fuint w1)), Some (Gtyp (Fuint w2)) => Some (Gtyp (Fuint w1))
+                                | Some (Gtyp (Fsint w1)), Some (Gtyp (Fsint w2)) => Some (Gtyp (Fsint (w1 + 1)))
                                 | _, _ => None
                                 end
   | Eprim_binop Brem e1 e2 => match type_of_hfexpr e1 tmap, type_of_hfexpr e2 tmap with
-                                | Some (exist (Gtyp (Fuint w1)) _), Some (exist (Gtyp (Fuint w2)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fuint (minn w1 w2))) I)
-                                | Some (exist (Gtyp (Fsint w1)) _), Some (exist (Gtyp (Fsint w2)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fsint (minn w1 w2))) I)
+                                | Some (Gtyp (Fuint w1)), Some (Gtyp (Fuint w2)) => Some (Gtyp (Fuint (minn w1 w2)))
+                                | Some (Gtyp (Fsint w1)), Some (Gtyp (Fsint w2)) => Some (Gtyp (Fsint (minn w1 w2)))
                                 | _, _ => None
                                 end
   | Eprim_binop Bdshl e1 e2 => match type_of_hfexpr e1 tmap, type_of_hfexpr e2 tmap with
-                                | Some (exist (Gtyp (Fuint w1)) _), Some (exist (Gtyp (Fuint w2)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fuint (2 ^ w2 + w1 - 1))) I)
-                                | Some (exist (Gtyp (Fsint w1)) _), Some (exist (Gtyp (Fuint w2)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fsint (2 ^ w2 + w1 - 1))) I)
+                                | Some (Gtyp (Fuint w1)), Some (Gtyp (Fuint w2)) => Some (Gtyp (Fuint (2 ^ w2 + w1 - 1)))
+                                | Some (Gtyp (Fsint w1)), Some (Gtyp (Fuint w2)) => Some (Gtyp (Fsint (2 ^ w2 + w1 - 1)))
                                 | _, _ => None
                                 end
   | Eprim_binop Bdshr e1 e2 => match type_of_hfexpr e1 tmap, type_of_hfexpr e2 tmap with
-                                | Some (exist (Gtyp (Fuint w1)) _), Some (exist (Gtyp (Fuint w2)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fuint w1)) I)
-                                | Some (exist (Gtyp (Fsint w1)) _), Some (exist (Gtyp (Fuint w2)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fsint w1)) I)
+                                | Some (Gtyp (Fuint w1)), Some (Gtyp (Fuint w2)) => Some (Gtyp (Fuint w1))
+                                | Some (Gtyp (Fsint w1)), Some (Gtyp (Fuint w2)) => Some (Gtyp (Fsint w1))
                                 | _, _ => None
                                 end
   | Eprim_binop Bcat e1 e2 => match type_of_hfexpr e1 tmap, type_of_hfexpr e2 tmap with
-                              | Some (exist (Gtyp (Fuint w1)) _), Some (exist (Gtyp (Fuint w2)) _)
-                              | Some (exist (Gtyp (Fsint w1)) _), Some (exist (Gtyp (Fsint w2)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fuint (w1 + w2))) I)
+                              | Some (Gtyp (Fuint w1)), Some (Gtyp (Fuint w2))
+                              | Some (Gtyp (Fsint w1)), Some (Gtyp (Fsint w2)) => Some (Gtyp (Fuint (w1 + w2)))
                               | _, _ => None
                               end
   | Eprim_binop Band e1 e2
   | Eprim_binop Bor e1 e2
   | Eprim_binop Bxor e1 e2 => match type_of_hfexpr e1 tmap, type_of_hfexpr e2 tmap with
-                              | Some (exist (Gtyp (Fuint w1)) _), Some (exist (Gtyp (Fuint w2)) _)
-                              | Some (exist (Gtyp (Fsint w1)) _), Some (exist (Gtyp (Fsint w2)) _) => Some (exist ftype_not_implicit_width (Gtyp (Fuint (maxn w1 w2))) I)
+                              | Some (Gtyp (Fuint w1)), Some (Gtyp (Fuint w2))
+                              | Some (Gtyp (Fsint w1)), Some (Gtyp (Fsint w2)) => Some (Gtyp (Fuint (maxn w1 w2)))
                               | _, _ => None
                               end
   | Emux c e1 e2 => match type_of_hfexpr c tmap, type_of_hfexpr e1 tmap, type_of_hfexpr e2 tmap with
-                    | Some (exist (Gtyp (Fuint _)) _), Some t1, Some t2 => ftype_mux t1 t2
+                    | Some (Gtyp (Fuint _)), Some t1, Some t2 => ftype_mux t1 t2
                     | _, _, _ => None
                     end
-  (*| Evalidif c e1 => match type_of_hfexpr c tmap with
-                    | Some (exist (Gtyp (Fuint 1)) _) => type_of_hfexpr e1 tmap
-                    | _ => None
-                    end*)
-  end.*)
+  end.
+
+(* value of ref expressions *)
+Fixpoint hvalue_of_ref (r : HiF.href) (s : VM.t hvalue) : option hvalue :=
+  match r with
+  | Eid v => VM.find v s
+  | Esubfield r v => match hvalue_of_ref r s with
+              | Some (Bval fv) => let fix aux fx := (
+                                          match fx with
+                                          | Bflips v' f t fxs =>
+                                            if (v == v') then Some t
+                                            else aux fxs
+                                          | Bnil => None
+                                          end )
+                                  in aux fv
+              | _ => None
+              end
+  | Esubindex r n => match hvalue_of_ref r s with
+              | Some (Aval fv) => let fix aux fx m := (
+                                          match fx, m with
+                                          | Acons t fxs, m'.+1 => aux fxs m'
+                                          | Aone t, 0 => Some t 
+                                          | _, _ => None
+                                          end )
+                                  in aux fv n
+              | _ => None
+              end
+  | Esubaccess r e => None
+  end.
+
+(* makes val to be of type ft *)
+Fixpoint ftext (ft : ftype) (val : hvalue) : option hvalue :=
+  match ft, val with
+  | Gtyp (Fuint w), Gval c => Some (Gval (zext (w - size c) c))
+  | Gtyp (Fsint w), Gval c => Some (Gval (sext (w - size c) c))
+  | Gtyp _, Gval c => Some (Gval (zext (1 - size c) c))
+  | Atyp atyp n, Aval aval => match atypext atyp n aval with
+                            | Some aval' => Some (Aval aval')
+                            | _ => None
+                            end
+  | Btyp btyp, Bval bval => match btypext btyp bval with
+                            | Some bval' => Some (Bval bval')
+                            | _ => None
+                            end
+  | _, _ => None
+  end
+with atypext (ft : ftype)(* element type *) (n : nat)(* element amount *) (aval : array_value) : option array_value := 
+  match n, aval with
+  | 1, Aone val => match ftext ft val with
+                  | Some val' => Some (Aone val')
+                  | _ => None
+                  end
+  | n'.+1, Acons val tl => match ftext ft val, atypext ft n' tl with
+                            | Some val', Some tl' => Some (Acons val' tl')
+                            | _, _ => None
+                            end
+  | _, _ => None
+  end
+with btypext (btyp : ffield) (bval : bundle_value) : option bundle_value :=
+  match btyp, bval with
+  | Fnil, Bnil => Some Bnil
+  | Fflips _ _ ft ff, Bflips v f val tl => match ftext ft val, btypext ff tl with
+                | Some val', Some tl' => Some (Bflips v f val' tl')
+                | _, _ => None
+                end
+  | _, _ => None
+  end.
+
+Fixpoint ftext0 (ft : ftype) : hvalue :=
+  match ft with
+  | Gtyp (Fuint w) 
+  | Gtyp (Fsint w) => Gval (zeros w)
+  | Gtyp _ => Gval [::b0]
+  | Atyp atyp n => 
+      let fix atypext0 (n : nat) : array_value :=
+        match n with
+        | 0 => Aone (Gval nil)
+        | 1 => Aone (ftext0 atyp)
+        | n'.+1 => Acons (ftext0 atyp) (atypext0 n')
+        end
+      in Aval (atypext0 n)
+  | Btyp btyp => 
+      let fix btypext0 (btyp : ffield) : bundle_value :=
+        match btyp with
+        | Fnil => Bnil
+        | Fflips v f ft ff => Bflips v f (ftext0 ft) (btypext0 ff)
+        end
+      in Bval (btypext0 btyp)
+  end.
 
 (* Expression evaluation, value *)
-Fixpoint eval_hfexpr (e : HiF.hfexpr) (rs : VM.t hvalue) (s : VM.t hvalue) (tmap: VM.t (ftype * forient)) : option hvalue :=
-  match e with
+Fixpoint eval_hfexpr (exp : HiF.hfexpr) (s : VM.t hvalue) (tmap: VM.t (ftype * fcomponent)) : option hvalue :=
+  match exp with
   | Econst t c => let val := match t with
                   | Fuint w1 => zext (w1 - size c) c
                   | Fsint w2 => sext (w2 - size c) c
                   | _ => c
                   end in Some (Gval val)
+  | Eref r => hvalue_of_ref r s
   | Ecast AsUInt e 
-  | Ecast AsSInt e => eval_hfexpr e rs s tmap
+  | Ecast AsSInt e => eval_hfexpr e s tmap
   | Ecast AsClock e  
   | Ecast AsReset e  
-  | Ecast AsAsync e => match eval_hfexpr e rs s tmap with Some (Gval val) => Some (Gval [::lsb val]) | _ => None end
+  | Ecast AsAsync e => match eval_hfexpr e s tmap with Some (Gval val) => Some (Gval [::lsb val]) | _ => None end
   | Eprim_binop b e1 e2 =>
-      match eval_hfexpr e1 rs s tmap, eval_hfexpr e2 rs s tmap, type_of_hfexpr e1 tmap, type_of_hfexpr e2 tmap with
+      match eval_hfexpr e1 s tmap, eval_hfexpr e2 s tmap, type_of_hfexpr e1 tmap, type_of_hfexpr e2 tmap with
       | Some (Gval val1), Some (Gval val2), Some (Gtyp gt1), Some (Gtyp gt2) => 
           let val := LoFirrtl.ebinop_op b gt1 gt2 val1 val2 in Some (Gval val)
       | _, _, _, _ => None
       end
-  | _ => None
-  end.
-
-  (*TBD
-    | Eref v => (* SV.acc v s*)
-    if mylListIn v readerls (* reader ports *)
-    then match TE.find v data2etc with
-        | None => (rs, [::b0])
-        | Some a => 
-          let '(addrvar, envar, midvar, flagvar, clkvar) := a in 
-          match TE.find midvar read_la with(* 没有找到m是同步或异步 *)
-          | None => (rs, [::b0])
-          | Some thisread_la =>
-          let addrval := SV.acc addrvar s in
-          let enval := SV.acc envar s in
-          let clk0val := SV.acc clkvar s in
-          let clkval := SV.acc clkvar rs in
-          let readv := 
-          (if enval == [:: b0]
-            then [::b0]
-          else 
-          (match TE.find midvar memmap with
-          | None => [::b0]
-          | Some b => memfind addrval b
-          end)) in 
-          if thisread_la == false
-          then (*if (((clk0val == [:: b0]) && (clkval == [:: b1])) || (flagval == [::b1]))
-              then*) (rs, readv)
-              (*else (rs, [:: b0])*)
-          else if (((clk0val == [:: b0]) && (clkval == [:: b1])) )
-              then (*(SV.upd v readv rs, SV.acc v s)*)(rs, readv)
-              else ((*SV.upd v readv *)rs, [::b0])
-          end
-        end
-    else (rs, SV.acc v s) (* inst ports & others *)
-    
-    | Eprim_unop u e =>
-      let t := type_of_fexpr e te in
-      let (rs0, val1) := (eval_fexpr e rs s te readerls writerls data2etc memmap read_la) in
-      let val := (eunop_op u t) val1 in
-      (rs0, val)
-    | Emux c e1 e2 =>
-      let t1 := (type_of_fexpr e1 te) in
-      let t2 := (type_of_fexpr e2 te) in
-      let (rs0, valc) := (eval_fexpr c rs s te readerls writerls data2etc memmap read_la) in
-      let (rs1, val1) := (eval_fexpr e1 rs0 s te readerls writerls data2etc memmap read_la) in
-      let (rs2, val2) := (eval_fexpr e2 rs1 s te readerls writerls data2etc memmap read_la) in
-      let val := match t1, t2 with
+  | Eprim_unop u e =>
+      match eval_hfexpr e s tmap, type_of_hfexpr e tmap with
+      | Some (Gval val1), Some (Gtyp gt1) =>
+          let val := LoFirrtl.eunop_op u gt1 val1 in Some (Gval val)
+      | _, _ => None
+      end
+  | Emux c e1 e2 => 
+      match eval_hfexpr c s tmap, type_of_hfexpr exp tmap, eval_hfexpr e1 s tmap, eval_hfexpr e2 s tmap with
+      | Some (Gval valc), Some ft, Some val1, Some val2 => if ~~ (is_zero valc) then ftext ft val1
+                                                                                else ftext ft val2
+      | _, _, _, _ => None
+      end
+      (*let val := match t1, t2 with
       | Fuint w1, Fuint w2 => if ~~ (is_zero valc) 
       then (zext ((max w1 w2) - w1) val1) 
       else (zext ((max w1 w2) - w2) val2)
       | Fsint w1, Fsint w2 => if ~~ (is_zero valc) 
       then (sext ((max w1 w2) - w1) val1)
-      else (sext ((max w1 w2) - w2) val2)
-      | _, _ => [::]
-      end in (rs2, val)
-    | Evalidif c e => 
-      let (rs0, valc) := (eval_fexpr c rs s te readerls writerls data2etc memmap read_la) in
-      let (rs1, val1) := (eval_fexpr e rs0 s te readerls writerls data2etc memmap read_la) in
-      let val := if ~~ (is_zero valc) then val1 else [::] in
-      (rs1, val)
-    (* | Edeclare v t => zeros (sizeof_fgtyp t) *)
-    
-    end.*)
+      else (sext ((max w1 w2) - w2) val2)*)
+  end.
 
-Definition eval_hfstmt (st : HiF.hfstmt) (rs : VM.t hvalue) (s : VM.t hvalue) (tmap: VM.t (ftype * forient)) : (VM.t hvalue) * (VM.t hvalue) * (VM.t (ftype * forient)) :=
+Definition eval_hfstmt (st : HiF.hfstmt) (rs : VM.t hvalue) (s : VM.t hvalue) (tmap: VM.t (ftype * fcomponent)) : (VM.t hvalue) * (VM.t hvalue) :=
   match st with
-  | Sskip => (rs,s,tmap)
-  | _ => (rs,s,tmap)
-  end.
-        (* TBD
-        | Sskip => (rs, s, memmap)
-        | Swire v t => (rs, SV.upd v (zeros (sizeof_fgtyp t)) s, memmap)
-        | Sreg r =>
-          let (rs0, s0) := if SV.acc (rid r) rs == [::]
-                          then (SV.upd (rid r) (zeros (sizeof_fgtyp (type r))) rs,
-                                SV.upd (rid r) (zeros (sizeof_fgtyp (type r))) s)
-                          else (rs, SV.upd (rid r) (SV.acc (rid r) rs) s) in
-                    match reset r with
-                    | NRst => (rs0, s0, memmap)
-                    | Rst e1 e2 =>
-                        let te1 := type_of_fexpr e1 te in
-                        let (_, ve1) := eval_fexpr e1 rs s0 te readerls writerls data2etc memmap read_la in
-                        let (_, ve2) := eval_fexpr e2 rs s0 te readerls writerls data2etc memmap read_la in
-                        if (is_zero ve1) then (rs0, s0, memmap)
-                        else
-                          match te1 with
-                          | Fuint 1 => (SV.upd (rid r) ve2 rs0, s0, memmap)
-                          | Fasyncreset => (SV.upd (rid r) ve2 rs0, SV.upd (rid r) ve2 s0, memmap)
-                          | _ => (rs0, s0, memmap)
-                          end
-                    end
-        | Smem m => (rs, s, memmap)
-        | Sinst inst => (rs, s, memmap) (* 在拓扑排序时始终放在每个mod的最后，用来对所有的inst更新rs/s/memory *)
-        | Snode v e => let (rs0, ve) := eval_fexpr e rs s te readerls writerls data2etc memmap read_la in
-                      (rs0, SV.upd v ve s, memmap)
-        | Sfcnct v e2 => let (rs0, newv) := eval_fexpr e2 rs s te readerls writerls data2etc memmap read_la in 
-                                let memmap0 := 
-                                (if mylListIn v writerls (* writer ports *)
-                                then match TE.find v data2etc with
-                                      | None => memmap
-                                      | Some a => (let '(addrvar,envar, midvar, maskvar, clkvar) := a in 
-                                        match TE.find midvar memmap with
-                                        | None => memmap (* parse ast时已生成所有mem的map TE.add midvar (memupd (from_nat 4 10) (from_nat 4 11) memempty) memmap*)
-                                        | Some b => let maskval := SV.acc maskvar s in
-                                                    let addrval := SV.acc addrvar s in 
-                                                    let enval := SV.acc envar s in
-                                                    let clkval := SV.acc clkvar rs in
-                                                    let clk0val := SV.acc clkvar s in 
-                                                    if ((enval == [:: b1]) && (clk0val == [:: b0]) && (clkval == [:: b1]))
-                                                      then (if maskval == [:: b1]
-                                                        then TE.add midvar (memupd addrval (SV.acc v s) b) memmap
-                                                        else TE.add midvar (memupd addrval [:: b0] b) memmap
-                                                      )
-                                                      else
-                                                      memmap
-                                                    end
-                                )
-                                end
-                                else memmap)
-                                in
-                                if SV.acc v rs0 == [::]
-                                  then (rs0, SV.upd v newv s, memmap0)
-                                else (SV.upd v newv rs0, s, memmap0) (* regs *)
-        | Sinvalid v =>
-          let tv := TE.vtyp v te in
-          (rs, SV.upd v (zeros (sizeof_fgtyp tv)) s, memmap)
-        | _ => (rs, s, memmap)
-        end.*)
+  | Snode v e => match eval_hfexpr e s tmap with
+                | Some val => (rs, VM.add v val s)
+                | _ => (rs, s)
+                end
+  (*| Sfcnct r (Eref ref) => (* 考虑flip和aggr *)
+  | Sfcnct r (Emux c e1 e2) => (* 不考虑flip,考虑aggr *)
+  | Sfcnct r e => (* 不考虑flip,不考虑aggr *)
+   考虑是否为reg，更新rs/s *)
 
-Fixpoint eval_hfstmts (sts : HiF.hfstmt_seq) (rs : VM.t hvalue) (s : VM.t hvalue) (tmap: VM.t (ftype * forient)) : (VM.t hvalue) * (VM.t hvalue) * (VM.t (ftype * forient)) :=
+  | _ => (rs,s) (* not sure其他情况：wire、reg、isinvalid 是否要给变量赋0？是否有意义/必要？ *)
+  end.
+
+Fixpoint eval_hfstmts (sts : HiF.hfstmt_seq) (rs : VM.t hvalue) (s : VM.t hvalue) (tmap: VM.t (ftype * fcomponent)) : (VM.t hvalue) * (VM.t hvalue) :=
   match sts with
-  | Qnil => (rs, s, tmap)
-  | Qcons st tl => let '(rs0, s0, tmap0) := eval_hfstmt st rs s tmap in
-                eval_hfstmts tl rs0 s0 tmap0
+  | Qnil => (rs, s)
+  | Qcons st tl => let '(rs0, s0) := eval_hfstmt st rs s tmap in
+                eval_hfstmts tl rs0 s0 tmap
   end.
 
-(* TBD
-Fixpoint iterate (n : nat) (inputs : VM.t hvalue) (rs : VM.t hvalue) (s : VM.t hvalue) (tmap: VM.t (ftype * forient)) : (VM.t hvalue) * (VM.t hvalue) :=
+Fixpoint stmts_tmap' (tmap : VM.t (ftype * fcomponent)) (ss : HiF.hfstmt_seq): option (VM.t (ftype * fcomponent)) :=
+  match ss with
+  | Qnil => Some tmap
+  | Qcons s ss' => match stmt_tmap' tmap s with
+      | Some tmap' => stmts_tmap' tmap' ss'
+      | None => None
+      end
+  end
+with stmt_tmap' (tmap : VM.t (ftype * fcomponent)) (s : HiF.hfstmt) : option (VM.t (ftype * fcomponent)) :=
+  match s with
+  | Sskip => Some tmap
+  | Sfcnct _ _ => Some tmap
+  | Sinvalid _ => Some tmap
+  | Swire v t => match VM.find v tmap with
+      | None => Some (VM.add v (t, Wire) tmap)
+      | _ => None
+      end
+  | Sreg v reg => match VM.find v tmap, type_of_hfexpr (clock reg) tmap with
+      | None, Some _ => Some (VM.add v ((type reg), Register) tmap)
+      | _, _ => None
+      end
+  | Snode v expr => match VM.find v tmap, type_of_hfexpr expr tmap with
+                  | None, Some ft => Some (VM.add v (ft, Node) tmap)
+                  | _, _ => None
+                  end
+  | Smem _ _ => None (* Memory *)
+  | Sinst _ _ => None
+  | Swhen cond ss_true ss_false =>
+      match type_of_hfexpr cond tmap, stmts_tmap' tmap ss_true with
+      | Some (Gtyp _), Some tmap_true => stmts_tmap' tmap_true ss_false 
+      | _, _ => None
+      end
+  end.
+  
+Fixpoint ports_tmap' (tmap : VM.t (ftype * fcomponent)) (pp : seq HiF.hfport) : option (VM.t (ftype * fcomponent)) :=
+(* creates a tmap that contains exactly the types of the ports in pp. *)
+  match pp with
+  | [::] => Some tmap
+  | Finput v t :: pp' => match VM.find v tmap with
+          | Some _ => None
+          | None => ports_tmap' (VM.add v (t, In_port) tmap) pp'
+          end
+  | Foutput v t :: pp' => match VM.find v tmap with
+          | Some _ => None
+          | None => ports_tmap' (VM.add v (t, Out_port) tmap) pp'
+          end
+  end.    
+
+Definition module_tmap (tmap : VM.t (ftype * fcomponent)) (m : HiF.hfmodule) : option (VM.t (ftype * fcomponent)) :=
+  match m with
+  | FInmod _ ps ss => match ports_tmap' tmap ps with
+              | Some pmap => stmts_tmap' pmap ss
+              | None => None
+              end
+  | _ => None
+  end.
+
+Fixpoint modules_tmap (tmap : VM.t (ftype * fcomponent)) (ml : seq HiF.hfmodule) : option (VM.t (ftype * fcomponent)) :=
+  match ml with
+  | nil => Some tmap
+  | hd :: tl => match module_tmap tmap hd with
+              | Some tmap' => modules_tmap tmap' tl
+              | _ => None
+              end
+  end.
+
+Definition circuit_tmap (c : HiF.hfcircuit) : option (VM.t (ftype * fcomponent)) :=
+  match c with
+  | Fcircuit v ml => modules_tmap (VM.empty (ftype * fcomponent)) ml
+  end.
+
+Fixpoint init_registers (ss : HiF.hfstmt_seq) (valmap : VM.t hvalue) : VM.t hvalue := 
+  match ss with
+  | Qnil => valmap
+  | Qcons s ss' => init_registers ss' (init_register s valmap)
+  end
+with init_register (s : HiF.hfstmt) (valmap : VM.t hvalue) : VM.t hvalue := 
+  match s with
+  | Sreg v reg => match reset reg with
+      | NRst => valmap
+      | Rst rst_sig rst_val => (* TBD 本质这里需要区分同步/异步rst *)
+          match eval_hfexpr rst_val (VM.empty hvalue) (VM.empty (ftype * fcomponent)) with (* 初始化电路中变量不存在value，只有const将初始化 *)
+          | Some val => VM.add v val valmap
+          | _ => valmap
+          end
+      end
+  | Swhen cond ss_true ss_false =>
+      match eval_hfexpr cond (VM.empty hvalue) (VM.empty (ftype * fcomponent)) with
+      | Some (Gval valc) => if ~~ (is_zero valc) then init_registers ss_true valmap else init_registers ss_false valmap
+      | _ => valmap
+      end 
+  | _ => valmap
+  end.
+
+Definition update_registers (rs : VM.t hvalue) (s : VM.t hvalue) : VM.t hvalue := 
+  VM.fold (fun key value temps => VM.add key value temps) rs s.
+
+Fixpoint iterate (n : nat) (func : HiF.hfstmt_seq -> VM.t hvalue -> VM.t hvalue -> VM.t (ftype * fcomponent) -> VM.t hvalue * VM.t hvalue)
+  (ss : HiF.hfstmt_seq) (rs : VM.t hvalue) (s : VM.t hvalue) (tmap: VM.t (ftype * fcomponent)) : (VM.t hvalue) * (VM.t hvalue) :=
   match n with
   | 0 => (rs, s)
-  | n'.+1 => let (rs0, s0) := *)
+  | n'.+1 => let s_regupd := update_registers rs s in
+             let (rs0, s0) := func ss (VM.empty hvalue)(* everytime we start with an empty map to record the value of registers in the next iteration *) s_regupd tmap in
+             if VM.equal (fun val1 val2 => hvalue_eqn val1 val2) s0 s (* LFP *) then (rs0, s0) else iterate n' func ss rs0 s0 tmap
+  end.
+
+Definition n := 10.
+Definition compute_Sem (c : HiF.hfcircuit) (inputs : VM.t hvalue) : option (VM.t hvalue) :=
+  match circuit_tmap c, c with
+  | Some tmap, Fcircuit _ [::(FInmod _ ps ss)] => 
+        let rs := init_registers ss (VM.empty hvalue) in
+        let s := inputs in
+        let (rs0,s0) := iterate n eval_hfstmts ss rs s tmap in Some s0
+  | _, _ => None
+  end.
