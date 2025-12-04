@@ -17,7 +17,7 @@ lib/nbits/AuxLemmas.v
 lib/nbits/NBitsDef.v
 lib/nbits/NBitsOp.v
 lib/nbits/NBits.v
--Q src firrtl
+-R src firrtl
 src/Env.v
 src/Firrtl.v
 src/Extract.v
