@@ -634,6 +634,23 @@ Definition circuit_tmap (c : HiF.hfcircuit) : option (VM.t (ftype * fcomponent))
   | Fcircuit v ml => modules_tmap (VM.empty (ftype * fcomponent)) ml
   end.
 
+Fixpoint init_dclrs (ss : HiF.hfstmt_seq) (valmap : VM.t hvalue) (tmap: VM.t (ftype * fcomponent)) : VM.t hvalue := 
+  match ss with
+  | Qnil => valmap
+  | Qcons s ss' => init_dclrs ss' (init_dclr s valmap tmap) tmap
+  end
+with init_dclr (s : HiF.hfstmt) (valmap : VM.t hvalue) (tmap: VM.t (ftype * fcomponent)) : VM.t hvalue := 
+  match s with
+  | Swire v t => VM.add v (ftext0 t) valmap
+  | Snode v e => match eval_hfexpr e valmap tmap with
+                | Some val => VM.add v val valmap
+                | _ => valmap
+                end
+  | Sreg v reg => VM.add v (ftext0 (type reg)) valmap
+  | Swhen cond ss_true ss_false => init_dclrs ss_false (init_dclrs ss_true valmap tmap) tmap
+  | _ => valmap
+  end.
+
 Fixpoint init_registers (ss : HiF.hfstmt_seq) (valmap : VM.t hvalue) : VM.t hvalue := 
   match ss with
   | Qnil => valmap
@@ -673,8 +690,8 @@ Definition n := 10.
 Definition compute_Sem (c : HiF.hfcircuit) (inputs : VM.t hvalue) : option (VM.t hvalue) :=
   match circuit_tmap c, c with
   | Some tmap, Fcircuit _ [::(FInmod _ ps ss)] => 
+        let s := init_dclrs ss inputs tmap in 
         let rs := init_registers ss (VM.empty hvalue) in
-        let s := inputs in (* init s *)
         let (rs0,s0) := iterate n eval_hfstmts ss rs s tmap in Some s0
   | _, _ => None
   end.
