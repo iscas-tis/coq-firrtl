@@ -1298,6 +1298,234 @@ Theorem Sem_preservation_expandConnects :
 Proof.
 Admitted.
 
+Section ExpandWhens.
+
+(* a type to indicate connects *)
+Inductive def_expr : Type :=
+| D_undefined (* declared but not connected, no "is invalid" statement *)
+| D_invalidated (* declared but not connected, there is a "is invalid" statement *)
+| D_fexpr : HiFP.hfexpr -> def_expr (* declared and connected *)
+.
+
+(* equality of def_expr is decidable [because equality of hfexpr is decidable] *)
+Lemma def_expr_eq_dec : forall {x y : def_expr}, {x = y} + {x <> y}.
+Proof.
+  decide equality.
+  apply hfexpr_eq_dec.
+Qed.
+
+Definition def_expr_eqn (x y : def_expr) : bool :=
+match x, y with
+| D_undefined, D_undefined => true
+| D_invalidated, D_invalidated => true
+| D_fexpr expr1, D_fexpr expr2 => expr1 == expr2
+| _, _ => false
+end.
+
+Lemma def_expr_eqP : Equality.axiom def_expr_eqn.
+Proof.
+unfold Equality.axiom, def_expr_eqn.
+intros ; induction x, y ; try (apply ReflectF ; discriminate) ; try (apply ReflectT ; reflexivity).
+case Eq: (h == h0).
+all: move /hfexpr_eqP : Eq => Eq.
+apply ReflectT ; replace h0 with h ; reflexivity.
+apply ReflectF ; injection ; apply Eq.
+Qed.
+
+Canonical def_expr_eqMixin := EqMixin def_expr_eqP.
+Canonical def_expr_eqType := Eval hnf in EqType def_expr def_expr_eqMixin.
+
+Fixpoint ExpandPorts_fun
+    (* create a module graph for the port sequence pp.
+       Out ports need to be assigned value “undefined”;
+       in ports do not need to be assigned any value.
+       Because types have been lowered already, we can assume
+       that all ports have ground types. *)
+    (pp : seq HiFP.hfport) (* the sequence of ports of the module *)
+:   option (PVM.t def_expr * PVM.t (fgtyp * fcomponent)) (* result: a connection map and a scope map for the ports *)
+:=  match pp with
+    | [::] => Some (PVM.empty def_expr, PVM.empty (fgtyp * fcomponent))
+    | Finput p (Gtyp gt) :: pp' =>
+        match ExpandPorts_fun pp' with
+        | Some (temp_ct, temp_scope) =>
+            Some (temp_ct, PVM.add p (gt, In_port) temp_scope)
+        | None => None
+        end
+    | Foutput p (Gtyp gt) :: pp' =>
+        match ExpandPorts_fun pp' with
+        | Some (temp_ct, temp_scope) =>
+            Some (PVM.add p D_undefined temp_ct, PVM.add p (gt, In_port) temp_scope)
+        | None => None
+        end
+    | _ => None
+    end.
+
+Parameter connect_type_compatible : bool -> ftype -> ftype -> bool -> bool.
+
+Definition combine_when_connections
+    (* a helper function that takes two connection maps, generated
+       by the two branches of a when statement, and combines them
+       into one connection map containing suitable multiplexers *)
+    (cond           : HiFP.hfexpr)    (* condition under which to decide whether to take the value from true_conn_map *)
+    (true_conn_map  : PVM.t def_expr) (* connections made before or in the true branch *)
+    (false_conn_map : PVM.t def_expr) (* connections made before or in the false branch *)
+:   PVM.t def_expr
+:=  PVM.map2 (fun true_expr false_expr : option def_expr =>
+                      match true_expr, false_expr with
+                      | Some (D_fexpr te), Some (D_fexpr fe) =>
+                          if te == fe then true_expr
+                          else Some (D_fexpr (Emux cond te fe))
+                      | Some D_undefined, _
+                      | _, Some D_undefined => Some D_undefined
+                      | None, _ => false_expr
+                      | _, None => true_expr
+                      | Some D_invalidated, _ => false_expr
+                      | _, Some D_invalidated => true_expr
+                      end)
+             true_conn_map false_conn_map.
+
+Fixpoint ExpandBranches_funs
+(* split a statement sequence (possibly containing when
+   statements) into a sequence that defines components and a
+   connection map.  The output does not contain when statements. *)
+(ss           : HiFP.hfstmt_seq)   (* sequence of statements being translated *)
+(old_conn_map : PVM.t def_expr)    (* connections made by earlier statements in the sequence (used for recursion) *)
+(old_scope    : PVM.t (fgtyp * fcomponent)) (* part of module graph vertices that is currently in scope *)
+:   option (PVM.t def_expr * PVM.t (fgtyp * fcomponent))
+(* old_conn_map, extended with the connection statements in ss,
+   and old_scope, extended with the component statements in ss that remain in scope *)
+:=  match ss with
+| Qnil => Some (old_conn_map, old_scope)
+| Qcons s ss =>
+    match ExpandBranch_fun s old_conn_map old_scope with
+    | Some (temp_conn_map, temp_scope) =>
+        ExpandBranches_funs ss temp_conn_map temp_scope
+    | None => None
+    end
+end
+with ExpandBranch_fun
+(* split a single statement (possibly consisting of a when
+   statement) into a sequence that defines components and a
+   connection map.  The output does not contain when statements. *)
+(s            : HiFP.hfstmt)       (* a single statement being translated *)
+(old_conn_map : PVM.t def_expr)    (* connections made by earlier statements in the sequence (used for recursion) *)
+(old_scope    : PVM.t (fgtyp * fcomponent)) (* part of module graph vertices that is currently in scope *)
+:   option (PVM.t def_expr * PVM.t (fgtyp * fcomponent))
+(* old_comp_ss, extended with the component statements in s,
+   old_conn_map, extended with the connection statements in s,
+   and old_scope, extended with the component statements in s that remain in scope *)
+:=  match s with
+| Sskip => Some (old_conn_map, old_scope)
+| Swire var (Gtyp gt) =>
+    match PVM.find var old_scope with
+    | None => Some (PVM.add var D_undefined old_conn_map, PVM.add var (gt, Wire) old_scope)
+    | Some _ => None
+    end
+| Sreg var reg =>
+    match PVM.find var old_scope, Sem_HiFP.type_of_hfexpr (clock reg) old_scope, type reg with
+    | None, Some _, Gtyp gt =>
+        match reset reg with
+        | NRst => Some (PVM.add var (D_fexpr (Eref (Eid var))) old_conn_map, PVM.add var (gt, Register) old_scope)
+        | Rst rst_sig rst_val =>
+            match Sem_HiFP.type_of_hfexpr rst_sig old_scope with
+            | Some (Fuint 1) =>
+                match Sem_HiFP.type_of_hfexpr rst_val (PVM.add var (gt, Register) old_scope) with
+                | Some _ => Some (PVM.add var (D_fexpr (Eref (Eid var))) old_conn_map, PVM.add var (gt, Register) old_scope)
+                | None => None
+                end
+            | Some Fasyncreset =>
+                match Sem_HiFP.type_of_hfexpr rst_val old_scope with
+                | Some _ => Some (PVM.add var (D_fexpr (Eref (Eid var))) old_conn_map, PVM.add var (gt, Register) old_scope)
+                | None => None
+                end
+            | _ => None
+            end
+        end
+    | _, _, _ => None
+    end
+| Smem var mem => None
+| Sinst var1 var2 => None
+| Snode var expr =>
+    match PVM.find var old_scope, Sem_HiFP.type_of_hfexpr expr old_scope with
+    | None, Some ft =>
+        Some (old_conn_map, PVM.add var (ft, Node) old_scope)
+    | _, _ => None
+    end
+| Sfcnct (Eid var) expr =>
+    (* The following code needs to be moved to a helper function
+       because ref can be more complex than just (Eid var). *)
+    match PVM.find var old_scope with
+    | Some (gt_ref, _) =>
+        match Sem_HiFP.type_of_hfexpr expr old_scope with
+        | Some gt_expr =>
+            if connect_type_compatible false (Gtyp gt_ref) (Gtyp gt_expr) false
+            then Some (PVM.add var (D_fexpr expr) old_conn_map, old_scope)
+            else None
+        | _ => None
+        end
+    | _ => None
+    end
+| Sinvalid (Eid var) =>
+    match PVM.find var old_scope with
+    | Some _ =>
+        Some (PVM.add var D_invalidated old_conn_map, old_scope)
+    | _ => None
+    end
+| Swhen cond ss_true ss_false =>
+    match Sem_HiFP.type_of_hfexpr cond old_scope, ExpandBranches_funs ss_true old_conn_map old_scope with
+    | Some (Fuint 1), Some (true_conn_map, _) =>
+        match ExpandBranches_funs ss_false old_conn_map old_scope with
+        | Some (false_conn_map, _) =>
+            Some (combine_when_connections cond true_conn_map false_conn_map, old_scope)
+        | _ => None
+        end
+    | _, _ => None
+    end
+| _ => None
+end.
+
+Definition convert_to_connect_stmt
+    (* convert one entry in a map of connections to a connect statement,
+       helper function for PVM.fold *)
+    (v : PVM.key) (* key of the connection *)
+    (d : def_expr) (* value of the connection *)
+    (old_ss : HiFP.hfstmt_seq) (* old sequence of connect statements *)
+:   HiFP.hfstmt_seq (* returns old_ss, extended with assigning d to v *)
+:=  match d with
+    | D_undefined => old_ss
+    | D_invalidated => Qcons (Sinvalid (Eid v)) old_ss
+    | D_fexpr e => Qcons (Sfcnct (Eid v) e) old_ss
+    end.
+
+Definition convert_to_connect_stmts
+    (* converts a map of connections to connect statements *)
+    (conn_map : PVM.t def_expr) (* map that needs to be converted *)
+:   HiFP.hfstmt_seq
+:=  PVM.fold convert_to_connect_stmt conn_map (Qnil ProdVarOrder.T).
+
+Parameter component_stmts_of : HiFP.hfstmt_seq -> HiFP.hfstmt_seq.
+
+Definition ExpandWhens_fun
+    (* Expand When statements in a module *)
+    (m : HiFP.hfmodule) (* module that needs to be handled *)
+:   option HiFP.hfmodule (* result is either a semantically equivalent module without when statements,
+                            or nothing if there was some error *)
+:=  match m with
+    | FInmod v pp ss =>
+        match ExpandPorts_fun pp with
+        | Some (port_ct, port_scope) =>
+            match ExpandBranches_funs ss port_ct port_scope with
+            | Some (conn_map, _) =>
+                Some (FInmod v pp (Qcat (component_stmts_of ss) (convert_to_connect_stmts conn_map)))
+            | None => None
+            end
+        | None => None
+        end
+    | FExmod _ _ _ => None
+    end.
+
+End ExpandWhens.
+
 Parameter expandWhens : HiFP.hfcircuit -> option HiFP.hfcircuit.
 
 Theorem Sem_preservation_expandWhens : 
