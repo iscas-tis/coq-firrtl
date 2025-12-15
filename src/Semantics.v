@@ -1360,7 +1360,17 @@ Fixpoint ExpandPorts_fun
     | _ => None
     end.
 
-Parameter connect_type_compatible : bool -> ftype -> ftype -> bool -> bool.
+Definition connect_type_compatible (gt_tgt gt_src : fgtyp) : bool :=
+(* Returns true if a connection from ft_src to ft_tgt is allowed.
+   flipped == true indicates that the connection should be the other way actually.
+   If can_flip == false, no flipped fields are allowed in bundle types. *)
+match gt_tgt, gt_src with
+| Fuint w1, Fuint w2
+| Fsint w1, Fsint w2 => w1 == w2
+| Fclock, Fclock
+| Fasyncreset, Fasyncreset => true 
+| _, _ => false
+end.
 
 Definition combine_when_connections
     (* a helper function that takes two connection maps, generated
@@ -1458,7 +1468,7 @@ with ExpandBranch_fun
     | Some (gt_ref, _) =>
         match Sem_HiFP.type_of_hfexpr expr old_scope with
         | Some gt_expr =>
-            if connect_type_compatible false (Gtyp gt_ref) (Gtyp gt_expr) false
+            if connect_type_compatible gt_ref gt_expr
             then Some (PVM.add var (D_fexpr expr) old_conn_map, old_scope)
             else None
         | _ => None
@@ -1503,7 +1513,24 @@ Definition convert_to_connect_stmts
 :   HiFP.hfstmt_seq
 :=  PVM.fold convert_to_connect_stmt conn_map (Qnil ProdVarOrder.T).
 
-Parameter component_stmts_of : HiFP.hfstmt_seq -> HiFP.hfstmt_seq.
+Fixpoint component_stmts_of (ss : HiFP.hfstmt_seq) : HiFP.hfstmt_seq :=
+(* extracts from ss the statements that define components *)
+match ss with
+| Qnil => ss
+| Qcons s ss' => Qcat (component_stmt_of s) (component_stmts_of ss')
+end
+with component_stmt_of (s : HiFP.hfstmt) : HiFP.hfstmt_seq :=
+match s with
+| Sskip
+| Sfcnct _ _
+| Sinvalid _ => Qnil ProdVarOrder.T
+| Swire _ _
+| Sreg _ _
+| Snode _ _
+| Smem _ _
+| Sinst _ _ => Qcons s (Qnil ProdVarOrder.T)
+| Swhen _ ss_true ss_false => Qcat (component_stmts_of ss_true) (component_stmts_of ss_false)
+end.
 
 Definition ExpandWhens_fun
     (* Expand When statements in a module *)
