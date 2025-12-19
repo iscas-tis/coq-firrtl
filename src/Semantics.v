@@ -11,13 +11,18 @@ Import Prenex Implicits.
 Inductive hvalue : Type :=
   | Gval : bits -> hvalue
   | Aval : array_value -> hvalue
-  | Bval : bundle_value -> hvalue
+  | Bval : (*forall bu :*) bundle_value (*, not_Bnil bu*) -> hvalue
 with array_value : Type :=
   | Aone : hvalue -> array_value
   | Acons : hvalue -> array_value -> array_value
 with bundle_value : Type :=
   | Bnil : bundle_value
-  | Bflips : var -> fflip -> hvalue -> bundle_value -> bundle_value.
+  | Bflips : var -> fflip -> hvalue -> bundle_value -> bundle_value
+(*with not_Bnil (bu : bundle_value) : bool :=
+  match bu with
+  | Bnil => false
+  | _ => true
+  end*).
 
 Lemma bitseq_eq_dec : forall (x y : bitseq), {x = y} + {x <> y}.
 Proof.
@@ -155,7 +160,7 @@ Fixpoint hvalue_of_ref (r : HiF.href) (s : VM.t hvalue) : option hvalue :=
                                   in aux fv n
               | _ => None
               end
-  | Esubaccess r e => None
+  | Esubaccess r e => None(* TBD *)
   end.
 
 (* makes val to be of type ft *)
@@ -220,7 +225,6 @@ Fixpoint ftext0 (ft : ftype) : hvalue :=
 
 Module Sem_HiF.
 
-
 (* type of ref expressions *)
 Fixpoint type_of_ref (r : HiF.href) (tmap : VM.t (ftype * fcomponent)) : option ftype :=
   match r with
@@ -239,11 +243,11 @@ Fixpoint type_of_ref (r : HiF.href) (tmap : VM.t (ftype * fcomponent)) : option 
                                   in aux fs
               | _ => None
               end
-  | Esubindex r n => match type_of_ref r tmap with
+  | Esubaccess r _
+  | Esubindex r _ => match type_of_ref r tmap with
               | Some (Atyp ty _) => Some ty
               | _ => None
               end
-  | Esubaccess r e => None
   end.
 
 (* copied from ModuleGraph *)
@@ -428,7 +432,7 @@ Fixpoint eval_hfexpr (exp : HiF.hfexpr) (s : VM.t hvalue) (tmap: VM.t (ftype * f
   | Econst t c => let val := match t with
                   | Fuint w1 => zext (w1 - size c) c
                   | Fsint w2 => sext (w2 - size c) c
-                  | _ => c
+                  | _ => c(* TBD *)
                   end in Some (Gval val)
   | Eref r => hvalue_of_ref r s
   | Ecast AsUInt e 
@@ -668,6 +672,7 @@ with eval_bundle_connection (ff : ffield) (val_l val_r : hvalue) (offset_l offse
   end.
 
 Fixpoint eval_ref_connection1 (ft : ftype) (val : hvalue) (offset_l offset_r : nat) : option hvalue :=
+  (* TBD bidirction between different sub-component inside the same component *)
   match ft with
   | Gtyp gt => match find_hvalue_by_offset val offset_r with
               | Some bv => match update_hvalue_by_offset val offset_l (Gval bv) with
@@ -747,6 +752,7 @@ Fixpoint eval_hfstmt (st : HiF.hfstmt) (rs : VM.t hvalue) (s : VM.t hvalue) (tma
                         match VM.find base_r tmap, VM.find base_ref tmap with
                         | Some (_, Register), Some (_, Register) => (* 均更新rs *) (s, VM.add base_ref val_base_ref (VM.add base_r val_base_r' rs))
                         | Some (_, Register), Some _ => (* lhs更新rs, rhs更新s *) (VM.add base_ref val_base_ref s, VM.add base_r val_base_r' rs)
+                        (* TBD *)
                         | Some _, Some _ => (* 均更新s *) (VM.add base_ref val_base_ref (VM.add base_r val_base_r' s), rs)
                         | _,_ => (rs,s)
                         end
@@ -890,7 +896,7 @@ with init_register (s : HiF.hfstmt) (valmap rs : VM.t hvalue) (tmap: VM.t (ftype
   match s with
   | Sreg v reg => match reset reg with
       | NRst => rs
-      | Rst rst_sig rst_val => (* 本质这里需要区分同步/异步rst *)
+      | Rst rst_sig rst_val => (* 本质这里需要区分同步/异步rst *) (* TBD, asyncreset only const reset value *)
           match eval_hfexpr rst_val valmap tmap with 
           | Some val => VM.add v val rs
           | _ => rs
@@ -1551,9 +1557,16 @@ Definition ExpandWhens_fun
     | FExmod _ _ _ => None
     end.
 
-End ExpandWhens.
+Definition expandWhens (c : HiFP.hfcircuit) : option HiFP.hfcircuit :=
+  match c with
+  | Fcircuit v [:: m] => match ExpandWhens_fun m with
+    | Some fm => Some (Fcircuit v [:: fm])
+    | _ => None
+    end
+  | _ => None
+  end.
 
-Parameter expandWhens : HiFP.hfcircuit -> option HiFP.hfcircuit.
+End ExpandWhens.
 
 Theorem Sem_preservation_expandWhens : 
 (* Proves pass expandWhens preserves the semantics *)
@@ -1569,4 +1582,6 @@ Theorem Sem_preservation_expandWhens :
   | _ => true
   end.
 Proof.
+  intros. destruct (Sem_HiFP.compute_Sem c inputs) as [sem|] eqn : Hsem; try done.
+  intros. destruct (Sem_HiFP.compute_Sem newc inputs) as [sem_new|] eqn : Hsem_new; try done.
 Admitted.
