@@ -135,34 +135,6 @@ Compute (to_Zpos [::true;false]). 后为高位
 | Fsint _ => to_Z c
 | Fuint _ => to_Zpos c *)
 
-(* value of ref expressions *)
-Fixpoint hvalue_of_ref (r : HiF.href) (s : VM.t hvalue) : option hvalue :=
-  match r with
-  | Eid v => VM.find v s
-  | Esubfield r v => match hvalue_of_ref r s with
-              | Some (Bval fv) => let fix aux fx := (
-                                          match fx with
-                                          | Bflips v' f t fxs =>
-                                            if (v == v') then Some t
-                                            else aux fxs
-                                          | Bnil => None
-                                          end )
-                                  in aux fv
-              | _ => None
-              end
-  | Esubindex r n => match hvalue_of_ref r s with
-              | Some (Aval fv) => let fix aux fx m := (
-                                          match fx, m with
-                                          | Acons t fxs, m'.+1 => aux fxs m'
-                                          | Aone t, 0 => Some t 
-                                          | _, _ => None
-                                          end )
-                                  in aux fv n
-              | _ => None
-              end
-  | Esubaccess r e => None(* TBD *)
-  end.
-
 (* makes val to be of type ft *)
 Fixpoint ftext (ft : ftype) (val : hvalue) : option hvalue :=
   match ft, val with
@@ -426,15 +398,52 @@ Fixpoint type_of_hfexpr (e : HiF.hfexpr) (tmap: VM.t (ftype * fcomponent)) : opt
                     end
   end.
 
+(* value of ref expressions *)
+Fixpoint hvalue_of_ref (r : HiF.href) (s : VM.t hvalue) (tmap: VM.t (ftype * fcomponent)) : option hvalue :=
+  match r with
+  | Eid v => VM.find v s
+  | Esubfield r v => match hvalue_of_ref r s tmap with
+              | Some (Bval fv) => let fix aux fx := (
+                                          match fx with
+                                          | Bflips v' f t fxs =>
+                                            if (v == v') then Some t
+                                            else aux fxs
+                                          | Bnil => None
+                                          end )
+                                  in aux fv
+              | _ => None
+              end
+  | Esubindex r n => match hvalue_of_ref r s tmap with
+              | Some (Aval fv) => let fix aux fx m := (
+                                          match fx, m with
+                                          | Acons t fxs, m'.+1 => aux fxs m'
+                                          | Aone t, 0 => Some t 
+                                          | _, _ => None
+                                          end )
+                                  in aux fv n
+              | _ => None
+              end
+  | Esubaccess r e => match eval_hfexpr e s tmap, hvalue_of_ref r s tmap with 
+              | Some (Gval val), Some (Aval fv) => let n := to_nat val in
+                                  let fix aux fx m := (
+                                          match fx, m with
+                                          | Acons t fxs, m'.+1 => aux fxs m'
+                                          | Aone t, 0 => Some t 
+                                          | _, _ => None
+                                          end )
+                                  in aux fv n
+              | _, _ => None
+              end
+  end
 (* Expression evaluation, value *)
-Fixpoint eval_hfexpr (exp : HiF.hfexpr) (s : VM.t hvalue) (tmap: VM.t (ftype * fcomponent)) : option hvalue :=
+with eval_hfexpr (exp : HiF.hfexpr) (s : VM.t hvalue) (tmap: VM.t (ftype * fcomponent)) : option hvalue :=
   match exp with
-  | Econst t c => let val := match t with
-                  | Fuint w1 => zext (w1 - size c) c
-                  | Fsint w2 => sext (w2 - size c) c
-                  | _ => c(* TBD *)
-                  end in Some (Gval val)
-  | Eref r => hvalue_of_ref r s
+  | Econst t c => match t with
+                  | Fuint w1 => Some (Gval (zext (w1 - size c) c))
+                  | Fsint w2 => Some (Gval (sext (w2 - size c) c))
+                  | _ => None
+                  end
+  | Eref r => hvalue_of_ref r s tmap
   | Ecast AsUInt e 
   | Ecast AsSInt e => eval_hfexpr e s tmap
   | Ecast AsClock e  
@@ -672,7 +681,7 @@ with eval_bundle_connection (ff : ffield) (val_l val_r : hvalue) (offset_l offse
   end.
 
 Fixpoint eval_ref_connection1 (ft : ftype) (val : hvalue) (offset_l offset_r : nat) : option hvalue :=
-  (* TBD bidirction between different sub-component inside the same component *)
+  (* bidirction between different sub-component inside the same component *)
   match ft with
   | Gtyp gt => match find_hvalue_by_offset val offset_r with
               | Some bv => match update_hvalue_by_offset val offset_l (Gval bv) with
@@ -750,10 +759,10 @@ Fixpoint eval_hfstmt (st : HiF.hfstmt) (rs : VM.t hvalue) (s : VM.t hvalue) (tma
                     | Some (val_base_r', val_base_ref') => 
                         (* 分情况讨论r和ref是否对应reg *)
                         match VM.find base_r tmap, VM.find base_ref tmap with
-                        | Some (_, Register), Some (_, Register) => (* 均更新rs *) (s, VM.add base_ref val_base_ref (VM.add base_r val_base_r' rs))
-                        | Some (_, Register), Some _ => (* lhs更新rs, rhs更新s *) (VM.add base_ref val_base_ref s, VM.add base_r val_base_r' rs)
-                        (* TBD *)
-                        | Some _, Some _ => (* 均更新s *) (VM.add base_ref val_base_ref (VM.add base_r val_base_r' s), rs)
+                        | Some (_, Register), Some (_, Register) => (* 均更新rs *) (s, VM.add base_ref val_base_ref' (VM.add base_r val_base_r' rs))
+                        | Some (_, Register), Some _ => (* lhs更新rs, rhs更新s *) (VM.add base_ref val_base_ref' s, VM.add base_r val_base_r' rs)
+                        | Some _, Some (_, Register) => (* lhs更新s, rhs更新rs *) (VM.add base_r val_base_r' s, VM.add base_ref val_base_ref' rs)
+                        | Some _, Some _ => (* 均更新s *) (VM.add base_ref val_base_ref' (VM.add base_r val_base_r' s), rs)
                         | _,_ => (rs,s)
                         end
                     | _ => (rs,s)
@@ -896,7 +905,7 @@ with init_register (s : HiF.hfstmt) (valmap rs : VM.t hvalue) (tmap: VM.t (ftype
   match s with
   | Sreg v reg => match reset reg with
       | NRst => rs
-      | Rst rst_sig rst_val => (* 本质这里需要区分同步/异步rst *) (* TBD, asyncreset only const reset value *)
+      | Rst rst_sig rst_val => (* asyncreset only const reset value *)
           match eval_hfexpr rst_val valmap tmap with 
           | Some val => VM.add v val rs
           | _ => rs
