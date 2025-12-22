@@ -270,7 +270,14 @@ Fixpoint type_of_hfexpr (e : HiF.hfexpr) (tmap: VM.t (ftype * fcomponent)) : opt
   match e with
   | Econst t bs => Some (Gtyp t)
   | Eref r => type_of_ref r tmap 
-  | Ecast AsUInt e1 
+  | Ecast AsUInt e1 => match type_of_hfexpr e1 tmap with
+                        | Some (Gtyp (Fsint w))
+                        | Some (Gtyp (Fuint w)) => Some (Gtyp (Fuint w))
+                        | Some (Gtyp Fclock) 
+                        | Some (Gtyp Freset)
+                        | Some (Gtyp Fasyncreset) => Some (Gtyp (Fuint 1))
+                        | _ => None
+                        end
   | Ecast AsSInt e1 => match type_of_hfexpr e1 tmap with
                         | Some (Gtyp (Fsint w))
                         | Some (Gtyp (Fuint w)) => Some (Gtyp (Fsint w))
@@ -287,7 +294,7 @@ Fixpoint type_of_hfexpr (e : HiF.hfexpr) (tmap: VM.t (ftype * fcomponent)) : opt
                         | Some (Gtyp _) => Some (Gtyp Fasyncreset)
                         | _ => None
                         end
-  | Ecast AsReset _ => None
+  (*| Ecast AsReset _ => None*)
   | Eprim_unop (Upad n) e1 => match type_of_hfexpr e1 tmap with
                               | Some (Gtyp (Fsint w)) => Some (Gtyp (Fsint (maxn w n)))
                               | Some (Gtyp (Fuint w)) => Some (Gtyp (Fuint (maxn w n)))
@@ -396,6 +403,7 @@ Fixpoint type_of_hfexpr (e : HiF.hfexpr) (tmap: VM.t (ftype * fcomponent)) : opt
                     | Some (Gtyp (Fuint _)), Some t1, Some t2 => ftype_mux t1 t2
                     | _, _, _ => None
                     end
+  | Evalidif _ _ => None
   end.
 
 (* value of ref expressions *)
@@ -417,6 +425,7 @@ Fixpoint hvalue_of_ref (r : HiF.href) (s : VM.t hvalue) (tmap: VM.t (ftype * fco
               | Some (Aval fv) => let fix aux fx m := (
                                           match fx, m with
                                           | Acons t fxs, m'.+1 => aux fxs m'
+                                          | Acons t _, 0
                                           | Aone t, 0 => Some t 
                                           | _, _ => None
                                           end )
@@ -428,6 +437,7 @@ Fixpoint hvalue_of_ref (r : HiF.href) (s : VM.t hvalue) (tmap: VM.t (ftype * fco
                                   let fix aux fx m := (
                                           match fx, m with
                                           | Acons t fxs, m'.+1 => aux fxs m'
+                                          | Acons t _, 0
                                           | Aone t, 0 => Some t 
                                           | _, _ => None
                                           end )
@@ -447,7 +457,7 @@ with eval_hfexpr (exp : HiF.hfexpr) (s : VM.t hvalue) (tmap: VM.t (ftype * fcomp
   | Ecast AsUInt e 
   | Ecast AsSInt e => eval_hfexpr e s tmap
   | Ecast AsClock e  
-  | Ecast AsReset e  
+  (*| Ecast AsReset e  *)
   | Ecast AsAsync e => match eval_hfexpr e s tmap with Some (Gval val) => Some (Gval [::lsb val]) | _ => None end
   | Eprim_binop b e1 e2 =>
       match eval_hfexpr e1 s tmap, eval_hfexpr e2 s tmap, type_of_hfexpr e1 tmap, type_of_hfexpr e2 tmap with
@@ -467,6 +477,7 @@ with eval_hfexpr (exp : HiF.hfexpr) (s : VM.t hvalue) (tmap: VM.t (ftype * fcomp
                                                                                 else ftext ft val2
       | _, _, _, _ => None
       end
+  | Evalidif _ _ => None
   end.
 
 Fixpoint elements_of_ftype ft :=
@@ -646,6 +657,7 @@ with update_bundle_value_by_offset (bval : bundle_value) (offset : nat) (new_val
   Compute (update_hvalue_by_offset bb_val 4 a_val1).
 
 Fixpoint eval_ref_connection (ft : ftype) (val_l val_r : hvalue) (offset_l offset_r : nat) : option (hvalue * hvalue) :=
+  (* bidirectional connect between different components *)
   match ft with
   | Gtyp gt => match find_hvalue_by_offset val_r offset_r with
               | Some bv => match update_hvalue_by_offset val_l offset_l (Gval bv) with
@@ -681,7 +693,9 @@ with eval_bundle_connection (ff : ffield) (val_l val_r : hvalue) (offset_l offse
   end.
 
 Fixpoint eval_ref_connection1 (ft : ftype) (val : hvalue) (offset_l offset_r : nat) : option hvalue :=
-  (* bidirction between different sub-component inside the same component *)
+  (* bidirectional connect between different sub-component inside the same component.
+     It is assumed that offset_l indicates the sub-component to be written and offset_r the one to be read,
+     even when they are flipped. *)
   match ft with
   | Gtyp gt => match find_hvalue_by_offset val offset_r with
               | Some bv => match update_hvalue_by_offset val offset_l (Gval bv) with
@@ -754,7 +768,7 @@ Fixpoint eval_hfstmt (st : HiF.hfstmt) (rs : VM.t hvalue) (s : VM.t hvalue) (tma
                 | _ => (rs,s)
                 end else
                 match VM.find base_r s, VM.find base_ref s with
-                | Some val_base_r, Some val_base_ref => 
+                | Some val_base_r, Some val_base_ref =>
                     match eval_ref_connection ft val_base_r val_base_ref offset_r offset_ref with
                     | Some (val_base_r', val_base_ref') => 
                         (* 分情况讨论r和ref是否对应reg *)
