@@ -294,7 +294,6 @@ Fixpoint type_of_hfexpr (e : HiF.hfexpr) (tmap: VM.t (ftype * fcomponent)) : opt
                         | Some (Gtyp _) => Some (Gtyp Fasyncreset)
                         | _ => None
                         end
-  (*| Ecast AsReset _ => None*)
   | Eprim_unop (Upad n) e1 => match type_of_hfexpr e1 tmap with
                               | Some (Gtyp (Fsint w)) => Some (Gtyp (Fsint (maxn w n)))
                               | Some (Gtyp (Fuint w)) => Some (Gtyp (Fuint (maxn w n)))
@@ -403,7 +402,7 @@ Fixpoint type_of_hfexpr (e : HiF.hfexpr) (tmap: VM.t (ftype * fcomponent)) : opt
                     | Some (Gtyp (Fuint _)), Some t1, Some t2 => ftype_mux t1 t2
                     | _, _, _ => None
                     end
-  | Evalidif _ _ => None
+  (*| Evalidif _ _ => None*)
   end.
 
 (* value of ref expressions *)
@@ -457,7 +456,6 @@ with eval_hfexpr (exp : HiF.hfexpr) (s : VM.t hvalue) (tmap: VM.t (ftype * fcomp
   | Ecast AsUInt e 
   | Ecast AsSInt e => eval_hfexpr e s tmap
   | Ecast AsClock e  
-  (*| Ecast AsReset e  *)
   | Ecast AsAsync e => match eval_hfexpr e s tmap with Some (Gval val) => Some (Gval [::lsb val]) | _ => None end
   | Eprim_binop b e1 e2 =>
       match eval_hfexpr e1 s tmap, eval_hfexpr e2 s tmap, type_of_hfexpr e1 tmap, type_of_hfexpr e2 tmap with
@@ -477,7 +475,7 @@ with eval_hfexpr (exp : HiF.hfexpr) (s : VM.t hvalue) (tmap: VM.t (ftype * fcomp
                                                                                 else ftext ft val2
       | _, _, _, _ => None
       end
-  | Evalidif _ _ => None
+  (*| Evalidif _ _ => None*)
   end.
 
 Fixpoint elements_of_ftype ft :=
@@ -984,7 +982,6 @@ Fixpoint type_of_hfexpr (e : HiFP.hfexpr) (tmap: PVM.t (fgtyp * fcomponent)) : o
                         | Some _ => Some Fasyncreset
                         | _ => None
                         end
-  | Ecast AsReset _ => None
   | Eprim_unop (Upad n) e1 => match type_of_hfexpr e1 tmap with
                               | Some (Fsint w) => Some (Fsint (maxn w n))
                               | Some (Fuint w) => Some (Fuint (maxn w n))
@@ -1109,7 +1106,6 @@ Fixpoint eval_hfexpr (exp : HiFP.hfexpr) (s : PVM.t bits) (tmap: PVM.t (fgtyp * 
   | Ecast AsUInt e 
   | Ecast AsSInt e => eval_hfexpr e s tmap
   | Ecast AsClock e  
-  | Ecast AsReset e  
   | Ecast AsAsync e => match eval_hfexpr e s tmap with Some val => Some [::lsb val] | _ => None end
   | Eprim_binop b e1 e2 =>
       match eval_hfexpr e1 s tmap, eval_hfexpr e2 s tmap, type_of_hfexpr e1 tmap, type_of_hfexpr e2 tmap with

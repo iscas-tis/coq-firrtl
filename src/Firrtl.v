@@ -17,7 +17,7 @@ Section LoFirrtl.
   (****** Expressions ******)
 
   Inductive ucast : Set :=
-  | AsUInt | AsSInt (*| AsFixed*) | AsClock | AsReset | AsAsync .
+  | AsUInt | AsSInt (*| AsFixed*) | AsClock | AsAsync .
 
   Inductive eunop : Set :=
   | Upad : nat -> eunop
@@ -319,7 +319,7 @@ Module MakeFirrtl
     | AsUInt => to_Zpos
     | AsSInt => to_Z
     | AsClock => to_Clock
-    | AsReset | AsAsync => to_Reset
+    | AsAsync => to_Reset
     end.
 
   (* Unary operations *)
@@ -1277,9 +1277,8 @@ Qed.
     | Eref v => TE.vtyp v te
     | Ecast AsUInt e => Fuint (sizeof_fgtyp (type_of_fexpr e te))
     | Ecast AsSInt e => Fsint (sizeof_fgtyp (type_of_fexpr e te))
-    | Ecast AsClock e => Fuint 1
-    | Ecast AsReset e => Fuint 1
-    | Ecast AsAsync e => Fuint 1
+    | Ecast AsClock e => Fclock
+    | Ecast AsAsync e => Fasyncreset
     | Eprim_unop u e => match u with
                         | Upad n => if (n < (sizeof_fgtyp (type_of_fexpr e te))) then (type_of_fexpr e te)
                                     else match (type_of_fexpr e te) with
@@ -1447,8 +1446,6 @@ Qed.
       let (rs0, val) := (eval_fexpr e rs s te readerls writerls data2etc memmap read_la) in (rs0, val)
     | Ecast AsSInt e => let (rs0, val) := eval_fexpr e rs s te readerls writerls data2etc memmap read_la in (rs0, val)
     | Ecast AsClock e => let (rs0, val1) := (eval_fexpr e rs s te readerls writerls data2etc memmap read_la) in
-                         let val := [::lsb val1] in (rs0, val)
-    | Ecast AsReset e => let (rs0, val1) := (eval_fexpr e rs s te readerls writerls data2etc memmap read_la) in
                          let val := [::lsb val1] in (rs0, val)
     | Ecast AsAsync e => let (rs0, val1) := (eval_fexpr e rs s te readerls writerls data2etc memmap read_la) in
                          let val := [::lsb val1] in (rs0, val)
@@ -2220,7 +2217,6 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
     | Ecast AsUInt e => no_mem_eval_fexpr e s te
     | Ecast AsSInt e => no_mem_eval_fexpr e s te
     | Ecast AsClock e => [::lsb (no_mem_eval_fexpr e s te)]
-    | Ecast AsReset e => [::lsb (no_mem_eval_fexpr e s te)]
     | Ecast AsAsync e => [::lsb (no_mem_eval_fexpr e s te)]
     end.
 
@@ -2865,8 +2861,6 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
         exact Hwt.
         exact Hcf.
       - simpl.
-        reflexivity.
-        simpl.
         reflexivity.
         simpl.
         reflexivity.
@@ -4285,11 +4279,6 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       apply SV.Lemmas.mem_add_eq.
       apply TE.SE.eq_refl.
       exact Hwf.
-      exact Hcf.
-      - move => rs1 s1 te v Hcf Hwf.
-      apply SV.conform_upd.
-      simpl.
-      reflexivity.
       exact Hcf.
       - move => rs1 s1 te v Hcf Hwf.
       apply SV.conform_upd.

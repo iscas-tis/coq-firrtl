@@ -1373,11 +1373,6 @@ Proof.
                           | Gtyp _ =>  Gtyp Fclock
                           | _ => def_ftype
                           end
-    | Ecast AsReset e1 => let t := type_of_hfexpr e1 ce in
-                          match t with
-                          | Gtyp _ =>  Gtyp Freset
-                          | _ => def_ftype
-                          end
     | Ecast AsAsync e1 => let t := type_of_hfexpr e1 ce in
                           match t with
                           | Gtyp _ =>  Gtyp Fasyncreset
@@ -1877,11 +1872,6 @@ Module MakeHiFirrtlP
     | Ecast AsClock e1 => let t := type_of_hfexpr e1 ce in
                           match t with
                           | Gtyp _ =>  Gtyp Fclock
-                          | _ => def_ftype
-                          end
-    | Ecast AsReset e1 => let t := type_of_hfexpr e1 ce in
-                          match t with
-                          | Gtyp _ =>  Gtyp Freset
                           | _ => def_ftype
                           end
     | Ecast AsAsync e1 => let t := type_of_hfexpr e1 ce in

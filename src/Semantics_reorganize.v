@@ -78,16 +78,8 @@ Section Value.
   | Sinst : var -> var -> hfstmt
   | Snode : var -> hfexpr -> hfstmt
   | Sfcnct : href -> hfexpr -> hfstmt
-  (* | Spcnct : href -> hfexpr -> hfstmt *)
   | Sinvalid : href -> hfstmt
-  (* | Sattach : seq var -> fstmt *)
   | Swhen : hfexpr -> hfstmt_seq -> hfstmt_seq -> hfstmt
-  (* | Sstop : hfexpr -> hfexpr -> nat -> hfstmt *)
-  (* | Sprintf (* TBD *) *)
-  (* | Sassert (* TBD *) *)
-  (* | Sassume (* TBD *) *)
-  (* | Sdefname : var -> fstmt *) (* TBD *)
-  (* | Sparam : var -> fexpr -> fstmt *) (* TBD *)
   with hfstmt_seq : Type :=
        | Qnil
        | Qcons : hfstmt -> hfstmt_seq -> hfstmt_seq.
@@ -150,6 +142,8 @@ Section Value.
   Canonical hvalue_eqType := Eval hnf in EqType hvalue hvalue_eqMixin.
 
 End Value.
+
+Print ftype.
 
 Module MakeSemantics
   (V : SsrOrder) (* identifier names *)
@@ -314,7 +308,6 @@ Fixpoint type_of_hfexpr (e : hfexpr) (tmap: VM.t (ftype * fcomponent)) : option 
                         | Some (Gtyp _) => Some (gtyp Fasyncreset)
                         | _ => None
                         end
-  | Ecast AsReset _ => None
   | Eprim_unop (Upad n) e1 => match type_of_hfexpr e1 tmap with
                               | Some (Gtyp (Fsint w)) => Some (gtyp (Fsint (maxn w n)))
                               | Some (Gtyp (Fuint w)) => Some (gtyp (Fuint (maxn w n)))
@@ -605,7 +598,6 @@ with eval_hfexpr (exp : hfexpr) (s : VM.t hvalue) (tmap: VM.t (ftype * fcomponen
   | Ecast AsUInt e 
   | Ecast AsSInt e => eval_hfexpr e s tmap
   | Ecast AsClock e  
-  | Ecast AsReset e  
   | Ecast AsAsync e => match eval_hfexpr e s tmap with Some (Gval val) => Some (gval [::lsb val]) | _ => None end
   | Eprim_binop b e1 e2 =>
       match eval_hfexpr e1 s tmap, eval_hfexpr e2 s tmap, type_of_hfexpr e1 tmap, type_of_hfexpr e2 tmap with
