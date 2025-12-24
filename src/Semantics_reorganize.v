@@ -631,12 +631,12 @@ with init_dclr (s : hfstmt) (valmap : VM.t hvalue) (tmap: VM.t (ftype * fcompone
                 | Some val => VM.add v val valmap
                 | _ => valmap
                 end
-  | Sreg v reg => VM.add v (ftext0 (type reg)) valmap
+  (*| Sreg v reg => VM.add v (ftext0 (type reg)) valmap*)
   | Swhen cond ss_true ss_false => init_dclrs ss_false (init_dclrs ss_true valmap tmap) tmap
   | _ => valmap
   end.
 
-Fixpoint init_registers (ss : hfstmt_seq) (valmap rs : VM.t hvalue) (tmap: VM.t (ftype * fcomponent)) : VM.t hvalue := 
+(*Fixpoint init_registers (ss : hfstmt_seq) (valmap rs : VM.t hvalue) (tmap: VM.t (ftype * fcomponent)) : VM.t hvalue := 
   match ss with
   | Qnil => rs
   | Qcons s ss' => init_registers ss' valmap (init_register s valmap rs tmap) tmap
@@ -657,7 +657,7 @@ with init_register (s : hfstmt) (valmap rs : VM.t hvalue) (tmap: VM.t (ftype * f
       | _ => rs
       end 
   | _ => rs
-  end.
+  end.*)
 
   Fixpoint base_ref (r : href) : V.t :=
     match r with
@@ -864,11 +864,11 @@ with eval_bundle_connection1 (ff : ffield) (val : hvalue) (offset_l offset_r : n
                           end
   end.
 
-Fixpoint eval_hfstmt (st : hfstmt) (rs : VM.t hvalue) (s : VM.t hvalue) (tmap: VM.t (ftype * fcomponent)) : (VM.t hvalue) * (VM.t hvalue) :=
+Fixpoint eval_hfstmt (st : hfstmt) (rs ns : VM.t hvalue) (s : VM.t hvalue) (tmap: VM.t (ftype * fcomponent)) : (VM.t hvalue) * (VM.t hvalue) :=
   match st with
   | Snode v e => match eval_hfexpr e s tmap with
-                | Some val => (rs, VM.add v val s)
-                | _ => (rs, s)
+                | Some val => (rs, VM.add v val ns)
+                | _ => (rs, ns)
                 end
   | Sfcnct r (Eref ref) => (* 考虑flip和aggr *) 
             match offset_ref r tmap 0, offset_ref ref tmap 0, type_of_ref r tmap with
@@ -880,13 +880,13 @@ Fixpoint eval_hfstmt (st : hfstmt) (rs : VM.t hvalue) (s : VM.t hvalue) (tmap: V
                     | Some val_base_r' => 
                         (* 讨论是否对应reg *)
                         match VM.find base_r tmap with
-                        | Some (_, Register) => (* 更新rs *) (s, VM.add base_r val_base_r' rs)
-                        | Some _ => (* 更新s *) (VM.add base_r val_base_r' s, rs)
-                        | _ => (rs,s)
+                        | Some (_, Register) => (* 更新rs *) (VM.add base_r val_base_r' rs, ns)
+                        | Some _ => (* 更新s *) (rs, VM.add base_r val_base_r' ns)
+                        | _ => (rs,ns)
                         end
-                    | _ => (rs,s)
+                    | _ => (rs,ns)
                     end
-                | _ => (rs,s)
+                | _ => (rs,ns)
                 end else
                 match VM.find base_r s, VM.find base_ref s with
                 | Some val_base_r, Some val_base_ref => 
@@ -894,17 +894,17 @@ Fixpoint eval_hfstmt (st : hfstmt) (rs : VM.t hvalue) (s : VM.t hvalue) (tmap: V
                     | Some (val_base_r', val_base_ref') => 
                         (* 分情况讨论r和ref是否对应reg *)
                         match VM.find base_r tmap, VM.find base_ref tmap with
-                        | Some (_, Register), Some (_, Register) => (* 均更新rs *) (s, VM.add base_ref val_base_ref' (VM.add base_r val_base_r' rs))
-                        | Some (_, Register), Some _ => (* lhs更新rs, rhs更新s *) (VM.add base_ref val_base_ref' s, VM.add base_r val_base_r' rs)
-                        | Some _, Some (_, Register) => (* lhs更新s, rhs更新rs *) (VM.add base_r val_base_r' s, VM.add base_ref val_base_ref' rs)
-                        | Some _, Some _ => (* 均更新s *) (VM.add base_ref val_base_ref' (VM.add base_r val_base_r' s), rs)
-                        | _,_ => (rs,s)
+                        | Some (_, Register), Some (_, Register) => (* 均更新rs *) (VM.add base_ref val_base_ref' (VM.add base_r val_base_r' rs), ns)
+                        | Some (_, Register), Some _ => (* lhs更新rs, rhs更新s *) (VM.add base_r val_base_r' rs, VM.add base_ref val_base_ref' ns)
+                        | Some _, Some (_, Register) => (* lhs更新s, rhs更新rs *) (VM.add base_ref val_base_ref' rs, VM.add base_r val_base_r' ns)
+                        | Some _, Some _ => (* 均更新s *) (rs, VM.add base_ref val_base_ref' (VM.add base_r val_base_r' ns))
+                        | _,_ => (rs,ns)
                         end
-                    | _ => (rs,s)
+                    | _ => (rs,ns)
                     end
-                | _, _ => (rs,s)
+                | _, _ => (rs,ns)
                 end
-            | _, _, _ => (rs,s)
+            | _, _, _ => (rs,ns)
             end
   | Sfcnct r e => (* 不考虑flip,考虑aggr,不区分mux和其他expr *)
                   match offset_ref r tmap 0, eval_hfexpr e s tmap with
@@ -913,56 +913,60 @@ Fixpoint eval_hfstmt (st : hfstmt) (rs : VM.t hvalue) (s : VM.t hvalue) (tmap: V
                       | Some (ft, Register) => (* 更新rs *) 
                           match VM.find base_r s with
                           | Some val => match update_hvalue_by_offset val offset new_val with
-                                      | Some val' => (VM.add base_r val' rs, s)
-                                      | _ => (rs,s)
+                                      | Some val' => (VM.add base_r val' rs, ns)
+                                      | _ => (rs,ns)
                                       end
-                          | _ => (rs,s)
+                          | _ => (rs,ns)
                           end
                       | Some (ft, _) => (* 更新s *)
                           match VM.find base_r s with
                           | Some val => match update_hvalue_by_offset val offset new_val with
-                                      | Some val' => (rs, VM.add base_r val' s)
-                                      | _ => (rs,s)
+                                      | Some val' => (rs, VM.add base_r val' ns)
+                                      | _ => (rs,ns)
                                       end
-                          | _ => (rs,s)
+                          | _ => (rs,ns)
                           end
-                      | _ => (rs,s)
+                      | _ => (rs,ns)
                       end
-                  | _, _ => (rs,s)
+                  | _, _ => (rs,ns)
                   end 
   | Swhen cond ss_true ss_false => match eval_hfexpr cond s tmap with
-                  | Some (Gval valc) => if ~~ (is_zero valc) then eval_hfstmts ss_true rs s tmap else eval_hfstmts ss_false rs s tmap
-                  | _ => (rs, s)
+                  | Some (Gval valc) => if ~~ (is_zero valc) then eval_hfstmts ss_true rs ns s tmap else eval_hfstmts ss_false rs ns s tmap
+                  | _ => (rs, ns)
                   end
-  | _ => (rs,s)
+  | _ => (rs,ns)
   end
-with eval_hfstmts (sts : hfstmt_seq) (rs : VM.t hvalue) (s : VM.t hvalue) (tmap: VM.t (ftype * fcomponent)) : (VM.t hvalue) * (VM.t hvalue) :=
+with eval_hfstmts (sts : hfstmt_seq) (rs ns : VM.t hvalue) (s : VM.t hvalue) (tmap: VM.t (ftype * fcomponent)) : (VM.t hvalue) * (VM.t hvalue) :=
   match sts with
-  | Qnil => (rs, s)
-  | Qcons st tl => let '(rs0, s0) := eval_hfstmt st rs s tmap in
-                eval_hfstmts tl rs0 s0 tmap
+  | Qnil => (rs, ns)
+  | Qcons st tl => let '(rs0, ns0) := eval_hfstmt st rs ns s tmap in
+                eval_hfstmts tl rs0 ns0 s tmap
   end.
 
-Definition update_registers (rs : VM.t hvalue) (s : VM.t hvalue) : VM.t hvalue := 
+Definition update_values (rs : VM.t hvalue) (s : VM.t hvalue) : VM.t hvalue := 
   VM.fold (fun key value temps => VM.add key value temps) rs s.
 
-Fixpoint iterate (n : nat) (func : VM.t hvalue -> VM.t hvalue -> VM.t (ftype * fcomponent) -> VM.t hvalue * VM.t hvalue)
-  (rs : VM.t hvalue) (s : VM.t hvalue) (tmap: VM.t (ftype * fcomponent)) : (VM.t hvalue) * (VM.t hvalue) :=
+Fixpoint iterate (n : nat) (func : VM.t hvalue -> VM.t hvalue -> VM.t hvalue -> VM.t (ftype * fcomponent) -> VM.t hvalue * VM.t hvalue)
+  (s : VM.t hvalue) (tmap: VM.t (ftype * fcomponent)) : VM.t hvalue :=
   match n with
-  | 0 => (rs, s)
-  | n'.+1 => let s_regupd := update_registers rs s in
-             let (rs0, s0) := func (VM.empty hvalue)(* everytime we start with an empty map to record the value of registers in the next iteration *) s_regupd tmap in
-             if VM.equal (fun val1 val2 => hvalue_eqn val1 val2) s0 s (* LFP *) then (rs0, s0) else iterate n' func rs0 s0 tmap
+  | 0 => s
+  | n'.+1 => let (_, ns) := func (VM.empty hvalue) (VM.empty hvalue) s tmap in
+             (* everytime we start with an empty map to record the values to be updated in the next iteration *) 
+             let s_upd := update_values ns s in
+             if VM.equal (fun val1 val2 => hvalue_eqn val1 val2) s_upd s (* LFP *) then s_upd else iterate n' func s_upd tmap
   end.
 
 Definition n := 10. (* TBD *)
-
-Definition compute_Sem (c : hfcircuit) (inputs : VM.t hvalue) : option (VM.t hvalue) :=
+Definition compute_Sem (c : hfcircuit) (inputs : VM.t hvalue) (reg_init : VM.t hvalue) : option (VM.t hvalue * VM.t hvalue) :=
+  (* inputs signal and register should update during a rising edge and keep during the iteration *)
+  (* compute the value connected to registers according to the stable state, return it as a new reg_init for the next clock cycle *)
+  (* the return value is 1) the table state of all components, 2) the to-be-updated values of all registers *)
   match circuit_tmap c, c with
   | Some tmap, Fcircuit _ [::(FInmod _ ps ss)] => 
-        let s := init_dclrs ss inputs tmap in 
-        let rs := init_registers ss s (VM.empty hvalue) tmap in (* assume the circuit starts after a reset signal *)
-        let (rs0,s0) := iterate n (eval_hfstmts ss) rs s tmap in Some s0
+        let s := update_values reg_init inputs in (* value of inputs and registers should keep during the iteration, wait until the next rising edge comes. *)
+        let init_s := init_dclrs ss s tmap in (* only combinational components are initialized *)
+        let s0 := iterate n (eval_hfstmts ss) init_s tmap in (* only combinational components are iterately computed *)
+        let (rs, _) := eval_hfstmts ss (VM.empty hvalue) (VM.empty hvalue) s0 tmap in Some (s0, rs) (* compute the registers' new value according to the stable state *)
   | _, _ => None
   end.
 
