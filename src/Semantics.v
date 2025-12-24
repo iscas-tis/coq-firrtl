@@ -943,7 +943,7 @@ Fixpoint iterate (n : nat) (func : VM.t hvalue -> VM.t hvalue -> VM.t hvalue -> 
              if VM.equal (fun val1 val2 => hvalue_eqn val1 val2) s_upd s (* LFP *) then s_upd else iterate n' func s_upd tmap
   end.
 
-Definition n := 10. (* TBD *)
+Parameter n : nat. (* TBD *)
 Definition compute_Sem (c : HiF.hfcircuit) (inputs : VM.t hvalue) (reg_init : VM.t hvalue) : option (VM.t hvalue * VM.t hvalue) :=
   (* inputs signal and register should update during a rising edge and keep during the iteration *)
   (* compute the value connected to registers according to the stable state, return it as a new reg_init for the next clock cycle *)
@@ -1289,7 +1289,7 @@ Fixpoint iterate (n : nat) (func : PVM.t bits -> PVM.t bits -> PVM.t bits -> PVM
              if PVM.equal (fun val1 val2 => val1 == val2) s_upd s (* LFP *) then s_upd else iterate n' func s_upd tmap
   end.
 
-Definition n := 10. (* TBD *)
+Parameter n : nat. (* TBD *)
 Definition compute_Sem (c : HiFP.hfcircuit) (inputs reg_init : PVM.t bits) : option (PVM.t bits * PVM.t bits) :=
   match circuit_tmap c, c with
   | Some tmap, Fcircuit _ [::(FInmod _ ps ss)] => 
@@ -1310,23 +1310,24 @@ Parameter flat_valmap : (VM.t hvalue) -> (VM.t (ftype * fcomponent)) -> PVM.t bi
 
 Parameter expandConnects : HiF.hfcircuit -> option HiFP.hfcircuit.
 
-(*Theorem Sem_preservation_expandConnects : 
+Theorem Sem_preservation_expandConnects : 
 (* Proves pass expandConnects preserves the semantics *)
-  forall (c : HiF.hfcircuit) (inputs : VM.t hvalue),
-  match Sem_HiF.compute_Sem c inputs, Sem_HiF.circuit_tmap c with
-  | Some sem, Some tmap =>
+  forall (c : HiF.hfcircuit) (inputs reg_init : VM.t hvalue),
+  match Sem_HiF.compute_Sem c inputs reg_init, Sem_HiF.circuit_tmap c with
+  | Some (sem, _), Some tmap =>
       forall (newc : HiFP.hfcircuit),
       expandConnects c = Some newc ->
       let flatten_inputs := flat_valmap inputs tmap in
+      let flatten_reg_init := flat_valmap reg_init tmap in
       let flatten_sem := flat_valmap sem tmap in
-      match Sem_HiFP.compute_Sem newc flatten_inputs with
-      | Some new_sem => PVM.equal (fun val1 val2 => val1 == val2) flatten_sem new_sem
+      match Sem_HiFP.compute_Sem newc flatten_inputs flatten_reg_init with
+      | Some (new_sem, _) => PVM.equal (fun val1 val2 => val1 == val2) flatten_sem new_sem
       | _ => true
       end
   | _, _ => true
   end.
 Proof.
-Admitted.*)
+Admitted.
 
 Section ExpandWhens.
 
@@ -1592,20 +1593,71 @@ Definition expandWhens (c : HiFP.hfcircuit) : option HiFP.hfcircuit :=
 
 End ExpandWhens.
 
-(*Theorem Sem_preservation_expandWhens : 
+Lemma ExpandWhens_fun_tmap_eq m tmap : Sem_HiFP.module_tmap (PVM.empty (fgtyp * fcomponent)) m = Some tmap -> 
+  forall fm, ExpandWhens_fun m = Some fm -> Sem_HiFP.module_tmap (PVM.empty (fgtyp * fcomponent)) fm = Some tmap.
+Proof.
+Admitted.
+
+Lemma component_stmts_of_init_dclrs_eq ss valmap tmap init_s : Sem_HiFP.init_dclrs ss valmap tmap = Some init_s ->
+  forall conn_map, Sem_HiFP.init_dclrs (Qcat (component_stmts_of ss) (convert_to_connect_stmts conn_map)) valmap tmap = Some init_s.
+Proof.
+Admitted.
+
+Definition func_type : Type := PVM.t bits -> PVM.t bits -> PVM.t bits -> PVM.t (fgtyp * fcomponent) -> PVM.t bits * PVM.t bits.
+Definition func_type_eq (fun1 fun2 : func_type) : Prop := forall (rs ns s : PVM.t bits) (tmap : PVM.t (fgtyp * fcomponent)) (sem sem_new : PVM.t bits * PVM.t bits), 
+  fun1 rs ns s tmap = sem -> fun2 rs ns s tmap = sem_new -> PVM.equal (fun val1 val2 => val1 == val2) (fst sem) (fst sem_new).
+
+Lemma iterate_func_eq n fun1 fun2 init_s tmap sem sem_new : 
+  func_type_eq fun1 fun2 -> Sem_HiFP.iterate n fun1 init_s tmap = sem -> Sem_HiFP.iterate n fun2 init_s tmap = sem_new -> 
+PVM.equal (fun val1 val2 => val1 == val2) sem sem_new.
+Proof.
+Admitted.
+
+Theorem Sem_preservation_expandWhens : 
 (* Proves pass expandWhens preserves the semantics *)
-  forall (c : HiFP.hfcircuit) (inputs : PVM.t bits),
-  match Sem_HiFP.compute_Sem c inputs with
-  | Some sem =>
+  forall (c : HiFP.hfcircuit) (inputs reg_init : PVM.t bits),
+  match Sem_HiFP.compute_Sem c inputs reg_init with
+  | Some (sem, _) =>
       forall (newc : HiFP.hfcircuit),
       expandWhens c = Some newc ->
-      match Sem_HiFP.compute_Sem newc inputs with
-      | Some new_sem => PVM.equal (fun val1 val2 => val1 == val2) sem new_sem
+      match Sem_HiFP.compute_Sem newc inputs reg_init with
+      | Some (sem_new, _) => PVM.equal (fun val1 val2 => val1 == val2) sem sem_new
       | _ => true
       end
   | _ => true
   end.
 Proof.
-  intros. destruct (Sem_HiFP.compute_Sem c inputs) as [sem|] eqn : Hsem; try done.
-  intros. destruct (Sem_HiFP.compute_Sem newc inputs) as [sem_new|] eqn : Hsem_new; try done.
-Admitted.*)
+  intros. destruct (Sem_HiFP.compute_Sem c inputs) as [[sem regval]|] eqn : Hsem; try done.
+  intros. destruct (Sem_HiFP.compute_Sem newc inputs) as [[sem_new regval_new]|] eqn : Hsem_new; try done.
+  unfold Sem_HiFP.compute_Sem in *. unfold expandWhens in *.
+  destruct c as [cv ml] eqn : Hcir; subst c.
+  destruct ml as [|m ml0]; try discriminate. destruct ml0; try discriminate. destruct (ExpandWhens_fun m) as [fm|] eqn: Hpass; try discriminate.
+  inversion H; subst newc. clear H. unfold Sem_HiFP.circuit_tmap in *; unfold Sem_HiFP.modules_tmap in *. 
+  destruct (Sem_HiFP.module_tmap (PVM.empty (fgtyp * fcomponent)) m) as [tmap|] eqn : Htmap; try discriminate.
+  specialize (ExpandWhens_fun_tmap_eq Htmap) as Htmap_new. rewrite (Htmap_new _ Hpass) in Hsem_new. clear Htmap_new.
+  unfold ExpandWhens_fun in *. destruct m as [v pp ss|] eqn : Hm; try discriminate.
+  destruct (ExpandPorts_fun pp) as [[port_ct port_scope]|] eqn : Hexpand_ports; try discriminate. 
+  destruct (ExpandBranches_funs ss port_ct port_scope) as [[conn_map conn_map']|] eqn : Hexpand_branches; try discriminate.
+  inversion Hpass; subst fm. clear Hpass.
+  destruct (Sem_HiFP.init_dclrs ss (Sem_HiFP.update_values reg_init inputs) tmap) as [init_s|] eqn : Hinit_s; try discriminate.
+  specialize (component_stmts_of_init_dclrs_eq Hinit_s) as Hinit_s_new. rewrite Hinit_s_new in Hsem_new; clear Hinit_s_new.
+  destruct (Sem_HiFP.eval_hfstmts ss (PVM.empty bits) (PVM.empty bits)
+    (Sem_HiFP.iterate Sem_HiFP.n (Sem_HiFP.eval_hfstmts ss) init_s tmap) tmap) as [rs ns]. inversion Hsem as [[Hiter Hsem']]; clear Hsem Hsem' rs ns; rewrite Hiter.
+  destruct (Sem_HiFP.eval_hfstmts (Qcat (component_stmts_of ss) (convert_to_connect_stmts conn_map))
+    (PVM.empty bits) (PVM.empty bits)
+    (Sem_HiFP.iterate Sem_HiFP.n
+      (Sem_HiFP.eval_hfstmts (Qcat (component_stmts_of ss) (convert_to_connect_stmts conn_map)))
+      init_s tmap) tmap) as [rs ns]. inversion Hsem_new as [[Hiter_new Hsem']]; clear Hsem_new Hsem' rs ns; rewrite Hiter_new.
+  move : Hiter Hiter_new; apply iterate_func_eq. 
+  
+  move : Hexpand_ports Hexpand_branches.
+  unfold func_type_eq.
+Admitted.
+
+Lemma eval_hfstmts_swap_eq (ss0 ss1 : HiFP.hfstmt_seq) : (forall s, Qin s ss0 <-> Qin s ss1) -> func_type_eq (Sem_HiFP.eval_hfstmts ss0) (Sem_HiFP.eval_hfstmts ss1).
+Proof. 
+Admitted.
+
+Lemma convert_to_connect_stmts_eval_hfstmts_eq (fun1 fun2 : func_type) : func_type_eq fun1 fun2.
+Proof.
+Admitted.
