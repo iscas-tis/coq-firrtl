@@ -1018,8 +1018,7 @@ Lemma to_Z_Sfull_mul bs1 bs2: to_Z (Sfull_mul bs1 bs2) = (Z.mul (to_Z bs1) (to_Z
     apply H.
     exact Hdrop1.
     rewrite size_sext.
-    rewrite 2!size_negB addn_gt0.
-    rewrite lt0n Hlen1 //.
+    rewrite 2!size_negB addn_gt0 lt0n Hlen1 //.
     rewrite 2!size_sext addnC //.
     apply smulo_sext.
 
