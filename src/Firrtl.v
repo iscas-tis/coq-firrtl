@@ -826,26 +826,16 @@ Lemma size_Sfull_mul bs1 bs2: size (Sfull_mul bs1 bs2) = (size bs1) + (size bs2)
     simpl.
     rewrite size_zeros //.
     simpl.
-    assert (Hlen1' : 0 < size bs1).
-    move /eqP : Hlen1 => Hlen1.
-    apply not_eq_sym in Hlen1.
-    apply neq_0_lt in Hlen1.
-    move /ltP : Hlen1 => Hlen1.
-    exact Hlen1.
-    assert (Hlen2' : 0 < size bs2).
-    move /eqP : Hlen2 => Hlen2.
-    apply not_eq_sym in Hlen2.
-    apply neq_0_lt in Hlen2.
-    move /ltP : Hlen2 => Hlen2.
-    exact Hlen2.
+    apply negbT in Hlen1 ; rewrite -lt0n in Hlen1.
+    apply negbT in Hlen2 ; rewrite -lt0n in Hlen2.
     case Hbs11 : (bs1 == rcons (zeros (size bs1 - 1)) b1).
     rewrite size_negB size_sext size_cat addnACl size_zeros addnBA.
     rewrite add1n subn1 Nat.pred_succ addnC //.
-    exact Hlen1'.
+    exact Hlen1.
     case Hbs21 : (bs2 == rcons (zeros (size bs2 - 1)) b1).
     rewrite size_negB size_sext size_cat addnACl size_zeros addnBA.
     rewrite add1n subn1 Nat.pred_succ addnC //.
-    exact Hlen2'.
+    exact Hlen2.
     case Hmsb00 : ((msb bs1 == b0) && (msb bs2 == b0)).
     rewrite size_zext size_full_mul 2!size_dropmsb.
     rewrite {1}subn1 addnCAC addnABC.
@@ -853,20 +843,20 @@ Lemma size_Sfull_mul bs1 bs2: size (Sfull_mul bs1 bs2) = (size bs1) + (size bs2)
     rewrite addnACl.
     rewrite -subn1 subnK.
     rewrite addnC //.
-    exact Hlen1'.
+    exact Hlen1.
     trivial.
-    exact Hlen2'.
+    exact Hlen2.
     case Hmsb11 : ((msb bs1 == b1) && (msb bs2 == b1)).
     rewrite size_full_mul 2!size_negB //.
     case Hmsb01 : ((msb bs1 == b0) && (msb bs2 == b1)).
     rewrite size_negB size_sext size_full_mul size_dropmsb size_negB.
     rewrite subn1 addnACl -subn1 addnBA.
     rewrite add1n subn1 Nat.pred_succ addnC //.
-    exact Hlen1'.
+    exact Hlen1.
     rewrite size_negB size_sext size_full_mul size_dropmsb size_negB.
     rewrite addnCAC addnBA.
     rewrite add1n subn1 Nat.pred_succ addnC //.
-    exact Hlen2'.
+    exact Hlen2.
 Qed.
 
 Lemma rconsmsb bs : size bs > 0 -> bs = rcons (dropmsb bs) (msb bs).
@@ -933,22 +923,14 @@ Lemma to_Z_Sfull_mul bs1 bs2: to_Z (Sfull_mul bs1 bs2) = (Z.mul (to_Z bs1) (to_Z
     simpl.
     rewrite to_Zneg_zeros - Z.add_1_r Z.sub_add to_Z_negB to_Z_cat.
     rewrite to_Zpos_zeros Z.add_0_l size_zeros Z.mul_comm Z.mul_opp_l //.
-    move /eqP : Hlen2 => Hlen2.
-    apply not_eq_sym in Hlen2.
-    apply neq_0_lt in Hlen2.
-    move /ltP : Hlen2 => Hlen2.
-    exact Hlen2.
+    rewrite lt0n Hlen2 //.
     case Hbs21 : (bs2 == rcons (zeros (size bs2 - 1)) b1).
     move /eqP : Hbs21 => Hbs21.
     rewrite {2}Hbs21 to_Z_rcons.
     simpl.
     rewrite to_Zneg_zeros - Z.add_1_r Z.sub_add to_Z_negB to_Z_cat.
     rewrite to_Zpos_zeros Z.add_0_l size_zeros Z.mul_opp_r //.
-    move /eqP : Hlen1 => Hlen1.
-    apply not_eq_sym in Hlen1.
-    apply neq_0_lt in Hlen1.
-    move /ltP : Hlen1 => Hlen1.
-    exact Hlen1.
+    rewrite lt0n Hlen1 //.
 
     case Hmsb00 : ((msb bs1 == b0) && (msb bs2 == b0)).
     move /andP : Hmsb00 => [H10 H20]. 
@@ -959,51 +941,27 @@ Lemma to_Z_Sfull_mul bs1 bs2: to_Z (Sfull_mul bs1 bs2) = (Z.mul (to_Z bs1) (to_Z
     rewrite H10 H20 2!Z.mul_0_l 2!Z.sub_0_r.
     have {2}-> : (bs1 = rcons (dropmsb bs1) (msb bs1)).
     apply rconsmsb.
-    move /eqP : Hlen1 => Hlen1.
-    apply not_eq_sym in Hlen1.
-    apply neq_0_lt in Hlen1.
-    move /ltP : Hlen1 => Hlen1.
-    exact Hlen1.
+    rewrite lt0n Hlen1 //.
     have {2}-> : (bs2 = rcons (dropmsb bs2) (msb bs2)).
     apply rconsmsb.
-    move /eqP : Hlen2 => Hlen2.
-    apply not_eq_sym in Hlen2.
-    apply neq_0_lt in Hlen2.
-    move /ltP : Hlen2 => Hlen2.
-    exact Hlen2.
+    rewrite lt0n Hlen2 //.
     rewrite 2!to_Zpos_rcons H10 H20 2!Z.mul_0_l 2!Z.add_0_r //.
     trivial.
 
     assert (Hrcons1 : bs1 = rcons (dropmsb bs1) (msb bs1)).
     apply rconsmsb.
-    move /eqP : Hlen1 =>Hlen1.
-    apply not_eq_sym in Hlen1.
-    apply neq_0_lt in Hlen1.
-    move /ltP : Hlen1 => Hlen1.
-    apply Hlen1.
+    rewrite lt0n Hlen1 //.
     assert (Hrcons2 : bs2 = rcons (dropmsb bs2) (msb bs2)).
     apply rconsmsb.
-    move /eqP : Hlen2 =>Hlen2.
-    apply not_eq_sym in Hlen2.
-    apply neq_0_lt in Hlen2.
-    move /ltP : Hlen2 => Hlen2.
-    apply Hlen2.
+    rewrite lt0n Hlen2 //.
     assert (Hrconsn1 : -# bs1 = rcons (dropmsb (-# bs1)) (msb (-# bs1))).
     apply rconsmsb.
     rewrite size_negB.
-    move /eqP : Hlen1 => Hlen1.
-    apply not_eq_sym in Hlen1.
-    apply neq_0_lt in Hlen1.
-    move /ltP : Hlen1 => Hlen1.
-    apply Hlen1.
+    rewrite lt0n Hlen1 //.
     assert (Hrconsn2 : -# bs2 = rcons (dropmsb (-# bs2)) (msb (-# bs2))).
     apply rconsmsb.
     rewrite size_negB.
-    move /eqP : Hlen2 => Hlen2.
-    apply not_eq_sym in Hlen2.
-    apply neq_0_lt in Hlen2.
-    move /ltP : Hlen2 => Hlen2.
-    apply Hlen2.
+    rewrite lt0n Hlen2 //.
 
     case Hmsb11 : ((msb bs1 == b1) && (msb bs2 == b1)).
     move /andP : Hmsb11 => [H11 H21]. 
@@ -1060,11 +1018,8 @@ Lemma to_Z_Sfull_mul bs1 bs2: to_Z (Sfull_mul bs1 bs2) = (Z.mul (to_Z bs1) (to_Z
     apply H.
     exact Hdrop1.
     rewrite size_sext.
-    move /eqP : Hlen1 =>Hlen1.
-    apply not_eq_sym in Hlen1.
-    apply neq_0_lt in Hlen1.
-    move /ltP : Hlen1 => Hlen1.
-    rewrite 2!size_negB addn_gt0 Hlen1 //.
+    rewrite 2!size_negB addn_gt0.
+    rewrite lt0n Hlen1 //.
     rewrite 2!size_sext addnC //.
     apply smulo_sext.
 
@@ -1117,11 +1072,7 @@ Lemma to_Z_Sfull_mul bs1 bs2: to_Z (Sfull_mul bs1 bs2) = (Z.mul (to_Z bs1) (to_Z
     apply H.
     exact Hdrop2.
     rewrite size_sext.
-    move /eqP : Hlen1 =>Hlen1.
-    apply not_eq_sym in Hlen1.
-    apply neq_0_lt in Hlen1.
-    move /ltP : Hlen1 => Hlen1.
-    rewrite addn_gt0 Hlen1 //.
+    rewrite addn_gt0 lt0n Hlen1 //.
     rewrite 2!size_sext addnC //.
     apply smulo_sext.
     apply contraFneq with (b:=(dropmsb bs2 == zeros (size bs2 - 1))).
@@ -1206,11 +1157,7 @@ Lemma to_Z_Sfull_mul bs1 bs2: to_Z (Sfull_mul bs1 bs2) = (Z.mul (to_Z bs1) (to_Z
     apply H.
     exact Hdrop1.
     rewrite size_sext size_negB.
-    move /eqP : Hlen1 =>Hlen1.
-    apply not_eq_sym in Hlen1.
-    apply neq_0_lt in Hlen1.
-    move /ltP : Hlen1 => Hlen1.
-    rewrite addn_gt0 Hlen1 //.
+    rewrite addn_gt0 lt0n Hlen1 //.
     rewrite 2!size_sext addnC //.
     apply smulo_sext.
     apply contraFneq with (b:=(dropmsb bs1 == zeros (size bs1 - 1))).
@@ -4301,9 +4248,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
       simpl in Hwt.
       simpl in Hid.
       case Hn:(n < sizeof_fgtyp (type_of_fexpr e0 te)).
-        - case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
-          - rewrite Htyp in Hwt.
-            assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
+        - case Htyp:(type_of_fexpr e0 te) => [n0|n0|||] ; rewrite Htyp in Hwt ; try discriminate.
+          - assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
             rewrite /well_formed_fstmt_inline.
             simpl.
             rewrite Hwt Hid //.
@@ -4322,8 +4268,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
             apply SV.Lemmas.mem_add_eq.
             apply TE.SE.eq_refl.
             exact Hwf.
-          - rewrite Htyp in Hwt.
-            assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
+          - assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
             rewrite /well_formed_fstmt_inline.
             simpl.
             rewrite Hwt Hid //.
@@ -4342,15 +4287,8 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
             apply SV.Lemmas.mem_add_eq.
             apply TE.SE.eq_refl.
             exact Hwf.
-          - rewrite Htyp in Hwt.
-            discriminate.
-          - rewrite Htyp in Hwt.
-            discriminate.
-          - rewrite Htyp in Hwt.
-            discriminate.
-        - case Htyp:(type_of_fexpr e0 te) => [n0|n0|||].
-          - rewrite Htyp in Hwt.
-            assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
+        - case Htyp:(type_of_fexpr e0 te) => [n0|n0|||] ; rewrite Htyp in Hwt ; try discriminate.
+          - assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
             rewrite /well_formed_fstmt_inline.
             simpl.
             rewrite Hwt Hid //.
@@ -4376,8 +4314,7 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
             apply SV.Lemmas.mem_add_eq.
             apply TE.SE.eq_refl.
             exact Hwf.
-          - rewrite Htyp in Hwt.
-            assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
+          - assert (Hwf : well_formed_fstmt_inline (Snode v e0) te s1 rs1).
             rewrite /well_formed_fstmt_inline.
             simpl.
             rewrite Hwt Hid //.
@@ -4403,12 +4340,6 @@ Definition run_module (modorder : seq var) (flagmap : fmap) (newinstportsmap : m
             apply SV.Lemmas.mem_add_eq.
             apply TE.SE.eq_refl.
             exact Hwf.
-          - rewrite Htyp in Hwt.
-            discriminate.
-          - rewrite Htyp in Hwt.
-            discriminate.
-          - rewrite Htyp in Hwt.
-            discriminate.
           exact Hcf.
       - (* shl *)
       move => n rs1 s1 te v Hcf Hwf.
