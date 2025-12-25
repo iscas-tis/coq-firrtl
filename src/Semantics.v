@@ -1699,6 +1699,31 @@ Proof.
     + (* 证明 mem 等价 *)
 Admitted.
 
+Fixpoint eval_hfstmt_for_v (st : HiFP.hfstmt) (s : PVM.t bits) (tmap: PVM.t (fgtyp * fcomponent)) (v : PVM.key) (current_val : option bits) : option bits :=
+  match st with
+  | Snode v e => Sem_HiFP.eval_hfexpr e s tmap 
+  | Sfcnct (Eid v) e => match PVM.find v tmap with
+                        | Some (_, Register) => None
+                        | Some _ => Sem_HiFP.eval_hfexpr e s tmap
+                        | _ => None
+                        end
+  | Swhen cond ss_true ss_false => match Sem_HiFP.eval_hfexpr cond s tmap with
+                  | Some valc => if ~~ (is_zero valc) then eval_hfstmts_for_v ss_true s tmap v current_val else eval_hfstmts_for_v ss_false s tmap v current_val
+                  | _ => None
+                  end
+  | _ => current_val
+  end
+with eval_hfstmts_for_v (sts : HiFP.hfstmt_seq) (s : PVM.t bits) (tmap: PVM.t (fgtyp * fcomponent)) (v : PVM.key) (current_val : option bits) : option bits :=
+  match sts with
+  | Qnil => current_val
+  | Qcons st tl => eval_hfstmts_for_v tl s tmap v (eval_hfstmt_for_v st s tmap v current_val)
+  end.
+
+Lemma eval_hfstmts_for_v_init_eq ss init_s1 init_s2 tmap v : PVM.equal (fun val1 val2 : bitseq => val1 == val2) init_s1 init_s2 ->
+  eval_hfstmts_for_v ss init_s1 tmap v None = eval_hfstmts_for_v ss init_s2 tmap v None.
+Proof.
+Admitted.
+
 Theorem Sem_preservation_expandWhens : 
 (* Proves pass expandWhens preserves the semantics *)
   forall (c : HiFP.hfcircuit) (inputs reg_init : PVM.t bits),
@@ -1738,11 +1763,45 @@ Proof.
 
   unfold func_type_eq. intros init_s1 init_s2 [rs1 s1] [rs2 s2] Hinit_eq Hevalss1 Hevalss2; simpl. apply find_eq_iff_mem_eq_and_1d. split.
   + (* mem eq *) admit. (* 这里比较好说明的角度应该是: 说明 s1的定义域等于init_s1 和 s2的定义域等于init_s2 *)
-  + (* find some value eq *) admit.
+  + (* find some value eq *) 
+    assert (Hbefore : forall v val, PVM.find v s1 = Some val -> eval_hfstmts_for_v ss init_s1 tmap v None = Some val). admit.
+    assert (Hafter : forall v val, eval_hfstmts_for_v ss init_s2 tmap v None = Some val -> PVM.find v s2 = Some val). {
+      destruct (PVM.find v tmap) as [[gt cmpnt]|] eqn : Hcmpnt. destruct cmpnt.
+      * (* inport *) admit. (* 此时 eval_hfstmts_for_v = None, inport 不出现在连接 lhs *)
+      * (* instance of *) admit. (* 暂不考虑 *)
+      * (* memory *) admit. (* 暂不考虑 *)
+      * (* node TBD : v的值在 component_stmts_of 中 *) admit.
+      * (* outport TBD : PVM.find v conn_map = Some e -> eval_hfstmts_for_v ss init_s2 tmap v None = eval_expr e*) admit.
+      * (* register *) admit. (* 此时 eval_hfstmts_for_v = None, iteration中不考虑reg*)
+      * (* wire TBD : 同 outport *) admit.
+      * (* module *) admit. (* tmap 中不含 *)
+      * (* None *) admit. (* 此时 eval_hfstmts_for_v = None *)
+    }
+    move : Hinit_eq Hbefore Hafter; clear; intros.
+    apply Hbefore in H. rewrite (eval_hfstmts_for_v_init_eq _ _ _ Hinit_eq) in H. apply Hafter in H; done.
 
   apply PVM_equal_refl.
 Admitted.
 
-Lemma eval_hfstmts_swap_eq (ss0 ss1 : HiFP.hfstmt_seq) : (forall s, Qin s ss0 <-> Qin s ss1) -> func_type_eq (Sem_HiFP.eval_hfstmts ss0) (Sem_HiFP.eval_hfstmts ss1).
-Proof. 
+Lemma eval_hfstmts_for_node_no_cnct component_stmts connect_stmts init_s tmap v val: (* 这里需要一些语义前提，即node不再次被连接，不出现在cnct stmt中 *) 
+  (exists gt, PVM.find v tmap = Some (gt, Node)) -> forall rs s rs' s', Sem_HiFP.eval_hfstmts (Qcat component_stmts connect_stmts) (PVM.empty bits) (PVM.empty bits) init_s tmap = Some (rs, s) ->
+  Sem_HiFP.eval_hfstmts component_stmts (PVM.empty bits) (PVM.empty bits) init_s tmap = Some (rs', s') -> PVM.find v s' = Some val -> PVM.find v s = Some val.
+Proof.
 Admitted.
+
+Lemma eval_hfstmts_for_node_dclr1 ss init_s tmap v val : (* 在ss induction即可？ *)
+  (exists gt, PVM.find v tmap = Some (gt, Node)) -> forall rs s, eval_hfstmts_for_v ss init_s tmap v None = Some val -> 
+  Sem_HiFP.eval_hfstmts (component_stmts_of ss) (PVM.empty bits) (PVM.empty bits) init_s tmap = Some (rs, s) -> PVM.find v s = Some val.
+Proof.
+Admitted.
+
+(*Lemma eval_hfstmts_for_others ss init_s tmap v : 
+  exists gt, match PVM.find v tmap with
+  | Some (gt, Out_port) 
+  | Some (gt, Wire) => PVM.find v conn_map = Some e -> eval_hfstmts_for_v ss init_s tmap v None = Sem_HiFP.eval_hfexpr e init_s tmap
+  | Some (gt, Register) => eval_hfstmts_for_v ss init_s2 tmap v0 None = None
+  | _ => true
+  end.
+Proof.
+  
+Qed.*)
