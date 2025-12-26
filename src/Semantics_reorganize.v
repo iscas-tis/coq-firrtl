@@ -101,7 +101,7 @@ Section Value.
   | Aval : array_value -> hvalue
   | Bval : bundle_value -> hvalue
   with array_value : Type :=
-  | Aone : hvalue -> array_value
+  | Anil : array_value
   | Acons : hvalue -> array_value -> array_value
   with bundle_value : Type :=
   | Bnil : bundle_value
@@ -122,7 +122,7 @@ Section Value.
     end
   with array_value_eqn (x y : array_value) : bool :=
     match x, y with
-    | Aone val1, Aone val2 => hvalue_eqn val1 val2
+    | Anil, Anil => true
     | Acons val1 tl1, Acons val2 tl2 => (hvalue_eqn val1 val2) && (array_value_eqn tl1 tl2)
     | _, _ => false
     end
@@ -163,7 +163,7 @@ Module MakeSemantics
   Definition aval val := @Aval V.T val.
   Definition bval val := @Bval V.T val.
   Definition hvalue := hvalue V.T.
-  Definition aone val := @Aone V.T val.
+  Definition anil := @Anil V.T.
   Definition acons hd tl := @Acons V.T hd tl.
   Definition array_value := array_value V.T.
   Definition bnil := @Bnil V.T.
@@ -497,8 +497,7 @@ Fixpoint ftext0 (ft : ftype) : hvalue :=
   | Atyp atyp n => 
       let fix atypext0 (n : nat) : array_value :=
         match n with
-        | 0 => Aone (gval nil)
-        | 1 => Aone (ftext0 atyp)
+        | 0 => anil
         | n'.+1 => Acons (ftext0 atyp) (atypext0 n')
         end
       in Aval (atypext0 n)
@@ -517,7 +516,7 @@ Fixpoint ftext (ft : ftype) (val : hvalue) : option hvalue :=
   | Gtyp (Fuint w), Gval c => Some (gval (zext (w - size c) c))
   | Gtyp (Fsint w), Gval c => Some (gval (sext (w - size c) c))
   | Gtyp _, Gval c => Some (gval (zext (1 - size c) c))
-  | Atyp atyp n, Aval aval => match atypext atyp n aval with
+  | Atyp atyp n, Aval aval => match atypext atyp aval with
                             | Some aval' => Some (Aval aval')
                             | _ => None
                             end
@@ -527,17 +526,13 @@ Fixpoint ftext (ft : ftype) (val : hvalue) : option hvalue :=
                             end
   | _, _ => None
   end
-with atypext (ft : ftype)(* element type *) (n : nat)(* element amount *) (aval : array_value) : option array_value := 
-  match n, aval with
-  | 1, Aone val => match ftext ft val with
-                  | Some val' => Some (aone val')
-                  | _ => None
-                  end
-  | n'.+1, Acons val tl => match ftext ft val, atypext ft n' tl with
+with atypext (ft : ftype)(* element type *) (aval : array_value) : option array_value := 
+  match aval with
+  | Anil => Some anil
+  | Acons val tl => match ftext ft val, atypext ft tl with
                             | Some val', Some tl' => Some (Acons val' tl')
                             | _, _ => None
                             end
-  | _, _ => None
   end
 with btypext (btyp : ffield) (bval : bundle_value) : option bundle_value :=
   match btyp, bval with
@@ -568,7 +563,7 @@ Fixpoint hvalue_of_ref (r : href) (s : VM.t hvalue) (tmap: VM.t (ftype * fcompon
               | Some (Aval fv) => let fix aux fx m := (
                                           match fx, m with
                                           | Acons t fxs, m'.+1 => aux fxs m'
-                                          | Aone t, 0 => Some t 
+                                          | Acons t _, 0 => Some t 
                                           | _, _ => None
                                           end )
                                   in aux fv n
@@ -579,7 +574,7 @@ Fixpoint hvalue_of_ref (r : href) (s : VM.t hvalue) (tmap: VM.t (ftype * fcompon
                                   let fix aux fx m := (
                                           match fx, m with
                                           | Acons t fxs, m'.+1 => aux fxs m'
-                                          | Aone t, 0 => Some t 
+                                          | Acons t _, 0 => Some t 
                                           | _, _ => None
                                           end )
                                   in aux fv n
@@ -590,8 +585,8 @@ Fixpoint hvalue_of_ref (r : href) (s : VM.t hvalue) (tmap: VM.t (ftype * fcompon
 with eval_hfexpr (exp : hfexpr) (s : VM.t hvalue) (tmap: VM.t (ftype * fcomponent)) : option hvalue :=
   match exp with
   | Econst t c => match t with
-                  | Fuint w1 => Some (gval (zext (w1 - size c) c))
-                  | Fsint w2 => Some (gval (sext (w2 - size c) c))
+                  | Fuint w1 => if (size c) > w1 then None else Some (gval (zext (w1 - size c) c))
+                  | Fsint w2 => if (size c) > w2 then None else Some (gval (sext (w2 - size c) c))
                   | _ => None
                   end
   | Eref r => hvalue_of_ref r s tmap
@@ -687,7 +682,7 @@ Fixpoint elements_of_hvalue (val : hvalue) : nat :=
   end
 with elements_of_array_value aval :=
   match aval with
-  | Aone val => elements_of_hvalue val
+  | Anil => 0
   | Acons val tl => elements_of_hvalue val + elements_of_array_value tl
   end
 with elements_of_bundle_value bval :=
@@ -733,10 +728,10 @@ Fixpoint find_hvalue_by_offset (val : hvalue) (offset : nat) : option bits :=
   end 
 with find_array_value_by_offset (aval : array_value) (offset : nat) : option bits :=
   match aval with
-  | Aone val => find_hvalue_by_offset val offset
   | Acons val tl => let element_size := elements_of_hvalue val in if offset >= element_size then
                     find_array_value_by_offset tl (offset - element_size)
                 else find_hvalue_by_offset val offset
+  | _ => None
   end
 with find_bundle_value_by_offset (bval : bundle_value) (offset : nat) : option bits := 
   match bval with
@@ -764,11 +759,6 @@ Fixpoint update_hvalue_by_offset (val : hvalue) (offset : nat) (new_val : hvalue
   end 
 with update_array_value_by_offset (aval : array_value) (offset : nat) (new_val : hvalue) : option array_value :=
   match aval with
-  | Aone val => let element_size := elements_of_hvalue val in if offset >= element_size then None
-                else match update_hvalue_by_offset val offset new_val with
-                    | Some val' => Some (Aone val')
-                    | _ => None
-                    end
   | Acons val tl => let element_size := elements_of_hvalue val in if offset >= element_size then
                     match update_array_value_by_offset tl (offset - element_size) new_val with
                     | Some tl' => Some (Acons val tl')
@@ -778,6 +768,7 @@ with update_array_value_by_offset (aval : array_value) (offset : nat) (new_val :
                     | Some val' => Some (Acons val' tl)
                     | _ => None
                     end
+  | _ => None
   end
 with update_bundle_value_by_offset (bval : bundle_value) (offset : nat) (new_val : hvalue) : option bundle_value := 
   match bval with
@@ -864,11 +855,11 @@ with eval_bundle_connection1 (ff : ffield) (val : hvalue) (offset_l offset_r : n
                           end
   end.
 
-Fixpoint eval_hfstmt (st : hfstmt) (rs ns : VM.t hvalue) (s : VM.t hvalue) (tmap: VM.t (ftype * fcomponent)) : (VM.t hvalue) * (VM.t hvalue) :=
+Fixpoint eval_hfstmt (st : hfstmt) (rs ns : VM.t hvalue) (s : VM.t hvalue) (tmap: VM.t (ftype * fcomponent)) : option ((VM.t hvalue) * (VM.t hvalue)) :=
   match st with
   | Snode v e => match eval_hfexpr e s tmap with
-                | Some val => (rs, VM.add v val ns)
-                | _ => (rs, ns)
+                | Some val => Some (rs, VM.add v val ns)
+                | _ => None
                 end
   | Sfcnct r (Eref ref) => (* 考虑flip和aggr *) 
             match offset_ref r tmap 0, offset_ref ref tmap 0, type_of_ref r tmap with
@@ -880,31 +871,35 @@ Fixpoint eval_hfstmt (st : hfstmt) (rs ns : VM.t hvalue) (s : VM.t hvalue) (tmap
                     | Some val_base_r' => 
                         (* 讨论是否对应reg *)
                         match VM.find base_r tmap with
-                        | Some (_, Register) => (* 更新rs *) (VM.add base_r val_base_r' rs, ns)
-                        | Some _ => (* 更新s *) (rs, VM.add base_r val_base_r' ns)
-                        | _ => (rs,ns)
+                        | Some (_, Register) => (* 更新rs *) Some (VM.add base_r val_base_r' rs, ns)
+                        | Some _ => (* 更新s *) Some (rs, VM.add base_r val_base_r' ns)
+                        | _ => None
                         end
-                    | _ => (rs,ns)
+                    | _ => None
                     end
-                | _ => (rs,ns)
+                | _ => None
                 end else
                 match VM.find base_r s, VM.find base_ref s with
-                | Some val_base_r, Some val_base_ref => 
+                | Some val_base_r, Some val_base_ref =>
                     match eval_ref_connection ft val_base_r val_base_ref offset_r offset_ref with
                     | Some (val_base_r', val_base_ref') => 
                         (* 分情况讨论r和ref是否对应reg *)
                         match VM.find base_r tmap, VM.find base_ref tmap with
-                        | Some (_, Register), Some (_, Register) => (* 均更新rs *) (VM.add base_ref val_base_ref' (VM.add base_r val_base_r' rs), ns)
-                        | Some (_, Register), Some _ => (* lhs更新rs, rhs更新s *) (VM.add base_r val_base_r' rs, VM.add base_ref val_base_ref' ns)
-                        | Some _, Some (_, Register) => (* lhs更新s, rhs更新rs *) (VM.add base_ref val_base_ref' rs, VM.add base_r val_base_r' ns)
-                        | Some _, Some _ => (* 均更新s *) (rs, VM.add base_ref val_base_ref' (VM.add base_r val_base_r' ns))
-                        | _,_ => (rs,ns)
+                        | Some (_, Register), Some (_, Register) => (* 均更新rs *) 
+                            Some (VM.add base_ref val_base_ref' (VM.add base_r val_base_r' rs), ns)
+                        | Some (_, Register), Some _ => (* lhs更新rs, rhs更新s *) 
+                            Some (VM.add base_r val_base_r' rs, VM.add base_ref val_base_ref' ns)
+                        | Some _, Some (_, Register) => (* lhs更新s, rhs更新rs *) 
+                            Some (VM.add base_ref val_base_ref' rs, VM.add base_r val_base_r' ns)
+                        | Some _, Some _ => (* 均更新s *) 
+                            Some (rs, VM.add base_ref val_base_ref' (VM.add base_r val_base_r' ns))
+                        | _,_ => None
                         end
-                    | _ => (rs,ns)
+                    | _ => None
                     end
-                | _, _ => (rs,ns)
+                | _, _ => None
                 end
-            | _, _, _ => (rs,ns)
+            | _, _, _ => None
             end
   | Sfcnct r e => (* 不考虑flip,考虑aggr,不区分mux和其他expr *)
                   match offset_ref r tmap 0, eval_hfexpr e s tmap with
@@ -913,47 +908,51 @@ Fixpoint eval_hfstmt (st : hfstmt) (rs ns : VM.t hvalue) (s : VM.t hvalue) (tmap
                       | Some (ft, Register) => (* 更新rs *) 
                           match VM.find base_r s with
                           | Some val => match update_hvalue_by_offset val offset new_val with
-                                      | Some val' => (VM.add base_r val' rs, ns)
-                                      | _ => (rs,ns)
+                                      | Some val' => Some (VM.add base_r val' rs, ns)
+                                      | _ => None
                                       end
-                          | _ => (rs,ns)
+                          | _ => None
                           end
                       | Some (ft, _) => (* 更新s *)
                           match VM.find base_r s with
                           | Some val => match update_hvalue_by_offset val offset new_val with
-                                      | Some val' => (rs, VM.add base_r val' ns)
-                                      | _ => (rs,ns)
+                                      | Some val' => Some (rs, VM.add base_r val' ns)
+                                      | _ => None
                                       end
-                          | _ => (rs,ns)
+                          | _ => None
                           end
-                      | _ => (rs,ns)
+                      | _ => None
                       end
-                  | _, _ => (rs,ns)
+                  | _, _ => None
                   end 
   | Swhen cond ss_true ss_false => match eval_hfexpr cond s tmap with
                   | Some (Gval valc) => if ~~ (is_zero valc) then eval_hfstmts ss_true rs ns s tmap else eval_hfstmts ss_false rs ns s tmap
-                  | _ => (rs, ns)
+                  | _ => None
                   end
-  | _ => (rs,ns)
+  | _ => Some (rs,ns)
   end
-with eval_hfstmts (sts : hfstmt_seq) (rs ns : VM.t hvalue) (s : VM.t hvalue) (tmap: VM.t (ftype * fcomponent)) : (VM.t hvalue) * (VM.t hvalue) :=
+with eval_hfstmts (sts : hfstmt_seq) (rs ns : VM.t hvalue) (s : VM.t hvalue) (tmap: VM.t (ftype * fcomponent)) : option ((VM.t hvalue) * (VM.t hvalue)) :=
   match sts with
-  | Qnil => (rs, ns)
-  | Qcons st tl => let '(rs0, ns0) := eval_hfstmt st rs ns s tmap in
-                eval_hfstmts tl rs0 ns0 s tmap
+  | Qnil => Some (rs, ns)
+  | Qcons st tl => match eval_hfstmt st rs ns s tmap with
+                | Some (rs0, ns0) => eval_hfstmts tl rs0 ns0 s tmap
+                | _ => None
+                end
   end.
 
 Definition update_values (rs : VM.t hvalue) (s : VM.t hvalue) : VM.t hvalue := 
   VM.fold (fun key value temps => VM.add key value temps) rs s.
 
-Fixpoint iterate (n : nat) (func : VM.t hvalue -> VM.t hvalue -> VM.t hvalue -> VM.t (ftype * fcomponent) -> VM.t hvalue * VM.t hvalue)
-  (s : VM.t hvalue) (tmap: VM.t (ftype * fcomponent)) : VM.t hvalue :=
+Fixpoint iterate (n : nat) (func : VM.t hvalue -> VM.t hvalue -> VM.t hvalue -> VM.t (ftype * fcomponent) -> option (VM.t hvalue * VM.t hvalue))
+  (s : VM.t hvalue) (tmap: VM.t (ftype * fcomponent)) : option (VM.t hvalue) :=
   match n with
-  | 0 => s
-  | n'.+1 => let (_, ns) := func (VM.empty hvalue) (VM.empty hvalue) s tmap in
-             (* everytime we start with an empty map to record the values to be updated in the next iteration *) 
-             let s_upd := update_values ns s in
-             if VM.equal (fun val1 val2 => hvalue_eqn val1 val2) s_upd s (* LFP *) then s_upd else iterate n' func s_upd tmap
+  | 0 => Some s
+  | n'.+1 => match func (VM.empty hvalue) (VM.empty hvalue) s tmap with
+            | Some (_, ns) => (* everytime we start with an empty map to record the values to be updated in the next iteration *) 
+              let s_upd := update_values ns s in
+              if VM.equal (fun val1 val2 => hvalue_eqn val1 val2) s_upd s (* LFP *) then Some s_upd else iterate n' func s_upd tmap
+            | _ => None
+            end
   end.
 
 Definition n := 10. (* TBD *)
@@ -965,8 +964,14 @@ Definition compute_Sem (c : hfcircuit) (inputs : VM.t hvalue) (reg_init : VM.t h
   | Some tmap, Fcircuit _ [::(FInmod _ ps ss)] => 
         let s := update_values reg_init inputs in (* value of inputs and registers should keep during the iteration, wait until the next rising edge comes. *)
         let init_s := init_dclrs ss s tmap in (* only combinational components are initialized *)
-        let s0 := iterate n (eval_hfstmts ss) init_s tmap in (* only combinational components are iterately computed *)
-        let (rs, _) := eval_hfstmts ss (VM.empty hvalue) (VM.empty hvalue) s0 tmap in Some (s0, rs) (* compute the registers' new value according to the stable state *)
+        match iterate n (eval_hfstmts ss) init_s tmap with (* only combinational components are iterately computed *)
+        | Some s0 => match eval_hfstmts ss (VM.empty hvalue) (VM.empty hvalue) s0 tmap with
+            (* compute the registers' new value according to the stable state *)
+            | Some (rs, _) => Some (s0, rs) 
+            | _ => None
+            end
+        | _ => None
+        end
   | _, _ => None
   end.
 
