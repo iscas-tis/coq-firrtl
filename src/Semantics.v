@@ -1138,6 +1138,10 @@ Fixpoint eval_hfstmt (st : HiFP.hfstmt) (rs ns : PVM.t bits) (s : PVM.t bits) (t
                 | Some val => Some (rs, PVM.add v val ns)
                 | _ => None
                 end
+  | Sreg v _ => match PVM.find v s with
+                | Some val => Some (PVM.add v val rs, ns)
+                | _ => None
+                end
   | Sfcnct (Eid r) e => match PVM.find r tmap, eval_hfexpr e s tmap with
                         | Some (_, Register), Some val => (* 更新rs *) Some (PVM.add r val rs, ns)
                         | Some _, Some val => (* 更新s *) Some (rs, PVM.add r val ns)
@@ -1597,7 +1601,7 @@ Proof.
       done.
 Qed.
 
-Lemma find_eq_iff_mem_eq_and_1d :
+(*Lemma find_eq_iff_mem_eq_and_1d :
   forall (m1 m2 : PVM.t bits),
     (forall v, PVM.find v m1 = PVM.find v m2) <->
     (forall v, PVM.mem v m1 <-> PVM.mem v m2) /\
@@ -1608,9 +1612,9 @@ Proof.
     intros Hequal.
     split.
     + (* 证明 mem 等价 *)
-Admitted.
+Admitted.*)
 
-Fixpoint eval_hfstmt_for_v (st : HiFP.hfstmt) (s : PVM.t bits) (tmap: PVM.t (fgtyp * fcomponent)) (v : PVM.key) (current_val : option bits) : option bits :=
+(*Fixpoint eval_hfstmt_for_v (st : HiFP.hfstmt) (s : PVM.t bits) (tmap: PVM.t (fgtyp * fcomponent)) (v : PVM.key) (current_val : option bits) : option bits :=
   match st with
   | Snode v e => Sem_HiFP.eval_hfexpr e s tmap 
   | Sfcnct (Eid v) e => match PVM.find v tmap with
@@ -1633,39 +1637,34 @@ with eval_hfstmts_for_v (sts : HiFP.hfstmt_seq) (s : PVM.t bits) (tmap: PVM.t (f
 Lemma eval_hfstmts_for_v_init_eq ss init_s1 init_s2 tmap v current_val: PVM.equal (fun val1 val2 : bitseq => val1 == val2) init_s1 init_s2 ->
   eval_hfstmts_for_v ss init_s1 tmap v current_val = eval_hfstmts_for_v ss init_s2 tmap v current_val.
 Proof.
-Admitted.
+Admitted.*)
 
-Lemma eval_hfstmts_for_node_no_cnct component_stmts connect_stmts init_s tmap v : (* 这里需要一些语义前提，即node不再次被连接，不出现在cnct stmt中 *) 
-  (exists gt, PVM.find v tmap = Some (gt, Node)) -> forall rs s, Sem_HiFP.eval_hfstmts (Qcat component_stmts connect_stmts) (PVM.empty bits) (PVM.empty bits) init_s tmap = Some (rs, s) ->
+(*Lemma eval_hfstmts_for_node_no_cnct component_stmts connect_stmts init_s tmap v : (* 这里需要一些语义前提，即node不再次被连接，不出现在cnct stmt中 *) 
+  (forall e, ~ Qin (Sfcnct (Eid v) e) connect_stmts) -> forall rs s, Sem_HiFP.eval_hfstmts (Qcat component_stmts connect_stmts) (PVM.empty bits) (PVM.empty bits) init_s tmap = Some (rs, s) ->
   forall rs' s', Sem_HiFP.eval_hfstmts component_stmts (PVM.empty bits) (PVM.empty bits) init_s tmap = Some (rs', s') -> PVM.find v s' = PVM.find v s.
 Proof.
-Admitted.
+Admitted.*)
 
-Lemma eval_hfstmts_for_v_node ss init_s tmap v e : (* 在ss induction即可？ *)
-  Qin (Snode v e) ss -> eval_hfstmts_for_v ss init_s tmap v (PVM.find v init_s) = Sem_HiFP.eval_hfexpr e init_s tmap.
+Definition unique_node_dclr (ss : HiFP.hfstmt_seq) : Prop :=
+  forall v e, Qin (Snode v e) ss -> (forall e', e' <> e -> ~ Qin (Snode v e') ss) /\ (forall e', ~ Qin (Sfcnct (Eid v) e') ss).
+
+Lemma eval_hfstmts_for_unique_node ss v e : (* 在ss induction即可？ *)
+  Qin (Snode v e) ss -> unique_node_dclr ss -> 
+  forall init_s tmap rs s, Sem_HiFP.eval_hfstmts ss (PVM.empty bits) (PVM.empty bits) init_s tmap = Some (rs, s) -> PVM.find v s = Sem_HiFP.eval_hfexpr e init_s tmap.
 Proof.
 Admitted.
 
-Lemma eval_hfstmts_node ss init_s tmap v e rs s : (* 在ss induction即可？ *)
-  Qin (Snode v e) ss -> Sem_HiFP.eval_hfstmts (component_stmts_of ss) (PVM.empty bits) (PVM.empty bits) init_s tmap = Some (rs, s) -> 
-  PVM.find v s = Sem_HiFP.eval_hfexpr e init_s tmap.
-Proof.
-Admitted.
-
-Lemma eval_hfstmts_for_others_eq ss init_s conn_map tmap v : 
+(*Lemma eval_hfstmts_for_v_others conn_map tmap v : 
   match PVM.find v tmap with
   | Some (gt, Out_port) 
-  | Some (gt, Wire) => match PVM.find v conn_map with
-                    | Some D_invalidated => eval_hfstmts_for_v ss init_s tmap v (PVM.find v init_s) = PVM.find v init_s (* TBD 是否要证明invalid信号的取值也一致？ *)
-                    | Some (D_fexpr e) => eval_hfstmts_for_v ss init_s tmap v (PVM.find v init_s) = Sem_HiFP.eval_hfexpr e init_s tmap
-                    | _ => True
-                    end
+  | Some (gt, Wire) => forall e, PVM.find v conn_map = Some (D_fexpr e) -> 
+    forall ss init_s, eval_hfstmts_for_v ss init_s tmap v (PVM.find v init_s) = Sem_HiFP.eval_hfexpr e init_s tmap
   | _ => True
   end.
 Proof.
-Admitted.
+Admitted.*)
 
-Lemma eval_hfstmts_for_others_cnct init_s tmap v component_stmts connect_stmts: (* 需要 component_stmts 的一些前提 *)
+Lemma eval_hfstmts_for_others_only_cnct init_s tmap v component_stmts connect_stmts: (* 需要 component_stmts 的一些前提 *)
   match PVM.find v tmap with
   | Some (gt, Out_port) 
   | Some (gt, Wire) => forall rs s, Sem_HiFP.eval_hfstmts (Qcat component_stmts connect_stmts) (PVM.empty bits) (PVM.empty bits) init_s tmap = Some (rs, s) ->
@@ -1680,8 +1679,89 @@ func_type_eq (Sem_HiFP.eval_hfstmts ss) (Sem_HiFP.eval_hfstmts (Qcat (component_
 Proof.
 Admitted.
 
-Lemma eval_hfstmts_Qcat_some s1 s2 rs ns s tmap res : Sem_HiFP.eval_hfstmts (Qcat s1 s2) rs ns s tmap = Some res ->
+(*Lemma eval_hfstmts_Qcat_some s1 s2 rs ns s tmap res : Sem_HiFP.eval_hfstmts (Qcat s1 s2) rs ns s tmap = Some res ->
   exists res', Sem_HiFP.eval_hfstmts s1 rs ns s tmap = Some res'.
+Proof.
+Admitted.*)
+
+Lemma eval_hfstmts_Qcat_some' s1 s2 rs ns s tmap res : Sem_HiFP.eval_hfstmts (Qcat s1 s2) rs ns s tmap = Some res ->
+  exists res', Sem_HiFP.eval_hfstmts s2 rs ns s tmap = Some res'.
+Proof.
+Admitted.
+
+Lemma eval_hfstmts_convert_to_connect_stmts conn_map init_s tmap rs s v e : Sem_HiFP.eval_hfstmts (convert_to_connect_stmts conn_map) (PVM.empty bits) 
+  (PVM.empty bits) init_s tmap = Some (rs, s) -> PVM.find v conn_map = Some (D_fexpr e) -> Sem_HiFP.eval_hfexpr e init_s tmap = PVM.find v s.
+Proof.
+Admitted.
+
+Lemma eval_fexpr_PVM_equal_eq e init_s1 init_s2 tmap : PVM.equal (fun val1 val2 : bitseq => val1 == val2) init_s1 init_s2 -> Sem_HiFP.eval_hfexpr e init_s1 tmap = Sem_HiFP.eval_hfexpr e init_s2 tmap.
+Proof.
+Admitted.
+
+Lemma eval_hfstmts_ExpandBranches_funs_find_for_comb ss init_s tmap rs s v : 
+  match PVM.find v tmap with
+  | Some (gt, Out_port) 
+  | Some (gt, Wire) => Sem_HiFP.eval_hfstmts ss (PVM.empty bits) (PVM.empty bits) init_s tmap = Some (rs, s) ->
+  forall conn_map, ExpandBranches_funs ss (PVM.empty def_expr) = Some conn_map -> forall e, PVM.find v conn_map = Some (D_fexpr e) -> 
+  PVM.find v s = Sem_HiFP.eval_hfexpr e init_s tmap
+  | _ => True
+  end.
+Proof. (* first do this *)
+  destruct (PVM.find v tmap) as [[gt cmpnt]|] eqn : Hcmpnt; try done. destruct cmpnt; try done.
+  assert (Hhelper : forall (ss : HiFP.hfstmt_seq) (rs s rs0 s0 : PVM.t bits),
+    Sem_HiFP.eval_hfstmts ss rs0 s0 init_s tmap = Some (rs, s) ->
+    forall (old_conn_map : PVM.t def_expr),
+    match PVM.find v old_conn_map with
+    | Some (D_fexpr e') => PVM.find v s0 = Sem_HiFP.eval_hfexpr e' init_s tmap
+    | _ => PVM.find v s0 = None
+    end ->
+    forall conn_map : PVM.t def_expr,
+    ExpandBranches_funs ss old_conn_map = Some conn_map ->
+    forall (e : HiFP.hfexpr),
+    PVM.find v conn_map = Some (D_fexpr e) -> PVM.find v s = Sem_HiFP.eval_hfexpr e init_s tmap).
+  move : Hcmpnt; clear. intro. elim. 
+  - simpl; intros rs s rs0 s0 Heval old_conn_map Hinit conn_map Hexpand_branches e Hfind.
+    inversion Heval; subst rs s; clear Heval. inversion Hexpand_branches; subst conn_map; clear Hexpand_branches.
+    rewrite Hfind in Hinit. done.
+  - intros st sts IH rs s rs0 s0 Heval old_conn_map Hinit conn_map Hexpand_branches e Hfind.
+    simpl in Heval. destruct (Sem_HiFP.eval_hfstmt st rs0 s0 init_s tmap) as [[rs_temp s_temp]|] eqn : Heval_temp; try discriminate.
+    simpl in Hexpand_branches. destruct (ExpandBranch_fun st old_conn_map) as [temp_conn_map|] eqn : Hexpand_branches_temp; try discriminate.
+    move : conn_map Hexpand_branches e Hfind. apply (IH _ _ _ _ Heval). clear IH Heval sts rs s.
+    case Hst : st => [||var reg|||var node_e|ref e|ref|cond ss_true ss_false]; subst st.
+    + (* skip, wire *) 1,2,4,5 : 
+      simpl in Hexpand_branches_temp; inversion Hexpand_branches_temp; subst old_conn_map; clear Hexpand_branches_temp;
+      simpl in Heval_temp; inversion Heval_temp; subst rs0 s0; clear Heval_temp; done.
+    + (* reg *) 
+      simpl in Hexpand_branches_temp. destruct (type reg); try discriminate. inversion Hexpand_branches_temp; subst temp_conn_map; clear Hexpand_branches_temp.
+      rewrite HiFP.PCELemmas.find_add_neq.
+      simpl in Heval_temp. destruct (PVM.find var init_s); try discriminate. inversion Heval_temp; subst rs_temp s_temp; clear Heval_temp. done.
+      admit. (* 不能重复命名 *) 
+    + (* node *) 
+      simpl in Hexpand_branches_temp. inversion Hexpand_branches_temp; subst temp_conn_map; clear Hexpand_branches_temp.
+      simpl in Heval_temp. destruct (Sem_HiFP.eval_hfexpr node_e init_s tmap); try discriminate. inversion Heval_temp; subst rs_temp s_temp; clear Heval_temp. 
+      rewrite HiFP.PCELemmas.find_add_neq. done.
+      admit. (* 不能重复命名 *) 
+    + (* fcnct *) 
+      simpl in Hexpand_branches_temp. case Href : ref => [var|||]; subst ref; try discriminate. inversion Hexpand_branches_temp; subst temp_conn_map; clear Hexpand_branches_temp.
+      destruct (v == var) eqn : Heq.
+      * move /eqP : Heq => Heq; subst var. rewrite HiFP.PCELemmas.find_add_eq.
+        simpl in Heval_temp. rewrite Hcmpnt in Heval_temp. destruct (Sem_HiFP.eval_hfexpr e init_s tmap) as [val|]; try discriminate.
+        inversion Heval_temp; subst rs_temp s_temp; clear Heval_temp. rewrite HiFP.PCELemmas.find_add_eq //.
+        1,2 : apply CEP.SE.eq_refl.
+      * rewrite HiFP.PCELemmas.find_add_neq. 
+        simpl in Heval_temp. destruct (PVM.find var tmap) as [[_ cmpnt_var]|]; try discriminate.
+        admit.
+        admit.
+    + (* invalid *) admit.
+    + (* when *) admit.
+  intros. move : conn_map H0 e H1. apply (Hhelper _ _ _ _ _ H). simpl. done.
+Admitted.
+
+Lemma eval_hfstmts_find_rs ss init_s tmap rs s : Sem_HiFP.eval_hfstmts ss (PVM.empty bits) (PVM.empty bits) init_s tmap = Some (rs, s) ->
+  forall v, match PVM.find v tmap with
+  | Some (_, Register) => True
+  | _ => PVM.find v rs = None
+  end.
 Proof.
 Admitted.
 
@@ -1729,7 +1809,52 @@ Proof.
 
   unfold func_type_eq. intros init_s1 init_s2 s1 s2 rs1 rs2 Hinit_eq Hevalss1 Hevalss2; simpl. split.
   - (* combinational part *)
-    assert (Hbefore : forall v, PVM.find v s1 = eval_hfstmts_for_v ss init_s1 tmap v (PVM.find v init_s1)). admit.
+    move : Hevalss1 Hevalss2 Hexpand_branches Htmap Hinit_eq; clear. intros Hevalss1 Hevalss2 Hexpand_branches Htmap Hinit_eq v.
+    destruct (PVM.find v tmap) as [[gt cmpnt]|] eqn : Hcmpnt. destruct cmpnt.
+    * (* inport *) admit. (* PVM.find v s1 = PVM.find v s2 = None, inport不出现在连接左侧，不会被更新 *)
+    * (* instance of *) admit. (* 暂不考虑 *)
+    * (* memory *) admit. (* 暂不考虑 *)
+    * (* node TBD : v的值在 component_stmts_of 中 *) 
+      assert (Hgt : exists gt, PVM.find v tmap = Some (gt, Node)) by (exists gt; done).
+      assert (He : exists e, Qin (Snode v e) ss). admit. (* 由Hgt *) destruct He as [e He].
+      assert (Hunique : unique_node_dclr ss) by admit. (* 前提 *)
+      rewrite (eval_hfstmts_for_unique_node He Hunique Hevalss1).
+      assert (He' : Qin (Snode v e) (Qcat (component_stmts_of ss) (convert_to_connect_stmts conn_map))). admit. 
+      assert (Hunique' : unique_node_dclr (Qcat (component_stmts_of ss) (convert_to_connect_stmts conn_map))). admit.
+      rewrite (eval_hfstmts_for_unique_node He' Hunique' Hevalss2).
+      apply eval_fexpr_PVM_equal_eq. done.
+    * (* outport TBD *) 
+      assert (Hcm : exists dexpr, PVM.find v conn_map = Some dexpr). admit. (* 有dclr那么应该被连接 *)
+      destruct Hcm as [dexpr Hcm]. 
+      case Hdexpr : dexpr => [||e]; subst dexpr.
+      admit. (* conn_map 中不允许未连接，实际上，我的ExpandBranches_funs并不产生D_undefined *)
+      admit. (* invalid 的信号不需证明相等？ *)
+      specialize (eval_hfstmts_Qcat_some' Hevalss2) as Hexists. destruct Hexists as [[rs s] Hexists].
+      specialize eval_hfstmts_for_others_only_cnct with (v := v) (tmap := tmap) as Hcnct. rewrite Hcmpnt in Hcnct.
+      specialize (Hcnct _ _ _ _ _ Hevalss2 _ _ Hexists). rewrite -Hcnct; clear Hcnct Hevalss2.
+      rewrite -(eval_hfstmts_convert_to_connect_stmts Hexists Hcm). clear Hexists.
+      specialize eval_hfstmts_ExpandBranches_funs_find_for_comb with (v := v) (tmap := tmap) as Hhelper.
+      rewrite Hcmpnt in Hhelper. rewrite (Hhelper _ _ _ _ Hevalss1 _ Hexpand_branches _ Hcm).
+      apply eval_fexpr_PVM_equal_eq; done.
+    * (* register *) admit. (* 均为 None *)
+    * (* wire TBD : 同 outport *) 
+      assert (Hcm : exists dexpr, PVM.find v conn_map = Some dexpr). admit. (* 有dclr那么应该被连接 *)
+      destruct Hcm as [dexpr Hcm]. 
+      case Hdexpr : dexpr => [||e]; subst dexpr.
+      admit. (* conn_map 中不允许未连接，实际上，我的ExpandBranches_funs并不产生D_undefined *)
+      admit. (* invalid 的信号不需证明相等？ *)
+      specialize (eval_hfstmts_Qcat_some' Hevalss2) as Hexists. destruct Hexists as [[rs s] Hexists].
+      specialize eval_hfstmts_for_others_only_cnct with (v := v) (tmap := tmap) as Hcnct. rewrite Hcmpnt in Hcnct.
+      specialize (Hcnct _ _ _ _ _ Hevalss2 _ _ Hexists). rewrite -Hcnct; clear Hcnct Hevalss2.
+      rewrite -(eval_hfstmts_convert_to_connect_stmts Hexists Hcm). clear Hexists.
+      specialize eval_hfstmts_ExpandBranches_funs_find_for_comb with (v := v) (tmap := tmap) as Hhelper.
+      rewrite Hcmpnt in Hhelper. rewrite (Hhelper _ _ _ _ Hevalss1 _ Hexpand_branches _ Hcm).
+      apply eval_fexpr_PVM_equal_eq; done.
+    * (* module *) admit. (* 均为 None *)
+    * (* None *) admit. (* 均为 None *)
+
+    (* old try *)
+    (*assert (Hbefore : forall v, PVM.find v s1 = eval_hfstmts_for_v ss init_s1 tmap v (PVM.find v init_s1)). admit.
     assert (Hafter : forall v, eval_hfstmts_for_v ss init_s2 tmap v (PVM.find v init_s2) = PVM.find v s2). {
       move : Hevalss2 Hexpand_branches Htmap; clear. intros Hevalss2 Hexpand_branches Htmap v.
       destruct (PVM.find v tmap) as [[gt cmpnt]|] eqn : Hcmpnt. destruct cmpnt.
@@ -1742,19 +1867,66 @@ Proof.
         apply eval_hfstmts_Qcat_some in Hevalss2 as Hexists. destruct Hexists as [[rs s] Hexists].
         apply (eval_hfstmts_for_node_no_cnct Hgt Hevalss2) in Hexists as Hevalss. rewrite -Hevalss; clear Hevalss Hevalss2.
         rewrite (eval_hfstmts_for_v_node _ _ He). rewrite (eval_hfstmts_node He Hexists) //.
-      * (* outport TBD *) admit.
-
-      * (* register *) admit. (* 此时 eval_hfstmts_for_v = None, iteration中不考虑reg*)
-      * (* wire TBD : 同 outport *) admit.
-      * (* module *) admit. (* tmap 中不含 *)
-      * (* None *) admit. (* 此时 eval_hfstmts_for_v = None *)
+      * (* outport TBD *) 
+        assert (Hcm : exists dexpr, PVM.find v conn_map = Some dexpr). admit. destruct Hcm as [dexpr Hcm]. 
+        case Hdexpr : dexpr => [||e]; subst dexpr.
+        admit. (* conn_map 中不允许未连接 *)
+        admit. (* invalid 的信号不需证明相等？ *)
+        specialize (eval_hfstmts_Qcat_some' Hevalss2) as Hexists. destruct Hexists as [[rs s] Hexists].
+        specialize eval_hfstmts_for_others_only_cnct with (v := v) (tmap := tmap) as Hcnct. rewrite Hcmpnt in Hcnct.
+        specialize (Hcnct _ _ _ _ _ Hevalss2 _ _ Hexists). rewrite -Hcnct; clear Hcnct Hevalss2.
+        specialize (eval_hfstmts_for_v_others conn_map tmap v) as Heq. rewrite Hcmpnt in Heq.
+        rewrite (Heq _ Hcm); clear Heq. apply (eval_hfstmts_convert_to_connect_stmts Hexists Hcm).
+      * (* register *) admit. (* 均为 None *)
+      * (* wire TBD : 同 outport *) 
+        assert (Hcm : exists dexpr, PVM.find v conn_map = Some dexpr). admit. destruct Hcm as [dexpr Hcm]. 
+        case Hdexpr : dexpr => [||e]; subst dexpr.
+        admit. (* conn_map 中不允许未连接 *)
+        admit. (* invalid 的信号不需证明相等？ *)
+        specialize (eval_hfstmts_Qcat_some' Hevalss2) as Hexists. destruct Hexists as [[rs s] Hexists].
+        specialize eval_hfstmts_for_others_only_cnct with (v := v) (tmap := tmap) as Hcnct. rewrite Hcmpnt in Hcnct.
+        specialize (Hcnct _ _ _ _ _ Hevalss2 _ _ Hexists). rewrite -Hcnct; clear Hcnct Hevalss2.
+        specialize (eval_hfstmts_for_v_others conn_map tmap v) as Heq. rewrite Hcmpnt in Heq.
+        rewrite (Heq _ Hcm); clear Heq. apply (eval_hfstmts_convert_to_connect_stmts Hexists Hcm).
+      * (* module *) admit. (* 均为 None *)
+      * (* None *) admit. (* 均为 None *)
     }
     intro. rewrite Hbefore -Hafter. 
     assert (Hinit_eq' : forall v, PVM.find v init_s1 = PVM.find v init_s2) by (apply PVM_equal_iff_find_eq; done).
-    rewrite Hinit_eq'. apply (eval_hfstmts_for_v_init_eq _ _ _ _ Hinit_eq).
+    rewrite Hinit_eq'. apply (eval_hfstmts_for_v_init_eq _ _ _ _ Hinit_eq).*)
   - (* sequential part *)
-    admit.
-  (* old try *)
+    move : Hevalss1 Hevalss2 Hexpand_branches Htmap Hinit_eq; clear. intros Hevalss1 Hevalss2 Hexpand_branches Htmap Hinit_eq v.
+    destruct (PVM.find v tmap) as [[gt cmpnt]|] eqn : Hcmpnt. destruct cmpnt.
+    * (* inport, instance of, memory, node, output, wire, module, none *) 
+      1,2,3,4,5,7,8,9 : specialize (eval_hfstmts_find_rs Hevalss1 v) as Hfind1; rewrite Hcmpnt in Hfind1;
+      specialize (eval_hfstmts_find_rs Hevalss2 v) as Hfind2; rewrite Hcmpnt in Hfind2;
+      rewrite Hfind1 Hfind2 //.
+    * (* register TBD how to do this? *) clear Htmap.
+      move : ss Hevalss1 Hevalss2 Hexpand_branches. 
+      assert (Hhelper : forall ss rs ns rs' ns' rs1 s1 rs2 s2 old_conn_map conn_map,
+        PVM.equal (fun val1 val2 : bitseq => val1 == val2) rs rs' ->
+        PVM.equal (fun val1 val2 : bitseq => val1 == val2) ns ns' ->
+        Sem_HiFP.eval_hfstmts ss rs ns init_s1 tmap = Some (rs1, s1) ->
+        Sem_HiFP.eval_hfstmts
+          (Qcat (component_stmts_of ss)
+            (convert_to_connect_stmts conn_map)) 
+          rs' ns' init_s2 tmap = Some (rs2, s2) ->
+        ExpandBranches_funs ss old_conn_map = Some conn_map ->
+        PVM.find v rs1 = PVM.find v rs2). {
+      move : Hinit_eq; clear; intro. elim. 
+      simpl; intros. admit.
+      intros s st IH; simpl; intros. 
+      destruct (Sem_HiFP.eval_hfstmt s rs ns init_s1 tmap) as [[rs0 ns0]|] eqn : Heval0; try discriminate.
+      destruct (ExpandBranch_fun s old_conn_map) as [temp_conn_map|] eqn : Hcm_temp; try discriminate.
+      assert (exists rs ns, Sem_HiFP.eval_hfstmts
+        (Qcat (component_stmts_of st)
+          (convert_to_connect_stmts conn_map)) rs ns init_s2
+        tmap = Some (rs2, s2)). admit. destruct H4 as [rs_temp [ns_temp H4]].
+      move : H1 H4 H3; apply IH.
+      }
+      
+
+  (* old old try *)
   (*apply find_eq_iff_mem_eq_and_1d (* maybe we do not need this one *). split.
   + (* mem eq *) admit. (* 这里比较好说明的角度应该是: 说明 s1的定义域等于init_s1 和 s2的定义域等于init_s2 *)
   + (* find some value eq *) 
@@ -1790,4 +1962,3 @@ Proof.
   unfold func_type_eq in Hexpand_branches. apply (Hexpand_branches _ _ _ _ _ _ Hfst_do_this Hregval) in Hregval_new.
   apply PVM_equal_iff_find_eq. move : Hregval_new => [_ Hregval_new]. done.
 Admitted.
-
