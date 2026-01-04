@@ -10,6 +10,7 @@ Import Prenex Implicits.
 
 Section Value.
 
+  Variable var_mod : eqType.
   Variable var : eqType.
 
   Inductive ftype : Type :=
@@ -75,7 +76,7 @@ Section Value.
   | Swire : var -> ftype -> hfstmt
   | Sreg : var -> hfreg -> hfstmt
   | Smem : var -> hfmem -> hfstmt
-  | Sinst : var -> var -> hfstmt
+  | Sinst : var (* instance name *) -> var_mod (* module type *) -> hfstmt
   | Snode : var -> hfexpr -> hfstmt
   | Sfcnct : href -> hfexpr -> hfstmt
   | Sinvalid : href -> hfstmt
@@ -90,12 +91,13 @@ Section Value.
   .
 
   Inductive hfmodule : Type :=
-  | FInmod : var -> seq hfport -> hfstmt_seq -> hfmodule
-  | FExmod : var -> seq hfport -> hfstmt_seq -> hfmodule.
+  | FInmod : var_mod -> seq hfport -> hfstmt_seq -> hfmodule
+  | FExmod : var_mod -> seq hfport -> hfstmt_seq -> hfmodule.
 
-  Inductive hfcircuit : Type := Fcircuit : var -> seq hfmodule -> hfcircuit.
+  (* Circuit, i.e. a list of modules with an indication which one is the main module *)
+  Inductive hfcircuit : Type := Fcircuit : var_mod -> seq hfmodule -> hfcircuit.
 
-
+  (* General data value of an expression (which may have an aggregate type *)
   Inductive hvalue : Type :=
   | Gval : bits -> hvalue
   | Aval : array_value -> hvalue
@@ -143,12 +145,13 @@ Section Value.
 
 End Value.
 
-Print ftype.
-
 Module MakeSemantics
+  (V_mod : SsrOrder) (* module names *)
   (V : SsrOrder) (* identifier names *)
+  (VM_mod : SsrFMap with Module SE := V_mod)
   (VM : SsrFMap with Module SE := V).
 
+  Local Notation var_mod := V_mod.t.
   Local Notation var := V.t.
 
   Definition gtyp gt := @Gtyp V.T gt.
@@ -184,41 +187,42 @@ Module MakeSemantics
   Definition esubaccess r e := @Esubaccess V.T r e.
   Definition href := href V.T.
 
-  Definition hfstmt := hfstmt V.T.
-  Definition hfstmt_seq := hfstmt_seq V.T.
-  Definition qnil := Qnil V.T.
-  Definition qcons s ss := @Qcons V.T s ss.
-  Definition sskip := @Sskip V.T.
-  Definition swire v t := @Swire V.T v t.
-  Definition sreg v r := @Sreg V.T v r.
-  Definition smem v m := @Smem V.T v m.
-  Definition snode v e := @Snode V.T v e.
-  Definition sfcnct v1 v2 := @Sfcnct V.T v1 v2.
-  Definition sinvalid v1 := @Sinvalid V.T v1.
-  Definition swhen c s1 s2 := @Swhen V.T c s1 s2.
+  Definition hfstmt := hfstmt V_mod.T V.T.
+  Definition hfstmt_seq := hfstmt_seq V_mod.T V.T.
+  Definition qnil := Qnil V_mod.T V.T.
+  Definition qcons s ss := @Qcons V_mod.T V.T s ss.
+  Definition sskip := @Sskip V_mod.T V.T.
+  Definition swire v t := @Swire V_mod.T V.T v t.
+  Definition sreg v r := @Sreg V_mod.T V.T v r.
+  Definition smem v m := @Smem V_mod.T V.T v m.
+  Definition snode v e := @Snode V_mod.T V.T v e.
+  Definition sfcnct v1 v2 := @Sfcnct V_mod.T V.T v1 v2.
+  Definition sinvalid v1 := @Sinvalid V_mod.T V.T v1.
+  Definition swhen c s1 s2 := @Swhen V_mod.T V.T c s1 s2.
   (* Definition sstop e1 e2 n := @Sstop V.T e1 e2 n. *)
-  Definition sinst v1 v2 := @Sinst V.T v1 v2.
+  Definition sinst v1 v2 := @Sinst V_mod.T V.T v1 v2.
 
   Definition hfreg := @hfreg V.T.
   Definition mk_hfreg := @mk_freg V.T.
   Definition rst := @rst V.T.
   Definition nrst := @NRst V.T.
-  Definition rrst e1 e2 := @Rst V.T e1 e2.
-  Definition type ft := @type V.T ft.
-  Definition clock e := @clock V.T e.
+  Definition rrst (e1 e2 : hfexpr) := @Rst V.T e1 e2.
+  Definition type (r : hfreg) := @type V.T r.
+  Definition clock (r : hfreg) := @clock V.T r.
   Definition mk_mem_port := @mk_mem_port V.T.
   Definition mem_port := @mem_port V.T.
   Definition hfmem := @hfmem V.T.
   Definition mk_hfmem := @mk_fmem V.T.
   Definition hfport := @hfport V.T.
-  Definition hinport v t := @Finput V.T v t.
-  Definition houtport v t := @Foutput V.T v t.
-  Definition hfmodule := @hfmodule V.T.
-  Definition hfinmod v ps ss := @FInmod V.T v ps ss.
-  Definition hfexmod v ps ss := @FExmod V.T v ps ss.
-  Definition hfcircuit := @hfcircuit V.T.
+  Definition hinport (v : var) (t : ftype) := @Finput V.T v t.
+  Definition houtport (v : var) (t : ftype) := @Foutput V.T v t.
+  Definition hfmodule := @hfmodule V_mod.T V.T.
+  Definition hfinmod (v : var_mod) (ps : seq hfport) (ss : hfstmt_seq) := @FInmod V_mod.T V.T v ps ss.
+  Definition hfexmod (v : var_mod) (ps : seq hfport) (ss : hfstmt_seq) := @FExmod V_mod.T V.T v ps ss.
 
-(* type of ref expressions *)
+  Definition hfcircuit := @hfcircuit V_mod.T V.T.
+
+(* type of reference r, according to the type map tmap *)
 Fixpoint type_of_ref (r : href) (tmap : VM.t (ftype * fcomponent)) : option ftype :=
   match r with
   | Eid v => match VM.find v tmap with
@@ -244,6 +248,7 @@ Fixpoint type_of_ref (r : href) (tmap : VM.t (ftype * fcomponent)) : option ftyp
   end.
 
 (* copied from ModuleGraph *)
+(* type of a Emux expression for ground types *)
 Definition fgtyp_mux (x y : fgtyp) : option fgtyp :=
     match x, y with
     | Fuint wx, Fuint wy => Some (Fuint (Nat.max wx wy))
@@ -254,6 +259,7 @@ Definition fgtyp_mux (x y : fgtyp) : option fgtyp :=
     | _, _ => None
     end.
 
+(* type of a Emux expression for general types *)
 Fixpoint ftype_mux (x y : ftype) : option ftype :=
   match x, y with
   | Gtyp tx, Gtyp ty => match fgtyp_mux tx ty with
@@ -262,13 +268,14 @@ Fixpoint ftype_mux (x y : ftype) : option ftype :=
                         end
   | Atyp tx nx, Atyp ty ny => if (nx == ny)
                               then match ftype_mux tx ty with
-                              | Some fat => Some (Atyp fat nx)
-                              | None => None
-                              end
+                                   | Some fat => Some (Atyp fat nx)
+                                   | None => None
+                                   end
                               else None
   | Btyp fx, Btyp fy => ffield_mux fx fy
   | _, _ => None
   end
+(* type of a Emux expression for bundle types *)
 with ffield_mux (f1 f2 : ffield) : option ftype :=
        match f1, f2 with
        | Fnil, Fnil => Some (Btyp fnil)
@@ -287,6 +294,7 @@ with ffield_mux (f1 f2 : ffield) : option ftype :=
        | _, _ => None
        end.
 
+(* type of expression e, given that references have types as in tmap *)
 Fixpoint type_of_hfexpr (e : hfexpr) (tmap: VM.t (ftype * fcomponent)) : option ftype :=
   match e with
   | Econst t bs => Some (gtyp t)
@@ -419,76 +427,126 @@ Fixpoint type_of_hfexpr (e : hfexpr) (tmap: VM.t (ftype * fcomponent)) : option 
   end.
 
 (* functions used to record ftype and component type *)
-Fixpoint stmts_tmap' (tmap : VM.t (ftype * fcomponent)) (ss : hfstmt_seq): option (VM.t (ftype * fcomponent)) :=
+
+(* Find the interface type of the list of ports ps.
+   Because the result is always a bundle type, we return the ffields *)
+Fixpoint port_interface_ffield (ps : seq hfport) : ffield :=
+   match ps with
+   | nil => fnil
+   | Finput  v t :: ps' => fflips v Nflip   t (port_interface_ffield ps')
+   | Foutput v t :: ps' => fflips v Flipped t (port_interface_ffield ps')
+   end.
+
+(* Find the interface types of all modules in ml
+   and return them as one tmap *)
+Fixpoint ports_interface_tmap (ml : seq hfmodule) : option (VM_mod.t ffield) :=
+   match ml with
+   | nil => Some (VM_mod.empty ffield)
+   | (FInmod m ps _) :: tl => match ports_interface_tmap tl with
+                              | Some im => Some (VM_mod.add m (port_interface_ffield ps) im)
+                              | _ => None
+                              end
+   | _ => None
+   end.
+
+(* Extend tmap with the component definitions in statement sequence ss,
+   including those that fall out of scope because they were defined within Swhen.
+   modmap contains the types of modules (for Sinst statements).
+   Also ensure that a component is not defined twice. *)
+Fixpoint stmts_tmap (tmap : VM.t (ftype * fcomponent)) (modmap : VM_mod.t ffield) (ss : hfstmt_seq): option (VM.t (ftype * fcomponent)) :=
     match ss with
     | Qnil => Some tmap
-    | Qcons s ss' => match stmt_tmap' tmap s with
-        | Some tmap' => stmts_tmap' tmap' ss'
+    | Qcons s ss' => match stmt_tmap tmap modmap s with
+        | Some tmap' => stmts_tmap tmap' modmap ss'
         | None => None
         end
     end
-with stmt_tmap' (tmap : VM.t (ftype * fcomponent)) (s : hfstmt) : option (VM.t (ftype * fcomponent)) :=
+(* Extend tmap with the component declaration in statement s,
+   including those that fall out of scope because they were defined within Swhen.
+   modmap contains the types of modules (for Sinst statements).
+   Also ensure that a component is not defined twice. *)
+with stmt_tmap (tmap : VM.t (ftype * fcomponent)) (modmap : VM_mod.t ffield) (s : hfstmt) : option (VM.t (ftype * fcomponent)) :=
     match s with
-    | Sskip => Some tmap
-    | Sfcnct _ _ => Some tmap
+    | Sskip
+    | Sfcnct _ _
     | Sinvalid _ => Some tmap
-    | Swire v t => match VM.find v tmap with
-        | None => Some (VM.add v (t, Wire) tmap)
-        | _ => None
-        end
-    | Sreg v reg => match VM.find v tmap, type_of_hfexpr (clock reg) tmap with
-        | None, Some _ => Some (VM.add v ((type reg), Register) tmap)
-        | _, _ => None
-        end
-    | Snode v expr => match VM.find v tmap, type_of_hfexpr expr tmap with
-                    | None, Some ft => Some (VM.add v (ft, Node) tmap)
-                    | _, _ => None
-                    end
+    | Swire v t => if VM.mem v tmap then None
+                   else Some (VM.add v (t, Wire) tmap)
+    | Sreg v reg => if VM.mem v tmap then None
+                    else match type_of_hfexpr (clock reg) tmap with
+                         | Some (Gtyp Fclock) => Some (VM.add v ((type reg), Register) tmap)
+                         | _ => None
+                         end
+    | Snode v expr => if VM.mem v tmap then None
+                      else match type_of_hfexpr expr tmap with
+                           | Some ft => Some (VM.add v (ft, Node) tmap)
+                           | _ => None
+                           end
     | Smem _ _ => None
-    | Sinst _ _ => None
+    | Sinst id mo => match VM_mod.find mo modmap with
+                     | Some ff => Some (VM.add id (Btyp ff, Instanceof) tmap)
+                     | _ => None
+                     end
     | Swhen cond ss_true ss_false =>
-        match type_of_hfexpr cond tmap, stmts_tmap' tmap ss_true with
-        | Some (Gtyp _), Some tmap_true => stmts_tmap' tmap_true ss_false 
+        match type_of_hfexpr cond tmap, stmts_tmap tmap modmap ss_true with
+        | Some (Gtyp (Fuint _)), Some tmap_true => stmts_tmap tmap_true modmap ss_false
         | _, _ => None
         end
     end.
-    
-Fixpoint ports_tmap' (tmap : VM.t (ftype * fcomponent)) (pp : seq hfport) : option (VM.t (ftype * fcomponent)) :=
+
+(* Extend tmap with the component definitions in ports sequence pp.
+   Also ensure that no port is defined twice.
+   (While one could define a function without input parameter tmap,
+   the current one is more efficient because it uses tail recursion) *)
+Fixpoint ports_tmap (tmap : VM.t (ftype * fcomponent)) (pp : seq hfport) : option (VM.t (ftype * fcomponent)) :=
     match pp with
     | [::] => Some tmap
-    | Finput v t :: pp' => match VM.find v tmap with
-            | Some _ => None
-            | None => ports_tmap' (VM.add v (t, In_port) tmap) pp'
-            end
-    | Foutput v t :: pp' => match VM.find v tmap with
-            | Some _ => None
-            | None => ports_tmap' (VM.add v (t, Out_port) tmap) pp'
-            end
-    end.    
-  
-Definition module_tmap (tmap : VM.t (ftype * fcomponent)) (m : hfmodule) : option (VM.t (ftype * fcomponent)) :=
+    | Finput  v t :: pp' => if VM.mem v tmap then None
+                            else ports_tmap (VM.add v (t, In_port) tmap) pp'
+    | Foutput v t :: pp' => if VM.mem v tmap then None
+                            else ports_tmap (VM.add v (t, Out_port) tmap) pp'
+    end.
+
+(* Find the type map with the component definitions in the ports and statements
+   of module m. The module has to be internal.
+   modmap contains the types of modules (for Sinst statements). *)
+Definition module_tmap (modmap : VM_mod.t ffield) (m : hfmodule) : option (VM.t (ftype * fcomponent)) :=
     match m with
-    | FInmod _ ps ss => match ports_tmap' tmap ps with
-                | Some pmap => stmts_tmap' pmap ss
+    | FInmod _ ps ss => match ports_tmap (VM.empty (ftype * fcomponent)) ps with
+                | Some pmap => stmts_tmap pmap modmap ss
                 | None => None
                 end
     | _ => None
     end.
-  
-Fixpoint modules_tmap (tmap : VM.t (ftype * fcomponent)) (ml : seq hfmodule) : option (VM.t (ftype * fcomponent)) :=
-    match ml with
-    | nil => Some tmap
-    | hd :: tl => match module_tmap tmap hd with
-                | Some tmap' => modules_tmap tmap' tl
-                | _ => None
-                end
-    end.
-  
-Definition circuit_tmap (c : hfcircuit) : option (VM.t (ftype * fcomponent)) :=
+
+(* Find the type map of a list of modules;
+   we already know that modmap contains the interfaces of the modules
+   (used to find the type of Sinst statements).
+   All modules must be internal. *)
+Fixpoint modules_tmaps (modmap : VM_mod.t ffield) (ml : seq hfmodule) : option (VM_mod.t (VM.t (ftype * fcomponent))) :=
+   match ml with
+   | nil => Some (VM_mod.empty (VM.t (ftype * fcomponent))) (* empty map *)
+   | FInmod v _ _ as mo :: ml'
+   | FExmod v _ _ as mo :: ml' => match module_tmap modmap mo, modules_tmaps modmap ml' with
+                                  | Some mp, Some mps => Some (VM_mod.add v mp mps)
+                                  | _, _ => None
+                                  end
+   end.
+
+(* Find the type map of a circuit.
+   (It first finds the interface map of all the modules
+   and then uses this to find the detailed type map of every module,
+   including the Sinst statements in them. Possibly the interface map
+   should also be returned?) *)
+Definition circuit_tmaps (c : hfcircuit) : option (VM_mod.t (VM.t (ftype * fcomponent))) :=
     match c with
-    | Fcircuit v ml => modules_tmap (VM.empty (ftype * fcomponent)) ml
+    | Fcircuit v ml => match ports_interface_tmap ml with
+                       | Some modmap => modules_tmaps modmap ml
+                       | None => None
+                       end
     end.
 
+(* Calculate a "constant zero" value *)
 Fixpoint ftext0 (ft : ftype) : hvalue :=
   match ft with
   | Gtyp (Fuint w) 
@@ -510,7 +568,8 @@ Fixpoint ftext0 (ft : ftype) : hvalue :=
       in Bval (btypext0 btyp)
   end.
 
-(* makes val to be of type ft *)
+(* makes the constant val to be of type ft.
+   In particular, extends bit patterns to the correct width. *)
 Fixpoint ftext (ft : ftype) (val : hvalue) : option hvalue :=
   match ft, val with
   | Gtyp (Fuint w), Gval c => Some (gval (zext (w - size c) c))
@@ -544,22 +603,141 @@ with btypext (btyp : ffield) (bval : bundle_value) : option bundle_value :=
   | _, _ => None
   end.
 
-(* value of ref expressions *)
-Fixpoint hvalue_of_ref (r : href) (s : VM.t hvalue) (tmap: VM.t (ftype * fcomponent)) : option hvalue :=
+(* How should components in a circuit be referred to?
+   Through an access path: a sequence of instance names, and finally a component name.
+   Instance names are V (not V_mod).
+   Actually instance names might by V_mod but that would complicate matters;
+   then they cannot be part of the module’s type map but require a separate map.
+   (They might require it anyway because instances remain instances even after LowerTypes.)
+
+   A related question is how to link inputs/outputs of an instance with
+   the corresponding fields in the outer module.
+
+   I think it is easier to store the port values in the instance variable of the outer module.
+   Inputs and outputs of a module are accessed by looking at the outer module,
+   i.e. the last element of the access path becomes the component name in that module.
+   (The other way around, one would have to combine all inputs and outputs of the inner module
+   into one bundle every time the outer module accesses an instance.)
+
+   So, the value of a circuit is a PMap where
+   - keys are access sequences (a list of instance names + a component name)
+   - inputs and outputs are stored with key the list of instance names, without component name;
+     the name of the input/output is used as the name of a field in the bundle that is stored under this key
+
+Example:
+
+Top module input/output access sequence: [::]
+Top module register r: [:: r]
+Instance i in top module = port interface of instance i: [:: i]
+Input of instance i: [:: i]
+Wire w in instance i : [:: i, w]
+
+r, i, w are all of type V (not V_mod).
+
+
+ *)
+
+Module MakeSeqOrderMinimal (O : SsrOrder) <: SsrOrderMinimal with Definition t := seq_eqType O.T.
+
+  Definition t : eqType := seq_eqType O.T.
+
+  Definition eqn (x y : t) : bool := x == y.
+
+  Fixpoint ltn (x y : t) : bool :=
+    match x, y with
+    | [::], [::] => false
+    | [::], _ => true
+    | _, [::] => false
+    | xh :: xt, yh :: yt => (O.ltn xh yh) || ((xh == yh) && ltn xt yt)
+    end.
+
+  Lemma ltn_trans (x y z : t) : ltn x y -> ltn y z -> ltn x z.
+  Proof.
+    revert y z ; induction x as [|xh xt] ; intros.
+    * (* x == [::] *)
+      destruct y as [|yh yt] ; first by done.
+      destruct z as [|zh zt] ; by done.
+    * destruct y as [|yh yt] ; first by done.
+      destruct z as [|zh zt] ; first by done.
+      simpl ; simpl in H, H0.
+      move /orP : H => [H|/andP H] ; move /orP : H0 => [H0|/andP H0].
+      + by rewrite (O.ltn_trans H H0) orTb //.
+      + move : H0 => [/eqP H0 _] ; subst yh.
+        by rewrite H orTb //.
+      + move : H => [/eqP H _] ; subst yh.
+        by rewrite H0 orTb //.
+      + move : H => [/eqP H1 H2] ; move : H0 => [/eqP H3 H4] ; subst yh zh.
+        by rewrite eq_refl andTb (IHxt yt zt H2 H4) orbT //.
+  Qed.
+
+  Lemma ltn_not_eqn (x y : t) : ltn x y -> x != y.
+  Proof.
+    revert y ; induction x as [|xh xt] ; intros.
+    * destruct y as [|yh yt] ; by done.
+    * destruct y as [|yh yt] ; first by done.
+      rewrite eqseq_cons ; simpl in H.
+      move /orP : H => [H|/andP [_ H]].
+      + by rewrite (O.ltn_eqF H) andFb //.
+      + by rewrite (negbTE (IHxt yt H)) andbF //.
+  Qed.
+
+  Definition compare (x y : t) : Compare ltn eqn x y.
+  Proof.
+    revert y ; induction x as [|xh xt] ; intros.
+    * destruct y as [|yh yt].
+      + apply EQ ; done.
+      + apply LT ; done.
+    * destruct y as [|yh yt].
+      + apply GT ; done.
+      + destruct (O.compare xh yh).
+        - apply LT ; simpl ; rewrite l orTb //.
+        - unfold O.eq in e.
+          specialize (IHxt yt) ; destruct IHxt.
+          * apply LT ; simpl.
+            by rewrite e andTb i orbT //.
+          * apply EQ ; unfold eqn in i.
+            by rewrite /eqn eqseq_cons e i //.
+          * apply GT ; simpl.
+            by rewrite eq_sym e andTb i orbT //.
+        - apply GT ; simpl ; rewrite l orTb //.
+  Defined.
+
+End MakeSeqOrderMinimal.
+
+Module MakeSeqOrder (O : SsrOrder) <: SsrOrder
+    with Definition T := seq_eqType O.T.
+  Module M := MakeSeqOrderMinimal O.
+  Module P := MakeSsrOrder M.
+  Include P.
+End MakeSeqOrder.
+
+Module SeqVarOrder := MakeSeqOrder V.
+Module SVS <: SsrFSet := FSets.MakeTreeSet SeqVarOrder.
+Module SVM <: SsrFMap := FMaps.MakeTreeMap SeqVarOrder.
+
+(* select a field in a Bvalue *)
+Fixpoint select_field (bu : bundle_value) (v : var) : option (hvalue (* * fflip*) ) :=
+   match bu with
+   | Bnil => None
+   | Bflips v' fl hv bu' => if v == v' then Some (hv (*, fl *) ) else select_field bu' v
+   end.
+
+(* value of reference r in instance inst. s is the value map of the circuit. tmap is the type map of the current module. *)
+Fixpoint hvalue_of_ref (inst : SVM.key) (r : href) (s : SVM.t hvalue) (tmap: VM.t (ftype * fcomponent)) : option hvalue :=
   match r with
-  | Eid v => VM.find v s
-  | Esubfield r v => match hvalue_of_ref r s tmap with
-              | Some (Bval fv) => let fix aux fx := (
-                                          match fx with
-                                          | Bflips v' f t fxs =>
-                                            if (v == v') then Some t
-                                            else aux fxs
-                                          | Bnil => None
-                                          end )
-                                  in aux fv
+  | Eid v => match VM.find v tmap with
+             | Some (_, In_port)
+             | Some (_, Out_port) => match SVM.find inst s with
+                                     | Some (Bval bu) => select_field bu v
+                                     | _ => None
+                                     end
+             | _ => SVM.find (rcons inst v) s
+             end
+  | Esubfield r v => match hvalue_of_ref inst r s tmap with
+              | Some (Bval fv) => select_field fv v
               | _ => None
               end
-  | Esubindex r n => match hvalue_of_ref r s tmap with
+  | Esubindex r n => match hvalue_of_ref inst r s tmap with
               | Some (Aval fv) => let fix aux fx m := (
                                           match fx, m with
                                           | Acons t fxs, m'.+1 => aux fxs m'
@@ -569,7 +747,7 @@ Fixpoint hvalue_of_ref (r : href) (s : VM.t hvalue) (tmap: VM.t (ftype * fcompon
                                   in aux fv n
               | _ => None
               end
-  | Esubaccess r e => match eval_hfexpr e s tmap, hvalue_of_ref r s tmap with 
+  | Esubaccess r e => match eval_hfexpr inst e s tmap, hvalue_of_ref inst r s tmap with 
               | Some (Gval val), Some (Aval fv) => let n := to_nat val in
                                   let fix aux fx m := (
                                           match fx, m with
@@ -582,52 +760,52 @@ Fixpoint hvalue_of_ref (r : href) (s : VM.t hvalue) (tmap: VM.t (ftype * fcompon
               end
   end
 (* Expression evaluation, value *)
-with eval_hfexpr (exp : hfexpr) (s : VM.t hvalue) (tmap: VM.t (ftype * fcomponent)) : option hvalue :=
+with eval_hfexpr (inst : SVM.key) (exp : hfexpr) (s : SVM.t hvalue) (tmap: VM.t (ftype * fcomponent)) : option hvalue :=
   match exp with
   | Econst t c => match t with
                   | Fuint w1 => if (size c) > w1 then None else Some (gval (zext (w1 - size c) c))
                   | Fsint w2 => if (size c) > w2 then None else Some (gval (sext (w2 - size c) c))
                   | _ => None
                   end
-  | Eref r => hvalue_of_ref r s tmap
+  | Eref r => hvalue_of_ref inst r s tmap
   | Ecast AsUInt e 
-  | Ecast AsSInt e => eval_hfexpr e s tmap
+  | Ecast AsSInt e => eval_hfexpr inst e s tmap
   | Ecast AsClock e  
-  | Ecast AsAsync e => match eval_hfexpr e s tmap with Some (Gval val) => Some (gval [::lsb val]) | _ => None end
+  | Ecast AsAsync e => match eval_hfexpr inst e s tmap with Some (Gval val) => Some (gval [::lsb val]) | _ => None end
   | Eprim_binop b e1 e2 =>
-      match eval_hfexpr e1 s tmap, eval_hfexpr e2 s tmap, type_of_hfexpr e1 tmap, type_of_hfexpr e2 tmap with
+      match eval_hfexpr inst e1 s tmap, eval_hfexpr inst e2 s tmap, type_of_hfexpr e1 tmap, type_of_hfexpr e2 tmap with
       | Some (Gval val1), Some (Gval val2), Some (Gtyp gt1), Some (Gtyp gt2) => 
           let val := LoFirrtl.ebinop_op b gt1 gt2 val1 val2 in Some (gval val)
       | _, _, _, _ => None
       end
   | Eprim_unop u e =>
-      match eval_hfexpr e s tmap, type_of_hfexpr e tmap with
+      match eval_hfexpr inst e s tmap, type_of_hfexpr e tmap with
       | Some (Gval val1), Some (Gtyp gt1) =>
           let val := LoFirrtl.eunop_op u gt1 val1 in Some (gval val)
       | _, _ => None
       end
   | Emux c e1 e2 => 
-      match eval_hfexpr c s tmap, type_of_hfexpr exp tmap, eval_hfexpr e1 s tmap, eval_hfexpr e2 s tmap with
+      match eval_hfexpr inst c s tmap, type_of_hfexpr exp tmap, eval_hfexpr inst e1 s tmap, eval_hfexpr inst e2 s tmap with
       | Some (Gval valc), Some ft, Some val1, Some val2 => if ~~ (is_zero valc) then ftext ft val1
                                                                                 else ftext ft val2
       | _, _, _, _ => None
       end
   end.
 
-Fixpoint init_dclrs (ss : hfstmt_seq) (valmap : VM.t hvalue) (tmap: VM.t (ftype * fcomponent)) : VM.t hvalue := 
+Fixpoint init_dclrs (inst : SVM.key) (ss : hfstmt_seq) (valmap : SVM.t hvalue) (tmap: VM.t (ftype * fcomponent)) : SVM.t hvalue := 
   match ss with
   | Qnil => valmap
-  | Qcons s ss' => init_dclrs ss' (init_dclr s valmap tmap) tmap
+  | Qcons s ss' => init_dclrs inst ss' (init_dclr inst s valmap tmap) tmap
   end
-with init_dclr (s : hfstmt) (valmap : VM.t hvalue) (tmap: VM.t (ftype * fcomponent)) : VM.t hvalue := 
+with init_dclr (inst : SVM.key) (s : hfstmt) (valmap : SVM.t hvalue) (tmap: VM.t (ftype * fcomponent)) : SVM.t hvalue := 
   match s with
-  | Swire v t => VM.add v (ftext0 t) valmap
-  | Snode v e => match eval_hfexpr e valmap tmap with(* e中被用到的变量应该已被赋初值0,则一定有值 *)
-                | Some val => VM.add v val valmap
+  | Swire v t => SVM.add (rcons inst v) (ftext0 t) valmap
+  | Snode v e => match eval_hfexpr inst e valmap tmap with(* e中被用到的变量应该已被赋初值0,则一定有值 *)
+                | Some val => SVM.add (rcons inst v) val valmap
                 | _ => valmap
                 end
-  (*| Sreg v reg => VM.add v (ftext0 (type reg)) valmap*)
-  | Swhen cond ss_true ss_false => init_dclrs ss_false (init_dclrs ss_true valmap tmap) tmap
+  (*| Sreg v reg => SVM.add (rcons inst v) (ftext0 (type reg)) valmap*)
+  | Swhen cond ss_true ss_false => init_dclrs inst ss_false (init_dclrs inst ss_true valmap tmap) tmap
   | _ => valmap
   end.
 
@@ -855,90 +1033,207 @@ with eval_bundle_connection1 (ff : ffield) (val : hvalue) (offset_l offset_r : n
                           end
   end.
 
-Fixpoint eval_hfstmt (st : hfstmt) (rs ns : VM.t hvalue) (s : VM.t hvalue) (tmap: VM.t (ftype * fcomponent)) : option ((VM.t hvalue) * (VM.t hvalue)) :=
+(* connects reference ref (which cannot be an input or output port) to expression val *)
+Definition connect_passive (inst : SVM.key) (ref : href) (val : hvalue) (ns : SVM.t hvalue) (tmap : VM.t (ftype * fcomponent)) : option (SVM.t hvalue) :=
+   match SVM.find (rcons inst (base_ref ref)) ns, offset_ref ref tmap 0 with
+   | Some rval, Some offs => match update_hvalue_by_offset rval offs val with
+                             | Some new_rval => Some (SVM.add (rcons inst (base_ref ref)) new_rval ns)
+                             | None => None
+                             end
+   | _, _ => None
+   end.
+
+(* calculates the offset of the port named p, based on the interface value val *)
+Fixpoint offset_of_port (p : V.t) (val : bundle_value) : option nat :=
+   match val with
+   | Bnil => None
+   | Bflips p' _ vp' val' => if (p == p') then Some 1
+                             else match offset_of_port p val' with
+                                  | Some offs => Some (elements_of_hvalue vp' + offs)
+                                  | None => None
+                                  end
+   end.
+
+(* connects reference ref (which is a ground-type [output or flipped input] port) to expression val *)
+Definition connect_passive_port (inst : SVM.key) (ref : href) (val : hvalue) (ns : SVM.t hvalue) (tmap : VM.t (ftype * fcomponent)) : option (SVM.t hvalue) :=
+   match SVM.find inst ns with
+   | Some (Bval rval) => match offset_of_port (base_ref ref) rval with
+                         | Some port_offs => match offset_ref ref tmap port_offs with
+                                             | Some offs => match update_hvalue_by_offset (Bval rval) offs val with
+                                                            | Some new_rval => Some (SVM.add inst new_rval ns)
+                                                            | None => None
+                                                            end
+                                             | None => None
+                                             end
+                         | None => None
+                         end
+   | _ => None
+   end.
+
+Fixpoint is_passive (ft : ftype) : bool :=
+    match ft with
+    | Gtyp _ => false
+    | Atyp ft' _ => is_passive ft'
+    | Btyp ff => is_passive_fields ff
+    end
+with is_passive_fields (ff : ffield) : bool :=
+    match ff with
+    | Fnil => true
+    | Fflips _ Nflip ft' ff' => is_passive ft' && is_passive_fields ff'
+    | Fflips _ Flipped _ _ => false
+    end.
+
+(* changes ns for a bidirectional connect statement "connect left, right". ft is the (common) type of the references.
+   rs = values to be read; ns = new values to be written; tmap = type map of the current module. *)
+Fixpoint bidirectional_connect (ft : ftype) (inst : SVM.key) (left right : href) (rs ns : SVM.t hvalue) (tmap : VM.t (ftype * fcomponent)) : option (SVM.t hvalue) :=
+   if is_passive ft then match hvalue_of_ref inst right rs tmap, VM.find (base_ref left) tmap with
+                         | Some val, Some (_, In_port)
+                         | Some val, Some (_, Out_port) => connect_passive_port inst left val ns tmap
+                         | Some val, Some (_, _       ) => connect_passive      inst left val ns tmap
+                         | _, _ => None
+                         end
+                    else let fix bidirectional_connect_non_passive (ft : ftype) (left right : href) (ns : SVM.t hvalue) : option (SVM.t hvalue) :=
+                             match ft with
+                             | Gtyp _ => None (* this cannot happen, as ft must be a non-passive type *)
+                             | Atyp ft' m => let fix bidirectional_array_connect (i : nat) (ns : SVM.t hvalue) : option (SVM.t hvalue) :=
+                                                 match i with
+                                                 | 0 => Some ns
+                                                 | i'.+1 => match bidirectional_array_connect i' ns with
+                                                            | Some ns' => bidirectional_connect_non_passive ft' (Esubindex left i) (Esubindex right i) ns'
+                                                            | None => None
+                                                            end
+                                                 end
+                                             in bidirectional_array_connect m ns
+                             | Btyp ff => bidirectional_bundle_connect ff inst left right rs ns tmap
+                             end
+                         in bidirectional_connect_non_passive ft left right ns
+with bidirectional_bundle_connect (ff : ffield) (inst : SVM.key) (left right : href) (rs ns : SVM.t hvalue) (tmap : VM.t (ftype * fcomponent)) : option (SVM.t hvalue) :=
+   match ff with
+   | Fnil => Some ns
+   | Fflips v Nflip   ft' ff' => match bidirectional_connect ft' inst (Esubfield left v) (Esubfield right v) rs ns tmap with
+                                 | Some ns' => bidirectional_bundle_connect ff' inst left right rs ns' tmap
+                                 | None => None
+                                 end
+   | Fflips v Flipped ft' ff' => match bidirectional_connect ft' inst (Esubfield right v) (Esubfield left v) rs ns tmap with
+                                 | Some ns' => bidirectional_bundle_connect ff' inst left right rs ns' tmap
+                                 | None => None
+                                 end
+   end.
+
+(* evaluate the statement st, which is part of the code in instance inst.
+   rs contains the old values that are read; ns contains the new values that have been updated until now;
+   the return value is ns, changed by the effect of st.
+   tmap is the type map of the current module. *)
+Fixpoint eval_hfstmt (inst : SVM.key) (st : hfstmt) (rs ns : SVM.t hvalue) (tmap: VM.t (ftype * fcomponent)) : option (SVM.t hvalue) :=
   match st with
-  | Snode v e => match eval_hfexpr e s tmap with
-                | Some val => Some (rs, VM.add v val ns)
+  | Snode v e => match eval_hfexpr inst e rs tmap with
+                | Some val => Some (SVM.add (rcons inst v) val ns)
                 | _ => None
                 end
-  | Sfcnct r (Eref ref) => (* 考虑flip和aggr *) 
-            match offset_ref r tmap 0, offset_ref ref tmap 0, type_of_ref r tmap with
-            | Some offset_r, Some offset_ref, Some ft => 
-                let base_r := base_ref r in let base_ref := base_ref ref in 
-                (* 需要单独讨论连接发生在1个aggr内部 *)
-                if base_r == base_ref then match VM.find base_r s with
-                | Some val_base_r => match eval_ref_connection1 ft val_base_r offset_r offset_ref with
-                    | Some val_base_r' => 
-                        (* 讨论是否对应reg *)
-                        match VM.find base_r tmap with
-                        | Some (_, Register) => (* 更新rs *) Some (VM.add base_r val_base_r' rs, ns)
-                        | Some _ => (* 更新s *) Some (rs, VM.add base_r val_base_r' ns)
-                        | _ => None
-                        end
-                    | _ => None
-                    end
-                | _ => None
-                end else
-                match VM.find base_r s, VM.find base_ref s with
-                | Some val_base_r, Some val_base_ref =>
-                    match eval_ref_connection ft val_base_r val_base_ref offset_r offset_ref with
-                    | Some (val_base_r', val_base_ref') => 
-                        (* 分情况讨论r和ref是否对应reg *)
-                        match VM.find base_r tmap, VM.find base_ref tmap with
-                        | Some (_, Register), Some (_, Register) => (* 均更新rs *) 
-                            Some (VM.add base_ref val_base_ref' (VM.add base_r val_base_r' rs), ns)
-                        | Some (_, Register), Some _ => (* lhs更新rs, rhs更新s *) 
-                            Some (VM.add base_r val_base_r' rs, VM.add base_ref val_base_ref' ns)
-                        | Some _, Some (_, Register) => (* lhs更新s, rhs更新rs *) 
-                            Some (VM.add base_ref val_base_ref' rs, VM.add base_r val_base_r' ns)
-                        | Some _, Some _ => (* 均更新s *) 
-                            Some (rs, VM.add base_ref val_base_ref' (VM.add base_r val_base_r' ns))
-                        | _,_ => None
-                        end
-                    | _ => None
-                    end
-                | _, _ => None
-                end
-            | _, _, _ => None
+  | Sfcnct r_left (Eref r_right) => (* 考虑flip和aggr *)
+            match type_of_ref r_left tmap with
+            | Some ft => bidirectional_connect ft inst r_left r_right rs ns tmap
+            | None => None
             end
   | Sfcnct r e => (* 不考虑flip,考虑aggr,不区分mux和其他expr *)
-                  match offset_ref r tmap 0, eval_hfexpr e s tmap with
-                  | Some offset, Some new_val => let base_r := base_ref r in
-                      match  VM.find base_r tmap with
-                      | Some (ft, Register) => (* 更新rs *) 
-                          match VM.find base_r s with
-                          | Some val => match update_hvalue_by_offset val offset new_val with
-                                      | Some val' => Some (VM.add base_r val' rs, ns)
-                                      | _ => None
-                                      end
-                          | _ => None
-                          end
-                      | Some (ft, _) => (* 更新s *)
-                          match VM.find base_r s with
-                          | Some val => match update_hvalue_by_offset val offset new_val with
-                                      | Some val' => Some (rs, VM.add base_r val' ns)
-                                      | _ => None
-                                      end
-                          | _ => None
-                          end
-                      | _ => None
-                      end
-                  | _, _ => None
-                  end 
-  | Swhen cond ss_true ss_false => match eval_hfexpr cond s tmap with
-                  | Some (Gval valc) => if ~~ (is_zero valc) then eval_hfstmts ss_true rs ns s tmap else eval_hfstmts ss_false rs ns s tmap
+            match eval_hfexpr inst e rs tmap, VM.find (base_ref r) tmap with
+            | Some val, Some (_, In_port)
+            | Some val, Some (_, Out_port) => connect_passive_port inst r val ns tmap
+            | Some val, Some (_, _       ) => connect_passive      inst r val ns tmap
+            | _, _ => None
+            end
+  | Swhen cond ss_true ss_false => match eval_hfexpr inst cond rs tmap with
+                  | Some (Gval valc) => if ~~ (is_zero valc) then eval_hfstmts inst ss_true rs ns tmap else eval_hfstmts inst ss_false rs ns tmap
                   | _ => None
                   end
-  | _ => Some (rs,ns)
+  | _ => Some ns
   end
-with eval_hfstmts (sts : hfstmt_seq) (rs ns : VM.t hvalue) (s : VM.t hvalue) (tmap: VM.t (ftype * fcomponent)) : option ((VM.t hvalue) * (VM.t hvalue)) :=
+with eval_hfstmts (inst : SVM.key) (sts : hfstmt_seq) (rs ns : SVM.t hvalue) (tmap: VM.t (ftype * fcomponent)) : option (SVM.t hvalue) :=
   match sts with
-  | Qnil => Some (rs, ns)
-  | Qcons st tl => match eval_hfstmt st rs ns s tmap with
-                | Some (rs0, ns0) => eval_hfstmts tl rs0 ns0 s tmap
+  | Qnil => Some ns
+  | Qcons st tl => match eval_hfstmt inst st rs ns tmap with
+                | Some ns0 => eval_hfstmts inst tl rs ns0 tmap
                 | _ => None
                 end
   end.
+
+(* Find the module named m in module sequence ms *)
+Fixpoint find_module (m : var_mod) (ms : seq hfmodule) : option hfmodule :=
+    match ms with
+    | [::] => None
+    | (FInmod mn _ _) as m' :: ms'
+    | (FExmod mn _ _) as m' :: ms' => if m == mn then Some m'
+                                                 else find_module m ms'
+    end.
+
+(* The instance inst is of type m.
+   Add this information, and all instances that are sub-instances of inst, to inst_map, up to n sub-instances deep.
+   ms is the sequence of all modules in the current circuit. *)
+Fixpoint find_module_instances (n : nat) (inst : SVM.key) (m : var_mod) (ms : seq hfmodule) (inst_map : SVM.t var_mod) : option (SVM.t var_mod) :=
+    match find_module m ms with
+    | Some (FInmod _ _ ss) => match n with
+                              | 0 => Some (SVM.add inst m inst_map)
+                              | n'.+1 => let fix find_stmts_instances (ss : hfstmt_seq) (inst_map : SVM.t var_mod) : option (SVM.t var_mod) :=
+                                             match ss with
+                                             | Qnil => Some inst_map
+                                             | Qcons (Sinst i m') ss' => match find_module_instances n' (rcons inst i) m' ms inst_map with
+                                                                         | Some inst_map' => find_stmts_instances ss' inst_map'
+                                                                         | None => None
+                                                                         end
+                                             | Qcons _ ss' => find_stmts_instances ss' inst_map
+                                             end
+                                         in find_stmts_instances ss (SVM.add inst m inst_map)
+                              end
+    | _ => None
+    end.
+
+(* Find all instances of the circuit c.
+   The result is a map with domain all instances, and for every instance its type is indicated. *)
+Definition find_circuit_instances (c : hfcircuit) : option (SVM.t var_mod) :=
+    match c with
+    | Fcircuit top ms => find_module_instances (size ms) [::] top ms (SVM.empty var_mod)
+    end.
+
+(* We now would like a lemma like the following:
+   If circuit c does not contain circular instance statements,
+   and all its modules are internal,
+   then find_circuit_instances c will find all instances
+   (in particular, a larger value of n would not change the result).
+
+   Perhaps it could be formulated like this:
+   If circuit c does not contain circular instance statements,
+   then forall n : nat, n >= size ms -> find_circuit_instances c = find_module_instances n' [::] top ms (SVM.empty var_mod).
+
+   Or so:
+   Given fun (n : nat) => find_module_instances n [::] top ms (SVM.empty var_mod).
+   Note that this function is monotonous.
+   if this function in n has a (least) fixed point, it is reached with an n <= size ms.
+*)
+
+(* Evaluate the (connect) statements in all instances indicated by insts.
+   Update ns accordingly.
+   ms is the sequence of all modules in the current circuit.
+   tmaps indicates for every module the type map. *)
+Definition eval_instances (insts : SVM.t var_mod) (ms : seq hfmodule) (rs ns : SVM.t hvalue) (tmaps : VM_mod.t (VM.t (ftype * fcomponent))) : option (SVM.t hvalue) :=
+    SVM.fold (fun (inst : SVM.key) (m : var_mod) (opt_ns : option (SVM.t hvalue))
+               => match opt_ns, find_module m ms, VM_mod.find m tmaps with
+                  | Some ns, Some (FInmod _ _ ss), Some tmap => eval_hfstmts inst ss rs ns tmap
+                  | _, _, _ => None
+                  end)
+             insts (Some ns).
+
+(* Evaluate the (connect) statements etc. in circuit c *)
+Definition eval_circuit (c : hfcircuit) (rs : SVM.t hvalue) : option (SVM.t hvalue) :=
+    match circuit_tmaps c, find_circuit_instances c, c with
+    | Some tmaps, Some insts, Fcircuit top ms => eval_instances insts ms rs rs tmaps
+    | _, _, _ => None
+    end.
+
+(* Edited until here by David.
+   The next steps would be to define a function that initializes rs for all components in all instances
+   (using insts and tmaps in a similar way as in eval_circuit),
+   and then to iterate over eval_circuit, together with a function like update_values below,
+   that copies mutable values from ns back to rs. *)
 
 Definition update_values (rs : VM.t hvalue) (s : VM.t hvalue) : VM.t hvalue := 
   VM.fold (fun key value temps => VM.add key value temps) rs s.
