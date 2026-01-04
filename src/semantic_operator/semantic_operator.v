@@ -4238,6 +4238,7 @@ Fixpoint iterate (inputs : evalType) (summ : summaryType) (n : nat) : evalType :
    Still, we can prove the well-foundedness of the port summary:
 *)
 
+(*
 Lemma empty_summary_is_well_founded : forall p : component_part, Acc (depends_on empty_summary) p.
 Proof.
 intros [p2 n2].
@@ -4246,6 +4247,7 @@ intros [p1 n1] H.
 contradict H.
 rewrite /depends_on /app_summ insubF //.
 Qed.
+*)
 
 Lemma PortSumm_is_tobedefined :
 forall (pp : seq hfport) (summ : summaryType),
@@ -4266,16 +4268,25 @@ induction pp.
   destruct a as [v' t'|v' t'].
   1,2: destruct (PortSumm pp) as [intsumm|] ; last by discriminate.
   1,2: specialize (IHpp intsumm Logic.eq_refl c k t e1 e2).
-  destruct (ext_summ intsumm v' (Inport, t', Etobedefined t', Etobedefined t')) as [[newsumm pin]|] eqn: Hext ; last by discriminate.
-  2: destruct (ext_summ intsumm v' (Outport, t', Etobedefined t', Etobedefined t')) as [[newsumm pin]|] eqn: Hext ; last by discriminate.
-  1,2: inversion Hp ; rewrite -H0 in Hsumm ; clear Hp H0 summ.
-  1,2: unfold ext_summ in Hext.
-(* We have to prove that ext_summ does not change existing values.
-   Probably we will also have to prove that chg_summ does not change the domain of the summary. *)
-  1,2: destruct (c == v') ; last by apply IHpp, Hsumm.
-  1,2: inversion Hsumm ; split ; last by split ; reflexivity.
-  + by left ; reflexivity.
-  + by right ; reflexivity.
+  1,2: destruct (v' \in projT1 intsumm) eqn: Hv' ; rewrite Hv' in Hp ; first by discriminate Hp.
+    destruct (chg_ext_summ intsumm v' (Inport, t', Etobedefined t', Etobedefined t')) as [newsumm|] eqn: Hext ;
+        last by discriminate Hp.
+  2: destruct (chg_ext_summ intsumm v' (Outport, t', Etobedefined t', Etobedefined t')) as [newsumm|] eqn: Hext ;
+        last by discriminate Hp.
+  1,2: inversion Hp ; subst summ ; clear Hp.
+  1,2: unfold chg_ext_summ in Hext ; simpl in Hext.
+  1,2: destruct (number_of_parts t' == 0) ; first by discriminate Hext.
+  1,2: destruct (insub (v', 0)) eqn: Hins ; last by discriminate Hext.
+  1,2: inversion Hext ; subst newsumm ; clear Hext.
+     generalize (chg_ext_summ_nocheck_is_correct intsumm v' (Inport, t', Etobedefined t', Etobedefined t')) ; intro Hcesn.
+  2: generalize (chg_ext_summ_nocheck_is_correct intsumm v' (Outport, t', Etobedefined t', Etobedefined t')) ; intro Hcesn.
+  1,2: destruct (c == v') eqn: Hcv' ; move /eqP : Hcv' => Hcv' ;
+        last (by rewrite (proj2 Hcesn c Hcv') in Hsumm ;
+                 apply IHpp, Hsumm).
+  1,2: subst c ; rewrite (proj1 Hcesn) in Hsumm ; inversion Hsumm.
+  1,2: split ; last by (split ; reflexivity).
+  + left ; by reflexivity.
+  + right ; by reflexivity.
 Qed.
 
 Fixpoint array_elements_are_Etbd (ar : array_expr) (t : ftype) : bool :=
@@ -4448,4 +4459,64 @@ As combinatorial cycles are forbidden, every path is simple and finite, and it i
 * define path of connections
 * state that there are no cycles in these paths (can be assumed, does not need to be proven)
 * therefore all paths are finite *)
+
+(* Keyin brought up the idea of evaluating statements right away,
+   without first creating a statement summary.
+   Then I suggest this scheme:
+   - there are two copies of every variable: one to be read, one to be written.
+   - in a preparatory run go through the statements and create each 
+   - we walk through the statements and change the write-copy as needed.
+   - if after the walkthrough the write-copy of a component is different from the read-copy,
+     the values have not yet stabilized, we copy the write-values to the read-values,
+     and walk through the statements another time.
+     (registers are disregarded in this check.)
+   - acyclicity guarantees that the number of iterations is bounded.
+     we can probably prove: in every iteration there will be at least one statement
+     that does not change any more.
+
+   - Problem: a program like
+       a <= 3
+       b <= a
+       a <= 5
+     If we just test whether a has changed after it has been read,
+     we get a wrong result: the program would appear to never stabilize.
+     The correct behaviour is to write value 5 to b.
+     That is why we need a read- and a write-copy: the write-copy of a becomes 3
+     temporarily but b will be set to the value in the read-copy of a.
+   - we need the data type of every aggregate-level component,
+     but we can store the values per ground-level component.
+     (That may simplify LowerTypes: the choiceType of var changes but then
+     every component part identifier just becomes a component identifier.)
+
+0. generate the data type structure of every module
+   by going through their component definition statements
+1. generate the data type structure of the module instances
+   by going throught their instance statements
+   (This generates a tree of instances --- every instance has an access path.)
+2. initialize the write-copy of the component data of every instance with "Etobedefined t"
+   (or, for registers, with "Eid r")
+2. repeat
+   2a. set the read-copy to the write-copy values for every module instance
+       (but for registers, top-level unflipped inputs, and top-level flipped outputs, use their old value)
+   2b. for every module instance:
+       walk through the connection statements of the module and execute them (in order)
+       (i.e. change the write-copy of the variables)
+   until the read-copy is equal to the write-copy
+
+Data needed in walking through the statements:
+- per component, its kind and type (to determine e.g. the size of an array element)
+  depends on the module, not on the instance
+- per readable ground-level component, its read value (a number, not an expression)
+  needs one copy per instance
+- per writable ground-level component, its written value (also a number)
+  needs one copy per instance
+
+Data needed elsewhere:
+- per register/top-level unflipped input/top-level flipped output component, its read value.
+  needs one copy per register instance
+
+*)
+
+
+
 
