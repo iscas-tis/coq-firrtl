@@ -1680,7 +1680,7 @@ Lemma eval_hfstmts_for_sequ_only_cnct init_s tmap v component_stmts connect_stmt
       forall rs' s', Sem_HiFP.eval_hfstmts connect_stmts (PVM.empty bits) (PVM.empty bits) init_s tmap = Some (rs', s') -> PVM.find v rs' = PVM.find v rs
   | _ => True
   end.
-Proof.
+Proof. (* first do this *)
 Admitted.
 
 Lemma func_type_eq_eval_hfstmts ss conn_map tmap : ExpandBranches_funs ss (PVM.empty def_expr) = Some conn_map ->
@@ -1698,6 +1698,11 @@ Lemma eval_hfstmts_Qcat_some' s1 s2 rs ns s tmap res : Sem_HiFP.eval_hfstmts (Qc
 Proof.
 Admitted.
 
+Lemma eval_hfstmts_Qcat_exists s0 rs0 init_s tmap rs s l1 l2 : Sem_HiFP.eval_hfstmts (Qcat l1 l2) rs0 s0 init_s tmap = Some (rs, s)
+  -> exists temp_s temp_rs, Sem_HiFP.eval_hfstmts l1 rs0 s0 init_s tmap = Some (temp_rs, temp_s) /\  Sem_HiFP.eval_hfstmts l2 temp_rs temp_s init_s tmap = Some (rs, s).
+Proof.
+Admitted.
+
 Lemma eval_hfstmts_convert_to_connect_stmts_for_comb conn_map init_s tmap rs s v e : 
   match PVM.find v tmap with
   | Some (gt, Out_port) 
@@ -1705,13 +1710,31 @@ Lemma eval_hfstmts_convert_to_connect_stmts_for_comb conn_map init_s tmap rs s v
   (PVM.empty bits) init_s tmap = Some (rs, s) -> PVM.find v conn_map = Some (D_fexpr e) -> Sem_HiFP.eval_hfexpr e init_s tmap = PVM.find v s
   | _ => True
   end.
-Proof.
+Proof. 
   case Hcmpnt : (PVM.find v tmap) => [[gt cmpnt]|]; try done. destruct cmpnt; try done.
   - (* outport *)
     intros Heval Hcm. remember (convert_to_connect_stmts conn_map) as cmlist.
-    rewrite /convert_to_connect_stmts PVM.fold_1 in Heqcmlist. rewrite CEP.Lemmas.elements_o in Hcm.
-    specialize (PVM.elements_3w conn_map) as Hnodup.
-Admitted.
+    rewrite /convert_to_connect_stmts PVM.fold_1 in Heqcmlist. 
+    apply CEP.Lemmas.find_some_mapsto in Hcm. apply CEP.Lemmas.F.elements_mapsto_iff in Hcm.
+    remember (PVM.elements conn_map) as elements. apply InA_alt in Hcm. destruct Hcm as [[v' e'] [Heq Hin]].
+    destruct Heq as [Heq0 Heq1]. simpl in Heq0; simpl in Heq1. move /eqP : Heq0 => Heq0; subst v' e'.
+    destruct (in_split _ _ Hin) as [l1 [l2 Helements]]. subst elements.
+    rewrite Helements in Heqcmlist. rewrite fold_left_app in Heqcmlist. simpl in Heqcmlist.
+    remember (fold_left (fun (a : HiFP.hfstmt_seq) (p : PVM.key * def_expr) => convert_to_connect_stmt (fst p) (snd p) a) l1 (Qnil _)) as ss_prefix.
+    remember (fold_left (fun (a : HiFP.hfstmt_seq) (p : PVM.key * def_expr) => convert_to_connect_stmt (fst p) (snd p) a) l2 (Qcons (Sfcnct (Eid v) e) ss_prefix)) as ss_suffix.
+    subst cmlist.
+    assert (Heqss_suffix' : ss_suffix = Qcat (fold_left
+                 (fun (a : HiFP.hfstmt_seq) (p : PVM.key * def_expr) =>
+                  convert_to_connect_stmt (fst p) (snd p) a) l2 (Qnil ProdVarOrder.T)) (Qcons (Sfcnct (Eid v) e) ss_prefix)). admit. clear Heqss_suffix.
+    rewrite Heqss_suffix' in Heval. apply eval_hfstmts_Qcat_exists in Heval. destruct Heval as [temp_s [temp_rs [Heval2 Heval1]]].
+    assert (Htemp : PVM.find v temp_s = None). admit. (* l2中不含v *)
+    clear Heval2 Heqss_suffix'. simpl in Heval1. rewrite Hcmpnt in Heval1. destruct (Sem_HiFP.eval_hfexpr e init_s tmap) as [val|]; try discriminate.
+    assert (Hprefix : PVM.find v s = PVM.find v (PVM.add v val temp_s)). admit. (* ss_prefix 不含v*)
+    rewrite Hprefix HiFP.PCELemmas.find_add_eq //. apply CEP.SE.eq_refl. 
+    (*rewrite CEP.Lemmas.elements_o in Hcm.
+    specialize (PVM.elements_3w conn_map) as Hnodup.*)
+  - (* wire 同上 *)
+Admitted.  
 
 Lemma eval_hfstmts_convert_to_connect_stmts_for_sequ conn_map init_s tmap rs s v e : 
   match PVM.find v tmap with
@@ -1719,7 +1742,26 @@ Lemma eval_hfstmts_convert_to_connect_stmts_for_sequ conn_map init_s tmap rs s v
   (PVM.empty bits) init_s tmap = Some (rs, s) -> PVM.find v conn_map = Some (D_fexpr e) -> Sem_HiFP.eval_hfexpr e init_s tmap = PVM.find v rs
   | _ => True
   end.
-Proof. (* first do this *)
+Proof. 
+  destruct (PVM.find v tmap) as [[gt cmpnt]|] eqn : Hcmpnt; try done. destruct cmpnt; try done.
+  intros Heval Hcm. remember (convert_to_connect_stmts conn_map) as cmlist.
+  rewrite /convert_to_connect_stmts PVM.fold_1 in Heqcmlist. 
+  apply CEP.Lemmas.find_some_mapsto in Hcm. apply CEP.Lemmas.F.elements_mapsto_iff in Hcm.
+  remember (PVM.elements conn_map) as elements. apply InA_alt in Hcm. destruct Hcm as [[v' e'] [Heq Hin]].
+  destruct Heq as [Heq0 Heq1]. simpl in Heq0; simpl in Heq1. move /eqP : Heq0 => Heq0; subst v' e'.
+  destruct (in_split _ _ Hin) as [l1 [l2 Helements]]. subst elements.
+  rewrite Helements in Heqcmlist. rewrite fold_left_app in Heqcmlist. simpl in Heqcmlist.
+  remember (fold_left (fun (a : HiFP.hfstmt_seq) (p : PVM.key * def_expr) => convert_to_connect_stmt (fst p) (snd p) a) l1 (Qnil _)) as ss_prefix.
+  remember (fold_left (fun (a : HiFP.hfstmt_seq) (p : PVM.key * def_expr) => convert_to_connect_stmt (fst p) (snd p) a) l2 (Qcons (Sfcnct (Eid v) e) ss_prefix)) as ss_suffix.
+  subst cmlist.
+  assert (Heqss_suffix' : ss_suffix = Qcat (fold_left
+                 (fun (a : HiFP.hfstmt_seq) (p : PVM.key * def_expr) =>
+                  convert_to_connect_stmt (fst p) (snd p) a) l2 (Qnil ProdVarOrder.T)) (Qcons (Sfcnct (Eid v) e) ss_prefix)). admit. clear Heqss_suffix.
+  rewrite Heqss_suffix' in Heval. apply eval_hfstmts_Qcat_exists in Heval. destruct Heval as [temp_s [temp_rs [Heval2 Heval1]]].
+  assert (Htemp : PVM.find v temp_rs = None). admit. (* l2中不含v *)
+  clear Heval2 Heqss_suffix'. simpl in Heval1. rewrite Hcmpnt in Heval1. destruct (Sem_HiFP.eval_hfexpr e init_s tmap) as [val|]; try discriminate.
+  assert (Hprefix : PVM.find v rs = PVM.find v (PVM.add v val temp_rs)). admit. (* ss_prefix 不含v*)
+  rewrite Hprefix HiFP.PCELemmas.find_add_eq //. apply CEP.SE.eq_refl.
 Admitted.
 
 Lemma eval_fexpr_PVM_equal_eq e init_s1 init_s2 tmap : PVM.equal (fun val1 val2 : bitseq => val1 == val2) init_s1 init_s2 -> Sem_HiFP.eval_hfexpr e init_s1 tmap = Sem_HiFP.eval_hfexpr e init_s2 tmap.
