@@ -8,6 +8,10 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Import Prenex Implicits.
 
+Definition indeterminate_val := from_nat 8 42. (* UInt<8>(0h42) as invalid value *)
+Compute (indeterminate_val).
+Compute (take 3 indeterminate_val).
+
 Inductive hvalue : Type :=
   | Gval : bits -> hvalue
   | Aval : array_value -> hvalue
@@ -726,6 +730,25 @@ Compute (eval_ref_connection btype bb_val2 bb_val1 2 0).
 Compute (eval_ref_connection (Gtyp (Fuint 2)) b_val b_val 4 1). (* 不正确,如果同一个value内互相更新？ *)
 Compute (eval_ref_connection1 (Gtyp (Fuint 2)) b_val 4 1).
 
+Fixpoint invalidate_ft (ft : ftype) : hvalue :=
+  match ft with
+  | Gtyp gt => Gval (take (sizeof_fgtyp gt) indeterminate_val)
+  | Atyp atyp n => 
+      let fix invalidate_atyp (n : nat) : array_value :=
+        match n with
+        | 0 => Anil
+        | n'.+1 => Acons (invalidate_ft atyp) (invalidate_atyp n')
+        end
+      in Aval (invalidate_atyp n)
+  | Btyp btyp => 
+      let fix invalidate_btyp (btyp : ffield) : bundle_value :=
+        match btyp with
+        | Fnil => Bnil
+        | Fflips v f ft ff => Bflips v f (invalidate_ft ft) (invalidate_btyp ff)
+        end
+      in Bval (invalidate_btyp btyp)
+  end.
+
 Fixpoint eval_hfstmt (st : HiF.hfstmt) (rs ns : VM.t hvalue) (s : VM.t hvalue) (tmap: VM.t (ftype * fcomponent)) : option ((VM.t hvalue) * (VM.t hvalue)) :=
   match st with
   | Snode v e => match eval_hfexpr e s tmap with
@@ -776,6 +799,31 @@ Fixpoint eval_hfstmt (st : HiF.hfstmt) (rs ns : VM.t hvalue) (s : VM.t hvalue) (
                   match offset_ref r tmap 0, eval_hfexpr e s tmap with
                   | Some offset, Some new_val => let base_r := HiF.base_ref r in
                       match  VM.find base_r tmap with
+                      | Some (ft, Register) => (* 更新rs *) 
+                          match VM.find base_r s with
+                          | Some val => match update_hvalue_by_offset val offset new_val with
+                                      | Some val' => Some (VM.add base_r val' rs, ns)
+                                      | _ => None
+                                      end
+                          | _ => None
+                          end
+                      | Some (ft, _) => (* 更新s *)
+                          match VM.find base_r s with
+                          | Some val => match update_hvalue_by_offset val offset new_val with
+                                      | Some val' => Some (rs, VM.add base_r val' ns)
+                                      | _ => None
+                                      end
+                          | _ => None
+                          end
+                      | _ => None
+                      end
+                  | _, _ => None
+                  end 
+  | Sinvalid r => (* 不考虑flip,考虑aggr *)
+                  match offset_ref r tmap 0, type_of_ref r tmap with
+                  | Some offset, Some ft => let new_val := invalidate_ft ft in
+                      let base_r := HiF.base_ref r in
+                      match VM.find base_r tmap with
                       | Some (ft, Register) => (* 更新rs *) 
                           match VM.find base_r s with
                           | Some val => match update_hvalue_by_offset val offset new_val with
@@ -1147,6 +1195,11 @@ Fixpoint eval_hfstmt (st : HiFP.hfstmt) (rs ns : PVM.t bits) (s : PVM.t bits) (t
                         | Some _, Some val => (* 更新s *) Some (rs, PVM.add r val ns)
                         | _, _ => None
                         end
+  | Sinvalid (Eid r) => match PVM.find r tmap with
+                        | Some (gt, Register) => (* 更新rs *) Some (PVM.add r (take (sizeof_fgtyp gt) indeterminate_val) rs, ns)
+                        | Some (gt, _) => Some (rs, PVM.add r (take (sizeof_fgtyp gt) indeterminate_val) ns)
+                        | _ => None
+                        end
   | Swhen cond ss_true ss_false => match eval_hfexpr cond s tmap with
                   | Some valc => if ~~ (is_zero valc) then eval_hfstmts ss_true rs ns s tmap else eval_hfstmts ss_false rs ns s tmap
                   | _ => None
@@ -1351,7 +1404,7 @@ Section ExpandWhens.
 (* a type to indicate connects *)
 Inductive def_expr : Type :=
 | D_undefined (* declared but not connected, no "is invalid" statement *)
-| D_invalidated (* declared but not connected, there is a "is invalid" statement *)
+| D_invalidated : fgtyp -> def_expr (* declared but not connected, there is a "is invalid" statement *)
 | D_fexpr : HiFP.hfexpr -> def_expr (* declared and connected *)
 .
 
@@ -1359,13 +1412,14 @@ Inductive def_expr : Type :=
 Lemma def_expr_eq_dec : forall {x y : def_expr}, {x = y} + {x <> y}.
 Proof.
   decide equality.
+  apply fgtyp_eq_dec.
   apply hfexpr_eq_dec.
 Qed.
 
 Definition def_expr_eqn (x y : def_expr) : bool :=
 match x, y with
 | D_undefined, D_undefined => true
-| D_invalidated, D_invalidated => true
+| D_invalidated gt1, D_invalidated gt2 => gt1 == gt2
 | D_fexpr expr1, D_fexpr expr2 => expr1 == expr2
 | _, _ => false
 end.
@@ -1374,6 +1428,10 @@ Lemma def_expr_eqP : Equality.axiom def_expr_eqn.
 Proof.
 unfold Equality.axiom, def_expr_eqn.
 intros ; induction x, y ; try (apply ReflectF ; discriminate) ; try (apply ReflectT ; reflexivity).
+case Eq: (f == f0).
+1-2: move /fgtyp_eqP : Eq => Eq.
+apply ReflectT ; replace f0 with f ; reflexivity.
+apply ReflectF ; injection ; apply Eq.
 case Eq: (h == h0).
 all: move /hfexpr_eqP : Eq => Eq.
 apply ReflectT ; replace h0 with h ; reflexivity.
@@ -1398,10 +1456,11 @@ Definition combine_when_connections
                           else Some (D_fexpr (Emux cond te fe))
                       | Some D_undefined, _
                       | _, Some D_undefined => Some D_undefined
-                      | None, _ => false_expr
+                      | None, _ => false_expr (* TBD cannot be proved now *)
                       | _, None => true_expr
-                      | Some D_invalidated, _ => false_expr
-                      | _, Some D_invalidated => true_expr
+                      | Some (D_invalidated gt), Some (D_fexpr fe) => Some (D_fexpr fe)
+                      | Some (D_fexpr te), Some (D_invalidated gt) => Some (D_fexpr te)
+                      | Some (D_invalidated gt), Some (D_invalidated _) => Some (D_invalidated gt)
                       end)
              true_conn_map false_conn_map.
 
@@ -1896,7 +1955,7 @@ Proof.
     * (* inport *) admit. (* PVM.find v s1 = PVM.find v s2 = None, inport不出现在连接左侧，不会被更新 *)
     * (* instance of *) admit. (* 暂不考虑 *)
     * (* memory *) admit. (* 暂不考虑 *)
-    * (* node TBD : v的值在 component_stmts_of 中 *) 
+    * (* node : v的值在 component_stmts_of 中 *) 
       assert (Hgt : exists gt, PVM.find v tmap = Some (gt, Node)) by (exists gt; done).
       assert (He : exists e, Qin (Snode v e) ss). admit. (* 由Hgt *) destruct He as [e He].
       assert (Hunique : unique_node_dclr ss) by admit. (* 前提 *)
@@ -1905,7 +1964,7 @@ Proof.
       assert (Hunique' : unique_node_dclr (Qcat (component_stmts_of ss) (convert_to_connect_stmts conn_map))). admit.
       rewrite (eval_hfstmts_for_unique_node He' Hunique' Hevalss2).
       apply eval_fexpr_PVM_equal_eq. done.
-    * (* outport TBD *) 
+    * (* outport *) 
       assert (Hcm : exists dexpr, PVM.find v conn_map = Some dexpr). admit. (* 有dclr那么应该被连接 *)
       destruct Hcm as [dexpr Hcm]. 
       case Hdexpr : dexpr => [||e]; subst dexpr.
@@ -1920,7 +1979,7 @@ Proof.
       rewrite Hcmpnt in Hhelper. rewrite (Hhelper _ _ _ _ Hevalss1 _ Hexpand_branches _ Hcm).
       apply eval_fexpr_PVM_equal_eq; done.
     * (* register *) admit. (* 均为 None *)
-    * (* wire TBD : 同 outport *) 
+    * (* wire : 同 outport *) 
       assert (Hcm : exists dexpr, PVM.find v conn_map = Some dexpr). admit. (* 有dclr那么应该被连接 *)
       destruct Hcm as [dexpr Hcm]. 
       case Hdexpr : dexpr => [||e]; subst dexpr.
@@ -1945,13 +2004,13 @@ Proof.
       * (* inport *) admit. (* 此时 eval_hfstmts_for_v = PVM.find v init_s2(初始值), 原因是 inport 不出现在连接 lhs; 同时 s2 中input的值也不变 *)
       * (* instance of *) admit. (* 暂不考虑 *)
       * (* memory *) admit. (* 暂不考虑 *)
-      * (* node TBD : v的值在 component_stmts_of 中 *) 
+      * (* node : v的值在 component_stmts_of 中 *) 
         assert (Hgt : exists gt, PVM.find v tmap = Some (gt, Node)) by (exists gt; done).
         assert (He : exists e, Qin (Snode v e) ss). admit. destruct He as [e He].
         apply eval_hfstmts_Qcat_some in Hevalss2 as Hexists. destruct Hexists as [[rs s] Hexists].
         apply (eval_hfstmts_for_node_no_cnct Hgt Hevalss2) in Hexists as Hevalss. rewrite -Hevalss; clear Hevalss Hevalss2.
         rewrite (eval_hfstmts_for_v_node _ _ He). rewrite (eval_hfstmts_node He Hexists) //.
-      * (* outport TBD *) 
+      * (* outport *) 
         assert (Hcm : exists dexpr, PVM.find v conn_map = Some dexpr). admit. destruct Hcm as [dexpr Hcm]. 
         case Hdexpr : dexpr => [||e]; subst dexpr.
         admit. (* conn_map 中不允许未连接 *)
@@ -1962,7 +2021,7 @@ Proof.
         specialize (eval_hfstmts_for_v_others conn_map tmap v) as Heq. rewrite Hcmpnt in Heq.
         rewrite (Heq _ Hcm); clear Heq. apply (eval_hfstmts_convert_to_connect_stmts Hexists Hcm).
       * (* register *) admit. (* 均为 None *)
-      * (* wire TBD : 同 outport *) 
+      * (* wire : 同 outport *) 
         assert (Hcm : exists dexpr, PVM.find v conn_map = Some dexpr). admit. destruct Hcm as [dexpr Hcm]. 
         case Hdexpr : dexpr => [||e]; subst dexpr.
         admit. (* conn_map 中不允许未连接 *)
@@ -1985,7 +2044,7 @@ Proof.
       1,2,3,4,5,7,8,9 : specialize (eval_hfstmts_find_rs Hevalss1 v) as Hfind1; rewrite Hcmpnt in Hfind1;
       specialize (eval_hfstmts_find_rs Hevalss2 v) as Hfind2; rewrite Hcmpnt in Hfind2;
       rewrite Hfind1 Hfind2 //.
-    * (* register TBD *) 
+    * (* register *) 
       assert (Hcm : exists dexpr, PVM.find v conn_map = Some dexpr). admit. (* reg在dclr时就记录连接 *)
       destruct Hcm as [dexpr Hcm]. 
       case Hdexpr : dexpr => [||e]; subst dexpr.
@@ -2011,15 +2070,15 @@ Proof.
       * (* inport *) admit. (* 此时 eval_hfstmts_for_v = None, inport 不出现在连接 lhs *)
       * (* instance of *) admit. (* 暂不考虑 *)
       * (* memory *) admit. (* 暂不考虑 *)
-      * (* node TBD : v的值在 component_stmts_of 中 *) 
+      * (* node : v的值在 component_stmts_of 中 *) 
         assert (Hgt : exists gt, PVM.find v tmap = Some (gt, Node)) by (exists gt; done).
         apply eval_hfstmts_Qcat_some in Hevalss2 as Hexists. destruct Hexists as [[rs s] Hexists].
         apply (eval_hfstmts_for_node_dclr1 Hgt Heval_for_v) in Hexists as Hs.
         move : Hexists Hs; apply (eval_hfstmts_for_node_no_cnct Hgt Hevalss2).
-      * (* outport TBD *) admit.
+      * (* outport *) admit.
 
       * (* register *) admit. (* 此时 eval_hfstmts_for_v = None, iteration中不考虑reg*)
-      * (* wire TBD : 同 outport *) admit.
+      * (* wire : 同 outport *) admit.
       * (* module *) admit. (* tmap 中不含 *)
       * (* None *) admit. (* 此时 eval_hfstmts_for_v = None *)
     }
