@@ -42,11 +42,11 @@ let rec index n s1 s2 = match s2 with
      if prefix s1 s2
      then Some 0
      else (match index 0 s1 s2' with
-           | Some n0 -> Some (Pervasives.succ n0)
+           | Some n0 -> Some (Stdlib.Int.succ n0)
            | None -> None))
      (fun n' ->
      match index n' s1 s2' with
-     | Some n0 -> Some (Pervasives.succ n0)
+     | Some n0 -> Some (Stdlib.Int.succ n0)
      | None -> None)
      n)
 

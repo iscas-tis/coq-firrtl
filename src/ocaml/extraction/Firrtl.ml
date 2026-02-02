@@ -19,7 +19,6 @@ type ucast =
 | AsUInt
 | AsSInt
 | AsClock
-| AsReset
 | AsAsync
 
 type eunop =
@@ -775,7 +774,7 @@ module MakeFirrtl =
     match fty with
     | Fuint _ -> ucastB bs (sizeof_fgtyp tty)
     | Fsint _ -> scastB bs (sizeof_fgtyp tty)
-    | _ -> ucastB bs (Pervasives.succ 0)
+    | _ -> ucastB bs (Stdlib.Int.succ 0)
 
   (** val to_Clock : bits -> int **)
 
@@ -793,7 +792,7 @@ module MakeFirrtl =
   | AsUInt -> to_Zpos
   | AsSInt -> to_Z
   | AsClock -> to_Clock
-  | _ -> to_Reset
+  | AsAsync -> to_Reset
 
   (** val eunop_op : eunop -> fgtyp -> bits -> bits **)
 
@@ -801,7 +800,7 @@ module MakeFirrtl =
     match o with
     | Upad n ->
       (fun b ->
-        if leq (Pervasives.succ n) (size b)
+        if leq (Stdlib.Int.succ n) (size b)
         then b
         else (match t0 with
               | Fuint w -> zext (subn n w) b
@@ -810,18 +809,18 @@ module MakeFirrtl =
     | Ushl n -> (fun b -> cat (zeros n) b)
     | Ushr n ->
       (fun b ->
-        if leq (Pervasives.succ n) (size b)
+        if leq (Stdlib.Int.succ n) (size b)
         then high (subn (size b) n) b
         else (msb b) :: [])
     | Ucvt ->
       (fun b -> match t0 with
-                | Fuint _ -> sext (Pervasives.succ 0) b
+                | Fuint _ -> sext (Stdlib.Int.succ 0) b
                 | _ -> b)
     | Uneg ->
       (fun b ->
         match t0 with
-        | Fuint _ -> negB (zext (Pervasives.succ 0) b)
-        | Fsint _ -> negB (sext (Pervasives.succ 0) b)
+        | Fuint _ -> negB (zext (Stdlib.Int.succ 0) b)
+        | Fsint _ -> negB (sext (Stdlib.Int.succ 0) b)
         | _ -> b)
     | Unot -> invB
     | Uandr -> (fun b -> (foldr (&&) b1 b) :: [])
@@ -912,7 +911,7 @@ module MakeFirrtl =
   (** val subB_ext : bool list -> bool list -> bits **)
 
   let subB_ext bs1 bs2 =
-    let newl = addn (maxn (size bs1) (size bs2)) (Pervasives.succ 0) in
+    let newl = addn (maxn (size bs1) (size bs2)) (Stdlib.Int.succ 0) in
     let nbs1 = zext (subn newl (size bs1)) bs1 in
     let nbs2 = zext (subn newl (size bs2)) bs2 in snd (sbbB false nbs1 nbs2)
 
@@ -943,17 +942,17 @@ module MakeFirrtl =
          then zeros (addn (size bs1) (size bs2))
          else if eq_op bitseq_eqType (Obj.magic bs1)
                    (Obj.magic rcons
-                     (zeros (subn (size bs1) (Pervasives.succ 0))) b1)
+                     (zeros (subn (size bs1) (Stdlib.Int.succ 0))) b1)
               then negB
-                     (sext (Pervasives.succ 0)
-                       (cat (zeros (subn (size bs1) (Pervasives.succ 0))) bs2))
+                     (sext (Stdlib.Int.succ 0)
+                       (cat (zeros (subn (size bs1) (Stdlib.Int.succ 0))) bs2))
               else if eq_op bitseq_eqType (Obj.magic bs2)
                         (Obj.magic rcons
-                          (zeros (subn (size bs2) (Pervasives.succ 0))) b1)
+                          (zeros (subn (size bs2) (Stdlib.Int.succ 0))) b1)
                    then negB
-                          (sext (Pervasives.succ 0)
+                          (sext (Stdlib.Int.succ 0)
                             (cat
-                              (zeros (subn (size bs2) (Pervasives.succ 0)))
+                              (zeros (subn (size bs2) (Stdlib.Int.succ 0)))
                               bs1))
                    else let msb1 = msb bs1 in
                         let msb2 = msb bs2 in
@@ -962,7 +961,7 @@ module MakeFirrtl =
                                (Obj.magic b0))
                              (eq_op bool_eqType (Obj.magic msb2)
                                (Obj.magic b0))
-                        then zext (Pervasives.succ (Pervasives.succ 0))
+                        then zext (Stdlib.Int.succ (Stdlib.Int.succ 0))
                                (full_mul (dropmsb bs1) (dropmsb bs2))
                         else if (&&)
                                   (eq_op bool_eqType (Obj.magic msb1)
@@ -976,10 +975,10 @@ module MakeFirrtl =
                                        (eq_op bool_eqType (Obj.magic msb2)
                                          (Obj.magic b1))
                                   then negB
-                                         (sext (Pervasives.succ 0)
+                                         (sext (Stdlib.Int.succ 0)
                                            (full_mul (dropmsb bs1) (negB bs2)))
                                   else negB
-                                         (sext (Pervasives.succ 0)
+                                         (sext (Stdlib.Int.succ 0)
                                            (full_mul (negB bs1) (dropmsb bs2)))
 
   (** val ebinop_op : ebinop -> fgtyp -> fgtyp -> bits -> bits -> bits **)
@@ -1003,8 +1002,8 @@ module MakeFirrtl =
             zext
               (subn
                 (subn
-                  (Nat.pow (Pervasives.succ (Pervasives.succ 0)) (size b))
-                  (Pervasives.succ 0)) (to_nat b)) (cat (zeros (to_nat b)) a)
+                  (Nat.pow (Stdlib.Int.succ (Stdlib.Int.succ 0)) (size b))
+                  (Stdlib.Int.succ 0)) (to_nat b)) (cat (zeros (to_nat b)) a)
           | Bdshr -> shrB (to_nat b) a
           | Band -> andB ea eb
           | Bor -> orB ea eb
@@ -1019,8 +1018,8 @@ module MakeFirrtl =
             sext
               (subn
                 (subn
-                  (Nat.pow (Pervasives.succ (Pervasives.succ 0)) (size b))
-                  (Pervasives.succ 0)) (to_nat b)) (cat (zeros (to_nat b)) a)
+                  (Nat.pow (Stdlib.Int.succ (Stdlib.Int.succ 0)) (size b))
+                  (Stdlib.Int.succ 0)) (to_nat b)) (cat (zeros (to_nat b)) a)
           | Bdshr -> sarB (to_nat b) a
           | _ -> a)
        | Fsint w2 ->
@@ -1031,7 +1030,7 @@ module MakeFirrtl =
           | Badd -> coq_SadcB_ext ea eb
           | Bsub -> coq_SsbbB_ext ea eb
           | Bmul -> coq_Sfull_mul a b
-          | Bdiv -> sext (Pervasives.succ 0) (sdivB a b)
+          | Bdiv -> sext (Stdlib.Int.succ 0) (sdivB a b)
           | Brem -> low (minn w1 w2) (sremB a b)
           | Bcomp c -> binop_sbcmp c ea eb
           | Band -> andB ea eb
@@ -1051,11 +1050,12 @@ module MakeFirrtl =
       (match u with
        | AsUInt -> Fuint (sizeof_fgtyp (type_of_fexpr e0 te))
        | AsSInt -> Fsint (sizeof_fgtyp (type_of_fexpr e0 te))
-       | _ -> Fuint (Pervasives.succ 0))
+       | AsClock -> Fclock
+       | AsAsync -> Fasyncreset)
     | Eprim_unop (u, e0) ->
       (match u with
        | Upad n ->
-         if leq (Pervasives.succ n) (sizeof_fgtyp (type_of_fexpr e0 te))
+         if leq (Stdlib.Int.succ n) (sizeof_fgtyp (type_of_fexpr e0 te))
          then type_of_fexpr e0 te
          else (match type_of_fexpr e0 te with
                | Fuint _ -> Fuint n
@@ -1069,55 +1069,55 @@ module MakeFirrtl =
        | Ushr n ->
          (match type_of_fexpr e0 te with
           | Fuint w ->
-            if leq (Pervasives.succ n) w
+            if leq (Stdlib.Int.succ n) w
             then Fuint (subn w n)
-            else Fuint (Pervasives.succ 0)
+            else Fuint (Stdlib.Int.succ 0)
           | Fsint w ->
-            if leq (Pervasives.succ n) w
+            if leq (Stdlib.Int.succ n) w
             then Fsint (subn w n)
-            else Fsint (Pervasives.succ 0)
+            else Fsint (Stdlib.Int.succ 0)
           | _ -> TE.deftyp)
        | Ucvt ->
          (match type_of_fexpr e0 te with
-          | Fuint w -> Fsint (addn w (Pervasives.succ 0))
+          | Fuint w -> Fsint (addn w (Stdlib.Int.succ 0))
           | Fsint w -> Fsint w
           | _ -> TE.deftyp)
        | Uneg ->
          (match type_of_fexpr e0 te with
-          | Fuint w -> Fsint (addn w (Pervasives.succ 0))
-          | Fsint w -> Fsint (addn w (Pervasives.succ 0))
+          | Fuint w -> Fsint (addn w (Stdlib.Int.succ 0))
+          | Fsint w -> Fsint (addn w (Stdlib.Int.succ 0))
           | _ -> TE.deftyp)
        | Unot ->
          (match type_of_fexpr e0 te with
           | Fuint w -> Fuint w
           | Fsint w -> Fuint w
           | _ -> TE.deftyp)
-       | Uextr (n1, n2) -> Fuint (addn (subn n1 n2) (Pervasives.succ 0))
+       | Uextr (n1, n2) -> Fuint (addn (subn n1 n2) (Stdlib.Int.succ 0))
        | Uhead n -> Fuint n
        | Utail n -> Fuint (subn (sizeof_fgtyp (type_of_fexpr e0 te)) n)
-       | _ -> Fuint (Pervasives.succ 0))
+       | _ -> Fuint (Stdlib.Int.succ 0))
     | Eprim_binop (b, e1, e2) ->
       (match b with
        | Badd ->
          (match type_of_fexpr e1 te with
           | Fuint s1 ->
             (match type_of_fexpr e2 te with
-             | Fuint s2 -> Fuint (addn (maxn s1 s2) (Pervasives.succ 0))
+             | Fuint s2 -> Fuint (addn (maxn s1 s2) (Stdlib.Int.succ 0))
              | _ -> TE.deftyp)
           | Fsint s1 ->
             (match type_of_fexpr e2 te with
-             | Fsint s2 -> Fsint (addn (maxn s1 s2) (Pervasives.succ 0))
+             | Fsint s2 -> Fsint (addn (maxn s1 s2) (Stdlib.Int.succ 0))
              | _ -> TE.deftyp)
           | _ -> TE.deftyp)
        | Bsub ->
          (match type_of_fexpr e1 te with
           | Fuint s1 ->
             (match type_of_fexpr e2 te with
-             | Fuint s2 -> Fuint (addn (maxn s1 s2) (Pervasives.succ 0))
+             | Fuint s2 -> Fuint (addn (maxn s1 s2) (Stdlib.Int.succ 0))
              | _ -> TE.deftyp)
           | Fsint s1 ->
             (match type_of_fexpr e2 te with
-             | Fsint s2 -> Fsint (addn (maxn s1 s2) (Pervasives.succ 0))
+             | Fsint s2 -> Fsint (addn (maxn s1 s2) (Stdlib.Int.succ 0))
              | _ -> TE.deftyp)
           | _ -> TE.deftyp)
        | Bmul ->
@@ -1134,7 +1134,7 @@ module MakeFirrtl =
        | Bdiv ->
          (match type_of_fexpr e1 te with
           | Fuint n -> Fuint n
-          | Fsint n -> Fsint (addn n (Pervasives.succ 0))
+          | Fsint n -> Fsint (addn n (Stdlib.Int.succ 0))
           | _ -> TE.deftyp)
        | Brem ->
          (match type_of_fexpr e1 te with
@@ -1147,22 +1147,22 @@ module MakeFirrtl =
              | Fsint s2 -> Fsint (minn s1 s2)
              | _ -> TE.deftyp)
           | _ -> TE.deftyp)
-       | Bcomp _ -> Fuint (Pervasives.succ 0)
+       | Bcomp _ -> Fuint (Stdlib.Int.succ 0)
        | Bdshl ->
          (match type_of_fexpr e1 te with
           | Fuint n ->
             Fuint
               (subn
                 (addn n
-                  (Nat.pow (Pervasives.succ (Pervasives.succ 0))
-                    (sizeof_fgtyp (type_of_fexpr e2 te)))) (Pervasives.succ
+                  (Nat.pow (Stdlib.Int.succ (Stdlib.Int.succ 0))
+                    (sizeof_fgtyp (type_of_fexpr e2 te)))) (Stdlib.Int.succ
                 0))
           | Fsint n ->
             Fsint
               (subn
                 (addn n
-                  (Nat.pow (Pervasives.succ (Pervasives.succ 0))
-                    (sizeof_fgtyp (type_of_fexpr e2 te)))) (Pervasives.succ
+                  (Nat.pow (Stdlib.Int.succ (Stdlib.Int.succ 0))
+                    (sizeof_fgtyp (type_of_fexpr e2 te)))) (Stdlib.Int.succ
                 0))
           | _ -> TE.deftyp)
        | Bdshr ->
@@ -1229,11 +1229,6 @@ module MakeFirrtl =
            eval_fexpr e0 rs s te readerls writerls data2etc memmap read_la
          in
          let val0 = (lsb val1) :: [] in (rs0, val0)
-       | AsReset ->
-         let (rs0, val1) =
-           eval_fexpr e0 rs s te readerls writerls data2etc memmap read_la
-         in
-         let val0 = (lsb val1) :: [] in (rs0, val0)
        | AsAsync ->
          let (rs0, val1) =
            eval_fexpr e0 rs s te readerls writerls data2etc memmap read_la
@@ -1274,15 +1269,15 @@ module MakeFirrtl =
           (match t2 with
            | Fuint w2 ->
              if negb (is_zero valc)
-             then zext (subn (Pervasives.max w1 w2) w1) val1
-             else zext (subn (Pervasives.max w1 w2) w2) val2
+             then zext (subn (Stdlib.max w1 w2) w1) val1
+             else zext (subn (Stdlib.max w1 w2) w2) val2
            | _ -> [])
         | Fsint w1 ->
           (match t2 with
            | Fsint w2 ->
              if negb (is_zero valc)
-             then sext (subn (Pervasives.max w1 w2) w1) val1
-             else sext (subn (Pervasives.max w1 w2) w2) val2
+             then sext (subn (Stdlib.max w1 w2) w1) val1
+             else sext (subn (Stdlib.max w1 w2) w2) val2
            | _ -> [])
         | _ -> []
       in
@@ -1356,15 +1351,15 @@ module MakeFirrtl =
         fold_left (fun tt tr ->
           let tt0 = TE.add tr.addr (Fuint (Nat.log2 m.depth)) tt in
           let tt1 = TE.add tr.data m.data_type tt0 in
-          let tt2 = TE.add tr.en (Fuint (Pervasives.succ 0)) tt1 in
+          let tt2 = TE.add tr.en (Fuint (Stdlib.Int.succ 0)) tt1 in
           TE.add tr.clk Fclock tt2) m.reader te
       in
       fold_left (fun tt tr ->
         let tt0 = TE.add tr.addr0 (Fuint (Nat.log2 m.depth)) tt in
         let tt1 = TE.add tr.data0 m.data_type tt0 in
-        let tt2 = TE.add tr.en0 (Fuint (Pervasives.succ 0)) tt1 in
+        let tt2 = TE.add tr.en0 (Fuint (Stdlib.Int.succ 0)) tt1 in
         let tt3 = TE.add tr.clk0 Fclock tt2 in
-        TE.add tr.mask (Fuint (Pervasives.succ 0)) tt3) m.writer
+        TE.add tr.mask (Fuint (Stdlib.Int.succ 0)) tt3) m.writer
         (TE.add m.mid Fclock te1)
     | Sinst inst -> upd_typenv_fports inst.iports te
     | Snode (v, e) -> TE.add v (type_of_fexpr e te) te
@@ -1826,7 +1821,7 @@ module MakeFirrtl =
     (fun fO fS n -> if n=0 then fO () else fS (n-1))
       (fun _ -> ((((rs, s), memmap), fterss), io_in))
       (fun m ->
-      let n = subn len (Pervasives.succ m) in
+      let n = subn len (Stdlib.Int.succ m) in
       let s1 = upd_argulist s io_in name n in
       let (p, io_in0) =
         eval_module mainmod rs s1 te io_in ols readerls writerls data2etc
@@ -2380,7 +2375,7 @@ module MakeFirrtl =
        | _ -> false)
     | Evalidif (c, e1) ->
       (&&) (well_typed_fexpr c te) (well_typed_fexpr e1 te)
-    | Eref v -> leq (Pervasives.succ 0) (sizeof_fgtyp (TE.vtyp v te))
+    | Eref v -> leq (Stdlib.Int.succ 0) (sizeof_fgtyp (TE.vtyp v te))
 
   (** val no_mem_eval_fexpr : fexpr -> SV.t -> TE.env -> bits **)
 
@@ -2692,7 +2687,7 @@ module MakeFirrtl =
     (fun fO fS n -> if n=0 then fO () else fS (n-1))
       (fun _ -> (((rs, s), fterss), io_in))
       (fun m ->
-      let n = subn len (Pervasives.succ m) in
+      let n = subn len (Stdlib.Int.succ m) in
       let s1 = upd_argulist s io_in name n in
       let (p, io_in0) =
         no_mem_eval_module mainmod rs s1 te io_in ols finstoutl finstoutm
@@ -2745,7 +2740,7 @@ module MakeFirrtl =
     (fun fO fS n -> if n=0 then fO () else fS (n-1))
       (fun _ -> ((rs, s), io_in))
       (fun m ->
-      let n = subn len (Pervasives.succ m) in
+      let n = subn len (Stdlib.Int.succ m) in
       let s1 = upd_argulist s io_in name n in
       let (p, io_in0) = no_mem_eval_module_inline sl rs s1 te io_in ols in
       let (rs2, s2) = p in
@@ -2860,7 +2855,7 @@ module MakeFirrtl =
 
   let well_typed_fstmt_inline s te s1 rs1 =
     match s with
-    | Swire (_, t0) -> leq (Pervasives.succ 0) (sizeof_fgtyp t0)
+    | Swire (_, t0) -> leq (Stdlib.Int.succ 0) (sizeof_fgtyp t0)
     | Sreg r ->
       (&&)
         (eq_op fgtyp_eqType (Obj.magic TE.vtyp r.rid te)

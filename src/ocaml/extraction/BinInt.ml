@@ -227,17 +227,17 @@ module Z =
         (fun _ -> false)
         (fun _ -> false)
         y)
-      (fun x0 ->
+      (fun p ->
       (fun f0 fp fn z -> if z=0 then f0 () else if z>0 then fp z else fn (-z))
         (fun _ -> false)
-        (fun p0 -> Pos.eq_dec x0 p0)
+        (fun p0 -> Pos.eq_dec p p0)
         (fun _ -> false)
         y)
-      (fun x0 ->
+      (fun p ->
       (fun f0 fp fn z -> if z=0 then f0 () else if z>0 then fp z else fn (-z))
         (fun _ -> false)
         (fun _ -> false)
-        (fun p0 -> Pos.eq_dec x0 p0)
+        (fun p0 -> Pos.eq_dec p p0)
         y)
       x
 

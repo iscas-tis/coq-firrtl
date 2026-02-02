@@ -19,7 +19,6 @@ type ucast =
 | AsUInt
 | AsSInt
 | AsClock
-| AsReset
 | AsAsync
 
 type eunop =

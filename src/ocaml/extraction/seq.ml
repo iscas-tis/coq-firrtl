@@ -2,7 +2,6 @@ open Bool
 open Datatypes
 open Eqtype
 open Ssrbool
-open Ssreflect
 open Ssrnat
 
 let __ = let rec f _ = Obj.repr f in Obj.repr f
@@ -11,7 +10,7 @@ let __ = let rec f _ = Obj.repr f in Obj.repr f
 
 let rec size = function
 | [] -> 0
-| _ :: s' -> Pervasives.succ (size s')
+| _ :: s' -> Stdlib.Int.succ (size s')
 
 (** val head : 'a1 -> 'a1 list -> 'a1 **)
 
@@ -120,21 +119,21 @@ let eqseqP t _top_assumption_ =
     let _evar_0_0 = fun _ _ -> ReflectF in
     (match __top_assumption_ with
      | [] -> _evar_0_
-     | x :: x0 -> _evar_0_0 x x0)
+     | a :: l -> _evar_0_0 a l)
   in
   let _evar_0_0 = fun x1 s1 iHs __top_assumption_ ->
     let _evar_0_0 = ReflectF in
     let _evar_0_1 = fun x2 s2 ->
-      ssr_have (eqP t x1 x2) (fun __top_assumption_0 ->
-        let _evar_0_1 = fun _ -> iffP (eqseq t s1 s2) (iHs s2) in
-        let _evar_0_2 = fun _ -> ReflectF in
-        (match __top_assumption_0 with
-         | ReflectT -> _evar_0_1 __
-         | ReflectF -> _evar_0_2 __))
+      let __top_assumption_0 = eqP t x1 x2 in
+      let _evar_0_1 = fun _ -> iffP (eqseq t s1 s2) (iHs s2) in
+      let _evar_0_2 = fun _ -> ReflectF in
+      (match __top_assumption_0 with
+       | ReflectT -> _evar_0_1 __
+       | ReflectF -> _evar_0_2 __)
     in
     (match __top_assumption_ with
      | [] -> _evar_0_0
-     | x :: x0 -> _evar_0_1 x x0)
+     | a :: l -> _evar_0_1 a l)
   in
   let rec f = function
   | [] -> _evar_0_

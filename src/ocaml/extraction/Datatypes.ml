@@ -24,7 +24,7 @@ let snd = function
 
 let rec length = function
 | [] -> 0
-| _ :: l' -> Pervasives.succ (length l')
+| _ :: l' -> Stdlib.Int.succ (length l')
 
 (** val app : 'a1 list -> 'a1 list -> 'a1 list **)
 

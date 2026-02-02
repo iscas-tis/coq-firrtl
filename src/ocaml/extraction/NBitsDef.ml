@@ -104,8 +104,8 @@ let low n bs =
 (** val extract : int -> int -> bits -> bits **)
 
 let extract i j bs =
-  high (addn (subn i j) (Pervasives.succ 0))
-    (low (addn i (Pervasives.succ 0)) bs)
+  high (addn (subn i j) (Stdlib.Int.succ 0))
+    (low (addn i (Stdlib.Int.succ 0)) bs)
 
 (** val zext : int -> bits -> bits **)
 
@@ -185,8 +185,8 @@ let from_Z n x =
 (** val char_to_nibble : char -> bits **)
 
 let char_to_nibble c =
-  from_nat (Pervasives.succ (Pervasives.succ (Pervasives.succ
-    (Pervasives.succ 0))))
+  from_nat (Stdlib.Int.succ (Stdlib.Int.succ (Stdlib.Int.succ
+    (Stdlib.Int.succ 0))))
     (findex 0 (c::[])
       ('0'::('1'::('2'::('3'::('4'::('5'::('6'::('7'::('8'::('9'::('A'::('B'::('C'::('D'::('E'::('F'::('0'::('1'::('2'::('3'::('4'::('5'::('6'::('7'::('8'::('9'::('a'::('b'::('c'::('d'::('e'::('f'::[])))))))))))))))))))))))))))))))))
 
@@ -225,7 +225,7 @@ let coq_Zpos_of_num_string s =
 
 let from_string s =
   let n = coq_Zpos_of_num_string s in
-  from_Z (addn (Z.to_nat (Z.log2 n)) (Pervasives.succ 0)) n
+  from_Z (addn (Z.to_nat (Z.log2 n)) (Stdlib.Int.succ 0)) n
 
 (** val nibble_to_char : bits -> char **)
 
@@ -249,16 +249,16 @@ let rec to_hex bs = match bs with
    | [] ->
      append_nibble_on_string
        (cat bs
-         (zeros (Pervasives.succ (Pervasives.succ (Pervasives.succ 0))))) []
+         (zeros (Stdlib.Int.succ (Stdlib.Int.succ (Stdlib.Int.succ 0))))) []
    | b3 :: l0 ->
      (match l0 with
       | [] ->
         append_nibble_on_string
-          (cat bs (zeros (Pervasives.succ (Pervasives.succ 0)))) []
+          (cat bs (zeros (Stdlib.Int.succ (Stdlib.Int.succ 0)))) []
       | b4 :: l1 ->
         (match l1 with
          | [] ->
-           append_nibble_on_string (cat bs (zeros (Pervasives.succ 0))) []
+           append_nibble_on_string (cat bs (zeros (Stdlib.Int.succ 0))) []
          | b5 :: tl ->
            append_nibble_on_string (b2 :: (b3 :: (b4 :: (b5 :: []))))
              (to_hex tl))))

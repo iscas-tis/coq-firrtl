@@ -36,7 +36,7 @@ let eq_op t =
 
 let eqP t =
   let _evar_0_ = fun _ a -> a in
-  let { Equality.op = x; Equality.mixin_of__1 = x0 } = t in _evar_0_ x x0
+  let { Equality.op = op0; Equality.mixin_of__1 = a } = t in _evar_0_ op0 a
 
 (** val eqb : bool -> bool -> bool **)
 

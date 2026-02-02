@@ -62,12 +62,12 @@ let leq m n =
 (** val maxn : int -> int -> int **)
 
 let maxn m n =
-  if leq (Pervasives.succ m) n then n else m
+  if leq (Stdlib.Int.succ m) n then n else m
 
 (** val minn : int -> int -> int **)
 
 let minn m n =
-  if leq (Pervasives.succ m) n then m else n
+  if leq (Stdlib.Int.succ m) n then m else n
 
 (** val iter : int -> ('a1 -> 'a1) -> 'a1 -> 'a1 **)
 
@@ -80,7 +80,7 @@ let rec iter n f x =
 (** val nat_of_bool : bool -> int **)
 
 let nat_of_bool = function
-| true -> Pervasives.succ 0
+| true -> Stdlib.Int.succ 0
 | false -> 0
 
 (** val odd : int -> bool **)
@@ -96,7 +96,7 @@ let rec odd n =
 let rec double_rec n =
   (fun fO fS n -> if n=0 then fO () else fS (n-1))
     (fun _ -> 0)
-    (fun n' -> Pervasives.succ (Pervasives.succ (double_rec n')))
+    (fun n' -> Stdlib.Int.succ (Stdlib.Int.succ (double_rec n')))
     n
 
 (** val double : int -> int **)
@@ -117,5 +117,5 @@ let rec half n =
 and uphalf n =
   (fun fO fS n -> if n=0 then fO () else fS (n-1))
     (fun _ -> n)
-    (fun n' -> Pervasives.succ (half n'))
+    (fun n' -> Stdlib.Int.succ (half n'))
     n

@@ -132,7 +132,7 @@ module Pos =
   (** val to_nat : int -> int **)
 
   let to_nat x =
-    iter_op Nat0.add x (Pervasives.succ 0)
+    iter_op Nat0.add x (Stdlib.Int.succ 0)
 
   (** val of_succ_nat : int -> int **)
 
