@@ -14,3 +14,5 @@ popl2025/main.pdf
 popl2025/lstpatch.sty
 *.synctex(busy)
 CAV2025/main.pdf
+Makefile
+Makefile.conf
