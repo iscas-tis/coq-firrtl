@@ -110,9 +110,15 @@ Section Value.
   | Bflips : var -> fflip -> hvalue -> bundle_value -> bundle_value.
 
   (* general data value equality is decidable *)
-  Axiom hvalue_eq_dec : forall {x y : hvalue}, {x = y} + {x <> y}.
-  Axiom array_value_eq_dec : forall {x y : array_value}, {x = y} + {x <> y}.
-  Axiom bundle_value_eq_dec : forall {x y : bundle_value}, {x = y} + {x <> y}.
+  Lemma hvalue_eq_dec : forall {x y : hvalue}, {x = y} + {x <> y}
+  with array_value_eq_dec : forall {x y : array_value}, {x = y} + {x <> y}
+  with bundle_value_eq_dec : forall {x y : bundle_value}, {x = y} + {x <> y}.
+  Proof.
+  * clear hvalue_eq_dec.  by decide equality ; decide equality ; decide equality.
+  * clear array_value_eq_dec.  by decide equality.
+  * clear bundle_value_eq_dec.  decide equality ; first by decide equality.
+    by apply (eq_comparable).
+  Qed.
 
   (* Boolean equality for general data values *)
   Fixpoint hvalue_eqn (x y : hvalue) : bool :=
@@ -513,9 +519,9 @@ Fixpoint ports_tmap (tmap : VM.t (ftype * fcomponent)) (pp : seq hfport) : optio
 Definition module_tmap (modmap : VM_mod.t ffield) (m : hfmodule) : option (VM.t (ftype * fcomponent)) :=
     match m with
     | FInmod _ ps ss => match ports_tmap (VM.empty (ftype * fcomponent)) ps with
-                | Some pmap => stmts_tmap pmap modmap ss
-                | None => None
-                end
+                        | Some pmap => stmts_tmap pmap modmap ss
+                        | None => None
+                        end
     | _ => None
     end.
 
@@ -1087,7 +1093,7 @@ with is_passive_fields (ff : ffield) : bool :=
    rs = values to be read; ns = new values to be written; tmap = type map of the current module. *)
 Fixpoint bidirectional_connect (ft : ftype) (inst : SVM.key) (left right : href) (rs ns : SVM.t hvalue) (tmap : VM.t (ftype * fcomponent)) : option (SVM.t hvalue) :=
    if is_passive ft then match hvalue_of_ref inst right rs tmap, VM.find (base_ref left) tmap with
-                         | Some val, Some (_, In_port)
+                         | Some val, Some (_, In_port) (* can still happen if the port has a flipped field *)
                          | Some val, Some (_, Out_port) => connect_passive_port inst left val ns tmap
                          | Some val, Some (_, _       ) => connect_passive      inst left val ns tmap
                          | _, _ => None
@@ -1153,7 +1159,7 @@ with eval_hfstmts (inst : SVM.key) (sts : hfstmt_seq) (rs ns : SVM.t hvalue) (tm
   | Qnil => Some ns
   | Qcons st tl => match eval_hfstmt inst st rs ns tmap with
                 | Some ns0 => eval_hfstmts inst tl rs ns0 tmap
-                | _ => None
+                | None => None
                 end
   end.
 
@@ -1187,11 +1193,46 @@ Fixpoint find_module_instances (n : nat) (inst : SVM.key) (m : var_mod) (ms : se
     | _ => None
     end.
 
+Local Definition find_circuit_instances_nat (c : hfcircuit) (n : nat) : option (SVM.t var_mod) :=
+    match c with
+    | Fcircuit top ms => find_module_instances n [::] top ms (SVM.empty var_mod)
+    end.
+
+Local Definition var_mod_eq (x y : var_mod) : bool := x == y.
+
+Lemma find_circuit_instances_nat_fixed_point :
+    forall (c : hfcircuit) (n : nat),
+        match find_circuit_instances_nat c n, find_circuit_instances_nat c n.+1 with
+        | Some insts_n, Some insts_nplus1 =>
+                SVM.equal var_mod_eq insts_n insts_nplus1
+            ->
+                match c with
+                | Fcircuit _ ms => match find_circuit_instances_nat c (size ms) with
+                                   | Some insts_size_ms => SVM.equal var_mod_eq insts_n insts_size_ms
+                                   | None => false
+                                   end
+                end
+        | _, _ => true
+        end.
+Proof.
+intros.
+unfold find_circuit_instances_nat.
+destruct c as [top ms].
+(* How could this be proven? What inductive strengthening might work?
+   find_module_instances i sq ... ms insts
+   where i + size sq == n
+   and uniq (map of sq to their module types)
+   and some condition on insts?
+
+        ->
+            find_circuit_instances_nat c n = find_circuit_instances_nat c (size ms) *)
+Abort.
+
 (* Find all instances of the circuit c.
    The result is a map with domain all instances, and for every instance its type is indicated. *)
 Definition find_circuit_instances (c : hfcircuit) : option (SVM.t var_mod) :=
     match c with
-    | Fcircuit top ms => find_module_instances (size ms) [::] top ms (SVM.empty var_mod)
+    | Fcircuit _ ms => find_circuit_instances_nat c (size ms)
     end.
 
 (* We now would like a lemma like the following:
@@ -1214,7 +1255,7 @@ Definition find_circuit_instances (c : hfcircuit) : option (SVM.t var_mod) :=
    Update ns accordingly.
    ms is the sequence of all modules in the current circuit.
    tmaps indicates for every module the type map. *)
-Definition eval_instances (insts : SVM.t var_mod) (ms : seq hfmodule) (rs ns : SVM.t hvalue) (tmaps : VM_mod.t (VM.t (ftype * fcomponent))) : option (SVM.t hvalue) :=
+Local Definition eval_instances (insts : SVM.t var_mod) (ms : seq hfmodule) (rs ns : SVM.t hvalue) (tmaps : VM_mod.t (VM.t (ftype * fcomponent))) : option (SVM.t hvalue) :=
     SVM.fold (fun (inst : SVM.key) (m : var_mod) (opt_ns : option (SVM.t hvalue))
                => match opt_ns, find_module m ms, VM_mod.find m tmaps with
                   | Some ns, Some (FInmod _ _ ss), Some tmap => eval_hfstmts inst ss rs ns tmap
@@ -1227,6 +1268,145 @@ Definition eval_circuit (c : hfcircuit) (rs : SVM.t hvalue) : option (SVM.t hval
     match circuit_tmaps c, find_circuit_instances c, c with
     | Some tmaps, Some insts, Fcircuit top ms => eval_instances insts ms rs rs tmaps
     | _, _, _ => None
+    end.
+
+(* Generate an initial value map for the instances insts.
+   In this map, all components in all instances are initialized to zero
+   (should be: initialized to "uninitialized") *)
+Local Definition init_instances_dclrs (insts : SVM.t var_mod) (ms : seq hfmodule) (tmaps : VM_mod.t (VM.t (ftype * fcomponent))) : option (SVM.t hvalue) :=
+    SVM.fold (fun (inst : SVM.key) (m : var_mod) (opt_valmap : option (SVM.t hvalue))
+               => match opt_valmap, find_module m ms, VM_mod.find m tmaps with
+                  | Some valmap, Some (FInmod _ _ ss), Some tmap => Some (init_dclrs inst ss valmap tmap)
+                  | _, _, _ => None
+                  end)
+             insts (Some (SVM.empty hvalue)).
+
+(* Generate an initial value map for circuit c.
+   In this map, all components in all instances are initialized to zero
+   (should be: initialized to "uninitialized". It should also initialize registers!) *)
+Definition init_circuit_dclrs (c : hfcircuit) : option (SVM.t hvalue) :=
+    match circuit_tmaps c, find_circuit_instances c, c with
+    | Some tmaps, Some insts, Fcircuit _ ms => init_instances_dclrs insts ms tmaps
+    | _, _, _ => None
+    end.
+
+(*
+The next step is to define an iteration that looks approximately like this:
+1. Call init_circuit_dclrs to calculate an initial value map rs.
+   Additionally, copy register values and external inputs from their sources into rs.
+2. Repeat until stabilization:
+   - Set ns := rs
+   - Call eval_circuit to update ns
+   - If ns == rs (for all components except registers) then stabilization has been achieved, leave this loop.
+   - Update the wires, nodes, all outputs, and internal inputs in rs to their values in ns.
+     (Registers and external inputs should not be changed).
+   (If stabilization is not achieved within # of ground-type components iterations,
+   then there must be a combinational loop in the circuit.)
+3. Now the ns value map contains the stabilized values;
+   in this value map, the registers have reached their new values.
+*)
+
+(* finds the instance and component type of component “key” in the circuit described by tmaps and insts. *)
+Definition find_instance_and_type (tmaps : VM_mod.t (VM.t (ftype * fcomponent))) (insts : SVM.t var_mod) (key : SVM.key) : option (SVM.key * fcomponent) :=
+    match SVM.find key insts with
+    | Some _ => (* _ is the module type of key. key is a module. *)
+                Some (key, Fmodule)
+    | None => match key with
+              | key1 :: keyt => match SVM.find (belast key1 keyt) insts with
+                                | Some vm => (* vm is the module type of key ... key is a component within this module *)
+                                             match VM_mod.find vm tmaps with
+                                             | Some tmap => match VM.find (last key1 keyt) tmap with
+                                                            | Some (_, fc) => Some (belast key1 keyt, fc)
+                                                            | None => None
+                                                            end
+                                             | None => None
+                                             end
+                                | None => None
+                                end
+              | [::] => None
+              end
+    end.
+
+(* helper function for copy_ns_to_rs_helper:
+   copy the fl-ed parts of newval to oldval
+   (flipped parts are outputs or flipped inputs) *)
+Fixpoint copy_flipped_parts_fields (oldval newval : bundle_value) (fl : fflip) : option bundle_value :=
+    match oldval, newval with
+    | Bnil, Bnil => Some bnil
+    | Bflips vo fo valo oldval', Bflips vn fn valn newval' => if (vo == vn) && (fo == fn)
+                                                              then match copy_flipped_parts valo valn (if fl == fo then Nflip else Flipped), copy_flipped_parts_fields oldval' newval' fl with
+                                                                   | Some val, Some tail => Some (Bflips vo fo val tail)
+                                                                   | _, _ => None
+                                                                   end
+                                                              else None
+    | _, _ => None
+    end
+(* copy the fl-ed parts of newval to oldval *)
+with copy_flipped_parts (oldval newval : hvalue) (fl : fflip) : option hvalue :=
+    match oldval, newval with
+    | Gval bo, Gval bn => Some (gval (if fl == Nflip then bn else bo))
+    | Aval ao, Aval an => match copy_flipped_parts_array ao an fl with
+                          | Some av => Some (Aval av)
+                          | None => None
+                          end
+    | Bval bo, Bval bn => match copy_flipped_parts_fields bo bn fl with
+                          | Some bv => Some (Bval bv)
+                          | None => None
+                          end
+    | _, _ => None
+    end
+with copy_flipped_parts_array (oldval newval : array_value) (fl : fflip) : option array_value :=
+    match oldval, newval with
+    | Anil, Anil => Some anil
+    | Acons vo oldval', Acons vn newval' => match copy_flipped_parts vo vn fl, copy_flipped_parts_array oldval' newval' fl with
+                                            | Some v, Some val => Some (Acons v val)
+                                            | _, _ => None
+                                            end
+    | _, _ => None
+    end.
+
+(* helper function for copy_ns_to_rs:
+   copy the new value val of component key to rs, unless the component is a register. *)
+Definition copy_ns_to_rs_helper (tmaps : VM_mod.t (VM.t (ftype * fcomponent))) (insts : SVM.t var_mod) (key : SVM.key) (val : hvalue) (opt_rs : option (SVM.t hvalue)) : option (SVM.t hvalue) :=
+    match opt_rs, find_instance_and_type tmaps insts key with
+    | Some rs, Some ([::], Fmodule) => (* top-level module: only copy flipped parts, i.e. outputs.
+                                          Keep the original value of top-level/external inputs. *)
+                                       match SVM.find [::] rs, val with
+                                       | Some (Bval br), Bval bn => match copy_flipped_parts_fields br bn Flipped with
+                                                                    | Some b => Some (SVM.add key (Bval b) rs)
+                                                                    | None => None
+                                                                    end
+                                       | _, _ => None
+                                       end
+    | Some rs, Some (_, Register) => Some rs (* register values are not updated, but we always read the old value *)
+    | Some rs, Some (_, In_port)
+    | Some rs, Some (_, Out_port) => None (* this should not happen, as in- and out-ports are stored with the module they belong to *)
+    | Some rs, Some (_, _) => (* other components:
+                                 all values from ns should be copied to rs *)
+                              Some (SVM.add key val rs)
+    | _, _ => None
+    end.
+
+(* copy the new values of all components except registers in ns to rs *)
+Definition copy_ns_to_rs (c : hfcircuit) (rs ns : SVM.t hvalue) : option (SVM.t hvalue) :=
+    match circuit_tmaps c, find_circuit_instances c with
+    | Some tmaps, Some insts => SVM.fold (copy_ns_to_rs_helper tmaps insts) ns (Some rs)
+    | _, _ => None
+    end.
+
+(* iterate n times the evaluation of circuit c.
+   old_rs and old_ns should be initialized to the old values of the circuit components
+   (typically an "uninitialized" value, except for registers and external inputs). *)
+Fixpoint iterate (n : nat) (c : hfcircuit) (old_rs old_ns : SVM.t hvalue) : option (SVM.t hvalue) :=
+    match n with
+    | 0 => Some old_ns
+    | n'.+1 => match eval_circuit c old_rs with
+               | Some ns => match copy_ns_to_rs c old_rs ns with
+                            | Some rs => iterate n' c rs ns
+                            | None => None
+                            end
+               | None => None
+               end
     end.
 
 (* Edited until here by David.
@@ -1255,7 +1435,7 @@ Definition compute_Sem (c : hfcircuit) (inputs : VM.t hvalue) (reg_init : VM.t h
   (* inputs signal and register should update during a rising edge and keep during the iteration *)
   (* compute the value connected to registers according to the stable state, return it as a new reg_init for the next clock cycle *)
   (* the return value is 1) the table state of all components, 2) the to-be-updated values of all registers *)
-  match circuit_tmap c, c with
+  match circuit_tmaps c, c with
   | Some tmap, Fcircuit _ [::(FInmod _ ps ss)] => 
         let s := update_values reg_init inputs in (* value of inputs and registers should keep during the iteration, wait until the next rising edge comes. *)
         let init_s := init_dclrs ss s tmap in (* only combinational components are initialized *)
