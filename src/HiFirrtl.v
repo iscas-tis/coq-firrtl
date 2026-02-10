@@ -567,6 +567,21 @@ Instance hfstmt_seq_eqn_Equivalence : Equivalence (@hfstmt_seq_eqn) :=
    | Qcons h tl => Qcons h (Qrcons tl s)
    end.
 
+  Lemma in_qremove (s s0 : hfstmt) ss : Qin s (Qremove s0 ss) -> Qin s ss.
+  Proof.
+  induction ss as [|h tl IH]; simpl.
+  - intros H. discriminate H.
+  - destruct (hfstmt_eqn h s0) eqn:Heq.
+    + simpl. intros H. 
+      apply orb_true_iff. right. assumption. 
+    + simpl. intros H.
+      apply orb_true_iff in H. 
+      apply orb_true_iff.
+      destruct H as [H|H].
+      * left. assumption.
+      * right. apply IH. assumption.
+  Qed.
+
    Lemma Qcat_rcons : forall (ss1 : hfstmt_seq) (s : hfstmt) (ss2 : hfstmt_seq),
       Qcat (Qrcons ss1 s) ss2 = Qcat ss1 (Qcons s ss2).
    Proof.
