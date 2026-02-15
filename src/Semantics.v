@@ -2355,15 +2355,80 @@ Proof.
       destruct (hfstmt_eqn hd (Sinvalid v)). move : H; apply in_qremove. simpl; rewrite H orb_true_r //.
 Qed.
 
+Lemma unique_connect_stmts_convert_to_connect_stmt ss (v : ProdVarOrder.t) d_expr: 
+  (~ Qin (Sinvalid (Eid v)) ss /\ forall e, ~ Qin (Sfcnct (Eid v) e) ss) ->
+  unique_connect_stmts ss -> unique_connect_stmts (convert_to_connect_stmt v d_expr ss).
+Proof.
+  intros [Hnot_invalid Hnot_cnct] Hss; unfold unique_connect_stmts in *. move : Hss => [Hcnct Hinvalid]. split.
+  - (* cnct in *)
+    intros v0 e0 Hin. destruct d_expr as [|gt|de]; simpl in *. 
+    * apply Hcnct; done.
+    * specialize (Hnot_cnct e0). destruct (Eid v == v0) eqn : Hneq. move /eqP : Hneq => Hneq; subst v0; done.
+      apply Hcnct in Hin as Hcnct'; clear Hcnct. move : Hcnct' => [Hcnct' Hinvalid']; split; try done.
+    * destruct (Eid v == v0) eqn : Hneq. move /eqP : Hneq => Hneq; subst v0. simpl in *. destruct (de == e0) eqn : Heqe.
+      + (* eq v, eq e *)
+        move /eqP : Heqe => Heqe; subst de; clear Hin. split; try done.
+      + (* eq v, neq e *)
+        rewrite orb_false_l in Hin. specialize (Hnot_cnct e0); done.
+      + (* neqv *)
+        simpl in *. rewrite Hneq. simpl. apply Hcnct; done.
+  - (* invalid in *) 
+    intros v0 Hin. destruct d_expr as [|gt|de]; simpl in *. 
+    * apply Hinvalid; done.
+    * destruct (Eid v == v0) eqn : Hneq. move /eqP : Hneq => Hneq; subst v0; done.
+      rewrite orb_false_l in Hin. simpl. rewrite Hneq; simpl.
+      apply Hinvalid in Hin as Hinvalid'; clear Hinvalid. move : Hinvalid' => [Hcnct' Hinvalid']; split; try done.
+    * destruct (Eid v == v0) eqn : Hneq. move /eqP : Hneq => Hneq; subst v0; done. simpl in *.
+      apply Hinvalid; done.
+Qed.
+
+Lemma qin_convert_to_connect_stmt_invalid v0 ss v d_expr : v <> v0 -> Qin (Sinvalid (Eid v0)) (convert_to_connect_stmt v d_expr ss) -> Qin (Sinvalid (Eid v0)) ss.
+Proof.
+  destruct d_expr; simpl; try done.
+  intros. destruct (Eid v == Eid v0) eqn : Heq. move /eqP : Heq => Heq. inversion Heq; subst v; done.
+  rewrite orb_false_l in H0; done. 
+Qed.
+
+Lemma qin_convert_to_connect_stmt_cnct v0 e0 ss v d_expr : v <> v0 -> Qin (Sfcnct (Eid v0) e0) (convert_to_connect_stmt v d_expr ss) -> Qin (Sfcnct (Eid v0) e0) ss.
+Proof.
+  destruct d_expr; simpl; try done.
+  intros. destruct (Eid v == Eid v0) eqn : Heq. move /eqP : Heq => Heq. inversion Heq; subst v; done.
+  rewrite orb_false_l in H0; done. 
+Qed.
+
 Lemma convert_to_connect_stmts_unique_connect_stmts conn_map : unique_connect_stmts (convert_to_connect_stmts conn_map).
 Proof.
-  unfold unique_connect_stmts. split; intros. (* TBD *)
+  unfold convert_to_connect_stmts.
+  rewrite PVM.M.fold_1.
+  specialize (PVM.elements_3w conn_map) as Hnodup.
+  remember (PVM.M.elements conn_map) as elements. 
+  assert (Hhelper : forall res, unique_connect_stmts res -> 
+    (forall p, In p elements -> ~ Qin (Sinvalid (Eid (fst p))) res /\ forall e, ~ Qin (Sfcnct (Eid (fst p)) e) res) ->
+    unique_connect_stmts (fold_left
+    (fun (a : HiFP.hfstmt_seq) (p : PVM.M.key * def_expr) =>
+    convert_to_connect_stmt (fst p) (snd p) a) elements 
+    res)). { clear Heqelements; move : elements Hnodup.
+    elim. simpl; done. 
+    simpl; intros hd tl IH Hnodup res Hres Hnotin. apply IH; clear IH. 
+    assert (hd :: tl = nil ++ (hd :: tl)) by (simpl; done). rewrite H in Hnodup. apply NoDupA_split in Hnodup. simpl in Hnodup; done.
+    apply unique_connect_stmts_convert_to_connect_stmt; try done.
+    apply Hnotin. left; done.
+    (* hypo *)
+    intros. assert (hd = p \/ In p tl) by (right; done). specialize (Hnotin _ H0). clear H0.
+    move : Hnotin => [Hnot_invalid Hnot_cnct]; split.
+    move : Hnot_invalid; apply contra_not. apply qin_convert_to_connect_stmt_invalid. admit.
+    intro. move : (Hnot_cnct e); apply contra_not. apply qin_convert_to_connect_stmt_cnct. admit.
+  }
+  apply Hhelper. unfold unique_connect_stmts.
+  split; simpl; try done. intros; split; try done.
 Admitted.
 
 Lemma eval_hfstmts_for_sequ_only_cnct v tmap ss init_s conn_map : (* 需要 component_stmts 和 connect_stmts 的一些前提 *)
   (forall s, Qin s (component_stmts_of ss) -> is_declaration s) ->
   match PVM.find v tmap with
   | Some (gt, Register) => ExpandBranches_funs ss (PVM.empty def_expr) tmap = Some conn_map -> 
+      Qin (Sfcnct (Eid v) (Eref (Eid v))) (convert_to_connect_stmts conn_map) \/
+        (exists e : hfexpr ProdVarOrder.T, Qin (Sfcnct (Eid v) e) (convert_to_connect_stmts conn_map)) ->
       forall rs s, Sem_HiFP.eval_hfstmts (Qcat (component_stmts_of ss) (convert_to_connect_stmts conn_map)) (PVM.empty bits) (PVM.empty bits) init_s tmap = Some (rs, s) ->
       forall rs' s', Sem_HiFP.eval_hfstmts (convert_to_connect_stmts conn_map) (PVM.empty bits) (PVM.empty bits) init_s tmap = Some (rs', s') -> PVM.find v rs' = PVM.find v rs
   | _ => True
@@ -2392,9 +2457,9 @@ Proof.
     destruct (var == v) eqn : Heq. 
     - (* eq *)
       move /eqP : Heq => Heq; subst var. clear IH. apply eval_hfstmts_Qcat_exists in Heval. destruct Heval as [ss_s [ss_rs [Hss Heval]]].
-      (*assert (Hexpand_branches : Qin (Sfcnct (Eid v) (Eref (Eid v))) connect_stmts \/ exists e, Qin (Sfcnct (Eid v) e) connect_stmts). admit. (* TBD *)
-      assert (Hhelper1 : forall s, Qin s connect_stmts -> is_connection s). admit. (* TBD *)
-      assert (Hhelper2 : unique_connect_stmts connect_stmts). admit.  TBD *)
+      (*assert (Hexpand_branches : Qin (Sfcnct (Eid v) (Eref (Eid v))) connect_stmts \/ exists e, Qin (Sfcnct (Eid v) e) connect_stmts). admit. 
+      assert (Hhelper1 : forall s, Qin s connect_stmts -> is_connection s). admit. 
+      assert (Hhelper2 : unique_connect_stmts connect_stmts). admit. *)
       destruct Hexpand_branches as [Hcase1|Hcase2].
       - (* reg <= reg *)
         specialize (eval_hfstmts_cnct_no_order Heval' Hhelper1 Hhelper2 Hcase1) as Heval'_order. destruct Heval'_order as [rs'0 [ns'0 [Heval'_order Hfind'_order]]].
@@ -2432,9 +2497,8 @@ Proof.
     (* when *)
     admit.
     }
-  intros. move : H1; apply (Hhelper _ _ Hdclr) with (temp_rs := PVM.empty bits) (temp_s := PVM.empty bits) (s := s); try done.
+  intros H Hr_cnct rs s H0 rs' s' H1. move : H1; apply (Hhelper _ _ Hdclr) with (temp_rs := PVM.empty bits) (temp_s := PVM.empty bits) (s := s); try done.
   apply convert_to_connect_stmts_is_connection. 
-  admit. (* TBD *)
   apply convert_to_connect_stmts_unique_connect_stmts.
 Admitted.
 
@@ -2455,13 +2519,29 @@ Lemma eval_hfstmts_Qcat_some' s1 s2 rs0 ns0 rs1 ns1 s tmap res : Sem_HiFP.eval_h
     apply (H rs2 ns2); done.
 Qed.
 
-Lemma fold_left_qcat res l : fold_left (fun (a : HiFP.hfstmt_seq) (p : PVM.key * def_expr) =>
-  convert_to_connect_stmt (fst p) (snd p) a) l res = Qcat (fold_left (fun (a : HiFP.hfstmt_seq)
-  (p : PVM.key * def_expr) => convert_to_connect_stmt (fst p) (snd p) a) l (Qnil ProdVarOrder.T)) res.
+Lemma convert_to_connect_stmt_qrcons k d acc hd : 
+  convert_to_connect_stmt k d (Qrcons acc hd) = Qrcons (convert_to_connect_stmt k d acc) hd.
 Proof.
-  move : l res. elim. simpl; done. simpl; intros.
-  rewrite H; clear H. 
-Admitted.
+  destruct d; simpl; try done.
+Qed.
+
+Lemma fold_left_qrcons l new acc : fold_left (fun (a : HiFP.hfstmt_seq) (p : PVM.key * def_expr) =>
+  convert_to_connect_stmt (fst p) (snd p) a) l (Qrcons acc new) = Qrcons (fold_left (fun (a : HiFP.hfstmt_seq)
+  (p : PVM.key * def_expr) => convert_to_connect_stmt (fst p) (snd p) a) l acc) new.
+Proof.
+  move : l acc. elim; simpl. done.
+  intros hd tl IH acc. rewrite convert_to_connect_stmt_qrcons IH //.
+Qed.
+
+Lemma fold_left_qcat res l acc : fold_left (fun (a : HiFP.hfstmt_seq) (p : PVM.key * def_expr) =>
+  convert_to_connect_stmt (fst p) (snd p) a) l (Qcat acc res) = Qcat (fold_left (fun (a : HiFP.hfstmt_seq)
+  (p : PVM.key * def_expr) => convert_to_connect_stmt (fst p) (snd p) a) l acc) res.
+Proof.
+  move : res acc. elim; simpl.
+  - intro; rewrite Qcats0. rewrite Qcats0 //.
+  - intros hd tl IH acc. simpl. rewrite -Qcat_rcons. rewrite IH; clear IH.
+    rewrite -Qcat_rcons. rewrite fold_left_qrcons //.
+Qed.
 
 (*
 Lemma convert_to_connect_stmt_distr : forall v d a b,
@@ -2525,7 +2605,7 @@ Proof.
                  (fun (a : HiFP.hfstmt_seq) (p : PVM.key * def_expr) =>
                   convert_to_connect_stmt (fst p) (snd p) a) l2 (Qnil ProdVarOrder.T)) (Qcons (Sfcnct (Eid v) e) ss_prefix)). {
       move : Heqss_suffix; clear; intro. remember (Qcons (Sfcnct (Eid v) e) ss_prefix) as res. clear Heqres. subst ss_suffix; clear.
-      apply fold_left_qcat. }
+      rewrite -fold_left_qcat. simpl. done. }
     clear Heqss_suffix.
     rewrite Heqss_suffix' in Heval. apply eval_hfstmts_Qcat_exists in Heval. destruct Heval as [temp_s [temp_rs [Heval2 Heval1]]].
     assert (Htemp : PVM.find v temp_s = None). admit. (* l2中不含v *)
@@ -2864,7 +2944,9 @@ Proof.
       specialize (eval_hfstmts_Qcat_some' (PVM.empty bits) (PVM.empty bits) Hevalss2) as Hexists. destruct Hexists as [[rs s] Hexists].
       specialize eval_hfstmts_for_sequ_only_cnct with (v := v) (tmap := tmap) as Hcnct. rewrite Hcmpnt in Hcnct.
       assert (Hin : forall s, Qin s (component_stmts_of ss) -> is_declaration s). admit. (* TBD *)
-      specialize (Hcnct _ _ _ Hin Hexpand_branches _ _ Hevalss2 _ _ Hexists). rewrite -Hcnct; clear Hcnct Hevalss2.
+      assert (Hr_cnct : Qin (Sfcnct (Eid v) (Eref (Eid v))) (convert_to_connect_stmts conn_map) \/
+        (exists e : hfexpr ProdVarOrder.T, Qin (Sfcnct (Eid v) e) (convert_to_connect_stmts conn_map))). admit. (* TBD *)
+      specialize (Hcnct _ _ _ Hin Hexpand_branches Hr_cnct _ _ Hevalss2 _ _ Hexists). rewrite -Hcnct; clear Hcnct Hevalss2.
       specialize eval_hfstmts_convert_to_connect_stmts_for_sequ with (v := v) (tmap := tmap) as Hconvert. rewrite Hcmpnt in Hconvert.
       rewrite -(Hconvert _ _ _ _ _ Hexists Hcm). clear Hconvert Hexists.
       specialize eval_hfstmts_ExpandBranches_funs_find_for_sequ with (v := v) (tmap := tmap) as Hhelper.
