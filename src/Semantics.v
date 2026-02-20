@@ -2621,9 +2621,9 @@ Lemma eval_hfstmts_convert_to_connect_stmts_for_comb conn_map init_s tmap rs s v
   | Some (gt, Wire) => Sem_HiFP.eval_hfstmts (convert_to_connect_stmts conn_map) (PVM.empty bits) (PVM.empty bits) init_s tmap = Some (rs, s) -> 
       match PVM.find v conn_map with
       | Some (D_fexpr e) => Sem_HiFP.eval_hfexpr e init_s tmap = PVM.find v s
-      | Some (D_invalidated gt_e) => let w := sizeof_fgtyp gt_e in let w_inde := length indeterminate_val in
-          if (w_inde > w) then Some (take w indeterminate_val) = PVM.find v s
-          else Some (zext (w - w_inde) indeterminate_val) = PVM.find v s
+      | Some (D_invalidated gt_e) => 
+          if (length indeterminate_val > sizeof_fgtyp gt_e) then Some (take (sizeof_fgtyp gt_e) indeterminate_val) = PVM.find v s
+          else Some (zext ((sizeof_fgtyp gt_e) - (length indeterminate_val)) indeterminate_val) = PVM.find v s
       | _ => True
       end
   | _ => True
@@ -2711,9 +2711,9 @@ Lemma eval_hfstmts_convert_to_connect_stmts_for_sequ conn_map init_s tmap rs s v
   | Some (gt, Register) => Sem_HiFP.eval_hfstmts (convert_to_connect_stmts conn_map) (PVM.empty bits) (PVM.empty bits) init_s tmap = Some (rs, s) -> 
       match PVM.find v conn_map with
       | Some (D_fexpr e) => Sem_HiFP.eval_hfexpr e init_s tmap = PVM.find v rs
-      | Some (D_invalidated gt_e) => let w := sizeof_fgtyp gt_e in let w_inde := length indeterminate_val in
-          if (w_inde > w) then Some (take w indeterminate_val) = PVM.find v rs
-          else Some (zext (w - w_inde) indeterminate_val) = PVM.find v rs
+      | Some (D_invalidated gt_e) => 
+          if (length indeterminate_val > sizeof_fgtyp gt_e) then Some (take (sizeof_fgtyp gt_e) indeterminate_val) = PVM.find v rs
+          else Some (zext ((sizeof_fgtyp gt_e) - (length indeterminate_val)) indeterminate_val) = PVM.find v rs
       | _ => True
       end
   | _ => True
@@ -2803,9 +2803,9 @@ Lemma eval_hfstmts_ExpandBranches_funs_find_for_comb ss init_s tmap rs s v :
   forall conn_map, ExpandBranches_funs ss (PVM.empty def_expr) tmap = Some conn_map -> 
       match PVM.find v conn_map with
       | Some (D_fexpr e) => PVM.find v s = Sem_HiFP.eval_hfexpr e init_s tmap
-      | Some (D_invalidated gt_e) => let w := sizeof_fgtyp gt_e in let w_inde := length indeterminate_val in
-          if (w_inde > w) then PVM.find v s = Some (take w indeterminate_val)
-          else PVM.find v s = Some (zext (w - w_inde) indeterminate_val)
+      | Some (D_invalidated gt_e) => 
+          if (length indeterminate_val > sizeof_fgtyp gt_e) then PVM.find v s = Some (take (sizeof_fgtyp gt_e) indeterminate_val)
+          else PVM.find v s = Some (zext ((sizeof_fgtyp gt_e) - (length indeterminate_val)) indeterminate_val)
       | _ => True
       end
   | _ => True
@@ -2891,9 +2891,9 @@ Lemma eval_hfstmts_ExpandBranches_funs_find_for_sequ ss init_s tmap rs s v :
   forall conn_map, ExpandBranches_funs ss (PVM.empty def_expr) tmap = Some conn_map -> 
       match PVM.find v conn_map with
       | Some (D_fexpr e) => PVM.find v rs = Sem_HiFP.eval_hfexpr e init_s tmap
-      | Some (D_invalidated gt_e) => let w := sizeof_fgtyp gt_e in let w_inde := length indeterminate_val in
-          if (w_inde > w) then PVM.find v rs = Some (take w indeterminate_val)
-          else PVM.find v rs = Some (zext (w - w_inde) indeterminate_val)
+      | Some (D_invalidated gt_e) => 
+          if (length indeterminate_val > sizeof_fgtyp gt_e) then PVM.find v rs = Some (take (sizeof_fgtyp gt_e) indeterminate_val)
+          else PVM.find v rs = Some (zext ((sizeof_fgtyp gt_e) - (length indeterminate_val)) indeterminate_val)
       | _ => True
       end
   | _ => True
@@ -3025,10 +3025,21 @@ Proof.
     * (* outport *) 
       assert (Hcm : exists dexpr, PVM.find v conn_map = Some dexpr). admit. (* 有dclr那么应该被连接 *)
       destruct Hcm as [dexpr Hcm]. 
-      case Hdexpr : dexpr => [||e]; subst dexpr.
+      case Hdexpr : dexpr => [|gt_e|e]; subst dexpr.
       admit. (* conn_map 中不允许未连接，实际上，我的ExpandBranches_funs并不产生D_undefined *)
       (* invalid *)
-      admit. 
+      specialize (eval_hfstmts_Qcat_some' (PVM.empty bits) (PVM.empty bits) Hevalss2) as Hexists. destruct Hexists as [[rs s] Hexists].
+      specialize eval_hfstmts_for_comb_only_cnct with (v := v) (tmap := tmap) as Hcnct. rewrite Hcmpnt in Hcnct.
+      assert (Hin : forall s, Qin s (component_stmts_of ss) -> is_declaration s). admit. (* TBD *)
+      assert (Hneq : forall v' e', Qin (Snode v' e') (component_stmts_of ss) -> v <> v'). admit. (* TBD *)
+      specialize (Hcnct _ _ _ Hin Hneq _ _ Hevalss2 _ _ Hexists). rewrite -Hcnct; clear Hcnct Hevalss2.
+      specialize eval_hfstmts_convert_to_connect_stmts_for_comb with (v := v) (tmap := tmap) as Hconvert. rewrite Hcmpnt in Hconvert.
+      specialize (Hconvert _ _ _ _ Hexists). rewrite Hcm in Hconvert. clear Hexists.
+      specialize eval_hfstmts_ExpandBranches_funs_find_for_comb with (v := v) (tmap := tmap) as Hhelper.
+      rewrite Hcmpnt in Hhelper. 
+      assert (Hnotin : ~ (exists r : hfreg ProdVarOrder.T, Qin (Sreg v r) ss) /\ ~ (exists e : hfexpr ProdVarOrder.T, Qin (Snode v e) ss)). admit.
+      specialize (Hhelper _ _ _ _ Hnotin Hevalss1 _ Hexpand_branches). rewrite Hcm in Hhelper. 
+      destruct (sizeof_fgtyp gt_e < length indeterminate_val); rewrite -Hconvert Hhelper //.
       (* cnct *)
       specialize (eval_hfstmts_Qcat_some' (PVM.empty bits) (PVM.empty bits) Hevalss2) as Hexists. destruct Hexists as [[rs s] Hexists].
       specialize eval_hfstmts_for_comb_only_cnct with (v := v) (tmap := tmap) as Hcnct. rewrite Hcmpnt in Hcnct.
@@ -3046,9 +3057,22 @@ Proof.
     * (* wire : 同 outport *) 
       assert (Hcm : exists dexpr, PVM.find v conn_map = Some dexpr). admit. (* 有dclr那么应该被连接 *)
       destruct Hcm as [dexpr Hcm]. 
-      case Hdexpr : dexpr => [||e]; subst dexpr.
+      case Hdexpr : dexpr => [|gt_e|e]; subst dexpr.
       admit. (* conn_map 中不允许未连接，实际上，我的ExpandBranches_funs并不产生D_undefined *)
-      admit. (* invalid 的信号不需证明相等？ *)
+      (* invalid *)
+      specialize (eval_hfstmts_Qcat_some' (PVM.empty bits) (PVM.empty bits) Hevalss2) as Hexists. destruct Hexists as [[rs s] Hexists].
+      specialize eval_hfstmts_for_comb_only_cnct with (v := v) (tmap := tmap) as Hcnct. rewrite Hcmpnt in Hcnct.
+      assert (Hin : forall s, Qin s (component_stmts_of ss) -> is_declaration s). admit. (* TBD *)
+      assert (Hneq : forall v' e', Qin (Snode v' e') (component_stmts_of ss) -> v <> v'). admit. (* TBD *)
+      specialize (Hcnct _ _ _ Hin Hneq _ _ Hevalss2 _ _ Hexists). rewrite -Hcnct; clear Hcnct Hevalss2.
+      specialize eval_hfstmts_convert_to_connect_stmts_for_comb with (v := v) (tmap := tmap) as Hconvert. rewrite Hcmpnt in Hconvert.
+      specialize (Hconvert _ _ _ _ Hexists). rewrite Hcm in Hconvert. clear Hexists.
+      specialize eval_hfstmts_ExpandBranches_funs_find_for_comb with (v := v) (tmap := tmap) as Hhelper.
+      rewrite Hcmpnt in Hhelper. 
+      assert (Hnotin : ~ (exists r : hfreg ProdVarOrder.T, Qin (Sreg v r) ss) /\ ~ (exists e : hfexpr ProdVarOrder.T, Qin (Snode v e) ss)). admit.
+      specialize (Hhelper _ _ _ _ Hnotin Hevalss1 _ Hexpand_branches). rewrite Hcm in Hhelper. 
+      destruct (sizeof_fgtyp gt_e < length indeterminate_val); rewrite -Hconvert Hhelper //.
+      (* cnct *)
       specialize (eval_hfstmts_Qcat_some' (PVM.empty bits) (PVM.empty bits) Hevalss2) as Hexists. destruct Hexists as [[rs s] Hexists].
       specialize eval_hfstmts_for_comb_only_cnct with (v := v) (tmap := tmap) as Hcnct. rewrite Hcmpnt in Hcnct.
       assert (Hin : forall s, Qin s (component_stmts_of ss) -> is_declaration s). admit. (* TBD *)
@@ -3115,10 +3139,22 @@ Proof.
     * (* register *) 
       assert (Hcm : exists dexpr, PVM.find v conn_map = Some dexpr). admit. (* reg在dclr时就记录连接 *)
       destruct Hcm as [dexpr Hcm]. 
-      case Hdexpr : dexpr => [||e]; subst dexpr.
+      case Hdexpr : dexpr => [|gt_e|e]; subst dexpr.
       admit. (* 实际上，我的ExpandBranches_funs并不产生D_undefined *)
       (* invalid *)
-      admit. 
+      specialize (eval_hfstmts_Qcat_some' (PVM.empty bits) (PVM.empty bits) Hevalss2) as Hexists. destruct Hexists as [[rs s] Hexists].
+      specialize eval_hfstmts_for_sequ_only_cnct with (v := v) (tmap := tmap) as Hcnct. rewrite Hcmpnt in Hcnct.
+      assert (Hin : forall s, Qin s (component_stmts_of ss) -> is_declaration s). admit. (* TBD *)
+      assert (Hr_cnct : Qin (Sfcnct (Eid v) (Eref (Eid v))) (convert_to_connect_stmts conn_map) \/
+        (exists e : hfexpr ProdVarOrder.T, Qin (Sfcnct (Eid v) e) (convert_to_connect_stmts conn_map))). admit. (* TBD *)
+      specialize (Hcnct _ _ _ Hin Hexpand_branches Hr_cnct _ _ Hevalss2 _ _ Hexists). rewrite -Hcnct; clear Hcnct Hevalss2.
+      specialize eval_hfstmts_convert_to_connect_stmts_for_sequ with (v := v) (tmap := tmap) as Hconvert. rewrite Hcmpnt in Hconvert.
+      specialize (Hconvert _ _ _ _ Hexists). rewrite Hcm in Hconvert. clear Hexists.
+      specialize eval_hfstmts_ExpandBranches_funs_find_for_sequ with (v := v) (tmap := tmap) as Hhelper.
+      rewrite Hcmpnt in Hhelper. 
+      (*assert (Hnotin : ~ (exists r : hfreg ProdVarOrder.T, Qin (Sreg v r) ss) /\ ~ (exists e : hfexpr ProdVarOrder.T, Qin (Snode v e) ss)). admit.*)
+      specialize (Hhelper _ _ _ _ Hevalss1 _ Hexpand_branches). rewrite Hcm in Hhelper. 
+      destruct (sizeof_fgtyp gt_e < length indeterminate_val); rewrite -Hconvert Hhelper //.
       (* cnct *)
       specialize (eval_hfstmts_Qcat_some' (PVM.empty bits) (PVM.empty bits) Hevalss2) as Hexists. destruct Hexists as [[rs s] Hexists].
       specialize eval_hfstmts_for_sequ_only_cnct with (v := v) (tmap := tmap) as Hcnct. rewrite Hcmpnt in Hcnct.
