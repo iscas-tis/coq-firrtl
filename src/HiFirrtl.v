@@ -552,6 +552,13 @@ Instance hfstmt_seq_eqn_Equivalence : Equivalence (@hfstmt_seq_eqn) :=
                 | Qcons h tl => (hfstmt_eqn h s) || (Qin s tl)
     end.
 
+  Fixpoint Qin_when (s : hfstmt) (ss : hfstmt_seq) : bool :=
+  match ss with 
+  | Qnil => false
+  | Qcons (Swhen c s1 s2) tl => (Qin_when s s1) || (Qin_when s s2) || (Qin_when s tl)
+  | Qcons h tl => (hfstmt_eqn h s) || (Qin_when s tl)
+  end.
+
   Fixpoint Qremove (s : hfstmt) (ss : hfstmt_seq) : hfstmt_seq :=
       match ss with
       | Qnil => Qnil
