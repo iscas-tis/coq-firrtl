@@ -2629,9 +2629,12 @@ Lemma eval_hfstmts_convert_to_connect_stmts_for_comb conn_map init_s tmap rs s v
   | _ => True
   end.
 Proof. 
-  (*case Hcmpnt : (PVM.find v tmap) => [[gt cmpnt]|]; try done. destruct cmpnt; try done.
+  case Hcmpnt : (PVM.find v tmap) => [[gt cmpnt]|]; try done. destruct cmpnt; try done.
   - (* outport *)
-    intros Heval. remember (convert_to_connect_stmts conn_map) as cmlist.
+    intros Heval. destruct (PVM.find v conn_map) as [de|] eqn : Hcm; try done. destruct de as [|gt_e|e]; try done.
+    + (* invalid *) admit.
+    + (* cnct *)
+    remember (convert_to_connect_stmts conn_map) as cmlist.
     rewrite /convert_to_connect_stmts PVM.fold_1 in Heqcmlist. 
     apply CEP.Lemmas.find_some_mapsto in Hcm. apply CEP.Lemmas.F.elements_mapsto_iff in Hcm.
     remember (PVM.elements conn_map) as elements. apply InA_alt in Hcm. destruct Hcm as [[v' e'] [Heq Hin]].
@@ -2702,7 +2705,7 @@ Proof.
       move /eqP : H => H; inversion H; subst v. destruct (List.split tl); simpl. left; done. }
     intros Hnotin Hin. apply H; intros; try done. 
     specialize (eval_hfstmts_notinss_findeq Hhypo Heval1) as [Hhelper _]; done.
-    rewrite Hprefix HiFP.PCELemmas.find_add_eq //. apply CEP.SE.eq_refl. *)
+    rewrite Hprefix HiFP.PCELemmas.find_add_eq //. apply CEP.SE.eq_refl. 
   - (* wire 同上 *)
 Admitted. 
 
