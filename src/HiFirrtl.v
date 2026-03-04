@@ -568,6 +568,32 @@ Instance hfstmt_seq_eqn_Equivalence : Equivalence (@hfstmt_seq_eqn) :=
           else Qcons h (Qremove s tl)
       end.
 
+  Fixpoint Qremove_when (s : hfstmt) (ss : hfstmt_seq) : hfstmt_seq :=
+      match ss with
+      | Qnil => Qnil
+      | Qcons (Swhen c s1 s2) tl => 
+        if (Qin_when s s1) then Qcons (Swhen c (Qremove_when s s1) s2) tl
+        else if (Qin_when s s2) then Qcons (Swhen c s1 (Qremove_when s s2)) tl
+        else Qcons (Swhen c s1 s2) (Qremove_when s tl)
+      | Qcons h tl =>
+          if hfstmt_eqn h s
+          then tl
+          else Qcons h (Qremove_when s tl)
+      end.
+
+  Lemma Qremove_when_Qin_when s s0 ss : Qin_when s0 (Qremove_when s ss) -> Qin_when s0 ss.
+  Proof.
+    induction ss as [|hd tl IH]. simpl; done. destruct (hfstmt_eqn hd s) eqn : Heq. 
+  Admitted.
+
+  Lemma Qin_when_Qcons s0 ss s : Qin_when s0 ss -> Qin_when s0 (Qcons s ss).
+  Proof.
+  Admitted.
+
+  Lemma Qin_Qcat s ss0 ss1 : Qin s ss0 \/ Qin s ss1 <-> Qin s (Qcat ss0 ss1).
+  Proof.
+  Admitted.
+  
    Fixpoint Qrcons (ss : hfstmt_seq) (s : hfstmt) : hfstmt_seq :=
    match ss with
    | Qnil => Qcons s Qnil
