@@ -1674,14 +1674,18 @@ Proof.
       * by apply H2.
 Qed.
 
-Lemma component_stmts_of_is_declaration ss : forall s, Qin s (component_stmts_of ss) -> is_declaration s.
+Lemma component_stmts_of_is_declaration ss : forall s, Qin s (component_stmts_of ss) -> is_declaration s
+with component_stmt_of_is_declaration ss : forall s, Qin s (component_stmt_of ss) -> is_declaration s.
 Proof.
-  (*induction ss as [|s ss IH]. simpl; done.
-  simpl; intros. destruct s as [|v0 t|v0 r|v0 m|v0 v1|v0 e0|v0 e0|v0|c s1 s2] eqn : Hstmt; subst s; simpl in *.
-  1,7,8 : apply IH; done.
-  1,2,3,4,5 : case /orP : H => H; destruct s0 eqn : Hs0; try done; apply IH; done.
-  admit. when *)
-Admitted.
+  induction ss as [|s ss IH]. simpl; done.
+  simpl; intros. apply Qin_Qcat in H. destruct H. 
+  move : H; apply component_stmt_of_is_declaration.
+  move : H; apply IH.
+  clear component_stmt_of_is_declaration.
+  intro. destruct ss as [|v0 t|v0 r|v0 m|v0 v1|v0 e0|v0 e0|v0|c s1 s2] eqn : Hstmt; subst ss; simpl; try done; intros.
+  1-5 : destruct s; try done. apply Qin_Qcat in H. destruct H. 
+  1,2 : move : H; apply component_stmts_of_is_declaration.
+Qed.
 
 Lemma stmts_tmap_qcat pmap s1 s2 : match Sem_HiFP.stmts_tmap' pmap s1 with
   | Some tmap_true => Sem_HiFP.stmts_tmap' tmap_true s2 
@@ -2223,6 +2227,7 @@ Proof.
         intros. move : (Hcnct e'); clear. apply contra_not. intro; simpl. rewrite H orb_true_r //.
         intros. apply (Hinvalid v'). simpl. rewrite H orb_true_r //.
 
+  clear eval_hfstmt_for_unique_node.
   intros rs0 ns0 Hfind rs ns Heval. case Hst : s => [||var reg|||var node_e||ref|cond ss_true ss_false]; try done; subst s.
   simpl in Heval. intros. rewrite H in Heval. destruct (~~ is_zero valc). 
   1, 2 : intro; move : Heval; apply (eval_hfstmts_for_unique_node_helper _ _ _ _ _ H2); try done.
@@ -3796,36 +3801,53 @@ Proof.
   try done.
 Qed. 
 
-Lemma eval_hfstmts_find_none_cases_helper ss init_s tmap rs s temp_rs temp_ns : 
-  (forall v, match PVM.find v tmap with
-  | Some (_, Register) => True
+Lemma eval_hfstmts_find_none_cases_helper ss init_s tmap rs s temp_rs temp_s v : 
+  match PVM.find v tmap with
+  | Some (_, In_port) => PVM.find v temp_s = None /\ PVM.find v temp_rs = None
+  | Some (_, Instanceof) => PVM.find v temp_s = None /\ PVM.find v temp_rs = None
+  | Some (_, Memory) => PVM.find v temp_s = None /\ PVM.find v temp_rs = None
+  | Some (_, Fmodule) => PVM.find v temp_s = None /\ PVM.find v temp_rs = None
+  | Some (_, Register) => PVM.find v temp_s = None
+  | None => PVM.find v temp_s = None /\ PVM.find v temp_rs = None
   | _ => PVM.find v temp_rs = None
-  end) ->
-  Sem_HiFP.eval_hfstmts ss temp_rs temp_ns init_s tmap = Some (rs, s) ->
-  forall v, match PVM.find v tmap with
-  | Some (_, Register) => True
+  end ->
+  Sem_HiFP.eval_hfstmts ss temp_rs temp_s init_s tmap = Some (rs, s) ->
+  match PVM.find v tmap with
+  | Some (_, In_port) => PVM.find v s = None /\ PVM.find v rs = None
+  | Some (_, Instanceof) => PVM.find v s = None /\ PVM.find v rs = None
+  | Some (_, Memory) => PVM.find v s = None /\ PVM.find v rs = None
+  | Some (_, Fmodule) => PVM.find v s = None /\ PVM.find v rs = None
+  | Some (_, Register) => PVM.find v s = None
+  | None => PVM.find v s = None /\ PVM.find v rs = None
   | _ => PVM.find v rs = None
   end
-with eval_hfstmt_find_rs_helper st init_s tmap rs s temp_rs temp_ns : 
-  (forall v, match PVM.find v tmap with
-  | Some (_, Register) => True
+with eval_hfstmt_find_rs_helper st init_s tmap rs s temp_rs temp_s v : 
+  match PVM.find v tmap with
+  | Some (_, In_port) => PVM.find v temp_s = None /\ PVM.find v temp_rs = None
+  | Some (_, Instanceof) => PVM.find v temp_s = None /\ PVM.find v temp_rs = None
+  | Some (_, Memory) => PVM.find v temp_s = None /\ PVM.find v temp_rs = None
+  | Some (_, Fmodule) => PVM.find v temp_s = None /\ PVM.find v temp_rs = None
+  | Some (_, Register) => PVM.find v temp_s = None
+  | None => PVM.find v temp_s = None /\ PVM.find v temp_rs = None
   | _ => PVM.find v temp_rs = None
-  end) ->
-  Sem_HiFP.eval_hfstmt st temp_rs temp_ns init_s tmap = Some (rs, s) ->
-  forall v, match PVM.find v tmap with
-  | Some (_, Register) => True
-  | _ => PVM.find v rs = None
-  end.
-Proof. (*td*)
-  move : ss temp_rs temp_ns rs s. elim. 
-  simpl; intros. inversion H0; subst rs s. apply H. 
-  simpl; intros hd tl IH; intros. 
-  destruct (Sem_HiFP.eval_hfstmt hd temp_rs temp_ns init_s tmap) as [[rs0 ns0]|] eqn : Heval; try discriminate.
-  move : H0 v; apply IH; clear IH.
-Admitted.
-
-Lemma eval_hfstmts_find_none_cases ss init_s tmap rs s : Sem_HiFP.eval_hfstmts ss (PVM.empty bits) (PVM.empty bits) init_s tmap = Some (rs, s) ->
-  forall v, match PVM.find v tmap with
+  end ->
+  match PVM.find v tmap with
+  | Some (_, In_port) => (forall r, ~ hfstmt_eqn (Sreg v r) st) /\ (forall e, ~ hfstmt_eqn (Snode v e) st)
+      /\ (forall e, ~ hfstmt_eqn (Sfcnct (Eid v) e) st) /\ (~ hfstmt_eqn (Sinvalid (Eid v)) st)
+  | Some (_, Instanceof) => (forall r, ~ hfstmt_eqn (Sreg v r) st) /\ (forall e, ~ hfstmt_eqn (Snode v e) st)
+      /\ (forall e, ~ hfstmt_eqn (Sfcnct (Eid v) e) st) /\ (~ hfstmt_eqn (Sinvalid (Eid v)) st)
+  | Some (_, Memory) => (forall r, ~ hfstmt_eqn (Sreg v r) st) /\ (forall e, ~ hfstmt_eqn (Snode v e) st)
+      /\ (forall e, ~ hfstmt_eqn (Sfcnct (Eid v) e) st) /\ (~ hfstmt_eqn (Sinvalid (Eid v)) st)
+  | Some (_, Node) => forall r, ~ hfstmt_eqn (Sreg v r) st
+  | Some (_, Out_port) => forall r, ~ hfstmt_eqn (Sreg v r) st
+  | Some (_, Wire) => forall r, ~ hfstmt_eqn (Sreg v r) st
+  | Some (_, Fmodule) => (forall r, ~ hfstmt_eqn (Sreg v r) st) /\ (forall e, ~ hfstmt_eqn (Snode v e) st)
+      /\ (forall e, ~ hfstmt_eqn (Sfcnct (Eid v) e) st) /\ (~ hfstmt_eqn (Sinvalid (Eid v)) st)
+  | Some (_, Register) => (forall e, ~ hfstmt_eqn (Snode v e) st)
+  | None => (forall r, ~ hfstmt_eqn (Sreg v r) st) /\ (forall e, ~ hfstmt_eqn (Snode v e) st)
+  end ->
+  Sem_HiFP.eval_hfstmt st temp_rs temp_s init_s tmap = Some (rs, s) ->
+  match PVM.find v tmap with
   | Some (_, In_port) => PVM.find v s = None /\ PVM.find v rs = None
   | Some (_, Instanceof) => PVM.find v s = None /\ PVM.find v rs = None
   | Some (_, Memory) => PVM.find v s = None /\ PVM.find v rs = None
@@ -3835,9 +3857,124 @@ Lemma eval_hfstmts_find_none_cases ss init_s tmap rs s : Sem_HiFP.eval_hfstmts s
   | _ => PVM.find v rs = None
   end.
 Proof. 
-  (*apply eval_hfstmts_find_none_cases_helper. intros; destruct (PVM.find v tmap) as [[gt cmpnt]|]; try done. destruct cmpnt; try done.
-Qed.*)
+  move : ss temp_rs temp_s rs s. elim. 
+  simpl; intros. inversion H0; subst rs s. apply H. 
+  simpl; intros hd tl IH; intros. clear eval_hfstmts_find_none_cases_helper.
+  destruct (Sem_HiFP.eval_hfstmt hd temp_rs temp_s init_s tmap) as [[rs0 ns0]|] eqn : Heval; try discriminate.
+  move : H0; apply IH; clear IH. move : Heval; apply (eval_hfstmt_find_rs_helper _ _ _ _ _ _ _ _ H). admit.
+
+  intros Hinit Hunique Heval. destruct st as [|v0 t|v0 r|v0 m|v0 v1|v0 e0|v0 e0|v0|c s1 s2] eqn : Hst; simpl in *.
+  (* skip, wire *) 1,2,4,5 : inversion Heval; subst rs s; apply Hinit.
+  (* reg *) destruct (PVM.find v0 init_s) as [val|]; try discriminate. inversion Heval; subst rs s; clear Heval.
+    destruct (PVM.find v tmap) as [[gt cmpnt]|] eqn : Hfind. destruct cmpnt; try done.
+    - (* inport *)
+      move : Hinit => [Htemp_s Htemp_rs]. split; try done. rewrite PVM.Lemmas.find_add_neq //. move : Hunique => [Hunique _].
+      specialize (Hunique r). move : Hunique; apply contra_not; intro. unfold PVM.M.SE.eq in H. 
+      rewrite H eq_refl //.
+    - (* inst *)
+      move : Hinit => [Htemp_s Htemp_rs]. split; try done. rewrite PVM.Lemmas.find_add_neq //. move : Hunique => [Hunique _].
+      specialize (Hunique r). move : Hunique; apply contra_not; intro. unfold PVM.M.SE.eq in H. 
+      rewrite H eq_refl //.
+    - (* memory *)
+      move : Hinit => [Htemp_s Htemp_rs]. split; try done. rewrite PVM.Lemmas.find_add_neq //. move : Hunique => [Hunique _].
+      specialize (Hunique r). move : Hunique; apply contra_not; intro. unfold PVM.M.SE.eq in H. 
+      rewrite H eq_refl //.
+    - (* node *)
+      rewrite PVM.Lemmas.find_add_neq //. 
+      specialize (Hunique r). move : Hunique; apply contra_not; intro. unfold PVM.M.SE.eq in H. 
+      rewrite H eq_refl //.
+    - (* outport *)
+      rewrite PVM.Lemmas.find_add_neq //. 
+      specialize (Hunique r). move : Hunique; apply contra_not; intro. unfold PVM.M.SE.eq in H. 
+      rewrite H eq_refl //.
+    - (* wire *)
+      rewrite PVM.Lemmas.find_add_neq //. 
+      specialize (Hunique r). move : Hunique; apply contra_not; intro. unfold PVM.M.SE.eq in H. 
+      rewrite H eq_refl //.
+    - (* module *)
+      move : Hinit => [Htemp_s Htemp_rs]. split; try done. rewrite PVM.Lemmas.find_add_neq //. move : Hunique => [Hunique _].
+      specialize (Hunique r). move : Hunique; apply contra_not; intro. unfold PVM.M.SE.eq in H. 
+      rewrite H eq_refl //.
+    - (* none *)
+      move : Hinit => [Htemp_s Htemp_rs]. split; try done. rewrite PVM.Lemmas.find_add_neq //. move : Hunique => [Hunique _].
+      specialize (Hunique r). move : Hunique; apply contra_not; intro. unfold PVM.M.SE.eq in H. 
+      rewrite H eq_refl //.
+  (* node *) destruct (Sem_HiFP.eval_hfexpr e0 init_s tmap) as [val|]; try discriminate. inversion Heval; subst rs s; clear Heval.
+    destruct (PVM.find v tmap) as [[gt cmpnt]|] eqn : Hfind. destruct cmpnt; try done.
+    - (* inport *)
+      move : Hinit => [Htemp_s Htemp_rs]. split; try done. rewrite PVM.Lemmas.find_add_neq //. move : Hunique => [_ [Hunique _]].
+      specialize (Hunique e0). move : Hunique; apply contra_not; intro. unfold PVM.M.SE.eq in H. 
+      rewrite H eq_refl //.
+    - (* inst *)
+      move : Hinit => [Htemp_s Htemp_rs]. split; try done. rewrite PVM.Lemmas.find_add_neq //. move : Hunique => [_ [Hunique _]].
+      specialize (Hunique e0). move : Hunique; apply contra_not; intro. unfold PVM.M.SE.eq in H. 
+      rewrite H eq_refl //.
+    - (* memory *)
+      move : Hinit => [Htemp_s Htemp_rs]. split; try done. rewrite PVM.Lemmas.find_add_neq //. move : Hunique => [_ [Hunique _]].
+      specialize (Hunique e0). move : Hunique; apply contra_not; intro. unfold PVM.M.SE.eq in H. 
+      rewrite H eq_refl //.
+    - (* reg *)
+      rewrite PVM.Lemmas.find_add_neq //. 
+      specialize (Hunique e0). move : Hunique; apply contra_not; intro. unfold PVM.M.SE.eq in H. 
+      rewrite H eq_refl //.
+    - (* module *)
+      move : Hinit => [Htemp_s Htemp_rs]. split; try done. rewrite PVM.Lemmas.find_add_neq //. move : Hunique => [_ [Hunique _]].
+      specialize (Hunique e0). move : Hunique; apply contra_not; intro. unfold PVM.M.SE.eq in H. 
+      rewrite H eq_refl //.
+    - (* none *)
+      move : Hinit => [Htemp_s Htemp_rs]. split; try done. rewrite PVM.Lemmas.find_add_neq //. move : Hunique => [_ Hunique].
+      specialize (Hunique e0). move : Hunique; apply contra_not; intro. unfold PVM.M.SE.eq in H. 
+      rewrite H eq_refl //.
+  (* cnct *) destruct v0 as [ref|a b|a b|a b]; try (inversion Heval; subst rs s; try done). 
+    destruct (PVM.find ref tmap) as [[gt_ref cmpnt_ref]|] eqn : Hgt; try discriminate. destruct (v == ref) eqn : Heq. 
+    (* v == ref *) move /eqP : Heq => Heq; subst ref. rewrite Hgt in Hunique Hinit; rewrite Hgt.
+      destruct cmpnt_ref; destruct (Sem_HiFP.eval_hfexpr e0 init_s tmap); try discriminate; inversion Heval; subst rs s; clear Heval; try done.
+      (* inport, inst, memory, module *)
+      1-4 : move : Hunique => [_ [_ [Hunique _]]]; specialize (Hunique e0); rewrite eq_refl in Hunique; simpl in Hunique;
+      rewrite eq_refl in Hunique; simpl in Hunique; done.
+    (* v <> ref *) destruct cmpnt_ref; destruct (Sem_HiFP.eval_hfexpr e0 init_s tmap); try discriminate; 
+      inversion Heval; subst rs s; clear Heval; try done; try rewrite PVM.Lemmas.find_add_neq; try done.
+      1-8 : unfold PVM.M.SE.eq; rewrite Heq //.
+  (* invalid *) destruct v0 as [ref|a b|a b|a b]; try (inversion Heval; subst rs s; try done). 
+    destruct (PVM.find ref tmap) as [[gt_ref cmpnt_ref]|] eqn : Hgt; try discriminate. destruct (v == ref) eqn : Heq. 
+    (* v == ref *) move /eqP : Heq => Heq; subst ref. rewrite Hgt in Hunique Hinit; rewrite Hgt.
+      destruct cmpnt_ref; destruct (sizeof_fgtyp gt_ref < length indeterminate_val); inversion Heval; subst rs s; clear Heval; try done.
+      (* inport, inst, memory, module *)
+      1-8 : move : Hunique => [_ [_ [_ Hunique]]]; rewrite eq_refl in Hunique; simpl in Hunique; done.
+    (* v <> ref *) destruct cmpnt_ref; destruct (sizeof_fgtyp gt_ref < length indeterminate_val); 
+      inversion Heval; subst rs s; clear Heval; try done; try rewrite PVM.Lemmas.find_add_neq; try done.
+      1-16 : unfold PVM.M.SE.eq; rewrite Heq //.
+  (* when *) destruct (Sem_HiFP.eval_hfexpr c init_s tmap) as [valc|]; try discriminate. destruct (~~ is_zero valc).
+    move : Heval; apply eval_hfstmts_find_none_cases_helper; try done.
+    move : Heval; apply eval_hfstmts_find_none_cases_helper; try done.
 Admitted.
+
+Lemma eval_hfstmts_find_none_cases ss init_s tmap rs s v : Sem_HiFP.eval_hfstmts ss (PVM.empty bits) (PVM.empty bits) init_s tmap = Some (rs, s) ->
+  match PVM.find v tmap with
+  | Some (_, In_port) => PVM.find v s = None /\ PVM.find v rs = None
+  | Some (_, Instanceof) => PVM.find v s = None /\ PVM.find v rs = None
+  | Some (_, Memory) => PVM.find v s = None /\ PVM.find v rs = None
+  | Some (_, Fmodule) => PVM.find v s = None /\ PVM.find v rs = None
+  | Some (_, Register) => PVM.find v s = None
+  | None => PVM.find v s = None /\ PVM.find v rs = None
+  | _ => PVM.find v rs = None
+  end.
+Proof. 
+  apply eval_hfstmts_find_none_cases_helper. intros; destruct (PVM.find v tmap) as [[gt cmpnt]|]; try done. destruct cmpnt; try done.
+Qed.
+
+(*Lemma find_node_qin_with_cond_helpers ss tmap: 
+  forall v gt, PVM.find v tmap = Some (gt, Node) -> 
+  forall init_s rs0 s0 rs1 s1 bs, Sem_HiFP.eval_hfstmts ss rs0 s0 init_s tmap = Some (rs1, s1) ->
+  PVM.find v s1 = Some bs ->
+  exists e, Qin_with_cond (Snode v e) ss init_s tmap
+(*with find_node_qin_with_cond_helper st tmap: 
+  forall v gt, PVM.find v tmap = Some (gt, Node) -> 
+  forall init_s rs1 s1 bs, Sem_HiFP.eval_hfstmt st (PVM.empty bits) (PVM.empty bits) init_s tmap = Some (rs1, s1) ->
+  PVM.find v s1 = Some bs ->
+  exists e, Qin_with_cond (Snode v e) ss init_s tmap*).
+Proof. 
+  intros v gt Hcmpnt init_s. move : ss; elim. simpl.*)
 
 Lemma find_node_qin_with_cond mv pp ss tmap: Sem_HiFP.module_tmap (PVM.empty (fgtyp * fcomponent)) (FInmod mv pp ss) = Some tmap ->
   forall v gt, PVM.find v tmap = Some (gt, Node) -> 
@@ -3912,13 +4049,13 @@ Proof.
     move : Hevalss1 Hevalss2 Hexpand_branches Htmap Hinit_eq; clear. intros Hevalss1 Hevalss2 Hexpand_branches Htmap Hinit_eq v.
     destruct (PVM.find v tmap) as [[gt cmpnt]|] eqn : Hcmpnt. destruct cmpnt.
     * (* inport *) 
-      specialize (eval_hfstmts_find_none_cases Hevalss1 v) as Hfind1; rewrite Hcmpnt in Hfind1; move : Hfind1 => [Hfind1 _].
+      specialize (eval_hfstmts_find_none_cases v Hevalss1) as Hfind1; rewrite Hcmpnt in Hfind1; move : Hfind1 => [Hfind1 _].
       intros; rewrite Hfind1 in H; discriminate.
     * (* instance of *) 
-      specialize (eval_hfstmts_find_none_cases Hevalss1 v) as Hfind1; rewrite Hcmpnt in Hfind1; move : Hfind1 => [Hfind1 _].
+      specialize (eval_hfstmts_find_none_cases v Hevalss1) as Hfind1; rewrite Hcmpnt in Hfind1; move : Hfind1 => [Hfind1 _].
       intros; rewrite Hfind1 in H; discriminate.
     * (* memory *) 
-      specialize (eval_hfstmts_find_none_cases Hevalss1 v) as Hfind1; rewrite Hcmpnt in Hfind1; move : Hfind1 => [Hfind1 _].
+      specialize (eval_hfstmts_find_none_cases v Hevalss1) as Hfind1; rewrite Hcmpnt in Hfind1; move : Hfind1 => [Hfind1 _].
       intros; rewrite Hfind1 in H; discriminate.
     * (* node : v的值在 component_stmts_of 中 *) intros bs Hfind1.
       specialize (find_node_qin_with_cond Htmap Hcmpnt Hevalss1 Hfind1) as He. destruct He as [e He].
@@ -3954,7 +4091,7 @@ Proof.
       (* cnct *)
       rewrite -Hconvert. move : Hhelper; apply eval_fexpr_PVM_included_eq; done.
     * (* register *) 
-      specialize (eval_hfstmts_find_none_cases Hevalss1 v) as Hfind1; rewrite Hcmpnt in Hfind1.
+      specialize (eval_hfstmts_find_none_cases v Hevalss1) as Hfind1; rewrite Hcmpnt in Hfind1.
       intros; rewrite Hfind1 in H; discriminate.
     * (* wire : 同 outport *) 
       specialize (eval_hfstmts_Qcat_some' (PVM.empty bits) (PVM.empty bits) Hevalss2) as Hexists. destruct Hexists as [[rs s] Hexists].
@@ -3978,10 +4115,10 @@ Proof.
       (* cnct *)
       rewrite -Hconvert. move : Hhelper; apply eval_fexpr_PVM_included_eq; done.
     * (* module *) 
-      specialize (eval_hfstmts_find_none_cases Hevalss1 v) as Hfind1; rewrite Hcmpnt in Hfind1; move : Hfind1 => [Hfind1 _].
+      specialize (eval_hfstmts_find_none_cases v Hevalss1) as Hfind1; rewrite Hcmpnt in Hfind1; move : Hfind1 => [Hfind1 _].
       intros; rewrite Hfind1 in H; discriminate.
     * (* None *) 
-      specialize (eval_hfstmts_find_none_cases Hevalss1 v) as Hfind1; rewrite Hcmpnt in Hfind1; move : Hfind1 => [Hfind1 _].
+      specialize (eval_hfstmts_find_none_cases v Hevalss1) as Hfind1; rewrite Hcmpnt in Hfind1; move : Hfind1 => [Hfind1 _].
       intros; rewrite Hfind1 in H; discriminate.
 
   - (* sequential part *)
@@ -3989,9 +4126,9 @@ Proof.
     destruct (PVM.find v tmap) as [[gt cmpnt]|] eqn : Hcmpnt. destruct cmpnt.
     * (* inport, instance of, memory, node, output, wire, module, none *) 
       1,2,3,8,9 : 
-      specialize (eval_hfstmts_find_none_cases Hevalss1 v) as Hfind1; rewrite Hcmpnt in Hfind1; move : Hfind1 => [_ Hfind1];
+      specialize (eval_hfstmts_find_none_cases v Hevalss1) as Hfind1; rewrite Hcmpnt in Hfind1; move : Hfind1 => [_ Hfind1];
       intros; rewrite Hfind1 in H; discriminate.
-      1,2,4 : specialize (eval_hfstmts_find_none_cases Hevalss1 v) as Hfind1; rewrite Hcmpnt in Hfind1;
+      1,2,4 : specialize (eval_hfstmts_find_none_cases v Hevalss1) as Hfind1; rewrite Hcmpnt in Hfind1;
       intros; rewrite Hfind1 in H; discriminate.
     * (* register *) 
       specialize (eval_hfstmts_Qcat_some' (PVM.empty bits) (PVM.empty bits) Hevalss2) as Hexists. destruct Hexists as [[rs s] Hexists].
