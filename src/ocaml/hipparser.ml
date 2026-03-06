@@ -1,5 +1,6 @@
 open Arg
 open Hifirrtl_lang
+open Printf
 open Extraction.Semantics
 
 let args = [
@@ -13,13 +14,14 @@ let anon in_file =
   let flatten_cir = Inline.inline_cir stdout hif_ast in 
   let oc_fir = open_out (Transhiast.process_string in_file "_cons.txt") in
 
-  (*Ast.pp_fcircuit oc_fir flatten_cir;*)
+  Ast.pp_fcircuit oc_fir flatten_cir;
   match flatten_cir with
   | Ast.Fcircuit (v, ml) ->
     let ((map0, flag), tmap_ast) = Transhiast.mapcir flatten_cir in 
-    (*StringMap.iter (fun key value -> output_string oc_fir (key^": ["); Stdlib.List.iter (fprintf oc_fir "%d;") value; output_string oc_fir "]\n") map0;*)
+    Transhiast.StringMap.iter (fun key value -> output_string oc_fir (key^": ["); Stdlib.List.iter (fprintf oc_fir "%d;") value; output_string oc_fir "]\n") map0;
     let c = Transhiast.trans_cir flatten_cir map0 flag tmap_ast in 
-    let _ = expandWhens c in
+    Printfir.pp_fcircuit_fir oc_fir v c; close_out oc_fir;
+    (*let _ = expandWhens c in*)
     ()
 
 let _ = parse args anon usage

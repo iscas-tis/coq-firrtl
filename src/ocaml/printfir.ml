@@ -19,8 +19,6 @@ let pp_fgtyp_fir out gt =
   match gt with
   | Env.Fuint s -> output_string out ("UInt<"^(Stdlib.Int.to_string s)^">")
   | Fsint s -> output_string out ("SInt<"^(Stdlib.Int.to_string s)^">")
-  | Fuint_implicit s -> output_string out "error : uninferred widths\n"
-  | Fsint_implicit s -> output_string out "error : uninferred widths\n"
   | Freset -> output_string out "Reset"
   | Fasyncreset -> output_string out "Asyncreset"
   | Fclock -> output_string out "Clock"
@@ -69,42 +67,42 @@ let rec pp_expr_fir out e =
                           | Env.Fsint n -> pp_fgtyp_fir out gt; fprintf out "(%s)" (string_of_big_int  (z_of_bits bs))
                           | _ -> printf "error const expression\n")
   | HiFirrtl.Ecast (c, e0) -> (match c with
-                          | LoFirrtl.AsUInt -> fprintf out "asUInt("; pp_expr_fir out e0; fprintf out ")"
-                          | LoFirrtl.AsSInt -> fprintf out "asSInt("; pp_expr_fir out e0; fprintf out ")"
-                          | LoFirrtl.AsClock -> fprintf out "asClock("; pp_expr_fir out e0; fprintf out ")"
-                          | LoFirrtl.AsAsync -> fprintf out "asAsyncReset("; pp_expr_fir out e0; fprintf out ")")
+                          | Firrtl.AsUInt -> fprintf out "asUInt("; pp_expr_fir out e0; fprintf out ")"
+                          | Firrtl.AsSInt -> fprintf out "asSInt("; pp_expr_fir out e0; fprintf out ")"
+                          | Firrtl.AsClock -> fprintf out "asClock("; pp_expr_fir out e0; fprintf out ")"
+                          | Firrtl.AsAsync -> fprintf out "asAsyncReset("; pp_expr_fir out e0; fprintf out ")")
   | HiFirrtl.Eprim_unop (op, e0) -> (match op with
-                          | LoFirrtl.Upad s -> fprintf out "pad("; pp_expr_fir out e0; fprintf out ", %d)" s
-                          | LoFirrtl.Ushl s -> fprintf out "shl("; pp_expr_fir out e0; fprintf out ", %d)" s
-                          | LoFirrtl.Ushr s -> fprintf out "shr("; pp_expr_fir out e0; fprintf out ", %d)" s
-                          | LoFirrtl.Uhead s -> fprintf out "head("; pp_expr_fir out e0; fprintf out ", %d)" s
-                          | LoFirrtl.Utail s -> fprintf out "tail("; pp_expr_fir out e0; fprintf out ", %d)" s
-                          | LoFirrtl.Uextr (s1, s2) -> fprintf out "bits("; pp_expr_fir out e0; fprintf out ", %d, %d)" s1 s2
-                          | LoFirrtl.Ucvt -> fprintf out "cvt("; pp_expr_fir out e0; fprintf out ")"
-                          | LoFirrtl.Uneg -> fprintf out "neg("; pp_expr_fir out e0; fprintf out ")"
-                          | LoFirrtl.Unot -> fprintf out "not("; pp_expr_fir out e0; fprintf out ")"
-                          | LoFirrtl.Uandr -> fprintf out "andr("; pp_expr_fir out e0; fprintf out ")"
-                          | LoFirrtl.Uorr -> fprintf out "orr("; pp_expr_fir out e0; fprintf out ")"
-                          | LoFirrtl.Uxorr -> fprintf out "xorr("; pp_expr_fir out e0; fprintf out ")")
+                          | Firrtl.Upad s -> fprintf out "pad("; pp_expr_fir out e0; fprintf out ", %d)" s
+                          | Firrtl.Ushl s -> fprintf out "shl("; pp_expr_fir out e0; fprintf out ", %d)" s
+                          | Firrtl.Ushr s -> fprintf out "shr("; pp_expr_fir out e0; fprintf out ", %d)" s
+                          | Firrtl.Uhead s -> fprintf out "head("; pp_expr_fir out e0; fprintf out ", %d)" s
+                          | Firrtl.Utail s -> fprintf out "tail("; pp_expr_fir out e0; fprintf out ", %d)" s
+                          | Firrtl.Uextr (s1, s2) -> fprintf out "bits("; pp_expr_fir out e0; fprintf out ", %d, %d)" s1 s2
+                          | Firrtl.Ucvt -> fprintf out "cvt("; pp_expr_fir out e0; fprintf out ")"
+                          | Firrtl.Uneg -> fprintf out "neg("; pp_expr_fir out e0; fprintf out ")"
+                          | Firrtl.Unot -> fprintf out "not("; pp_expr_fir out e0; fprintf out ")"
+                          | Firrtl.Uandr -> fprintf out "andr("; pp_expr_fir out e0; fprintf out ")"
+                          | Firrtl.Uorr -> fprintf out "orr("; pp_expr_fir out e0; fprintf out ")"
+                          | Firrtl.Uxorr -> fprintf out "xorr("; pp_expr_fir out e0; fprintf out ")")
   | HiFirrtl.Eprim_binop (op, e1, e2) -> (match op with
-                          | LoFirrtl.Badd -> fprintf out "add("; pp_expr_fir out e1; fprintf out ", "; pp_expr_fir out e2; fprintf out ")"
-                          | LoFirrtl.Bsub -> fprintf out "sub("; pp_expr_fir out e1; fprintf out ", "; pp_expr_fir out e2; fprintf out ")"
-                          | LoFirrtl.Bmul -> fprintf out "mul("; pp_expr_fir out e1; fprintf out ", "; pp_expr_fir out e2; fprintf out ")"
-                          | LoFirrtl.Bdiv -> fprintf out "div("; pp_expr_fir out e1; fprintf out ", "; pp_expr_fir out e2; fprintf out ")"
-                          | LoFirrtl.Brem -> fprintf out "rem("; pp_expr_fir out e1; fprintf out ", "; pp_expr_fir out e2; fprintf out ")"
-                          | LoFirrtl.Bdshl -> fprintf out "dshl("; pp_expr_fir out e1; fprintf out ", "; pp_expr_fir out e2; fprintf out ")"
-                          | LoFirrtl.Bdshr -> fprintf out "dshr("; pp_expr_fir out e1; fprintf out ", "; pp_expr_fir out e2; fprintf out ")"
-                          | LoFirrtl.Band -> fprintf out "and("; pp_expr_fir out e1; fprintf out ", "; pp_expr_fir out e2; fprintf out ")"
-                          | LoFirrtl.Bor -> fprintf out "or("; pp_expr_fir out e1; fprintf out ", "; pp_expr_fir out e2; fprintf out ")"
-                          | LoFirrtl.Bxor -> fprintf out "xor("; pp_expr_fir out e1; fprintf out ", "; pp_expr_fir out e2; fprintf out ")"
-                          | LoFirrtl.Bcat -> fprintf out "cat("; pp_expr_fir out e1; fprintf out ", "; pp_expr_fir out e2; fprintf out ")"
-                          | LoFirrtl.Bcomp s -> (match s with
-                                              | LoFirrtl.Blt -> fprintf out "lt("; pp_expr_fir out e1; fprintf out ", "; pp_expr_fir out e2; fprintf out ")"
-                                              | LoFirrtl.Bleq -> fprintf out "leq("; pp_expr_fir out e1; fprintf out ", "; pp_expr_fir out e2; fprintf out ")"
-                                              | LoFirrtl.Bgt -> fprintf out "gt("; pp_expr_fir out e1; fprintf out ", "; pp_expr_fir out e2; fprintf out ")"
-                                              | LoFirrtl.Bgeq -> fprintf out "geq("; pp_expr_fir out e1; fprintf out ", "; pp_expr_fir out e2; fprintf out ")"
-                                              | LoFirrtl.Beq -> fprintf out "eq("; pp_expr_fir out e1; fprintf out ", "; pp_expr_fir out e2; fprintf out ")"
-                                              | LoFirrtl.Bneq -> fprintf out "neq("; pp_expr_fir out e1; fprintf out ", "; pp_expr_fir out e2; fprintf out ")"))
+                          | Firrtl.Badd -> fprintf out "add("; pp_expr_fir out e1; fprintf out ", "; pp_expr_fir out e2; fprintf out ")"
+                          | Firrtl.Bsub -> fprintf out "sub("; pp_expr_fir out e1; fprintf out ", "; pp_expr_fir out e2; fprintf out ")"
+                          | Firrtl.Bmul -> fprintf out "mul("; pp_expr_fir out e1; fprintf out ", "; pp_expr_fir out e2; fprintf out ")"
+                          | Firrtl.Bdiv -> fprintf out "div("; pp_expr_fir out e1; fprintf out ", "; pp_expr_fir out e2; fprintf out ")"
+                          | Firrtl.Brem -> fprintf out "rem("; pp_expr_fir out e1; fprintf out ", "; pp_expr_fir out e2; fprintf out ")"
+                          | Firrtl.Bdshl -> fprintf out "dshl("; pp_expr_fir out e1; fprintf out ", "; pp_expr_fir out e2; fprintf out ")"
+                          | Firrtl.Bdshr -> fprintf out "dshr("; pp_expr_fir out e1; fprintf out ", "; pp_expr_fir out e2; fprintf out ")"
+                          | Firrtl.Band -> fprintf out "and("; pp_expr_fir out e1; fprintf out ", "; pp_expr_fir out e2; fprintf out ")"
+                          | Firrtl.Bor -> fprintf out "or("; pp_expr_fir out e1; fprintf out ", "; pp_expr_fir out e2; fprintf out ")"
+                          | Firrtl.Bxor -> fprintf out "xor("; pp_expr_fir out e1; fprintf out ", "; pp_expr_fir out e2; fprintf out ")"
+                          | Firrtl.Bcat -> fprintf out "cat("; pp_expr_fir out e1; fprintf out ", "; pp_expr_fir out e2; fprintf out ")"
+                          | Firrtl.Bcomp s -> (match s with
+                                              | Firrtl.Blt -> fprintf out "lt("; pp_expr_fir out e1; fprintf out ", "; pp_expr_fir out e2; fprintf out ")"
+                                              | Firrtl.Bleq -> fprintf out "leq("; pp_expr_fir out e1; fprintf out ", "; pp_expr_fir out e2; fprintf out ")"
+                                              | Firrtl.Bgt -> fprintf out "gt("; pp_expr_fir out e1; fprintf out ", "; pp_expr_fir out e2; fprintf out ")"
+                                              | Firrtl.Bgeq -> fprintf out "geq("; pp_expr_fir out e1; fprintf out ", "; pp_expr_fir out e2; fprintf out ")"
+                                              | Firrtl.Beq -> fprintf out "eq("; pp_expr_fir out e1; fprintf out ", "; pp_expr_fir out e2; fprintf out ")"
+                                              | Firrtl.Bneq -> fprintf out "neq("; pp_expr_fir out e1; fprintf out ", "; pp_expr_fir out e2; fprintf out ")"))
   | HiFirrtl.Emux (c, e1, e2) -> fprintf out "mux("; pp_expr_fir out c; fprintf out ", "; pp_expr_fir out e1; fprintf out ", "; pp_expr_fir out e2; fprintf out ")"
   | HiFirrtl.Eref r -> pp_ref_fir out r
 

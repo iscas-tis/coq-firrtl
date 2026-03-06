@@ -358,8 +358,15 @@ and pp_stmt out s =
   | Snode (v, e) -> output_string out "snode\n"
   | Sinst (v, e) -> output_string out "sinst\n"
   | Swhen (c, s1, s2) -> output_string out "swhen cond :"; output_string out "\nthen [::"; pp_stmts out s1; output_string out "]\nelse \n [::"; pp_stmts out s2; output_string out "])\n"
-  
-let try_fir_parse f =
-  output_string stdout f; output_string stdout "\n";
-  let firf = Parser.hiparse f in 
-  Ast.pp_fcircuit stdout firf*)
+
+let pp_fmodule out fmod =
+  match fmod with
+  | FInmod (v, pl, sl) -> output_string out "(FInmod "; output_string out ((Stdlib.Int.to_string v)^"\n"); pp_fports out pl; output_string out "[:: "; pp_stmts out sl; output_string out "]).\n"
+  | FExmod (v, pl, sl) -> output_string out "(FExmod "; output_string out ((Stdlib.Int.to_string v)^"\n"); pp_fports out pl; output_string out "[:: "; pp_stmts out sl; output_string out "]).\n"
+          
+let pp_fmodules out fmod = List.iter (fun c -> pp_fmodule out c) fmod
+
+let pp_fircircuit out fc =
+  match fc with
+  | Fcircuit (v, fmod) -> output_string out "(FCircuit "; output_string out ((Stdlib.Int.to_string v)^"\n"); pp_fmodules out fmod; output_string out ")\n"
+*)

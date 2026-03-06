@@ -66,6 +66,7 @@ and token = parse
  *                                      { upd_cnum lexbuf; STRING str } *)
 | "circuit"                             { upd_cnum lexbuf; CIRCUIT }
 | "module"                              { upd_cnum lexbuf; STM_MODULE }
+| "public module"                       { upd_cnum lexbuf; STM_PUBMODULE }
 | "extmodule"                           { upd_cnum lexbuf; STM_EXTMODULE }
 | "defname"                             { upd_cnum lexbuf; STM_DEFNAME }
 | "parameter"                           { upd_cnum lexbuf; STM_PARAM }
