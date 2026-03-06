@@ -1,6 +1,4 @@
 
-val xorb : bool -> bool -> bool
-
 val negb : bool -> bool
 
 val fst : ('a1 * 'a2) -> 'a1

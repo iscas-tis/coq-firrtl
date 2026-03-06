@@ -95,7 +95,7 @@ Section HiFirrtl.
   with href_eqP : (*Equality.axiom href_eqn*)
         forall x y : href, reflect (x = y) (href_eqn x y).
   Proof.
-  (** clear hfexpr_eqP.
+  clear hfexpr_eqP.
     induction x, y ; simpl ;
           try (apply ReflectF ; discriminate).
     + destruct (f == f0) eqn: Hf ; move /eqP : Hf => Hf ;
@@ -153,17 +153,6 @@ Section HiFirrtl.
                      destruct IHx3 as [IHx3 _] ; apply IHx3 in H0 ; done).
       destruct IHx3 as [_ IHx3] ; rewrite IHx3 //.
       apply ReflectT ; reflexivity.
-    + specialize (IHx1 y1) ; apply reflect_iff in IHx1.
-      destruct (hfexpr_eqn x1 y1) ;
-            last by (apply ReflectF ; injection ; intros _ H0 ;
-                     destruct IHx1 as [IHx1 _] ; apply IHx1 in H0 ; done).
-      destruct IHx1 as [_ IHx1] ; rewrite IHx1 //.
-      specialize (IHx2 y2) ; apply reflect_iff in IHx2.
-      destruct (hfexpr_eqn x2 y2) ;
-            last by (apply ReflectF ; injection ; intros H0 ;
-                     destruct IHx2 as [IHx2 _] ; apply IHx2 in H0 ; done).
-      destruct IHx2 as [_ IHx2] ; rewrite IHx2 //.
-      apply ReflectT ; reflexivity.
     + specialize (href_eqP h h0) ; apply reflect_iff in href_eqP.
       destruct (href_eqn h h0) ;
             last by (apply ReflectF ; injection ; intros H0 ;
@@ -182,7 +171,7 @@ Section HiFirrtl.
             last by (apply ReflectF ; injection ; intros _ H0 ;
                      destruct IHx as [IHx _] ; apply IHx in H0 ; done).
       destruct IHx as [_ IHx] ; rewrite IHx //.
-      destruct (v == v0) eqn: Hv ; move /eqP : Hv => Hv ;
+      destruct (s == s0) eqn: Hv ; move /eqP : Hv => Hv ;
             last by (apply ReflectF ; injection ; done).
       rewrite Hv.
       apply ReflectT ; reflexivity.
@@ -206,7 +195,7 @@ Section HiFirrtl.
                      destruct hfexpr_eqP as [hfexpr_eqP _] ; apply hfexpr_eqP in H0 ; done).
       destruct hfexpr_eqP as [_ hfexpr_eqP] ; rewrite hfexpr_eqP //.
       apply ReflectT ; reflexivity.
-  Qed.*) Admitted.
+  Qed.
   Canonical hfexpr_eqMixin := EqMixin hfexpr_eqP.
   Canonical href_eqMixin := EqMixin href_eqP.
   Canonical hfexpr_eqType := Eval hnf in EqType hfexpr hfexpr_eqMixin.

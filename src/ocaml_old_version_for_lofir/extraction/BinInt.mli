@@ -15,8 +15,6 @@ module Z :
 
   val opp : int -> int
 
-  val succ : int -> int
-
   val pred : int -> int
 
   val sub : int -> int -> int
@@ -46,6 +44,4 @@ module Z :
   val log2 : int -> int
 
   val eq_dec : int -> int -> bool
-
-  val b2z : bool -> int
  end

@@ -1,3 +1,4 @@
+open BinNat
 open Datatypes
 open Nat0
 open Eqtype
@@ -77,6 +78,45 @@ let rec iter n f x =
     (fun i -> f (iter i f x))
     n
 
+(** val iteri : int -> (int -> 'a1 -> 'a1) -> 'a1 -> 'a1 **)
+
+let rec iteri n f x =
+  (fun fO fS n -> if n=0 then fO () else fS (n-1))
+    (fun _ -> x)
+    (fun i -> f i (iteri i f x))
+    n
+
+(** val iterop : int -> ('a1 -> 'a1 -> 'a1) -> 'a1 -> 'a1 -> 'a1 **)
+
+let iterop n op0 x =
+  let f = fun i y ->
+    (fun fO fS n -> if n=0 then fO () else fS (n-1))
+      (fun _ -> x)
+      (fun _ -> op0 x y)
+      i
+  in
+  iteri n f
+
+(** val muln_rec : int -> int -> int **)
+
+let muln_rec =
+  mul
+
+(** val muln : int -> int -> int **)
+
+let muln =
+  muln_rec
+
+(** val expn_rec : int -> int -> int **)
+
+let expn_rec m n =
+  iterop n muln m (Stdlib.Int.succ 0)
+
+(** val expn : int -> int -> int **)
+
+let expn =
+  expn_rec
+
 (** val nat_of_bool : bool -> int **)
 
 let nat_of_bool = function
@@ -119,3 +159,18 @@ and uphalf n =
     (fun _ -> n)
     (fun n' -> Stdlib.Int.succ (half n'))
     n
+
+(** val eq_binP : int Equality.axiom **)
+
+let eq_binP p q =
+  iffP (N.eqb p q) (idP (N.eqb p q))
+
+(** val bin_nat_eqMixin : int Equality.mixin_of **)
+
+let bin_nat_eqMixin =
+  { Equality.op = N.eqb; Equality.mixin_of__1 = eq_binP }
+
+(** val bin_nat_eqType : Equality.coq_type **)
+
+let bin_nat_eqType =
+  Obj.magic bin_nat_eqMixin

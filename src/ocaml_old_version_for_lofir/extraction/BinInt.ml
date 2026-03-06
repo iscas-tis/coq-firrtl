@@ -66,10 +66,6 @@ module Z =
 
   let opp = (~-)
 
-  (** val succ : int -> int **)
-
-  let succ = Pervasives.succ
-
   (** val pred : int -> int **)
 
   let pred = Pervasives.pred
@@ -240,10 +236,4 @@ module Z =
         (fun p0 -> Pos.eq_dec p p0)
         y)
       x
-
-  (** val b2z : bool -> int **)
-
-  let b2z = function
-  | true -> 1
-  | false -> 0
  end

@@ -16,3 +16,12 @@ popl2025/lstpatch.sty
 CAV2025/main.pdf
 Makefile
 Makefile.conf
+src/ocaml_old_version_for_lofir/_build
+src/ocaml_old_version_for_lofir/extraction
+src/ocaml/_build
+src/ocaml/bin
+src/ocaml/lib
+src/ocaml/test
+src/ocaml/dune-project
+src/ocaml/ocaml.opam
+src/ocaml/extraction
