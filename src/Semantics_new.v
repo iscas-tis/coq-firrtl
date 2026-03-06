@@ -2123,6 +2123,133 @@ with eval_hfstmt_for_unique_node s v e init_s tmap :
   forall rs0 ns0, PVM.find v ns0 = None -> forall rs ns,
   Sem_HiFP.eval_hfstmt s rs0 ns0 init_s tmap = Some (rs, ns) ->
   match s with
+  | Swhen c ss1 ss2 => match Sem_HiFP.eval_hfexpr c init_s tmap with
+    | Some valc => unique_node_dclr_when ss1 /\ unique_node_dclr_when ss2 /\
+      if (~~ is_zero valc) then Qin_with_cond (Snode v e) ss1 init_s tmap
+      else Qin_with_cond (Snode v e) ss2 init_s tmap 
+    | _ => True
+    end
+  | Snode v0 e0 => (v == v0) && (e == e0)
+  | _ => False
+  end -> PVM.find v ns = Sem_HiFP.eval_hfexpr e init_s tmap.
+Proof.
+  clear eval_hfstmts_for_unique_node_helper. move : ss; elim. simpl; intros; done.
+  intros s ss IH Hin Hunique rs0 ns0 Hfind rs ns Hevals.
+  simpl in Hevals. destruct (Sem_HiFP.eval_hfstmt s rs0 ns0 init_s tmap) as [[rs1 ns1]|] eqn : Heval; try discriminate. 
+  simpl in Hin.
+  case Hst : s => [||var reg|||var node_e|var cnct_e|var|cond ss_true ss_false]; subst s.
+  + (* skip *) simpl in Heval; inversion Heval; subst rs0 ns0. move : Hevals; apply (IH Hin); try (move : Hunique; apply unique_node_dclr_when_subseq); try done.
+  + (* wire *) simpl in Heval; inversion Heval; subst rs0 ns0. move : Hevals; apply (IH Hin); try (move : Hunique; apply unique_node_dclr_when_subseq); try done.
+  + (* reg *) simpl in Heval. destruct (PVM.find var init_s); try discriminate.
+    inversion Heval; subst rs1 ns1. move : Hevals; apply (IH Hin); try (move : Hunique; apply unique_node_dclr_when_subseq); try done.
+  + (* mem *) simpl in Heval; inversion Heval; subst rs0 ns0. move : Hevals; apply (IH Hin); try (move : Hunique; apply unique_node_dclr_when_subseq); try done.
+  + (* inst *) simpl in Heval; inversion Heval; subst rs0 ns0. move : Hevals; apply (IH Hin); try (move : Hunique; apply unique_node_dclr_when_subseq); try done.
+  + (* node *) destruct (hfstmt_eqn (Snode var node_e) (Snode v e)) eqn : Hs. 
+    - (* s is node *) clear Hin IH eval_hfstmt_for_unique_node. simpl in Hs. 
+      move /andP : Hs => [Hvar Hnode_e]; move /eqP : Hvar => Hvar; move /eqP : Hnode_e => Hnode_e. subst var node_e.
+      unfold unique_node_dclr_when in Hunique. assert (Hin : Qin_when (Snode v e) (Qcons (Snode v e) ss)) by (simpl; rewrite eq_refl; rewrite eq_refl //).
+      apply Hunique in Hin; clear Hunique. move : Hin => [Hnode [Hcnct Hinvalid]]. 
+      simpl in Hcnct. simpl in Hinvalid. simpl in Hnode; rewrite eq_refl in Hnode; simpl in Hnode. rewrite eq_refl in Hnode; simpl in Hnode.
+      apply (eval_hfstmts_unique_when_ss_find_eq Hnode Hcnct Hinvalid) in Hevals.
+      rewrite Hevals. simpl in Heval. destruct (Sem_HiFP.eval_hfexpr e init_s tmap); try discriminate.
+      inversion Heval; subst rs1 ns1. apply PVM.Lemmas.find_add_eq; apply PVM.M.SE.eq_refl.
+    - (* s is in ss *) rewrite orb_false_l in Hin.
+      move : Hevals. apply (IH Hin); try (move : Hunique; apply unique_node_dclr_when_subseq). move : Hunique Hs Hin Heval Hfind; clear; intros.
+      unfold unique_node_dclr_when in Hunique. apply Qin_with_cond2Qin_when in Hin. assert (Qin_when (Snode v e) (Qcons (Snode var node_e) ss)) by (simpl; rewrite Hin orb_true_r //).
+      specialize (Hunique v e H).
+      move : Hunique => [Hunique _]. specialize (Hunique var node_e). simpl in Heval.
+      destruct (Sem_HiFP.eval_hfexpr node_e init_s tmap); try discriminate.
+      inversion Heval; subst rs1 ns1; rewrite PVM.Lemmas.find_add_neq //.
+      simpl in Hunique; simpl in Hs; rewrite Hs in Hunique. simpl in Hunique. 
+      rewrite eq_refl in Hunique; simpl in Hunique. rewrite eq_refl in Hunique; simpl in Hunique.
+      assert (true) by done. apply Hunique in H0.
+      unfold PVM.M.SE.eq. move : H0; apply contra_not. intro. move /eqP : H0 => H0; done.
+  + (* cnct *) simpl in Hin.
+      move : Hevals. apply (IH Hin); try (move : Hunique; apply unique_node_dclr_when_subseq). 
+      move : Hunique Hin Heval Hfind; clear; intros.
+      unfold unique_node_dclr_when in Hunique. apply Qin_with_cond2Qin_when in Hin. assert (Qin_when (Snode v e) (Qcons (Sfcnct var cnct_e) ss)) by (simpl; done).
+      specialize (Hunique v e H). simpl in Heval. destruct var as [ref|a|a|a] eqn : Href; try (inversion Heval; subst rs1 ns1; done).
+      destruct (PVM.find ref tmap) as [[gt cmpnt]|] eqn : Hgt; try discriminate.
+      move : Hunique => [_ [Hunique _]]. specialize (Hunique cnct_e). simpl in Hunique. rewrite eq_refl in Hunique; simpl in Hunique.
+      destruct cmpnt; destruct (Sem_HiFP.eval_hfexpr cnct_e init_s tmap); try discriminate; 
+      inversion Heval; subst rs1 ns1; try done. 1-7 : rewrite PVM.Lemmas.find_add_neq //.
+      1-7 : unfold PVM.M.SE.eq; move : Hunique; apply contra_not; intro; move /eqP : H0 => H0; subst v; rewrite eq_refl; simpl; done.
+  + (* invalid *) simpl in Hin.
+      move : Hevals. apply (IH Hin); try (move : Hunique; apply unique_node_dclr_when_subseq). 
+      move : Hunique Hin Heval Hfind; clear; intros.
+      unfold unique_node_dclr_when in Hunique. apply Qin_with_cond2Qin_when in Hin. assert (Qin_when (Snode v e) (Qcons (Sinvalid var) ss)) by (simpl; done).
+      specialize (Hunique v e H). simpl in Heval. destruct var as [ref|a|a|a] eqn : Href; try (inversion Heval; subst rs1 ns1; done).
+      destruct (PVM.find ref tmap) as [[gt cmpnt]|] eqn : Hgt; try discriminate.
+      move : Hunique => [_ [_ Hunique]]. specialize (Hunique ref). simpl in Hunique. rewrite eq_refl in Hunique; simpl in Hunique.
+      destruct cmpnt; destruct (sizeof_fgtyp gt < length indeterminate_val); 
+      try (inversion Heval; subst rs1 ns1; try done). 1-14 : rewrite PVM.Lemmas.find_add_neq //. 
+      1-14 : assert (true) by done; apply Hunique in H0.
+      1-14 : unfold PVM.M.SE.eq; move : H0; apply contra_not; intro; move /eqP : H0 => H0; subst v; done.
+  + (* when *) specialize (eval_hfstmt_for_unique_node _ _ e _ _ _ _ Hfind _ _ Heval); simpl in eval_hfstmt_for_unique_node.
+    simpl in Heval; destruct (Sem_HiFP.eval_hfexpr cond init_s tmap) as [valc|] eqn : Hc; try discriminate. 
+    destruct (~~ is_zero valc) eqn : Hcond. 
+    - (* go to true *)
+      destruct (Qin_with_cond (Snode v e) ss_true init_s tmap) eqn : Hin_true.
+      * (* node in true, not in ss *)
+        clear IH Hin. rewrite -eval_hfstmt_for_unique_node; try done.
+        unfold unique_node_dclr_when in Hunique. assert (Qin_when (Snode v e) (Qcons (Swhen cond ss_true ss_false) ss)). 
+        apply Qin_with_cond2Qin_when in Hin_true. simpl; rewrite Hin_true orb_true_l //. apply Hunique in H. move : H => [Hnode [Hcnct Hinvalid]].
+        move : Hevals; apply eval_hfstmts_unique_when_ss_find_eq.
+        move : Hnode Hin_true; clear; intros. apply (Hnode v' e'). simpl. apply Qin_with_cond2Qin_when in Hin_true. rewrite Hin_true. apply Qin_when_Qcons; done.
+        intros. move : (Hcnct e'); clear. apply contra_not. apply Qin_when_Qcons; done.
+        intros. apply (Hinvalid v'). move : H; apply Qin_when_Qcons; done.
+        apply unique_node_dclr_when_branches in Hunique. move : Hunique => [Hunique0 Hunique1]. split; try done.
+      * (* in ss *) rewrite orb_false_l in Hin. move : Hevals; apply (IH Hin).
+        move : Hunique; apply unique_node_dclr_when_subseq.
+        unfold unique_node_dclr_when in Hunique. assert (Qin_when (Snode v e) (Qcons (Swhen cond ss_true ss_false) ss)). 
+        apply Qin_with_cond2Qin_when in Hin. apply Qin_when_Qcons; done. apply Hunique in H. move : H => [Hnode [Hcnct Hinvalid]].
+        rewrite -Hfind. move : Heval; apply eval_hfstmts_unique_when_ss_find_eq.
+        move : Hnode Hin; clear; intros. intro; subst v'. apply Qin_with_cond2Qin_when in Hin. 
+        assert (Qin_when (Snode v e') ss_true \/ Qin_when (Snode v e') ss_false) by (left; done).
+        apply (Qin_when_uniqie_False Hnode Hin H0).
+        intros. move : (Hcnct e'); clear. apply contra_not. intro; simpl. rewrite H //.
+        intros. apply (Hinvalid v'). simpl. rewrite H //.
+    - (* go to false *)
+      destruct (Qin_with_cond (Snode v e) ss_false init_s tmap) eqn : Hin_false.
+      * (* node in false, not in ss *)
+        clear IH Hin. rewrite -eval_hfstmt_for_unique_node; try done.
+        unfold unique_node_dclr_when in Hunique. assert (Qin_when (Snode v e) (Qcons (Swhen cond ss_true ss_false) ss)). 
+        apply Qin_with_cond2Qin_when in Hin_false. simpl; rewrite Hin_false orb_true_r //. apply Hunique in H. move : H => [Hnode [Hcnct Hinvalid]].
+        move : Hevals; apply eval_hfstmts_unique_when_ss_find_eq.
+        move : Hnode Hin_false; clear; intros. apply (Hnode v' e'). simpl. apply Qin_with_cond2Qin_when in Hin_false. rewrite Hin_false. 
+        destruct (Qin_when (Snode v e) ss_true); apply Qin_when_Qcons; done.
+        intros. move : (Hcnct e'); clear. apply contra_not. apply Qin_when_Qcons; done.
+        intros. apply (Hinvalid v'). move : H; apply Qin_when_Qcons; done.
+        apply unique_node_dclr_when_branches in Hunique. move : Hunique => [Hunique0 Hunique1]. split; try done.
+        * (* in ss *) rewrite orb_false_l in Hin. move : Hevals; apply (IH Hin).
+        move : Hunique; apply unique_node_dclr_when_subseq.
+        unfold unique_node_dclr_when in Hunique. assert (Qin_when (Snode v e) (Qcons (Swhen cond ss_true ss_false) ss)). 
+        apply Qin_with_cond2Qin_when in Hin. apply Qin_when_Qcons; done. apply Hunique in H. move : H => [Hnode [Hcnct Hinvalid]].
+        rewrite -Hfind. move : Heval; apply eval_hfstmts_unique_when_ss_find_eq.
+        move : Hnode Hin; clear; intros. intro; subst v'. apply Qin_with_cond2Qin_when in Hin. 
+        assert (Qin_when (Snode v e') ss_true \/ Qin_when (Snode v e') ss_false) by (right; done).
+        apply (Qin_when_uniqie_False Hnode Hin H0).
+        intros. move : (Hcnct e'); clear. apply contra_not. intro; simpl. rewrite H orb_true_r //.
+        intros. apply (Hinvalid v'). simpl. rewrite H orb_true_r //.
+  clear eval_hfstmt_for_unique_node.
+  intros rs0 ns0 Hfind rs ns Heval. induction s as [|v0 t|v0 r|v0 m|v0 v1|v0 e0|v0 e0|v0|cond ss_true ss_false]; intros; simpl in Heval; try done.
+  move /andP : H => [Hv He]; move /eqP : Hv => Hv; move /eqP : He => He; subst v; subst e. destruct (Sem_HiFP.eval_hfexpr e0 init_s tmap); try discriminate.
+    inversion Heval; subst rs ns. rewrite PVM.Lemmas.find_add_eq //. apply PVM.M.SE.eq_refl.
+  destruct (Sem_HiFP.eval_hfexpr cond init_s tmap) as [valc|] eqn : Hcond; try discriminate. move : H => [Hunique_true [Hunique_false Hin]].
+  destruct (~~ is_zero valc). 
+  1,2 : move : Heval; apply (eval_hfstmts_for_unique_node_helper _ _ _ _ _ Hin); try done.
+Admitted.
+
+(* old bad version
+Lemma eval_hfstmts_for_unique_node_helper ss v e init_s tmap : 
+  Qin_with_cond (Snode v e) ss init_s tmap -> unique_node_dclr_when ss -> 
+  forall rs0 ns0, PVM.find v ns0 = None -> forall rs s,
+  Sem_HiFP.eval_hfstmts ss rs0 ns0 init_s tmap = Some (rs, s) ->
+  PVM.find v s = Sem_HiFP.eval_hfexpr e init_s tmap
+with eval_hfstmt_for_unique_node s v e init_s tmap : 
+  forall rs0 ns0, PVM.find v ns0 = None -> forall rs ns,
+  Sem_HiFP.eval_hfstmt s rs0 ns0 init_s tmap = Some (rs, ns) ->
+  match s with
   | Swhen c ss1 ss2 => forall valc, Sem_HiFP.eval_hfexpr c init_s tmap = Some valc -> unique_node_dclr_when ss1 -> unique_node_dclr_when ss2 -> 
     if (~~ is_zero valc) then Qin_with_cond (Snode v e) ss1 init_s tmap -> PVM.find v ns = Sem_HiFP.eval_hfexpr e init_s tmap
     else Qin_with_cond (Snode v e) ss2 init_s tmap -> PVM.find v ns = Sem_HiFP.eval_hfexpr e init_s tmap
@@ -2228,10 +2355,10 @@ Proof.
         intros. apply (Hinvalid v'). simpl. rewrite H orb_true_r //.
 
   clear eval_hfstmt_for_unique_node.
-  intros rs0 ns0 Hfind rs ns Heval. case Hst : s => [||var reg|||var node_e||ref|cond ss_true ss_false]; try done; subst s.
-  simpl in Heval. intros. rewrite H in Heval. destruct (~~ is_zero valc). 
+  intros rs0 ns0 Hfind rs ns Heval. induction s as [|v0 t|v0 r|v0 m|v0 v1|v0 e0|v0 e0|v0|cond ss_true ss_false]; intros; try done.
+  simpl in Heval. rewrite H in Heval. destruct (~~ is_zero valc). 
   1, 2 : intro; move : Heval; apply (eval_hfstmts_for_unique_node_helper _ _ _ _ _ H2); try done.
-Admitted.
+Admitted.*)
 
 Lemma eval_hfstmts_for_unique_node ss v e init_s tmap : Qin_with_cond (Snode v e) ss init_s tmap -> unique_node_dclr_when ss -> 
   forall rs s, Sem_HiFP.eval_hfstmts ss (PVM.empty bits) (PVM.empty bits) init_s tmap = Some (rs, s) ->
@@ -3963,18 +4090,24 @@ Proof.
   apply eval_hfstmts_find_none_cases_helper. intros; destruct (PVM.find v tmap) as [[gt cmpnt]|]; try done. destruct cmpnt; try done.
 Qed.
 
-(*Lemma find_node_qin_with_cond_helpers ss tmap: 
+(*Lemma find_node_qin_with_cond_helpers ss tmap init_s: 
   forall v gt, PVM.find v tmap = Some (gt, Node) -> 
-  forall init_s rs0 s0 rs1 s1 bs, Sem_HiFP.eval_hfstmts ss rs0 s0 init_s tmap = Some (rs1, s1) ->
-  PVM.find v s1 = Some bs ->
-  exists e, Qin_with_cond (Snode v e) ss init_s tmap
-(*with find_node_qin_with_cond_helper st tmap: 
-  forall v gt, PVM.find v tmap = Some (gt, Node) -> 
-  forall init_s rs1 s1 bs, Sem_HiFP.eval_hfstmt st (PVM.empty bits) (PVM.empty bits) init_s tmap = Some (rs1, s1) ->
-  PVM.find v s1 = Some bs ->
-  exists e, Qin_with_cond (Snode v e) ss init_s tmap*).
+  forall rs0 s0, PVM.find v s0 = None ->
+  forall rs1 s1, Sem_HiFP.eval_hfstmts ss rs0 s0 init_s tmap = Some (rs1, s1) ->
+  forall bs, PVM.find v s1 = Some bs ->
+  exists e, Qin_with_cond (Snode v e) ss init_s tmap.
 Proof. 
-  intros v gt Hcmpnt init_s. move : ss; elim. simpl.*)
+  intros v gt Hcmpnt. move : ss; elim. simpl; intros. inversion H0; subst rs1 s1. rewrite H in H1. discriminate.
+  intros hd tl IH rs0 s0 Hinit rs1 s1 Hevals bs Hfind. simpl in Hevals. 
+  destruct (Sem_HiFP.eval_hfstmt hd rs0 s0 init_s tmap) as [[rs_temp s_temp]|] eqn : Heval; try discriminate.
+  simpl.
+
+with find_node_qin_with_cond_helper st tmap init_s: 
+  forall v gt, PVM.find v tmap = Some (gt, Node) -> 
+  forall rs0 s0, PVM.find v s0 = None ->
+  forall init_s rs1 s1, Sem_HiFP.eval_hfstmt st rs0 s0 init_s tmap = Some (rs1, s1) ->
+  forall bs, PVM.find v s1 = Some bs ->
+  exists e, Qin_with_cond (Snode v e) ss init_s tmap.*)
 
 Lemma find_node_qin_with_cond mv pp ss tmap: Sem_HiFP.module_tmap (PVM.empty (fgtyp * fcomponent)) (FInmod mv pp ss) = Some tmap ->
   forall v gt, PVM.find v tmap = Some (gt, Node) -> 
