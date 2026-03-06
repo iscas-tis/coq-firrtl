@@ -17,6 +17,11 @@ CAV2025/main.pdf
 Makefile
 Makefile.conf
 src/ocaml_old_version_for_lofir/_build
+src/ocaml_old_version_for_lofir/bin
+src/ocaml_old_version_for_lofir/lib
+src/ocaml_old_version_for_lofir/test
+src/ocaml_old_version_for_lofir/dune-project
+src/ocaml_old_version_for_lofir/ocaml.opam
 src/ocaml_old_version_for_lofir/extraction
 src/ocaml/_build
 src/ocaml/bin
