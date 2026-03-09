@@ -30,3 +30,6 @@ src/ocaml/test
 src/ocaml/dune-project
 src/ocaml/ocaml.opam
 src/ocaml/extraction
+Makefile
+Makefile.conf
+src/.DS_Store
