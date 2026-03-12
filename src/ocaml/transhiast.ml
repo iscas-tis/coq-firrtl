@@ -29,30 +29,23 @@ match ft with
 | Ast.Btyp btyp -> let (map0, _, _) = mapbtyp v (StringMap.add v [flag] map, [flag], 0) btyp in
                    (map0, flag + 1)
   
-let rec mapport ((map, flag), tmap) p = 
+let mapport ((map, flag), tmap) p = 
   match p with
-  | Ast.Finput (v, Ast.Gtyp ty) -> (mapftype v (map, flag) (Gtyp ty), StringMap.add v ty tmap)
-  | Ast.Foutput (v, Gtyp ty) -> (mapftype v (map, flag) (Gtyp ty), StringMap.add v ty tmap)
-  | _ -> ((map, flag), tmap)
-
-and mapports ((map, flag), tmap) ps = 
-  match ps with
-  | [] -> ((map, flag), tmap)
-  | hd :: tl -> mapports (mapport ((map, flag), tmap) hd) tl
+  | Ast.Finput (v, ty) -> (mapftype v (map, flag) ty, StringMap.add v ty tmap)
+  | Ast.Foutput (v, ty) -> (mapftype v (map, flag) ty, StringMap.add v ty tmap)
 
 let rec mapstmt ((map, flag), tmap) stmt = 
   match stmt with
-  | Ast.Swire (v, Ast.Gtyp ty) -> (mapftype v (map, flag) (Gtyp ty), StringMap.add v ty tmap)
-  | Ast.Sreg (v, r) -> (match r.coq_type with
-                      | Ast.Gtyp ty -> (mapftype v (map, flag) r.coq_type, StringMap.add v ty tmap)
-                      | _ -> ((map, flag), tmap))
+  | Ast.Swire (v, ty) -> (mapftype v (map, flag) ty, StringMap.add v ty tmap)
+  | Ast.Sreg (v, r) -> (mapftype v (map, flag) r.coq_type, StringMap.add v r.coq_type tmap)
   | Ast.Smem (v, _) -> ((StringMap.add v [flag] map, flag + 1), tmap)
   | Ast.Snode (v, e) -> (match Nodehelper.type_of_hfexpr e tmap with
-                      | Some ty -> (mapftype v (map, flag) (Gtyp ty), StringMap.add v ty tmap)
+                      | Some ty -> (mapftype v (map, flag) ty, StringMap.add v ty tmap)
                       | None -> printf "%s wrong expr type\n" v; Ast.pp_expr stdout e; ((map, flag), tmap))
   | Ast.Sinst (v, _) -> ((StringMap.add v [flag] map, flag + 1), tmap)
-  | Ast.Sinferport (v, Ast.Eid r, _) -> let ty = StringMap.find r tmap in
-                      (mapftype v (map, flag) (Gtyp ty), StringMap.add v ty tmap)
+  | Ast.Sinferport (v, r, _) -> (match Nodehelper.type_of_ref r tmap with
+                      | Some ty -> (mapftype v (map, flag) ty, StringMap.add v ty tmap)
+                      | None -> ((map, flag), tmap))
   | Ast.Swhen (_, s1, s2) -> mapstmts (mapstmts ((map, flag), tmap) s1) s2
   | _ -> ((map,flag), tmap)
 
@@ -63,7 +56,7 @@ let rec mapstmt ((map, flag), tmap) stmt =
 
 let mapmod ((map, flag), tmap) m =  
   match m with 
-  | Ast.FInmod (_, pl, sl) -> let ((map0, flag0), tmap0) = mapports ((map, flag),tmap) pl in
+  | Ast.FInmod (_, pl, sl) -> let ((map0, flag0), tmap0) = List.fold_left mapport ((map, flag), tmap) pl in
                               mapstmts ((map0, flag0),tmap0) sl 
   | _ -> ((map, flag), tmap)
 
@@ -248,12 +241,12 @@ let rec trans_stmt s map res tmap =
   | Ast.Sreg (v, r) -> (*printf "%s\n" v;*) 
                 let ns = HiFirrtl.Sreg (Obj.magic (Stdlib.List.hd (StringMap.find v map)), mk_freg (trans_ftype v r.coq_type map) (trans_expr r.clock map) (trans_rst r.reset map)) in
                 HiFirrtl.Qcons (ns, res)
-  | Ast.Sinferport (v, Eid r, e_clock) -> let ty = StringMap.find r tmap in
+  (*| Ast.Sinferport (v, Eid r, e_clock) -> let ty = StringMap.find r tmap in
                                let fv = Obj.magic (Stdlib.List.hd (StringMap.find v map)) in
                                let s1 = HiFirrtl.Sreg (fv, mk_freg (trans_ftype v (Gtyp ty) map) (trans_expr e_clock map) HiFirrtl.NRst) in
                                let s2 = HiFirrtl.Sfcnct(Eid fv, Eref (trans_ref (Eid r) map)) in
                                let s3 = HiFirrtl.Sfcnct(trans_ref (Eid r) map, HiFirrtl.Eref (Eid fv)) in
-                    HiFirrtl.Qcons (s3, Qcons (s2, Qcons (s1, res)))
+                    HiFirrtl.Qcons (s3, Qcons (s2, Qcons (s1, res))*)
   | Ast.Swhen (c, s1, s2) -> let ns = HiFirrtl.Swhen (trans_expr c map, trans_stmts s1 map HiFirrtl.Qnil tmap, trans_stmts s2 map HiFirrtl.Qnil tmap) in
                     HiFirrtl.Qcons (ns, res)
   | _ -> res

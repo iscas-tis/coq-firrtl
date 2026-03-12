@@ -2,6 +2,8 @@ open Arg
 open Hifirrtl_lang
 open Printf
 open Extraction.Semantics
+open Extraction.HiFirrtl
+open Extraction.HiEnv
 
 let args = [
   ]
@@ -20,8 +22,16 @@ let anon in_file =
     let ((map0, flag), tmap_ast) = Transhiast.mapcir flatten_cir in 
     Transhiast.StringMap.iter (fun key value -> output_string oc_fir (key^": ["); Stdlib.List.iter (fprintf oc_fir "%d;") value; output_string oc_fir "]\n") map0;
     let c = Transhiast.trans_cir flatten_cir map0 flag tmap_ast in 
-    Printfir.pp_fcircuit_fir oc_fir v c; close_out oc_fir;
-    (*let _ = expandWhens c in*)
+    output_string oc_fir "\norigin\n";
+    Printfir.pp_fcircuit_fir oc_fir v c;
+    output_string oc_fir "\nafter expandconnects :\n";
+    (match expandconnects c with
+    | Some c_expandconnects -> Printfir_pair.pp_fcircuit_fir oc_fir v c_expandconnects; 
+      output_string oc_fir "\nafter expandwhens :\n";
+      (match expandWhens c_expandconnects with
+      | Some c_expandwhens -> Printfir_pair.pp_fcircuit_fir oc_fir v c_expandwhens; close_out oc_fir;
+      | _ -> output_string stdout "error expandwhens\n"; close_out oc_fir;);
+    | _ -> output_string stdout "error expandconnects\n";);
     ()
 
 let _ = parse args anon usage

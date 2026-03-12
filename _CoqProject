@@ -23,5 +23,4 @@ src/Firrtl.v
 src/Extract.v
 src/HiEnv.v
 src/HiFirrtl.v
-src/InferTypes.v
 src/Semantics.v

@@ -269,7 +269,7 @@ with ffield_mux (f1 f2 : ffield) : option ftype :=
 Fixpoint type_of_hfexpr (e : HiF.hfexpr) (tmap: VM.t (ftype * fcomponent)) : option ftype :=
   match e with
   | Econst t bs => Some (Gtyp t)
-  | Eref r => type_of_ref r tmap 
+  | Eref r => Sem_HiF.type_of_ref r tmap 
   | Ecast AsUInt e1 => match type_of_hfexpr e1 tmap with
                         | Some (Gtyp (Fsint w))
                         | Some (Gtyp (Fuint w)) => Some (Gtyp (Fuint w))
@@ -492,14 +492,14 @@ Fixpoint offset_ref (r : HiF.href) (tmap: VM.t (ftype * fcomponent)) (n : nat) :
   match r with
   | Eid v => Some n
   | Esubindex v i => match offset_ref v tmap n with
-                    | Some os =>  match type_of_ref v tmap with
+                    | Some os =>  match Sem_HiF.type_of_ref v tmap with
                                 | Some (Atyp ty _) => Some (os + i * elements_of_ftype ty + 1)
                                 | _ => None
                                 end
                     | _ => None
                     end
   | Esubfield v f =>  match offset_ref v tmap n with
-                    | Some os => match type_of_ref v tmap with
+                    | Some os => match Sem_HiF.type_of_ref v tmap with
                         | Some (Btyp fs) => let fix aux fx acc :=
                             match fx with
                             | Fflips v' _ ty fxs =>
@@ -764,7 +764,7 @@ Fixpoint eval_hfstmt (st : HiF.hfstmt) (rs ns : VM.t hvalue) (s : VM.t hvalue) (
                 | _ => None
                 end
   | Sfcnct r (Eref ref) => (* 考虑flip和aggr *) 
-            match offset_ref r tmap 0, offset_ref ref tmap 0, type_of_ref r tmap with
+            match offset_ref r tmap 0, offset_ref ref tmap 0, Sem_HiF.type_of_ref r tmap with
             | Some offset_r, Some offset_ref, Some ft => 
                 let base_r := HiF.base_ref r in let base_ref := HiF.base_ref ref in 
                 (* 需要单独讨论连接发生在1个aggr内部 *)
@@ -828,7 +828,7 @@ Fixpoint eval_hfstmt (st : HiF.hfstmt) (rs ns : VM.t hvalue) (s : VM.t hvalue) (
                   | _, _ => None
                   end 
   | Sinvalid r => (* 不考虑flip,考虑aggr *)
-                  match offset_ref r tmap 0, type_of_ref r tmap with
+                  match offset_ref r tmap 0, Sem_HiF.type_of_ref r tmap with
                   | Some offset, Some ft => let new_val := invalidate_ft ft in
                       let base_r := HiF.base_ref r in
                       match VM.find base_r tmap with
@@ -1402,6 +1402,303 @@ End Sem_HiFP.
 Parameter flat_valmap : (VM.t hvalue) -> (VM.t (ftype * fcomponent)) -> PVM.t bits.
 
 Parameter expandConnects : HiF.hfcircuit -> option HiFP.hfcircuit.
+
+Fixpoint expand_inport (v : VarOrder.t) (offset : nat) (flip : bool) (ft : ftype) l : seq (hfport ProdVarOrder.T) :=
+  match ft with 
+  | Gtyp gt => if flip then cons (HiFP.houtport (v, N.of_nat offset) ft) l 
+               else cons (HiFP.hinport (v, N.of_nat offset) ft) l 
+  | Atyp atyp n => let fix expand_inport_array (n : nat) (offset' : nat) l' :=
+        match n with
+        | 0 => l'
+        | n'.+1 => expand_inport_array n' (offset' + (size_of_ftype atyp)) (expand_inport v offset' flip atyp l')
+        end in expand_inport_array n offset l
+  | Btyp btyp => expand_inport_btyp v offset flip btyp l
+  end
+with expand_inport_btyp (v : VarOrder.t) (offset : nat) (flip : bool) (btyp : ffield) l :=
+  match btyp with
+  | Fnil => l 
+  | Fflips _ Nflip ft ff => expand_inport_btyp v (offset + (size_of_ftype ft)) flip ff (expand_inport v offset flip ft l)
+  | Fflips _ Flipped ft ff => expand_inport_btyp v (offset + (size_of_ftype ft)) flip ff (expand_inport v offset (~~ flip) ft l)
+  end.
+
+Definition expand_port p l :=
+    match p with
+    | Finput v t => expand_inport v 0 false t l 
+    | Foutput v t => expand_inport v 0 true t l
+    end.
+
+Fixpoint expand_ports (ps : seq HiF.hfport) l : seq (hfport ProdVarOrder.T) :=
+  match ps with
+  | nil => l
+  | hd :: tl => expand_ports tl (expand_port hd l)
+  end.
+
+Fixpoint expand_wire (v : VarOrder.t) (offset : nat) (ft : ftype) (sts : HiFP.hfstmt_seq) : HiFP.hfstmt_seq :=
+  match ft with 
+  | Gtyp _ => HiFP.qrcons sts (HiFP.swire (v, N.of_nat offset) ft)
+  | Atyp atyp n => let fix expand_wire_array (n : nat) (offset' : nat) l' :=
+        match n with
+        | 0 => l'
+        | n'.+1 => expand_wire_array n' (offset' + (size_of_ftype atyp)) (expand_wire v offset' atyp l')
+        end in expand_wire_array n offset sts
+  | Btyp btyp => expand_wire_btyp v offset btyp sts
+  end
+with expand_wire_btyp (v : VarOrder.t) (offset : nat) (btyp : ffield) (sts : HiFP.hfstmt_seq) : HiFP.hfstmt_seq :=
+  match btyp with
+  | Fnil => sts
+  | Fflips _ _ ft ff => expand_wire_btyp v (offset + (size_of_ftype ft)) ff (expand_wire v offset ft sts)
+  end.
+
+Fixpoint offset_of_subfield_b ft fid n : option nat :=
+  match ft with
+  | Fnil => None
+  | Fflips v fl t fs => if fid == v then Some n else offset_of_subfield_b fs fid (n + size_of_ftype t)
+  end.
+
+(* offset of subfield/subindex recursive to the base ref *)
+Fixpoint offset_ref (r : href VarOrder.T) tmap : option nat :=
+  match r with
+  | Eid v => Some 0
+  | Esubindex v i => match Sem_HiF.type_of_ref v tmap with
+      | Some (Atyp atyp _) => Some (offset_ref v tmap + i * (size_of_ftype atyp))
+      | _ => None
+      end
+  | Esubfield v f => match offset_ref v tmap, Sem_HiF.type_of_ref v tmap with
+      | Some n, Some (Btyp ft) => offset_of_subfield_b ft f n
+      | _, _ => None
+      end
+  | Esubaccess v e => None (* not supported yet *)
+  end.
+
+Fixpoint base_id (r : href VarOrder.T) : VarOrder.T :=
+  match r with
+  | Eid v => v 
+  | Esubindex v i => base_id v 
+  | Esubfield v f => base_id v 
+  | Esubaccess v e => base_id v 
+  end.
+
+Definition ref2pv (r : href VarOrder.T) (tmap : VM.t (ftype * fcomponent)) : option ProdVarOrder.t :=
+  let base_v := base_id r in
+  match offset_ref r tmap with
+  | Some os => Some (base_v, N.of_nat os)
+  | None => None
+  end. (* r中包含的第一个ground type的名 *)
+
+Fixpoint expand_ground_expr (e : hfexpr VarOrder.T) (tmap :  VM.t (ftype * fcomponent)) : option (hfexpr ProdVarOrder.T) :=
+  match e with
+  | Eref ref => match ref2pv ref tmap with
+      | Some pv => Some (Eref (Eid pv))
+      | _ => None
+      end
+  | Econst gt bs => Some (Econst _ gt bs)
+  | Ecast c e0 => match expand_ground_expr e0 tmap with
+      | Some e0' => Some (Ecast c e0')
+      | _ => None
+      end
+  | Eprim_unop op e0 => match expand_ground_expr e0 tmap with
+      | Some e0' => Some (Eprim_unop op e0')
+      | _ => None
+      end
+  | Eprim_binop op e0 e1 => match expand_ground_expr e0 tmap, expand_ground_expr e1 tmap with
+      | Some e0', Some e1' => Some (Eprim_binop op e0' e1')
+      | _,_ => None
+      end
+  | Emux c e0 e1 => match expand_ground_expr c tmap, expand_ground_expr e0 tmap, expand_ground_expr e1 tmap with
+      | Some c', Some e0', Some e1' => Some (Emux c' e0' e1')
+      | _, _,_ => None
+      end
+  end.
+
+Fixpoint expand_reg_nrst (v : VarOrder.t) (offset : nat) (ft : ftype) (clk : hfexpr ProdVarOrder.T) (tmap :  VM.t (ftype * fcomponent)) (sts : HiFP.hfstmt_seq) : option HiFP.hfstmt_seq :=
+  match ft with 
+  | Gtyp _ => Some (HiFP.qrcons sts (HiFP.sreg (v, N.of_nat offset) (mk_freg ft clk (NRst _))))
+  | Atyp atyp n => let fix expand_reg_nrst_array (n : nat) (offset' : nat) l' :=
+        match n with
+        | 0 => Some l'
+        | n'.+1 => match expand_reg_nrst v offset' atyp clk tmap l' with
+            | Some sts' => expand_reg_nrst_array n' (offset' + (size_of_ftype atyp)) sts'
+            | _ => None
+            end
+        end in expand_reg_nrst_array n offset sts
+  | Btyp btyp => expand_reg_nrst_btyp v offset btyp clk tmap sts
+  end
+with expand_reg_nrst_btyp (v : VarOrder.t) (offset : nat) (btyp : ffield) clk (tmap :  VM.t (ftype * fcomponent)) (sts : HiFP.hfstmt_seq) : option HiFP.hfstmt_seq :=
+  match btyp with
+  | Fnil => Some sts
+  | Fflips _ _ ft ff => match expand_reg_nrst v offset ft clk tmap sts with
+      | Some sts' => expand_reg_nrst_btyp v (offset + (size_of_ftype ft)) ff clk tmap sts'
+      | _ => None
+      end
+  end.
+
+Fixpoint list_ref (n : nat) (pv : ProdVarOrder.t) l : seq ProdVarOrder.t :=
+  match n with
+  | 0 => l
+  | S n' => list_ref n' (fst pv, N.add (snd pv) 1%num) (cons pv l)
+  end.
+
+Fixpoint list_emux (c : HiFP.hfexpr) (ze : seq (HiFP.hfexpr * HiFP.hfexpr)) : seq HiFP.hfexpr :=
+  match ze with
+  | nil => nil
+  | (e1, e2) :: zes => cons (HiFP.emux c e1 e2) (list_emux c zes) 
+  end.
+
+Fixpoint list_expr (e : HiF.hfexpr) (tmap : VM.t (ftype * fcomponent)) : option (seq HiFP.hfexpr) :=
+  match e with
+  | Eref ref => match Sem_HiF.type_of_ref ref tmap, ref2pv ref tmap with
+      | Some ft, Some pv => Some (map (fun temp_pv => Eref (Eid temp_pv)) (list_ref (size_of_ftype ft)  pv nil))
+      | _, _ => None
+      end
+  | Emux c e1 e2 => match expand_ground_expr c tmap, list_expr e1 tmap, list_expr e2 tmap with
+      | Some c', Some l1, Some l2 => Some (list_emux c' (zip l1 l2) )
+      | _, _, _ => None
+      end
+  | _ => match expand_ground_expr e tmap with
+      | Some e' => Some [::e']
+      | _ => None
+      end
+  end.
+
+Fixpoint list_ftype (ft : ftype) (l : list ftype) : list ftype :=
+    match ft with
+    | Gtyp t => cons ft l
+    | Atyp t n => (flatten (List.repeat (list_ftype t nil) n)) ++ l
+    | Btyp b => ftype_list_btyp_all b l
+    end
+  with ftype_list_btyp_all (b : ffield) (l : list ftype) : list ftype :=
+         match b with
+         | Fnil => l
+         | Fflips v fl t fs => ftype_list_btyp_all fs (list_ftype t l)
+         end.
+
+Fixpoint expand_reg_rst (n : nat) (v : VarOrder.t) (clk rst_sig : hfexpr ProdVarOrder.T) (rst_val : seq (hfexpr ProdVarOrder.T)) (ft_l : seq ftype) (sts : HiFP.hfstmt_seq) : option HiFP.hfstmt_seq :=
+  match n, rst_val, ft_l with
+  | 0, nil, nil => Some sts
+  | S n', hd :: tl, ft :: ft_l' => expand_reg_rst n' v clk rst_sig tl ft_l' (HiFP.qcons (HiFP.sreg (v, N.of_nat n') (mk_freg ft clk (Rst rst_sig hd))) sts)
+  | _, _, _ => None
+  end.
+
+Definition expand_reg (v : VarOrder.t) (r : hfreg VarOrder.T) (tmap : VM.t (ftype * fcomponent)) (sts : HiFP.hfstmt_seq) : option HiFP.hfstmt_seq :=
+  match r with
+  | mk_freg ft clk NRst => match expand_ground_expr clk tmap with
+      | Some clk_p => expand_reg_nrst v 0 ft clk_p tmap sts
+      | _ => None
+      end
+  | mk_freg (Gtyp gt) clk (Rst rst_sig rst_val) => 
+      match expand_ground_expr clk tmap, expand_ground_expr rst_sig tmap, expand_ground_expr rst_val tmap with
+      | Some clk_p, Some rst_sig_p, Some rst_val_p => Some (HiFP.qrcons sts (HiFP.sreg (v, 0%num) (mk_freg (Gtyp gt) clk_p (Rst rst_sig_p rst_val_p))))
+      | _, _, _ => None
+      end
+  | mk_freg ft clk (Rst rst_sig rst_val) => match expand_ground_expr clk tmap, expand_ground_expr rst_sig tmap, list_expr rst_val tmap with
+      | Some clk_p, Some rst_sig_p, Some rst_val_l => expand_reg_rst (size_of_ftype ft) v clk_p rst_sig_p rst_val_l (list_ftype ft nil) sts
+      | _, _, _ => None
+      end
+  end.
+
+Fixpoint expand_invalid (n : nat) (pv : ProdVarOrder.t) (sts : HiFP.hfstmt_seq) : option HiFP.hfstmt_seq :=
+  match n with
+  | 0 => Some sts
+  | S n' => expand_invalid n' (fst pv, N.add (snd pv) 1%num) (HiFP.qcons (HiFP.sinvalid (Eid pv)) sts)
+  end.
+
+Fixpoint expand_node (v : VarOrder.t) (offset : nat) (el : seq HiFP.hfexpr) (sts : HiFP.hfstmt_seq) : option HiFP.hfstmt_seq :=
+  match el with
+  | nil => Some sts
+  | hd :: tl => expand_node v (offset + 1) tl (HiFP.qrcons sts (HiFP.snode (v, N.of_nat offset) hd))
+  end.
+
+Fixpoint expand_fcnct_nflip (pv : ProdVarOrder.t) (el : seq HiFP.hfexpr) (sts : HiFP.hfstmt_seq) : option HiFP.hfstmt_seq :=
+  match el with
+  | nil => Some sts
+  | hd :: tl => expand_fcnct_nflip (fst pv, N.add (snd pv) 1%num) tl (HiFP.qrcons sts (HiFP.sfcnct (Eid pv) hd))
+  end.
+
+Fixpoint expand_fcnct (pv0 pv1 : ProdVarOrder.t) (offset : nat) (flip : bool) (ft : ftype) (sts : HiFP.hfstmt_seq) : option HiFP.hfstmt_seq :=
+  match ft with 
+  | Gtyp _ => if flip then Some (HiFP.qrcons sts (HiFP.sfcnct (HiFP.eid (fst pv1, (snd pv1) + (N.of_nat offset))%num) 
+                  (Eref (HiFP.eid (fst pv0, N.add (snd pv0) (N.of_nat offset))))))
+              else Some (HiFP.qrcons sts (HiFP.sfcnct (HiFP.eid (fst pv0, N.add (snd pv0) (N.of_nat offset))) 
+                  (Eref (HiFP.eid (fst pv1, N.add (snd pv1) (N.of_nat offset))))))
+  | Atyp atyp n => let fix expand_fcnct_array (n : nat) (offset' : nat) l' :=
+        match n with
+        | 0 => Some l'
+        | n'.+1 => match expand_fcnct pv0 pv1 offset' flip atyp l' with
+            | Some sts' => expand_fcnct_array n' (offset' + (size_of_ftype atyp)) sts'
+            | _ => None
+            end
+        end in expand_fcnct_array n offset sts
+  | Btyp btyp => expand_fcnct_btyp pv0 pv1 offset flip btyp sts
+  end
+with expand_fcnct_btyp (pv0 pv1 : ProdVarOrder.t) (offset : nat) flip (btyp : ffield) (sts : HiFP.hfstmt_seq) : option HiFP.hfstmt_seq :=
+  match btyp with
+  | Fnil => Some sts
+  | Fflips _ Nflip ft ff => match expand_fcnct pv0 pv1 offset flip ft sts with
+      | Some sts' => expand_fcnct_btyp pv0 pv1 (offset + (size_of_ftype ft)) flip ff sts'
+      | _ => None
+      end
+  | Fflips _ Flipped ft ff => match expand_fcnct pv0 pv1 (~~ flip) flip ft sts with
+      | Some sts' => expand_fcnct_btyp pv0 pv1 (offset + (size_of_ftype ft)) flip ff sts'
+      | _ => None
+      end
+  end.
+
+Fixpoint expandconnects_stmt (s : HiF.hfstmt) (tmap : VM.t (ftype * fcomponent)) (sts : HiFP.hfstmt_seq) : option HiFP.hfstmt_seq :=
+  match s with
+  | Sskip 
+  | Smem _ _ (* how to expand? *)
+  | Sinst _ _ (* how to expand? *) => Some (HiFP.qrcons sts HiFP.sskip)
+  | Swire v t => Some (expand_wire v 0 t sts)
+  | Sreg v r => expand_reg v r tmap sts
+  | Sinvalid ref => match Sem_HiF.type_of_ref ref tmap, ref2pv ref tmap with
+      | Some ft, Some pv => expand_invalid (size_of_ftype ft) pv sts
+      | _, _ => None
+      end
+  | Snode v e => match list_expr e tmap with
+      | Some el => expand_node v 0 (rev el) sts
+      | _ => None
+      end
+  | Sfcnct ref0 (Eref ref1) => match ref2pv ref0 tmap, ref2pv ref1 tmap, Sem_HiF.type_of_ref ref0 tmap with
+      | Some pv0, Some pv1, Some ft => expand_fcnct pv0 pv1 0 false ft sts 
+      | _, _, _ => None
+      end
+  | Sfcnct ref e => match ref2pv ref tmap, list_expr e tmap with
+      | Some pv, Some el => expand_fcnct_nflip pv (rev el) sts
+      | _,_ => None
+      end
+  | Swhen c ss1 ss2 => match expand_ground_expr c tmap, expandconnects_stmts ss1 tmap HiFP.qnil, expandconnects_stmts ss2 tmap HiFP.qnil with
+      | Some c', Some ss1', Some ss2' => Some (HiFP.qrcons sts (Swhen c' ss1' ss2'))
+      | _, _, _ => None
+      end
+  end
+with expandconnects_stmts (ss : HiF.hfstmt_seq) (tmap : VM.t (ftype * fcomponent)) (sts : HiFP.hfstmt_seq) : option HiFP.hfstmt_seq :=
+  match ss with
+  | Qnil => Some sts
+  | Qcons s ss =>
+    match expandconnects_stmt s tmap sts with
+    | Some sts' => expandconnects_stmts ss tmap sts'
+    | None => None
+    end
+  end.
+
+Definition expandconnects_fmodule (m : HiF.hfmodule) (tmap : VM.t (ftype * fcomponent)) : option HiFP.hfmodule :=
+    match m with
+    | FInmod v ps ss => let ps' := expand_ports ps nil in
+        match expandconnects_stmts ss tmap HiFP.qnil with
+        | Some sts => Some (HiFP.hfinmod (v, N0) (rev ps') sts)
+        | _ => None
+        end
+    | m => None
+    end.
+
+Definition expandconnects (c : HiF.hfcircuit) : option HiFP.hfcircuit :=
+  match c, Sem_HiF.circuit_tmap c with
+  | Fcircuit v [:: m], Some tmap => match expandconnects_fmodule m tmap with
+    | Some fm => Some (HiFP.fcircuit (v,N0) [:: fm])
+    | _ => None
+    end
+  | _, _ => None
+  end.
 
 Theorem Sem_preservation_expandConnects : 
 (* Proves pass expandConnects preserves the semantics *)

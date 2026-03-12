@@ -19,5 +19,5 @@ Separate Extraction
          (*LoFirrtl.run_module0 LoFirrtl.run_module
          LoFirrtl.no_mem_run_module_inline LoFirrtl.no_mem_run_module0_inline
          LoFirrtl.no_mem_run_module LoFirrtl.no_mem_run_module0 *)
-         Semantics.expandWhens.
+         Semantics.expandconnects Semantics.expandWhens.
 Cd "../../..".

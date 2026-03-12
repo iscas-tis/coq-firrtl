@@ -7,11 +7,7 @@ circuit MyModule:
     input en: UInt<1>
     wire x: UInt
     when en :
-    {
       connect x, a
-    }
     else :
-    {
       connect x, b
-    }
   ;; snippetend

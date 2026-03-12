@@ -1892,7 +1892,7 @@ Proof.
 
   (** decide the type and width of hifirrtl expressions *)
 
-  Parameter v2var : V.t -> Var.var.
+  (*Parameter v2var : V.t -> Var.var.*)
 
   Definition def_ftype := Gtyp (Fuint 0).
 
@@ -1932,7 +1932,7 @@ Proof.
     end.
 
   (* type of ref expressions *)
-  Fixpoint type_of_ref r ce : ftype :=
+  (*Fixpoint type_of_ref r ce : ftype :=
     match r with
     | Eid v => type_of_cmpnttyp (fst (CE.vtyp v ce))
     | Esubfield r v => let t := type_of_ref r ce in
@@ -1957,7 +1957,7 @@ Proof.
                         | Atyp ty n => ty
                         | _ => def_ftype
                         end
-    end.
+    end.*)
 
   Fixpoint base_ref r : V.t :=
     match r with
@@ -1976,7 +1976,7 @@ Proof.
     end.
 
   (* type of expression *)
-  Fixpoint type_of_hfexpr (e : hfexpr) (ce : cenv) : ftype :=
+  (*Fixpoint type_of_hfexpr (e : hfexpr) (ce : cenv) : ftype :=
     match e with
     | Econst t bs => Gtyp t
     | Eref r => type_of_ref r ce
@@ -2138,7 +2138,7 @@ Proof.
                       let t2 := type_of_hfexpr e2 ce in
                       mux_types t1 t2
     (* | Evalidif c e1 => type_of_hfexpr e1 ce *)
-    end.
+    end.*)
 
 
   (********************************************************************************)
@@ -2274,13 +2274,13 @@ Proof.
                                              (upd_name_ffield fs v t)
          end.
 
-  Lemma upd_type_equiv :
+  (*Lemma upd_type_equiv :
     forall t r v ce, ~~ is_deftyp (type_of_hfexpr (eref (esubfield r v)) ce) ->
                      ftype_equiv (type_of_hfexpr (eref (esubfield r v)) ce) t ->
                      ftype_equiv (base_type_of_ref r ce)
                                  (upd_name_ftype (base_type_of_ref r ce) (v2var v) t).
   Proof.
-  Admitted.
+  Admitted.*)
 
   Fixpoint upd_vectyp vt t : ftype :=
     match vt with
@@ -2289,12 +2289,12 @@ Proof.
     | Btyp bt => Btyp bt
     end.
 
-  Lemma upd_vectyp_equiv :
+  (*Lemma upd_vectyp_equiv :
     forall t r n ce, ftype_equiv (type_of_hfexpr (eref (esubaccess r n)) ce) t ->
                      ftype_equiv (base_type_of_ref r ce)
                                  (upd_vectyp (base_type_of_ref r ce) t).
   Proof.
-  Admitted.
+  Admitted.*)
 
   Fixpoint typeConstraints (f1 f2 : nat -> nat -> bool) (t1 t2 : ftype) : bool :=
     match t1, t2 with
@@ -2392,6 +2392,7 @@ Module MakeHiFirrtlP
   Definition hfstmt_seq := hfstmt_seq V.T.
   Definition qnil := Qnil V.T.
   Definition qcons s ss := @Qcons V.T s ss.
+  Definition qrcons s ss := @Qrcons V.T s ss.
   Definition sskip := @Sskip V.T.
   Definition swire v t := @Swire V.T v t.
   Definition sreg v r := @Sreg V.T v r.
@@ -2419,6 +2420,7 @@ Module MakeHiFirrtlP
   Definition hfmodule := @hfmodule V.T.
   Definition hfinmod v ps ss := @FInmod V.T v ps ss.
   Definition hfexmod v ps ss := @FExmod V.T v ps ss.
+  Definition fcircuit v ml := @Fcircuit V.T v ml.
   Definition hfcircuit := @hfcircuit V.T.
 
   Definition rhs_expr := rhs_expr' V.T.
@@ -2840,7 +2842,7 @@ Section Preprocess.
     (em'', HiFP.mk_hfmem tp d mp' mp'' rl wl rw).
 
   (* translate original prog to the one with pvar, subfield/subindex references are represented by pair of ids, e.g. a.b => (a, offset of b) *)
-  Fixpoint hfstmt_indexes (* (g : generator) *) (em : eid_map) (ce : CE.env) (h : HiF.hfstmt) : (* generator **) eid_map * CE.env * HiFP.hfstmt :=
+  (*Fixpoint hfstmt_indexes (* (g : generator) *) (em : eid_map) (ce : CE.env) (h : HiF.hfstmt) : (* generator **) eid_map * CE.env * HiFP.hfstmt :=
     match h with
     | Swire v t => ( PVM.add (v, initial_index) (HiF.eid v) em, CE.add v (HiF.aggr_typ t, Wire) ce, HiFP.swire (v, initial_index) t)
     | Sreg v r => (PVM.add (v, initial_index) (HiF.eid v) em, CE.add v (HiF.reg_typ r, Register) ce, HiFP.sreg (v, initial_index) (hfreg_pvar em ce r))
@@ -2859,7 +2861,7 @@ Section Preprocess.
          match s with
          | Qnil => (em, ce, HiFP.qnil)
          | Qcons s ss => hfstmt_seq_indexes (fst (fst (hfstmt_indexes em ce s))) (snd (fst (hfstmt_indexes em ce s))) ss
-         end.
+         end.*)
 
   (* (*indexed by nested pair*) *)
   (* Inductive pindex : Type := *)
