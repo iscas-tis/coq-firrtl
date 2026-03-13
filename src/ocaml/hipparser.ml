@@ -14,7 +14,7 @@ let anon in_file =
   let hif_ast = (Parser.hiparse in_file) in 
 
   let flatten_cir = Inline.inline_cir stdout hif_ast in 
-  let oc_fir = open_out (Transhiast.process_string in_file "_cons.txt") in
+  let oc_fir = (*open_out (Transhiast.process_string in_file "_cons.txt"*) stdout in
 
   Ast.pp_fcircuit oc_fir flatten_cir;
   match flatten_cir with

@@ -1459,9 +1459,9 @@ Fixpoint offset_of_subfield_b ft fid n : option nat :=
 Fixpoint offset_ref (r : href VarOrder.T) tmap : option nat :=
   match r with
   | Eid v => Some 0
-  | Esubindex v i => match Sem_HiF.type_of_ref v tmap with
-      | Some (Atyp atyp _) => Some (offset_ref v tmap + i * (size_of_ftype atyp))
-      | _ => None
+  | Esubindex v i => match Sem_HiF.type_of_ref v tmap, offset_ref v tmap with
+      | Some (Atyp atyp _), Some n => Some (n + i * (size_of_ftype atyp))
+      | _,_ => None
       end
   | Esubfield v f => match offset_ref v tmap, Sem_HiF.type_of_ref v tmap with
       | Some n, Some (Btyp ft) => offset_of_subfield_b ft f n
@@ -1547,7 +1547,7 @@ Fixpoint list_emux (c : HiFP.hfexpr) (ze : seq (HiFP.hfexpr * HiFP.hfexpr)) : se
 Fixpoint list_expr (e : HiF.hfexpr) (tmap : VM.t (ftype * fcomponent)) : option (seq HiFP.hfexpr) :=
   match e with
   | Eref ref => match Sem_HiF.type_of_ref ref tmap, ref2pv ref tmap with
-      | Some ft, Some pv => Some (map (fun temp_pv => Eref (Eid temp_pv)) (list_ref (size_of_ftype ft)  pv nil))
+      | Some ft, Some pv => Some (map (fun temp_pv => Eref (Eid temp_pv)) (list_ref (size_of_ftype ft) pv nil))
       | _, _ => None
       end
   | Emux c e1 e2 => match expand_ground_expr c tmap, list_expr e1 tmap, list_expr e2 tmap with
@@ -1599,7 +1599,7 @@ Definition expand_reg (v : VarOrder.t) (r : hfreg VarOrder.T) (tmap : VM.t (ftyp
 Fixpoint expand_invalid (n : nat) (pv : ProdVarOrder.t) (sts : HiFP.hfstmt_seq) : option HiFP.hfstmt_seq :=
   match n with
   | 0 => Some sts
-  | S n' => expand_invalid n' (fst pv, N.add (snd pv) 1%num) (HiFP.qcons (HiFP.sinvalid (Eid pv)) sts)
+  | S n' => expand_invalid n' (fst pv, N.add (snd pv) 1%num) (HiFP.qrcons sts (HiFP.sinvalid (Eid pv)))
   end.
 
 Fixpoint expand_node (v : VarOrder.t) (offset : nat) (el : seq HiFP.hfexpr) (sts : HiFP.hfstmt_seq) : option HiFP.hfstmt_seq :=
