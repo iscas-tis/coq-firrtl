@@ -55,9 +55,12 @@ let rec pp_ref_fir out ref =
 let rec pp_expr_fir out e =
   match e with
   | HiFirrtl.Econst (gt, bs) -> (match gt with
-                          | Env.Fuint n -> pp_fgtyp_fir out gt; fprintf out "(%s)" (string_of_big_int  (nat_of_bits bs))
-                          | Env.Fsint n -> pp_fgtyp_fir out gt; fprintf out "(%s)" (string_of_big_int  (z_of_bits bs))
-                          | _ -> printf "error const expression\n")
+                          | Env.Fuint n -> pp_fgtyp_fir out gt; fprintf out "(%s)" (string_of_big_int (nat_of_bits bs))
+                          | Env.Fsint n -> pp_fgtyp_fir out gt; fprintf out "(%s)" (string_of_big_int (z_of_bits bs))
+                          | Env.Fclock -> pp_fgtyp_fir out gt; fprintf out "(%s)" (string_of_big_int (z_of_bits bs))
+                          | Env.Freset -> pp_fgtyp_fir out gt; fprintf out "(%s)" (string_of_big_int (z_of_bits bs))
+                          | Env.Fasyncreset -> pp_fgtyp_fir out gt; fprintf out "(%s)" (string_of_big_int (z_of_bits bs)))
+                            (*printf "error const expression\n")*)
   | HiFirrtl.Ecast (c, e0) -> (match c with
                           | Firrtl.AsUInt -> fprintf out "asUInt("; pp_expr_fir out e0; fprintf out ")"
                           | Firrtl.AsSInt -> fprintf out "asSInt("; pp_expr_fir out e0; fprintf out ")"

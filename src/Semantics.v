@@ -1024,7 +1024,14 @@ Fixpoint type_of_hfexpr (e : HiFP.hfexpr) (tmap: PVM.t (fgtyp * fcomponent)) : o
                     | _ => None
                     end
   | Eref _ => None
-  | Ecast AsUInt e1 
+  | Ecast AsUInt e1 => match type_of_hfexpr e1 tmap with
+                        | Some (Fsint w)
+                        | Some (Fuint w) => Some (Fuint w)
+                        | Some Fclock
+                        | Some Freset
+                        | Some Fasyncreset => Some (Fuint 1)
+                        | _ => None
+                        end
   | Ecast AsSInt e1 => match type_of_hfexpr e1 tmap with
                         | Some (Fsint w)
                         | Some (Fuint w) => Some (Fsint w)
@@ -1778,10 +1785,15 @@ Definition combine_when_connections
                           else Some (D_fexpr (Emux cond te fe))
                       | None, _ => false_expr 
                       | _, None => true_expr
-                      | Some (D_invalidated gt), Some (D_fexpr fe) => Some (D_fexpr (Emux cond (Sem_HiFP.indeterminate_cst gt) fe)) 
-                      | Some (D_fexpr te), Some (D_invalidated gt) => Some (D_fexpr (Emux cond te (Sem_HiFP.indeterminate_cst gt))) 
+                      | Some (D_invalidated gt), Some (D_fexpr fe) => 
+                          if (Sem_HiFP.indeterminate_cst gt) == fe then Some (D_fexpr fe)
+                          else Some (D_fexpr (Emux cond (Sem_HiFP.indeterminate_cst gt) fe)) 
+                      | Some (D_fexpr te), Some (D_invalidated gt) => 
+                          if te == (Sem_HiFP.indeterminate_cst gt) then Some (D_fexpr te)
+                          else Some (D_fexpr (Emux cond te (Sem_HiFP.indeterminate_cst gt))) 
                       | Some (D_invalidated gt0), Some (D_invalidated gt1) => 
-                          Some (D_fexpr (Emux cond (Sem_HiFP.indeterminate_cst gt0) (Sem_HiFP.indeterminate_cst gt1)))
+                          if gt0 == gt1 then Some (D_fexpr (Sem_HiFP.indeterminate_cst gt0))
+                          else Some (D_fexpr (Emux cond (Sem_HiFP.indeterminate_cst gt0) (Sem_HiFP.indeterminate_cst gt1)))
                       end)
              true_conn_map false_conn_map.
 (*
@@ -3815,7 +3827,7 @@ Proof. (* mux对长度有要求，但一般情况并不检查 *)
   destruct (Sem_HiFP.eval_hfexpr cond init_s tmap) as [valc|] eqn : Hcond; try done. 
 Admitted.
 
-Lemma eval_hfstmts_ExpandBranches_funs_find_for_comb_helper v gt init_s tmap :
+(*Lemma eval_hfstmts_ExpandBranches_funs_find_for_comb_helper v gt init_s tmap :
   PVM.find v tmap = Some (gt, Out_port) \/ PVM.find v tmap = Some (gt, Wire) ->
   forall (ss : HiFP.hfstmt_seq) (rs s rs0 s0 : PVM.t bits),
     (~ exists r, Qin (Sreg v r) ss) /\ (~ exists e, Qin (Snode v e) ss) -> 
@@ -4585,4 +4597,4 @@ Proof.
   specialize func_type_included_eval_hfstmts as Hhelper. apply Hhelper with (tmap := tmap) in Hexpand_branches. clear Hhelper.
   unfold func_type_included in Hexpand_branches. apply (Hexpand_branches _ _ _ _ _ _ Hfst_do_this Hregval) in Hregval_new.
   move : Hregval_new => [_ Hregval_new]. done.
-Admitted.
+Admitted.*)

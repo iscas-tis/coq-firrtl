@@ -30,7 +30,23 @@ let anon in_file =
       output_string oc_fir "\nafter expandwhens :\n";
       (match expandWhens c_expandconnects with
       | Some c_expandwhens -> Printfir_pair.pp_fcircuit_fir oc_fir v c_expandwhens; close_out oc_fir;
-      | _ -> output_string stdout "error expandwhens\n"; close_out oc_fir;);
+      | _ -> output_string stdout "error expandwhens\n"; close_out oc_fir;)
+      (*match c_expandconnects with
+        | Fcircuit (fv, l) ->
+          (match l with
+           | [] -> output_string oc_fir "expandwhens find empty module list\n"
+           | m :: l0 ->
+             (match l0 with
+              | [] ->
+                (match Sem_HiFP.circuit_tmap (Fcircuit (fv, (m :: []))) with
+                 | Some tmap -> output_string oc_fir "expandwhens tmap is built\n"
+                   (*match coq_ExpandWhens_fun m tmap with
+                    | Some fm -> Some (Fcircuit (fv, (fm :: [])))
+                    | None -> None*)
+                 | None -> output_string oc_fir "expandwhens build tmap fail\n")
+              | _ :: _ -> output_string oc_fir "expandwhens find two long module list\n"))
+      *)
+      ;
     | _ -> output_string stdout "error expandconnects\n";);
     ()
 
