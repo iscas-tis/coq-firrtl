@@ -115,11 +115,23 @@ module StringMap = Map.Make(String)
                      | None -> None)
                else None)))
 
+let binary_length (signed : bool) (n: Z.t) : int =
+if n = Z.zero then 1  (* 特殊情况：0 的补码表示为 "0"，长度为 1 *)
+else let bits = Z.numbits (Z.abs n) in
+  if signed then
+    if n > Z.zero then
+      bits + 1
+    else if (Z.popcount (Z.abs n)) = 1 then bits
+      else bits + 1
+  else bits
+  
   (** val type_of_hfexpr :
       HiF.hfexpr -> (ftype * fcomponent) VM.t -> ftype option **)
 
   let rec type_of_hfexpr e tmap =
     match e with
+    | Ast.Econst (Ast.Fuint_implicit _, bs) -> Some (Ast.Gtyp (Fuint (binary_length false bs)))
+    | Ast.Econst (Fsint_implicit _, bs) -> Some (Ast.Gtyp (Fsint (binary_length true bs)))
     | Ast.Econst (t0, _) -> Some (Ast.Gtyp t0)
     | Ecast (u, e1) ->
       (match u with

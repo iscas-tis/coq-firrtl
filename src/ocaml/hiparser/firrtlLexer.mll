@@ -37,6 +37,9 @@ and token = parse
 | '@'                                   { upd_cnum lexbuf; line_comment lexbuf }
 | ';'                                   { upd_cnum lexbuf; line_comment lexbuf }
 | "FIRRTL version"                      { upd_cnum lexbuf; line_comment lexbuf }
+| "stop"                                { upd_cnum lexbuf; line_comment lexbuf }
+| "printf"                              { upd_cnum lexbuf; line_comment lexbuf }
+| "cover"                               { upd_cnum lexbuf; line_comment lexbuf }
 | "%[[" comment_line' "]]"              { upd_cnum lexbuf; line_comment lexbuf }
 | '('                                   { upd_cnum lexbuf; PAR_OPEN }
 | ')'                                   { upd_cnum lexbuf; PAR_CLOSE }
