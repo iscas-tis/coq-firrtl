@@ -1926,22 +1926,22 @@ Definition ExpandWhens_fun
     (* Expand When statements in a module *)
     (m : HiFP.hfmodule) (* module that needs to be handled *)
     (tmap : PVM.t (fgtyp * fcomponent))
-:   option HiFP.hfmodule (* result is either a semantically equivalent module without when statements,
+:   option (HiFP.hfmodule * PVM.t def_expr) (* result is either a semantically equivalent module without when statements,
                             or nothing if there was some error *)
 :=  match m with
     | FInmod v pp ss =>
         match ExpandBranches_funs ss (PVM.empty def_expr) tmap with
             | Some conn_map =>
-                Some (FInmod v pp (Qcat (component_stmts_of ss) (convert_to_connect_stmts conn_map)))
+                Some (FInmod v pp (Qcat (component_stmts_of ss) (convert_to_connect_stmts conn_map)), conn_map)
             | None => None
             end
     | FExmod _ _ _ => None
     end.
 
-Definition expandWhens (c : HiFP.hfcircuit) : option HiFP.hfcircuit :=
+Definition expandWhens (c : HiFP.hfcircuit) : option (HiFP.hfcircuit * PVM.t def_expr) :=
   match c, Sem_HiFP.circuit_tmap c with
   | Fcircuit v [:: m], Some tmap => match ExpandWhens_fun m tmap with
-    | Some fm => Some (Fcircuit v [:: fm])
+    | Some (fm, conn_map) => Some (Fcircuit v [:: fm], conn_map)
     | _ => None
     end
   | _, _ => None
@@ -2040,7 +2040,7 @@ Proof.
   simpl; intros. destruct (Sem_HiFP.stmt_tmap' pmap h); try done.
 Qed.
 
-Lemma ExpandWhens_fun_tmap_eq m tmap : Sem_HiFP.module_tmap (PVM.empty (fgtyp * fcomponent)) m = Some tmap -> 
+(*Lemma ExpandWhens_fun_tmap_eq m tmap : Sem_HiFP.module_tmap (PVM.empty (fgtyp * fcomponent)) m = Some tmap -> 
   forall fm, ExpandWhens_fun m tmap = Some fm -> Sem_HiFP.module_tmap (PVM.empty (fgtyp * fcomponent)) fm = Some tmap.
 Proof.
   intros Htmap fm Hexpand. destruct m as [mv ps ss|]; try discriminate. simpl in *.
@@ -3827,7 +3827,7 @@ Proof. (* mux对长度有要求，但一般情况并不检查 *)
   destruct (Sem_HiFP.eval_hfexpr cond init_s tmap) as [valc|] eqn : Hcond; try done. 
 Admitted.
 
-(*Lemma eval_hfstmts_ExpandBranches_funs_find_for_comb_helper v gt init_s tmap :
+Lemma eval_hfstmts_ExpandBranches_funs_find_for_comb_helper v gt init_s tmap :
   PVM.find v tmap = Some (gt, Out_port) \/ PVM.find v tmap = Some (gt, Wire) ->
   forall (ss : HiFP.hfstmt_seq) (rs s rs0 s0 : PVM.t bits),
     (~ exists r, Qin (Sreg v r) ss) /\ (~ exists e, Qin (Snode v e) ss) -> 

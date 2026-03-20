@@ -8,6 +8,13 @@ let initmap_s = StringMap.empty
 module IntMap = Map.Make(Stdlib.Int)
 let initmap_i = IntMap.empty
 
+module IntPair = struct
+  type t = int * int
+  let compare = Stdlib.compare
+end
+ 
+module IntPairMap = Map.Make(IntPair)
+
 let rec mapbtyp_helper v (map, flag, flag') ft = (* 这里flag是list，flag'是int *)
   match ft with
   | Ast.Gtyp _ -> (StringMap.add v (flag' :: flag) map, flag' + 1)
@@ -29,40 +36,46 @@ match ft with
 | Ast.Btyp btyp -> let (map0, _, _) = mapbtyp v (StringMap.add v [flag] map, [flag], 0) btyp in
                    (map0, flag + 1)
   
-let mapport ((map, flag), tmap) p = 
+let mapport (((map, map_i), flag), tmap) p = 
   match p with
-  | Ast.Finput (v, ty) -> (mapftype v (map, flag) ty, StringMap.add v ty tmap)
-  | Ast.Foutput (v, ty) -> (mapftype v (map, flag) ty, StringMap.add v ty tmap)
+  | Ast.Finput (v, ty) -> let (map0, flag0) = mapftype v (map, flag) ty in 
+                          (((map0, IntMap.add flag v map_i), flag0), StringMap.add v ty tmap)
+  | Ast.Foutput (v, ty) -> let (map0, flag0) = mapftype v (map, flag) ty in 
+                          (((map0, IntMap.add flag v map_i), flag0), StringMap.add v ty tmap)
 
-let rec mapstmt ((map, flag), tmap) stmt = 
+let rec mapstmt (((map, map_i), flag), tmap) stmt = 
   match stmt with
-  | Ast.Swire (v, ty) -> (mapftype v (map, flag) ty, StringMap.add v ty tmap)
-  | Ast.Sreg (v, r) -> (mapftype v (map, flag) r.coq_type, StringMap.add v r.coq_type tmap)
-  | Ast.Smem (v, _) -> ((StringMap.add v [flag] map, flag + 1), tmap)
+  | Ast.Swire (v, ty) -> let (map0, flag0) = mapftype v (map, flag) ty in 
+                          (((map0, IntMap.add flag v map_i), flag0), StringMap.add v ty tmap)
+  | Ast.Sreg (v, r) -> let (map0, flag0) = mapftype v (map, flag) r.coq_type in 
+                          (((map0, IntMap.add flag v map_i), flag0), StringMap.add v r.coq_type tmap)
+  | Ast.Smem (v, _) -> (((StringMap.add v [flag] map, IntMap.add flag v map_i), flag + 1), tmap)
   | Ast.Snode (v, e) -> (match Nodehelper.type_of_hfexpr e tmap with
-                      | Some ty -> (mapftype v (map, flag) ty, StringMap.add v ty tmap)
-                      | None -> printf "%s wrong expr type\n" v; Ast.pp_expr stdout e; ((map, flag), tmap))
-  | Ast.Sinst (v, _) -> ((StringMap.add v [flag] map, flag + 1), tmap)
+                      | Some ty -> let (map0, flag0) = mapftype v (map, flag) ty in 
+                          (((map0, IntMap.add flag v map_i), flag0), StringMap.add v ty tmap)
+                      | None -> printf "%s wrong expr type\n" v; Ast.pp_expr stdout e; (((map, map_i), flag), tmap))
+  | Ast.Sinst (v, _) -> (((StringMap.add v [flag] map, IntMap.add flag v map_i), flag + 1), tmap)
   | Ast.Sinferport (v, r, _) -> (match Nodehelper.type_of_ref r tmap with
-                      | Some ty -> (mapftype v (map, flag) ty, StringMap.add v ty tmap)
-                      | None -> ((map, flag), tmap))
-  | Ast.Swhen (_, s1, s2) -> mapstmts (mapstmts ((map, flag), tmap) s1) s2
-  | _ -> ((map,flag), tmap)
+                      | Some ty -> let (map0, flag0) = mapftype v (map, flag) ty in 
+                          (((map0, IntMap.add flag v map_i), flag0), StringMap.add v ty tmap)
+                      | None -> (((map, map_i), flag), tmap))
+  | Ast.Swhen (_, s1, s2) -> mapstmts (mapstmts (((map, map_i), flag), tmap) s1) s2
+  | _ -> (((map, map_i),flag), tmap)
 
- and mapstmts ((map, flag), tmap) stmts = 
+ and mapstmts (((map, map_i), flag), tmap) stmts = 
   match stmts with
-  | Ast.Qnil -> ((map, flag), tmap)
-  | Ast.Qcons (s, ss) -> mapstmts (mapstmt ((map, flag), tmap) s) ss
+  | Ast.Qnil -> (((map, map_i), flag), tmap)
+  | Ast.Qcons (s, ss) -> mapstmts (mapstmt (((map, map_i), flag), tmap) s) ss
 
-let mapmod ((map, flag), tmap) m =  
+let mapmod (((map, map_i), flag), tmap) m =  
   match m with 
-  | Ast.FInmod (_, pl, sl) -> let ((map0, flag0), tmap0) = List.fold_left mapport ((map, flag), tmap) pl in
-                              mapstmts ((map0, flag0),tmap0) sl 
-  | _ -> ((map, flag), tmap)
+  | Ast.FInmod (_, pl, sl) -> let (((map0, map0_i), flag0), tmap0) = List.fold_left mapport (((map, map_i), flag), tmap) pl in
+                              mapstmts (((map0, map0_i), flag0),tmap0) sl 
+  | _ -> (((map, map_i), flag), tmap)
 
 let mapcir cir = 
   match cir with
-  | Ast.Fcircuit (_, ml) -> mapmod ((initmap_s, 0), initmap_s) (Stdlib.List.hd ml)
+  | Ast.Fcircuit (_, ml) -> mapmod (((initmap_s, initmap_i), 0), initmap_s) (Stdlib.List.hd ml)
 
 (*transast*)
 
