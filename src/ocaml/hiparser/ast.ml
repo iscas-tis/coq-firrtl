@@ -287,3 +287,14 @@ let pp_fcircuit out fc =
   | Fcircuit (v, fmod) -> output_string out "(FCircuit "; output_string out (v^"\n"); pp_modules out fmod; output_string out ")\n"
 
 let pp_file out fc = pp_fcircuit out fc
+
+let rec size_of_ftype = function
+| Gtyp _ -> Stdlib.Int.succ 0
+| Atyp (t0, n) -> (size_of_ftype t0) * n
+| Btyp b -> size_of_fields b
+
+(** val size_of_fields : ffield -> int **)
+
+and size_of_fields = function
+| Fnil -> 0
+| Fflips (_, _, t0, fs) -> (size_of_ftype t0) + (size_of_fields fs)

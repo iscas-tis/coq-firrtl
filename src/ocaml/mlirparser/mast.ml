@@ -210,32 +210,27 @@ module StringMap = Map.Make(String)
 let initmap_s = StringMap.empty
 
 (* connection map *)
-(*let mapport tmap p = 
-  match p with
-  | Finput (v, ty) -> StringMap.add v ty tmap
-  | Foutput (v, ty) -> StringMap.add v ty tmap
 
-let rec cm_s stmt cm = 
+let rec cm_s stmt cm = (* 只看node和fcnct *)
   match stmt with
-  | Sfcnct (e1, e2) ->
-  | Sinvalid v -> 
-  | Sreg (v, r) -> StringMap.add v r tmap
-  | Snode (v, e) -> StringMap.add v e tmap
-  | Sinst _ -> tmap (*tbd*)
-  | Swhen (c, s1, s2) ->
+  | Sfcnct (v1, v2) -> StringMap.add v1 (Eref v2) cm
+  | Sinvalid v -> StringMap.add v (Econst (Fuint 0, Z.of_int 0)) cm
+  | Sreg v -> StringMap.add v (Eref v) cm
+  | Snode (v, e) -> StringMap.add v e cm
+  | Sinst (v1, v2) -> StringMap.add v1 (Eref v2) cm
   | _ -> cm
 
 and cm_ss stmts cm = 
   match stmts with
   | Qnil -> cm
-  | Qcons (s, ss) -> mapstmts (mapstmt tmap s) ss
+  | Qcons (s, ss) -> cm_ss ss (cm_s s cm)
 
-let cm_modl ml (mod_cm, mod_ports) = 
+let rec cm_modl ml mod_cm = 
   match ml with
-  | (FInmod (mv, pl, sl)) : tl -> cm_modl tl (StringMap.add mv (cm_ss sl initmap_s) mod_cm, StringMap.add mv pl mod_ports)
-  | _ -> (mod_cm, mod_ports)
+  | [] -> mod_cm
+  | (FInmod (mv, pl, sl)) :: tl -> cm_modl tl (StringMap.add mv (cm_ss sl initmap_s) mod_cm)
+  | _ -> output_string stdout "There is a extmodule\n"; mod_cm
 
-let cm_cir cir = 
+let cm_cir cir = (* 逐module记录connection map, String(module name) -> connection tree *)
   match cir with
-  | Fcircuit (cv, ml) -> (* 需要通过cv找到main module *) let (mod_cm, mod_ports) = cm_modl ml (initmap_s, initmap_s) in ()
-*)
+  | Fcircuit (cv, ml) -> (* 需要通过cv找到main module *) cm_modl ml initmap_s
