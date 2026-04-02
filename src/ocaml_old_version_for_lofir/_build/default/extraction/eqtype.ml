@@ -36,7 +36,7 @@ let eq_op t =
 
 let eqP t =
   let _evar_0_ = fun _ a -> a in
-  let { Equality.op = x; Equality.mixin_of__1 = x0 } = t in _evar_0_ x x0
+  let { Equality.op = op0; Equality.mixin_of__1 = a } = t in _evar_0_ op0 a
 
 (** val eqb : bool -> bool -> bool **)
 
@@ -67,3 +67,40 @@ let bool_eqMixin =
 
 let bool_eqType =
   Obj.magic bool_eqMixin
+
+(** val pair_eq :
+    Equality.coq_type -> Equality.coq_type -> (Equality.sort * Equality.sort)
+    rel **)
+
+let pair_eq t1 t2 u v =
+  (&&) (eq_op t1 (fst u) (fst v)) (eq_op t2 (snd u) (snd v))
+
+(** val pair_eqP :
+    Equality.coq_type -> Equality.coq_type -> (Equality.sort * Equality.sort)
+    Equality.axiom **)
+
+let pair_eqP t1 t2 __top_assumption_ =
+  let _evar_0_ = fun x1 x2 __top_assumption_0 ->
+    let _evar_0_ = fun y1 y2 ->
+      iffP
+        ((&&) (eq_op t1 (fst (x1, x2)) (fst (y1, y2)))
+          (eq_op t2 (snd (x1, x2)) (snd (y1, y2))))
+        (andP (eq_op t1 (fst (x1, x2)) (fst (y1, y2)))
+          (eq_op t2 (snd (x1, x2)) (snd (y1, y2))))
+    in
+    let (a, b) = __top_assumption_0 in _evar_0_ a b
+  in
+  let (a, b) = __top_assumption_ in _evar_0_ a b
+
+(** val prod_eqMixin :
+    Equality.coq_type -> Equality.coq_type -> (Equality.sort * Equality.sort)
+    Equality.mixin_of **)
+
+let prod_eqMixin t1 t2 =
+  { Equality.op = (pair_eq t1 t2); Equality.mixin_of__1 = (pair_eqP t1 t2) }
+
+(** val prod_eqType :
+    Equality.coq_type -> Equality.coq_type -> Equality.coq_type **)
+
+let prod_eqType t1 t2 =
+  Obj.magic prod_eqMixin t1 t2

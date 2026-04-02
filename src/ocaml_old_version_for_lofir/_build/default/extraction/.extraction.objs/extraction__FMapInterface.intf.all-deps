@@ -1,7 +1,6 @@
-Datatypes
-DecidableType
-Equalities
-Extraction
-OrderedType
-Orders
-OrdersTac
+extraction__Datatypes
+extraction__DecidableType
+extraction__Equalities
+extraction__OrderedType
+extraction__Orders
+extraction__OrdersTac

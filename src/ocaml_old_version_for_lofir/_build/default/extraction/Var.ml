@@ -1,13 +1,8 @@
 open BinNat
-open Bool
-open Datatypes
-open FMaps
-open FSets
-open Int0
 open ZAriths
 open Eqtype
 
-type __ = Obj.t
+type var = int
 
 module VarOrder =
  struct
@@ -43,7 +38,3 @@ module VarOrder =
   let default =
     Obj.magic 0
  end
-
-module VS = MakeTreeSetWithNew(VarOrder)
-
-module VM = MakeTreeMapWithNew(VarOrder)

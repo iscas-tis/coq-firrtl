@@ -1,5 +1,23 @@
 open Arg
 open Hifirrtl_lang
+open Mlir_lang
+
+let args = [
+  ]
+
+let usage = "Usage: hipparse FILE\n"
+
+let anon file =
+  (*let f = Parser.hiparse file in 
+  let _ = Ast.pp_file stdout f in*)
+  let mlirf = Mparser.mlirparse file in 
+  let _ = Mast.pp_modules stdout mlirf in
+  ()
+
+let _ = parse args anon usage
+
+(*open Arg
+open Hifirrtl_lang
 open Printf
 open Extraction.Semantics
 open Extraction.HiFirrtl
@@ -21,7 +39,7 @@ let rec print_dexpr_list del =
   | (v, de) :: tl -> fprintf stdout "_%d_%d is cnct to " (fst (Obj.magic v)) (snd (Obj.magic v)); print_dexpr de; fprintf stdout "\n"; print_dexpr_list tl
 
 let anon in_file =
-  let hif_ast = (Parser.hiparse in_file) in 
+  let hif_ast = Parser.hiparse in_file in 
 
   let flatten_cir = Inline.inline_cir stdout hif_ast in 
   let oc_fir = (*open_out (Transhiast.process_string in_file "_cons.txt"*) stdout in
@@ -65,3 +83,4 @@ let anon in_file =
     ()
 
 let _ = parse args anon usage
+*)

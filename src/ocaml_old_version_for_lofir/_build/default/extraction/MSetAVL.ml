@@ -92,21 +92,21 @@ module MakeRaw =
 
   let rec cardinal = function
   | Leaf -> 0
-  | Node (_, l, _, r) -> Pervasives.succ (add (cardinal l) (cardinal r))
+  | Node (_, l, _, r) -> Stdlib.Int.succ (add (cardinal l) (cardinal r))
 
   (** val maxdepth : tree -> int **)
 
   let rec maxdepth = function
   | Leaf -> 0
   | Node (_, l, _, r) ->
-    Pervasives.succ (Pervasives.max (maxdepth l) (maxdepth r))
+    Stdlib.Int.succ (Stdlib.max (maxdepth l) (maxdepth r))
 
   (** val mindepth : tree -> int **)
 
   let rec mindepth = function
   | Leaf -> 0
   | Node (_, l, _, r) ->
-    Pervasives.succ (Pervasives.min (mindepth l) (mindepth r))
+    Stdlib.Int.succ (Stdlib.min (mindepth l) (mindepth r))
 
   (** val for_all : (elt -> bool) -> tree -> bool **)
 

@@ -1,3 +1,4 @@
+open BinNat
 open Datatypes
 open Nat0
 open Eqtype
@@ -27,6 +28,18 @@ val minn : int -> int -> int
 
 val iter : int -> ('a1 -> 'a1) -> 'a1 -> 'a1
 
+val iteri : int -> (int -> 'a1 -> 'a1) -> 'a1 -> 'a1
+
+val iterop : int -> ('a1 -> 'a1 -> 'a1) -> 'a1 -> 'a1 -> 'a1
+
+val muln_rec : int -> int -> int
+
+val muln : int -> int -> int
+
+val expn_rec : int -> int -> int
+
+val expn : int -> int -> int
+
 val nat_of_bool : bool -> int
 
 val odd : int -> bool
@@ -38,3 +51,9 @@ val double : int -> int
 val half : int -> int
 
 val uphalf : int -> int
+
+val eq_binP : int Equality.axiom
+
+val bin_nat_eqMixin : int Equality.mixin_of
+
+val bin_nat_eqType : Equality.coq_type

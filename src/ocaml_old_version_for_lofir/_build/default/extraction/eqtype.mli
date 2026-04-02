@@ -32,3 +32,17 @@ val eqbP : bool Equality.axiom
 val bool_eqMixin : bool Equality.mixin_of
 
 val bool_eqType : Equality.coq_type
+
+val pair_eq :
+  Equality.coq_type -> Equality.coq_type -> (Equality.sort * Equality.sort)
+  rel
+
+val pair_eqP :
+  Equality.coq_type -> Equality.coq_type -> (Equality.sort * Equality.sort)
+  Equality.axiom
+
+val prod_eqMixin :
+  Equality.coq_type -> Equality.coq_type -> (Equality.sort * Equality.sort)
+  Equality.mixin_of
+
+val prod_eqType : Equality.coq_type -> Equality.coq_type -> Equality.coq_type

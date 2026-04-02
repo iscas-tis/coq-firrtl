@@ -45,7 +45,7 @@ let int_natlike_rec = fun fO fS ->
 (** val nat_of_int : int -> int **)
 
 let nat_of_int =
-  int_natlike_rec 0 (fun x -> Pervasives.succ x)
+  int_natlike_rec 0 (fun x -> Stdlib.Int.succ x)
 
 (** val int_poslike_rec :
     'a1 -> ('a1 -> 'a1) -> ('a1 -> 'a1) -> int -> 'a1 **)

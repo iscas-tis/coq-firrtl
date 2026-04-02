@@ -198,7 +198,7 @@ let sarB n bs =
 let ucastB bs n =
   if eq_op nat_eqType (Obj.magic n) (Obj.magic size bs)
   then bs
-  else if leq (Pervasives.succ n) (size bs)
+  else if leq (Stdlib.Int.succ n) (size bs)
        then low n bs
        else zext (subn n (size bs)) bs
 
@@ -207,7 +207,7 @@ let ucastB bs n =
 let scastB bs n =
   if eq_op nat_eqType (Obj.magic n) (Obj.magic size bs)
   then bs
-  else if leq (Pervasives.succ n) (size bs)
+  else if leq (Stdlib.Int.succ n) (size bs)
        then low n bs
        else sext (subn n (size bs)) bs
 

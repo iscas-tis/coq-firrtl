@@ -1,670 +1,261 @@
 # dune build
 # OCAMLPARAM: unset
-# Shared cache: disabled
-# Workspace root: /Users/wangkeyin/Desktop/coq-firrtl/src/ocaml
-# Auto-detected concurrency: 8
-$ /Users/wangkeyin/.opam/default/bin/ocamlc.opt -config > /var/folders/hx/fmrpnqy17_103m_dl2c02f_80000gn/T/dune_31ce43_output
+# Shared cache: enabled-except-user-rules
+# Shared cache location: /Users/wky/.cache/dune/db
+# Workspace root: /Users/wky/Desktop/coq-firrtl/src/ocaml_old_version_for_lofir
+# Auto-detected concurrency: 10
 # Dune context:
 #  { name = "default"
 #  ; kind = "default"
 #  ; profile = Dev
 #  ; merlin = true
-#  ; for_host = None
 #  ; fdo_target_exe = None
-#  ; build_dir = "default"
-#  ; toplevel_path =
-#      Some External "/Users/wangkeyin/.opam/default/lib/toplevel"
-#  ; ocaml_bin = External "/Users/wangkeyin/.opam/default/bin"
-#  ; ocaml = Ok External "/Users/wangkeyin/.opam/default/bin/ocaml"
-#  ; ocamlc = External "/Users/wangkeyin/.opam/default/bin/ocamlc.opt"
-#  ; ocamlopt = Ok External "/Users/wangkeyin/.opam/default/bin/ocamlopt.opt"
-#  ; ocamldep = Ok External "/Users/wangkeyin/.opam/default/bin/ocamldep.opt"
-#  ; ocamlmklib =
-#      Ok External "/Users/wangkeyin/.opam/default/bin/ocamlmklib.opt"
-#  ; env =
-#      map
-#        { "DUNE_OCAML_HARDCODED" : "/Users/wangkeyin/.opam/default/lib"
-#        ; "DUNE_OCAML_STDLIB" : "/Users/wangkeyin/.opam/default/lib/ocaml"
-#        ; "DUNE_SOURCEROOT" : "/Users/wangkeyin/Desktop/coq-firrtl/src/ocaml"
-#        ; "INSIDE_DUNE" :
-#            "/Users/wangkeyin/Desktop/coq-firrtl/src/ocaml/_build/default"
-#        ; "OCAMLFIND_IGNORE_DUPS_IN" :
-#            "/Users/wangkeyin/Desktop/coq-firrtl/src/ocaml/_build/install/default/lib"
-#        ; "OCAMLPATH" :
-#            "/Users/wangkeyin/Desktop/coq-firrtl/src/ocaml/_build/install/default/lib"
-#        ; "OCAMLTOP_INCLUDE_PATH" :
-#            "/Users/wangkeyin/Desktop/coq-firrtl/src/ocaml/_build/install/default/lib/toplevel"
-#        ; "OCAML_COLOR" : "always"
-#        ; "OPAMCOLOR" : "always"
-#        }
-#  ; findlib_paths = [ External "/Users/wangkeyin/.opam/default/lib" ]
-#  ; arch_sixtyfour = true
-#  ; natdynlink_supported = true
-#  ; supports_shared_libraries = true
-#  ; ocaml_config =
-#      { version = "4.14.0"
-#      ; standard_library_default = "/Users/wangkeyin/.opam/default/lib/ocaml"
-#      ; standard_library = "/Users/wangkeyin/.opam/default/lib/ocaml"
-#      ; standard_runtime = "the_standard_runtime_variable_was_deleted"
-#      ; ccomp_type = "cc"
-#      ; c_compiler = "cc"
-#      ; ocamlc_cflags =
-#          [ "-O2"; "-fno-strict-aliasing"; "-fwrapv"; "-pthread" ]
-#      ; ocamlc_cppflags = [ "-D_FILE_OFFSET_BITS=64" ]
-#      ; ocamlopt_cflags =
-#          [ "-O2"; "-fno-strict-aliasing"; "-fwrapv"; "-pthread" ]
-#      ; ocamlopt_cppflags = [ "-D_FILE_OFFSET_BITS=64" ]
-#      ; bytecomp_c_compiler =
-#          [ "cc"
-#          ; "-O2"
-#          ; "-fno-strict-aliasing"
-#          ; "-fwrapv"
-#          ; "-pthread"
-#          ; "-D_FILE_OFFSET_BITS=64"
-#          ]
-#      ; bytecomp_c_libraries = [ "-lm"; "-lpthread" ]
-#      ; native_c_compiler =
-#          [ "cc"
-#          ; "-O2"
-#          ; "-fno-strict-aliasing"
-#          ; "-fwrapv"
-#          ; "-pthread"
-#          ; "-D_FILE_OFFSET_BITS=64"
-#          ]
-#      ; native_c_libraries = [ "-lm" ]
-#      ; native_pack_linker = [ "ld"; "-r"; "-o" ]
-#      ; cc_profile = []
-#      ; architecture = "arm64"
-#      ; model = "default"
-#      ; int_size = 63
-#      ; word_size = 64
-#      ; system = "macosx"
-#      ; asm = [ "cc"; "-c"; "-Wno-trigraphs" ]
-#      ; asm_cfi_supported = true
-#      ; with_frame_pointers = false
-#      ; ext_exe = ""
-#      ; ext_obj = ".o"
-#      ; ext_asm = ".s"
-#      ; ext_lib = ".a"
-#      ; ext_dll = ".so"
-#      ; os_type = "Unix"
-#      ; default_executable_name = "a.out"
-#      ; systhread_supported = true
-#      ; host = "aarch64-apple-darwin21.4.0"
-#      ; target = "aarch64-apple-darwin21.4.0"
-#      ; profiling = false
-#      ; flambda = false
-#      ; spacetime = false
-#      ; safe_string = true
-#      ; exec_magic_number = "Caml1999X031"
-#      ; cmi_magic_number = "Caml1999I031"
-#      ; cmo_magic_number = "Caml1999O031"
-#      ; cma_magic_number = "Caml1999A031"
-#      ; cmx_magic_number = "Caml1999Y031"
-#      ; cmxa_magic_number = "Caml1999Z031"
-#      ; ast_impl_magic_number = "Caml1999M031"
-#      ; ast_intf_magic_number = "Caml1999N031"
-#      ; cmxs_magic_number = "Caml1999D031"
-#      ; cmt_magic_number = "Caml1999T031"
-#      ; natdynlink_supported = true
-#      ; supports_shared_libraries = true
-#      ; windows_unicode = false
-#      }
+#  ; build_dir = In_build_dir "default"
+#  ; instrument_with = []
 #  }
-$ (cd _build/default && /Users/wangkeyin/.opam/default/bin/ocamldep.opt -modules -impl inline.ml) > _build/default/.pparser.eobjs/inline.ml.d
-$ (cd _build/default && /Users/wangkeyin/.opam/default/bin/ocamldep.opt -modules -impl transast1.ml) > _build/default/.pparser.eobjs/transast1.ml.d
-$ (cd _build/default && /Users/wangkeyin/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -g -bin-annot -I .pparser.eobjs/byte -I /Users/wangkeyin/.opam/default/lib/ocamlgraph -I /Users/wangkeyin/.opam/default/lib/stdlib-shims -I /Users/wangkeyin/.opam/default/lib/zarith -I extraction/.extraction.objs/byte -I parser/.firrtl_lang.objs/byte -no-alias-deps -opaque -open Dune__exe -o .pparser.eobjs/byte/dune__exe__Transast1.cmo -c -impl transast1.ml)
-> File "transast1.ml", line 54, characters 36-39:
-> 54 |     let (a1,b1) = (StringMap.add (m.mid^"."^v^".data") b a,b + 1) in (* reader.data 为b*)
->                                          ^^^
-> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 55, characters 36-39:
-> 55 |     let (a2,b2) = (StringMap.add (m.mid^"."^v^".addr") b1 a1,b1 + 1) in 
->                                          ^^^
-> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 56, characters 36-39:
-> 56 |     let (a3,b3) = (StringMap.add (m.mid^"."^v^".en") b2 a2,b2 + 1) in 
->                                          ^^^
-> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 57, characters 36-39:
-> 57 |     let (a4,b4) = (StringMap.add (m.mid^"."^v^".clk") b3 a3,b3 + 1) in 
->                                          ^^^
-> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 62, characters 36-39:
-> 62 |     let (a1,b1) = (StringMap.add (m.mid^"."^v^".data") b a,b + 1) in 
->                                          ^^^
-> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 63, characters 36-39:
-> 63 |     let (a2,b2) = (StringMap.add (m.mid^"."^v^".addr") b1 a1,b1 + 1) in 
->                                          ^^^
-> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 64, characters 36-39:
-> 64 |     let (a3,b3) = (StringMap.add (m.mid^"."^v^".en") b2 a2,b2 + 1) in 
->                                          ^^^
-> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 65, characters 36-39:
-> 65 |     let (a4,b4) = (StringMap.add (m.mid^"."^v^".mask") b3 a3,b3 + 1) in 
->                                          ^^^
-> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 66, characters 36-39:
-> 66 |     let (a5,b5) = (StringMap.add (m.mid^"."^v^".clk") b4 a4,b4 + 1) in
->                                          ^^^
-> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 69, characters 89-95:
-> 69 |   List.fold_left writer_str2N (List.fold_left reader_str2N (map,flag,rl,wl,datatoetc) (m.reader)) (m.writer)
->                                                                                               ^^^^^^
-> Warning 42 [disambiguated-name]: this use of reader relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 69, characters 101-107:
-> 69 |   List.fold_left writer_str2N (List.fold_left reader_str2N (map,flag,rl,wl,datatoetc) (m.reader)) (m.writer)
->                                                                                                           ^^^^^^
-> Warning 42 [disambiguated-name]: this use of writer relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 74, characters 55-58:
-> 74 |   | Ast.Sreg r -> let (map0, flag0) = (StringMap.add r.rid flag map,flag + 1) in
->                                                             ^^^
-> Warning 42 [disambiguated-name]: this use of rid relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 75, characters 35-40:
-> 75 |                   (StringMap.add r.clock flag0 map0,flag0 + 1, rl, wl, datatoetc, memmap)
->                                         ^^^^^
-> Warning 42 [disambiguated-name]: this use of clock relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 76, characters 45-48:
-> 76 |   | Ast.Smem m -> let map0 = StringMap.add m.mid flag map in
->                                                   ^^^
-> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 233, characters 84-87:
-> 233 |   | Ast.Sreg r -> Firrtl.Sreg (Firrtl.LoFirrtl.mk_freg (Obj.magic (StringMap.find r.rid smap)) (trans_fgtyp r.rtype) (Obj.magic (StringMap.find r.clock smap)) (trans_rst r.reset smap))
->                                                                                           ^^^
-> Warning 42 [disambiguated-name]: this use of rid relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 233, characters 110-115:
-> 233 |   | Ast.Sreg r -> Firrtl.Sreg (Firrtl.LoFirrtl.mk_freg (Obj.magic (StringMap.find r.rid smap)) (trans_fgtyp r.rtype) (Obj.magic (StringMap.find r.clock smap)) (trans_rst r.reset smap))
->                                                                                                                     ^^^^^
-> Warning 42 [disambiguated-name]: this use of rtype relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 233, characters 146-151:
-> 233 |   | Ast.Sreg r -> Firrtl.Sreg (Firrtl.LoFirrtl.mk_freg (Obj.magic (StringMap.find r.rid smap)) (trans_fgtyp r.rtype) (Obj.magic (StringMap.find r.clock smap)) (trans_rst r.reset smap))
->                                                                                                                                                         ^^^^^
-> Warning 42 [disambiguated-name]: this use of clock relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 233, characters 172-177:
-> 233 |   | Ast.Sreg r -> Firrtl.Sreg (Firrtl.LoFirrtl.mk_freg (Obj.magic (StringMap.find r.rid smap)) (trans_fgtyp r.rtype) (Obj.magic (StringMap.find r.clock smap)) (trans_rst r.reset smap))
->                                                                                                                                                                                   ^^^^^
-> Warning 42 [disambiguated-name]: this use of reset relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 234, characters 84-87:
-> 234 |   | Ast.Smem m -> Firrtl.Smem (Firrtl.LoFirrtl.mk_fmem (Obj.magic (StringMap.find m.mid smap)) (trans_fgtyp m.data_type) (Z.to_int m.depth) 
->                                                                                           ^^^
-> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 234, characters 110-119:
-> 234 |   | Ast.Smem m -> Firrtl.Smem (Firrtl.LoFirrtl.mk_fmem (Obj.magic (StringMap.find m.mid smap)) (trans_fgtyp m.data_type) (Z.to_int m.depth) 
->                                                                                                                     ^^^^^^^^^
-> Warning 42 [disambiguated-name]: this use of data_type relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 234, characters 133-138:
-> 234 |   | Ast.Smem m -> Firrtl.Smem (Firrtl.LoFirrtl.mk_fmem (Obj.magic (StringMap.find m.mid smap)) (trans_fgtyp m.data_type) (Z.to_int m.depth) 
->                                                                                                                                            ^^^^^
-> Warning 42 [disambiguated-name]: this use of depth relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 235, characters 120-123:
-> 235 |                   (List.fold_left (fun ls x -> List.cons (Firrtl.LoFirrtl.mk_freader_port (Obj.magic (StringMap.find (m.mid^"."^x^".addr") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".data") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".en") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".clk") smap))) ls) [] m.reader)
->                                                                                                                               ^^^
-> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 235, characters 176-179:
-> 235 |                   (List.fold_left (fun ls x -> List.cons (Firrtl.LoFirrtl.mk_freader_port (Obj.magic (StringMap.find (m.mid^"."^x^".addr") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".data") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".en") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".clk") smap))) ls) [] m.reader)
->                                                                                                                                                                                       ^^^
-> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 235, characters 232-235:
-> 235 |                   (List.fold_left (fun ls x -> List.cons (Firrtl.LoFirrtl.mk_freader_port (Obj.magic (StringMap.find (m.mid^"."^x^".addr") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".data") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".en") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".clk") smap))) ls) [] m.reader)
->                                                                                                                                                                                                                                               ^^^
-> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 235, characters 286-289:
-> 235 |                   (List.fold_left (fun ls x -> List.cons (Firrtl.LoFirrtl.mk_freader_port (Obj.magic (StringMap.find (m.mid^"."^x^".addr") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".data") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".en") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".clk") smap))) ls) [] m.reader)
->                                                                                                                                                                                                                                                                                                     ^^^
-> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 235, characters 321-327:
-> 235 |                   (List.fold_left (fun ls x -> List.cons (Firrtl.LoFirrtl.mk_freader_port (Obj.magic (StringMap.find (m.mid^"."^x^".addr") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".data") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".en") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".clk") smap))) ls) [] m.reader)
->                                                                                                                                                                                                                                                                                                                                        ^^^^^^
-> Warning 42 [disambiguated-name]: this use of reader relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 236, characters 120-123:
-> 236 |                   (List.fold_left (fun ls x -> List.cons (Firrtl.LoFirrtl.mk_fwriter_port (Obj.magic (StringMap.find (m.mid^"."^x^".addr") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".data") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".en") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".clk") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".mask") smap))) ls) [] m.writer)
->                                                                                                                               ^^^
-> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 236, characters 176-179:
-> 236 |                   (List.fold_left (fun ls x -> List.cons (Firrtl.LoFirrtl.mk_fwriter_port (Obj.magic (StringMap.find (m.mid^"."^x^".addr") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".data") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".en") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".clk") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".mask") smap))) ls) [] m.writer)
->                                                                                                                                                                                       ^^^
-> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 236, characters 232-235:
-> 236 |                   (List.fold_left (fun ls x -> List.cons (Firrtl.LoFirrtl.mk_fwriter_port (Obj.magic (StringMap.find (m.mid^"."^x^".addr") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".data") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".en") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".clk") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".mask") smap))) ls) [] m.writer)
->                                                                                                                                                                                                                                               ^^^
-> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 236, characters 286-289:
-> 236 |                   (List.fold_left (fun ls x -> List.cons (Firrtl.LoFirrtl.mk_fwriter_port (Obj.magic (StringMap.find (m.mid^"."^x^".addr") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".data") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".en") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".clk") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".mask") smap))) ls) [] m.writer)
->                                                                                                                                                                                                                                                                                                     ^^^
-> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 236, characters 341-344:
-> 236 |                   (List.fold_left (fun ls x -> List.cons (Firrtl.LoFirrtl.mk_fwriter_port (Obj.magic (StringMap.find (m.mid^"."^x^".addr") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".data") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".en") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".clk") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".mask") smap))) ls) [] m.writer)
->                                                                                                                                                                                                                                                                                                                                                            ^^^
-> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 236, characters 377-383:
-> 236 |                   (List.fold_left (fun ls x -> List.cons (Firrtl.LoFirrtl.mk_fwriter_port (Obj.magic (StringMap.find (m.mid^"."^x^".addr") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".data") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".en") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".clk") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".mask") smap))) ls) [] m.writer)
->                                                                                                                                                                                                                                                                                                                                                                                                ^^^^^^
-> Warning 42 [disambiguated-name]: this use of writer relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 237, characters 30-42:
-> 237 |                   (Z.to_int m.read_latency) (Z.to_int m.write_latency) (trans_ruw m.read_write))
->                                     ^^^^^^^^^^^^
-> Warning 42 [disambiguated-name]: this use of read_latency relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 237, characters 56-69:
-> 237 |                   (Z.to_int m.read_latency) (Z.to_int m.write_latency) (trans_ruw m.read_write))
->                                                               ^^^^^^^^^^^^^
-> Warning 42 [disambiguated-name]: this use of write_latency relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 237, characters 84-94:
-> 237 |                   (Z.to_int m.read_latency) (Z.to_int m.write_latency) (trans_ruw m.read_write))
->                                                                                           ^^^^^^^^^^
-> Warning 42 [disambiguated-name]: this use of read_write relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 270, characters 33-45:
-> 270 |   | Ast.Smem m -> if (Z.to_int m.read_latency) == 0 then IntMap.add (StringMap.find m.mid modsmap) false rlmap
->                                        ^^^^^^^^^^^^
-> Warning 42 [disambiguated-name]: this use of read_latency relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 270, characters 86-89:
-> 270 |   | Ast.Smem m -> if (Z.to_int m.read_latency) == 0 then IntMap.add (StringMap.find m.mid modsmap) false rlmap
->                                                                                             ^^^
-> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 271, characters 36-39:
-> 271 |   else IntMap.add (StringMap.find m.mid modsmap) true rlmap
->                                           ^^^
-> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 453, characters 30-34:
-> 453 |                             | Eref v1 -> printf "%d cnct\n" (Obj.magic v1)
->                                     ^^^^
-> Warning 42 [disambiguated-name]: this use of Eref relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 458, characters 52-55:
-> 458 |   | Firrtl.Sreg r -> printf "%d reg\n" (Obj.magic r.rid)
->                                                           ^^^
-> Warning 42 [disambiguated-name]: this use of rid relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-$ (cd _build/default && /Users/wangkeyin/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -g -bin-annot -I .pparser.eobjs/byte -I /Users/wangkeyin/.opam/default/lib/ocamlgraph -I /Users/wangkeyin/.opam/default/lib/stdlib-shims -I /Users/wangkeyin/.opam/default/lib/zarith -I extraction/.extraction.objs/byte -I parser/.firrtl_lang.objs/byte -no-alias-deps -opaque -open Dune__exe -o .pparser.eobjs/byte/dune__exe__Inline.cmo -c -impl inline.ml)
-> File "inline.ml", line 35, characters 27-32:
-> 35 |   | Ast.Sreg r -> (match r.reset with
->                                 ^^^^^
-> Warning 42 [disambiguated-name]: this use of reset relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "inline.ml", line 36, characters 18-22:
-> 36 |                 | NRst -> Ast.Sreg (Ast.mk_freg_non (v0^"."^r.rid) r.rtype r.clock)
->                        ^^^^
-> Warning 42 [disambiguated-name]: this use of NRst relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "inline.ml", line 37, characters 18-21:
-> 37 |                 | Rst (e1, e2) -> Ast.Sreg (Ast.mk_freg (v0^"."^r.rid) r.rtype r.clock (addpre_e v0 e1) (addpre_e v0 e2)))
->                        ^^^
-> Warning 42 [disambiguated-name]: this use of Rst relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "inline.ml", line 36, characters 62-65:
-> 36 |                 | NRst -> Ast.Sreg (Ast.mk_freg_non (v0^"."^r.rid) r.rtype r.clock)
->                                                                    ^^^
-> Warning 42 [disambiguated-name]: this use of rid relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "inline.ml", line 36, characters 69-74:
-> 36 |                 | NRst -> Ast.Sreg (Ast.mk_freg_non (v0^"."^r.rid) r.rtype r.clock)
->                                                                           ^^^^^
-> Warning 42 [disambiguated-name]: this use of rtype relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "inline.ml", line 36, characters 77-82:
-> 36 |                 | NRst -> Ast.Sreg (Ast.mk_freg_non (v0^"."^r.rid) r.rtype r.clock)
->                                                                                   ^^^^^
-> Warning 42 [disambiguated-name]: this use of clock relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "inline.ml", line 37, characters 66-69:
-> 37 |                 | Rst (e1, e2) -> Ast.Sreg (Ast.mk_freg (v0^"."^r.rid) r.rtype r.clock (addpre_e v0 e1) (addpre_e v0 e2)))
->                                                                        ^^^
-> Warning 42 [disambiguated-name]: this use of rid relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "inline.ml", line 37, characters 73-78:
-> 37 |                 | Rst (e1, e2) -> Ast.Sreg (Ast.mk_freg (v0^"."^r.rid) r.rtype r.clock (addpre_e v0 e1) (addpre_e v0 e2)))
->                                                                               ^^^^^
-> Warning 42 [disambiguated-name]: this use of rtype relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "inline.ml", line 37, characters 81-86:
-> 37 |                 | Rst (e1, e2) -> Ast.Sreg (Ast.mk_freg (v0^"."^r.rid) r.rtype r.clock (addpre_e v0 e1) (addpre_e v0 e2)))
->                                                                                       ^^^^^
-> Warning 42 [disambiguated-name]: this use of clock relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "inline.ml", line 75, characters 55-58:
-> 75 |   | Ast.Sreg r -> let (map0, flag0) = (StringMap.add r.rid flag map,flag + 1) in
->                                                             ^^^
-> Warning 42 [disambiguated-name]: this use of rid relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "inline.ml", line 76, characters 35-40:
-> 76 |                   (StringMap.add r.clock flag0 map0,flag0 + 1)
->                                         ^^^^^
-> Warning 42 [disambiguated-name]: this use of clock relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "inline.ml", line 94, characters 84-87:
-> 94 |   | Ast.Sreg r -> Firrtl.Sreg (Firrtl.LoFirrtl.mk_freg (Obj.magic (StringMap.find r.rid smap)) (Transast1.trans_fgtyp r.rtype) (Obj.magic (StringMap.find r.clock smap)) (Transast1.trans_rst r.reset smap))
->                                                                                          ^^^
-> Warning 42 [disambiguated-name]: this use of rid relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "inline.ml", line 94, characters 120-125:
-> 94 |   | Ast.Sreg r -> Firrtl.Sreg (Firrtl.LoFirrtl.mk_freg (Obj.magic (StringMap.find r.rid smap)) (Transast1.trans_fgtyp r.rtype) (Obj.magic (StringMap.find r.clock smap)) (Transast1.trans_rst r.reset smap))
->                                                                                                                              ^^^^^
-> Warning 42 [disambiguated-name]: this use of rtype relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "inline.ml", line 94, characters 156-161:
-> 94 |   | Ast.Sreg r -> Firrtl.Sreg (Firrtl.LoFirrtl.mk_freg (Obj.magic (StringMap.find r.rid smap)) (Transast1.trans_fgtyp r.rtype) (Obj.magic (StringMap.find r.clock smap)) (Transast1.trans_rst r.reset smap))
->                                                                                                                                                                  ^^^^^
-> Warning 42 [disambiguated-name]: this use of clock relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "inline.ml", line 94, characters 192-197:
-> 94 |   | Ast.Sreg r -> Firrtl.Sreg (Firrtl.LoFirrtl.mk_freg (Obj.magic (StringMap.find r.rid smap)) (Transast1.trans_fgtyp r.rtype) (Obj.magic (StringMap.find r.clock smap)) (Transast1.trans_rst r.reset smap))
->                                                                                                                                                                                                      ^^^^^
-> Warning 42 [disambiguated-name]: this use of reset relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-$ (cd _build/default && /Users/wangkeyin/.opam/default/bin/ocamlopt.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -g -I .pparser.eobjs/byte -I .pparser.eobjs/native -I /Users/wangkeyin/.opam/default/lib/ocamlgraph -I /Users/wangkeyin/.opam/default/lib/stdlib-shims -I /Users/wangkeyin/.opam/default/lib/zarith -I extraction/.extraction.objs/byte -I extraction/.extraction.objs/native -I parser/.firrtl_lang.objs/byte -I parser/.firrtl_lang.objs/native -intf-suffix .ml -no-alias-deps -opaque -open Dune__exe -o .pparser.eobjs/native/dune__exe__Inline.cmx -c -impl inline.ml)
-> File "inline.ml", line 35, characters 27-32:
-> 35 |   | Ast.Sreg r -> (match r.reset with
->                                 ^^^^^
-> Warning 42 [disambiguated-name]: this use of reset relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "inline.ml", line 36, characters 18-22:
-> 36 |                 | NRst -> Ast.Sreg (Ast.mk_freg_non (v0^"."^r.rid) r.rtype r.clock)
->                        ^^^^
-> Warning 42 [disambiguated-name]: this use of NRst relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "inline.ml", line 37, characters 18-21:
-> 37 |                 | Rst (e1, e2) -> Ast.Sreg (Ast.mk_freg (v0^"."^r.rid) r.rtype r.clock (addpre_e v0 e1) (addpre_e v0 e2)))
->                        ^^^
-> Warning 42 [disambiguated-name]: this use of Rst relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "inline.ml", line 36, characters 62-65:
-> 36 |                 | NRst -> Ast.Sreg (Ast.mk_freg_non (v0^"."^r.rid) r.rtype r.clock)
->                                                                    ^^^
-> Warning 42 [disambiguated-name]: this use of rid relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "inline.ml", line 36, characters 69-74:
-> 36 |                 | NRst -> Ast.Sreg (Ast.mk_freg_non (v0^"."^r.rid) r.rtype r.clock)
->                                                                           ^^^^^
-> Warning 42 [disambiguated-name]: this use of rtype relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "inline.ml", line 36, characters 77-82:
-> 36 |                 | NRst -> Ast.Sreg (Ast.mk_freg_non (v0^"."^r.rid) r.rtype r.clock)
->                                                                                   ^^^^^
-> Warning 42 [disambiguated-name]: this use of clock relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "inline.ml", line 37, characters 66-69:
-> 37 |                 | Rst (e1, e2) -> Ast.Sreg (Ast.mk_freg (v0^"."^r.rid) r.rtype r.clock (addpre_e v0 e1) (addpre_e v0 e2)))
->                                                                        ^^^
-> Warning 42 [disambiguated-name]: this use of rid relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "inline.ml", line 37, characters 73-78:
-> 37 |                 | Rst (e1, e2) -> Ast.Sreg (Ast.mk_freg (v0^"."^r.rid) r.rtype r.clock (addpre_e v0 e1) (addpre_e v0 e2)))
->                                                                               ^^^^^
-> Warning 42 [disambiguated-name]: this use of rtype relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "inline.ml", line 37, characters 81-86:
-> 37 |                 | Rst (e1, e2) -> Ast.Sreg (Ast.mk_freg (v0^"."^r.rid) r.rtype r.clock (addpre_e v0 e1) (addpre_e v0 e2)))
->                                                                                       ^^^^^
-> Warning 42 [disambiguated-name]: this use of clock relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "inline.ml", line 75, characters 55-58:
-> 75 |   | Ast.Sreg r -> let (map0, flag0) = (StringMap.add r.rid flag map,flag + 1) in
->                                                             ^^^
-> Warning 42 [disambiguated-name]: this use of rid relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "inline.ml", line 76, characters 35-40:
-> 76 |                   (StringMap.add r.clock flag0 map0,flag0 + 1)
->                                         ^^^^^
-> Warning 42 [disambiguated-name]: this use of clock relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "inline.ml", line 94, characters 84-87:
-> 94 |   | Ast.Sreg r -> Firrtl.Sreg (Firrtl.LoFirrtl.mk_freg (Obj.magic (StringMap.find r.rid smap)) (Transast1.trans_fgtyp r.rtype) (Obj.magic (StringMap.find r.clock smap)) (Transast1.trans_rst r.reset smap))
->                                                                                          ^^^
-> Warning 42 [disambiguated-name]: this use of rid relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "inline.ml", line 94, characters 120-125:
-> 94 |   | Ast.Sreg r -> Firrtl.Sreg (Firrtl.LoFirrtl.mk_freg (Obj.magic (StringMap.find r.rid smap)) (Transast1.trans_fgtyp r.rtype) (Obj.magic (StringMap.find r.clock smap)) (Transast1.trans_rst r.reset smap))
->                                                                                                                              ^^^^^
-> Warning 42 [disambiguated-name]: this use of rtype relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "inline.ml", line 94, characters 156-161:
-> 94 |   | Ast.Sreg r -> Firrtl.Sreg (Firrtl.LoFirrtl.mk_freg (Obj.magic (StringMap.find r.rid smap)) (Transast1.trans_fgtyp r.rtype) (Obj.magic (StringMap.find r.clock smap)) (Transast1.trans_rst r.reset smap))
->                                                                                                                                                                  ^^^^^
-> Warning 42 [disambiguated-name]: this use of clock relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "inline.ml", line 94, characters 192-197:
-> 94 |   | Ast.Sreg r -> Firrtl.Sreg (Firrtl.LoFirrtl.mk_freg (Obj.magic (StringMap.find r.rid smap)) (Transast1.trans_fgtyp r.rtype) (Obj.magic (StringMap.find r.clock smap)) (Transast1.trans_rst r.reset smap))
->                                                                                                                                                                                                      ^^^^^
-> Warning 42 [disambiguated-name]: this use of reset relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-$ (cd _build/default && /Users/wangkeyin/.opam/default/bin/ocamlopt.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -g -I .pparser.eobjs/byte -I .pparser.eobjs/native -I /Users/wangkeyin/.opam/default/lib/ocamlgraph -I /Users/wangkeyin/.opam/default/lib/stdlib-shims -I /Users/wangkeyin/.opam/default/lib/zarith -I extraction/.extraction.objs/byte -I extraction/.extraction.objs/native -I parser/.firrtl_lang.objs/byte -I parser/.firrtl_lang.objs/native -intf-suffix .ml -no-alias-deps -opaque -open Dune__exe -o .pparser.eobjs/native/dune__exe__Transast1.cmx -c -impl transast1.ml)
-> File "transast1.ml", line 54, characters 36-39:
-> 54 |     let (a1,b1) = (StringMap.add (m.mid^"."^v^".data") b a,b + 1) in (* reader.data 为b*)
->                                          ^^^
-> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 55, characters 36-39:
-> 55 |     let (a2,b2) = (StringMap.add (m.mid^"."^v^".addr") b1 a1,b1 + 1) in 
->                                          ^^^
-> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 56, characters 36-39:
-> 56 |     let (a3,b3) = (StringMap.add (m.mid^"."^v^".en") b2 a2,b2 + 1) in 
->                                          ^^^
-> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 57, characters 36-39:
-> 57 |     let (a4,b4) = (StringMap.add (m.mid^"."^v^".clk") b3 a3,b3 + 1) in 
->                                          ^^^
-> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 62, characters 36-39:
-> 62 |     let (a1,b1) = (StringMap.add (m.mid^"."^v^".data") b a,b + 1) in 
->                                          ^^^
-> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 63, characters 36-39:
-> 63 |     let (a2,b2) = (StringMap.add (m.mid^"."^v^".addr") b1 a1,b1 + 1) in 
->                                          ^^^
-> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 64, characters 36-39:
-> 64 |     let (a3,b3) = (StringMap.add (m.mid^"."^v^".en") b2 a2,b2 + 1) in 
->                                          ^^^
-> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 65, characters 36-39:
-> 65 |     let (a4,b4) = (StringMap.add (m.mid^"."^v^".mask") b3 a3,b3 + 1) in 
->                                          ^^^
-> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 66, characters 36-39:
-> 66 |     let (a5,b5) = (StringMap.add (m.mid^"."^v^".clk") b4 a4,b4 + 1) in
->                                          ^^^
-> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 69, characters 89-95:
-> 69 |   List.fold_left writer_str2N (List.fold_left reader_str2N (map,flag,rl,wl,datatoetc) (m.reader)) (m.writer)
->                                                                                               ^^^^^^
-> Warning 42 [disambiguated-name]: this use of reader relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 69, characters 101-107:
-> 69 |   List.fold_left writer_str2N (List.fold_left reader_str2N (map,flag,rl,wl,datatoetc) (m.reader)) (m.writer)
->                                                                                                           ^^^^^^
-> Warning 42 [disambiguated-name]: this use of writer relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 74, characters 55-58:
-> 74 |   | Ast.Sreg r -> let (map0, flag0) = (StringMap.add r.rid flag map,flag + 1) in
->                                                             ^^^
-> Warning 42 [disambiguated-name]: this use of rid relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 75, characters 35-40:
-> 75 |                   (StringMap.add r.clock flag0 map0,flag0 + 1, rl, wl, datatoetc, memmap)
->                                         ^^^^^
-> Warning 42 [disambiguated-name]: this use of clock relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 76, characters 45-48:
-> 76 |   | Ast.Smem m -> let map0 = StringMap.add m.mid flag map in
->                                                   ^^^
-> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 233, characters 84-87:
-> 233 |   | Ast.Sreg r -> Firrtl.Sreg (Firrtl.LoFirrtl.mk_freg (Obj.magic (StringMap.find r.rid smap)) (trans_fgtyp r.rtype) (Obj.magic (StringMap.find r.clock smap)) (trans_rst r.reset smap))
->                                                                                           ^^^
-> Warning 42 [disambiguated-name]: this use of rid relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 233, characters 110-115:
-> 233 |   | Ast.Sreg r -> Firrtl.Sreg (Firrtl.LoFirrtl.mk_freg (Obj.magic (StringMap.find r.rid smap)) (trans_fgtyp r.rtype) (Obj.magic (StringMap.find r.clock smap)) (trans_rst r.reset smap))
->                                                                                                                     ^^^^^
-> Warning 42 [disambiguated-name]: this use of rtype relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 233, characters 146-151:
-> 233 |   | Ast.Sreg r -> Firrtl.Sreg (Firrtl.LoFirrtl.mk_freg (Obj.magic (StringMap.find r.rid smap)) (trans_fgtyp r.rtype) (Obj.magic (StringMap.find r.clock smap)) (trans_rst r.reset smap))
->                                                                                                                                                         ^^^^^
-> Warning 42 [disambiguated-name]: this use of clock relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 233, characters 172-177:
-> 233 |   | Ast.Sreg r -> Firrtl.Sreg (Firrtl.LoFirrtl.mk_freg (Obj.magic (StringMap.find r.rid smap)) (trans_fgtyp r.rtype) (Obj.magic (StringMap.find r.clock smap)) (trans_rst r.reset smap))
->                                                                                                                                                                                   ^^^^^
-> Warning 42 [disambiguated-name]: this use of reset relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 234, characters 84-87:
-> 234 |   | Ast.Smem m -> Firrtl.Smem (Firrtl.LoFirrtl.mk_fmem (Obj.magic (StringMap.find m.mid smap)) (trans_fgtyp m.data_type) (Z.to_int m.depth) 
->                                                                                           ^^^
-> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 234, characters 110-119:
-> 234 |   | Ast.Smem m -> Firrtl.Smem (Firrtl.LoFirrtl.mk_fmem (Obj.magic (StringMap.find m.mid smap)) (trans_fgtyp m.data_type) (Z.to_int m.depth) 
->                                                                                                                     ^^^^^^^^^
-> Warning 42 [disambiguated-name]: this use of data_type relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 234, characters 133-138:
-> 234 |   | Ast.Smem m -> Firrtl.Smem (Firrtl.LoFirrtl.mk_fmem (Obj.magic (StringMap.find m.mid smap)) (trans_fgtyp m.data_type) (Z.to_int m.depth) 
->                                                                                                                                            ^^^^^
-> Warning 42 [disambiguated-name]: this use of depth relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 235, characters 120-123:
-> 235 |                   (List.fold_left (fun ls x -> List.cons (Firrtl.LoFirrtl.mk_freader_port (Obj.magic (StringMap.find (m.mid^"."^x^".addr") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".data") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".en") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".clk") smap))) ls) [] m.reader)
->                                                                                                                               ^^^
-> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 235, characters 176-179:
-> 235 |                   (List.fold_left (fun ls x -> List.cons (Firrtl.LoFirrtl.mk_freader_port (Obj.magic (StringMap.find (m.mid^"."^x^".addr") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".data") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".en") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".clk") smap))) ls) [] m.reader)
->                                                                                                                                                                                       ^^^
-> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 235, characters 232-235:
-> 235 |                   (List.fold_left (fun ls x -> List.cons (Firrtl.LoFirrtl.mk_freader_port (Obj.magic (StringMap.find (m.mid^"."^x^".addr") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".data") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".en") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".clk") smap))) ls) [] m.reader)
->                                                                                                                                                                                                                                               ^^^
-> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 235, characters 286-289:
-> 235 |                   (List.fold_left (fun ls x -> List.cons (Firrtl.LoFirrtl.mk_freader_port (Obj.magic (StringMap.find (m.mid^"."^x^".addr") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".data") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".en") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".clk") smap))) ls) [] m.reader)
->                                                                                                                                                                                                                                                                                                     ^^^
-> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 235, characters 321-327:
-> 235 |                   (List.fold_left (fun ls x -> List.cons (Firrtl.LoFirrtl.mk_freader_port (Obj.magic (StringMap.find (m.mid^"."^x^".addr") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".data") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".en") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".clk") smap))) ls) [] m.reader)
->                                                                                                                                                                                                                                                                                                                                        ^^^^^^
-> Warning 42 [disambiguated-name]: this use of reader relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 236, characters 120-123:
-> 236 |                   (List.fold_left (fun ls x -> List.cons (Firrtl.LoFirrtl.mk_fwriter_port (Obj.magic (StringMap.find (m.mid^"."^x^".addr") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".data") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".en") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".clk") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".mask") smap))) ls) [] m.writer)
->                                                                                                                               ^^^
-> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 236, characters 176-179:
-> 236 |                   (List.fold_left (fun ls x -> List.cons (Firrtl.LoFirrtl.mk_fwriter_port (Obj.magic (StringMap.find (m.mid^"."^x^".addr") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".data") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".en") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".clk") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".mask") smap))) ls) [] m.writer)
->                                                                                                                                                                                       ^^^
-> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 236, characters 232-235:
-> 236 |                   (List.fold_left (fun ls x -> List.cons (Firrtl.LoFirrtl.mk_fwriter_port (Obj.magic (StringMap.find (m.mid^"."^x^".addr") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".data") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".en") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".clk") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".mask") smap))) ls) [] m.writer)
->                                                                                                                                                                                                                                               ^^^
-> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 236, characters 286-289:
-> 236 |                   (List.fold_left (fun ls x -> List.cons (Firrtl.LoFirrtl.mk_fwriter_port (Obj.magic (StringMap.find (m.mid^"."^x^".addr") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".data") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".en") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".clk") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".mask") smap))) ls) [] m.writer)
->                                                                                                                                                                                                                                                                                                     ^^^
-> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 236, characters 341-344:
-> 236 |                   (List.fold_left (fun ls x -> List.cons (Firrtl.LoFirrtl.mk_fwriter_port (Obj.magic (StringMap.find (m.mid^"."^x^".addr") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".data") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".en") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".clk") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".mask") smap))) ls) [] m.writer)
->                                                                                                                                                                                                                                                                                                                                                            ^^^
-> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 236, characters 377-383:
-> 236 |                   (List.fold_left (fun ls x -> List.cons (Firrtl.LoFirrtl.mk_fwriter_port (Obj.magic (StringMap.find (m.mid^"."^x^".addr") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".data") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".en") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".clk") smap)) (Obj.magic (StringMap.find (m.mid^"."^x^".mask") smap))) ls) [] m.writer)
->                                                                                                                                                                                                                                                                                                                                                                                                ^^^^^^
-> Warning 42 [disambiguated-name]: this use of writer relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 237, characters 30-42:
-> 237 |                   (Z.to_int m.read_latency) (Z.to_int m.write_latency) (trans_ruw m.read_write))
->                                     ^^^^^^^^^^^^
-> Warning 42 [disambiguated-name]: this use of read_latency relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 237, characters 56-69:
-> 237 |                   (Z.to_int m.read_latency) (Z.to_int m.write_latency) (trans_ruw m.read_write))
->                                                               ^^^^^^^^^^^^^
-> Warning 42 [disambiguated-name]: this use of write_latency relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 237, characters 84-94:
-> 237 |                   (Z.to_int m.read_latency) (Z.to_int m.write_latency) (trans_ruw m.read_write))
->                                                                                           ^^^^^^^^^^
-> Warning 42 [disambiguated-name]: this use of read_write relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 270, characters 33-45:
-> 270 |   | Ast.Smem m -> if (Z.to_int m.read_latency) == 0 then IntMap.add (StringMap.find m.mid modsmap) false rlmap
->                                        ^^^^^^^^^^^^
-> Warning 42 [disambiguated-name]: this use of read_latency relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 270, characters 86-89:
-> 270 |   | Ast.Smem m -> if (Z.to_int m.read_latency) == 0 then IntMap.add (StringMap.find m.mid modsmap) false rlmap
->                                                                                             ^^^
-> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 271, characters 36-39:
-> 271 |   else IntMap.add (StringMap.find m.mid modsmap) true rlmap
->                                           ^^^
-> Warning 42 [disambiguated-name]: this use of mid relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 453, characters 30-34:
-> 453 |                             | Eref v1 -> printf "%d cnct\n" (Obj.magic v1)
->                                     ^^^^
-> Warning 42 [disambiguated-name]: this use of Eref relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-> File "transast1.ml", line 458, characters 52-55:
-> 458 |   | Firrtl.Sreg r -> printf "%d reg\n" (Obj.magic r.rid)
->                                                           ^^^
-> Warning 42 [disambiguated-name]: this use of rid relies on type-directed disambiguation,
-> it will not compile with OCaml 4.00 or earlier.
-$ (cd _build/default && /Users/wangkeyin/.opam/default/bin/ocamlopt.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -g -o inline.exe /Users/wangkeyin/.opam/default/lib/ocaml/str.cmxa -I /Users/wangkeyin/.opam/default/lib/ocaml /Users/wangkeyin/.opam/default/lib/zarith/zarith.cmxa -I /Users/wangkeyin/.opam/default/lib/zarith extraction/extraction.cmxa parser/firrtl_lang.cmxa /Users/wangkeyin/.opam/default/lib/stdlib-shims/stdlib_shims.cmxa /Users/wangkeyin/.opam/default/lib/ocamlgraph/graph.cmxa /Users/wangkeyin/.opam/default/lib/ocaml/unix.cmxa -I /Users/wangkeyin/.opam/default/lib/ocaml .pparser.eobjs/native/dune__exe.cmx .pparser.eobjs/native/dune__exe__Helper.cmx .pparser.eobjs/native/dune__exe__Transast1.cmx .pparser.eobjs/native/dune__exe__Inline.cmx)
+$ /Users/wky/.opam/default/bin/ocamlc.opt -config > /var/folders/97/gfzkmjmj5096rrv3glhq4grh0000gn/T/dune_0d8bd2_output
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -impl pparser.ml) > _build/default/.pparser.eobjs/dune__exe__Pparser.impl.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -impl inline.ml) > _build/default/.pparser.eobjs/dune__exe__Inline.impl.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w -49 -nopervasives -nostdlib -g -bin-annot -I extraction/.extraction.objs/byte -no-alias-deps -opaque -o extraction/.extraction.objs/byte/extraction.cmo -c -impl extraction/extraction.ml-gen)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w -49 -nopervasives -nostdlib -g -bin-annot -I hiparser/.firrtl_lang.objs/byte -no-alias-deps -opaque -o hiparser/.firrtl_lang.objs/byte/firrtl_lang.cmo -c -impl hiparser/firrtl_lang.ml-gen)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w -49 -nopervasives -nostdlib -g -bin-annot -I interpreter/.interpreter.objs/byte -no-alias-deps -opaque -o interpreter/.interpreter.objs/byte/interpreter.cmo -c -impl interpreter/interpreter.ml-gen)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w -49 -nopervasives -nostdlib -g -bin-annot -I parser/.firrtl_lang.objs/byte -no-alias-deps -opaque -o parser/.firrtl_lang.objs/byte/firrtl_lang.cmo -c -impl parser/firrtl_lang.ml-gen)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlyacc hiparser/firrtlParser.mly)
+> File "hiparser/firrtlParser.mly", line 211: no action specified for this production
+[1]
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlyacc parser/firrtlParser.mly)
+> 5 rules never reduced
+> 3 reduce/reduce conflicts.
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -impl extraction/ZAriths.ml) > _build/default/extraction/.extraction.objs/extraction__ZAriths.impl.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -impl hiparser/parser.ml) > _build/default/hiparser/.firrtl_lang.objs/firrtl_lang__Parser.impl.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -impl interpreter/interp.ml) > _build/default/interpreter/.interpreter.objs/interpreter__Interp.impl.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -impl parser/parser.ml) > _build/default/parser/.firrtl_lang.objs/firrtl_lang__Parser.impl.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamllex -q -o parser/firrtlLexer.ml parser/firrtlLexer.mll)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamllex -q -o hiparser/firrtlLexer.ml hiparser/firrtlLexer.mll)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -impl helper.ml) > _build/default/.pparser.eobjs/dune__exe__Helper.impl.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -impl extraction/BinNums.ml) > _build/default/extraction/.extraction.objs/extraction__BinNums.impl.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -impl extraction/Ascii.ml) > _build/default/extraction/.extraction.objs/extraction__Ascii.impl.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -impl extraction/BinInt.ml) > _build/default/extraction/.extraction.objs/extraction__BinInt.impl.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -impl extraction/BinNat.ml) > _build/default/extraction/.extraction.objs/extraction__BinNat.impl.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -impl transast1.ml) > _build/default/.pparser.eobjs/dune__exe__Transast1.impl.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -impl extraction/Datatypes.ml) > _build/default/extraction/.extraction.objs/extraction__Datatypes.impl.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -impl extraction/Bool.ml) > _build/default/extraction/.extraction.objs/extraction__Bool.impl.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -impl extraction/BinPos.ml) > _build/default/extraction/.extraction.objs/extraction__BinPos.impl.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -impl extraction/Env.ml) > _build/default/extraction/.extraction.objs/extraction__Env.impl.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -impl extraction/DecidableType.ml) > _build/default/extraction/.extraction.objs/extraction__DecidableType.impl.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -impl extraction/eqtype.ml) > _build/default/extraction/.extraction.objs/extraction__Eqtype.impl.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -impl extraction/ExtrOcamlIntConv.ml) > _build/default/extraction/.extraction.objs/extraction__ExtrOcamlIntConv.impl.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -impl extraction/Equalities.ml) > _build/default/extraction/.extraction.objs/extraction__Equalities.impl.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -impl extraction/FMapFacts.ml) > _build/default/extraction/.extraction.objs/extraction__FMapFacts.impl.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -impl extraction/FMapInterface.ml) > _build/default/extraction/.extraction.objs/extraction__FMapInterface.impl.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -impl extraction/Firrtl.ml) > _build/default/extraction/.extraction.objs/extraction__Firrtl.impl.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -impl extraction/FSets.ml) > _build/default/extraction/.extraction.objs/extraction__FSets.impl.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -impl extraction/Int0.ml) > _build/default/extraction/.extraction.objs/extraction__Int0.impl.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -impl extraction/List0.ml) > _build/default/extraction/.extraction.objs/extraction__List0.impl.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -impl extraction/MSetAVL.ml) > _build/default/extraction/.extraction.objs/extraction__MSetAVL.impl.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -impl extraction/MSetInterface.ml) > _build/default/extraction/.extraction.objs/extraction__MSetInterface.impl.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -impl extraction/FMaps.ml) > _build/default/extraction/.extraction.objs/extraction__FMaps.impl.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -impl extraction/NBitsOp.ml) > _build/default/extraction/.extraction.objs/extraction__NBitsOp.impl.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -impl extraction/Nat0.ml) > _build/default/extraction/.extraction.objs/extraction__Nat0.impl.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -impl extraction/NBitsDef.ml) > _build/default/extraction/.extraction.objs/extraction__NBitsDef.impl.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -impl extraction/OrderedType.ml) > _build/default/extraction/.extraction.objs/extraction__OrderedType.impl.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -impl extraction/Orders.ml) > _build/default/extraction/.extraction.objs/extraction__Orders.impl.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -impl extraction/OrdersFacts.ml) > _build/default/extraction/.extraction.objs/extraction__OrdersFacts.impl.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -impl extraction/OrdersTac.ml) > _build/default/extraction/.extraction.objs/extraction__OrdersTac.impl.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -impl extraction/PeanoNat.ml) > _build/default/extraction/.extraction.objs/extraction__PeanoNat.impl.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -impl extraction/seq.ml) > _build/default/extraction/.extraction.objs/extraction__Seq.impl.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -impl extraction/ssrbool.ml) > _build/default/extraction/.extraction.objs/extraction__Ssrbool.impl.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -impl extraction/SsrOrder.ml) > _build/default/extraction/.extraction.objs/extraction__SsrOrder.impl.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -impl extraction/Specif.ml) > _build/default/extraction/.extraction.objs/extraction__Specif.impl.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -impl extraction/ssreflect.ml) > _build/default/extraction/.extraction.objs/extraction__Ssreflect.impl.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -impl extraction/ssrnat.ml) > _build/default/extraction/.extraction.objs/extraction__Ssrnat.impl.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -impl extraction/String0.ml) > _build/default/extraction/.extraction.objs/extraction__String0.impl.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -impl extraction/Var.ml) > _build/default/extraction/.extraction.objs/extraction__Var.impl.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -impl hiparser/ast.ml) > _build/default/hiparser/.firrtl_lang.objs/firrtl_lang__Ast.impl.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -impl parser/ast.ml) > _build/default/parser/.firrtl_lang.objs/firrtl_lang__Ast.impl.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -intf extraction/Ascii.mli) > _build/default/extraction/.extraction.objs/extraction__Ascii.intf.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -intf extraction/BinInt.mli) > _build/default/extraction/.extraction.objs/extraction__BinInt.intf.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -impl hiparser/firrtlLexer.ml) > _build/default/hiparser/.firrtl_lang.objs/firrtl_lang__FirrtlLexer.impl.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -impl parser/firrtlParser.ml) > _build/default/parser/.firrtl_lang.objs/firrtl_lang__FirrtlParser.impl.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -intf extraction/BinPos.mli) > _build/default/extraction/.extraction.objs/extraction__BinPos.intf.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -intf extraction/BinNums.mli) > _build/default/extraction/.extraction.objs/extraction__BinNums.intf.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -impl parser/firrtlLexer.ml) > _build/default/parser/.firrtl_lang.objs/firrtl_lang__FirrtlLexer.impl.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -intf extraction/BinNat.mli) > _build/default/extraction/.extraction.objs/extraction__BinNat.intf.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -intf extraction/Bool.mli) > _build/default/extraction/.extraction.objs/extraction__Bool.intf.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -intf extraction/Datatypes.mli) > _build/default/extraction/.extraction.objs/extraction__Datatypes.intf.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -intf extraction/DecidableType.mli) > _build/default/extraction/.extraction.objs/extraction__DecidableType.intf.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -intf extraction/eqtype.mli) > _build/default/extraction/.extraction.objs/extraction__Eqtype.intf.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -intf extraction/Env.mli) > _build/default/extraction/.extraction.objs/extraction__Env.intf.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -intf extraction/Equalities.mli) > _build/default/extraction/.extraction.objs/extraction__Equalities.intf.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -intf extraction/ExtrOcamlIntConv.mli) > _build/default/extraction/.extraction.objs/extraction__ExtrOcamlIntConv.intf.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -intf extraction/FMapInterface.mli) > _build/default/extraction/.extraction.objs/extraction__FMapInterface.intf.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -intf extraction/FMapFacts.mli) > _build/default/extraction/.extraction.objs/extraction__FMapFacts.intf.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -intf extraction/Firrtl.mli) > _build/default/extraction/.extraction.objs/extraction__Firrtl.intf.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -intf extraction/Int0.mli) > _build/default/extraction/.extraction.objs/extraction__Int0.intf.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -intf extraction/List0.mli) > _build/default/extraction/.extraction.objs/extraction__List0.intf.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -intf extraction/MSetInterface.mli) > _build/default/extraction/.extraction.objs/extraction__MSetInterface.intf.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -intf extraction/MSetAVL.mli) > _build/default/extraction/.extraction.objs/extraction__MSetAVL.intf.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -intf extraction/NBitsDef.mli) > _build/default/extraction/.extraction.objs/extraction__NBitsDef.intf.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -intf extraction/NBitsOp.mli) > _build/default/extraction/.extraction.objs/extraction__NBitsOp.intf.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlopt.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w -49 -nopervasives -nostdlib -g -I hiparser/.firrtl_lang.objs/byte -I hiparser/.firrtl_lang.objs/native -intf-suffix .ml-gen -no-alias-deps -opaque -o hiparser/.firrtl_lang.objs/native/firrtl_lang.cmx -c -impl hiparser/firrtl_lang.ml-gen)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -intf extraction/Nat0.mli) > _build/default/extraction/.extraction.objs/extraction__Nat0.intf.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlopt.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w -49 -nopervasives -nostdlib -g -I extraction/.extraction.objs/byte -I extraction/.extraction.objs/native -intf-suffix .ml-gen -no-alias-deps -opaque -o extraction/.extraction.objs/native/extraction.cmx -c -impl extraction/extraction.ml-gen)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -intf extraction/OrderedType.mli) > _build/default/extraction/.extraction.objs/extraction__OrderedType.intf.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -intf extraction/FSets.mli) > _build/default/extraction/.extraction.objs/extraction__FSets.intf.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -intf extraction/Orders.mli) > _build/default/extraction/.extraction.objs/extraction__Orders.intf.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlopt.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w -49 -nopervasives -nostdlib -g -I interpreter/.interpreter.objs/byte -I interpreter/.interpreter.objs/native -intf-suffix .ml-gen -no-alias-deps -opaque -o interpreter/.interpreter.objs/native/interpreter.cmx -c -impl interpreter/interpreter.ml-gen)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlopt.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w -49 -nopervasives -nostdlib -g -I parser/.firrtl_lang.objs/byte -I parser/.firrtl_lang.objs/native -intf-suffix .ml-gen -no-alias-deps -opaque -o parser/.firrtl_lang.objs/native/firrtl_lang.cmx -c -impl parser/firrtl_lang.ml-gen)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -intf extraction/FMaps.mli) > _build/default/extraction/.extraction.objs/extraction__FMaps.intf.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -intf extraction/OrdersTac.mli) > _build/default/extraction/.extraction.objs/extraction__OrdersTac.intf.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -intf extraction/OrdersFacts.mli) > _build/default/extraction/.extraction.objs/extraction__OrdersFacts.intf.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -intf extraction/PeanoNat.mli) > _build/default/extraction/.extraction.objs/extraction__PeanoNat.intf.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -intf extraction/seq.mli) > _build/default/extraction/.extraction.objs/extraction__Seq.intf.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -intf extraction/String0.mli) > _build/default/extraction/.extraction.objs/extraction__String0.intf.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -intf extraction/ssrnat.mli) > _build/default/extraction/.extraction.objs/extraction__Ssrnat.intf.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -intf extraction/ssreflect.mli) > _build/default/extraction/.extraction.objs/extraction__Ssreflect.intf.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -intf extraction/ssrbool.mli) > _build/default/extraction/.extraction.objs/extraction__Ssrbool.intf.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -intf extraction/SsrOrder.mli) > _build/default/extraction/.extraction.objs/extraction__SsrOrder.intf.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -intf extraction/Specif.mli) > _build/default/extraction/.extraction.objs/extraction__Specif.intf.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -intf extraction/Var.mli) > _build/default/extraction/.extraction.objs/extraction__Var.intf.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -intf extraction/ZAriths.mli) > _build/default/extraction/.extraction.objs/extraction__ZAriths.intf.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamldep.opt -modules -intf parser/firrtlParser.mli) > _build/default/parser/.firrtl_lang.objs/firrtl_lang__FirrtlParser.intf.d
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w -49 -nopervasives -nostdlib -g -bin-annot -I .pparser.eobjs/byte -no-alias-deps -opaque -o .pparser.eobjs/byte/dune__exe.cmo -c -impl .pparser.eobjs/dune__exe.ml-gen)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__Bool.cmi -c -intf extraction/Bool.mli)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__BinNums.cmi -c -intf extraction/BinNums.mli)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__Datatypes.cmi -c -intf extraction/Datatypes.mli)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__Equalities.cmi -c -intf extraction/Equalities.mli)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__ExtrOcamlIntConv.cmi -c -intf extraction/ExtrOcamlIntConv.mli)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__Nat0.cmi -c -intf extraction/Nat0.mli)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__PeanoNat.cmi -c -intf extraction/PeanoNat.mli)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__String0.cmi -c -intf extraction/String0.mli)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__Specif.cmi -c -intf extraction/Specif.mli)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__Ssreflect.cmi -c -intf extraction/ssreflect.mli)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__Bool.cmo -c -impl extraction/Bool.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__Datatypes.cmo -c -impl extraction/Datatypes.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__BinNums.cmo -c -impl extraction/BinNums.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__Ssrbool.cmi -c -intf extraction/ssrbool.mli)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__List0.cmi -c -intf extraction/List0.mli)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__Orders.cmi -c -intf extraction/Orders.mli)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__Equalities.cmo -c -impl extraction/Equalities.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__DecidableType.cmi -c -intf extraction/DecidableType.mli)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__Nat0.cmo -c -impl extraction/Nat0.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__ExtrOcamlIntConv.cmo -c -impl extraction/ExtrOcamlIntConv.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__BinPos.cmi -c -intf extraction/BinPos.mli)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlopt.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w -49 -nopervasives -nostdlib -g -I .pparser.eobjs/byte -I .pparser.eobjs/native -intf-suffix .ml-gen -no-alias-deps -opaque -o .pparser.eobjs/native/dune__exe.cmx -c -impl .pparser.eobjs/dune__exe.ml-gen)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlopt.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -I extraction/.extraction.objs/byte -I extraction/.extraction.objs/native -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/native/extraction__BinNums.cmx -c -impl extraction/BinNums.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__PeanoNat.cmo -c -impl extraction/PeanoNat.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlopt.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -I extraction/.extraction.objs/byte -I extraction/.extraction.objs/native -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/native/extraction__Bool.cmx -c -impl extraction/Bool.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlopt.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -I extraction/.extraction.objs/byte -I extraction/.extraction.objs/native -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/native/extraction__Datatypes.cmx -c -impl extraction/Datatypes.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlopt.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -I extraction/.extraction.objs/byte -I extraction/.extraction.objs/native -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/native/extraction__Equalities.cmx -c -impl extraction/Equalities.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__String0.cmo -c -impl extraction/String0.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__Specif.cmo -c -impl extraction/Specif.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__Ssreflect.cmo -c -impl extraction/ssreflect.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlopt.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -I extraction/.extraction.objs/byte -I extraction/.extraction.objs/native -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/native/extraction__Nat0.cmx -c -impl extraction/Nat0.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlopt.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -I extraction/.extraction.objs/byte -I extraction/.extraction.objs/native -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/native/extraction__ExtrOcamlIntConv.cmx -c -impl extraction/ExtrOcamlIntConv.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__Eqtype.cmi -c -intf extraction/eqtype.mli)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__Ssrbool.cmo -c -impl extraction/ssrbool.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__List0.cmo -c -impl extraction/List0.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__OrdersTac.cmi -c -intf extraction/OrdersTac.mli)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__Orders.cmo -c -impl extraction/Orders.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__DecidableType.cmo -c -impl extraction/DecidableType.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlopt.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -I extraction/.extraction.objs/byte -I extraction/.extraction.objs/native -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/native/extraction__PeanoNat.cmx -c -impl extraction/PeanoNat.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlopt.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -I extraction/.extraction.objs/byte -I extraction/.extraction.objs/native -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/native/extraction__String0.cmx -c -impl extraction/String0.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlopt.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -I extraction/.extraction.objs/byte -I extraction/.extraction.objs/native -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/native/extraction__Specif.cmx -c -impl extraction/Specif.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlopt.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -I extraction/.extraction.objs/byte -I extraction/.extraction.objs/native -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/native/extraction__Ssreflect.cmx -c -impl extraction/ssreflect.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__BinNat.cmi -c -intf extraction/BinNat.mli)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__BinInt.cmi -c -intf extraction/BinInt.mli)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlopt.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -I extraction/.extraction.objs/byte -I extraction/.extraction.objs/native -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/native/extraction__Ssrbool.cmx -c -impl extraction/ssrbool.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__Eqtype.cmo -c -impl extraction/eqtype.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__OrdersTac.cmo -c -impl extraction/OrdersTac.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__BinPos.cmo -c -impl extraction/BinPos.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlopt.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -I extraction/.extraction.objs/byte -I extraction/.extraction.objs/native -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/native/extraction__List0.cmx -c -impl extraction/List0.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__OrderedType.cmi -c -intf extraction/OrderedType.mli)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlopt.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -I extraction/.extraction.objs/byte -I extraction/.extraction.objs/native -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/native/extraction__Orders.cmx -c -impl extraction/Orders.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__OrdersFacts.cmi -c -intf extraction/OrdersFacts.mli)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlopt.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -I extraction/.extraction.objs/byte -I extraction/.extraction.objs/native -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/native/extraction__DecidableType.cmx -c -impl extraction/DecidableType.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__Ascii.cmi -c -intf extraction/Ascii.mli)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__BinNat.cmo -c -impl extraction/BinNat.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__Ssrnat.cmi -c -intf extraction/ssrnat.mli)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__Int0.cmi -c -intf extraction/Int0.mli)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__FMapInterface.cmi -c -intf extraction/FMapInterface.mli)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__OrderedType.cmo -c -impl extraction/OrderedType.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlopt.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -I extraction/.extraction.objs/byte -I extraction/.extraction.objs/native -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/native/extraction__Eqtype.cmx -c -impl extraction/eqtype.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlopt.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -I extraction/.extraction.objs/byte -I extraction/.extraction.objs/native -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/native/extraction__BinPos.cmx -c -impl extraction/BinPos.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__BinInt.cmo -c -impl extraction/BinInt.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__ZAriths.cmi -c -intf extraction/ZAriths.mli)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__SsrOrder.cmi -c -intf extraction/SsrOrder.mli)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__OrdersFacts.cmo -c -impl extraction/OrdersFacts.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlopt.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -I extraction/.extraction.objs/byte -I extraction/.extraction.objs/native -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/native/extraction__OrdersTac.cmx -c -impl extraction/OrdersTac.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__MSetInterface.cmi -c -intf extraction/MSetInterface.mli)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__Ascii.cmo -c -impl extraction/Ascii.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__Env.cmi -c -intf extraction/Env.mli)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__Ssrnat.cmo -c -impl extraction/ssrnat.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__Firrtl.cmi -c -intf extraction/Firrtl.mli)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__Seq.cmi -c -intf extraction/seq.mli)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlopt.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -I extraction/.extraction.objs/byte -I extraction/.extraction.objs/native -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/native/extraction__BinNat.cmx -c -impl extraction/BinNat.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlopt.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -I extraction/.extraction.objs/byte -I extraction/.extraction.objs/native -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/native/extraction__OrderedType.cmx -c -impl extraction/OrderedType.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__Int0.cmo -c -impl extraction/Int0.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__FMapInterface.cmo -c -impl extraction/FMapInterface.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__Var.cmi -c -intf extraction/Var.mli)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlopt.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -I extraction/.extraction.objs/byte -I extraction/.extraction.objs/native -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/native/extraction__OrdersFacts.cmx -c -impl extraction/OrdersFacts.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlopt.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -I extraction/.extraction.objs/byte -I extraction/.extraction.objs/native -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/native/extraction__Ascii.cmx -c -impl extraction/Ascii.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlopt.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -I extraction/.extraction.objs/byte -I extraction/.extraction.objs/native -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/native/extraction__BinInt.cmx -c -impl extraction/BinInt.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__SsrOrder.cmo -c -impl extraction/SsrOrder.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__FMapFacts.cmi -c -intf extraction/FMapFacts.mli)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__ZAriths.cmo -c -impl extraction/ZAriths.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__MSetInterface.cmo -c -impl extraction/MSetInterface.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__Env.cmo -c -impl extraction/Env.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlopt.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -I extraction/.extraction.objs/byte -I extraction/.extraction.objs/native -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/native/extraction__Ssrnat.cmx -c -impl extraction/ssrnat.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlopt.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -I extraction/.extraction.objs/byte -I extraction/.extraction.objs/native -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/native/extraction__FMapInterface.cmx -c -impl extraction/FMapInterface.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__MSetAVL.cmi -c -intf extraction/MSetAVL.mli)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlopt.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -I extraction/.extraction.objs/byte -I extraction/.extraction.objs/native -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/native/extraction__Int0.cmx -c -impl extraction/Int0.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__NBitsDef.cmi -c -intf extraction/NBitsDef.mli)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__Seq.cmo -c -impl extraction/seq.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__Firrtl.cmo -c -impl extraction/Firrtl.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__Var.cmo -c -impl extraction/Var.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlopt.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -I extraction/.extraction.objs/byte -I extraction/.extraction.objs/native -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/native/extraction__MSetInterface.cmx -c -impl extraction/MSetInterface.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlopt.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -I extraction/.extraction.objs/byte -I extraction/.extraction.objs/native -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/native/extraction__SsrOrder.cmx -c -impl extraction/SsrOrder.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlopt.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -I extraction/.extraction.objs/byte -I extraction/.extraction.objs/native -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/native/extraction__ZAriths.cmx -c -impl extraction/ZAriths.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__FMapFacts.cmo -c -impl extraction/FMapFacts.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlopt.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -I extraction/.extraction.objs/byte -I extraction/.extraction.objs/native -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/native/extraction__Env.cmx -c -impl extraction/Env.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlopt.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -I extraction/.extraction.objs/byte -I extraction/.extraction.objs/native -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/native/extraction__Seq.cmx -c -impl extraction/seq.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlopt.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -I extraction/.extraction.objs/byte -I extraction/.extraction.objs/native -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/native/extraction__Firrtl.cmx -c -impl extraction/Firrtl.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__NBitsDef.cmo -c -impl extraction/NBitsDef.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__NBitsOp.cmi -c -intf extraction/NBitsOp.mli)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlopt.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -I extraction/.extraction.objs/byte -I extraction/.extraction.objs/native -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/native/extraction__Var.cmx -c -impl extraction/Var.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__MSetAVL.cmo -c -impl extraction/MSetAVL.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlopt.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -I extraction/.extraction.objs/byte -I extraction/.extraction.objs/native -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/native/extraction__NBitsOp.cmx -c -impl extraction/NBitsOp.ml)
+> File "extraction/NBitsOp.ml", line 13, characters 13-16:
+> 13 |      | [] -> zip ss (nseq (size ss) td)
+>                   ^^^
+> Error: Unbound value zip
+[2]
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__NBitsOp.cmo -c -impl extraction/NBitsOp.ml)
+> File "extraction/NBitsOp.ml", line 13, characters 13-16:
+> 13 |      | [] -> zip ss (nseq (size ss) td)
+>                   ^^^
+> Error: Unbound value zip
+[2]
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlopt.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -I extraction/.extraction.objs/byte -I extraction/.extraction.objs/native -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/native/extraction__NBitsDef.cmx -c -impl extraction/NBitsDef.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlopt.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -I extraction/.extraction.objs/byte -I extraction/.extraction.objs/native -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/native/extraction__FMapFacts.cmx -c -impl extraction/FMapFacts.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__FSets.cmi -c -intf extraction/FSets.mli)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlopt.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -I extraction/.extraction.objs/byte -I extraction/.extraction.objs/native -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/native/extraction__MSetAVL.cmx -c -impl extraction/MSetAVL.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__FMaps.cmi -c -intf extraction/FMaps.mli)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -3-32-33-27-39 -g -bin-annot -I hiparser/.firrtl_lang.objs/byte -I /Users/wky/.opam/default/lib/zarith -I extraction/.extraction.objs/byte -no-alias-deps -opaque -open Firrtl_lang -o hiparser/.firrtl_lang.objs/byte/firrtl_lang__Ast.cmo -c -impl hiparser/ast.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -3-32-33-27-39 -g -bin-annot -I parser/.firrtl_lang.objs/byte -I /Users/wky/.opam/default/lib/zarith -I extraction/.extraction.objs/byte -no-alias-deps -opaque -open Firrtl_lang -o parser/.firrtl_lang.objs/byte/firrtl_lang__Ast.cmo -c -impl parser/ast.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__FSets.cmo -c -impl extraction/FSets.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -3-32-33-27-39 -g -bin-annot -I parser/.firrtl_lang.objs/byte -I /Users/wky/.opam/default/lib/zarith -I extraction/.extraction.objs/byte -no-alias-deps -opaque -open Firrtl_lang -o parser/.firrtl_lang.objs/byte/firrtl_lang__FirrtlParser.cmi -c -intf parser/firrtlParser.mli)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -3-32-33-27-39 -g -bin-annot -I parser/.firrtl_lang.objs/byte -I /Users/wky/.opam/default/lib/zarith -I extraction/.extraction.objs/byte -no-alias-deps -opaque -open Firrtl_lang -o parser/.firrtl_lang.objs/byte/firrtl_lang__FirrtlLexer.cmo -c -impl parser/firrtlLexer.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -3-32-33-27-39 -g -bin-annot -I parser/.firrtl_lang.objs/byte -I /Users/wky/.opam/default/lib/zarith -I extraction/.extraction.objs/byte -intf-suffix .ml -no-alias-deps -opaque -open Firrtl_lang -o parser/.firrtl_lang.objs/byte/firrtl_lang__FirrtlParser.cmo -c -impl parser/firrtlParser.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -3-32-33-27-39 -g -bin-annot -I parser/.firrtl_lang.objs/byte -I /Users/wky/.opam/default/lib/zarith -I extraction/.extraction.objs/byte -no-alias-deps -opaque -open Firrtl_lang -o parser/.firrtl_lang.objs/byte/firrtl_lang__Parser.cmo -c -impl parser/parser.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlopt.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -3-32-33-27-39 -g -I hiparser/.firrtl_lang.objs/byte -I hiparser/.firrtl_lang.objs/native -I /Users/wky/.opam/default/lib/zarith -I extraction/.extraction.objs/byte -I extraction/.extraction.objs/native -intf-suffix .ml -no-alias-deps -opaque -open Firrtl_lang -o hiparser/.firrtl_lang.objs/native/firrtl_lang__Ast.cmx -c -impl hiparser/ast.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlopt.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -I extraction/.extraction.objs/byte -I extraction/.extraction.objs/native -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/native/extraction__FSets.cmx -c -impl extraction/FSets.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlopt.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -3-32-33-27-39 -g -I parser/.firrtl_lang.objs/byte -I parser/.firrtl_lang.objs/native -I /Users/wky/.opam/default/lib/zarith -I extraction/.extraction.objs/byte -I extraction/.extraction.objs/native -intf-suffix .ml -no-alias-deps -opaque -open Firrtl_lang -o parser/.firrtl_lang.objs/native/firrtl_lang__Ast.cmx -c -impl parser/ast.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -3-32-33-27-39 -g -a -o parser/firrtl_lang.cma parser/.firrtl_lang.objs/byte/firrtl_lang.cmo parser/.firrtl_lang.objs/byte/firrtl_lang__Ast.cmo parser/.firrtl_lang.objs/byte/firrtl_lang__FirrtlParser.cmo parser/.firrtl_lang.objs/byte/firrtl_lang__FirrtlLexer.cmo parser/.firrtl_lang.objs/byte/firrtl_lang__Parser.cmo)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlopt.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -3-32-33-27-39 -g -I parser/.firrtl_lang.objs/byte -I parser/.firrtl_lang.objs/native -I /Users/wky/.opam/default/lib/zarith -I extraction/.extraction.objs/byte -I extraction/.extraction.objs/native -intf-suffix .ml -no-alias-deps -opaque -open Firrtl_lang -o parser/.firrtl_lang.objs/native/firrtl_lang__FirrtlParser.cmx -c -impl parser/firrtlParser.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlopt.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -3-32-33-27-39 -g -I parser/.firrtl_lang.objs/byte -I parser/.firrtl_lang.objs/native -I /Users/wky/.opam/default/lib/zarith -I extraction/.extraction.objs/byte -I extraction/.extraction.objs/native -intf-suffix .ml -no-alias-deps -opaque -open Firrtl_lang -o parser/.firrtl_lang.objs/native/firrtl_lang__Parser.cmx -c -impl parser/parser.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlopt.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -3-32-33-27-39 -g -I parser/.firrtl_lang.objs/byte -I parser/.firrtl_lang.objs/native -I /Users/wky/.opam/default/lib/zarith -I extraction/.extraction.objs/byte -I extraction/.extraction.objs/native -intf-suffix .ml -no-alias-deps -opaque -open Firrtl_lang -o parser/.firrtl_lang.objs/native/firrtl_lang__FirrtlLexer.cmx -c -impl parser/firrtlLexer.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlopt.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -3-32-33-27-39 -g -a -o parser/firrtl_lang.cmxa parser/.firrtl_lang.objs/native/firrtl_lang.cmx parser/.firrtl_lang.objs/native/firrtl_lang__Ast.cmx parser/.firrtl_lang.objs/native/firrtl_lang__FirrtlParser.cmx parser/.firrtl_lang.objs/native/firrtl_lang__FirrtlLexer.cmx parser/.firrtl_lang.objs/native/firrtl_lang__Parser.cmx)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlc.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -bin-annot -I extraction/.extraction.objs/byte -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/byte/extraction__FMaps.cmo -c -impl extraction/FMaps.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlopt.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -32-33-34-39-3 -g -I extraction/.extraction.objs/byte -I extraction/.extraction.objs/native -intf-suffix .ml -no-alias-deps -opaque -open Extraction -o extraction/.extraction.objs/native/extraction__FMaps.cmx -c -impl extraction/FMaps.ml)
+$ (cd _build/default && /Users/wky/.opam/default/bin/ocamlopt.opt -w @1..3@5..28@30..39@43@46..47@49..57@61..62-40 -strict-sequence -strict-formats -short-paths -keep-locs -w +42 -w -3-32-33-27-39 -g -shared -linkall -I parser -o parser/firrtl_lang.cmxs parser/firrtl_lang.cmxa)

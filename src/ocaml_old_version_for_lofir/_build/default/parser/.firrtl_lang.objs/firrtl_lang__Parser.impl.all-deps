@@ -1,4 +1,3 @@
-Ast
-FirrtlLexer
-FirrtlParser
-Firrtl_lang
+firrtl_lang__Ast
+firrtl_lang__FirrtlLexer
+firrtl_lang__FirrtlParser
