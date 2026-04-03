@@ -1938,10 +1938,10 @@ Definition ExpandWhens_fun
     | FExmod _ _ _ => None
     end.
 
-Definition expandWhens (c : HiFP.hfcircuit) : option (HiFP.hfcircuit * PVM.t def_expr) :=
+Definition expandWhens (c : HiFP.hfcircuit) : option (HiFP.hfcircuit * PVM.t def_expr * (list PVM.key)) :=
   match c, Sem_HiFP.circuit_tmap c with
   | Fcircuit v [:: m], Some tmap => match ExpandWhens_fun m tmap with
-    | Some (fm, conn_map) => Some (Fcircuit v [:: fm], conn_map)
+    | Some (fm, conn_map) => Some (Fcircuit v [:: fm], conn_map, fst (List.split (PVM.elements tmap)))
     | _ => None
     end
   | _, _ => None

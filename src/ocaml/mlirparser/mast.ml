@@ -1,61 +1,11 @@
+open Hifirrtl_lang
 type var = string
 
-type fgtyp =
-| Fuint of int
-| Fsint of int
-| Fuint_implicit of int
-| Fsint_implicit of int
-| Fclock
-| Freset
-| Fasyncreset
-
-type ucast =
-| AsUInt
-| AsSInt
-| AsClock
-| AsAsync
-
-type eunop =
-| Upad of int
-| Ushl of int
-| Ushr of int
-| Ucvt
-| Uneg
-| Unot
-| Uandr
-| Uorr
-| Uxorr
-| Uextr of int * int
-| Uhead of int
-| Utail of int
-
-type bcmp =
-| Blt
-| Bleq
-| Bgt
-| Bgeq
-| Beq
-| Bneq
-
-type ebinop =
-| Badd
-| Bsub
-| Bmul
-| Bdiv
-| Brem
-| Bcomp of bcmp
-| Bdshl
-| Bdshr
-| Band
-| Bor
-| Bxor
-| Bcat
-
 type hfexpr =
-| Econst of fgtyp * Z.t
-| Ecast of ucast * var
-| Eprim_unop of eunop * var
-| Eprim_binop of ebinop * var * var
+| Econst of Ast.fgtyp * Z.t
+| Ecast of Ast.ucast * var
+| Eprim_unop of Ast.eunop * var
+| Eprim_binop of Ast.ebinop * var * var
 | Emux of var * var * var
 | Emultimux of var list
 | Eref of var
@@ -81,8 +31,8 @@ let rec qcat s1 s2 =
   | Qcons (h1, tl1) -> Qcons (h1, (qcat tl1 s2))
 
 type hfport =
-| Finput of var * fgtyp
-| Foutput of var * fgtyp
+| Finput of var * Ast.fgtyp
+| Foutput of var * Ast.fgtyp
 
 type hfmodule =
 | FInmod of var * hfport list * hfstmt_seq
@@ -93,80 +43,16 @@ type hfcircuit =
 
 (*type file = hfcircuit*)
 type file = hfmodule list
-
-let pp_gtyp out ty =
-  match ty with
-  | Fuint s -> output_string out "(Fuint "; output_string out (Int.to_string s); output_string out ")"
-  | Fsint s -> output_string out "(Fsint "; output_string out (Int.to_string s); output_string out ")"
-  | Fuint_implicit s -> output_string out "Fuint_implicit"
-  | Fsint_implicit s -> output_string out "Fsint_implicit"
-  | Freset -> output_string out "Freset"
-  | Fasyncreset -> output_string out "Fasyncreset"
-  | Fclock -> output_string out "Fclock"
- 
-let pp_cast out cst = 
- match cst with
- | AsUInt -> output_string out "AsUInt"
- | AsSInt -> output_string out "AsSInt"
- | AsClock -> output_string out "AsUint "
- | AsAsync ->  output_string out "AsAsync"
- 
-let pp_unop out op =
- match op with
- | Upad s -> output_string out "(Upad "; output_string out (Int.to_string s); output_string out ")" 
- | Ushl s -> output_string out "(Ushl "; output_string out (Int.to_string s); output_string out")"
- | Ushr s -> output_string out "(Ushr "; output_string out (Int.to_string s); output_string out")"
- | Ucvt -> output_string out "Ucvt"
- | Uneg -> output_string out "Uneg"
- | Unot -> output_string out "Unot "
- | Uandr -> output_string out "Uandr"
- | Uorr -> output_string out "Uorr"
- | Uxorr -> output_string out "Uxorr"
- | Uextr (s1, s2) -> output_string out "(Uextr "; output_string out (Int.to_string s1);  output_string out " "; output_string out (Int.to_string s2); output_string out")"
- | Uhead s -> output_string out "(Uhead "; output_string out (Int.to_string s); output_string out")"
- | Utail s -> output_string out "(Utail "; output_string out (Int.to_string s); output_string out")"
- (*| Ubits (s1,s2)  -> output_string out "(Ubits "; output_string out (Int.to_string s1); output_string out " "; output_string out (Int.to_string s2); output_string out")"
- | Uincp -> output_string out "Uincp"
- | Udecp -> output_string out "Udecp"
- | Usetp -> output_string out "Usetp"
- | _ -> output_string out "" *)
-
-let pp_comp out cmp = 
- match cmp with
- | Blt -> output_string out "Blt" 
- | Bleq -> output_string out "Bleq"
- | Bgt -> output_string out "Bgt"
- | Bgeq -> output_string out "Bgeq"
- | Beq -> output_string out "Beq"
- | Bneq -> output_string out "Bneq"
-      
-let pp_binop out op =
- match op with
- | Badd -> output_string out "Badd "
- | Bsub -> output_string out "Bsub "
- | Bmul -> output_string out "Bmul"
- | Bdiv -> output_string out "Bdiv"
- | Brem -> output_string out "Brem"
- | Bcomp s -> output_string out "Bcomp("; pp_comp out s; output_string out")"
- | Bdshl -> output_string out "Bdshl "
- | Bdshr -> output_string out "Bdshr "
- | Band -> output_string out "Band "
- | Bor -> output_string out "Bor "
- | Bxor -> output_string out "Bxor "
- | Bcat -> output_string out "Bcat "
- (*| Bsdiv -> output_string out "Bsdiv "
- | Bsrem -> output_string out "Bsrem "
- | _ -> output_string out "" *)
          
 let rec pp_expr out e =
  match e with
- | Econst (ty, s) -> output_string out "(econst "; pp_gtyp out ty; output_string out " [::b"; output_string out (Z.format "%b" s) ; output_string out"])"
+ | Econst (ty, s) -> output_string out "(econst "; Ast.pp_gtyp out ty; output_string out " [::b"; output_string out (Z.format "%b" s) ; output_string out"])"
  | Eref v -> output_string out ("(eref "^v^")")
- | Eprim_unop (op, v) -> output_string out "(eprim_unop "; pp_unop out op; output_string out (v^")")
- | Eprim_binop (bop, v1, v2) -> output_string out "(eprim_binop "; pp_binop out bop; output_string out (v1^", "^v2^")")
+ | Eprim_unop (op, v) -> output_string out "(eprim_unop "; Ast.pp_unop out op; output_string out (v^")")
+ | Eprim_binop (bop, v1, v2) -> output_string out "(eprim_binop "; Ast.pp_binop out bop; output_string out (v1^", "^v2^")")
  | Emux (v1, v2, v3)  -> output_string out ("(emux "^v1^", "^v2^", "^v3^")")
  | Emultimux vl  -> output_string out "(emultimux "; List.iter (fun c -> output_string out (c^", ")) vl;  output_string out ")\n";
- | Ecast (s, v) -> output_string out "(ecast "; pp_cast out s; output_string out (" "^v^")")
+ | Ecast (s, v) -> output_string out "(ecast "; Ast.pp_cast out s; output_string out (" "^v^")")
 
 let pp_exprs out el =  List.iter (fun c -> pp_expr out c; output_string out "") el
 
@@ -174,8 +60,8 @@ let rec pp_ports out pl = output_string out "["; List.iter (fun c -> pp_port out
                      
 and pp_port out p =
   match p with
-  | Finput (v, ty) -> output_string out "Finput "; output_string out (v^" : "); pp_gtyp out ty
-  | Foutput (v, ty) -> output_string out "Foutput "; output_string out (v^" : "); pp_gtyp out ty               
+  | Finput (v, ty) -> output_string out "Finput "; output_string out (v^" : "); Ast.pp_gtyp out ty
+  | Foutput (v, ty) -> output_string out "Foutput "; output_string out (v^" : "); Ast.pp_gtyp out ty               
      
 let rec pp_statements out sl = 
   match sl with
