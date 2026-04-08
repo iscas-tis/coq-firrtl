@@ -881,6 +881,8 @@ with stmt_tmap' (tmap : VM.t (ftype * fcomponent)) (s : HiF.hfstmt) : option (VM
   | Sskip => Some tmap
   | Sfcnct _ _ => Some tmap
   | Sinvalid _ => Some tmap
+  | Smem _ _ => Some tmap
+  | Sinst _ _ => Some tmap
   | Swire v t => match VM.find v tmap with
       | None => Some (VM.add v (t, Wire) tmap)
       | _ => None
@@ -893,8 +895,6 @@ with stmt_tmap' (tmap : VM.t (ftype * fcomponent)) (s : HiF.hfstmt) : option (VM
                   | None, Some ft => Some (VM.add v (ft, Node) tmap)
                   | _, _ => None
                   end
-  | Smem _ _ => None (* Memory not considered*)
-  | Sinst _ _ => None
   | Swhen cond ss_true ss_false =>
       match type_of_hfexpr cond tmap, stmts_tmap' tmap ss_true with
       | Some (Gtyp _), Some tmap_true => stmts_tmap' tmap_true ss_false 
@@ -1251,6 +1251,8 @@ with stmt_tmap' (tmap : PVM.t (fgtyp * fcomponent)) (s : HiFP.hfstmt) : option (
   | Sskip => Some tmap
   | Sfcnct _ _ => Some tmap
   | Sinvalid _ => Some tmap
+  | Smem _ _ => Some tmap
+  | Sinst _ _ => Some tmap
   | Swire v (Gtyp t) => match PVM.find v tmap with
       | None => Some (PVM.add v (t, Wire) tmap)
       | _ => None
@@ -1264,8 +1266,6 @@ with stmt_tmap' (tmap : PVM.t (fgtyp * fcomponent)) (s : HiFP.hfstmt) : option (
                   | None, Some ft => Some (PVM.add v (ft, Node) tmap)
                   | _, _ => None
                   end
-  | Smem _ _ => None (* Memory not considered*)
-  | Sinst _ _ => None
   | Swhen _ ss_true ss_false =>
       match stmts_tmap' tmap ss_true with
       | Some tmap_true => stmts_tmap' tmap_true ss_false 
@@ -1653,8 +1653,8 @@ with expand_fcnct_btyp (pv0 pv1 : ProdVarOrder.t) (offset : nat) flip (btyp : ff
 Fixpoint expandconnects_stmt (s : HiF.hfstmt) (tmap : VM.t (ftype * fcomponent)) (sts : HiFP.hfstmt_seq) : option HiFP.hfstmt_seq :=
   match s with
   | Sskip 
-  | Smem _ _ (* how to expand? *)
-  | Sinst _ _ (* how to expand? *) => Some (HiFP.qrcons sts HiFP.sskip)
+  | Smem _ _ 
+  | Sinst _ _ => Some (HiFP.qrcons sts HiFP.sskip)
   | Swire v t => Some (expand_wire v 0 t sts)
   | Sreg v r => expand_reg v r tmap sts
   | Sinvalid ref => match Sem_HiF.type_of_ref ref tmap, ref2pv ref tmap with
