@@ -24,3 +24,5 @@ src/Extract.v
 src/HiEnv.v
 src/HiFirrtl.v
 src/Semantics.v
+src/ExpandConnects_inst.v
+src/ExpandWhens_inst.v

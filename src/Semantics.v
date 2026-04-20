@@ -1653,8 +1653,8 @@ with expand_fcnct_btyp (pv0 pv1 : ProdVarOrder.t) (offset : nat) flip (btyp : ff
 Fixpoint expandconnects_stmt (s : HiF.hfstmt) (tmap : VM.t (ftype * fcomponent)) (sts : HiFP.hfstmt_seq) : option HiFP.hfstmt_seq :=
   match s with
   | Sskip 
-  | Smem _ _ 
-  | Sinst _ _ => Some (HiFP.qrcons sts HiFP.sskip)
+  | Smem _ _ => Some (HiFP.qrcons sts HiFP.sskip) (* TBD *)
+  | Sinst v mv => Some (HiFP.qrcons sts (HiFP.sinst (v, N0) (mv, N0)))
   | Swire v t => Some (expand_wire v 0 t sts)
   | Sreg v r => expand_reg v r tmap sts
   | Sinvalid ref => match Sem_HiF.type_of_ref ref tmap, ref2pv ref tmap with

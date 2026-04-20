@@ -4,7 +4,7 @@ From Coq Require Import Arith List.
 From mathcomp Require Import tuple.
 From nbits Require Import NBits.
 From simplssrlib Require Import Var.
-From firrtl Require Import Env Firrtl Semantics.
+From firrtl Require Import Env Firrtl Semantics ExpandConnects_inst ExpandWhens_inst.
 
 Extraction Language OCaml.
 
@@ -19,5 +19,6 @@ Separate Extraction
          (*LoFirrtl.run_module0 LoFirrtl.run_module
          LoFirrtl.no_mem_run_module_inline LoFirrtl.no_mem_run_module0_inline
          LoFirrtl.no_mem_run_module LoFirrtl.no_mem_run_module0 *)
-         Semantics.expandconnects Semantics.expandWhens.
+         (*Semantics.expandconnects Semantics.expandWhens.*)
+         ExpandConnects_inst.expandconnects ExpandWhens_inst.expandWhens.
 Cd "../../..".

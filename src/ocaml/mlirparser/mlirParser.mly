@@ -9,7 +9,7 @@
 %token STM_NODE STM_NASS STM_INST STM_WIRE STM_REG STM_REGRESET0 UINT SINT ASYNC RESET VECTOR BUNDLE FLIP CLOCK 
 %token EXPR_VALIDIF EXPR_ADD EXPR_AND EXPR_ANDR EXPR_ASCLOCK EXPR_ASFIXED EXPR_ASSINT EXPR_ASUINT EXPR_CAT EXPR_CVT EXPR_DIV EXPR_DSHL EXPR_ASASYNC
 %token EXPR_DSHR EXPR_EQ EXPR_GEQ EXPR_GT EXPR_HEAD EXPR_LEQ EXPR_LT EXPR_MUL EXPR_MUX EXPR_NEG EXPR_NEQ EXPR_NOT EXPR_OR EXPR_ORR EXPR_PAD EXPR_REM EXPR_SHL EXPR_SHR EXPR_SUB EXPR_TAIL EXPR_XOR EXPR_XORR EXPR_BITS
-%token EOF NAME_EQ STM_CONNECT RARROW EXPR_AND TO CONST STM_CNCT EXPR_MULTIMUX 
+%token EOF NAME_EQ STM_CONNECT RARROW EXPR_AND TO CONST STM_CNCT STM_MCONNECT EXPR_MULTIMUX 
 
 %start file
 %type <Mast.file> file
@@ -84,6 +84,8 @@ statement
                                          KEYWORD gtyp_def
                                          { Swire $1 }
   | FIRRTLDOT STM_CONNECT symbol_prct SPRT symbol_prct KEYWORD gtyp_def
+                                         { Sfcnct ($3, $5)}
+  | FIRRTLDOT STM_MCONNECT symbol_prct SPRT symbol_prct KEYWORD gtyp_def
                                          { Sfcnct ($3, $5)}
   | FIRRTLDOT STM_CNCT symbol_prct SPRT symbol_prct KEYWORD gtyp_def SPRT gtyp_def
                                          { Sfcnct ($3, $5)}

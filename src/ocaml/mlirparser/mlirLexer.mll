@@ -59,6 +59,7 @@ and token = parse
 | "instance"                            { upd_cnum lexbuf; STM_INST }
 | "connect"                             { upd_cnum lexbuf; STM_CNCT }
 | "strictconnect"                       { upd_cnum lexbuf; STM_CONNECT }
+| "matchingconnect"                     { upd_cnum lexbuf; STM_MCONNECT }
 | "constant"                            { upd_cnum lexbuf; CONST }
 | "->"                                  { upd_cnum lexbuf; RARROW }
 

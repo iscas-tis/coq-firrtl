@@ -1,7 +1,9 @@
 open Hifirrtl_lang
 open Mlir_lang
 open Extraction
+open Extraction.HiFirrtl
 open Extraction.Semantics
+open Printf
 (* 方便 ocaml 与 firtool 对齐的语法树结构 *)
 type var = string
 
@@ -127,6 +129,13 @@ let rec print_dexpr_list del nummap tmap =
     let string_e = dexpr_pair_to_string de nummap tmap in
     output_string stdout (string_v^" is cnct to "); pp_expr stdout string_e;
     output_string stdout "\n"; print_dexpr_list tl nummap tmap
+
+let rec print_circuit_cmap cmap_list nummap tmap = 
+  match cmap_list with
+  | [] -> output_string stdout ""
+  | (mv, cmap) :: tl -> printf "in module %d\n" (fst (Obj.magic mv)); 
+    print_dexpr_list (PVM.elements cmap) nummap tmap; 
+    print_circuit_cmap tl nummap tmap
 
 let rec expand (mlir_cm : Mast.hfexpr Transhiast.StringMap.t) (whitelist : var list) (expr : Mast.hfexpr) : hfexpr =
   (* 判断变量是否在白名单中 *)

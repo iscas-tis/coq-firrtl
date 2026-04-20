@@ -4,6 +4,8 @@ open Mlir_lang
 open Printf
 open Extraction.Semantics
 open Extraction.HiFirrtl
+open Extraction.ExpandConnects_inst 
+open Extraction.ExpandWhens_inst
 
 let args = [
   ]
@@ -43,29 +45,29 @@ let anon file =
 
   (* ocaml connection tree *)
   let hif_ast = Parser.hiparse file in 
-  let flatten_cir = Inline.inline_cir stdout hif_ast in 
   let oc_fir = (*open_out (Transhiast.process_string in_file "_cons.txt"*) stdout in
-  (*Ast.pp_fcircuit oc_fir flatten_cir;*)
-  match flatten_cir with
-  | Ast.Fcircuit (v, ml) ->
-    let (((map0, map1), flag), tmap_ast) = Transhiast.mapcir flatten_cir in (* map0 is string to num, map1 is num to string *)
-    (*Transhiast.StringMap.iter (fun key value -> output_string oc_fir (key^": ["); Stdlib.List.iter (fprintf oc_fir "%d;") value; output_string oc_fir "]\n") map0;
-    Transhiast.IntMap.iter (fun key value -> output_string oc_fir ((string_of_int key)^" is "^ value^"\n")) map1;*)
-    let map_p2s = Transhiast.StringMap.fold (fun key ft acc -> let base_num = Obj.magic (Stdlib.List.hd (Stdlib.List.rev (Transhiast.StringMap.find key map0))) in
+  
+  let ((modmap, _), map) = Transhiast_without_inline.mapcir hif_ast in 
+  let hif_without_inline = Transhiast_without_inline.trans_cir hif_ast modmap map in
+  output_string oc_fir "\norigin\n";
+  Printfir.pp_fcircuit_fir oc_fir hif_without_inline;
+
+  (match expandconnects hif_without_inline with
+  | Some c_expandconnects -> Printfir_pair.pp_fcircuit_fir oc_fir c_expandconnects;
+  | None -> output_string stdout "error expandconnects\n"; )
+
+  (*let map_p2s = Transhiast.StringMap.fold (fun key ft acc -> let base_num = Obj.magic (Stdlib.List.hd (Stdlib.List.rev (Transhiast.StringMap.find key map0))) in
         Pair2string.store_pair key 0 base_num ft acc) tmap_ast Transhiast.IntPairMap.empty in
-    let c = Transhiast.trans_cir flatten_cir map0 flag tmap_ast in 
-    (*output_string oc_fir "\norigin\n";
-    Printfir.pp_fcircuit_fir oc_fir v c;
-    output_string oc_fir "\nafter expandconnects :\n";*)
+    (*output_string oc_fir "\nafter expandconnects :\n";*)
     (match expandconnects c with
     | Some c_expandconnects -> (*Printfir_pair.pp_fcircuit_fir oc_fir v c_expandconnects; 
       output_string oc_fir "\nafter expandwhens :\n";*)
       (match expandWhens c_expandconnects with
       | Some ((c_expandwhens, conn_map), pvlist) -> (*Printfir_pair.pp_fcircuit_fir oc_fir v c_expandwhens;*)
         output_string oc_fir "\nocaml connection map :\n";
-        Compare_conn_map.print_dexpr_list (PVM.elements conn_map) map1 tmap_ast; 
+        Compare_conn_map.print_circuit_cmap (PVM.elements conn_map) map1 tmap_ast; 
         
-        output_string oc_fir "\nfirtool connection map after substitute :\n";
+        (*output_string oc_fir "\nfirtool connection map after substitute :\n";
         let whitelist = List.map (fun pv -> Compare_conn_map.pair_to_string (Obj.magic pv) map1 tmap_ast) pvlist in 
         Mast.StringMap.iter (fun mv mod_cm -> output_string stdout ("module "^mv^" :\n");
           Mast.StringMap.iter (fun v e -> output_string stdout (v^" -> "); 
@@ -73,9 +75,9 @@ let anon file =
             Compare_conn_map.pp_expr stdout e_after_substitute; output_string stdout "\n") mod_cm; 
           output_string stdout "\n") mlir_cm; 
 
-        Compare_conn_map.compare_ocaml_mlir (PVM.elements conn_map) map1 tmap_ast (Transhiast.StringMap.find v mlir_cm) whitelist;
+        Compare_conn_map.compare_ocaml_mlir (PVM.elements conn_map) map1 tmap_ast (Transhiast.StringMap.find v mlir_cm) whitelist;*)
         
         close_out oc_fir;
-      | _ -> output_string stdout "error expandwhens\n"; close_out oc_fir;))
+      | _ -> output_string stdout "error expandwhens\n"; close_out oc_fir;)*)
 
 let _ = parse args anon usage
