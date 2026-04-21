@@ -52,13 +52,32 @@ let anon file =
   output_string oc_fir "\norigin\n";
   Printfir.pp_fcircuit_fir oc_fir hif_without_inline;
 
+  output_string oc_fir "\nafter expandconnects :\n";
   (match expandconnects hif_without_inline with
   | Some c_expandconnects -> Printfir_pair.pp_fcircuit_fir oc_fir c_expandconnects;
-  | None -> output_string stdout "error expandconnects\n"; )
+    output_string oc_fir "\nafter expandwhens :\n";
+    (match expandWhens c_expandconnects with
+    | Some ((c_expandwhens, conn_map), pvlist) -> Printfir_pair.pp_fcircuit_fir oc_fir c_expandwhens;
+    (* compare conn_map between mlir and ocaml *)
+      Mast.StringMap.iter (fun mv mod_cm -> output_string stdout ("\nmodule "^mv^" :\n");
+        let modnum = Mast.StringMap.find mv modmap in
+        let ((map0, map1), tmap) = Mast.StringMap.find mv map in
+        let modnump = Obj.magic (modnum, 0) in
+        match PVM.find modnump conn_map with
+        | Some ocaml_mod_cm -> match PVM.find modnump pvlist with
+          | Some mod_pvlist -> 
+            let whitelist = List.map (fun pv -> Compare_conn_map.pair_to_string (Obj.magic pv) map1 tmap) mod_pvlist in 
+            Compare_conn_map.compare_ocaml_mlir (PVM.elements ocaml_mod_cm) map1 tmap mod_cm whitelist
+          | _ -> output_string stdout ("find module "^mv^" in whitelist error\n");
+        | _ -> output_string stdout ("find module "^mv^" in ocaml cm error\n");
+        ) mlir_cm; 
+
+    | None -> output_string stdout "error expandwhens\n";)
+  | None -> output_string stdout "error expandconnects\n";)
 
   (*let map_p2s = Transhiast.StringMap.fold (fun key ft acc -> let base_num = Obj.magic (Stdlib.List.hd (Stdlib.List.rev (Transhiast.StringMap.find key map0))) in
         Pair2string.store_pair key 0 base_num ft acc) tmap_ast Transhiast.IntPairMap.empty in
-    (*output_string oc_fir "\nafter expandconnects :\n";*)
+
     (match expandconnects c with
     | Some c_expandconnects -> (*Printfir_pair.pp_fcircuit_fir oc_fir v c_expandconnects; 
       output_string oc_fir "\nafter expandwhens :\n";*)
