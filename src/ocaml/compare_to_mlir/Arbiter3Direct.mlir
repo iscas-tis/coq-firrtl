@@ -1,9 +1,9 @@
-// -----// IR Dump After ExpandWhens (firrtl-expand-whens) //----- //
-firrtl.module @Arbiter3Direct(in %clock1: !firrtl.clock, in %reset1: !firrtl.uint<1>, in %io_request: !firrtl.uint<3>, out %io_grant: !firrtl.uint<3>) attributes {convention = #firrtl<convention scalarized>} {
+// -----// IR Dump After ExpandWhens: firrtl-expand-whens //----- //
+firrtl.module @Arbiter3Direct(in %clock_wky: !firrtl.clock, in %reset1: !firrtl.uint<1>, in %io_request: !firrtl.uint<3>, out %io_grant: !firrtl.uint<3>) attributes {convention = #firrtl<convention scalarized>} {
   %io_request_0 = firrtl.wire {name = "io_request"} : !firrtl.uint<3>
   %io_grant_1 = firrtl.wire {name = "io_grant"} : !firrtl.uint<3>
-  firrtl.strictconnect %io_request_0, %io_request : !firrtl.uint<3>
-  firrtl.strictconnect %io_grant, %io_grant_1 : !firrtl.uint<3>
+  firrtl.matchingconnect %io_request_0, %io_request : !firrtl.uint<3>
+  firrtl.matchingconnect %io_grant, %io_grant_1 : !firrtl.uint<3>
   %grant = firrtl.wire : !firrtl.uint<3>
   %c0_ui3 = firrtl.constant 0 : !firrtl.uint<3>
   %c0_ui1 = firrtl.constant 0 : !firrtl.uint<1>
@@ -65,7 +65,7 @@ firrtl.module @Arbiter3Direct(in %clock1: !firrtl.clock, in %reset1: !firrtl.uin
   %48 = firrtl.mux(%11, %13, %47) : (!firrtl.uint<1>, !firrtl.uint<3>, !firrtl.uint<3>) -> !firrtl.uint<3>
   %49 = firrtl.mux(%5, %7, %48) : (!firrtl.uint<1>, !firrtl.uint<3>, !firrtl.uint<3>) -> !firrtl.uint<3>
   %50 = firrtl.mux(%1, %2, %49) : (!firrtl.uint<1>, !firrtl.uint<3>, !firrtl.uint<3>) -> !firrtl.uint<3>
-  firrtl.connect %grant, %50 : !firrtl.uint<3>, !firrtl.uint<3>
-  firrtl.strictconnect %io_grant_1, %grant : !firrtl.uint<3>
+  firrtl.connect %grant, %50 : !firrtl.uint<3>
+  firrtl.matchingconnect %io_grant_1, %grant : !firrtl.uint<3>
 }
 

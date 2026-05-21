@@ -26,8 +26,27 @@ let rec pp_expr out e =
   | Ecast (s, e) -> output_string out "(ecast "; Ast.pp_cast out s; output_string out " "; pp_expr out e; output_string out ")"
   | Emultimux el  -> output_string out "(emultimux "; List.iter (fun c -> pp_expr out c; output_string out ", ") el;  output_string out ")"
 
-(* 根据 pair of num 的 cm, 转换为 string 的 cm. 把(2,1), 先根据 map1, 找到 2 对应的 string 和 ftype, 再根据 offset 和 ftype 对应到新名 *)
+let rec eq_hfexpr (e1 : hfexpr) (e2 : hfexpr) : bool =
+  match e1, e2 with
+  | Econst (t1, z1), Econst (t2, z2) -> t1 = t2 && Z.equal z1 z2
+  | Ecast (c1, e1), Ecast (c2, e2) -> c1 = c2 && eq_hfexpr e1 e2
+  | Eprim_unop (op1, e1), Eprim_unop (op2, e2) -> op1 = op2 && eq_hfexpr e1 e2
+  | Eprim_binop (op1, l1, r1), Eprim_binop (op2, l2, r2) ->
+      op1 = op2 && eq_hfexpr l1 l2 && eq_hfexpr r1 r2
+  | Emux (c1, t1, f1), Emux (c2, t2, f2) ->
+      eq_hfexpr c1 c2 && eq_hfexpr t1 t2 && eq_hfexpr f1 f2
+  | Emultimux es1, Emultimux es2 ->
+      let rec eq_list xs ys =
+        match xs, ys with
+        | [], [] -> true
+        | x :: xs', y :: ys' -> eq_hfexpr x y && eq_list xs' ys'
+        | _ -> false
+      in
+      eq_list es1 es2
+  | Eref v1, Eref v2 -> v1 = v2
+  | _ -> false
 
+(* 根据 pair of num 的 cm, 转换为 string 的 cm. 把(2,1), 先根据 map1, 找到 2 对应的 string 和 ftype, 再根据 offset 和 ftype 对应到新名 *)
 let rec offset_to_string base_id offset = function
 | Ast.Gtyp gt ->
   if offset = 0 then base_id else "wrong name"
@@ -156,10 +175,14 @@ let rec expand (mlir_cm : Mast.hfexpr Transhiast.StringMap.t) (whitelist : var l
 let rec compare_ocaml_mlir del nummap tmap mod_cm whitelist = 
   match del with
   | [] -> output_string stdout "compare finished\n"
-  | (v, de) :: tl -> let string_v = pair_to_string (Obj.magic v) nummap tmap in
+  | (v, de) :: tl -> 
+    let string_v = pair_to_string (Obj.magic v) nummap tmap in 
     let string_e = dexpr_pair_to_string de nummap tmap in (* ocaml 结果对应的 expr*)
+    printf "%s\n" string_v; (* 如果string_v以_wky结尾，需要去掉末尾的4个字符 *)
     let mlir_e = Transhiast.StringMap.find string_v mod_cm in (* mlir 结果对应的 expr*)
     let e_after_substitute = expand mod_cm whitelist mlir_e in (* mlir 代入*)
-    output_string stdout (string_v^" is cnct to\nocaml version : "); pp_expr stdout string_e;
+    (*if eq_hfexpr string_e e_after_substitute then compare_ocaml_mlir tl nummap tmap mod_cm whitelist
+    else*) (output_string stdout (string_v^" is cnct to\nocaml version : "); pp_expr stdout string_e;
     output_string stdout "\nfirtool version : "; pp_expr stdout e_after_substitute; output_string stdout "\n";
-    compare_ocaml_mlir tl nummap tmap mod_cm whitelist
+    compare_ocaml_mlir tl nummap tmap mod_cm whitelist)
+    

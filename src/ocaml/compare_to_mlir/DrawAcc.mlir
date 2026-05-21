@@ -1,11 +1,11 @@
-// -----// IR Dump After ExpandWhens (firrtl-expand-whens) //----- //
+// -----// IR Dump After ExpandWhens: firrtl-expand-whens //----- //
 firrtl.module @DrawAcc(in %clock: !firrtl.clock, in %reset1: !firrtl.uint<1>, in %io_din: !firrtl.uint<8>, in %io_sel: !firrtl.uint<3>, out %io_dout: !firrtl.uint<8>) attributes {convention = #firrtl<convention scalarized>} {
   %io_din_0 = firrtl.wire {name = "io_din"} : !firrtl.uint<8>
   %io_sel_1 = firrtl.wire {name = "io_sel"} : !firrtl.uint<3>
   %io_dout_2 = firrtl.wire {name = "io_dout"} : !firrtl.uint<8>
-  firrtl.strictconnect %io_din_0, %io_din : !firrtl.uint<8>
-  firrtl.strictconnect %io_sel_1, %io_sel : !firrtl.uint<3>
-  firrtl.strictconnect %io_dout, %io_dout_2 : !firrtl.uint<8>
+  firrtl.matchingconnect %io_din_0, %io_din : !firrtl.uint<8>
+  firrtl.matchingconnect %io_sel_1, %io_sel : !firrtl.uint<3>
+  firrtl.matchingconnect %io_dout, %io_dout_2 : !firrtl.uint<8>
   %c0_ui8 = firrtl.constant 0 : !firrtl.uint<8>
   %regAcc = firrtl.regreset %clock, %reset1, %c0_ui8 : !firrtl.clock, !firrtl.uint<1>, !firrtl.uint<8>, !firrtl.uint<8>
   %c0_ui1 = firrtl.constant 0 : !firrtl.uint<1>
@@ -41,7 +41,7 @@ firrtl.module @DrawAcc(in %clock: !firrtl.clock, in %reset1: !firrtl.uint<1>, in
   %22 = firrtl.mux(%10, %_regAcc_T_1, %21) : (!firrtl.uint<1>, !firrtl.uint<8>, !firrtl.uint<8>) -> !firrtl.uint<8>
   %23 = firrtl.mux(%4, %6, %22) : (!firrtl.uint<1>, !firrtl.uint<8>, !firrtl.uint<8>) -> !firrtl.uint<8>
   %24 = firrtl.mux(%1, %regAcc, %23) : (!firrtl.uint<1>, !firrtl.uint<8>, !firrtl.uint<8>) -> !firrtl.uint<8>
-  firrtl.connect %regAcc, %24 : !firrtl.uint<8>, !firrtl.uint<8>
-  firrtl.strictconnect %io_dout_2, %regAcc : !firrtl.uint<8>
+  firrtl.connect %regAcc, %24 : !firrtl.uint<8>
+  firrtl.matchingconnect %io_dout_2, %regAcc : !firrtl.uint<8>
 }
 

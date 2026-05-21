@@ -1,9 +1,9 @@
-// -----// IR Dump After ExpandWhens (firrtl-expand-whens) //----- //
+// -----// IR Dump After ExpandWhens: firrtl-expand-whens //----- //
 firrtl.module @RisingMooreFsm(in %clock: !firrtl.clock, in %reset1: !firrtl.uint<1>, in %io_din: !firrtl.uint<1>, out %io_risingEdge: !firrtl.uint<1>) attributes {convention = #firrtl<convention scalarized>} {
   %io_din_0 = firrtl.wire {name = "io_din"} : !firrtl.uint<1>
   %io_risingEdge_1 = firrtl.wire {name = "io_risingEdge"} : !firrtl.uint<1>
-  firrtl.strictconnect %io_din_0, %io_din : !firrtl.uint<1>
-  firrtl.strictconnect %io_risingEdge, %io_risingEdge_1 : !firrtl.uint<1>
+  firrtl.matchingconnect %io_din_0, %io_din : !firrtl.uint<1>
+  firrtl.matchingconnect %io_risingEdge, %io_risingEdge_1 : !firrtl.uint<1>
   %c0_ui1 = firrtl.constant 0 : !firrtl.uint<1>
   %stateReg = firrtl.regreset %clock, %reset1, %c0_ui1 : !firrtl.clock, !firrtl.uint<1>, !firrtl.uint<1>, !firrtl.uint<2>
   %0 = firrtl.asUInt %c0_ui1 : (!firrtl.uint<1>) -> !firrtl.uint<1>
@@ -45,9 +45,9 @@ firrtl.module @RisingMooreFsm(in %clock: !firrtl.clock, in %reset1: !firrtl.uint
   %34 = firrtl.mux(%27, %33, %stateReg) : (!firrtl.uint<1>, !firrtl.uint<2>, !firrtl.uint<2>) -> !firrtl.uint<2>
   %35 = firrtl.mux(%14, %20, %34) : (!firrtl.uint<1>, !firrtl.uint<2>, !firrtl.uint<2>) -> !firrtl.uint<2>
   %36 = firrtl.mux(%5, %8, %35) : (!firrtl.uint<1>, !firrtl.uint<2>, !firrtl.uint<2>) -> !firrtl.uint<2>
-  firrtl.connect %stateReg, %36 : !firrtl.uint<2>, !firrtl.uint<2>
+  firrtl.connect %stateReg, %36 : !firrtl.uint<2>
   %37 = firrtl.eq %stateReg, %c1_ui1 : (!firrtl.uint<2>, !firrtl.uint<1>) -> !firrtl.uint<1>
   %_io_risingEdge_T = firrtl.node %37 : !firrtl.uint<1>
-  firrtl.strictconnect %io_risingEdge_1, %_io_risingEdge_T : !firrtl.uint<1>
+  firrtl.matchingconnect %io_risingEdge_1, %_io_risingEdge_T : !firrtl.uint<1>
 }
 

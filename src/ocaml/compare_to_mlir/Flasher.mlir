@@ -1,13 +1,13 @@
-// -----// IR Dump After ExpandWhens (firrtl-expand-whens) //----- //
-firrtl.module @Flasher(in %clock: !firrtl.clock, in %reset: !firrtl.uint<1>, in %io_start: !firrtl.uint<1>, out %io_light: !firrtl.uint<1>) attributes {convention = #firrtl<convention scalarized>} {
+// -----// IR Dump After ExpandWhens: firrtl-expand-whens //----- //
+firrtl.module @Flasher(in %clock: !firrtl.clock, in %reset_wky: !firrtl.uint<1>, in %io_start: !firrtl.uint<1>, out %io_light: !firrtl.uint<1>) attributes {convention = #firrtl<convention scalarized>} {
   %io_start_0 = firrtl.wire {name = "io_start"} : !firrtl.uint<1>
   %io_light_1 = firrtl.wire {name = "io_light"} : !firrtl.uint<1>
-  firrtl.strictconnect %io_start_0, %io_start : !firrtl.uint<1>
-  firrtl.strictconnect %io_light, %io_light_1 : !firrtl.uint<1>
+  firrtl.matchingconnect %io_start_0, %io_start : !firrtl.uint<1>
+  firrtl.matchingconnect %io_light, %io_light_1 : !firrtl.uint<1>
   %0 = firrtl.bits %io_start_0 0 to 0 : (!firrtl.uint<1>) -> !firrtl.uint<1>
   %start = firrtl.node %0 : !firrtl.uint<1>
   %c0_ui1 = firrtl.constant 0 : !firrtl.uint<1>
-  %stateReg = firrtl.regreset %clock, %reset, %c0_ui1 : !firrtl.clock, !firrtl.uint<1>, !firrtl.uint<1>, !firrtl.uint<3>
+  %stateReg = firrtl.regreset %clock, %reset_wky, %c0_ui1 : !firrtl.clock, !firrtl.uint<1>, !firrtl.uint<1>, !firrtl.uint<3>
   %light = firrtl.wire : !firrtl.uint<1>
   %timerLoad = firrtl.wire : !firrtl.uint<1>
   %timerSelect = firrtl.wire : !firrtl.uint<1>
@@ -24,7 +24,7 @@ firrtl.module @Flasher(in %clock: !firrtl.clock, in %reset: !firrtl.uint<1>, in 
   %c4_ui3 = firrtl.constant 4 : !firrtl.uint<3>
   %c5_ui3 = firrtl.constant 5 : !firrtl.uint<3>
   %7 = firrtl.mux(%6, %c1_ui1, %timerDone) : (!firrtl.uint<1>, !firrtl.uint<1>, !firrtl.uint<1>) -> !firrtl.uint<1>
-  firrtl.connect %timerLoad, %7 : !firrtl.uint<1>, !firrtl.uint<1>
+  firrtl.connect %timerLoad, %7 : !firrtl.uint<1>
   %8 = firrtl.and %6, %start : (!firrtl.uint<1>, !firrtl.uint<1>) -> !firrtl.uint<1>
   %9 = firrtl.pad %c1_ui1, 3 : (!firrtl.uint<1>) -> !firrtl.uint<3>
   %10 = firrtl.mux(%start, %9, %stateReg) : (!firrtl.uint<1>, !firrtl.uint<3>, !firrtl.uint<3>) -> !firrtl.uint<3>
@@ -83,13 +83,13 @@ firrtl.module @Flasher(in %clock: !firrtl.clock, in %reset: !firrtl.uint<1>, in 
   %63 = firrtl.mux(%27, %c1_ui1, %62) : (!firrtl.uint<1>, !firrtl.uint<1>, !firrtl.uint<1>) -> !firrtl.uint<1>
   %64 = firrtl.mux(%16, %c0_ui1, %63) : (!firrtl.uint<1>, !firrtl.uint<1>, !firrtl.uint<1>) -> !firrtl.uint<1>
   %65 = firrtl.mux(%6, %c1_ui1, %64) : (!firrtl.uint<1>, !firrtl.uint<1>, !firrtl.uint<1>) -> !firrtl.uint<1>
-  firrtl.connect %timerSelect, %65 : !firrtl.uint<1>, !firrtl.uint<1>
+  firrtl.connect %timerSelect, %65 : !firrtl.uint<1>
   %66 = firrtl.mux(%48, %c0_ui1, %58) : (!firrtl.uint<1>, !firrtl.uint<1>, !firrtl.uint<1>) -> !firrtl.uint<1>
   %67 = firrtl.mux(%38, %c1_ui1, %66) : (!firrtl.uint<1>, !firrtl.uint<1>, !firrtl.uint<1>) -> !firrtl.uint<1>
   %68 = firrtl.mux(%27, %c0_ui1, %67) : (!firrtl.uint<1>, !firrtl.uint<1>, !firrtl.uint<1>) -> !firrtl.uint<1>
   %69 = firrtl.mux(%16, %c1_ui1, %68) : (!firrtl.uint<1>, !firrtl.uint<1>, !firrtl.uint<1>) -> !firrtl.uint<1>
   %70 = firrtl.mux(%6, %c0_ui1, %69) : (!firrtl.uint<1>, !firrtl.uint<1>, !firrtl.uint<1>) -> !firrtl.uint<1>
-  firrtl.connect %light, %70 : !firrtl.uint<1>, !firrtl.uint<1>
+  firrtl.connect %light, %70 : !firrtl.uint<1>
   %71 = firrtl.and %59, %timerDone : (!firrtl.uint<1>, !firrtl.uint<1>) -> !firrtl.uint<1>
   %72 = firrtl.pad %c0_ui1, 3 : (!firrtl.uint<1>) -> !firrtl.uint<3>
   %73 = firrtl.mux(%timerDone, %72, %stateReg) : (!firrtl.uint<1>, !firrtl.uint<3>, !firrtl.uint<3>) -> !firrtl.uint<3>
@@ -99,11 +99,11 @@ firrtl.module @Flasher(in %clock: !firrtl.clock, in %reset: !firrtl.uint<1>, in 
   %77 = firrtl.mux(%27, %31, %76) : (!firrtl.uint<1>, !firrtl.uint<3>, !firrtl.uint<3>) -> !firrtl.uint<3>
   %78 = firrtl.mux(%16, %20, %77) : (!firrtl.uint<1>, !firrtl.uint<3>, !firrtl.uint<3>) -> !firrtl.uint<3>
   %79 = firrtl.mux(%6, %10, %78) : (!firrtl.uint<1>, !firrtl.uint<3>, !firrtl.uint<3>) -> !firrtl.uint<3>
-  firrtl.connect %stateReg, %79 : !firrtl.uint<3>, !firrtl.uint<3>
-  %timerReg = firrtl.regreset %clock, %reset, %c0_ui1 : !firrtl.clock, !firrtl.uint<1>, !firrtl.uint<1>, !firrtl.uint<3>
+  firrtl.connect %stateReg, %79 : !firrtl.uint<3>
+  %timerReg = firrtl.regreset %clock, %reset_wky, %c0_ui1 : !firrtl.clock, !firrtl.uint<1>, !firrtl.uint<1>, !firrtl.uint<3>
   %80 = firrtl.eq %timerReg, %c0_ui1 : (!firrtl.uint<3>, !firrtl.uint<1>) -> !firrtl.uint<1>
   %_timerDone_T = firrtl.node %80 : !firrtl.uint<1>
-  firrtl.strictconnect %timerDone, %_timerDone_T : !firrtl.uint<1>
+  firrtl.matchingconnect %timerDone, %_timerDone_T : !firrtl.uint<1>
   %81 = firrtl.eq %timerDone, %c0_ui1 : (!firrtl.uint<1>, !firrtl.uint<1>) -> !firrtl.uint<1>
   %82 = firrtl.node %81 : !firrtl.uint<1>
   %83 = firrtl.sub %timerReg, %c1_ui1 : (!firrtl.uint<3>, !firrtl.uint<1>) -> !firrtl.uint<4>
@@ -114,9 +114,10 @@ firrtl.module @Flasher(in %clock: !firrtl.clock, in %reset: !firrtl.uint<1>, in 
   %86 = firrtl.and %timerLoad, %timerSelect : (!firrtl.uint<1>, !firrtl.uint<1>) -> !firrtl.uint<1>
   %87 = firrtl.not %timerSelect : (!firrtl.uint<1>) -> !firrtl.uint<1>
   %88 = firrtl.and %timerLoad, %87 : (!firrtl.uint<1>, !firrtl.uint<1>) -> !firrtl.uint<1>
-  %89 = firrtl.mux(%timerSelect, %c5_ui3, %c3_ui2) : (!firrtl.uint<1>, !firrtl.uint<3>, !firrtl.uint<2>) -> !firrtl.uint<3>
-  %90 = firrtl.mux(%timerLoad, %89, %85) : (!firrtl.uint<1>, !firrtl.uint<3>, !firrtl.uint<3>) -> !firrtl.uint<3>
-  firrtl.connect %timerReg, %90 : !firrtl.uint<3>, !firrtl.uint<3>
-  firrtl.strictconnect %io_light_1, %light : !firrtl.uint<1>
+  %89 = firrtl.pad %c3_ui2, 3 : (!firrtl.uint<2>) -> !firrtl.uint<3>
+  %90 = firrtl.mux(%timerSelect, %c5_ui3, %89) : (!firrtl.uint<1>, !firrtl.uint<3>, !firrtl.uint<3>) -> !firrtl.uint<3>
+  %91 = firrtl.mux(%timerLoad, %90, %85) : (!firrtl.uint<1>, !firrtl.uint<3>, !firrtl.uint<3>) -> !firrtl.uint<3>
+  firrtl.connect %timerReg, %91 : !firrtl.uint<3>
+  firrtl.matchingconnect %io_light_1, %light : !firrtl.uint<1>
 }
 

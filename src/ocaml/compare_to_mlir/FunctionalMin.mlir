@@ -1,29 +1,29 @@
-// -----// IR Dump After ExpandWhens (firrtl-expand-whens) //----- //
-firrtl.module @FunctionalMin(in %clock: !firrtl.clock, in %reset: !firrtl.uint<1>, in %io_in_0: !firrtl.uint<8>, in %io_in_1: !firrtl.uint<8>, in %io_in_2: !firrtl.uint<8>, in %io_in_3: !firrtl.uint<8>, in %io_in_4: !firrtl.uint<8>, out %io_min: !firrtl.uint<8>, out %io_resA: !firrtl.uint<8>, out %io_idxA: !firrtl.uint<8>, out %io_resB: !firrtl.uint<8>, out %io_idxB: !firrtl.uint<8>, out %io_resC: !firrtl.uint<8>, out %io_idxC: !firrtl.uint<8>) attributes {convention = #firrtl<convention scalarized>} {
+// -----// IR Dump After ExpandWhens: firrtl-expand-whens //----- //
+firrtl.module @FunctionalMin(in %clock: !firrtl.clock, in %reset_wky: !firrtl.uint<1>, in %io_in_0: !firrtl.uint<8>, in %io_in_1: !firrtl.uint<8>, in %io_in_2: !firrtl.uint<8>, in %io_in_3: !firrtl.uint<8>, in %io_in_4: !firrtl.uint<8>, out %io_min_wky: !firrtl.uint<8>, out %io_resA: !firrtl.uint<8>, out %io_idxA: !firrtl.uint<8>, out %io_resB: !firrtl.uint<8>, out %io_idxB: !firrtl.uint<8>, out %io_resC: !firrtl.uint<8>, out %io_idxC: !firrtl.uint<8>) attributes {convention = #firrtl<convention scalarized>} {
   %io_in_0_0 = firrtl.wire {name = "io_in_0"} : !firrtl.uint<8>
   %io_in_1_1 = firrtl.wire {name = "io_in_1"} : !firrtl.uint<8>
   %io_in_2_2 = firrtl.wire {name = "io_in_2"} : !firrtl.uint<8>
   %io_in_3_3 = firrtl.wire {name = "io_in_3"} : !firrtl.uint<8>
   %io_in_4_4 = firrtl.wire {name = "io_in_4"} : !firrtl.uint<8>
-  %io_min_5 = firrtl.wire {name = "io_min"} : !firrtl.uint<8>
+  %io_min_wky_5 = firrtl.wire {name = "io_min_wky"} : !firrtl.uint<8>
   %io_resA_6 = firrtl.wire {name = "io_resA"} : !firrtl.uint<8>
   %io_idxA_7 = firrtl.wire {name = "io_idxA"} : !firrtl.uint<8>
   %io_resB_8 = firrtl.wire {name = "io_resB"} : !firrtl.uint<8>
   %io_idxB_9 = firrtl.wire {name = "io_idxB"} : !firrtl.uint<8>
   %io_resC_10 = firrtl.wire {name = "io_resC"} : !firrtl.uint<8>
   %io_idxC_11 = firrtl.wire {name = "io_idxC"} : !firrtl.uint<8>
-  firrtl.strictconnect %io_in_0_0, %io_in_0 : !firrtl.uint<8>
-  firrtl.strictconnect %io_in_1_1, %io_in_1 : !firrtl.uint<8>
-  firrtl.strictconnect %io_in_2_2, %io_in_2 : !firrtl.uint<8>
-  firrtl.strictconnect %io_in_3_3, %io_in_3 : !firrtl.uint<8>
-  firrtl.strictconnect %io_in_4_4, %io_in_4 : !firrtl.uint<8>
-  firrtl.strictconnect %io_min, %io_min_5 : !firrtl.uint<8>
-  firrtl.strictconnect %io_resA, %io_resA_6 : !firrtl.uint<8>
-  firrtl.strictconnect %io_idxA, %io_idxA_7 : !firrtl.uint<8>
-  firrtl.strictconnect %io_resB, %io_resB_8 : !firrtl.uint<8>
-  firrtl.strictconnect %io_idxB, %io_idxB_9 : !firrtl.uint<8>
-  firrtl.strictconnect %io_resC, %io_resC_10 : !firrtl.uint<8>
-  firrtl.strictconnect %io_idxC, %io_idxC_11 : !firrtl.uint<8>
+  firrtl.matchingconnect %io_in_0_0, %io_in_0 : !firrtl.uint<8>
+  firrtl.matchingconnect %io_in_1_1, %io_in_1 : !firrtl.uint<8>
+  firrtl.matchingconnect %io_in_2_2, %io_in_2 : !firrtl.uint<8>
+  firrtl.matchingconnect %io_in_3_3, %io_in_3 : !firrtl.uint<8>
+  firrtl.matchingconnect %io_in_4_4, %io_in_4 : !firrtl.uint<8>
+  firrtl.matchingconnect %io_min_wky, %io_min_wky_5 : !firrtl.uint<8>
+  firrtl.matchingconnect %io_resA, %io_resA_6 : !firrtl.uint<8>
+  firrtl.matchingconnect %io_idxA, %io_idxA_7 : !firrtl.uint<8>
+  firrtl.matchingconnect %io_resB, %io_resB_8 : !firrtl.uint<8>
+  firrtl.matchingconnect %io_idxB, %io_idxB_9 : !firrtl.uint<8>
+  firrtl.matchingconnect %io_resC, %io_resC_10 : !firrtl.uint<8>
+  firrtl.matchingconnect %io_idxC, %io_idxC_11 : !firrtl.uint<8>
   %0 = firrtl.lt %io_in_3_3, %io_in_4_4 : (!firrtl.uint<8>, !firrtl.uint<8>) -> !firrtl.uint<1>
   %_min_T = firrtl.node %0 : !firrtl.uint<1>
   %1 = firrtl.mux(%_min_T, %io_in_3_3, %io_in_4_4) : (!firrtl.uint<1>, !firrtl.uint<8>, !firrtl.uint<8>) -> !firrtl.uint<8>
@@ -39,7 +39,7 @@ firrtl.module @FunctionalMin(in %clock: !firrtl.clock, in %reset: !firrtl.uint<1
   %6 = firrtl.lt %_min_T_3, %_min_T_5 : (!firrtl.uint<8>, !firrtl.uint<8>) -> !firrtl.uint<1>
   %_min_T_6 = firrtl.node %6 : !firrtl.uint<1>
   %7 = firrtl.mux(%_min_T_6, %_min_T_3, %_min_T_5) : (!firrtl.uint<1>, !firrtl.uint<8>, !firrtl.uint<8>) -> !firrtl.uint<8>
-  %min = firrtl.node %7 : !firrtl.uint<8>
+  %min_wky = firrtl.node %7 : !firrtl.uint<8>
   %vecTwo_0_v = firrtl.wire : !firrtl.uint<8>
   %vecTwo_0_idx = firrtl.wire : !firrtl.uint<8>
   %vecTwo_1_v = firrtl.wire : !firrtl.uint<8>
@@ -50,26 +50,26 @@ firrtl.module @FunctionalMin(in %clock: !firrtl.clock, in %reset: !firrtl.uint<1
   %vecTwo_3_idx = firrtl.wire : !firrtl.uint<8>
   %vecTwo_4_v = firrtl.wire : !firrtl.uint<8>
   %vecTwo_4_idx = firrtl.wire : !firrtl.uint<8>
-  firrtl.strictconnect %vecTwo_0_v, %io_in_0_0 : !firrtl.uint<8>
+  firrtl.matchingconnect %vecTwo_0_v, %io_in_0_0 : !firrtl.uint<8>
   %c0_ui1 = firrtl.constant 0 : !firrtl.uint<1>
   %8 = firrtl.pad %c0_ui1, 8 : (!firrtl.uint<1>) -> !firrtl.uint<8>
-  firrtl.strictconnect %vecTwo_0_idx, %8 : !firrtl.uint<8>
-  firrtl.strictconnect %vecTwo_1_v, %io_in_1_1 : !firrtl.uint<8>
+  firrtl.matchingconnect %vecTwo_0_idx, %8 : !firrtl.uint<8>
+  firrtl.matchingconnect %vecTwo_1_v, %io_in_1_1 : !firrtl.uint<8>
   %c1_ui1 = firrtl.constant 1 : !firrtl.uint<1>
   %9 = firrtl.pad %c1_ui1, 8 : (!firrtl.uint<1>) -> !firrtl.uint<8>
-  firrtl.strictconnect %vecTwo_1_idx, %9 : !firrtl.uint<8>
-  firrtl.strictconnect %vecTwo_2_v, %io_in_2_2 : !firrtl.uint<8>
+  firrtl.matchingconnect %vecTwo_1_idx, %9 : !firrtl.uint<8>
+  firrtl.matchingconnect %vecTwo_2_v, %io_in_2_2 : !firrtl.uint<8>
   %c2_ui2 = firrtl.constant 2 : !firrtl.uint<2>
   %10 = firrtl.pad %c2_ui2, 8 : (!firrtl.uint<2>) -> !firrtl.uint<8>
-  firrtl.strictconnect %vecTwo_2_idx, %10 : !firrtl.uint<8>
-  firrtl.strictconnect %vecTwo_3_v, %io_in_3_3 : !firrtl.uint<8>
+  firrtl.matchingconnect %vecTwo_2_idx, %10 : !firrtl.uint<8>
+  firrtl.matchingconnect %vecTwo_3_v, %io_in_3_3 : !firrtl.uint<8>
   %c3_ui2 = firrtl.constant 3 : !firrtl.uint<2>
   %11 = firrtl.pad %c3_ui2, 8 : (!firrtl.uint<2>) -> !firrtl.uint<8>
-  firrtl.strictconnect %vecTwo_3_idx, %11 : !firrtl.uint<8>
-  firrtl.strictconnect %vecTwo_4_v, %io_in_4_4 : !firrtl.uint<8>
+  firrtl.matchingconnect %vecTwo_3_idx, %11 : !firrtl.uint<8>
+  firrtl.matchingconnect %vecTwo_4_v, %io_in_4_4 : !firrtl.uint<8>
   %c4_ui3 = firrtl.constant 4 : !firrtl.uint<3>
   %12 = firrtl.pad %c4_ui3, 8 : (!firrtl.uint<3>) -> !firrtl.uint<8>
-  firrtl.strictconnect %vecTwo_4_idx, %12 : !firrtl.uint<8>
+  firrtl.matchingconnect %vecTwo_4_idx, %12 : !firrtl.uint<8>
   %13 = firrtl.lt %vecTwo_3_v, %vecTwo_4_v : (!firrtl.uint<8>, !firrtl.uint<8>) -> !firrtl.uint<1>
   %_res_T = firrtl.node %13 : !firrtl.uint<1>
   %14 = firrtl.mux(%_res_T, %vecTwo_3_v, %vecTwo_4_v) : (!firrtl.uint<1>, !firrtl.uint<8>, !firrtl.uint<8>) -> !firrtl.uint<8>
@@ -121,82 +121,82 @@ firrtl.module @FunctionalMin(in %clock: !firrtl.clock, in %reset: !firrtl.uint<1
   %49 = firrtl.node %45 : !firrtl.uint<1>
   %50 = firrtl.mux(%49, %44, %c4_ui3) : (!firrtl.uint<1>, !firrtl.uint<2>, !firrtl.uint<3>) -> !firrtl.uint<3>
   %51 = firrtl.node %50 : !firrtl.uint<3>
-  %scalaVector_0_1 = firrtl.wire : !firrtl.uint<8>
-  %scalaVector_0_0 = firrtl.wire : !firrtl.uint<8>
-  firrtl.strictconnect %scalaVector_0_0, %io_in_0_0 : !firrtl.uint<8>
+  %scalaVector_0__1 = firrtl.wire : !firrtl.uint<8>
+  %scalaVector_0__0 = firrtl.wire : !firrtl.uint<8>
+  firrtl.matchingconnect %scalaVector_0__0, %io_in_0_0 : !firrtl.uint<8>
   %c0_ui8 = firrtl.constant 0 : !firrtl.uint<8>
-  firrtl.strictconnect %scalaVector_0_1, %c0_ui8 : !firrtl.uint<8>
-  %scalaVector_1_1 = firrtl.wire : !firrtl.uint<8>
-  %scalaVector_1_0 = firrtl.wire : !firrtl.uint<8>
-  firrtl.strictconnect %scalaVector_1_0, %io_in_1_1 : !firrtl.uint<8>
+  firrtl.matchingconnect %scalaVector_0__1, %c0_ui8 : !firrtl.uint<8>
+  %scalaVector_1__1 = firrtl.wire : !firrtl.uint<8>
+  %scalaVector_1__0 = firrtl.wire : !firrtl.uint<8>
+  firrtl.matchingconnect %scalaVector_1__0, %io_in_1_1 : !firrtl.uint<8>
   %c1_ui8 = firrtl.constant 1 : !firrtl.uint<8>
-  firrtl.strictconnect %scalaVector_1_1, %c1_ui8 : !firrtl.uint<8>
-  %scalaVector_2_1 = firrtl.wire : !firrtl.uint<8>
-  %scalaVector_2_0 = firrtl.wire : !firrtl.uint<8>
-  firrtl.strictconnect %scalaVector_2_0, %io_in_2_2 : !firrtl.uint<8>
+  firrtl.matchingconnect %scalaVector_1__1, %c1_ui8 : !firrtl.uint<8>
+  %scalaVector_2__1 = firrtl.wire : !firrtl.uint<8>
+  %scalaVector_2__0 = firrtl.wire : !firrtl.uint<8>
+  firrtl.matchingconnect %scalaVector_2__0, %io_in_2_2 : !firrtl.uint<8>
   %c2_ui8 = firrtl.constant 2 : !firrtl.uint<8>
-  firrtl.strictconnect %scalaVector_2_1, %c2_ui8 : !firrtl.uint<8>
-  %scalaVector_3_1 = firrtl.wire : !firrtl.uint<8>
-  %scalaVector_3_0 = firrtl.wire : !firrtl.uint<8>
-  firrtl.strictconnect %scalaVector_3_0, %io_in_3_3 : !firrtl.uint<8>
+  firrtl.matchingconnect %scalaVector_2__1, %c2_ui8 : !firrtl.uint<8>
+  %scalaVector_3__1 = firrtl.wire : !firrtl.uint<8>
+  %scalaVector_3__0 = firrtl.wire : !firrtl.uint<8>
+  firrtl.matchingconnect %scalaVector_3__0, %io_in_3_3 : !firrtl.uint<8>
   %c3_ui8 = firrtl.constant 3 : !firrtl.uint<8>
-  firrtl.strictconnect %scalaVector_3_1, %c3_ui8 : !firrtl.uint<8>
-  %scalaVector_4_1 = firrtl.wire : !firrtl.uint<8>
-  %scalaVector_4_0 = firrtl.wire : !firrtl.uint<8>
-  firrtl.strictconnect %scalaVector_4_0, %io_in_4_4 : !firrtl.uint<8>
+  firrtl.matchingconnect %scalaVector_3__1, %c3_ui8 : !firrtl.uint<8>
+  %scalaVector_4__1 = firrtl.wire : !firrtl.uint<8>
+  %scalaVector_4__0 = firrtl.wire : !firrtl.uint<8>
+  firrtl.matchingconnect %scalaVector_4__0, %io_in_4_4 : !firrtl.uint<8>
   %c4_ui8 = firrtl.constant 4 : !firrtl.uint<8>
-  firrtl.strictconnect %scalaVector_4_1, %c4_ui8 : !firrtl.uint<8>
-  %resFun2_qual1_0_1 = firrtl.wire : !firrtl.uint<8>
-  %resFun2_qual1_0_0 = firrtl.wire : !firrtl.uint<8>
-  %resFun2_qual1_1_1 = firrtl.wire : !firrtl.uint<8>
-  %resFun2_qual1_1_0 = firrtl.wire : !firrtl.uint<8>
-  %resFun2_qual1_2_1 = firrtl.wire : !firrtl.uint<8>
-  %resFun2_qual1_2_0 = firrtl.wire : !firrtl.uint<8>
-  %resFun2_qual1_3_1 = firrtl.wire : !firrtl.uint<8>
-  %resFun2_qual1_3_0 = firrtl.wire : !firrtl.uint<8>
-  %resFun2_qual1_4_1 = firrtl.wire : !firrtl.uint<8>
-  %resFun2_qual1_4_0 = firrtl.wire : !firrtl.uint<8>
-  firrtl.strictconnect %resFun2_qual1_0_1, %scalaVector_0_1 : !firrtl.uint<8>
-  firrtl.strictconnect %resFun2_qual1_0_0, %scalaVector_0_0 : !firrtl.uint<8>
-  firrtl.strictconnect %resFun2_qual1_1_1, %scalaVector_1_1 : !firrtl.uint<8>
-  firrtl.strictconnect %resFun2_qual1_1_0, %scalaVector_1_0 : !firrtl.uint<8>
-  firrtl.strictconnect %resFun2_qual1_2_1, %scalaVector_2_1 : !firrtl.uint<8>
-  firrtl.strictconnect %resFun2_qual1_2_0, %scalaVector_2_0 : !firrtl.uint<8>
-  firrtl.strictconnect %resFun2_qual1_3_1, %scalaVector_3_1 : !firrtl.uint<8>
-  firrtl.strictconnect %resFun2_qual1_3_0, %scalaVector_3_0 : !firrtl.uint<8>
-  firrtl.strictconnect %resFun2_qual1_4_1, %scalaVector_4_1 : !firrtl.uint<8>
-  firrtl.strictconnect %resFun2_qual1_4_0, %scalaVector_4_0 : !firrtl.uint<8>
-  %52 = firrtl.lt %resFun2_qual1_3_0, %resFun2_qual1_4_0 : (!firrtl.uint<8>, !firrtl.uint<8>) -> !firrtl.uint<1>
+  firrtl.matchingconnect %scalaVector_4__1, %c4_ui8 : !firrtl.uint<8>
+  %resFun2_qual1_0__1 = firrtl.wire : !firrtl.uint<8>
+  %resFun2_qual1_0__0 = firrtl.wire : !firrtl.uint<8>
+  %resFun2_qual1_1__1 = firrtl.wire : !firrtl.uint<8>
+  %resFun2_qual1_1__0 = firrtl.wire : !firrtl.uint<8>
+  %resFun2_qual1_2__1 = firrtl.wire : !firrtl.uint<8>
+  %resFun2_qual1_2__0 = firrtl.wire : !firrtl.uint<8>
+  %resFun2_qual1_3__1 = firrtl.wire : !firrtl.uint<8>
+  %resFun2_qual1_3__0 = firrtl.wire : !firrtl.uint<8>
+  %resFun2_qual1_4__1 = firrtl.wire : !firrtl.uint<8>
+  %resFun2_qual1_4__0 = firrtl.wire : !firrtl.uint<8>
+  firrtl.matchingconnect %resFun2_qual1_0__1, %scalaVector_0__1 : !firrtl.uint<8>
+  firrtl.matchingconnect %resFun2_qual1_0__0, %scalaVector_0__0 : !firrtl.uint<8>
+  firrtl.matchingconnect %resFun2_qual1_1__1, %scalaVector_1__1 : !firrtl.uint<8>
+  firrtl.matchingconnect %resFun2_qual1_1__0, %scalaVector_1__0 : !firrtl.uint<8>
+  firrtl.matchingconnect %resFun2_qual1_2__1, %scalaVector_2__1 : !firrtl.uint<8>
+  firrtl.matchingconnect %resFun2_qual1_2__0, %scalaVector_2__0 : !firrtl.uint<8>
+  firrtl.matchingconnect %resFun2_qual1_3__1, %scalaVector_3__1 : !firrtl.uint<8>
+  firrtl.matchingconnect %resFun2_qual1_3__0, %scalaVector_3__0 : !firrtl.uint<8>
+  firrtl.matchingconnect %resFun2_qual1_4__1, %scalaVector_4__1 : !firrtl.uint<8>
+  firrtl.matchingconnect %resFun2_qual1_4__0, %scalaVector_4__0 : !firrtl.uint<8>
+  %52 = firrtl.lt %resFun2_qual1_3__0, %resFun2_qual1_4__0 : (!firrtl.uint<8>, !firrtl.uint<8>) -> !firrtl.uint<1>
   %_resFun2_T = firrtl.node %52 : !firrtl.uint<1>
-  %53 = firrtl.mux(%_resFun2_T, %resFun2_qual1_3_1, %resFun2_qual1_4_1) : (!firrtl.uint<1>, !firrtl.uint<8>, !firrtl.uint<8>) -> !firrtl.uint<8>
-  %54 = firrtl.mux(%_resFun2_T, %resFun2_qual1_3_0, %resFun2_qual1_4_0) : (!firrtl.uint<1>, !firrtl.uint<8>, !firrtl.uint<8>) -> !firrtl.uint<8>
-  %_resFun2_T_1_1 = firrtl.node %53 : !firrtl.uint<8>
-  %_resFun2_T_1_0 = firrtl.node %54 : !firrtl.uint<8>
-  %55 = firrtl.lt %resFun2_qual1_0_0, %resFun2_qual1_1_0 : (!firrtl.uint<8>, !firrtl.uint<8>) -> !firrtl.uint<1>
+  %53 = firrtl.mux(%_resFun2_T, %resFun2_qual1_3__1, %resFun2_qual1_4__1) : (!firrtl.uint<1>, !firrtl.uint<8>, !firrtl.uint<8>) -> !firrtl.uint<8>
+  %54 = firrtl.mux(%_resFun2_T, %resFun2_qual1_3__0, %resFun2_qual1_4__0) : (!firrtl.uint<1>, !firrtl.uint<8>, !firrtl.uint<8>) -> !firrtl.uint<8>
+  %_resFun2_T_1__1 = firrtl.node %53 : !firrtl.uint<8>
+  %_resFun2_T_1__0 = firrtl.node %54 : !firrtl.uint<8>
+  %55 = firrtl.lt %resFun2_qual1_0__0, %resFun2_qual1_1__0 : (!firrtl.uint<8>, !firrtl.uint<8>) -> !firrtl.uint<1>
   %_resFun2_T_2 = firrtl.node %55 : !firrtl.uint<1>
-  %56 = firrtl.mux(%_resFun2_T_2, %resFun2_qual1_0_1, %resFun2_qual1_1_1) : (!firrtl.uint<1>, !firrtl.uint<8>, !firrtl.uint<8>) -> !firrtl.uint<8>
-  %57 = firrtl.mux(%_resFun2_T_2, %resFun2_qual1_0_0, %resFun2_qual1_1_0) : (!firrtl.uint<1>, !firrtl.uint<8>, !firrtl.uint<8>) -> !firrtl.uint<8>
-  %_resFun2_T_3_1 = firrtl.node %56 : !firrtl.uint<8>
-  %_resFun2_T_3_0 = firrtl.node %57 : !firrtl.uint<8>
-  %58 = firrtl.lt %resFun2_qual1_2_0, %_resFun2_T_1_0 : (!firrtl.uint<8>, !firrtl.uint<8>) -> !firrtl.uint<1>
+  %56 = firrtl.mux(%_resFun2_T_2, %resFun2_qual1_0__1, %resFun2_qual1_1__1) : (!firrtl.uint<1>, !firrtl.uint<8>, !firrtl.uint<8>) -> !firrtl.uint<8>
+  %57 = firrtl.mux(%_resFun2_T_2, %resFun2_qual1_0__0, %resFun2_qual1_1__0) : (!firrtl.uint<1>, !firrtl.uint<8>, !firrtl.uint<8>) -> !firrtl.uint<8>
+  %_resFun2_T_3__1 = firrtl.node %56 : !firrtl.uint<8>
+  %_resFun2_T_3__0 = firrtl.node %57 : !firrtl.uint<8>
+  %58 = firrtl.lt %resFun2_qual1_2__0, %_resFun2_T_1__0 : (!firrtl.uint<8>, !firrtl.uint<8>) -> !firrtl.uint<1>
   %_resFun2_T_4 = firrtl.node %58 : !firrtl.uint<1>
-  %59 = firrtl.mux(%_resFun2_T_4, %resFun2_qual1_2_1, %_resFun2_T_1_1) : (!firrtl.uint<1>, !firrtl.uint<8>, !firrtl.uint<8>) -> !firrtl.uint<8>
-  %60 = firrtl.mux(%_resFun2_T_4, %resFun2_qual1_2_0, %_resFun2_T_1_0) : (!firrtl.uint<1>, !firrtl.uint<8>, !firrtl.uint<8>) -> !firrtl.uint<8>
-  %_resFun2_T_5_1 = firrtl.node %59 : !firrtl.uint<8>
-  %_resFun2_T_5_0 = firrtl.node %60 : !firrtl.uint<8>
-  %61 = firrtl.lt %_resFun2_T_3_0, %_resFun2_T_5_0 : (!firrtl.uint<8>, !firrtl.uint<8>) -> !firrtl.uint<1>
+  %59 = firrtl.mux(%_resFun2_T_4, %resFun2_qual1_2__1, %_resFun2_T_1__1) : (!firrtl.uint<1>, !firrtl.uint<8>, !firrtl.uint<8>) -> !firrtl.uint<8>
+  %60 = firrtl.mux(%_resFun2_T_4, %resFun2_qual1_2__0, %_resFun2_T_1__0) : (!firrtl.uint<1>, !firrtl.uint<8>, !firrtl.uint<8>) -> !firrtl.uint<8>
+  %_resFun2_T_5__1 = firrtl.node %59 : !firrtl.uint<8>
+  %_resFun2_T_5__0 = firrtl.node %60 : !firrtl.uint<8>
+  %61 = firrtl.lt %_resFun2_T_3__0, %_resFun2_T_5__0 : (!firrtl.uint<8>, !firrtl.uint<8>) -> !firrtl.uint<1>
   %_resFun2_T_6 = firrtl.node %61 : !firrtl.uint<1>
-  %62 = firrtl.mux(%_resFun2_T_6, %_resFun2_T_3_1, %_resFun2_T_5_1) : (!firrtl.uint<1>, !firrtl.uint<8>, !firrtl.uint<8>) -> !firrtl.uint<8>
-  %63 = firrtl.mux(%_resFun2_T_6, %_resFun2_T_3_0, %_resFun2_T_5_0) : (!firrtl.uint<1>, !firrtl.uint<8>, !firrtl.uint<8>) -> !firrtl.uint<8>
-  %resFun2_1 = firrtl.node %62 : !firrtl.uint<8>
-  %resFun2_0 = firrtl.node %63 : !firrtl.uint<8>
-  firrtl.strictconnect %io_min_5, %min : !firrtl.uint<8>
-  firrtl.strictconnect %io_resA_6, %res_v : !firrtl.uint<8>
-  firrtl.strictconnect %io_idxA_7, %res_idx : !firrtl.uint<8>
-  firrtl.strictconnect %io_resB_8, %48 : !firrtl.uint<8>
+  %62 = firrtl.mux(%_resFun2_T_6, %_resFun2_T_3__1, %_resFun2_T_5__1) : (!firrtl.uint<1>, !firrtl.uint<8>, !firrtl.uint<8>) -> !firrtl.uint<8>
+  %63 = firrtl.mux(%_resFun2_T_6, %_resFun2_T_3__0, %_resFun2_T_5__0) : (!firrtl.uint<1>, !firrtl.uint<8>, !firrtl.uint<8>) -> !firrtl.uint<8>
+  %resFun2__1 = firrtl.node %62 : !firrtl.uint<8>
+  %resFun2__0 = firrtl.node %63 : !firrtl.uint<8>
+  firrtl.matchingconnect %io_min_wky_5, %min_wky : !firrtl.uint<8>
+  firrtl.matchingconnect %io_resA_6, %res_v : !firrtl.uint<8>
+  firrtl.matchingconnect %io_idxA_7, %res_idx : !firrtl.uint<8>
+  firrtl.matchingconnect %io_resB_8, %48 : !firrtl.uint<8>
   %64 = firrtl.pad %51, 8 : (!firrtl.uint<3>) -> !firrtl.uint<8>
-  firrtl.strictconnect %io_idxB_9, %64 : !firrtl.uint<8>
-  firrtl.strictconnect %io_resC_10, %resFun2_0 : !firrtl.uint<8>
-  firrtl.strictconnect %io_idxC_11, %resFun2_1 : !firrtl.uint<8>
+  firrtl.matchingconnect %io_idxB_9, %64 : !firrtl.uint<8>
+  firrtl.matchingconnect %io_resC_10, %resFun2__0 : !firrtl.uint<8>
+  firrtl.matchingconnect %io_idxC_11, %resFun2__1 : !firrtl.uint<8>
 }
 

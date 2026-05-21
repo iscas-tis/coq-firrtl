@@ -1,11 +1,11 @@
-// -----// IR Dump After ExpandWhens (firrtl-expand-whens) //----- //
+// -----// IR Dump After ExpandWhens: firrtl-expand-whens //----- //
 firrtl.module @SimpleFsmCopy(in %clock: !firrtl.clock, in %reset1: !firrtl.uint<1>, in %io_badEvent: !firrtl.uint<1>, in %io_clear: !firrtl.uint<1>, out %io_ringBell: !firrtl.uint<1>) attributes {convention = #firrtl<convention scalarized>} {
   %io_badEvent_0 = firrtl.wire {name = "io_badEvent"} : !firrtl.uint<1>
   %io_clear_1 = firrtl.wire {name = "io_clear"} : !firrtl.uint<1>
   %io_ringBell_2 = firrtl.wire {name = "io_ringBell"} : !firrtl.uint<1>
-  firrtl.strictconnect %io_badEvent_0, %io_badEvent : !firrtl.uint<1>
-  firrtl.strictconnect %io_clear_1, %io_clear : !firrtl.uint<1>
-  firrtl.strictconnect %io_ringBell, %io_ringBell_2 : !firrtl.uint<1>
+  firrtl.matchingconnect %io_badEvent_0, %io_badEvent : !firrtl.uint<1>
+  firrtl.matchingconnect %io_clear_1, %io_clear : !firrtl.uint<1>
+  firrtl.matchingconnect %io_ringBell, %io_ringBell_2 : !firrtl.uint<1>
   %c0_ui1 = firrtl.constant 0 : !firrtl.uint<1>
   %stateReg = firrtl.regreset %clock, %reset1, %c0_ui1 : !firrtl.clock, !firrtl.uint<1>, !firrtl.uint<1>, !firrtl.uint<2>
   %0 = firrtl.asUInt %c0_ui1 : (!firrtl.uint<1>) -> !firrtl.uint<1>
@@ -47,9 +47,9 @@ firrtl.module @SimpleFsmCopy(in %clock: !firrtl.clock, in %reset1: !firrtl.uint<
   %34 = firrtl.mux(%29, %33, %stateReg) : (!firrtl.uint<1>, !firrtl.uint<2>, !firrtl.uint<2>) -> !firrtl.uint<2>
   %35 = firrtl.mux(%14, %22, %34) : (!firrtl.uint<1>, !firrtl.uint<2>, !firrtl.uint<2>) -> !firrtl.uint<2>
   %36 = firrtl.mux(%5, %8, %35) : (!firrtl.uint<1>, !firrtl.uint<2>, !firrtl.uint<2>) -> !firrtl.uint<2>
-  firrtl.connect %stateReg, %36 : !firrtl.uint<2>, !firrtl.uint<2>
+  firrtl.connect %stateReg, %36 : !firrtl.uint<2>
   %37 = firrtl.eq %stateReg, %c2_ui2 : (!firrtl.uint<2>, !firrtl.uint<2>) -> !firrtl.uint<1>
   %_io_ringBell_T = firrtl.node %37 : !firrtl.uint<1>
-  firrtl.strictconnect %io_ringBell_2, %_io_ringBell_T : !firrtl.uint<1>
+  firrtl.matchingconnect %io_ringBell_2, %_io_ringBell_T : !firrtl.uint<1>
 }
 

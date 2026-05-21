@@ -1,9 +1,9 @@
-// -----// IR Dump After ExpandWhens (firrtl-expand-whens) //----- //
+// -----// IR Dump After ExpandWhens: firrtl-expand-whens //----- //
 firrtl.module @Conditional(in %clock: !firrtl.clock, in %reset1: !firrtl.uint<1>, in %io_condition: !firrtl.uint<1>, out %io_result: !firrtl.uint<4>) attributes {convention = #firrtl<convention scalarized>} {
   %io_condition_0 = firrtl.wire {name = "io_condition"} : !firrtl.uint<1>
   %io_result_1 = firrtl.wire {name = "io_result"} : !firrtl.uint<4>
-  firrtl.strictconnect %io_condition_0, %io_condition : !firrtl.uint<1>
-  firrtl.strictconnect %io_result, %io_result_1 : !firrtl.uint<4>
+  firrtl.matchingconnect %io_condition_0, %io_condition : !firrtl.uint<1>
+  firrtl.matchingconnect %io_result, %io_result_1 : !firrtl.uint<4>
   %c0_ui1 = firrtl.constant 0 : !firrtl.uint<1>
   %0 = firrtl.eq %io_condition_0, %c0_ui1 : (!firrtl.uint<1>, !firrtl.uint<1>) -> !firrtl.uint<1>
   %c1 = firrtl.node %0 : !firrtl.uint<1>

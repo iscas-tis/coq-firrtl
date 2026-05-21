@@ -1,9 +1,9 @@
-// -----// IR Dump After ExpandWhens (firrtl-expand-whens) //----- //
+// -----// IR Dump After ExpandWhens: firrtl-expand-whens //----- //
 firrtl.module @DownCounter(in %clock: !firrtl.clock, in %reset1: !firrtl.uint<1>, out %io_cnt: !firrtl.uint<8>, out %io_tick: !firrtl.uint<1>) attributes {convention = #firrtl<convention scalarized>} {
   %io_cnt_0 = firrtl.wire {name = "io_cnt"} : !firrtl.uint<8>
   %io_tick_1 = firrtl.wire {name = "io_tick"} : !firrtl.uint<1>
-  firrtl.strictconnect %io_cnt, %io_cnt_0 : !firrtl.uint<8>
-  firrtl.strictconnect %io_tick, %io_tick_1 : !firrtl.uint<1>
+  firrtl.matchingconnect %io_cnt, %io_cnt_0 : !firrtl.uint<8>
+  firrtl.matchingconnect %io_tick, %io_tick_1 : !firrtl.uint<1>
   %c9_ui4 = firrtl.constant 9 : !firrtl.uint<4>
   %cntReg = firrtl.regreset %clock, %reset1, %c9_ui4 : !firrtl.clock, !firrtl.uint<1>, !firrtl.uint<4>, !firrtl.uint<4>
   %c1_ui1 = firrtl.constant 1 : !firrtl.uint<1>
@@ -15,9 +15,10 @@ firrtl.module @DownCounter(in %clock: !firrtl.clock, in %reset1: !firrtl.uint<1>
   %2 = firrtl.eq %cntReg, %c0_ui1 : (!firrtl.uint<4>, !firrtl.uint<1>) -> !firrtl.uint<1>
   %3 = firrtl.node %2 : !firrtl.uint<1>
   %4 = firrtl.mux(%3, %c9_ui4, %_cntReg_T_1) : (!firrtl.uint<1>, !firrtl.uint<4>, !firrtl.uint<4>) -> !firrtl.uint<4>
-  firrtl.connect %cntReg, %4 : !firrtl.uint<4>, !firrtl.uint<4>
+  firrtl.connect %cntReg, %4 : !firrtl.uint<4>
   %_io_tick_T = firrtl.node %2 : !firrtl.uint<1>
-  firrtl.strictconnect %io_tick_1, %_io_tick_T : !firrtl.uint<1>
-  firrtl.connect %io_cnt_0, %cntReg : !firrtl.uint<8>, !firrtl.uint<4>
+  firrtl.matchingconnect %io_tick_1, %_io_tick_T : !firrtl.uint<1>
+  %5 = firrtl.pad %cntReg, 8 : (!firrtl.uint<4>) -> !firrtl.uint<8>
+  firrtl.matchingconnect %io_cnt_0, %5 : !firrtl.uint<8>
 }
 

@@ -1,9 +1,9 @@
-// -----// IR Dump After ExpandWhens (firrtl-expand-whens) //----- //
+// -----// IR Dump After ExpandWhens: firrtl-expand-whens //----- //
 firrtl.module @DrawMux6(in %clock: !firrtl.clock, in %reset1: !firrtl.uint<1>, in %io_sel: !firrtl.uint<3>, out %io_dout: !firrtl.uint<8>) attributes {convention = #firrtl<convention scalarized>} {
   %io_sel_0 = firrtl.wire {name = "io_sel"} : !firrtl.uint<3>
   %io_dout_1 = firrtl.wire {name = "io_dout"} : !firrtl.uint<8>
-  firrtl.strictconnect %io_sel_0, %io_sel : !firrtl.uint<3>
-  firrtl.strictconnect %io_dout, %io_dout_1 : !firrtl.uint<8>
+  firrtl.matchingconnect %io_sel_0, %io_sel : !firrtl.uint<3>
+  firrtl.matchingconnect %io_dout, %io_dout_1 : !firrtl.uint<8>
   %dout = firrtl.wire : !firrtl.uint<6>
   %c0_ui1 = firrtl.constant 0 : !firrtl.uint<1>
   %0 = firrtl.eq %c0_ui1, %io_sel_0 : (!firrtl.uint<1>, !firrtl.uint<3>) -> !firrtl.uint<1>
@@ -48,7 +48,7 @@ firrtl.module @DrawMux6(in %clock: !firrtl.clock, in %reset1: !firrtl.uint<1>, i
   %29 = firrtl.mux(%9, %c22_ui5, %28) : (!firrtl.uint<1>, !firrtl.uint<5>, !firrtl.uint<6>) -> !firrtl.uint<6>
   %30 = firrtl.mux(%4, %c11_ui4, %29) : (!firrtl.uint<1>, !firrtl.uint<4>, !firrtl.uint<6>) -> !firrtl.uint<6>
   %31 = firrtl.mux(%1, %c0_ui1, %30) : (!firrtl.uint<1>, !firrtl.uint<1>, !firrtl.uint<6>) -> !firrtl.uint<6>
-  firrtl.connect %dout, %31 : !firrtl.uint<6>, !firrtl.uint<6>
+  firrtl.connect %dout, %31 : !firrtl.uint<6>
   firrtl.connect %io_dout_1, %dout : !firrtl.uint<8>, !firrtl.uint<6>
 }
 

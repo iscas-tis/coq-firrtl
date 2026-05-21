@@ -61,7 +61,7 @@ let anon file =
     (* compare conn_map between mlir and ocaml *)
       Mast.StringMap.iter (fun mv mod_cm -> output_string stdout ("\nmodule "^mv^" :\n");
         let modnum = Mast.StringMap.find mv modmap in
-        let ((map0, map1), tmap) = Mast.StringMap.find mv map in
+        let ((map0, map1), tmap) = Mast.StringMap.find mv map in 
         let modnump = Obj.magic (modnum, 0) in
         match PVM.find modnump conn_map with
         | Some ocaml_mod_cm -> match PVM.find modnump pvlist with

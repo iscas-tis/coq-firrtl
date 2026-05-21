@@ -1,13 +1,13 @@
-// -----// IR Dump After ExpandWhens (firrtl-expand-whens) //----- //
-firrtl.module @Flasher2(in %clock: !firrtl.clock, in %reset: !firrtl.uint<1>, in %io_start: !firrtl.uint<1>, out %io_light: !firrtl.uint<1>) attributes {convention = #firrtl<convention scalarized>} {
+// -----// IR Dump After ExpandWhens: firrtl-expand-whens //----- //
+firrtl.module @Flasher2(in %clock: !firrtl.clock, in %reset_wky: !firrtl.uint<1>, in %io_start: !firrtl.uint<1>, out %io_light: !firrtl.uint<1>) attributes {convention = #firrtl<convention scalarized>} {
   %io_start_0 = firrtl.wire {name = "io_start"} : !firrtl.uint<1>
   %io_light_1 = firrtl.wire {name = "io_light"} : !firrtl.uint<1>
-  firrtl.strictconnect %io_start_0, %io_start : !firrtl.uint<1>
-  firrtl.strictconnect %io_light, %io_light_1 : !firrtl.uint<1>
+  firrtl.matchingconnect %io_start_0, %io_start : !firrtl.uint<1>
+  firrtl.matchingconnect %io_light, %io_light_1 : !firrtl.uint<1>
   %0 = firrtl.bits %io_start_0 0 to 0 : (!firrtl.uint<1>) -> !firrtl.uint<1>
   %start = firrtl.node %0 : !firrtl.uint<1>
   %c0_ui1 = firrtl.constant 0 : !firrtl.uint<1>
-  %stateReg = firrtl.regreset %clock, %reset, %c0_ui1 : !firrtl.clock, !firrtl.uint<1>, !firrtl.uint<1>, !firrtl.uint<2>
+  %stateReg = firrtl.regreset %clock, %reset_wky, %c0_ui1 : !firrtl.clock, !firrtl.uint<1>, !firrtl.uint<1>, !firrtl.uint<2>
   %light = firrtl.wire : !firrtl.uint<1>
   %timerLoad = firrtl.wire : !firrtl.uint<1>
   %timerSelect = firrtl.wire : !firrtl.uint<1>
@@ -24,8 +24,8 @@ firrtl.module @Flasher2(in %clock: !firrtl.clock, in %reset: !firrtl.uint<1>, in
   %6 = firrtl.node %5 : !firrtl.uint<1>
   %c2_ui2 = firrtl.constant 2 : !firrtl.uint<2>
   %7 = firrtl.mux(%6, %c1_ui1, %timerDone) : (!firrtl.uint<1>, !firrtl.uint<1>, !firrtl.uint<1>) -> !firrtl.uint<1>
-  firrtl.connect %timerLoad, %7 : !firrtl.uint<1>, !firrtl.uint<1>
-  firrtl.connect %cntLoad, %6 : !firrtl.uint<1>, !firrtl.uint<1>
+  firrtl.connect %timerLoad, %7 : !firrtl.uint<1>
+  firrtl.connect %cntLoad, %6 : !firrtl.uint<1>
   %8 = firrtl.and %6, %start : (!firrtl.uint<1>, !firrtl.uint<1>) -> !firrtl.uint<1>
   %9 = firrtl.pad %c1_ui1, 2 : (!firrtl.uint<1>) -> !firrtl.uint<2>
   %10 = firrtl.mux(%start, %9, %stateReg) : (!firrtl.uint<1>, !firrtl.uint<2>, !firrtl.uint<2>) -> !firrtl.uint<2>
@@ -38,9 +38,9 @@ firrtl.module @Flasher2(in %clock: !firrtl.clock, in %reset: !firrtl.uint<1>, in
   %17 = firrtl.and %11, %16 : (!firrtl.uint<1>, !firrtl.uint<1>) -> !firrtl.uint<1>
   %18 = firrtl.mux(%16, %c0_ui1, %c1_ui1) : (!firrtl.uint<1>, !firrtl.uint<1>, !firrtl.uint<1>) -> !firrtl.uint<1>
   %19 = firrtl.mux(%6, %c1_ui1, %18) : (!firrtl.uint<1>, !firrtl.uint<1>, !firrtl.uint<1>) -> !firrtl.uint<1>
-  firrtl.connect %timerSelect, %19 : !firrtl.uint<1>, !firrtl.uint<1>
+  firrtl.connect %timerSelect, %19 : !firrtl.uint<1>
   %20 = firrtl.mux(%6, %c0_ui1, %16) : (!firrtl.uint<1>, !firrtl.uint<1>, !firrtl.uint<1>) -> !firrtl.uint<1>
-  firrtl.connect %light, %20 : !firrtl.uint<1>, !firrtl.uint<1>
+  firrtl.connect %light, %20 : !firrtl.uint<1>
   %21 = firrtl.eq %cntDone, %c0_ui1 : (!firrtl.uint<1>, !firrtl.uint<1>) -> !firrtl.uint<1>
   %22 = firrtl.node %21 : !firrtl.uint<1>
   %23 = firrtl.and %timerDone, %22 : (!firrtl.uint<1>, !firrtl.uint<1>) -> !firrtl.uint<1>
@@ -63,29 +63,29 @@ firrtl.module @Flasher2(in %clock: !firrtl.clock, in %reset: !firrtl.uint<1>, in
   %40 = firrtl.mux(%38, %timerDone, %c0_ui1) : (!firrtl.uint<1>, !firrtl.uint<1>, !firrtl.uint<1>) -> !firrtl.uint<1>
   %41 = firrtl.mux(%16, %c0_ui1, %40) : (!firrtl.uint<1>, !firrtl.uint<1>, !firrtl.uint<1>) -> !firrtl.uint<1>
   %42 = firrtl.mux(%6, %c0_ui1, %41) : (!firrtl.uint<1>, !firrtl.uint<1>, !firrtl.uint<1>) -> !firrtl.uint<1>
-  firrtl.connect %cntDecr, %42 : !firrtl.uint<1>, !firrtl.uint<1>
+  firrtl.connect %cntDecr, %42 : !firrtl.uint<1>
   %43 = firrtl.and %39, %timerDone : (!firrtl.uint<1>, !firrtl.uint<1>) -> !firrtl.uint<1>
   %44 = firrtl.pad %c1_ui1, 2 : (!firrtl.uint<1>) -> !firrtl.uint<2>
   %45 = firrtl.mux(%timerDone, %44, %stateReg) : (!firrtl.uint<1>, !firrtl.uint<2>, !firrtl.uint<2>) -> !firrtl.uint<2>
   %46 = firrtl.mux(%38, %45, %stateReg) : (!firrtl.uint<1>, !firrtl.uint<2>, !firrtl.uint<2>) -> !firrtl.uint<2>
   %47 = firrtl.mux(%16, %31, %46) : (!firrtl.uint<1>, !firrtl.uint<2>, !firrtl.uint<2>) -> !firrtl.uint<2>
   %48 = firrtl.mux(%6, %10, %47) : (!firrtl.uint<1>, !firrtl.uint<2>, !firrtl.uint<2>) -> !firrtl.uint<2>
-  firrtl.connect %stateReg, %48 : !firrtl.uint<2>, !firrtl.uint<2>
-  %cntReg = firrtl.regreset %clock, %reset, %c0_ui1 : !firrtl.clock, !firrtl.uint<1>, !firrtl.uint<1>, !firrtl.uint<2>
+  firrtl.connect %stateReg, %48 : !firrtl.uint<2>
+  %cntReg = firrtl.regreset %clock, %reset_wky, %c0_ui1 : !firrtl.clock, !firrtl.uint<1>, !firrtl.uint<1>, !firrtl.uint<2>
   %49 = firrtl.eq %cntReg, %c0_ui1 : (!firrtl.uint<2>, !firrtl.uint<1>) -> !firrtl.uint<1>
   %_cntDone_T = firrtl.node %49 : !firrtl.uint<1>
-  firrtl.strictconnect %cntDone, %_cntDone_T : !firrtl.uint<1>
+  firrtl.matchingconnect %cntDone, %_cntDone_T : !firrtl.uint<1>
   %50 = firrtl.mux(%cntLoad, %c2_ui2, %cntReg) : (!firrtl.uint<1>, !firrtl.uint<2>, !firrtl.uint<2>) -> !firrtl.uint<2>
   %51 = firrtl.sub %cntReg, %c1_ui1 : (!firrtl.uint<2>, !firrtl.uint<1>) -> !firrtl.uint<3>
   %_cntReg_T = firrtl.node %51 : !firrtl.uint<3>
   %52 = firrtl.tail %_cntReg_T, 1 : (!firrtl.uint<3>) -> !firrtl.uint<2>
   %_cntReg_T_1 = firrtl.node %52 : !firrtl.uint<2>
   %53 = firrtl.mux(%cntDecr, %_cntReg_T_1, %50) : (!firrtl.uint<1>, !firrtl.uint<2>, !firrtl.uint<2>) -> !firrtl.uint<2>
-  firrtl.connect %cntReg, %53 : !firrtl.uint<2>, !firrtl.uint<2>
-  %timerReg = firrtl.regreset %clock, %reset, %c0_ui1 : !firrtl.clock, !firrtl.uint<1>, !firrtl.uint<1>, !firrtl.uint<3>
+  firrtl.connect %cntReg, %53 : !firrtl.uint<2>
+  %timerReg = firrtl.regreset %clock, %reset_wky, %c0_ui1 : !firrtl.clock, !firrtl.uint<1>, !firrtl.uint<1>, !firrtl.uint<3>
   %54 = firrtl.eq %timerReg, %c0_ui1 : (!firrtl.uint<3>, !firrtl.uint<1>) -> !firrtl.uint<1>
   %_timerDone_T = firrtl.node %54 : !firrtl.uint<1>
-  firrtl.strictconnect %timerDone, %_timerDone_T : !firrtl.uint<1>
+  firrtl.matchingconnect %timerDone, %_timerDone_T : !firrtl.uint<1>
   %55 = firrtl.eq %timerDone, %c0_ui1 : (!firrtl.uint<1>, !firrtl.uint<1>) -> !firrtl.uint<1>
   %56 = firrtl.node %55 : !firrtl.uint<1>
   %57 = firrtl.sub %timerReg, %c1_ui1 : (!firrtl.uint<3>, !firrtl.uint<1>) -> !firrtl.uint<4>
@@ -98,9 +98,10 @@ firrtl.module @Flasher2(in %clock: !firrtl.clock, in %reset: !firrtl.uint<1>, in
   %60 = firrtl.and %timerLoad, %timerSelect : (!firrtl.uint<1>, !firrtl.uint<1>) -> !firrtl.uint<1>
   %61 = firrtl.not %timerSelect : (!firrtl.uint<1>) -> !firrtl.uint<1>
   %62 = firrtl.and %timerLoad, %61 : (!firrtl.uint<1>, !firrtl.uint<1>) -> !firrtl.uint<1>
-  %63 = firrtl.mux(%timerSelect, %c5_ui3, %c3_ui2) : (!firrtl.uint<1>, !firrtl.uint<3>, !firrtl.uint<2>) -> !firrtl.uint<3>
-  %64 = firrtl.mux(%timerLoad, %63, %59) : (!firrtl.uint<1>, !firrtl.uint<3>, !firrtl.uint<3>) -> !firrtl.uint<3>
-  firrtl.connect %timerReg, %64 : !firrtl.uint<3>, !firrtl.uint<3>
-  firrtl.strictconnect %io_light_1, %light : !firrtl.uint<1>
+  %63 = firrtl.pad %c3_ui2, 3 : (!firrtl.uint<2>) -> !firrtl.uint<3>
+  %64 = firrtl.mux(%timerSelect, %c5_ui3, %63) : (!firrtl.uint<1>, !firrtl.uint<3>, !firrtl.uint<3>) -> !firrtl.uint<3>
+  %65 = firrtl.mux(%timerLoad, %64, %59) : (!firrtl.uint<1>, !firrtl.uint<3>, !firrtl.uint<3>) -> !firrtl.uint<3>
+  firrtl.connect %timerReg, %65 : !firrtl.uint<3>
+  firrtl.matchingconnect %io_light_1, %light : !firrtl.uint<1>
 }
 

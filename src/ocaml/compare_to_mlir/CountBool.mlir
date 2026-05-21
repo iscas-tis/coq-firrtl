@@ -1,4 +1,4 @@
-// -----// IR Dump After ExpandWhens (firrtl-expand-whens) //----- //
+// -----// IR Dump After ExpandWhens: firrtl-expand-whens //----- //
 firrtl.module @CountBool(in %clock: !firrtl.clock, in %reset1: !firrtl.uint<1>, in %io_in_0: !firrtl.uint<1>, in %io_in_1: !firrtl.uint<1>, in %io_in_2: !firrtl.uint<1>, in %io_in_3: !firrtl.uint<1>, in %io_in_4: !firrtl.uint<1>, in %io_in_5: !firrtl.uint<1>, in %io_in_6: !firrtl.uint<1>, in %io_in_7: !firrtl.uint<1>, in %io_in_8: !firrtl.uint<1>, out %io_out: !firrtl.uint<4>) attributes {convention = #firrtl<convention scalarized>} {
   %io_in_0_0 = firrtl.wire {name = "io_in_0"} : !firrtl.uint<1>
   %io_in_1_1 = firrtl.wire {name = "io_in_1"} : !firrtl.uint<1>
@@ -10,16 +10,16 @@ firrtl.module @CountBool(in %clock: !firrtl.clock, in %reset1: !firrtl.uint<1>, 
   %io_in_7_7 = firrtl.wire {name = "io_in_7"} : !firrtl.uint<1>
   %io_in_8_8 = firrtl.wire {name = "io_in_8"} : !firrtl.uint<1>
   %io_out_9 = firrtl.wire {name = "io_out"} : !firrtl.uint<4>
-  firrtl.strictconnect %io_in_0_0, %io_in_0 : !firrtl.uint<1>
-  firrtl.strictconnect %io_in_1_1, %io_in_1 : !firrtl.uint<1>
-  firrtl.strictconnect %io_in_2_2, %io_in_2 : !firrtl.uint<1>
-  firrtl.strictconnect %io_in_3_3, %io_in_3 : !firrtl.uint<1>
-  firrtl.strictconnect %io_in_4_4, %io_in_4 : !firrtl.uint<1>
-  firrtl.strictconnect %io_in_5_5, %io_in_5 : !firrtl.uint<1>
-  firrtl.strictconnect %io_in_6_6, %io_in_6 : !firrtl.uint<1>
-  firrtl.strictconnect %io_in_7_7, %io_in_7 : !firrtl.uint<1>
-  firrtl.strictconnect %io_in_8_8, %io_in_8 : !firrtl.uint<1>
-  firrtl.strictconnect %io_out, %io_out_9 : !firrtl.uint<4>
+  firrtl.matchingconnect %io_in_0_0, %io_in_0 : !firrtl.uint<1>
+  firrtl.matchingconnect %io_in_1_1, %io_in_1 : !firrtl.uint<1>
+  firrtl.matchingconnect %io_in_2_2, %io_in_2 : !firrtl.uint<1>
+  firrtl.matchingconnect %io_in_3_3, %io_in_3 : !firrtl.uint<1>
+  firrtl.matchingconnect %io_in_4_4, %io_in_4 : !firrtl.uint<1>
+  firrtl.matchingconnect %io_in_5_5, %io_in_5 : !firrtl.uint<1>
+  firrtl.matchingconnect %io_in_6_6, %io_in_6 : !firrtl.uint<1>
+  firrtl.matchingconnect %io_in_7_7, %io_in_7 : !firrtl.uint<1>
+  firrtl.matchingconnect %io_in_8_8, %io_in_8 : !firrtl.uint<1>
+  firrtl.matchingconnect %io_out, %io_out_9 : !firrtl.uint<4>
   %0 = firrtl.add %io_in_0_0, %io_in_1_1 : (!firrtl.uint<1>, !firrtl.uint<1>) -> !firrtl.uint<2>
   %_io_out_T = firrtl.node %0 : !firrtl.uint<2>
   %1 = firrtl.bits %_io_out_T 1 to 0 : (!firrtl.uint<2>) -> !firrtl.uint<2>
@@ -52,6 +52,6 @@ firrtl.module @CountBool(in %clock: !firrtl.clock, in %reset1: !firrtl.uint<1>, 
   %_io_out_T_14 = firrtl.node %14 : !firrtl.uint<4>
   %15 = firrtl.bits %_io_out_T_14 3 to 0 : (!firrtl.uint<4>) -> !firrtl.uint<4>
   %_io_out_T_15 = firrtl.node %15 : !firrtl.uint<4>
-  firrtl.strictconnect %io_out_9, %_io_out_T_15 : !firrtl.uint<4>
+  firrtl.matchingconnect %io_out_9, %_io_out_T_15 : !firrtl.uint<4>
 }
 

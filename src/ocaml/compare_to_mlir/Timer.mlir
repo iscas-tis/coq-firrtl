@@ -1,11 +1,11 @@
-// -----// IR Dump After ExpandWhens (firrtl-expand-whens) //----- //
+// -----// IR Dump After ExpandWhens: firrtl-expand-whens //----- //
 firrtl.module @Timer(in %clock: !firrtl.clock, in %reset1: !firrtl.uint<1>, in %io_din: !firrtl.uint<8>, in %io_load: !firrtl.uint<1>, out %io_done: !firrtl.uint<1>) attributes {convention = #firrtl<convention scalarized>} {
   %io_din_0 = firrtl.wire {name = "io_din"} : !firrtl.uint<8>
   %io_load_1 = firrtl.wire {name = "io_load"} : !firrtl.uint<1>
   %io_done_2 = firrtl.wire {name = "io_done"} : !firrtl.uint<1>
-  firrtl.strictconnect %io_din_0, %io_din : !firrtl.uint<8>
-  firrtl.strictconnect %io_load_1, %io_load : !firrtl.uint<1>
-  firrtl.strictconnect %io_done, %io_done_2 : !firrtl.uint<1>
+  firrtl.matchingconnect %io_din_0, %io_din : !firrtl.uint<8>
+  firrtl.matchingconnect %io_load_1, %io_load : !firrtl.uint<1>
+  firrtl.matchingconnect %io_done, %io_done_2 : !firrtl.uint<1>
   %c0_ui8 = firrtl.constant 0 : !firrtl.uint<8>
   %cntReg = firrtl.regreset %clock, %reset1, %c0_ui8 : !firrtl.clock, !firrtl.uint<1>, !firrtl.uint<8>, !firrtl.uint<8>
   %c0_ui1 = firrtl.constant 0 : !firrtl.uint<1>
@@ -23,8 +23,8 @@ firrtl.module @Timer(in %clock: !firrtl.clock, in %reset1: !firrtl.uint<1>, in %
   %_next_T_1 = firrtl.node %6 : !firrtl.uint<8>
   %7 = firrtl.mux(%3, %_next_T_1, %c0_ui1) : (!firrtl.uint<1>, !firrtl.uint<8>, !firrtl.uint<1>) -> !firrtl.uint<8>
   %8 = firrtl.mux(%io_load_1, %io_din_0, %7) : (!firrtl.uint<1>, !firrtl.uint<8>, !firrtl.uint<8>) -> !firrtl.uint<8>
-  firrtl.connect %next, %8 : !firrtl.uint<8>, !firrtl.uint<8>
-  firrtl.connect %cntReg, %next : !firrtl.uint<8>, !firrtl.uint<8>
-  firrtl.strictconnect %io_done_2, %done : !firrtl.uint<1>
+  firrtl.connect %next, %8 : !firrtl.uint<8>
+  firrtl.connect %cntReg, %next : !firrtl.uint<8>
+  firrtl.matchingconnect %io_done_2, %done : !firrtl.uint<1>
 }
 

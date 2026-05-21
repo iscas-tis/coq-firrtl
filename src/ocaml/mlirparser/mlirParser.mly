@@ -87,6 +87,8 @@ statement
                                          { Sfcnct ($3, $5)}
   | FIRRTLDOT STM_MCONNECT symbol_prct SPRT symbol_prct KEYWORD gtyp_def
                                          { Sfcnct ($3, $5)}
+  | FIRRTLDOT STM_CNCT symbol_prct SPRT symbol_prct KEYWORD gtyp_def
+                                         { Sfcnct ($3, $5)}
   | FIRRTLDOT STM_CNCT symbol_prct SPRT symbol_prct KEYWORD gtyp_def SPRT gtyp_def
                                          { Sfcnct ($3, $5)}
   | symbol_prct STM_NASS FIRRTLDOT STM_NODE symbol_prct KEYWORD gtyp_def
