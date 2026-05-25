@@ -94,10 +94,29 @@ Definition circuit_tmap (c : HiFP.hfcircuit) : option ((PVM.t (PVM.t (fgtyp * fc
     modules_tmap modplmap (PVM.empty (PVM.t (fgtyp * fcomponent))) (PVM.empty (list ProdVarOrder.t)) ml
   end.
 
+Fixpoint ss_add_node_in_cm (ss : HiFP.hfstmt_seq) (mod_cm : PVM.t def_expr) : PVM.t def_expr :=
+  match ss with
+  | Qnil => mod_cm
+  | Qcons (Snode v expr) ss' => ss_add_node_in_cm ss' (PVM.add v (D_fexpr expr) mod_cm)
+  | Qcons (Swhen _ ss_true ss_false) ss' => ss_add_node_in_cm ss' (ss_add_node_in_cm ss_false (ss_add_node_in_cm ss_true mod_cm))
+  | Qcons _ ss' => ss_add_node_in_cm ss' mod_cm
+  end.
+
+Fixpoint modules_add_node_in_cm (ml : seq HiFP.hfmodule) (conn_map : PVM.t (PVM.t def_expr)) : PVM.t (PVM.t def_expr) :=
+  match ml with
+  | nil => conn_map
+  | (FInmod mv ps ss) :: tl => match PVM.find mv conn_map with
+                              | Some mod_cm => modules_add_node_in_cm tl (PVM.add mv (ss_add_node_in_cm ss mod_cm) conn_map)
+                              | None => modules_add_node_in_cm tl conn_map
+                              end
+  | _ :: tl => modules_add_node_in_cm tl conn_map
+  end.
+
 Definition expandWhens (c : HiFP.hfcircuit) : option (HiFP.hfcircuit * (PVM.t (PVM.t def_expr)) * (PVM.t (list ProdVarOrder.t))) :=
   match c, circuit_tmap c with
   | Fcircuit v ml, Some (tmap, vl_map) => match ExpandWhens_fun ml tmap nil (PVM.empty (PVM.t def_expr)) with
-    | Some (fml, conn_map) => Some (Fcircuit v (List.rev fml), conn_map, vl_map)
+    | Some (fml, conn_map) => let conn_map' := modules_add_node_in_cm ml conn_map in
+                              Some (Fcircuit v (List.rev fml), conn_map', vl_map)
     | _ => None
     end
   | _, _ => None

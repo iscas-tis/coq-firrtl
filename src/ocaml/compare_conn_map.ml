@@ -171,21 +171,22 @@ let rec expand_ocaml ocaml_cm pvlist expr =
   (* 展开单个变量（可能递归多次） *)
   let rec expand_var v =
     if is_whitelist v then
-      Eref v
+      HiFirrtl.Eref (Eid v)
     else
-      match Transhiast.StringMap.find_opt v ocaml_cm with
-      | None -> failwith ("Undefined variable: " ^ v)
-      | Some e -> expand_ocaml ocaml_cm whitelist e   (* 递归展开定义体 *)
+      match PVM.find v ocaml_cm with
+      | None -> HiFirrtl.Eref (Eid v)
+      | Some (D_fexpr e) -> expand_ocaml ocaml_cm pvlist e   (* 递归展开定义体 *)
+      | Some (D_invalidated gt) -> HiFirrtl.Econst (gt, [])
   in
 
   match expr with
-  | Econst (t, z) -> Econst (t, z)
-  | Ecast (c, v) -> Ecast (c, expand_var v)
-  | Eprim_unop (op, v) -> Eprim_unop (op, expand_var v)
-  | Eprim_binop (op, v1, v2) -> Eprim_binop (op, expand_var v1, expand_var v2)
-  | Emux (v1, v2, v3) -> Emux (expand_var v1, expand_var v2, expand_var v3)
-  | Emultimux vs -> Emultimux (List.map expand_var vs)
-  | Eref v -> expand_var v
+  | HiFirrtl.Econst (t, z) -> HiFirrtl.Econst (t, z)
+  | Ecast (c, v) -> Ecast (c, expand_ocaml ocaml_cm pvlist v)
+  | Eprim_unop (op, v) -> Eprim_unop (op, expand_ocaml ocaml_cm pvlist v)
+  | Eprim_binop (op, v1, v2) -> Eprim_binop (op, expand_ocaml ocaml_cm pvlist v1, expand_ocaml ocaml_cm pvlist v2)
+  | Emux (v1, v2, v3) -> Emux (expand_ocaml ocaml_cm pvlist v1, expand_ocaml ocaml_cm pvlist v2, expand_ocaml ocaml_cm pvlist v3)
+  | Eref (Eid v) -> expand_var v
+  | _ -> failwith ("Error ref in ocaml")
 
 let dexpr_pair_to_string de ocaml_cm pvlist nummap tmap =
   match de with
@@ -227,13 +228,14 @@ let rec expand (mlir_cm : Mast.hfexpr Transhiast.StringMap.t) (whitelist : var l
 let rec compare_ocaml_mlir del ocaml_mod_cm mod_pvlist nummap tmap mod_cm whitelist = 
   match del with
   | [] -> output_string stdout "compare finished\n"
-  | (v, de) :: tl -> 
-    let string_v = pair_to_string (Obj.magic v) nummap tmap in 
-    let string_e = dexpr_pair_to_string ocaml_mod_cm mod_pvlist de nummap tmap in (* ocaml 结果对应的 expr*)
+  | (v, de) :: tl -> if List.mem v mod_pvlist then
+    (let string_v = pair_to_string (Obj.magic v) nummap tmap in 
+    let string_e = dexpr_pair_to_string de ocaml_mod_cm mod_pvlist nummap tmap in (* ocaml 结果对应的 expr*)
     let mlir_e = Transhiast.StringMap.find string_v mod_cm in (* mlir 结果对应的 expr*)
     let e_after_substitute = expand mod_cm whitelist mlir_e in (* mlir 代入*)
-    if eq_hfexpr_loose string_e e_after_substitute then compare_ocaml_mlir tl nummap tmap mod_cm whitelist
+    if eq_hfexpr_loose string_e e_after_substitute then compare_ocaml_mlir tl ocaml_mod_cm mod_pvlist nummap tmap mod_cm whitelist
     else (output_string stdout (string_v^" is cnct to\nocaml version : "); pp_expr stdout string_e;
     output_string stdout "\nfirtool version : "; pp_expr stdout e_after_substitute; output_string stdout "\n";
-    compare_ocaml_mlir tl nummap tmap mod_cm whitelist)
+    compare_ocaml_mlir tl ocaml_mod_cm mod_pvlist nummap tmap mod_cm whitelist)) else
+      compare_ocaml_mlir tl ocaml_mod_cm mod_pvlist nummap tmap mod_cm whitelist
     
