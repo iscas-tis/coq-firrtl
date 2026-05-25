@@ -21,64 +21,67 @@ Fixpoint ExpandWhens_fun
     | m :: tl => ExpandWhens_fun tl tmap (m :: fml) conn_map
     end.
 
-Fixpoint addplaswire (instv : VarOrder.t) (offset : nat) (pl : seq HiFP.hfport) (tmap : PVM.t (fgtyp * fcomponent)) : option (PVM.t (fgtyp * fcomponent)) :=
+Fixpoint addplaswire (instv : VarOrder.t) (offset : nat) (pl : seq HiFP.hfport) (tmap : PVM.t (fgtyp * fcomponent)) (vl : list ProdVarOrder.t) : option ((PVM.t (fgtyp * fcomponent)) * (list ProdVarOrder.t)) :=
   match pl with
-  | nil => Some tmap
-  | Finput v (Gtyp t) :: tl => addplaswire instv (offset + 1) tl (PVM.add (instv, N.of_nat offset) (t, Wire) tmap)
-  | Foutput v (Gtyp t) :: tl => addplaswire instv (offset + 1) tl (PVM.add (instv, N.of_nat offset) (t, Wire) tmap)
+  | nil => Some (tmap, vl)
+  | Finput v (Gtyp t) :: tl => let pv := (instv, N.of_nat offset) in
+      addplaswire instv (offset + 1) tl (PVM.add pv (t, Wire) tmap) (pv :: vl)
+  | Foutput v (Gtyp t) :: tl => let pv := (instv, N.of_nat offset) in
+      addplaswire instv (offset + 1) tl (PVM.add pv (t, Wire) tmap) (pv :: vl)
   | _ => None
   end.
 
 (* functions used to record ftype and component type *)
-Fixpoint stmts_tmap (modplmap : PVM.t (seq HiFP.hfport)) (tmap : PVM.t (fgtyp * fcomponent)) (ss : HiFP.hfstmt_seq): option (PVM.t (fgtyp * fcomponent)) :=
+Fixpoint stmts_tmap (modplmap : PVM.t (seq HiFP.hfport)) (tmap : PVM.t (fgtyp * fcomponent)) (vl : list ProdVarOrder.t) (ss : HiFP.hfstmt_seq): option ((PVM.t (fgtyp * fcomponent)) * (list ProdVarOrder.t)) :=
   match ss with
-  | Qnil => Some tmap
-  | Qcons s ss' => match stmt_tmap modplmap tmap s with
-      | Some tmap' => stmts_tmap modplmap tmap' ss'
+  | Qnil => Some (tmap, vl)
+  | Qcons s ss' => match stmt_tmap modplmap tmap vl s with
+      | Some (tmap', vl') => stmts_tmap modplmap tmap' vl' ss'
       | None => None
       end
   end
-with stmt_tmap (modplmap : PVM.t (seq HiFP.hfport)) (tmap : PVM.t (fgtyp * fcomponent)) (s : HiFP.hfstmt) : option (PVM.t (fgtyp * fcomponent)) :=
+with stmt_tmap (modplmap : PVM.t (seq HiFP.hfport)) (tmap : PVM.t (fgtyp * fcomponent)) (vl : list ProdVarOrder.t) (s : HiFP.hfstmt) : option ((PVM.t (fgtyp * fcomponent)) * (list ProdVarOrder.t)) :=
   match s with
-  | Sskip => Some tmap
-  | Sfcnct _ _ => Some tmap
-  | Sinvalid _ => Some tmap
-  | Smem v m => Some tmap (* TBD *)
+  | Sskip => Some (tmap, vl)
+  | Sfcnct _ _ => Some (tmap, vl)
+  | Sinvalid _ => Some (tmap, vl)
+  | Smem v m => Some (tmap, vl) (* TBD *)
   | Sinst v mv => match PVM.find mv modplmap with
-      | Some pl => addplaswire (fst v) 0 pl tmap
+      | Some pl => addplaswire (fst v) 0 pl tmap vl
       | _ => None
       end
   | Swire v (Gtyp t) => match PVM.find v tmap with
-      | None => Some (PVM.add v (t, Wire) tmap)
+      | None => Some (PVM.add v (t, Wire) tmap, v :: vl)
       | _ => None
       end
   | Swire v _ => None
   | Sreg v reg => match PVM.find v tmap, Sem_HiFP.type_of_hfexpr (clock reg) tmap, type reg with
-      | None, Some _, Gtyp gt => Some (PVM.add v (gt, Register) tmap)
+      | None, Some _, Gtyp gt => Some (PVM.add v (gt, Register) tmap, v :: vl)
       | _, _, _ => None
       end
   | Snode v expr => match PVM.find v tmap, Sem_HiFP.type_of_hfexpr expr tmap with
-                  | None, Some ft => Some (PVM.add v (ft, Node) tmap)
+                  | None, Some ft => Some (PVM.add v (ft, Node) tmap, vl)
                   | _, _ => None
                   end
   | Swhen _ ss_true ss_false =>
-      match stmts_tmap modplmap tmap ss_true with
-      | Some tmap_true => stmts_tmap modplmap tmap_true ss_false 
+      match stmts_tmap modplmap tmap vl ss_true with
+      | Some (tmap_true, vl_true) => stmts_tmap modplmap tmap_true vl_true ss_false 
       | _ => None
       end
   end.
 
-Fixpoint modules_tmap (modplmap : PVM.t (seq HiFP.hfport)) (tmap : PVM.t (PVM.t (fgtyp * fcomponent))) (ml : seq HiFP.hfmodule) : option (PVM.t (PVM.t (fgtyp * fcomponent))) :=
+Fixpoint modules_tmap (modplmap : PVM.t (seq HiFP.hfport)) (tmap : PVM.t (PVM.t (fgtyp * fcomponent))) 
+  (whitelist_map : PVM.t (list ProdVarOrder.t)) (ml : seq HiFP.hfmodule) : option ((PVM.t (PVM.t (fgtyp * fcomponent))) * (PVM.t (list ProdVarOrder.t))):=
   match ml with
-  | nil => Some tmap
+  | nil => Some (tmap, whitelist_map)
   | (FInmod mv ps ss) :: tl => match Sem_HiFP.ports_tmap' (PVM.empty (fgtyp * fcomponent)) ps with
-              | Some pmap => match stmts_tmap modplmap pmap ss with
-                  | Some tmap' => modules_tmap modplmap (PVM.add mv tmap' tmap) tl
+              | Some pmap => match stmts_tmap modplmap pmap (fst (List.split (PVM.elements pmap))) ss with
+                  | Some (tmap', whitelist) => modules_tmap modplmap (PVM.add mv tmap' tmap) (PVM.add mv whitelist whitelist_map) tl
                   | None => None
                   end
               | None => None
               end 
-  | _ :: tl => modules_tmap modplmap tmap tl
+  | _ :: tl => modules_tmap modplmap tmap whitelist_map tl
   end.
 
 Definition circuit_tmap (c : HiFP.hfcircuit) : option ((PVM.t (PVM.t (fgtyp * fcomponent))) * (PVM.t (list ProdVarOrder.t))) :=
@@ -88,10 +91,7 @@ Definition circuit_tmap (c : HiFP.hfcircuit) : option ((PVM.t (PVM.t (fgtyp * fc
       | FInmod mv ps _ => PVM.add mv ps acc
       | FExmod mv ps _ => PVM.add mv ps acc
       end) ml (PVM.empty (seq HiFP.hfport)) in
-    match modules_tmap modplmap (PVM.empty (PVM.t (fgtyp * fcomponent))) ml with
-      | Some tmap => Some (tmap, PVM.map (fun tmap' => fst (List.split (PVM.elements tmap'))) tmap)
-      | _ => None
-      end
+    modules_tmap modplmap (PVM.empty (PVM.t (fgtyp * fcomponent))) (PVM.empty (list ProdVarOrder.t)) ml
   end.
 
 Definition expandWhens (c : HiFP.hfcircuit) : option (HiFP.hfcircuit * (PVM.t (PVM.t def_expr)) * (PVM.t (list ProdVarOrder.t))) :=

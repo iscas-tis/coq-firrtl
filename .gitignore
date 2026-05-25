@@ -33,4 +33,4 @@ src/ocaml/ocaml.opam
 src/ocaml/extraction
 .Makefile.d 
 Dockerfile
-src/.DS_Store
+src/.DS_Store.DS_Store

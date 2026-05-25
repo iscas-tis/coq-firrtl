@@ -36,12 +36,12 @@ let anon file =
   (* mlir connection tree *)
   let mlir_file = fir_to_mlir file in
   let mlirf = Mparser.mlirparse mlir_file in 
-  (*Mast.pp_modules stdout mlirf;*)
-  output_string stdout "\nfirtool connection tree\n";
+  (*Mast.pp_modules stdout mlirf;
+  output_string stdout "\nfirtool connection tree\n";*)
   let mlir_cm = Mast.cm_modl mlirf Mast.initmap_s in 
-  Mast.StringMap.iter (fun mv mod_cm -> output_string stdout ("module "^mv^" :\n"); 
+  (*Mast.StringMap.iter (fun mv mod_cm -> output_string stdout ("module "^mv^" :\n"); 
     Mast.StringMap.iter (fun v e -> output_string stdout (v^" -> "); Mast.pp_expr stdout e; output_string stdout "\n") mod_cm; 
-    output_string stdout "\n") mlir_cm; 
+    output_string stdout "\n") mlir_cm; *)
 
   (* ocaml connection tree *)
   let hif_ast = Parser.hiparse file in 
@@ -49,15 +49,15 @@ let anon file =
   
   let ((modmap, _), map) = Transhiast_without_inline.mapcir hif_ast in 
   let hif_without_inline = Transhiast_without_inline.trans_cir hif_ast modmap map in
-  output_string oc_fir "\norigin\n";
+  (*output_string oc_fir "\norigin\n";
   Printfir.pp_fcircuit_fir oc_fir hif_without_inline;
 
-  output_string oc_fir "\nafter expandconnects :\n";
+  output_string oc_fir "\nafter expandconnects :\n";*)
   (match expandconnects hif_without_inline with
-  | Some c_expandconnects -> Printfir_pair.pp_fcircuit_fir oc_fir c_expandconnects;
-    output_string oc_fir "\nafter expandwhens :\n";
+  | Some c_expandconnects -> (*Printfir_pair.pp_fcircuit_fir oc_fir c_expandconnects;
+    output_string oc_fir "\nafter expandwhens :\n";*)
     (match expandWhens c_expandconnects with
-    | Some ((c_expandwhens, conn_map), pvlist) -> Printfir_pair.pp_fcircuit_fir oc_fir c_expandwhens;
+    | Some ((c_expandwhens, conn_map), pvlist) -> (*Printfir_pair.pp_fcircuit_fir oc_fir c_expandwhens;*)
     (* compare conn_map between mlir and ocaml *)
       Mast.StringMap.iter (fun mv mod_cm -> output_string stdout ("\nmodule "^mv^" :\n");
         let modnum = Mast.StringMap.find mv modmap in
@@ -67,7 +67,7 @@ let anon file =
         | Some ocaml_mod_cm -> match PVM.find modnump pvlist with
           | Some mod_pvlist -> 
             let whitelist = List.map (fun pv -> Compare_conn_map.pair_to_string (Obj.magic pv) map1 tmap) mod_pvlist in 
-            Compare_conn_map.compare_ocaml_mlir (PVM.elements ocaml_mod_cm) map1 tmap mod_cm whitelist
+            Compare_conn_map.compare_ocaml_mlir (PVM.elements ocaml_mod_cm) ocaml_mod_cm mod_pvlist map1 tmap mod_cm whitelist
           | _ -> output_string stdout ("find module "^mv^" in whitelist error\n");
         | _ -> output_string stdout ("find module "^mv^" in ocaml cm error\n");
         ) mlir_cm; 

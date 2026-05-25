@@ -46,6 +46,34 @@ let rec eq_hfexpr (e1 : hfexpr) (e2 : hfexpr) : bool =
   | Eref v1, Eref v2 -> v1 = v2
   | _ -> false
 
+let rec eq_hfexpr_loose (e1 : hfexpr) (e2 : hfexpr) : bool =
+  (* 递归去除顶层的 Upad 和 Utail *)
+  let rec strip = function
+    | Eprim_unop (Upad _, e) -> strip e
+    | Eprim_unop (Utail _, e) -> strip e
+    | e -> e
+  in
+  let e1' = strip e1 in
+  let e2' = strip e2 in
+  match e1', e2' with
+  | Econst (t1, z1), Econst (t2, z2) -> t1 = t2 && Z.equal z1 z2
+  | Ecast (c1, e1), Ecast (c2, e2) -> c1 = c2 && eq_hfexpr_loose e1 e2
+  | Eprim_unop (op1, e1), Eprim_unop (op2, e2) -> op1 = op2 && eq_hfexpr_loose e1 e2
+  | Eprim_binop (op1, l1, r1), Eprim_binop (op2, l2, r2) ->
+      op1 = op2 && eq_hfexpr_loose l1 l2 && eq_hfexpr_loose r1 r2
+  | Emux (c1, t1, f1), Emux (c2, t2, f2) ->
+      eq_hfexpr_loose c1 c2 && eq_hfexpr_loose t1 t2 && eq_hfexpr_loose f1 f2
+  | Emultimux es1, Emultimux es2 ->
+      let rec eq_list xs ys =
+        match xs, ys with
+        | [], [] -> true
+        | x :: xs', y :: ys' -> eq_hfexpr_loose x y && eq_list xs' ys'
+        | _ -> false
+      in
+      eq_list es1 es2
+  | Eref v1, Eref v2 -> v1 = v2
+  | _ -> false
+
 (* 根据 pair of num 的 cm, 转换为 string 的 cm. 把(2,1), 先根据 map1, 找到 2 对应的 string 和 ftype, 再根据 offset 和 ftype 对应到新名 *)
 let rec offset_to_string base_id offset = function
 | Ast.Gtyp gt ->
@@ -136,18 +164,42 @@ let rec expr_pair_to_string e nummap tmap =
     expr_pair_to_string e2 nummap tmap, expr_pair_to_string e3 nummap tmap)
   | HiFirrtl.Ecast (s, e) -> Ecast(cast_pair_to_string s, expr_pair_to_string e nummap tmap)
 
-let dexpr_pair_to_string de nummap tmap =
+let rec expand_ocaml ocaml_cm pvlist expr =
+  (* 判断变量是否在白名单中 *)
+  let is_whitelist v = List.mem v pvlist in
+
+  (* 展开单个变量（可能递归多次） *)
+  let rec expand_var v =
+    if is_whitelist v then
+      Eref v
+    else
+      match Transhiast.StringMap.find_opt v ocaml_cm with
+      | None -> failwith ("Undefined variable: " ^ v)
+      | Some e -> expand_ocaml ocaml_cm whitelist e   (* 递归展开定义体 *)
+  in
+
+  match expr with
+  | Econst (t, z) -> Econst (t, z)
+  | Ecast (c, v) -> Ecast (c, expand_var v)
+  | Eprim_unop (op, v) -> Eprim_unop (op, expand_var v)
+  | Eprim_binop (op, v1, v2) -> Eprim_binop (op, expand_var v1, expand_var v2)
+  | Emux (v1, v2, v3) -> Emux (expand_var v1, expand_var v2, expand_var v3)
+  | Emultimux vs -> Emultimux (List.map expand_var vs)
+  | Eref v -> expand_var v
+
+let dexpr_pair_to_string de ocaml_cm pvlist nummap tmap =
   match de with
   | D_invalidated gt -> Econst (fgtyp_pair_to_string gt, Z.of_int 0)
-  | D_fexpr e -> expr_pair_to_string e nummap tmap
+  | D_fexpr e -> let e' = expand_ocaml ocaml_cm pvlist e in
+                 expr_pair_to_string e' nummap tmap
 
-let rec print_dexpr_list del nummap tmap = 
+(*let rec print_dexpr_list del nummap tmap = 
   match del with
   | [] -> output_string stdout ""
   | (v, de) :: tl -> let string_v = pair_to_string (Obj.magic v) nummap tmap in
     let string_e = dexpr_pair_to_string de nummap tmap in
     output_string stdout (string_v^" is cnct to "); pp_expr stdout string_e;
-    output_string stdout "\n"; print_dexpr_list tl nummap tmap
+    output_string stdout "\n"; print_dexpr_list tl nummap tmap*)
 
 let rec expand (mlir_cm : Mast.hfexpr Transhiast.StringMap.t) (whitelist : var list) (expr : Mast.hfexpr) : hfexpr =
   (* 判断变量是否在白名单中 *)
@@ -172,17 +224,16 @@ let rec expand (mlir_cm : Mast.hfexpr Transhiast.StringMap.t) (whitelist : var l
   | Emultimux vs -> Emultimux (List.map expand_var vs)
   | Eref v -> expand_var v
 
-let rec compare_ocaml_mlir del nummap tmap mod_cm whitelist = 
+let rec compare_ocaml_mlir del ocaml_mod_cm mod_pvlist nummap tmap mod_cm whitelist = 
   match del with
   | [] -> output_string stdout "compare finished\n"
   | (v, de) :: tl -> 
     let string_v = pair_to_string (Obj.magic v) nummap tmap in 
-    let string_e = dexpr_pair_to_string de nummap tmap in (* ocaml 结果对应的 expr*)
-    printf "%s\n" string_v; (* 如果string_v以_wky结尾，需要去掉末尾的4个字符 *)
+    let string_e = dexpr_pair_to_string ocaml_mod_cm mod_pvlist de nummap tmap in (* ocaml 结果对应的 expr*)
     let mlir_e = Transhiast.StringMap.find string_v mod_cm in (* mlir 结果对应的 expr*)
     let e_after_substitute = expand mod_cm whitelist mlir_e in (* mlir 代入*)
-    (*if eq_hfexpr string_e e_after_substitute then compare_ocaml_mlir tl nummap tmap mod_cm whitelist
-    else*) (output_string stdout (string_v^" is cnct to\nocaml version : "); pp_expr stdout string_e;
+    if eq_hfexpr_loose string_e e_after_substitute then compare_ocaml_mlir tl nummap tmap mod_cm whitelist
+    else (output_string stdout (string_v^" is cnct to\nocaml version : "); pp_expr stdout string_e;
     output_string stdout "\nfirtool version : "; pp_expr stdout e_after_substitute; output_string stdout "\n";
     compare_ocaml_mlir tl nummap tmap mod_cm whitelist)
     
