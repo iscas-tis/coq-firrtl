@@ -34,3 +34,4 @@ src/ocaml/extraction
 .Makefile.d 
 Dockerfile
 src/.DS_Store.DS_Store
+.vscode/settings.json
