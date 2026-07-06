@@ -210,9 +210,9 @@ let rec trans_ref ref map =
   | Ast.Eid v -> (*printf "%s\n" v;*) HiFirrtl.Eid (Obj.magic (Stdlib.List.hd (StringMap.find v map)))
   | Ast.Esubfield (r, _) -> (*printf "%s\n" (find_nat4v ref);*) HiFirrtl.Esubfield (trans_ref r map, Obj.magic (Stdlib.List.hd (StringMap.find (find_nat4v ref) map)))
   | Ast.Esubindex (r, n) -> HiFirrtl.Esubindex (trans_ref r map, n)
-  | Ast.Esubaccess (r, _) -> (trans_ref r map)
+  | Ast.Esubaccess (r, e) -> HiFirrtl.Esubaccess (trans_ref r map, trans_expr e map)
 
-let rec trans_expr e map = 
+and trans_expr e map = 
   match e with
   | Ast.Econst (ty, s) -> (match ty with
     | Ast.Fuint_implicit _ -> HiFirrtl.Econst (trans_fgtyp (Ast.Fuint (binary_length false s)), bits_of_z s (binary_length false s))

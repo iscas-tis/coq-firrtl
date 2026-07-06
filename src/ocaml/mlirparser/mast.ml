@@ -12,9 +12,9 @@ type hfexpr =
 
 type hfstmt =
 | Sskip
+| Smem
 | Swire of var
 | Sreg of var
-| Smem of var 
 | Sinst of var * var
 | Snode of var * hfexpr
 | Sfcnct of var * var
@@ -71,8 +71,8 @@ let rec pp_statements out sl =
 and pp_statement out s =
   match s with
   | Sskip -> output_string out "sskip\n"
+  | Smem -> output_string out "smem\n"
   | Swire v -> output_string out ("swire "^v^"\n")
-  | Smem v -> output_string out ("smem "^v^"\n")
   | Sfcnct (v1, v2) -> output_string out ("(sfcnct "^v1^" "^v2^")\n")
   | Sinvalid v -> output_string out ("(sinvalid "^v^")\n")
   | Sreg v -> output_string out "sreg "; output_string out v; output_string out "\n"

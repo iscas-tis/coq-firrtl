@@ -37,12 +37,16 @@ fmodules
     
 fmodule
   : mdl ports statements                 { FInmod ($1, $2, $3) }
-  | extmdl ports statements                 { FInmod ($1, $2, $3) }
+  | pubmdl ports statements              { FInmod ($1, $2, $3) }
+  | extmdl ports statements              { FExmod ($1, $2, $3) }
   ;
 
 mdl 
   : STM_MODULE symbol KEYWORD            { $2 }
-  | STM_PUBMODULE symbol KEYWORD            { $2 }
+  ;
+
+pubmdl 
+  : STM_PUBMODULE symbol KEYWORD         { $2 }
   ;
 
 extmdl 
@@ -98,6 +102,7 @@ statements
 statement
   : STM_SKIP                             { Sskip }
   | ref STM_CONNECT expr                 { Sfcnct ($1, $3) }
+  | ref STM_PCONNECT expr                { Sskip }
   | STM_CONNECT0 ref SPRT expr           { Sfcnct ($2, $4) }
   | STM_WIRE symbol KEYWORD typ_def      { Swire ($2, $4) }
   | STM_NODE symbol STM_NASS expr        { Snode ($2, $4) }
@@ -119,8 +124,8 @@ statement
   | STM_MEM symbol KEYWORD typ_def       { Swire ($2, $4) }
   | STM_SMEM symbol KEYWORD typ_def      { Swire ($2, $4) }
   | STM_SMEM symbol KEYWORD typ_def SPRT M_UNDEFINED      { Swire ($2, $4) }
-  | STM_MEM_INFER symbol STM_NASS ref SPRT expr
-                                         { Sinferport ($2, $4, $6) }
+  | STM_MEM_INFER symbol STM_NASS expr SPRT expr
+                                         { Snode ($2, $4) }
   | STM_MEM_READ symbol STM_NASS expr SPRT ref
                                          { Snode ($2, $4) }
   | STM_MEM_WRITE symbol STM_NASS expr SPRT ref
@@ -281,8 +286,8 @@ ref
   : SYMBOL                              { Eid ($1) }
   | ref FULL SYMBOL                     { Esubfield ($1, $3) }
   | ref SQR_OPEN numeral SQR_CLOSE      { Esubindex ($1, $3) }
-  | ref SQR_OPEN expr SQR_CLOSE          { Esubindex ($1, 0) }
-  /*| ref SQR_OPEN expr SQR_CLOSE         { Esubaccess ($1, $3) }*/
+  /*| ref SQR_OPEN expr SQR_CLOSE          { Esubindex ($1, 0) }*/
+  | ref SQR_OPEN expr SQR_CLOSE         { Esubaccess ($1, $3) }
 ;
 
 symbols

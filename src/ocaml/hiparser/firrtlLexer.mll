@@ -7,6 +7,8 @@
   let get_len lexbuf = String.length (Lexing.lexeme lexbuf)
   let upd_cnum lexbuf = cnum := !cnum + get_len lexbuf
   let reset_cnum () = cnum := 0
+  let get_lnum () = !lnum
+  let get_cnum () = !cnum
 }
 
 let digit = ['0'-'9']
@@ -37,9 +39,6 @@ and token = parse
 | '@'                                   { upd_cnum lexbuf; line_comment lexbuf }
 | ';'                                   { upd_cnum lexbuf; line_comment lexbuf }
 | "FIRRTL version"                      { upd_cnum lexbuf; line_comment lexbuf }
-| "stop"                                { upd_cnum lexbuf; line_comment lexbuf }
-| "printf"                              { upd_cnum lexbuf; line_comment lexbuf }
-| "cover"                               { upd_cnum lexbuf; line_comment lexbuf }
 | "%[[" comment_line' "]]"              { upd_cnum lexbuf; line_comment lexbuf }
 | '('                                   { upd_cnum lexbuf; PAR_OPEN }
 | ')'                                   { upd_cnum lexbuf; PAR_CLOSE }

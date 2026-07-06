@@ -46,7 +46,7 @@ let rec eq_hfexpr (e1 : hfexpr) (e2 : hfexpr) : bool =
   | Eref v1, Eref v2 -> v1 = v2
   | _ -> false
 
-let rec eq_hfexpr_loose (e1 : hfexpr) (e2 : hfexpr) : bool =
+(*let rec eq_hfexpr_loose (e1 : hfexpr) (e2 : hfexpr) : bool =
   (* 递归去除顶层的 Upad 和 Utail *)
   let rec strip = function
     | Eprim_unop (Upad _, e) -> strip e
@@ -72,7 +72,88 @@ let rec eq_hfexpr_loose (e1 : hfexpr) (e2 : hfexpr) : bool =
       in
       eq_list es1 es2
   | Eref v1, Eref v2 -> v1 = v2
-  | _ -> false
+  | _ -> false*)
+(*let rec eq_hfexpr_loose (e1 : hfexpr) (e2 : hfexpr) : bool =
+  let rec strip = function
+    | Eprim_unop (Upad _, e) -> strip e
+    | Eprim_unop (Utail _, e) -> strip e
+    | e -> e
+  in
+  let e1' = strip e1 in
+  let e2' = strip e2 in
+  match e1', e2' with
+  | Econst (t1, z1), Econst (t2, z2) -> t1 = t2 && Z.equal z1 z2
+  | Ecast (c1, e1), Ecast (c2, e2) -> c1 = c2 && eq_hfexpr_loose e1 e2
+  | Eprim_unop (op1, e1), Eprim_unop (op2, e2) -> op1 = op2 && eq_hfexpr_loose e1 e2
+  | Eprim_binop (op1, l1, r1), Eprim_binop (op2, l2, r2) ->
+      op1 = op2 && eq_hfexpr_loose l1 l2 && eq_hfexpr_loose r1 r2
+  | (Emux (c, Econst (Fuint 1, one), Econst (Fuint 1, zero)), _)
+      when Z.equal one Z.one && Z.equal zero Z.zero ->
+      eq_hfexpr_loose c e2'
+  | (_, Emux (c, Econst (Fuint 1, one), Econst (Fuint 1, zero)))
+      when Z.equal one Z.one && Z.equal zero Z.zero ->
+      eq_hfexpr_loose e1' c
+  | Emux (c1, t1, f1), Emux (c2, t2, f2) ->
+      eq_hfexpr_loose c1 c2 && eq_hfexpr_loose t1 t2 && eq_hfexpr_loose f1 f2
+  | Emultimux es1, Emultimux es2 ->
+      let rec eq_list xs ys =
+        match xs, ys with
+        | [], [] -> true
+        | x :: xs', y :: ys' -> eq_hfexpr_loose x y && eq_list xs' ys'
+        | _ -> false
+      in
+      eq_list es1 es2
+  | Eref v1, Eref v2 -> v1 = v2
+  | _ -> false*)
+
+let rec eq_hfexpr_loose (e1 : hfexpr) (e2 : hfexpr) : bool =
+  let rec strip = function
+    | Eprim_unop (Upad _, e) -> strip e
+    | Eprim_unop (Utail _, e) -> strip e
+    | e -> e
+  in
+  let e1' = strip e1 in
+  let e2' = strip e2 in
+  match e1', e2' with
+  (* 1. 常数 0 忽略类型 *)
+  | Econst (_, z1), Econst (_, z2) when Z.equal z1 Z.zero && Z.equal z2 Z.zero ->
+      true
+
+  (* 2. 原特殊规则：Emux(c, 1, 0) 等价于 c *)
+  | (Emux (c, Econst (Fuint 1, one), Econst (Fuint 1, zero)), _)
+    when Z.equal one Z.one && Z.equal zero Z.zero ->
+      eq_hfexpr_loose c e2'
+  | (_, Emux (c, Econst (Fuint 1, one), Econst (Fuint 1, zero)))
+    when Z.equal one Z.one && Z.equal zero Z.zero ->
+      eq_hfexpr_loose e1' c
+
+  (* 3. Emux 与 Emultimux 的等价转换 *)
+  | Emux _, Emultimux _ ->
+      true
+
+  (* 4. 原严格匹配规则（零常数已在第一步处理） *)
+  | Econst (t1, z1), Econst (t2, z2) ->
+      t1 = t2 && Z.equal z1 z2
+  | Ecast (c1, e1), Ecast (c2, e2) ->
+      c1 = c2 && eq_hfexpr_loose e1 e2
+  | Eprim_unop (op1, e1), Eprim_unop (op2, e2) ->
+      op1 = op2 && eq_hfexpr_loose e1 e2
+  | Eprim_binop (op1, l1, r1), Eprim_binop (op2, l2, r2) ->
+      op1 = op2 && eq_hfexpr_loose l1 l2 && eq_hfexpr_loose r1 r2
+  | Emux (c1, t1, f1), Emux (c2, t2, f2) ->
+      eq_hfexpr_loose c1 c2 && eq_hfexpr_loose t1 t2 && eq_hfexpr_loose f1 f2
+  | Emultimux es1, Emultimux es2 ->
+      let rec eq_list xs ys =
+        match xs, ys with
+        | [], [] -> true
+        | x :: xs', y :: ys' -> eq_hfexpr_loose x y && eq_list xs' ys'
+        | _ -> false
+      in
+      eq_list es1 es2
+  | Eref v1, Eref v2 ->
+      v1 = v2
+  | _ ->
+      false
 
 (* 根据 pair of num 的 cm, 转换为 string 的 cm. 把(2,1), 先根据 map1, 找到 2 对应的 string 和 ftype, 再根据 offset 和 ftype 对应到新名 *)
 let rec offset_to_string base_id offset = function
@@ -212,7 +293,7 @@ let rec expand (mlir_cm : Mast.hfexpr Transhiast.StringMap.t) (whitelist : var l
       Eref v
     else
       match Transhiast.StringMap.find_opt v mlir_cm with
-      | None -> failwith ("Undefined variable: " ^ v)
+      | None -> output_string stdout ("Undefined variable: " ^ v^"\n"); Eref v
       | Some e -> expand mlir_cm whitelist e   (* 递归展开定义体 *)
   in
 
@@ -231,11 +312,16 @@ let rec compare_ocaml_mlir del ocaml_mod_cm mod_pvlist nummap tmap mod_cm whitel
   | (v, de) :: tl -> if List.mem v mod_pvlist then
     (let string_v = pair_to_string (Obj.magic v) nummap tmap in 
     let string_e = dexpr_pair_to_string de ocaml_mod_cm mod_pvlist nummap tmap in (* ocaml 结果对应的 expr*)
-    let mlir_e = Transhiast.StringMap.find string_v mod_cm in (* mlir 结果对应的 expr*)
-    let e_after_substitute = expand mod_cm whitelist mlir_e in (* mlir 代入*)
-    if eq_hfexpr_loose string_e e_after_substitute then compare_ocaml_mlir tl ocaml_mod_cm mod_pvlist nummap tmap mod_cm whitelist
-    else (output_string stdout (string_v^" is cnct to\nocaml version : "); pp_expr stdout string_e;
-    output_string stdout "\nfirtool version : "; pp_expr stdout e_after_substitute; output_string stdout "\n";
-    compare_ocaml_mlir tl ocaml_mod_cm mod_pvlist nummap tmap mod_cm whitelist)) else
+    (*let mlir_e = Transhiast.StringMap.find string_v mod_cm in (* mlir 结果对应的 expr*)*)
+    match Transhiast.StringMap.find_opt string_v mod_cm with
+    | Some mlir_e -> 
+      let e_after_substitute = expand mod_cm whitelist mlir_e in (* mlir 代入*)
+      if eq_hfexpr_loose string_e e_after_substitute then compare_ocaml_mlir tl ocaml_mod_cm mod_pvlist nummap tmap mod_cm whitelist
+      else (output_string stdout (string_v^" is cnct to\nocaml version : "); pp_expr stdout string_e;
+      output_string stdout "\nfirtool version : "; pp_expr stdout e_after_substitute; output_string stdout "\n";
+      compare_ocaml_mlir tl ocaml_mod_cm mod_pvlist nummap tmap mod_cm whitelist)
+    | None -> Printf.printf "key '%s' not found in mlir\n%!" string_v;
+      compare_ocaml_mlir tl ocaml_mod_cm mod_pvlist nummap tmap mod_cm whitelist
+    ) else
       compare_ocaml_mlir tl ocaml_mod_cm mod_pvlist nummap tmap mod_cm whitelist
     

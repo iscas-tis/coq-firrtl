@@ -7,6 +7,8 @@
   let get_len lexbuf = String.length (Lexing.lexeme lexbuf)
   let upd_cnum lexbuf = cnum := !cnum + get_len lexbuf
   let reset_cnum () = cnum := 0
+  let get_lnum () = !lnum
+  let get_cnum () = !cnum
 }
 
 let digit = ['0'-'9']
@@ -80,7 +82,7 @@ and token = parse
 | "orr"                                 { upd_cnum lexbuf; EXPR_ORR}
 | "xorr"                                { upd_cnum lexbuf; EXPR_XORR}
 | "tail"                                { upd_cnum lexbuf; EXPR_TAIL}
-| "ahead"                               { upd_cnum lexbuf; EXPR_HEAD}
+| "head"                                { upd_cnum lexbuf; EXPR_HEAD}
 | "pad"                                 { upd_cnum lexbuf; EXPR_PAD}
 | "shl"                                 { upd_cnum lexbuf; EXPR_SHL}
 | "shr"                                 { upd_cnum lexbuf; EXPR_SHR}
@@ -98,6 +100,8 @@ and token = parse
 | "asSInt"                              { upd_cnum lexbuf; EXPR_ASSINT }
 | "asClock"                             { upd_cnum lexbuf; EXPR_ASCLOCK }
 | "asAsyncReset"                        { upd_cnum lexbuf; EXPR_ASASYNC }
+| "invalidvalue"                        { upd_cnum lexbuf; STM_INVALID }
+| "mem"                                 { upd_cnum lexbuf; STM_MEM }
 
 (*| "wire"                                { upd_cnum lexbuf; STM_WIRE }
 | "reg"                                 { upd_cnum lexbuf; STM_REG }
@@ -112,7 +116,6 @@ and token = parse
 | "is invalid"                          { upd_cnum lexbuf; STM_INVALID}
 | "invalidate"                          { upd_cnum lexbuf; STM_INVALID0}
 (*| "data-type"                           { upd_cnum lexbuf; STM_DATATYPE}
-| "depth"                               { upd_cnum lexbuf; STM_DEPTH}
 | "read-latency"                        { upd_cnum lexbuf; STM_READ_L}
 | "write-latency"                       { upd_cnum lexbuf; STM_WRITE_L}
 | "reader"                              { upd_cnum lexbuf; STM_READ}
@@ -120,9 +123,7 @@ and token = parse
 | "read-under-write"                    { upd_cnum lexbuf; STM_READWRITE}
 | "new"                                 { upd_cnum lexbuf; M_NEW}
 | "old"                                 { upd_cnum lexbuf; M_OLD}*)
-| "undefined"                           { upd_cnum lexbuf; M_UNDEFINED}
 
-| "cmem"                                { upd_cnum lexbuf; STM_MEM }
 | "smem"                                { upd_cnum lexbuf; STM_SMEM }
 | "infer mport"                         { upd_cnum lexbuf; STM_MEM_INFER }
 | "read mport"                          { upd_cnum lexbuf; STM_MEM_READ }

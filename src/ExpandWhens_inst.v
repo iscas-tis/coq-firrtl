@@ -3,6 +3,142 @@ From mathcomp Require Import ssreflect ssrbool ssrnat ssrint eqtype seq fintype 
 From simplssrlib Require Import Types SsrOrder FSets FMaps Tactics Var Store.
 From firrtl Require Import Env HiEnv HiFirrtl Semantics.
 
+Definition merge_expr (cond : HiFP.hfexpr) (v1 v2 : def_expr) : def_expr :=
+  match v1, v2 with
+  | D_invalidated gt1, D_invalidated gt2 =>
+      if gt1 == gt2
+      then (D_fexpr (Sem_HiFP.indeterminate_cst gt1))
+      else (D_fexpr (Emux cond (Sem_HiFP.indeterminate_cst gt1) (Sem_HiFP.indeterminate_cst gt2)))
+  | D_invalidated gt, D_fexpr fe =>
+      if (Sem_HiFP.indeterminate_cst gt) == fe
+      then (D_fexpr fe)
+      else (D_fexpr (Emux cond (Sem_HiFP.indeterminate_cst gt) fe)) 
+  | D_fexpr te, D_invalidated gt =>
+      if te == (Sem_HiFP.indeterminate_cst gt)
+      then (D_fexpr te)
+      else (D_fexpr (Emux cond te (Sem_HiFP.indeterminate_cst gt))) 
+  | D_fexpr te, D_fexpr fe =>
+      if te == fe
+      then (D_fexpr te) 
+      else (D_fexpr (Emux cond te fe))
+  end.
+
+Definition combine_true_connections cond big small : PVM.t def_expr :=
+  PVM.fold (fun k v acc =>
+    match PVM.find k big with
+    | None => PVM.add k v acc               
+    | Some v' => PVM.add k (merge_expr cond v v') acc
+    end
+  ) small big.
+
+Definition combine_false_connections cond big small : PVM.t def_expr :=
+  PVM.fold (fun k v acc =>
+    match PVM.find k big with
+    | None => PVM.add k v acc               
+    | Some v' => PVM.add k (merge_expr cond v' v) acc
+    end
+  ) small big.
+
+Definition combine_branches cond true_conn_map false_conn_map old_conn_map : PVM.t def_expr :=
+  let combined := PVM.fold (fun k v acc =>
+    match PVM.find k false_conn_map, PVM.find k old_conn_map with
+    | Some v', _ => PVM.add k (merge_expr cond v v') acc
+    | None, Some v' => PVM.add k (merge_expr cond v v') acc     
+    | None, None => PVM.add k v acc     
+    end
+  ) true_conn_map (PVM.empty def_expr) in
+  PVM.fold (fun k v acc =>
+    match PVM.find k true_conn_map, PVM.find k old_conn_map with
+    | None, Some v' => PVM.add k (merge_expr cond v' v) acc     
+    | _, _ => acc
+    end
+  ) false_conn_map combined.
+
+Fixpoint ExpandBranches_funs
+(* split a statement sequence (possibly containing when
+   statements) into a connection map.  The output does not contain when statements. *)
+(ss           : HiFP.hfstmt_seq)   (* sequence of statements being translated *)
+(old_conn_map : PVM.t def_expr)    (* connections made by earlier statements in the sequence (used for recursion) *)
+(scope_conn_map : PVM.t def_expr)
+(tmap : PVM.t (fgtyp * fcomponent))
+:   option ((PVM.t def_expr) * (PVM.t def_expr))
+(* old_conn_map, extended with the connection statements in ss *)
+:=  match ss with
+| Qnil => Some (old_conn_map, scope_conn_map)
+| Qcons s ss =>
+    match ExpandBranch_fun s old_conn_map scope_conn_map tmap with
+    | Some (temp_conn_map, temp_scope_conn_map) =>
+        ExpandBranches_funs ss temp_conn_map temp_scope_conn_map tmap
+    | None => None
+    end
+end
+with ExpandBranch_fun
+(* split a single statement (possibly consisting of a when
+   statement) into a connection map.  The output does not contain when statements. *)
+(s            : HiFP.hfstmt)       (* a single statement being translated *)
+(old_conn_map : PVM.t def_expr)    (* connections made by earlier statements in the sequence (used for recursion) *)
+(scope_conn_map : PVM.t def_expr)
+(tmap : PVM.t (fgtyp * fcomponent))
+:   option ((PVM.t def_expr) * (PVM.t def_expr))
+(* old_conn_map, extended with the connection statements in s *)
+:=  match s with
+| Sskip => Some (old_conn_map, scope_conn_map)
+| Sreg var reg =>
+    match type reg with
+    | Gtyp gt => Some (PVM.add var (D_fexpr (Eref (Eid var))) old_conn_map, PVM.add var (D_fexpr (Eref (Eid var))) scope_conn_map)
+    | _ => None
+    end
+| Sfcnct (Eid var) expr => Some (PVM.add var (D_fexpr expr) old_conn_map, PVM.add var (D_fexpr expr) scope_conn_map)
+| Sfcnct _ expr => None
+| Sinvalid (Eid var) => match PVM.find var tmap with
+  | Some (gt, _) => Some (PVM.add var (D_invalidated gt) old_conn_map, PVM.add var (D_invalidated gt) scope_conn_map)
+  | _ => None
+  end
+| Sinvalid _ => None
+| Swhen cond ss_true ss_false =>
+    match ExpandBranches_funs ss_true old_conn_map (PVM.empty def_expr) tmap with
+    | Some (_, true_conn_map) =>
+        match ExpandBranches_funs ss_false old_conn_map (PVM.empty def_expr) tmap with
+        | Some (_, false_conn_map) =>
+            let combined := combine_branches cond true_conn_map false_conn_map old_conn_map in 
+            let new_scope := PVM.fold (fun k v acc => PVM.add k v acc) combined scope_conn_map in
+            Some (PVM.fold (fun k v acc => PVM.add k v acc) combined old_conn_map, new_scope)
+        | _ => None
+        end
+    | _ => None
+    end
+| _ => Some (old_conn_map, scope_conn_map) (* wire, mem, inst, node *)
+end.
+
+Fixpoint component_stmts_of_rev (ss : HiFP.hfstmt_seq) (acc : HiFP.hfstmt_seq) : HiFP.hfstmt_seq :=
+  match ss with
+  | Qnil => acc
+  | Qcons s ss' =>
+      let rev_s := component_stmt_of_rev s acc in
+      component_stmts_of_rev ss' rev_s
+  end
+
+with component_stmt_of_rev (s : HiFP.hfstmt) (acc : HiFP.hfstmt_seq) : HiFP.hfstmt_seq :=
+  match s with
+  | Sskip
+  | Sfcnct _ _
+  | Sinvalid _ => acc
+  | Swire _ _
+  | Sreg _ _
+  | Snode _ _
+  | Smem _ _
+  | Sinst _ _ => Qcons s acc
+  | Swhen c ss_true ss_false =>
+      let rev_s := component_stmts_of_rev ss_true acc in
+      component_stmts_of_rev ss_false rev_s
+  end.
+
+Definition component_stmts_of (ss : HiFP.hfstmt_seq) : HiFP.hfstmt_seq :=
+  Qcatrev (component_stmts_of_rev ss HiFP.qnil) HiFP.qnil.
+
+Definition component_stmt_of (s : HiFP.hfstmt) : HiFP.hfstmt_seq :=
+  Qcatrev (component_stmt_of_rev s HiFP.qnil) HiFP.qnil.
+
 Fixpoint ExpandWhens_fun
     (ml : list HiFP.hfmodule) (tmap : (PVM.t (PVM.t (fgtyp * fcomponent)))) 
     (fml : list HiFP.hfmodule) (conn_map : PVM.t (PVM.t def_expr))
@@ -10,9 +146,12 @@ Fixpoint ExpandWhens_fun
 :=  match ml with
     | nil => Some (fml, conn_map)
     | (FInmod mv pp ss) :: tl => match PVM.find mv tmap with
-        | Some tmap' => match ExpandBranches_funs ss (PVM.empty def_expr) tmap' with
-            | Some conn_map' =>
-                let fm := FInmod mv pp (Qcat (component_stmts_of ss) (convert_to_connect_stmts conn_map')) in
+        | Some tmap' => match ExpandBranches_funs ss (PVM.empty def_expr) (PVM.empty def_expr) tmap' with
+            | Some (conn_map', _) =>
+                let list1 := component_stmts_of_rev ss HiFP.qnil in
+                let list2 := convert_to_connect_stmts conn_map' in
+                let combined := Qcatrev list1 list2 in
+                let fm := FInmod mv pp combined in
                 ExpandWhens_fun tl tmap (fm :: fml) (PVM.add mv conn_map' conn_map)
             | None => None
             end

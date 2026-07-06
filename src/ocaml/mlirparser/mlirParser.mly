@@ -5,7 +5,7 @@
 
 %token<string> NUMERAL S_NUMERAL SYMBOL SYMBOL_PRCT SUBSYMBOL_PRCT
 %token BRA_OPEN BRA_CLOSE PAR_OPEN PAR_CLOSE ANG_OPEN ANG_CLOSE SQR_OPEN SQR_CLOSE QUOT SPRT KEYWORD ATTRIBUTES AT FIRRTLDOT
-%token CIRCUIT STM_MODULE PRIVATE STM_INPUT STM_OUTPUT
+%token CIRCUIT STM_MODULE PRIVATE STM_INPUT STM_OUTPUT STM_INVALID STM_MEM M_UNDEFINED
 %token STM_NODE STM_NASS STM_INST STM_WIRE STM_REG STM_REGRESET0 UINT SINT ASYNC RESET VECTOR BUNDLE FLIP CLOCK 
 %token EXPR_VALIDIF EXPR_ADD EXPR_AND EXPR_ANDR EXPR_ASCLOCK EXPR_ASFIXED EXPR_ASSINT EXPR_ASUINT EXPR_CAT EXPR_CVT EXPR_DIV EXPR_DSHL EXPR_ASASYNC
 %token EXPR_DSHR EXPR_EQ EXPR_GEQ EXPR_GT EXPR_HEAD EXPR_LEQ EXPR_LT EXPR_MUL EXPR_MUX EXPR_NEG EXPR_NEQ EXPR_NOT EXPR_OR EXPR_ORR EXPR_PAD EXPR_REM EXPR_SHL EXPR_SHR EXPR_SUB EXPR_TAIL EXPR_XOR EXPR_XORR EXPR_BITS
@@ -91,7 +91,10 @@ statement
                                          { Sfcnct ($3, $5)}
   | FIRRTLDOT STM_CNCT symbol_prct SPRT symbol_prct KEYWORD gtyp_def SPRT gtyp_def
                                          { Sfcnct ($3, $5)}
-  | symbol_prct STM_NASS FIRRTLDOT STM_NODE symbol_prct KEYWORD gtyp_def
+  | symbol_prct STM_NASS FIRRTLDOT STM_NODE symbol_prct BRA_OPEN NAME_EQ STM_NASS QUOT symbol QUOT BRA_CLOSE
+                                         KEYWORD gtyp_def
+                                         { Snode ($1, Eref $5) }
+  | symbol_prct STM_NASS FIRRTLDOT STM_NODE symbol_prct  KEYWORD gtyp_def
                                          { Snode ($1, Eref $5) }
   | symbol_prct STM_NASS FIRRTLDOT CONST u_numeral KEYWORD gtyp_def
                                          { Snode ($1, Econst ($7, $5)) }
@@ -100,10 +103,19 @@ statement
   | symbol_prct STM_NASS FIRRTLDOT STM_REG symbol_prct KEYWORD gtyp_def SPRT
       gtyp_def
                                          { Sreg ($1) }
+  | symbol_prct STM_NASS FIRRTLDOT STM_REG symbol_prct BRA_OPEN NAME_EQ STM_NASS QUOT symbol QUOT BRA_CLOSE
+                                        KEYWORD gtyp_def SPRT gtyp_def
+                                         { Sreg ($1) }
   | symbol_prct STM_NASS FIRRTLDOT STM_REGRESET0 symbol_prct SPRT symbol_prct SPRT symbol_prct KEYWORD gtyp_def SPRT
       gtyp_def SPRT gtyp_def SPRT gtyp_def
                                          { Sreg ($1) }
+  | symbol_prct STM_NASS FIRRTLDOT STM_REGRESET0 symbol_prct SPRT symbol_prct SPRT symbol_prct BRA_OPEN NAME_EQ STM_NASS QUOT symbol QUOT BRA_CLOSE
+                                        KEYWORD gtyp_def SPRT gtyp_def SPRT gtyp_def SPRT gtyp_def
+                                         { Sreg ($1) }
   | symbols STM_NASS FIRRTLDOT STM_INST symbol AT symbol PAR_OPEN ports_inst PAR_CLOSE    { Sinst ($5, $7) }
+  | symbol_prct STM_NASS FIRRTLDOT STM_INST symbol AT symbol PAR_OPEN ports_inst PAR_CLOSE    { Sinst ($5, $7) }
+  | symbol_prct STM_NASS FIRRTLDOT STM_INVALID KEYWORD gtyp_def
+                                         { Sinvalid $1 }
 ;
 
 /* expression */

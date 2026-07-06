@@ -20,5 +20,5 @@ Separate Extraction
          LoFirrtl.no_mem_run_module_inline LoFirrtl.no_mem_run_module0_inline
          LoFirrtl.no_mem_run_module LoFirrtl.no_mem_run_module0 *)
          (*Semantics.expandconnects Semantics.expandWhens.*)
-         ExpandConnects_inst.expandconnects ExpandWhens_inst.expandWhens ExpandConnects_inst.preprocess_subaccess_stmts.
+         ExpandConnects_inst.expandconnects ExpandWhens_inst.expandWhens ExpandConnects_inst.preprocess_subaccess.
 Cd "../../..".

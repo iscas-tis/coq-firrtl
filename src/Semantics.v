@@ -1786,14 +1786,14 @@ Definition combine_when_connections
                       | None, _ => false_expr 
                       | _, None => true_expr
                       | Some (D_invalidated gt), Some (D_fexpr fe) => 
-                          if (Sem_HiFP.indeterminate_cst gt) == fe then Some (D_fexpr fe)
-                          else Some (D_fexpr (Emux cond (Sem_HiFP.indeterminate_cst gt) fe)) 
+                          (*if (Sem_HiFP.indeterminate_cst gt) == fe then Some (D_fexpr fe)
+                          else*) Some (D_fexpr (Emux cond (Sem_HiFP.indeterminate_cst gt) fe)) 
                       | Some (D_fexpr te), Some (D_invalidated gt) => 
-                          if te == (Sem_HiFP.indeterminate_cst gt) then Some (D_fexpr te)
-                          else Some (D_fexpr (Emux cond te (Sem_HiFP.indeterminate_cst gt))) 
+                          (*if te == (Sem_HiFP.indeterminate_cst gt) then Some (D_fexpr te)
+                          else*) Some (D_fexpr (Emux cond te (Sem_HiFP.indeterminate_cst gt))) 
                       | Some (D_invalidated gt0), Some (D_invalidated gt1) => 
-                          if gt0 == gt1 then Some (D_fexpr (Sem_HiFP.indeterminate_cst gt0))
-                          else Some (D_fexpr (Emux cond (Sem_HiFP.indeterminate_cst gt0) (Sem_HiFP.indeterminate_cst gt1)))
+                          (*if gt0 == gt1 then Some (D_fexpr (Sem_HiFP.indeterminate_cst gt0))
+                          else*) Some (D_fexpr (Emux cond (Sem_HiFP.indeterminate_cst gt0) (Sem_HiFP.indeterminate_cst gt1)))
                       end)
              true_conn_map false_conn_map.
 (*
@@ -1926,22 +1926,22 @@ Definition ExpandWhens_fun
     (* Expand When statements in a module *)
     (m : HiFP.hfmodule) (* module that needs to be handled *)
     (tmap : PVM.t (fgtyp * fcomponent))
-:   option (HiFP.hfmodule * PVM.t def_expr) (* result is either a semantically equivalent module without when statements,
+:   option (HiFP.hfmodule) (* result is either a semantically equivalent module without when statements,
                             or nothing if there was some error *)
 :=  match m with
     | FInmod v pp ss =>
         match ExpandBranches_funs ss (PVM.empty def_expr) tmap with
             | Some conn_map =>
-                Some (FInmod v pp (Qcat (component_stmts_of ss) (convert_to_connect_stmts conn_map)), conn_map)
+                Some (FInmod v pp (Qcat (component_stmts_of ss) (convert_to_connect_stmts conn_map)))
             | None => None
             end
     | FExmod _ _ _ => None
     end.
 
-Definition expandWhens (c : HiFP.hfcircuit) : option (HiFP.hfcircuit * PVM.t def_expr * (list PVM.key)) :=
+Definition expandWhens (c : HiFP.hfcircuit) : option HiFP.hfcircuit :=
   match c, Sem_HiFP.circuit_tmap c with
   | Fcircuit v [:: m], Some tmap => match ExpandWhens_fun m tmap with
-    | Some (fm, conn_map) => Some (Fcircuit v [:: fm], conn_map, fst (List.split (PVM.elements tmap)))
+    | Some fm => Some (Fcircuit v [:: fm])
     | _ => None
     end
   | _, _ => None
@@ -2040,7 +2040,7 @@ Proof.
   simpl; intros. destruct (Sem_HiFP.stmt_tmap' pmap h); try done.
 Qed.
 
-(*Lemma ExpandWhens_fun_tmap_eq m tmap : Sem_HiFP.module_tmap (PVM.empty (fgtyp * fcomponent)) m = Some tmap -> 
+Lemma ExpandWhens_fun_tmap_eq m tmap : Sem_HiFP.module_tmap (PVM.empty (fgtyp * fcomponent)) m = Some tmap -> 
   forall fm, ExpandWhens_fun m tmap = Some fm -> Sem_HiFP.module_tmap (PVM.empty (fgtyp * fcomponent)) fm = Some tmap.
 Proof.
   intros Htmap fm Hexpand. destruct m as [mv ps ss|]; try discriminate. simpl in *.
@@ -4597,4 +4597,4 @@ Proof.
   specialize func_type_included_eval_hfstmts as Hhelper. apply Hhelper with (tmap := tmap) in Hexpand_branches. clear Hhelper.
   unfold func_type_included in Hexpand_branches. apply (Hexpand_branches _ _ _ _ _ _ Hfst_do_this Hregval) in Hregval_new.
   move : Hregval_new => [_ Hregval_new]. done.
-Admitted.*)
+Admitted.

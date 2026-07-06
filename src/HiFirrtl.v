@@ -2392,6 +2392,8 @@ Module MakeHiFirrtlP
   Definition hfstmt_seq := hfstmt_seq V.T.
   Definition qnil := Qnil V.T.
   Definition qcons s ss := @Qcons V.T s ss.
+  Definition qcat s ss := @Qcat V.T s ss.
+  Definition qcatrev s ss := @Qcatrev V.T s ss.
   Definition qrcons s ss := @Qrcons V.T s ss.
   Definition sskip := @Sskip V.T.
   Definition swire v t := @Swire V.T v t.

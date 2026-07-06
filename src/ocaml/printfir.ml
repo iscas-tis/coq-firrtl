@@ -56,11 +56,11 @@ let nat_of_bits bv = nat_of_bits_rev (Stdlib.List.rev bv)
 let rec pp_ref_fir out ref = 
   match ref with
   | HiFirrtl.Eid v -> fprintf out "_%d" (Obj.magic v)
-  | Esubfield (ref1, v) -> pp_ref_fir out ref1; fprintf out ".%d" (Obj.magic v)
+  | Esubfield (ref1, v) -> pp_ref_fir out ref1; fprintf out "._%d" (Obj.magic v)
   | Esubindex (ref1, n) -> pp_ref_fir out ref1; fprintf out "[%d]" n
-  | Esubaccess (ref1, e) -> fprintf out "subaccess"(*pp_ref_fir out ref1; output_string out "["; pp_expr_fir out e; output_string out "]"*)
+  | Esubaccess (ref1, e) -> pp_ref_fir out ref1; output_string out "["; pp_expr_fir out e; output_string out "]"
 
-let rec pp_expr_fir out e =
+and pp_expr_fir out e =
   match e with
   | HiFirrtl.Econst (gt, bs) -> (match gt with
                           | Env.Fuint n -> pp_fgtyp_fir out gt; fprintf out "(%s)" (string_of_big_int  (nat_of_bits bs))
