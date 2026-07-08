@@ -1,0 +1,8 @@
+(env
+  (dev
+    (flags         (:standard -w -a))))
+
+(executables
+ (names            generate_lofir)
+ (libraries        hifirrtl_lang unix)
+)
