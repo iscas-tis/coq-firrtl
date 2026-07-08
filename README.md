@@ -146,6 +146,5 @@ Lemma `solve_alg_correctness`, Lemma `solve_alg_smallest`, Lemma `solve_alg_retu
 ## 🛠️ Troubleshooting
 
 **Common Issues:**
-- **Network problem during building docker**: Try `docker pull ocaml/opam:debian-11-ocaml-4.14` before build.
 - **Permission denied**: Try `chmod -R 777 your/file`
 - **Coq compilation errors**: Check Coq version is exactly 8.16.0
