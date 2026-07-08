@@ -1,3 +1,45 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:dd14fd24a013591832ff9861871cadd088916d0d65ff2d904773886a0854e3ca
-size 586
+FIRRTL version 4.0.0
+circuit Block: 
+  module A:
+    input x : UInt<1>
+    output y : UInt<1>
+
+    connect y, UInt<1>(0)
+
+    when x :
+    {
+      node n = x
+      connect y, UInt<1>(1)
+    }
+    else :
+    {
+      skip
+ }
+
+  module B:
+    input x : UInt<1>
+    output y : UInt<1>
+
+    connect y, UInt<1>(0)
+
+    when x :
+    {
+      node n = x
+    }
+    else :
+    {
+      connect y, UInt<1>(1)
+      skip
+ }
+
+  public module Block:
+    input x : UInt<1>
+    output y : UInt<1>
+
+    inst a aof A
+    connect a.x, x
+    inst b aof B
+    connect b.x, x
+
+    connect y, and(a.y, b.y)
+    

@@ -1,3 +1,11 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:9058aee5f9505e5220b5fead8a6bff6c26c3ff063e6c61fc49a104d2e8543585
-size 410
+circuit BasicExercise :
+  module BasicExercise :
+    input clock_wky: Clock
+    input reset1 : UInt<1>
+    output io : { flip sw : UInt<2>, led : UInt<1>}
+
+    node _io_led_T = bits(io.sw, 0, 0) @[Snippets.scala 20:18]
+    node _io_led_T_1 = bits(io.sw, 1, 1) @[Snippets.scala 20:29]
+    node _io_led_T_2 = and(_io_led_T, _io_led_T_1) @[Snippets.scala 20:22]
+    io.led <= _io_led_T_2 @[Snippets.scala 20:10]
+

@@ -19,10 +19,11 @@ cp ./ocaml/{dune,generate_lofir.ml,nodehelper.ml,pair2string.ml,printfir_pair.ml
 
 # Step5: build OCaml project
 cd ocaml_try
+sed -i.bak '18s/.*/[]/' ./extraction/Semantics.ml
 dune build
 echo -e "✅ OCaml implementation built"
 echo -e "🚀 Running demo on sample circuit..."
 
 # Step6: run test
-./_build/default/generate_lofir.exe ../ocaml/demo/FormalSimple.fir
+./_build/default/generate_lofir.exe ../ocaml/demo/chiselbook/FormalSimple.fir
 echo -e "🎉 Smoke test completed successfully!"

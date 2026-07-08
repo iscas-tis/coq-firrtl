@@ -1,3 +1,10 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:cea2c65398239b9be015ca9fb9ddde87fb136d7b2fb3604d32456fa4cde985d8
-size 229
+circuit f973Foo :
+  module f973Foo :
+  
+    wire x : UInt<1> @[f973.scala 11:17]
+    when UInt<1>("h1") : @[f973.scala 12:19]
+    {
+      x <= UInt<1>("h0") @[f973.scala 12:23]
+    }
+    x <= UInt<1>("h1") @[f973.scala 13:7]
+    

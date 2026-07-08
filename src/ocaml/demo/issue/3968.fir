@@ -1,3 +1,6 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:bb4dcc8cf7685884876bfa90c38b571fe32389318cfde99d46a894657d3e2323
-size 91
+circuit Bar:
+  module Bar:
+    input a: UInt<1>[1]
+    output a_0: UInt<1>
+
+    a_0 <= a[0]

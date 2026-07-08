@@ -3,8 +3,8 @@
 This artifact contains the implementation and formalization accompanying the paper **Fixed-Point Semantics and Verified Lowering Transformations for FIRRTL**. It includes:
 
 - A Coq formalization of **the first fixed-point formal semantics for FIRRTL**.
-- Coq formalizations for two representative lowering transformations, **lowerTypes** and **expandWhens**, and proofs that both preserve semantics.
-- OCaml implementations of **the two verified transformations**.
+- Coq formalizations for two representative lowering transformations, **lowerTypes** and **expandWhens**, and proofs that both preserve the semantics.
+- Parser and LoFIRRTL emitter for the extracted OCaml implementations of **the two verified transformations**.
 
 ## Abstract
 FIRRTL is an intermediate representation for the Chisel hardware description language that has been widely adopted in hardware designs. It provides high-level, domain-specific constructs that facilitate the synthesis of Chisel design, during which these constructs must be eliminated through a sequence of lowering transformations before reaching Low FIRRTL (LoFIRRTL), a representation close to Verilog. The complexity of these lowering transformations makes semantic preservation nontrivial: among 659 reported issues in the FIRRTL repository, 104 concern bugs in compiler behavior. This paper presents the first mechanized semantic framework for FIRRTL. At its core is a reusable %part of the framework is a fixed-point semantics that provides an interpretation of FIRRTL programs. We instantiate this semantic framework on two representative lowering transformations, i.e., lowerTypes and expandWhens, and specify their functional correctness with respect to this semantics. Building on these specifications, we mechanically prove in Rocq %proof assistant that both transformations preserve the semantics of well-formed FIRRTL programs at their intended pipeline stages. We also extract an OCaml implementation of these verified lowering transformations from the Rocq implementation and validate their behavior against the official C++ FIRRTL compiler on a benchmark suite of 130 FIRRTL programs.
@@ -13,37 +13,16 @@ FIRRTL is an intermediate representation for the Chisel hardware description lan
 
 ### Prerequisites
 
-Choose one of the following two approaches:
-
-#### Option A: Docker (Recommended - 20 minutes)
-- Docker Engine 20.10+ 
-- 8GB RAM, 5GB disk space
-
-#### Option B: Native Installation
 - macOS 12+ or Linux (Ubuntu 22.04+/Debian 11+)
 * [OPAM](https://opam.ocaml.org) 2.1+
 * [Coq](https://coq.inria.fr) 8.16.0 
 * [MathComp](https://github.com/math-comp/math-comp) 1.15.0
 * [Ocaml](https://ocaml.org) 4.14.2
 * [dune](https://github.com/ocaml/dune) 3.16.0
+* [Git LFS](https://git-lfs.com) >= 3.0 (required for large benchmark files)
 
 ### Installation & Smoke Test
 
-#### Docker Approach:
-```bash
-# 1. Clone this repository
-Hidden here due to anonymity request
-chmod -R 777 coq-firrtl/ # Obtain executable permission(not neccessary)
-cd coq-firrtl
-
-# 2. Build the Docker image
-docker build -t popl-artifact .
-
-# 3. Run the smoke test
-docker run --rm popl-artifact ./build_and_run.sh
-```
-
-#### Local Approach:
 ```bash
 # 1. Install dependencies (see REQUIREMENTS.txt for detailed versions)
 opam pin add coq 8.16.0
@@ -53,7 +32,22 @@ opam install -y \
     coq-mathcomp-fingroup=1.15.0 \
     coq-mathcomp-ssreflect=1.15.0
 
-# 2. Run the smoke test
+# 2. Install Git LFS (if not already installed)  
+
+Choose the command that matches your operating system:
+
+| OS | Command |
+|----|---------|
+| **macOS** | `brew install git-lfs` |
+| **Ubuntu / Debian** | `sudo apt-get install git-lfs` |
+| **CentOS / RHEL** | `sudo yum install git-lfs` |
+| **Windows** | Download and run the installer from [git-lfs.com](https://git-lfs.com), or use Git for Windows (which includes LFS). |
+
+# 3. fetch LFS files (benchmark data)
+git lfs install
+git lfs pull
+
+# 4. Run the smoke test
 ./build_and_run.sh
 ```
 
@@ -120,7 +114,7 @@ Further more, if you run the test locally, you will find a new firrtl file named
 │   ├── Firrtl.v                     # Syntax of LoFirrtl
 │   ├── ExpandConnects_inst.v        # Formalization of lowerTypes
 │   ├── ExpandWhens_inst.v           # Formalization of expandWhens
-│   ├── Semantics.v                  # Verification of lowerTypes and expandWhens
+│   ├── Semantics.v                  # Formalization of Semantics and Verification of lowerTypes and expandWhens
 │   ├── ocaml/
 │   │   ├── hiparser/                # A HiFirrtl parser
 │   │   ├── demo/                    # Benchmarks

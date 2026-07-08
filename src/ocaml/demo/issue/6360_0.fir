@@ -1,3 +1,6 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:0b7dfbf98e6e68a2e21fa0cb12b58074fb1c750943822d8facffb3d82ab979c8
-size 178
+circuit Queue_4:
+  module Queue_4:
+    input a : { data: UInt<512>, strb: UInt<64>, last: UInt<1> }
+    output b : { data: UInt<512>, strb: UInt<64>, last: UInt<1> }
+
+    b <= a

@@ -1,3 +1,9 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:4c331d3c16d13eccfd82e1cd2ac22992fa07c0314cf93c5b889df4f20cfd722d
-size 194
+FIRRTL version 4.0.0
+circuit Foo:
+  ;; snippetbegin
+  public module Foo :
+    wire v : UInt<8>[3]
+    connect v[0], UInt(0)
+    connect v[1], UInt(10)
+    connect v[2], UInt(42)
+  ;; snippetend

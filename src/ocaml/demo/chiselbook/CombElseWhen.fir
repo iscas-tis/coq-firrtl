@@ -1,3 +1,24 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:f40998d97310e2f05ac19165142977f6214c58e62d1270023d7f20ed0ac3f955
-size 614
+circuit CombElseWhen :
+  module CombElseWhen :
+    input clock: Clock
+    input reset1 : UInt<1>
+    output io : { flip cond : UInt<1>, flip cond2 : UInt<1>, out : UInt<4>}
+
+    wire w : UInt @[Combinational.scala 117:15]
+    when io.cond : @[Combinational.scala 119:15]
+    {
+      w <= UInt<1>("h1") @[Combinational.scala 120:7]
+    }
+    else :
+    {
+      when io.cond2 : @[Combinational.scala 121:23]
+      {
+        w <= UInt<2>("h2") @[Combinational.scala 122:7]
+      }
+      else :
+      {
+        w <= UInt<2>("h3") @[Combinational.scala 124:7]
+    }
+    }
+    io.out <= w @[Combinational.scala 127:10]
+

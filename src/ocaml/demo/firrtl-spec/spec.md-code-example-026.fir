@@ -1,3 +1,7 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:edf73a185ec4a893620a4d49da5a751df24e19fd799e4a5b3035b6e3626a722d
-size 175
+FIRRTL version 4.0.0
+circuit Foo:
+  public module Foo:
+    input a:
+      ;; snippetbegin
+      { word : UInt<32>, valid : UInt<1>, flip ready : UInt<1> }
+      ;; snippetend

@@ -1,3 +1,17 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:51782f02a07977f7e74de279414558c09349a095e3be387336f07fb6cf19e7f5
-size 271
+FIRRTL version 4.0.0
+circuit MyModule:
+  ;; snippetbegin
+  public module MyModule :
+    input a: UInt<3>
+    input b: UInt<3>
+    input en: UInt<1>
+    wire x: UInt<3>
+    when en :
+    {
+      connect x, a
+    }
+    else :
+    {
+      connect x, b
+    }
+  ;; snippetend

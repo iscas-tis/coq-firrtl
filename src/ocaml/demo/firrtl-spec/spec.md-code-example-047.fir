@@ -1,3 +1,9 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:9852941e2d9f8b8567a748cad5c90be37132950ad7d37e0fa2cc5d75605b24d0
-size 237
+FIRRTL version 4.0.0
+circuit MyModule:
+  ;; snippetbegin
+  public module MyModule :
+    input portx: {b: UInt<1>, c: UInt<2>}
+    input porty: UInt<1>
+    output myport: {b: UInt<1>, c: UInt<2>}
+    connect myport, portx
+  ;; snippetend

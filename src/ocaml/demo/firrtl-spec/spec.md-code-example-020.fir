@@ -1,3 +1,7 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:074982b420e0cf0c21438adfe036702d0d63a76de7ef7f5948eb59760124a042
-size 177
+FIRRTL version 4.0.0
+circuit Bar:
+  ;; snippetbegin
+  public module Bar :
+    output io : { x : UInt<8>, flip y : UInt<8> }
+    connect io.x, add(io.y, UInt(1))
+  ;; snippetend

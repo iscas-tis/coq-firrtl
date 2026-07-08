@@ -1,3 +1,15 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:051b72917ee469c641499d06351f193b03fcbcc56b32161c5712eff8dc21a24e
-size 281
+circuit CountAndDriver :
+  module CountAndDriver :
+    input reset0 : UInt<1>
+    input reset1 : UInt<1>
+    input in0 : UInt<4>
+    input in1 : UInt<4>
+    output out1 : UInt<4>
+
+    out1 <= in0
+    when reset0 :
+    {
+      when reset1 :
+      {
+        out1 <= in1      }
+    }

@@ -1,3 +1,15 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:78635e95a3fa2b12f1525a4496c6e4e516f5d36566fc03e2d7da3fd9df2cf517
-size 581
+circuit UIntVsU :
+  module UIntVsU :
+    input clock: Clock
+    input reset1 : UInt<1>
+    output io : { values : UInt<3>[5]}
+
+    io.values[0] <= UInt<3>("h7") @[UIntVsU.scala 10:8]
+    io.values[1] <= UInt<3>("h7") @[UIntVsU.scala 11:8]
+    io.values[2] <= UInt<3>("h7") @[UIntVsU.scala 13:8]
+    io.values[3] <= UInt<3>("h7") @[UIntVsU.scala 14:8]
+    wire signed : SInt<3> @[UIntVsU.scala 15:27]
+    signed <= asSInt(UInt<3>("h7")) @[UIntVsU.scala 15:27]
+    node _io_values_4_T = asUInt(signed) @[UIntVsU.scala 16:18]
+    io.values[4] <= _io_values_4_T @[UIntVsU.scala 16:8]
+

@@ -1,3 +1,12 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:aa6044183bd36f8e0e8ea1b8a0f7fd953c737e6f1ad7e4511b7061e6360f5271
-size 217
+circuit Foo:
+  module Bar:
+    input a: { a: UInt<1> }
+    output b: { a: UInt<1> }
+    b <= a
+
+  module Foo:
+    input a: { a: UInt<1> }
+    output b: { a: UInt<1> }
+    inst bar aof Bar
+    bar.a <= a
+    b <= bar.b

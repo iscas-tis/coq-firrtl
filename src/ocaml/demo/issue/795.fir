@@ -1,3 +1,9 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:66163fe666aa4a6479f9ddadaffb96753262efb75e7af25ee8a42e2013ecaf81
-size 158
+circuit Foo:
+  module Foo:
+    input clock: Clock
+    input a_d: UInt<1>[2]
+    output a_q: UInt<1>[2]
+
+    reg r: UInt<1>[2], clock
+    r <= a_d
+    a_q <= r

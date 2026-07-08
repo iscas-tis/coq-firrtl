@@ -1,3 +1,9 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:a3a1d84e558c0add80d813d3670facc1a309506ea42b2e1ef241c02af9a41549
-size 267
+circuit FormalSimple :
+  module FormalSimple :
+    input clock: Clock
+    input reset1 : UInt<1>
+    output io : { flip a : UInt<10>, flip b : UInt<10>, y : UInt<10>}
+
+    node _io_y_T = and(io.a, io.b) @[formal.scala 10:16]
+    io.y <= _io_y_T @[formal.scala 10:8]
+
