@@ -25,3 +25,4 @@ src/ocaml/run_script.sh
 src/.DS_Store.DS_Store
 .vscode/settings.json
 src/ocaml_try
+*.lo.fir
