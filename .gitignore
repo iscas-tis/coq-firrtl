@@ -1,5 +1,4 @@
 .DS_Store
-oopsla2023/.DS_Store
 *.bbl
 *.blg
 *.log
@@ -9,20 +8,10 @@ oopsla2023/.DS_Store
 *.vok
 *.aux
 *.glob
-popl2025/main.pdf
 *.gz
-popl2025/lstpatch.sty
 *.synctex(busy)
-CAV2025/main.pdf
 Makefile
 Makefile.conf
-src/ocaml_old_version_for_lofir/_build
-src/ocaml_old_version_for_lofir/bin
-src/ocaml_old_version_for_lofir/lib
-src/ocaml_old_version_for_lofir/test
-src/ocaml_old_version_for_lofir/dune-project
-src/ocaml_old_version_for_lofir/ocaml.opam
-src/ocaml_old_version_for_lofir/extraction
 src/ocaml/_build
 src/ocaml/bin
 src/ocaml/lib
@@ -31,8 +20,8 @@ src/ocaml/dune-project
 src/ocaml/ocaml.opam
 src/ocaml/ocaml.install
 src/ocaml/extraction
+src/ocaml/run_script.sh
 .Makefile.d 
-Dockerfile
 src/.DS_Store.DS_Store
 .vscode/settings.json
-*.mlir
+src/ocaml_try

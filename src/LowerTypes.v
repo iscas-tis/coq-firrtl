@@ -53,7 +53,7 @@ with stmt_tmap (modplmap : VM.t (seq HiF.hfport)) (tmap : VM.t (ftype * fcompone
 Fixpoint modules_tmap (modplmap : VM.t (seq HiF.hfport)) (tmap : VM.t (VM.t (ftype * fcomponent))) (ml : seq HiF.hfmodule) : option (VM.t (VM.t (ftype * fcomponent))) :=
   match ml with
   | nil => Some tmap
-  | FInmod mv ps ss :: tl => match Sem_HiF.ports_tmap' (VM.empty (ftype * fcomponent)) ps with
+  | FInmod mv ps ss :: tl => match Sem_HiF.ports_tmap (VM.empty (ftype * fcomponent)) ps with
               | Some pmap => match stmts_tmap modplmap pmap ss with
                   | Some tmap' => modules_tmap modplmap (VM.add mv tmap' tmap) tl
                   | None => None
@@ -283,6 +283,35 @@ Definition preprocess_subaccess (c : HiF.hfcircuit) : option HiF.hfcircuit :=
   | _, _ => None
   end.
 
+Fixpoint expand_inport (v : VarOrder.t) (offset : nat) (flip : bool) (ft : ftype) l : seq (hfport ProdVarOrder.T) :=
+  match ft with 
+  | Gtyp gt => if flip then cons (HiFP.houtport (v, N.of_nat offset) ft) l 
+               else cons (HiFP.hinport (v, N.of_nat offset) ft) l 
+  | Atyp atyp n => let fix expand_inport_array (n : nat) (offset' : nat) l' :=
+        match n with
+        | 0 => l'
+        | n'.+1 => expand_inport_array n' (offset' + (size_of_ftype atyp)) (expand_inport v offset' flip atyp l')
+        end in expand_inport_array n offset l
+  | Btyp btyp => expand_inport_btyp v offset flip btyp l
+  end
+with expand_inport_btyp (v : VarOrder.t) (offset : nat) (flip : bool) (btyp : ffield) l :=
+  match btyp with
+  | Fnil => l 
+  | Fflips _ Nflip ft ff => expand_inport_btyp v (offset + (size_of_ftype ft)) flip ff (expand_inport v offset flip ft l)
+  | Fflips _ Flipped ft ff => expand_inport_btyp v (offset + (size_of_ftype ft)) flip ff (expand_inport v offset (~~ flip) ft l)
+  end.
+
+Definition expand_port p l :=
+    match p with
+    | Finput v t => expand_inport v 0 false t l 
+    | Foutput v t => expand_inport v 0 true t l
+    end.
+
+Fixpoint expand_ports (ps : seq HiF.hfport) l : seq (hfport ProdVarOrder.T) :=
+  match ps with
+  | nil => l
+  | hd :: tl => expand_ports tl (expand_port hd l)
+  end.
 
 Fixpoint expand_wire_aux (v : VarOrder.t) (offset : nat) (ft : ftype)
                          (acc : HiFP.hfstmt_seq) : HiFP.hfstmt_seq :=

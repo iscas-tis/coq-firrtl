@@ -3,24 +3,49 @@ From mathcomp Require Import ssreflect ssrbool ssrnat ssrint eqtype seq fintype 
 From simplssrlib Require Import Types SsrOrder FSets FMaps Tactics Var Store.
 From firrtl Require Import Env HiEnv HiFirrtl Semantics.
 
-Definition merge_expr (cond : HiFP.hfexpr) (v1 v2 : def_expr) : def_expr :=
-  match v1, v2 with
-  | D_invalidated gt1, D_invalidated gt2 =>
-      if gt1 == gt2
-      then (D_fexpr (Sem_HiFP.indeterminate_cst gt1))
-      else (D_fexpr (Emux cond (Sem_HiFP.indeterminate_cst gt1) (Sem_HiFP.indeterminate_cst gt2)))
-  | D_invalidated gt, D_fexpr fe =>
-      if (Sem_HiFP.indeterminate_cst gt) == fe
-      then (D_fexpr fe)
-      else (D_fexpr (Emux cond (Sem_HiFP.indeterminate_cst gt) fe)) 
-  | D_fexpr te, D_invalidated gt =>
-      if te == (Sem_HiFP.indeterminate_cst gt)
-      then (D_fexpr te)
-      else (D_fexpr (Emux cond te (Sem_HiFP.indeterminate_cst gt))) 
-  | D_fexpr te, D_fexpr fe =>
-      if te == fe
-      then (D_fexpr te) 
-      else (D_fexpr (Emux cond te fe))
+(* a type to indicate connects *)
+Inductive def_expr : Type :=
+  | D_undefined (* declared but not connected, no "is invalid" statement *)
+  | D_invalidated (* declared but not connected, there is a "is invalid" statement *)
+  | D_fexpr : HiFP.hfexpr -> def_expr (* declared and connected *)
+  .
+
+(* equality of def_expr is decidable [because equality of hfexpr is decidable] *)
+Lemma def_expr_eq_dec : forall {x y : def_expr}, {x = y} + {x <> y}.
+  Proof.
+  decide equality.
+  apply hfexpr_eq_dec.
+Qed.
+
+Definition def_expr_eqn (x y : def_expr) : bool :=
+  match x, y with
+  | D_undefined, D_undefined => true
+  | D_invalidated, D_invalidated => true
+  | D_fexpr expr1, D_fexpr expr2 => expr1 == expr2
+  | _, _ => false
+  end.
+
+Lemma def_expr_eqP : Equality.axiom def_expr_eqn.
+Proof.
+  unfold Equality.axiom, def_expr_eqn.
+  intros ; induction x, y ; try (apply ReflectF ; discriminate) ; try (apply ReflectT ; reflexivity).
+  case Eq: (h == h0).
+  all: move /hfexpr_eqP : Eq => Eq.
+  apply ReflectT ; replace h0 with h ; reflexivity.
+  apply ReflectF ; injection ; apply Eq.
+Qed.
+
+Canonical def_expr_eqMixin := EqMixin def_expr_eqP.
+Canonical def_expr_eqType := Eval hnf in EqType def_expr def_expr_eqMixin.
+
+Definition merge_expr (c : HiFP.hfexpr) (true_expr : def_expr) (false_expr : def_expr) : def_expr := 
+  match true_expr, false_expr with
+  | D_fexpr t, D_fexpr f => if t == f then true_expr 
+                                      else (D_fexpr (Emux c t f)) 
+  | D_invalidated, D_fexpr f => false_expr
+  | D_undefined, _ => D_undefined
+  | _, D_undefined => D_undefined
+  | _, D_invalidated => true_expr
   end.
 
 Definition combine_true_connections cond big small : PVM.t def_expr :=
@@ -54,90 +79,85 @@ Definition combine_branches cond true_conn_map false_conn_map old_conn_map : PVM
     end
   ) false_conn_map combined.
 
-Fixpoint ExpandBranches_funs
+Fixpoint connectConnects_funs
 (* split a statement sequence (possibly containing when
    statements) into a connection map.  The output does not contain when statements. *)
 (ss           : HiFP.hfstmt_seq)   (* sequence of statements being translated *)
 (old_conn_map : PVM.t def_expr)    (* connections made by earlier statements in the sequence (used for recursion) *)
 (scope_conn_map : PVM.t def_expr)
+(hseq_result : HiFP.hfstmt_seq)
 (tmap : PVM.t (fgtyp * fcomponent))
-:   option ((PVM.t def_expr) * (PVM.t def_expr))
+:   option ((PVM.t def_expr) * (PVM.t def_expr) * HiFP.hfstmt_seq)
 (* old_conn_map, extended with the connection statements in ss *)
 :=  match ss with
-| Qnil => Some (old_conn_map, scope_conn_map)
+| Qnil => Some (old_conn_map, scope_conn_map, hseq_result)
 | Qcons s ss =>
-    match ExpandBranch_fun s old_conn_map scope_conn_map tmap with
-    | Some (temp_conn_map, temp_scope_conn_map) =>
-        ExpandBranches_funs ss temp_conn_map temp_scope_conn_map tmap
+    match connectConnect_fun s old_conn_map scope_conn_map hseq_result tmap with
+    | Some (temp_conn_map, temp_scope_conn_map, hseq_result0) =>
+        connectConnects_funs ss temp_conn_map temp_scope_conn_map hseq_result0 tmap
     | None => None
     end
 end
-with ExpandBranch_fun
+with connectConnect_fun
 (* split a single statement (possibly consisting of a when
    statement) into a connection map.  The output does not contain when statements. *)
 (s            : HiFP.hfstmt)       (* a single statement being translated *)
 (old_conn_map : PVM.t def_expr)    (* connections made by earlier statements in the sequence (used for recursion) *)
 (scope_conn_map : PVM.t def_expr)
+(hseq_result : HiFP.hfstmt_seq)
 (tmap : PVM.t (fgtyp * fcomponent))
-:   option ((PVM.t def_expr) * (PVM.t def_expr))
-(* old_conn_map, extended with the connection statements in s *)
+:   option ((PVM.t def_expr) * (PVM.t def_expr) * HiFP.hfstmt_seq)
 :=  match s with
-| Sskip => Some (old_conn_map, scope_conn_map)
+| Sskip => Some (old_conn_map, scope_conn_map, hseq_result)
 | Sreg var reg =>
     match type reg with
-    | Gtyp gt => Some (PVM.add var (D_fexpr (Eref (Eid var))) old_conn_map, PVM.add var (D_fexpr (Eref (Eid var))) scope_conn_map)
+    | Gtyp gt => Some (PVM.add var (D_fexpr (Eref (Eid var))) old_conn_map, 
+      PVM.add var (D_fexpr (Eref (Eid var))) scope_conn_map, Qcons s hseq_result)
     | _ => None
     end
-| Sfcnct (Eid var) expr => Some (PVM.add var (D_fexpr expr) old_conn_map, PVM.add var (D_fexpr expr) scope_conn_map)
+| Sfcnct (Eid var) expr => Some (PVM.add var (D_fexpr expr) old_conn_map, 
+  PVM.add var (D_fexpr expr) scope_conn_map, hseq_result)
 | Sfcnct _ expr => None
 | Sinvalid (Eid var) => match PVM.find var tmap with
-  | Some (gt, _) => Some (PVM.add var (D_invalidated gt) old_conn_map, PVM.add var (D_invalidated gt) scope_conn_map)
+  | Some (gt, _) => Some (PVM.add var D_invalidated old_conn_map, 
+    PVM.add var D_invalidated scope_conn_map, hseq_result)
   | _ => None
   end
 | Sinvalid _ => None
 | Swhen cond ss_true ss_false =>
-    match ExpandBranches_funs ss_true old_conn_map (PVM.empty def_expr) tmap with
-    | Some (_, true_conn_map) =>
-        match ExpandBranches_funs ss_false old_conn_map (PVM.empty def_expr) tmap with
-        | Some (_, false_conn_map) =>
+    match connectConnects_funs ss_true old_conn_map (PVM.empty def_expr) hseq_result tmap with
+    | Some (_, true_conn_map, hseq_result0) =>
+        match connectConnects_funs ss_false old_conn_map (PVM.empty def_expr) hseq_result0 tmap with
+        | Some (_, false_conn_map, hseq_result1) =>
             let combined := combine_branches cond true_conn_map false_conn_map old_conn_map in 
             let new_scope := PVM.fold (fun k v acc => PVM.add k v acc) combined scope_conn_map in
-            Some (PVM.fold (fun k v acc => PVM.add k v acc) combined old_conn_map, new_scope)
+            Some (PVM.fold (fun k v acc => PVM.add k v acc) combined old_conn_map, new_scope, hseq_result1)
         | _ => None
         end
     | _ => None
     end
-| _ => Some (old_conn_map, scope_conn_map) (* wire, mem, inst, node *)
+| _ => Some (old_conn_map, scope_conn_map, Qcons s hseq_result) (* wire, mem, inst, node *)
 end.
 
-Fixpoint component_stmts_of_rev (ss : HiFP.hfstmt_seq) (acc : HiFP.hfstmt_seq) : HiFP.hfstmt_seq :=
-  match ss with
-  | Qnil => acc
-  | Qcons s ss' =>
-      let rev_s := component_stmt_of_rev s acc in
-      component_stmts_of_rev ss' rev_s
-  end
+Definition convert_to_connect_stmt
+    (* convert one entry in a map of connections to a connect statement,
+       helper function for PVM.fold *)
+    (v : PVM.key) (* key of the connection *)
+    (d : def_expr) (* value of the connection *)
+    (old_ss : option HiFP.hfstmt_seq) (* old sequence of connect statements *)
+:   option HiFP.hfstmt_seq (* returns old_ss, extended with assigning d to v *)
+:=  match old_ss, d with
+    | Some old_ss', D_invalidated => Some (Qcons (Sinvalid (Eid v)) old_ss')
+    | Some old_ss', D_fexpr e => Some (Qcons (Sfcnct (Eid v) e) old_ss')
+    | _, D_undefined => None
+    | None, _ => None
+    end.
 
-with component_stmt_of_rev (s : HiFP.hfstmt) (acc : HiFP.hfstmt_seq) : HiFP.hfstmt_seq :=
-  match s with
-  | Sskip
-  | Sfcnct _ _
-  | Sinvalid _ => acc
-  | Swire _ _
-  | Sreg _ _
-  | Snode _ _
-  | Smem _ _
-  | Sinst _ _ => Qcons s acc
-  | Swhen c ss_true ss_false =>
-      let rev_s := component_stmts_of_rev ss_true acc in
-      component_stmts_of_rev ss_false rev_s
-  end.
-
-Definition component_stmts_of (ss : HiFP.hfstmt_seq) : HiFP.hfstmt_seq :=
-  Qcatrev (component_stmts_of_rev ss HiFP.qnil) HiFP.qnil.
-
-Definition component_stmt_of (s : HiFP.hfstmt) : HiFP.hfstmt_seq :=
-  Qcatrev (component_stmt_of_rev s HiFP.qnil) HiFP.qnil.
+Definition convert_to_connect_stmts
+    (* converts a map of connections to connect statements *)
+    (conn_map : PVM.t def_expr) (* map that needs to be converted *)
+:   option HiFP.hfstmt_seq
+:=  PVM.fold convert_to_connect_stmt conn_map (Some (Qnil ProdVarOrder.T)).
 
 Fixpoint ExpandWhens_fun
     (ml : list HiFP.hfmodule) (tmap : (PVM.t (PVM.t (fgtyp * fcomponent)))) 
@@ -146,13 +166,15 @@ Fixpoint ExpandWhens_fun
 :=  match ml with
     | nil => Some (fml, conn_map)
     | (FInmod mv pp ss) :: tl => match PVM.find mv tmap with
-        | Some tmap' => match ExpandBranches_funs ss (PVM.empty def_expr) (PVM.empty def_expr) tmap' with
-            | Some (conn_map', _) =>
-                let list1 := component_stmts_of_rev ss HiFP.qnil in
-                let list2 := convert_to_connect_stmts conn_map' in
-                let combined := Qcatrev list1 list2 in
-                let fm := FInmod mv pp combined in
-                ExpandWhens_fun tl tmap (fm :: fml) (PVM.add mv conn_map' conn_map)
+        | Some tmap' => match connectConnects_funs ss (PVM.empty def_expr) (PVM.empty def_expr) HiFP.qnil tmap' with
+            | Some (conn_map', _, list1) =>
+                match convert_to_connect_stmts conn_map' with
+                | Some list2 =>
+                  let combined := Qcatrev list1 list2 in
+                  let fm := FInmod mv pp combined in
+                  ExpandWhens_fun tl tmap (fm :: fml) (PVM.add mv conn_map' conn_map)
+                | None => None
+                end
             | None => None
             end
         | _ => None
@@ -213,7 +235,7 @@ Fixpoint modules_tmap (modplmap : PVM.t (seq HiFP.hfport)) (tmap : PVM.t (PVM.t 
   (whitelist_map : PVM.t (list ProdVarOrder.t)) (ml : seq HiFP.hfmodule) : option ((PVM.t (PVM.t (fgtyp * fcomponent))) * (PVM.t (list ProdVarOrder.t))):=
   match ml with
   | nil => Some (tmap, whitelist_map)
-  | (FInmod mv ps ss) :: tl => match Sem_HiFP.ports_tmap' (PVM.empty (fgtyp * fcomponent)) ps with
+  | (FInmod mv ps ss) :: tl => match Sem_HiFP.ports_tmap (PVM.empty (fgtyp * fcomponent)) ps with
               | Some pmap => match stmts_tmap modplmap pmap (fst (List.split (PVM.elements pmap))) ss with
                   | Some (tmap', whitelist) => modules_tmap modplmap (PVM.add mv tmap' tmap) (PVM.add mv whitelist whitelist_map) tl
                   | None => None
