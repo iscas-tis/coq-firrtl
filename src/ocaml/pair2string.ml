@@ -28,9 +28,13 @@ and offset_to_string_b base_id offset = function
   else offset_to_string_b base_id (offset - (size_of_ftype ft)) ff'
 
 let pair_to_string pv nummap tmap =
-  let base_id = Transhiast.IntMap.find (fst pv) nummap in 
-  let ftype = Transhiast.StringMap.find base_id tmap in 
-  offset_to_string base_id (snd pv) ftype
+  match Transhiast.IntMap.find_opt (fst pv) nummap with
+  | None -> None
+  | Some base_id ->
+      match Transhiast.StringMap.find_opt base_id tmap with
+      | None -> None
+      | Some ftype ->
+          Some (offset_to_string base_id (snd pv) ftype)
 
 let fgtyp_pair_to_string gt = 
   match gt with
@@ -88,14 +92,22 @@ let binop_pair_to_string binop =
 
 let rec expr_pair_to_string e nummap tmap = 
   match e with
-  | HiFirrtl.Econst (gt, bs) -> (match gt with
+  | HiFirrtl.Econst (gt, bs) -> Some (match gt with
                           | Env.Fuint n -> Ast.Econst (fgtyp_pair_to_string gt, Printfir.nat_of_bits bs)
                           | Env.Fsint n -> Econst (fgtyp_pair_to_string gt, Printfir.z_of_bits bs)
                           | _ -> Econst (fgtyp_pair_to_string gt, Z.of_int 0))
-  | HiFirrtl.Eref (Eid v) -> Eref (Eid (pair_to_string (Obj.magic v) nummap tmap))
-  | HiFirrtl.Eprim_unop (op, e) -> Eprim_unop (eunop_pair_to_string op, expr_pair_to_string e nummap tmap)
-  | HiFirrtl.Eprim_binop (op, e1, e2) -> Eprim_binop (binop_pair_to_string op, 
-    expr_pair_to_string e1 nummap tmap, expr_pair_to_string e2 nummap tmap)
-  | HiFirrtl.Emux (e1,e2,e3) -> Emux (expr_pair_to_string e1 nummap tmap, 
-    expr_pair_to_string e2 nummap tmap, expr_pair_to_string e3 nummap tmap)
-  | HiFirrtl.Ecast (s, e) -> Ecast(cast_pair_to_string s, expr_pair_to_string e nummap tmap)
+  | HiFirrtl.Eref (Eid v) -> (match pair_to_string (Obj.magic v) nummap tmap with
+                          | Some str -> Some (Eref (Eid str))
+                          | _ -> None)
+  | HiFirrtl.Eprim_unop (op, e) -> (match expr_pair_to_string e nummap tmap with
+                          | Some str_e -> Some (Eprim_unop (eunop_pair_to_string op, str_e))
+                          | _ -> None)
+  | HiFirrtl.Eprim_binop (op, e1, e2) -> (match expr_pair_to_string e1 nummap tmap, expr_pair_to_string e2 nummap tmap with
+                          | Some str_e1, Some str_e2 -> Some (Eprim_binop (binop_pair_to_string op, str_e1, str_e2))
+                          | _, _ -> None)
+  | HiFirrtl.Emux (e1,e2,e3) -> (match expr_pair_to_string e1 nummap tmap, expr_pair_to_string e2 nummap tmap, expr_pair_to_string e3 nummap tmap with
+                          | Some str_e1, Some str_e2, Some str_e3 -> Some (Emux (str_e1, str_e2, str_e3))
+                          | _, _, _ -> None)
+  | HiFirrtl.Ecast (s, e) -> (match expr_pair_to_string e nummap tmap with
+                          | Some str_e -> Some (Ecast(cast_pair_to_string s, str_e))
+                          | _ -> None)
