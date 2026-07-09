@@ -3,8 +3,8 @@ open Hifirrtl_lang
 open Printf
 open Extraction.Semantics
 open Extraction.HiFirrtl
-open Extraction.ExpandConnects_inst 
-open Extraction.ExpandWhens_inst
+open Extraction.LowerTypes 
+open Extraction.ExpandWhens
 
 let () =
   let open Gc in

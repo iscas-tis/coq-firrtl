@@ -248,7 +248,6 @@ End NEqType.
 
 
 Definition to_fin (vs : list N) := seq_sub vs.
-Compute (to_fin (cons N0 nil)).
 
 
 Notation "m <=? n <=? p" :=

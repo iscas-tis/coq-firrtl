@@ -4,7 +4,7 @@ From Coq Require Import Arith List.
 From mathcomp Require Import tuple.
 From nbits Require Import NBits.
 From simplssrlib Require Import Var.
-From firrtl Require Import Env Firrtl Semantics ExpandConnects_inst ExpandWhens_inst.
+From firrtl Require Import Env Firrtl Semantics LowerTypes ExpandWhens.
 
 Extraction Language OCaml.
 
@@ -16,5 +16,6 @@ Separate Extraction
          seq.catrev nat_of_int n_of_int int_of_nat int_of_n int_of_z
          NBitsDef.from_string NBitsDef.from_hex NBitsDef.from_bin
          NBitsDef.to_hex NBitsDef.to_nat NBitsDef.to_bin
-         ExpandConnects_inst.expandconnects ExpandWhens_inst.expandWhens ExpandConnects_inst.preprocess_subaccess.
+         Env.sizeof_fgtyp
+         LowerTypes.expandconnects ExpandWhens.expandWhens LowerTypes.preprocess_subaccess.
 Cd "../../..".

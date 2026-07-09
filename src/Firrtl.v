@@ -357,19 +357,11 @@ Record fwriter_port : Type :=
   | Sinst : finst -> fstmt
   | Snode : var -> fexpr -> fstmt
   | Sfcnct : var -> fexpr -> fstmt
-  (*| Spcnct : fexpr -> fexpr -> fstmt*)
   | Sinvalid : var -> fstmt
-  (* | Sattach : seq var -> fstmt *)
   | Swhen : fexpr -> fstmt -> fstmt -> fstmt
   | Sstop : fexpr -> fexpr -> nat -> fstmt
-  (* | Sprintf (* TBD *) *)
-  (* | Sassert (* TBD *) *)
-  (* | Sassume (* TBD *) *)
-  (* | Sdefname : var -> fstmt *) (* TBD *)
-  (* | Sparam : var -> fexpr -> fstmt *) (* TBD *)
   .
 
-  (* TBD *)
   Inductive fmodule : Type :=
   | FInmod : var -> seq fport -> seq fstmt -> fmodule
   | FExmod : var -> seq fport -> seq fstmt -> fmodule
@@ -691,9 +683,6 @@ Module MakeFirrtl
                                   let nbs1 := zext (newl-(size bs1)) bs1 in
                                   let nbs2 := zext (newl-(size bs2)) bs2 in
                                   snd (sbbB false nbs1 nbs2).
-
-  Compute (sbbB_ext false [::false;false] [::false;false]).
-  Compute (subB_ext [::false;false] [::false;false]).
 
   Lemma size_subB_ext bs1 bs2 : size (subB_ext bs1 bs2) = (maxn (size bs1) (size bs2))+1.
   rewrite /subB_ext.

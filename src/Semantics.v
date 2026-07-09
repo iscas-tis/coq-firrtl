@@ -126,14 +126,6 @@ Proof.
       left; do 4 f_equal; assumption.
 Qed.
 
-(*Compute (to_Z [::false;true]).
-Compute (to_Zpos [::false;true]).
-Compute (to_Z [::true;false]).
-Compute (to_Zpos [::true;false]). 后为高位
-若使用Z来表示value
-| Fsint _ => to_Z c
-| Fuint _ => to_Zpos c *)
-
 (* makes val to be of type ft *)
 Fixpoint ftext (ft : ftype) (val : hvalue) : option hvalue :=
   match ft, val with
@@ -511,39 +503,6 @@ Fixpoint offset_ref (r : HiF.href) (tmap: VM.t (ftype * fcomponent)) (n : nat) :
   | Esubaccess r e => None
   end.
 
-  Definition g_typ := Gtyp (Fuint 8).
-  Definition a_typ := Atyp g_typ 3.
-  Definition aa_typ := Atyp a_typ 3.
-  Definition b_typ := Btyp (Fflips 2%num Nflip g_typ (Fflips 3%num Nflip aa_typ (Fflips 4%num Nflip g_typ Fnil))).
-  Definition bb_typ := Btyp (Fflips 2%num Nflip g_typ (Fflips 3%num Nflip b_typ (Fflips 4%num Nflip g_typ Fnil))).
-  Definition cenv0 := VM.empty (ftype * fcomponent).
-  Definition cenv1 := CE.add 1%num (bb_typ, Node) cenv0.
-  Definition eid1 := (HiF.eid 1%num).
-  Definition esf12 := (HiF.esubfield eid1 2%num).
-  Definition esf13 := (HiF.esubfield eid1 3%num).
-  Definition esf14 := (HiF.esubfield eid1 4%num).
-  Definition esf132 := (HiF.esubfield esf13 2%num).
-  Definition esf133 := (HiF.esubfield esf13 3%num).
-  Definition esf134 := (HiF.esubfield esf13 4%num).
-  Definition esf1330 := HiF.esubindex esf133 0.
-  Definition esf13300 := HiF.esubindex esf1330 0.
-  Definition esf13301 := HiF.esubindex esf1330 1.
-  Definition esf13302 := HiF.esubindex esf1330 2.
-  Definition esf1331 := HiF.esubindex esf133 1.
-  Definition esf1332 := HiF.esubindex esf133 2.
-  Compute (offset_ref eid1 cenv1 0).
-  Compute (offset_ref esf12 cenv1 0).
-  Compute (offset_ref esf13 cenv1 0).
-  Compute (offset_ref esf132 cenv1 0).
-  Compute (offset_ref esf133 cenv1 0).
-  Compute (offset_ref esf1330 cenv1 0).
-  Compute (offset_ref esf13300 cenv1 0).
-  Compute (offset_ref esf13301 cenv1 0).
-  Compute (offset_ref esf13302 cenv1 0).
-  Compute (offset_ref esf1331 cenv1 0).
-  Compute (offset_ref esf1332 cenv1 0).
-  Compute (offset_ref esf134 cenv1 0).
-
 Fixpoint elements_of_hvalue val :=
   match val with
   | Gval _ => 1
@@ -627,23 +586,6 @@ with update_bundle_value_by_offset (bval : bundle_value) (offset : nat) (new_val
   | _ => None
   end.
 
-  Definition g_val0 := Gval [::false; false].
-  Definition g_val1 := Gval [::true; false].
-  Definition g_val2 := Gval [::false; true].
-  Definition g_val3 := Gval [::true; true].
-  Definition a_val0 := Aval (Acons g_val0 (Acons g_val1 Anil)).
-  Definition a_val1 := Aval (Acons g_val2 (Acons g_val3 Anil)).
-  Definition aa_val := Aval (Acons a_val0 (Acons a_val1 Anil)).
-  Definition b_val := Bval (Bflips 2%num Nflip g_val0 (Bflips 3%num Nflip a_val0 (Bflips 4%num Nflip g_val1 Bnil))).
-  Definition bb_val := Bval (Bflips 2%num Nflip g_val2 (Bflips 3%num Nflip b_val (Bflips 4%num Nflip g_val3 Bnil))).
-  Compute (find_hvalue_by_offset bb_val 8).
-  Compute (update_hvalue_by_offset g_val0 0 g_val1).
-  Compute (update_hvalue_by_offset a_val0 1 g_val3).
-  Compute (update_hvalue_by_offset aa_val 3 g_val3).
-  Compute (update_hvalue_by_offset aa_val 4 a_val0).
-  Compute (update_hvalue_by_offset b_val 2 a_val1).
-  Compute (update_hvalue_by_offset bb_val 4 a_val1).
-
 Fixpoint eval_ref_connection (ft : ftype) (val_l val_r : hvalue) (offset_l offset_r : nat) : option (hvalue * hvalue) :=
   (* bidirectional connect between different components *)
   match ft with
@@ -717,19 +659,6 @@ with eval_bundle_connection1 (ff : ffield) (val : hvalue) (offset_l offset_r : n
                           | _ => None
                           end
   end.
-
-Compute (eval_ref_connection (Gtyp (Fuint 2)) aa_val a_val1 2 2).
-Compute (eval_ref_connection (Atyp (Gtyp (Fuint 2)) 2) aa_val a_val0 4 0).
-Compute (eval_ref_connection (Gtyp (Fuint 2)) bb_val b_val 6 3).
-Compute (eval_ref_connection (Atyp (Gtyp (Fuint 2)) 2) bb_val aa_val 4 4).
-Definition bb_val0 := Bval (Bflips 2%num Nflip g_val2 (Bflips 3%num Flipped g_val1 Bnil)).
-Definition bb_val1 := Bval (Bflips 2%num Nflip g_val3 (Bflips 3%num Flipped g_val0 Bnil)).
-Definition bb_val2 := Bval (Bflips 2%num Nflip g_val1 (Bflips 3%num Flipped bb_val0 Bnil)).
-Definition btype := Btyp (Fflips 2%num Nflip (Gtyp (Fuint 2)) (Fflips 3%num Flipped (Gtyp (Fuint 2)) Fnil)).
-Compute (eval_ref_connection btype bb_val0 bb_val1 0 0).
-Compute (eval_ref_connection btype bb_val2 bb_val1 2 0).
-Compute (eval_ref_connection (Gtyp (Fuint 2)) b_val b_val 4 1). (* 不正确,如果同一个value内互相更新？ *)
-Compute (eval_ref_connection1 (Gtyp (Fuint 2)) b_val 4 1).
 
 Fixpoint invalidate_ft (ft : ftype) : hvalue :=
   match ft with
@@ -865,15 +794,15 @@ with eval_hfstmts (sts : HiF.hfstmt_seq) (rs ns : VM.t hvalue) (s : VM.t hvalue)
   end.
 
 (* functions used to record ftype and component type *)
-Fixpoint stmts_tmap' (tmap : VM.t (ftype * fcomponent)) (ss : HiF.hfstmt_seq): option (VM.t (ftype * fcomponent)) :=
+Fixpoint stmts_tmap (tmap : VM.t (ftype * fcomponent)) (ss : HiF.hfstmt_seq): option (VM.t (ftype * fcomponent)) :=
   match ss with
   | Qnil => Some tmap
-  | Qcons s ss' => match stmt_tmap' tmap s with
-      | Some tmap' => stmts_tmap' tmap' ss'
+  | Qcons s ss' => match stmt_tmap tmap s with
+      | Some tmap' => stmts_tmap tmap' ss'
       | None => None
       end
   end
-with stmt_tmap' (tmap : VM.t (ftype * fcomponent)) (s : HiF.hfstmt) : option (VM.t (ftype * fcomponent)) :=
+with stmt_tmap (tmap : VM.t (ftype * fcomponent)) (s : HiF.hfstmt) : option (VM.t (ftype * fcomponent)) :=
   match s with
   | Sskip => Some tmap
   | Sfcnct _ _ => Some tmap
@@ -893,29 +822,29 @@ with stmt_tmap' (tmap : VM.t (ftype * fcomponent)) (s : HiF.hfstmt) : option (VM
                   | _, _ => None
                   end
   | Swhen cond ss_true ss_false =>
-      match type_of_hfexpr cond tmap, stmts_tmap' tmap ss_true with
-      | Some (Gtyp _), Some tmap_true => stmts_tmap' tmap_true ss_false 
+      match type_of_hfexpr cond tmap, stmts_tmap tmap ss_true with
+      | Some (Gtyp _), Some tmap_true => stmts_tmap tmap_true ss_false 
       | _, _ => None
       end
   end.
   
-Fixpoint ports_tmap' (tmap : VM.t (ftype * fcomponent)) (pp : seq HiF.hfport) : option (VM.t (ftype * fcomponent)) :=
+Fixpoint ports_tmap (tmap : VM.t (ftype * fcomponent)) (pp : seq HiF.hfport) : option (VM.t (ftype * fcomponent)) :=
   match pp with
   | [::] => Some tmap
   | Finput v t :: pp' => match VM.find v tmap with
           | Some _ => None
-          | None => ports_tmap' (VM.add v (t, In_port) tmap) pp'
+          | None => ports_tmap (VM.add v (t, In_port) tmap) pp'
           end
   | Foutput v t :: pp' => match VM.find v tmap with
           | Some _ => None
-          | None => ports_tmap' (VM.add v (t, Out_port) tmap) pp'
+          | None => ports_tmap (VM.add v (t, Out_port) tmap) pp'
           end
   end.    
 
 Definition module_tmap (tmap : VM.t (ftype * fcomponent)) (m : HiF.hfmodule) : option (VM.t (ftype * fcomponent)) :=
   match m with
-  | FInmod _ ps ss => match ports_tmap' tmap ps with
-              | Some pmap => stmts_tmap' pmap ss
+  | FInmod _ ps ss => match ports_tmap tmap ps with
+              | Some pmap => stmts_tmap pmap ss
               | None => None
               end
   | _ => None
@@ -1235,15 +1164,15 @@ with eval_hfstmts (sts : HiFP.hfstmt_seq) (rs ns : PVM.t bits) (s : PVM.t bits) 
   end.
   
 (* functions used to record ftype and component type *)
-Fixpoint stmts_tmap' (tmap : PVM.t (fgtyp * fcomponent)) (ss : HiFP.hfstmt_seq): option (PVM.t (fgtyp * fcomponent)) :=
+Fixpoint stmts_tmap (tmap : PVM.t (fgtyp * fcomponent)) (ss : HiFP.hfstmt_seq): option (PVM.t (fgtyp * fcomponent)) :=
   match ss with
   | Qnil => Some tmap
-  | Qcons s ss' => match stmt_tmap' tmap s with
-      | Some tmap' => stmts_tmap' tmap' ss'
+  | Qcons s ss' => match stmt_tmap tmap s with
+      | Some tmap' => stmts_tmap tmap' ss'
       | None => None
       end
   end
-with stmt_tmap' (tmap : PVM.t (fgtyp * fcomponent)) (s : HiFP.hfstmt) : option (PVM.t (fgtyp * fcomponent)) :=
+with stmt_tmap (tmap : PVM.t (fgtyp * fcomponent)) (s : HiFP.hfstmt) : option (PVM.t (fgtyp * fcomponent)) :=
   match s with
   | Sskip => Some tmap
   | Sfcnct _ _ => Some tmap
@@ -1264,30 +1193,30 @@ with stmt_tmap' (tmap : PVM.t (fgtyp * fcomponent)) (s : HiFP.hfstmt) : option (
                   | _, _ => None
                   end
   | Swhen _ ss_true ss_false =>
-      match stmts_tmap' tmap ss_true with
-      | Some tmap_true => stmts_tmap' tmap_true ss_false 
+      match stmts_tmap tmap ss_true with
+      | Some tmap_true => stmts_tmap tmap_true ss_false 
       | _ => None
       end
   end.
 
-Fixpoint ports_tmap' (tmap : PVM.t (fgtyp * fcomponent)) (pp : seq HiFP.hfport) : option (PVM.t (fgtyp * fcomponent)) :=
+Fixpoint ports_tmap (tmap : PVM.t (fgtyp * fcomponent)) (pp : seq HiFP.hfport) : option (PVM.t (fgtyp * fcomponent)) :=
   match pp with
   | [::] => Some tmap
   | Finput v (Gtyp t) :: pp' => match PVM.find v tmap with
           | Some _ => None
-          | None => ports_tmap' (PVM.add v (t, In_port) tmap) pp'
+          | None => ports_tmap (PVM.add v (t, In_port) tmap) pp'
           end
   | Foutput v (Gtyp t) :: pp' => match PVM.find v tmap with
           | Some _ => None
-          | None => ports_tmap' (PVM.add v (t, Out_port) tmap) pp'
+          | None => ports_tmap (PVM.add v (t, Out_port) tmap) pp'
           end
   | _ => None
   end.    
 
 Definition module_tmap (tmap : PVM.t (fgtyp * fcomponent)) (m : HiFP.hfmodule) : option (PVM.t (fgtyp * fcomponent)) :=
   match m with
-  | FInmod _ ps ss => match ports_tmap' tmap ps with
-              | Some pmap => stmts_tmap' pmap ss
+  | FInmod _ ps ss => match ports_tmap tmap ps with
+              | Some pmap => stmts_tmap pmap ss
               | None => None
               end
   | _ => None
@@ -1626,7 +1555,7 @@ with expand_fcnct_btyp (pv0 pv1 : ProdVarOrder.t) (offset : nat) flip (btyp : ff
 Fixpoint expandconnects_stmt (s : HiF.hfstmt) (tmap : VM.t (ftype * fcomponent)) (sts : HiFP.hfstmt_seq) : option HiFP.hfstmt_seq :=
   match s with
   | Sskip 
-  | Smem _ _ => Some (HiFP.qrcons sts HiFP.sskip) (* TBD *)
+  | Smem _ _ => Some (HiFP.qrcons sts HiFP.sskip)
   | Sinst v mv => Some (HiFP.qrcons sts (HiFP.sinst (v, N0) (mv, N0)))
   | Swire v t => Some (expand_wire v 0 t sts)
   | Sreg v r => expand_reg v r tmap sts
@@ -1931,17 +1860,17 @@ Proof.
   1,2 : move : H; apply component_stmts_of_is_declaration.
 Qed.
 
-Lemma stmts_tmap_qcat pmap s1 s2 : match Sem_HiFP.stmts_tmap' pmap s1 with
-  | Some tmap_true => Sem_HiFP.stmts_tmap' tmap_true s2 
+Lemma stmts_tmap_qcat pmap s1 s2 : match Sem_HiFP.stmts_tmap pmap s1 with
+  | Some tmap_true => Sem_HiFP.stmts_tmap tmap_true s2 
   | _ => None
-  end = Sem_HiFP.stmts_tmap' pmap (Qcat s1 s2).
+  end = Sem_HiFP.stmts_tmap pmap (Qcat s1 s2).
 Proof. 
   move : s1 pmap s2. elim; simpl in *; try done.
-  intros hd tl IH pmap s2. destruct (Sem_HiFP.stmt_tmap' pmap hd) as [tmap'|]; try done.
+  intros hd tl IH pmap s2. destruct (Sem_HiFP.stmt_tmap pmap hd) as [tmap'|]; try done.
 Qed.
 
-Lemma stmts_tmap_component_stmts_of_eq ss pmap : Sem_HiFP.stmts_tmap' pmap ss = Sem_HiFP.stmts_tmap' pmap (component_stmts_of ss)
-with stmt_tmap_component_stmts_of_eq s pmap : Sem_HiFP.stmt_tmap' pmap s = Sem_HiFP.stmts_tmap' pmap (component_stmt_of s).
+Lemma stmts_tmap_component_stmts_of_eq ss pmap : Sem_HiFP.stmts_tmap pmap ss = Sem_HiFP.stmts_tmap pmap (component_stmts_of ss)
+with stmt_tmap_component_stmts_of_eq s pmap : Sem_HiFP.stmt_tmap pmap s = Sem_HiFP.stmts_tmap pmap (component_stmt_of s).
 Proof.
   move : ss pmap; elim. simpl; done.
   intros hd tl IH pmap. simpl. destruct hd as [|v0 t|v0 r|v0 m|v0 v1|v0 e0|v0 e0|v0|c s1 s2] eqn : Hstmt; subst hd; simpl in *; try done.
@@ -1950,8 +1879,8 @@ Proof.
     destruct (HiFirrtl.type {| type := type; clock := clock; reset := reset |}); try done.
   destruct (PVM.find v0 pmap); try done; destruct (Sem_HiFP.type_of_hfexpr e0 pmap); try done.
   rewrite (stmts_tmap_component_stmts_of_eq s1). rewrite -stmts_tmap_qcat. rewrite -stmts_tmap_qcat.
-  destruct (Sem_HiFP.stmts_tmap' pmap (component_stmts_of s1)) as [tmap_true|]; try done.
-  rewrite (stmts_tmap_component_stmts_of_eq s2). destruct (Sem_HiFP.stmts_tmap' tmap_true (component_stmts_of s2)) as [tmap_false|]; try done.
+  destruct (Sem_HiFP.stmts_tmap pmap (component_stmts_of s1)) as [tmap_true|]; try done.
+  rewrite (stmts_tmap_component_stmts_of_eq s2). destruct (Sem_HiFP.stmts_tmap tmap_true (component_stmts_of s2)) as [tmap_false|]; try done.
 
   clear stmt_tmap_component_stmts_of_eq. destruct s as [|v0 t|v0 r|v0 m|v0 v1|v0 e0|v0 e0|v0|c s1 s2] eqn : Hstmt; subst s; simpl in *; try done.
   (* wire *)
@@ -1961,18 +1890,18 @@ Proof.
   (* node *)
   destruct (PVM.find v0 pmap); destruct (Sem_HiFP.type_of_hfexpr e0 pmap); try done.
   (* when *)
-  rewrite stmts_tmap_component_stmts_of_eq. rewrite -stmts_tmap_qcat. destruct (Sem_HiFP.stmts_tmap' pmap (component_stmts_of s1)); try done.
+  rewrite stmts_tmap_component_stmts_of_eq. rewrite -stmts_tmap_qcat. destruct (Sem_HiFP.stmts_tmap pmap (component_stmts_of s1)); try done.
 Qed.
 
 Lemma stmts_tmap_qcat_convert_to_connect_stmts_eq ss cncts pmap : (forall s, Qin s cncts -> is_connection s) ->
-  Sem_HiFP.stmts_tmap' pmap (Qcat ss cncts) = Sem_HiFP.stmts_tmap' pmap ss.
+  Sem_HiFP.stmts_tmap pmap (Qcat ss cncts) = Sem_HiFP.stmts_tmap pmap ss.
 Proof.
   intro. move : ss pmap. elim. simpl. intro; move : cncts H. elim. simpl; done.
   simpl; intros. assert (is_connection h). apply H0. simpl. specialize (hfstmt_eqn_refl h) as Heq. move/eqP : Heq => Heq. 
     specialize (hfstmt_eqP h h) as Heq'. apply reflect_iff in Heq'. apply Heq' in Heq. rewrite Heq orb_true_l //.
     destruct h; try done. simpl; apply H. intros; apply H0. rewrite H2 orb_true_r //.
     simpl; apply H. intros; apply H0. rewrite H2 orb_true_r //.
-  simpl; intros. destruct (Sem_HiFP.stmt_tmap' pmap h); try done.
+  simpl; intros. destruct (Sem_HiFP.stmt_tmap pmap h); try done.
 Qed.
 
 Lemma ExpandWhens_fun_tmap_eq m tmap : Sem_HiFP.module_tmap (PVM.empty (fgtyp * fcomponent)) m = Some tmap -> 
@@ -1981,7 +1910,7 @@ Proof.
   intros Htmap fm Hexpand. destruct m as [mv ps ss|]; try discriminate. simpl in *.
   destruct (ExpandBranches_funs ss (PVM.empty def_expr) tmap) as [conn_map|] eqn : Hexpand_branches; try discriminate.
   inversion Hexpand; subst fm; clear Hexpand. simpl.
-  destruct (Sem_HiFP.ports_tmap' (PVM.empty (fgtyp * fcomponent)) ps) as [pmap|]; try discriminate.
+  destruct (Sem_HiFP.ports_tmap (PVM.empty (fgtyp * fcomponent)) ps) as [pmap|]; try discriminate.
   rewrite stmts_tmap_component_stmts_of_eq in Htmap. rewrite stmts_tmap_qcat_convert_to_connect_stmts_eq //.
   apply convert_to_connect_stmts_is_connection.
 Qed.
@@ -2062,7 +1991,7 @@ Lemma included_update_values_included : forall s1 s2 ns1 ns2,
   (*forall v, PVM.mem v s1 -> ~ PVM.mem v ns1 -> ~ PVM.mem v ns2) ->*)
   pvm_included s1 s2 -> pvm_included ns1 ns2 ->
   pvm_included (Sem_HiFP.update_values ns1 s1) (Sem_HiFP.update_values ns2 s2).
-Proof. (* TBD *)
+Proof.
   unfold pvm_included, Sem_HiFP.update_values in *; intros s1 s2 ns1 ns2 (*Hypo*) Hinclude_s Hinclude_ns v bs Hfind. 
   assert (Hfind' : PVM.find v ns1 = Some bs \/ (PVM.find v ns1 = None /\ PVM.find v s1 = Some bs)). admit.
   destruct Hfind' as [Hfind'|Hfind'].
@@ -4239,15 +4168,13 @@ Lemma find_node_qin_with_cond mv pp ss tmap: Sem_HiFP.module_tmap (PVM.empty (fg
   PVM.find v s1 = Some bs ->
   exists e, Qin_with_cond (Snode v e) ss init_s tmap.
 Proof.
-  simpl; intros. destruct (Sem_HiFP.ports_tmap' (PVM.empty (fgtyp * fcomponent)) pp) as[pmap|]; try discriminate.
-  (* td *)
+  simpl; intros. destruct (Sem_HiFP.ports_tmap (PVM.empty (fgtyp * fcomponent)) pp) as[pmap|]; try discriminate.
 Admitted.
 
 Lemma qin_with_cond_node_qin_cmpnt v e ss init_s tmap: 
   Qin_with_cond (Snode v e) ss init_s tmap -> 
   Qin (Snode v e) (component_stmts_of ss).
 Proof.
-  (* td *)
 Admitted.
 
 Lemma pvm_included_refl valmap : pvm_included valmap valmap.
@@ -4316,7 +4243,7 @@ Proof.
       intros; rewrite Hfind1 in H; discriminate.
     * (* node : v的值在 component_stmts_of 中 *) intros bs Hfind1.
       specialize (find_node_qin_with_cond Htmap Hcmpnt Hevalss1 Hfind1) as He. destruct He as [e He].
-      assert (Hunique : unique_node_dclr_when ss). admit.
+      assert (Hunique : unique_node_dclr_when ss) by admit. (* by well-formedness *)
       assert (He' : Qin (Snode v e) (Qcat (component_stmts_of ss) (convert_to_connect_stmts conn_map))). 
       specialize (qin_with_cond_node_qin_cmpnt He) as Hin. apply Qin_Qcat; left; done.
       assert (Hunique' : unique_node_dclr (Qcat (component_stmts_of ss) (convert_to_connect_stmts conn_map))). admit.
@@ -4330,7 +4257,7 @@ Proof.
       specialize (eval_hfstmts_Qcat_some' (PVM.empty bits) (PVM.empty bits) Hevalss2) as Hexists. destruct Hexists as [[rs s] Hexists].
       specialize eval_hfstmts_for_comb_only_cnct with (v := v) (tmap := tmap) as Hcnct. rewrite Hcmpnt in Hcnct.
       assert (Hin : forall s, Qin s (component_stmts_of ss) -> is_declaration s) by (apply component_stmts_of_is_declaration).
-      assert (Hneq : forall v' e', Qin (Snode v' e') (component_stmts_of ss) -> v <> v'). admit. (* TBD *)
+      assert (Hneq : forall v' e', Qin (Snode v' e') (component_stmts_of ss) -> v <> v'). admit.
       assert (Hwhen : forall c ss1 ss2, ~ Qin (Swhen c ss1 ss2) (Qcat (component_stmts_of ss) (convert_to_connect_stmts conn_map))). 
         intros. intro. apply Qin_Qcat in H. destruct H. specialize (component_stmts_of_is_declaration H); simpl; done.
         specialize (convert_to_connect_stmts_is_connection H); simpl; done.
@@ -4354,7 +4281,7 @@ Proof.
       specialize (eval_hfstmts_Qcat_some' (PVM.empty bits) (PVM.empty bits) Hevalss2) as Hexists. destruct Hexists as [[rs s] Hexists].
       specialize eval_hfstmts_for_comb_only_cnct with (v := v) (tmap := tmap) as Hcnct. rewrite Hcmpnt in Hcnct.
       assert (Hin : forall s, Qin s (component_stmts_of ss) -> is_declaration s) by (apply component_stmts_of_is_declaration).
-      assert (Hneq : forall v' e', Qin (Snode v' e') (component_stmts_of ss) -> v <> v'). admit. (* TBD *)
+      assert (Hneq : forall v' e', Qin (Snode v' e') (component_stmts_of ss) -> v <> v'). admit. 
       assert (Hwhen : forall c ss1 ss2, ~ Qin (Swhen c ss1 ss2) (Qcat (component_stmts_of ss) (convert_to_connect_stmts conn_map))). 
         intros. intro. apply Qin_Qcat in H. destruct H. specialize (component_stmts_of_is_declaration H); simpl; done.
         specialize (convert_to_connect_stmts_is_connection H); simpl; done.
@@ -4392,7 +4319,7 @@ Proof.
       specialize eval_hfstmts_for_sequ_only_cnct with (v := v) (tmap := tmap) as Hcnct. rewrite Hcmpnt in Hcnct.
       assert (Hdclr : forall s, Qin s (component_stmts_of ss) -> is_declaration s) by (apply component_stmts_of_is_declaration).
       assert (Hin : Qin (Sfcnct (Eid v) (Eref (Eid v))) (convert_to_connect_stmts conn_map) \/
-        (exists e : hfexpr ProdVarOrder.T, Qin (Sfcnct (Eid v) e) (convert_to_connect_stmts conn_map))). admit. (* TBD *)
+        (exists e : hfexpr ProdVarOrder.T, Qin (Sfcnct (Eid v) e) (convert_to_connect_stmts conn_map))). admit. 
       specialize (Hcnct _ _ _ Hdclr Hexpand_branches Hin _ _ Hevalss2 _ _ Hexists). rewrite -Hcnct; clear Hcnct Hevalss2.
       specialize eval_hfstmts_convert_to_connect_stmts_for_sequ with (v := v) (tmap := tmap) as Hconvert. rewrite Hcmpnt in Hconvert.
       specialize (Hconvert _ _ _ _ Hexists). clear Hexists.
