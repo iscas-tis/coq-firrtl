@@ -1,55 +1,71 @@
 open Hifirrtl_lang
 open Extraction
 
-let trans_port p map tmap = 
-  match p with
-  | HiFirrtl.Finput (v, HiEnv.Gtyp ty) -> let nv = Pair2string.pair_to_string (Obj.magic v) map tmap in
-                              let nty = Pair2string.fgtyp_pair_to_string ty in
-                              Ast.Finput (nv, Ast.Gtyp nty)
-  | HiFirrtl.Foutput (v, HiEnv.Gtyp ty) -> let nv = Pair2string.pair_to_string (Obj.magic v) map tmap in
-                              let nty = Pair2string.fgtyp_pair_to_string ty in
-                              Ast.Foutput (nv, Ast.Gtyp nty)
+let rec trans_ports pp map tmap res = 
+  match pp with
+  | [] -> res
+  | HiFirrtl.Finput (v, HiEnv.Gtyp ty) :: pp' -> (match Pair2string.pair_to_string (Obj.magic v) map tmap with
+                              | Some nv ->
+                                let nty = Pair2string.fgtyp_pair_to_string ty in
+                                trans_ports pp' map tmap ((Ast.Finput (nv, Ast.Gtyp nty)) :: res)
+                              | _ -> trans_ports pp' map tmap res)
+  | HiFirrtl.Foutput (v, HiEnv.Gtyp ty) :: pp' -> (match Pair2string.pair_to_string (Obj.magic v) map tmap with
+                              | Some nv ->
+                                let nty = Pair2string.fgtyp_pair_to_string ty in
+                                trans_ports pp' map tmap ((Ast.Foutput (nv, Ast.Gtyp nty)) :: res)
+                              | _ -> trans_ports pp' map tmap res)
 
 let trans_rst rst map tmap = 
   match rst with
-  | HiFirrtl.NRst -> Ast.NRst
-  | HiFirrtl.Rst (e1, e2) -> Ast.Rst(Pair2string.expr_pair_to_string e1 map tmap, Pair2string.expr_pair_to_string e2 map tmap)
-
+  | HiFirrtl.NRst -> Some Ast.NRst
+  | HiFirrtl.Rst (e1, e2) -> (match Pair2string.expr_pair_to_string e1 map tmap, Pair2string.expr_pair_to_string e2 map tmap with
+                              | Some str_e1, Some str_e2 ->  Some (Ast.Rst (str_e1, str_e2))
+                              | _, _ -> None)
+    
 let rec trans_stmt s map tmap res = 
   match s with
-  | HiFirrtl.Swire (v, HiEnv.Gtyp ty) -> let nv = Pair2string.pair_to_string (Obj.magic v) map tmap in
-                              let nty = Pair2string.fgtyp_pair_to_string ty in
-                              let ns = Ast.Swire (nv, Ast.Gtyp nty) in
-                              Ast.Qcons (ns, res)
-  | HiFirrtl.Sfcnct (Eid v, e) -> let nv = Pair2string.pair_to_string (Obj.magic v) map tmap in
-                              let ne = Pair2string.expr_pair_to_string e map tmap in
-                              let ns = Ast.Sfcnct (Eid nv, ne) in
-                              Ast.Qcons (ns, res)
-  | HiFirrtl.Sinvalid (Eid v) -> let nv = Pair2string.pair_to_string (Obj.magic v) map tmap in
-                              let ns = Ast.Sinvalid (Eid nv) in
-                              Ast.Qcons (ns, res)
-  | HiFirrtl.Snode (v, e) -> let nv = Pair2string.pair_to_string (Obj.magic v) map tmap in
-                              let ne = Pair2string.expr_pair_to_string e map tmap in
-                              let ns = Ast.Snode (nv, ne) in
-                              Ast.Qcons (ns, res)
-  | HiFirrtl.Sreg (v, r) -> let nv = Pair2string.pair_to_string (Obj.magic v) map tmap in
-                              (match r.coq_type with
-                              | HiEnv.Gtyp ty ->
+  | HiFirrtl.Swire (v, HiEnv.Gtyp ty) -> (match Pair2string.pair_to_string (Obj.magic v) map tmap with
+                              | Some nv -> 
                                 let nty = Pair2string.fgtyp_pair_to_string ty in
-                                let nclock = Pair2string.expr_pair_to_string r.clock map tmap in
-                                let nrst = trans_rst r.reset map tmap in
-                                let ns = Ast.Sreg (nv, Ast.mk_freg_r (Ast.Gtyp nty) nclock nrst) in
+                                let ns = Ast.Swire (nv, Ast.Gtyp nty) in
                                 Ast.Qcons (ns, res)
                               | _ -> res)
-  | HiFirrtl.Sinst (v, modv) -> let nv = Pair2string.pair_to_string (Obj.magic v) map tmap in
-                              let nmodv = Pair2string.pair_to_string (Obj.magic modv) map tmap in
-                              let ns = Ast.Sinst (nv, nmodv) in
-                              Ast.Qcons (ns, res)
-  | HiFirrtl.Swhen (c, s1, s2) -> let nc = Pair2string.expr_pair_to_string c map tmap in
-                              let ns1 = trans_stmts s1 map tmap Ast.Qnil in 
-                              let ns2 = trans_stmts s2 map tmap Ast.Qnil in 
-                              let ns = Ast.Swhen (nc, ns1, ns2) in
-                              Ast.Qcons (ns, res)
+  | HiFirrtl.Sfcnct (Eid v, e) -> (match Pair2string.pair_to_string (Obj.magic v) map tmap, Pair2string.expr_pair_to_string e map tmap with
+                              | Some nv, Some ne ->
+                                let ns = Ast.Sfcnct (Eid nv, ne) in
+                                Ast.Qcons (ns, res)
+                              | _, _ -> res)
+  | HiFirrtl.Sinvalid (Eid v) -> (match Pair2string.pair_to_string (Obj.magic v) map tmap with
+                              | Some nv ->
+                                let ns = Ast.Sinvalid (Eid nv) in
+                                Ast.Qcons (ns, res)
+                              | _ -> res)
+  | HiFirrtl.Snode (v, e) -> (match Pair2string.pair_to_string (Obj.magic v) map tmap, Pair2string.expr_pair_to_string e map tmap with
+                              | Some nv, Some ne ->
+                                let ns = Ast.Snode (nv, ne) in
+                                Ast.Qcons (ns, res)
+                              | _, _ -> res)
+  | HiFirrtl.Sreg (v, r) -> (match Pair2string.pair_to_string (Obj.magic v) map tmap, r.coq_type with
+                              | Some nv, HiEnv.Gtyp ty ->
+                                let nty = Pair2string.fgtyp_pair_to_string ty in
+                                (match Pair2string.expr_pair_to_string r.clock map tmap, trans_rst r.reset map tmap with
+                                | Some nclock, Some nrst -> 
+                                  let ns = Ast.Sreg (nv, Ast.mk_freg_r (Ast.Gtyp nty) nclock nrst) in
+                                  Ast.Qcons (ns, res)
+                                | _, _ -> res)
+                              | _ -> res)
+  | HiFirrtl.Sinst (v, modv) -> (match Pair2string.pair_to_string (Obj.magic v) map tmap, Pair2string.pair_to_string (Obj.magic modv) map tmap with
+                              | Some nv, Some nmodv -> 
+                                let ns = Ast.Sinst (nv, nmodv) in
+                                Ast.Qcons (ns, res)
+                              | _, _ -> res)
+  | HiFirrtl.Swhen (c, s1, s2) -> (match Pair2string.expr_pair_to_string c map tmap with
+                              | Some nc ->
+                                let ns1 = trans_stmts s1 map tmap Ast.Qnil in
+                                let ns2 = trans_stmts s2 map tmap Ast.Qnil in
+                                let ns = Ast.Swhen (nc, ns1, ns2) in
+                                Ast.Qcons (ns, res)
+                              | _ -> res)
   | _ -> res 
 
 and trans_stmts ss map tmap res =
@@ -72,7 +88,7 @@ let trans_mod m modmap map =
   | HiFirrtl.FInmod (mv, pl, sl) -> 
     let mv_string = Transhiast.IntMap.find (fst (Obj.magic mv)) modmap in
     let ((map0, map1), tmap) = Transhiast.StringMap.find mv_string map in
-    let newports = List.map (fun a -> trans_port a map1 tmap) pl in
+    let newports = trans_ports pl map1 tmap [] in
     let newstmts = trans_stmts sl map1 tmap Ast.Qnil in
     Ast.FInmod(mv_string, newports, revstmts newstmts Ast.Qnil)
   | HiFirrtl.FExmod (mv, _, _) -> 
