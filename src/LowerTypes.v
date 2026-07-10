@@ -542,7 +542,7 @@ Definition expand_fcnct (pv0 pv1 : ProdVarOrder.t) (offset : nat) (flip : bool)
   | None => None
   end.
 
-Fixpoint expandconnects_stmt_aux (s : HiF.hfstmt) (tmap : VM.t (ftype * fcomponent))
+Fixpoint lowertypes_stmt_aux (s : HiF.hfstmt) (tmap : VM.t (ftype * fcomponent))
                                  (acc : HiFP.hfstmt_seq) : option HiFP.hfstmt_seq :=
   match s with
   | Sskip
@@ -581,8 +581,8 @@ Fixpoint expandconnects_stmt_aux (s : HiF.hfstmt) (tmap : VM.t (ftype * fcompone
   | Swhen c ss1 ss2 =>
       match expand_ground_expr c tmap with
       | Some c' =>
-          match expandconnects_stmts_aux ss1 tmap HiFP.qnil,
-                expandconnects_stmts_aux ss2 tmap HiFP.qnil with
+          match lowertypes_stmts_aux ss1 tmap HiFP.qnil,
+                lowertypes_stmts_aux ss2 tmap HiFP.qnil with
           | Some acc1, Some acc2 =>
               let stmt := Swhen c' (Qcatrev acc1 HiFP.qnil) (Qcatrev acc2 HiFP.qnil) in
               Some (Qcons stmt acc)
@@ -592,48 +592,48 @@ Fixpoint expandconnects_stmt_aux (s : HiF.hfstmt) (tmap : VM.t (ftype * fcompone
       end
   end
 
-with expandconnects_stmts_aux (ss : HiF.hfstmt_seq) (tmap : VM.t (ftype * fcomponent))
+with lowertypes_stmts_aux (ss : HiF.hfstmt_seq) (tmap : VM.t (ftype * fcomponent))
                               (acc : HiFP.hfstmt_seq) : option HiFP.hfstmt_seq :=
   match ss with
   | Qnil => Some acc
   | Qcons s ss' =>
-      match expandconnects_stmt_aux s tmap acc with
-      | Some acc' => expandconnects_stmts_aux ss' tmap acc'
+      match lowertypes_stmt_aux s tmap acc with
+      | Some acc' => lowertypes_stmts_aux ss' tmap acc'
       | None => None
       end
   end.
 
-Definition expandconnects_stmt (s : HiF.hfstmt) (tmap : VM.t (ftype * fcomponent))
+Definition lowertypes_stmt (s : HiF.hfstmt) (tmap : VM.t (ftype * fcomponent))
                                (sts : HiFP.hfstmt_seq) : option HiFP.hfstmt_seq :=
-  match expandconnects_stmt_aux s tmap HiFP.qnil with
+  match lowertypes_stmt_aux s tmap HiFP.qnil with
   | Some acc => Some (Qcatrev acc sts)
   | None => None
   end.
 
-Definition expandconnects_stmts (ss : HiF.hfstmt_seq) (tmap : VM.t (ftype * fcomponent))
+Definition lowertypes_stmts (ss : HiF.hfstmt_seq) (tmap : VM.t (ftype * fcomponent))
                                 (sts : HiFP.hfstmt_seq) : option HiFP.hfstmt_seq :=
-  match expandconnects_stmts_aux ss tmap HiFP.qnil with
+  match lowertypes_stmts_aux ss tmap HiFP.qnil with
   | Some acc => Some (Qcatrev acc sts)
   | None => None
   end.
 
-Fixpoint expandconnects_fml (ml : list HiF.hfmodule) (tmap : VM.t (VM.t (ftype * fcomponent))) : option (list HiFP.hfmodule) :=
+Fixpoint lowertypes_fml (ml : list HiF.hfmodule) (tmap : VM.t (VM.t (ftype * fcomponent))) : option (list HiFP.hfmodule) :=
   match ml with
   | nil => Some nil
   | (FInmod mv ps ss) :: tl => match VM.find mv tmap with
                           | Some tmap_mod => let ps' := expand_ports ps nil in
-                              match expandconnects_stmts ss tmap_mod HiFP.qnil, expandconnects_fml tl tmap with
+                              match lowertypes_stmts ss tmap_mod HiFP.qnil, lowertypes_fml tl tmap with
                               | Some sts, Some fml => Some ((HiFP.hfinmod (mv, N0) (rev ps') sts) :: fml)
                               | _, _ => None
                               end
                           | _ => None
                           end
-  | _ :: tl => expandconnects_fml tl tmap
+  | _ :: tl => lowertypes_fml tl tmap
   end.
 
-Definition expandconnects (c : HiF.hfcircuit) : option HiFP.hfcircuit :=
+Definition lowertypes (c : HiF.hfcircuit) : option HiFP.hfcircuit :=
   match c, circuit_tmap c with
-  | Fcircuit v ml, Some tmap => match expandconnects_fml ml tmap with
+  | Fcircuit v ml, Some tmap => match lowertypes_fml ml tmap with
     | Some fml => Some (HiFP.fcircuit (v,N0) fml)
     | _ => None
     end

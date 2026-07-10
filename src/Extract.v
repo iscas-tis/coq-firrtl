@@ -17,5 +17,5 @@ Separate Extraction
          NBitsDef.from_string NBitsDef.from_hex NBitsDef.from_bin
          NBitsDef.to_hex NBitsDef.to_nat NBitsDef.to_bin
          Env.sizeof_fgtyp
-         LowerTypes.expandconnects ExpandWhens.expandWhens LowerTypes.preprocess_subaccess.
+         LowerTypes.lowertypes ExpandWhens.expandWhens LowerTypes.preprocess_subaccess.
 Cd "../../..".
