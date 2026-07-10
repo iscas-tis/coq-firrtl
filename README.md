@@ -75,7 +75,6 @@ Formalizes the **fixed-point semantics** and provides shared definitions used ac
 
 | Definition / Lemma | Paper Reference | Description |
 | :--- | :--- | :--- |
-| `ports_tmap`, `stmt_tmap`, `module_tmap`, `circuit_tmap` | Section 3.1.2 | Defines `port_kind`, `stmt_kind`, `module_kind`, `circuit_kind` |
 | `eval_hfstmt` | Section 3.2.1 | Defines `value_iter` (the semantic evaluator) |
 | `iterate` | Section 3.2.3 | Implements the iteration of the semantic functor |
 | `list_expr`, `list_ref` | Section 4.1 | Defines `listGExp` and `listGTypeRef` (used in type inference) |
@@ -106,7 +105,9 @@ Formalizes the **lowerTypes** transformation (Section 4.1 of the paper).
 | `eval_expand_inv` | Lemma 4.7 | Invalidation case of **Statement Expansion** |
 | `eval_expand_wire` | Lemma 4.7 | Wire declaration case of **Statement Expansion** |
 | `eval_expand_reg` | Lemma 4.7 | Register declaration case of **Statement Expansion** |
+| `eval_expand_node` | Lemma 4.7 | Node case of **Statement Expansion** |
 | `eval_expand_fcnct` | Lemma 4.7 | Connection case of **Statement Expansion** |
+| `eval_expand_stmt` | Lemma 4.7 | **Statement Expansion** |
 | `Sem_preservation_lowerTypes` | Theorem 4.9 | **Correctness of LowerTypes** |
 
 ---
@@ -133,7 +134,7 @@ Formalizes the **expandWhens** transformation (Section 5.1 of the paper).
 | `find_node_qin_with_cond`, `eval_hfstmts_for_unique_node` | Lemma 5.3 | **Node Evaluation** correctness |
 | `eval_hfstmts_ExpandBranches_funs_find_for_comb` | Lemma 5.4 | **Soundness of `collectConnects`** |
 | `eval_hfstmts_convert_to_connect_stmts_for_comb` | Lemma 5.5 | **Soundness of `connStmts`** |
-| `func_type_included_eval_hfstmts` | Lemma 5.6 | **Single-step Simulation** relation |
+| `func_type_included_eval_hfstmts` | Lemma 5.6 | **Single-step Simulation**  |
 | `Sem_preservation_expandWhens` | Theorem 5.8 | **Correctness of ExpandWhens** |
 
 ---

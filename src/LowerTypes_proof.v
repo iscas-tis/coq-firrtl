@@ -71,6 +71,10 @@ Inductive hvalue2bits : option (VM.t hvalue * VM.t hvalue) -> option (PVM.t bits
     
     hvalue2bits (Some v) (Some b).
 
+Inductive flatten_sem_rel : PVM.t bits -> PVM.t bits -> Prop :=
+| flatten_rs : forall hv rs1 bs1 rs2 bs2, hvalue2bits (Some hv) (Some (rs1, bs1)) -> hvalue2bits (Some hv) (Some (rs2, bs2)) -> flatten_sem_rel rs1 rs2
+| flatten_bs : forall hv rs1 bs1 rs2 bs2, hvalue2bits (Some hv) (Some (rs1, bs1)) -> hvalue2bits (Some hv) (Some (rs2, bs2)) -> flatten_sem_rel bs1 bs2.
+
 Fixpoint expand_wire' (v : VarOrder.t) (ft : ftype) (offset : nat) (sts : HiFP.hfstmt_seq) : HiFP.hfstmt_seq :=
   match ft with 
   | Gtyp _ => HiFP.qrcons sts (HiFP.swire (v, N.of_nat offset) ft)
@@ -200,7 +204,8 @@ case Hosrv : (Sem_HiF.offset_ref v tmp 0) => [off|]; last apply nonev.
   case Hfdvs : (VM.find (HiF.base_ref v) s) => [val|]; last apply nonev.
   - case Hupdhof: (Sem_HiF.update_hvalue_by_offset val off (Sem_HiF.invalidate_ft typv)) => [val'|]; 
     first case Hev : ((Sem_HiFP.eval_hfstmts
-                     (expand_invalid' (size_of_ftype typv) vr HiFP.qnil) rs' ns' s' tmp')) =>[evrs'|]; last by apply nonev.
+                         (expand_invalid' (size_of_ftype typv) vr HiFP.qnil) rs' ns' s' tmp')) =>[evrs'|];
+                                                                                                 last by apply nonev.
     + apply somev_someb. + apply noneb. + apply nonev.
   - case Hupdhof: (Sem_HiF.update_hvalue_by_offset val off (Sem_HiF.invalidate_ft typv)) => [val'|]; 
     first case Hev : ((Sem_HiFP.eval_hfstmts
@@ -212,7 +217,8 @@ case Hosrv : (Sem_HiF.offset_ref v tmp 0) => [off|]; last apply nonev.
     + apply somev_someb. + apply noneb. + apply nonev.
   - case Hupdhof: (Sem_HiF.update_hvalue_by_offset val off (Sem_HiF.invalidate_ft typv)) => [val'|]; 
     first case Hev : ((Sem_HiFP.eval_hfstmts
-                     (expand_invalid' (size_of_ftype typv) vr HiFP.qnil) rs' ns' s' tmp')) =>[evrs'|]; last by apply nonev.
+                         (expand_invalid' (size_of_ftype typv) vr HiFP.qnil) rs' ns' s' tmp')) =>[evrs'|];
+                                                                                                 last by apply nonev.
     + apply somev_someb. + apply noneb. + apply nonev.
   - case Hupdhof: (Sem_HiF.update_hvalue_by_offset val off (Sem_HiF.invalidate_ft typv)) => [val'|]; 
     first case Hev : ((Sem_HiFP.eval_hfstmts
@@ -224,11 +230,13 @@ case Hosrv : (Sem_HiF.offset_ref v tmp 0) => [off|]; last apply nonev.
     + apply somev_someb. + apply noneb. + apply nonev.
   - case Hupdhof: (Sem_HiF.update_hvalue_by_offset val off (Sem_HiF.invalidate_ft typv)) => [val'|]; 
     first case Hev : ((Sem_HiFP.eval_hfstmts
-                     (expand_invalid' (size_of_ftype typv) vr HiFP.qnil) rs' ns' s' tmp')) =>[evrs'|]; last by apply nonev.
+                         (expand_invalid' (size_of_ftype typv) vr HiFP.qnil) rs' ns' s' tmp')) =>[evrs'|];
+                                                                                                 last by apply nonev.
     + apply somev_someb. + apply noneb. + apply nonev.
   - case Hupdhof: (Sem_HiF.update_hvalue_by_offset val off (Sem_HiF.invalidate_ft typv)) => [val'|]; 
     first case Hev : ((Sem_HiFP.eval_hfstmts
-                     (expand_invalid' (size_of_ftype typv) vr HiFP.qnil) rs' ns' s' tmp')) =>[evrs'|]; last by apply nonev.
+                         (expand_invalid' (size_of_ftype typv) vr HiFP.qnil) rs' ns' s' tmp')) =>[evrs'|];
+                                                                                                 last by apply nonev.
     + apply somev_someb. + apply noneb.
 Qed.
 
@@ -307,7 +315,7 @@ Proof.
   move => rs ns s rs' ns' s' tmp tmp' Hhvbt/=//.
 Qed.
 
-Lemma eval_expand_smem : forall v t rs ns s rs' ns' s' tmp tmp',
+Lemma eval_expand_mem : forall v t rs ns s rs' ns' s' tmp tmp',
     hvalue2bits (Some (rs, ns)) (Some (rs', ns')) ->
     match (lowertypes_stmt' (Smem v t) tmp HiFP.qnil) with
     | Some r => 
@@ -318,7 +326,7 @@ Proof.
   move => v t rs ns s rs' ns' s' tmp tmp' Hhvbt/=//.
 Qed.
 
-Lemma eval_expand_sinst : forall v t rs ns s rs' ns' s' tmp tmp',
+Lemma eval_expand_inst : forall v t rs ns s rs' ns' s' tmp tmp',
     hvalue2bits (Some (rs, ns)) (Some (rs', ns')) ->
     match (lowertypes_stmt' (Sinst v t) tmp HiFP.qnil) with
     | Some r => 
@@ -345,7 +353,462 @@ Proof.
   - apply noneb.
 Qed.
 
-Lemma eval_expand_fcnct : forall v e rs ns s rs' ns' s' tmp tmp',
+
+Lemma eval_expand_node : forall v e rs ns s rs' ns' s' tmp tmp',
+    hvalue2bits (Some (rs, ns)) (Some (rs', ns')) ->
+    match (lowertypes_stmt' (Snode v e) tmp HiFP.qnil) with
+    | Some r => 
+        hvalue2bits (Sem_HiF.eval_hfstmt (Snode v e) rs ns s tmp) (Sem_HiFP.eval_hfstmts r rs' ns' s' tmp')
+    | None => True
+    end.
+Proof.
+  move => v e rs ns s rs' ns' s' tmp tmp' Hhvtb/=.
+  case Hlexp : (list_expr e tmp) => [el|];
+   last rewrite//.
+  case Hexnd : (expand_node v 0 (rev el) HiFP.qnil) => [r|];
+   last rewrite //.
+  case Hevex : (Sem_HiF.eval_hfexpr e s tmp) => [val|];
+   last apply nonev.
+  case Hevst : (Sem_HiFP.eval_hfstmts r rs' ns' s' tmp') => [a|].
+  apply somev_someb. apply noneb.
+Qed.                                                            
+
+Lemma eval_expand_fcnctesub : forall esf f h1 rs ns s rs' ns' s' tmp tmp',
+    hvalue2bits (Some (rs, ns)) (Some (rs', ns')) ->
+    match lowertypes_stmt' (Sfcnct (Esubfield esf f) h1) tmp HiFP.qnil with
+    | Some r =>
+        hvalue2bits (Sem_HiF.eval_hfstmt (Sfcnct (Esubfield esf f) h1) rs ns s tmp)
+          (Sem_HiFP.eval_hfstmts r rs' ns' s' tmp')
+    | None => True
+    end.
+Proof.
+  move => esf f h1 rs ns s rs' ns' s' tmp tmp' Hhvtb/=.
+  case Hh1 : h1 => [fty b|u h|e h|e e1 e2|e e1 e2|h].
+  - case Hrf2pv : (ref2pv (Esubfield esf f) tmp) => [pv|];
+   last rewrite //.
+    case Hlexp : (list_expr (Econst VarOrder.T fty b) tmp) => [el|] ;
+   last rewrite //.
+    case Hexcn : (expand_fcnct_nflip pv (rev el) HiFP.qnil) => [expd|];
+   last rewrite //.
+    case Hofref : (Sem_HiF.offset_ref esf tmp 0) => [os|];
+   last apply nonev.
+    case Htpref : (Sem_HiF.type_of_ref esf tmp) => [fs|];
+   last apply nonev.
+    case Hfs : fs => [gft||bft];
+   try apply nonev.
+    case Hauxbo : ((fix aux (fx : ffield) (acc : nat) {struct fx} : option nat :=
+         match fx with
+         | Fnil => None
+         | Fflips v' _ ty fxs => if v' == f then Some (acc + 1) else aux fxs (acc + Sem_HiF.elements_of_ftype ty)
+         end) bft os) => [a|];
+   last apply nonev.
+    case Hevex : (Sem_HiF.eval_hfexpr (Econst VarOrder.T fty b) s tmp) => [nv|];
+   last apply nonev.
+    case Hfdt : (VM.find (HiF.base_ref esf) tmp) => [[ft c]|];
+   last apply nonev.
+    case Hc : c;
+  
+    case Hfds : (VM.find (HiF.base_ref esf) s) => [val|];
+   try apply nonev;
+  
+    case Hupd : (Sem_HiF.update_hvalue_by_offset val a nv) => [val'|];
+   try apply nonev;
+  
+    case Hevst : ((Sem_HiFP.eval_hfstmts expd rs' ns' s' tmp')) => [evr|];
+  
+    (apply somev_someb|| apply noneb).
+  - case Hrf2pv : (ref2pv (Esubfield esf f) tmp) => [pv|];
+   last rewrite //.
+    case Hlex : (list_expr (Ecast u h) tmp) => [el|];
+   last rewrite //.
+    case Hexpd : (expand_fcnct_nflip pv (rev el) HiFP.qnil)=> [expd|];
+   last rewrite //.
+    case Hofsr : (Sem_HiF.offset_ref esf tmp 0) => [os|];
+   last apply nonev.
+    case Htor : (Sem_HiF.type_of_ref esf tmp) => [ftyp|];
+   last apply nonev.
+    case Hftyp : ftyp => [gft||bft];
+   try apply nonev.
+    case Haux : ((fix aux (fx : ffield) (acc : nat) {struct fx} : option nat :=
+         match fx with
+         | Fnil => None
+         | Fflips v' _ ty fxs =>
+             if v' == f
+             then Some (acc + 1)
+             else aux fxs (acc + Sem_HiF.elements_of_ftype ty)
+         end) bft os) => [a|];
+   last apply nonev.
+    case Hevex : (Sem_HiF.eval_hfexpr (Ecast u h) s tmp)=> [nv|];
+   last apply nonev.
+    case Hfdt : (VM.find (HiF.base_ref esf) tmp) => [[ft c]|];
+   last apply nonev.
+    case Hc : c;
+  
+    case Hfds : (VM.find (HiF.base_ref esf) s) => [val|];
+   try apply nonev;
+  
+    case Hupd : (Sem_HiF.update_hvalue_by_offset val a nv) => [val'|];
+   try apply nonev;
+  
+    case Hevst : ((Sem_HiFP.eval_hfstmts expd rs' ns' s' tmp')) => [evr|];
+  
+    (apply somev_someb|| apply noneb).
+  - case Hrf2pv : (ref2pv (Esubfield esf f) tmp) => [pv|];
+   last rewrite //.
+    case Hlex : (list_expr (Eprim_unop e h) tmp) => [el|];
+   last rewrite //.
+    case Hexpd : (expand_fcnct_nflip pv (rev el) HiFP.qnil)=> [expd|];
+   last rewrite //.
+    case Hofsr : (Sem_HiF.offset_ref esf tmp 0) => [os|];
+   last apply nonev.
+    case Htor : (Sem_HiF.type_of_ref esf tmp) => [ftyp|];
+   last apply nonev.
+    case Hftyp : ftyp => [gft||bft];
+   try apply nonev.
+    case Haux : ((fix aux (fx : ffield) (acc : nat) {struct fx} : option nat :=
+         match fx with
+         | Fnil => None
+         | Fflips v' _ ty fxs =>
+             if v' == f
+             then Some (acc + 1)
+             else aux fxs (acc + Sem_HiF.elements_of_ftype ty)
+         end) bft os) => [a|];
+   last apply nonev.
+    case Hevex : (Sem_HiF.eval_hfexpr (Eprim_unop e h) s tmp)=> [nv|];
+   last apply nonev.
+    case Hfdt : (VM.find (HiF.base_ref esf) tmp) => [[ft c]|];
+   last apply nonev.
+    case Hc : c;
+  
+    case Hfds : (VM.find (HiF.base_ref esf) s) => [val|];
+   try apply nonev;
+  
+    case Hupd : (Sem_HiF.update_hvalue_by_offset val a nv) => [val'|];
+   try apply nonev;
+    case Hevst : ((Sem_HiFP.eval_hfstmts expd rs' ns' s' tmp')) => [evr|];
+  
+                                                                   (apply somev_someb|| apply noneb).
+  - case Hrf2pv : (ref2pv (Esubfield esf f) tmp) => [pv|];
+   last rewrite //.
+    case Hlex : (list_expr (Eprim_binop e e1 e2) tmp) => [el|];
+   last rewrite //.
+    case Hexpd : (expand_fcnct_nflip pv (rev el) HiFP.qnil)=> [expd|];
+   last rewrite //.
+    case Hofsr : (Sem_HiF.offset_ref esf tmp 0) => [os|];
+   last apply nonev.
+    case Htor : (Sem_HiF.type_of_ref esf tmp) => [ftyp|];
+   last apply nonev.
+    case Hftyp : ftyp => [gft||bft];
+   try apply nonev.
+    case Haux : ((fix aux (fx : ffield) (acc : nat) {struct fx} : option nat :=
+         match fx with
+         | Fnil => None
+         | Fflips v' _ ty fxs =>
+             if v' == f
+             then Some (acc + 1)
+             else aux fxs (acc + Sem_HiF.elements_of_ftype ty)
+         end) bft os) => [a|];
+   last apply nonev.
+    case Hevex : (Sem_HiF.eval_hfexpr (Eprim_binop e e1 e2) s tmp)=> [nv|];
+   last apply nonev.
+    case Hfdt : (VM.find (HiF.base_ref esf) tmp) => [[ft c]|];
+   last apply nonev.
+    case Hc : c;
+    case Hfds : (VM.find (HiF.base_ref esf) s) => [val|];
+   try apply nonev;
+    case Hupd : (Sem_HiF.update_hvalue_by_offset val a nv) => [val'|];
+   try apply nonev;
+    case Hevst : ((Sem_HiFP.eval_hfstmts expd rs' ns' s' tmp')) => [evr|];
+                                                                   (apply somev_someb|| apply noneb).
+  - case Hrf2pv : (ref2pv (Esubfield esf f) tmp) => [pv|];
+   last rewrite //.
+    case Hlex : (list_expr (Emux e e1 e2) tmp) => [el|];
+   last rewrite //.
+    case Hexpd : (expand_fcnct_nflip pv (rev el) HiFP.qnil)=> [expd|];
+   last rewrite //.
+    case Hofsr : (Sem_HiF.offset_ref esf tmp 0) => [os|];
+   last apply nonev.
+    case Htor : (Sem_HiF.type_of_ref esf tmp) => [ftyp|];
+   last apply nonev.
+    case Hftyp : ftyp => [gft||bft];
+   try apply nonev.
+    case Haux : ((fix aux (fx : ffield) (acc : nat) {struct fx} : option nat :=
+         match fx with
+         | Fnil => None
+         | Fflips v' _ ty fxs =>
+             if v' == f
+             then Some (acc + 1)
+             else aux fxs (acc + Sem_HiF.elements_of_ftype ty)
+         end) bft os) => [a|];
+   last apply nonev.
+    case Hevex : (Sem_HiF.eval_hfexpr (Emux e e1 e2) s tmp)=> [nv|];
+   last apply nonev.
+    case Hfdt : (VM.find (HiF.base_ref esf) tmp) => [[ft c]|];
+   last apply nonev.
+    case Hc : c;
+    case Hfds : (VM.find (HiF.base_ref esf) s) => [val|];
+   try apply nonev;
+    case Hupd : (Sem_HiF.update_hvalue_by_offset val a nv) => [val'|];
+   try apply nonev;
+    case Hevst : ((Sem_HiFP.eval_hfstmts expd rs' ns' s' tmp')) => [evr|];
+                                                                   (apply somev_someb|| apply noneb).
+  - case Hrf2pv : (ref2pv (Esubfield esf f) tmp) => [pv|];
+   last rewrite //.
+    case Hrf2pvh : (ref2pv h tmp) => [pv1|];
+   last rewrite //.
+    case Htor : (Sem_HiF.type_of_ref esf tmp) => [ftyp|];
+   last rewrite //.
+    case Hftyp : ftyp => [gft||bft];
+   rewrite //.
+    case Haux : (      (fix aux (fx : ffield) : option ftype :=
+         match fx with
+         | Fnil => None
+         | Fflips v' _ t fxs => if f == v' then Some t else aux fxs
+         end) bft) => [a|];
+   last rewrite //.
+    case Hexpfc : (expand_fcnct pv pv1 0 false a HiFP.qnil) => [r|];
+   rewrite //.
+    case Hofsrf : (Sem_HiF.offset_ref esf tmp 0) => [os|];
+   last apply nonev.
+    case Haux2 : ((fix aux (fx : ffield) (acc : nat) {struct fx} : option nat :=
+         match fx with
+         | Fnil => None
+         | Fflips v' _ ty fxs =>
+             if v' == f
+             then Some (acc + 1)
+             else aux fxs (acc + Sem_HiF.elements_of_ftype ty)
+         end) bft os) => [ofsr|];
+   last apply nonev.
+    case Hofsrh : (Sem_HiF.offset_ref h tmp 0 ) => [ofstr|];
+   last apply nonev.
+    case Heqbs : (HiF.base_ref esf == HiF.base_ref h).
+    + case Hfdt : (VM.find (HiF.base_ref esf) tmp) => [[ft c]|].
+      * case Hfds : (VM.find (HiF.base_ref esf) s) => [val|];
+   try apply nonev.
+        case Hupd : (Sem_HiF.eval_ref_connection1 a val ofsr ofstr) => [val'|];
+   last apply nonev.
+        case Hc : c;
+        case Hevst : ((Sem_HiFP.eval_hfstmts r rs' ns' s' tmp')) => [evr|];
+                                                                    (apply somev_someb|| apply noneb).
+      * case Hfds : (VM.find (HiF.base_ref esf) s) => [val|];
+   try apply nonev.
+        case Hupd : (Sem_HiF.eval_ref_connection1 a val ofsr ofstr) => [val'|];
+   apply nonev.
+    + case Hfdt : (VM.find (HiF.base_ref esf) tmp) => [[ft c]|].
+      * case Hfds : (VM.find (HiF.base_ref esf) s) => [val|];
+   try apply nonev.
+        case Hfdbs : (VM.find (HiF.base_ref h) s) => [valbr|];
+   last apply nonev.
+        case Hevrf : ( Sem_HiF.eval_ref_connection a val valbr ofsr ofstr) => [[valbr' valbrf]|];
+   last apply nonev.
+        case Hc : c;
+        case Hevst : (VM.find (HiF.base_ref h) tmp) => [[evr evf]|]; try apply nonev;
+        case Hevf : evf;
+        case Hevsts : ((Sem_HiFP.eval_hfstmts r rs' ns' s' tmp')) => [evr'|];
+                                                                     (apply somev_someb|| apply noneb).
+      * case Hfds : (VM.find (HiF.base_ref esf) s) => [val|];
+   try apply nonev.
+        case Hfdbr : (VM.find (HiF.base_ref h) s) => [valbr|];
+   last apply nonev.
+        case Hevrc : (Sem_HiF.eval_ref_connection a val valbr ofsr ofstr) => [[val1 val2]|];
+   apply nonev.
+Qed.
+
+Lemma eval_expand_fcnctesubind : forall eind n h1 rs ns s rs' ns' s' tmp tmp',
+    hvalue2bits (Some (rs, ns)) (Some (rs', ns')) ->
+    match lowertypes_stmt' (Sfcnct (Esubindex eind n) h1) tmp HiFP.qnil with
+    | Some r =>
+        hvalue2bits (Sem_HiF.eval_hfstmt (Sfcnct (Esubindex eind n) h1) rs ns s tmp)
+          (Sem_HiFP.eval_hfstmts r rs' ns' s' tmp')
+    | None => True
+    end.
+Proof.
+  move => eind n h1 rs ns s rs' ns' s' tmp tmp' Hhvtb/=.
+  case Hh1 : h1 => [fty b|u h|e h|e e1 e2|e e1 e2|h].
+  - case Hrf2pv : (ref2pv (Esubindex eind n) tmp) => [pv|];
+   last rewrite //.
+    case Hlexp : (list_expr (Econst VarOrder.T fty b) tmp) => [el|] ;
+   last rewrite //.
+    case Hexcn : (expand_fcnct_nflip pv (rev el) HiFP.qnil) => [expd|];
+   last rewrite //.
+    case Hofref : (Sem_HiF.offset_ref eind tmp 0) => [os|];
+   last apply nonev.
+    case Htpref : (Sem_HiF.type_of_ref eind tmp) => [fs|];
+   last apply nonev.
+    case Hfs : fs => [gft|ty na|bft];
+   try apply nonev.
+    case Hevex : (Sem_HiF.eval_hfexpr (Econst VarOrder.T fty b) s tmp) => [nv|];
+   last apply nonev.
+    case Hfdt : (VM.find (HiF.base_ref eind) tmp) => [[ft c]|];
+   last apply nonev.
+    case Hc : c;
+    case Hfds : (VM.find (HiF.base_ref eind) s) => [val|];
+   try apply nonev;
+    case Hupd : (Sem_HiF.update_hvalue_by_offset val (os + n * Sem_HiF.elements_of_ftype ty + 1) nv) => [val'|];
+   try apply nonev;
+    case Hevst : ((Sem_HiFP.eval_hfstmts expd rs' ns' s' tmp')) => [evr|];
+    (apply somev_someb|| apply noneb).
+  - case Hrf2pv : (ref2pv (Esubindex eind n) tmp) => [pv|];
+   last rewrite //.
+    case Hlex : (list_expr (Ecast u h) tmp) => [el|];
+   last rewrite //.
+    case Hexpd : (expand_fcnct_nflip pv (rev el) HiFP.qnil)=> [expd|];
+   last rewrite //.
+    case Hofsr : (Sem_HiF.offset_ref eind tmp 0) => [os|];
+   last apply nonev.
+    case Htor : (Sem_HiF.type_of_ref eind tmp) => [ftyp|];
+   last apply nonev.
+    case Hftyp : ftyp => [gft|aty na|bft];
+   try apply nonev.
+    case Hevex : (Sem_HiF.eval_hfexpr (Ecast u h) s tmp)=> [nv|];
+   last apply nonev.
+    case Hfdt : (VM.find (HiF.base_ref eind) tmp) => [[ft c]|];
+   last apply nonev.
+    case Hc : c;
+    case Hfds : (VM.find (HiF.base_ref eind) s) => [val|];
+   try apply nonev;
+    case Hupd : (Sem_HiF.update_hvalue_by_offset val (os + n * Sem_HiF.elements_of_ftype aty + 1) nv) => [val'|];
+   try apply nonev;
+    case Hevst : ((Sem_HiFP.eval_hfstmts expd rs' ns' s' tmp')) => [evr|];
+    (apply somev_someb|| apply noneb).
+  - case Hrf2pv : (ref2pv (Esubindex eind n) tmp) => [pv|];
+   last rewrite //.
+    case Hlex : (list_expr (Eprim_unop e h) tmp) => [el|];
+   last rewrite //.
+    case Hexpd : (expand_fcnct_nflip pv (rev el) HiFP.qnil)=> [expd|];
+   last rewrite //.
+    case Hofsr : (Sem_HiF.offset_ref eind tmp 0) => [os|];
+   last apply nonev.
+    case Htor : (Sem_HiF.type_of_ref eind tmp) => [ftyp|];
+   last apply nonev.
+    case Hftyp : ftyp => [gft|aty na|bft];
+   try apply nonev.
+    case Hevex : (Sem_HiF.eval_hfexpr (Eprim_unop e h) s tmp)=> [nv|];
+   last apply nonev.
+    case Hfdt : (VM.find (HiF.base_ref eind) tmp) => [[ft c]|];
+   last apply nonev.
+    case Hc : c;
+    case Hfds : (VM.find (HiF.base_ref eind) s) => [val|];
+   try apply nonev;
+    case Hupd : (Sem_HiF.update_hvalue_by_offset val ((os + n * Sem_HiF.elements_of_ftype aty + 1)) nv) => [val'|];
+   try apply nonev;
+    case Hevst : ((Sem_HiFP.eval_hfstmts expd rs' ns' s' tmp')) => [evr|];
+                                                                   (apply somev_someb|| apply noneb).
+  - case Hrf2pv : (ref2pv (Esubindex eind n) tmp) => [pv|];
+   last rewrite //.
+    case Hlex : (list_expr (Eprim_binop e e1 e2) tmp) => [el|];
+   last rewrite //.
+    case Hexpd : (expand_fcnct_nflip pv (rev el) HiFP.qnil)=> [expd|];
+   last rewrite //.
+    case Hofsr : (Sem_HiF.offset_ref eind tmp 0) => [os|];
+   last apply nonev.
+    case Htor : (Sem_HiF.type_of_ref eind tmp) => [ftyp|];
+   last apply nonev.
+    case Hftyp : ftyp => [gft|aty na|bft];
+   try apply nonev.
+    case Hevex : (Sem_HiF.eval_hfexpr (Eprim_binop e e1 e2) s tmp)=> [nv|];
+   last apply nonev.
+    case Hfdt : (VM.find (HiF.base_ref eind) tmp) => [[ft c]|];
+   last apply nonev.
+    case Hc : c;
+    case Hfds : (VM.find (HiF.base_ref eind) s) => [val|];
+   try apply nonev;
+    case Hupd : (Sem_HiF.update_hvalue_by_offset val (os + n * Sem_HiF.elements_of_ftype aty + 1) nv) => [val'|];
+   try apply nonev;
+    case Hevst : ((Sem_HiFP.eval_hfstmts expd rs' ns' s' tmp')) => [evr|];
+                                                                   (apply somev_someb|| apply noneb).
+  - case Hrf2pv : (ref2pv (Esubindex eind n) tmp) => [pv|];
+   last rewrite //.
+    case Hlex : (list_expr (Emux e e1 e2) tmp) => [el|];
+   last rewrite //.
+    case Hexpd : (expand_fcnct_nflip pv (rev el) HiFP.qnil)=> [expd|];
+   last rewrite //.
+    case Hofsr : (Sem_HiF.offset_ref eind tmp 0) => [os|];
+   last apply nonev.
+    case Htor : (Sem_HiF.type_of_ref eind tmp) => [ftyp|];
+   last apply nonev.
+    case Hftyp : ftyp => [gft|aty na|bft];
+   try apply nonev.
+    case Hevex : (Sem_HiF.eval_hfexpr (Emux e e1 e2) s tmp)=> [nv|];
+   last apply nonev.
+    case Hfdt : (VM.find (HiF.base_ref eind) tmp) => [[ft c]|];
+   last apply nonev.
+    case Hc : c;
+  
+    case Hfds : (VM.find (HiF.base_ref eind) s) => [val|];
+   try apply nonev;
+    case Hupd : (Sem_HiF.update_hvalue_by_offset val (os + n * Sem_HiF.elements_of_ftype aty + 1) nv) => [val'|];
+   try apply nonev;
+    case Hevst : ((Sem_HiFP.eval_hfstmts expd rs' ns' s' tmp')) => [evr|];
+                                                                   (apply somev_someb|| apply noneb).
+  - case Hrf2pv : (ref2pv (Esubindex eind n) tmp) => [pv|];
+   last rewrite //.
+    case Hrf2pvh : (ref2pv h tmp) => [pv1|];
+   last rewrite //.
+    case Htor : (Sem_HiF.type_of_ref eind tmp) => [ftyp|];
+   last rewrite //.
+    case Hftyp : ftyp => [gft|aty na|bft];
+   rewrite //.
+    case Hexpfc : (expand_fcnct pv pv1 0 false aty HiFP.qnil) => [r|];
+   rewrite //.
+    case Hofsrf : (Sem_HiF.offset_ref eind tmp 0) => [os|];
+   last apply nonev.
+    case Hofsrh : (Sem_HiF.offset_ref h tmp 0 ) => [ofstr|];
+   last apply nonev.
+    case Heqbs : (HiF.base_ref eind == HiF.base_ref h).
+    + case Hfdt : (VM.find (HiF.base_ref eind) tmp) => [[ft c]|].
+      * case Hfds : (VM.find (HiF.base_ref eind) s) => [val|];
+   try apply nonev.
+        case Hupd : (Sem_HiF.eval_ref_connection1 aty val (os + n * Sem_HiF.elements_of_ftype aty + 1) ofstr) => [val'|];
+   last apply nonev.
+        case Hc : c;
+        case Hevst : ((Sem_HiFP.eval_hfstmts r rs' ns' s' tmp')) => [evr|];
+                                                                    (apply somev_someb|| apply noneb).
+      * case Hfds : (VM.find (HiF.base_ref eind) s) => [val|];
+   try apply nonev.
+        case Hupd : (Sem_HiF.eval_ref_connection1 aty val (os + n * Sem_HiF.elements_of_ftype aty + 1) ofstr) => [val'|];
+   apply nonev.
+    + case Hfdt : (VM.find (HiF.base_ref eind) tmp) => [[ft c]|].
+      * case Hfds : (VM.find (HiF.base_ref eind) s) => [val|];
+   try apply nonev.
+        case Hfdbs : (VM.find (HiF.base_ref h) s) => [valbr|];
+   last apply nonev.
+        case Hevrf : ( Sem_HiF.eval_ref_connection aty val valbr (os + n * Sem_HiF.elements_of_ftype aty + 1) ofstr) => [[valbr' valbrf]|]; last apply nonev.
+        case Hc : c;
+        case Hevst : (VM.find (HiF.base_ref h) tmp) => [[evr evf]|];
+   try apply nonev;
+        case Hevf : evf;
+        case Hevsts : ((Sem_HiFP.eval_hfstmts r rs' ns' s' tmp')) => [evr'|];
+                                                                     (apply somev_someb|| apply noneb).
+      * case Hfds : (VM.find (HiF.base_ref eind) s) => [val|];
+   try apply nonev.
+        case Hfdbr : (VM.find (HiF.base_ref h) s) => [valbr|];
+   last apply nonev.
+        case Hevrc : (Sem_HiF.eval_ref_connection aty val valbr (os + n * Sem_HiF.elements_of_ftype aty + 1) ofstr) => [[val1 val2]|];
+   apply nonev.
+Qed.
+
+Lemma eval_expand_fcnctesubacc : forall es ea h1 rs ns s rs' ns' s' tmp tmp',
+    hvalue2bits (Some (rs, ns)) (Some (rs', ns')) ->
+    match (lowertypes_stmt' (Sfcnct (Esubaccess es ea) h1) tmp HiFP.qnil) with
+    | Some r => 
+        hvalue2bits (Sem_HiF.eval_hfstmt (Sfcnct (Esubaccess es ea) h1) rs ns s tmp) (Sem_HiFP.eval_hfstmts r rs' ns' s' tmp')
+    | None => True
+    end.
+Proof.
+  move => eind n h1 rs ns s rs' ns' s' tmp tmp' Hhvtb/=.
+  case Hh1 : h1 => [fty b|u h|e h|e e1 e2|e e1 e2|h]; rewrite //.
+Qed.  
+
+(* goal 3 (ID 708) is: *)
+(*  match lowertypes_stmt' (Sfcnct (Esubaccess es ea) h1) tmp HiFP.qnil with *)
+(*  | Some r => *)
+(*      hvalue2bits (Sem_HiF.eval_hfstmt (Sfcnct (Esubaccess es ea) h1) rs ns s tmp) *)
+(*        (Sem_HiFP.eval_hfstmts r rs' ns' s' tmp') *)
+(*  | None => True *)
+(*  end *)
+
+Lemma eval_expand_fcncteid : forall v e rs ns s rs' ns' s' tmp tmp',
     hvalue2bits (Some (rs, ns)) (Some (rs', ns')) ->
     match (lowertypes_stmt' (Sfcnct (Eid v) e) tmp HiFP.qnil) with
     | Some r => 
@@ -355,45 +818,171 @@ Lemma eval_expand_fcnct : forall v e rs ns s rs' ns' s' tmp tmp',
 Proof.
   move => v e rs ns s rs' ns' s' tmp tmp' Hhvtb/=.
   case He : e => [ref1 b|y h|e' h|e' h1 h2|c h1 h2|h].
-  - case Hlex : (list_expr (Econst VarOrder.T ref1 b) tmp) => [el|]; last rewrite //.
-    case Hexfnf : (expand_fcnct_nflip (v, 0%num) (rev el) HiFP.qnil) => [rv|]; last rewrite //.
-    case Hevex : (Sem_HiF.eval_hfexpr (Econst VarOrder.T ref1 b) s tmp) => [new_val|]; last apply nonev.
+  - case Hlex : (list_expr (Econst VarOrder.T ref1 b) tmp) => [el|];
+      last rewrite //.
+    case Hexfnf : (expand_fcnct_nflip (v, 0%num) (rev el) HiFP.qnil) => [rv|];
+      last rewrite //.
+    case Hevex : (Sem_HiF.eval_hfexpr (Econst VarOrder.T ref1 b) s tmp) => [new_val|];
+      last apply nonev.
+    case Hfdvt : (VM.find v tmp) => [[r ty]|];
+      last apply nonev.
+    case Hty : ty;
+      case Hfdvs : (VM.find v s) => [a|] ;
+                                    try apply nonev;
+                                    case Hupd : (Sem_HiF.update_hvalue_by_offset a 0 new_val) => [a'|];
+                                                                                                 (apply somev_someb || apply nonev|| rewrite /=);
+                                                                                                 case Hev : (Sem_HiFP.eval_hfstmts rv rs' ns' s' tmp') => [v'|];
+                                                                                                                                                          (apply somev_someb ||  apply noneb).
+  - case Hlex : (list_expr (Ecast y h) tmp) => [el|];
+      last rewrite //.
+    case Hexfnf : (expand_fcnct_nflip (v, 0%num) (rev el) HiFP.qnil) => [rv|];
+      last rewrite //.
+    case Hevex : (Sem_HiF.eval_hfexpr (Ecast y h) s tmp) => [new_val|]; 
+      last apply nonev.
+    case Hfdvt : (VM.find v tmp) => [[r ty]|]; 
+      last apply nonev.
+    case Hty : ty; 
+      case Hfdvs : (VM.find v s) => [a|] ; 
+      try apply nonev; case Hupd : (Sem_HiF.update_hvalue_by_offset a 0 new_val) => [a'|]; 
+      (apply somev_someb || apply nonev|| rewrite /=); 
+      case Hev : (Sem_HiFP.eval_hfstmts rv rs' ns' s' tmp') => [v'|]; 
+      (apply somev_someb ||  apply noneb).
+  - case Hlex : (list_expr (Eprim_unop e' h) tmp) => [el|]; 
+      last rewrite //.
+    case Hexfnf : (expand_fcnct_nflip (v, 0%num) (rev el) HiFP.qnil) => [rv|]; 
+      last rewrite //.
+    case Hevex : (Sem_HiF.eval_hfexpr (Eprim_unop e' h) s tmp) => [new_val|]; 
+      last apply nonev.
+    case Hfdvt : (VM.find v tmp) => [[r ty]|]; 
+      last apply nonev.
+    case Hty : ty; case Hfdvs : (VM.find v s) => [a|] ; 
+      try apply nonev; 
+      case Hupd : (Sem_HiF.update_hvalue_by_offset a 0 new_val) => [a'|]; 
+      (apply somev_someb || apply nonev|| rewrite /=); 
+      case Hev : (Sem_HiFP.eval_hfstmts rv rs' ns' s' tmp') => [v'|]; 
+      (apply somev_someb ||  apply noneb).
+  - case Hlex : (list_expr (Eprim_binop e' h1 h2) tmp) => [el|];
+                                                          last rewrite //.
+    case Hexfnf : (expand_fcnct_nflip (v, 0%num) (rev el) HiFP.qnil) => [rv|];
+                                                                        last rewrite //.
+    case Hevex : (Sem_HiF.eval_hfexpr (Eprim_binop e' h1 h2) s tmp) => [new_val|]; 
+      last apply nonev.
     case Hfdvt : (VM.find v tmp) => [[r ty]|]; last apply nonev.
-    case Hty : ty; case Hfdvs : (VM.find v s) => [a|] ; try apply nonev; case Hupd : (Sem_HiF.update_hvalue_by_offset a 0 new_val) => [a'|]; (apply somev_someb || apply nonev|| rewrite /=); case Hev : (Sem_HiFP.eval_hfstmts rv rs' ns' s' tmp') => [v'|]; (apply somev_someb ||  apply noneb).
-  - case Hlex : (list_expr (Ecast y h) tmp) => [el|]; last rewrite //.
-    case Hexfnf : (expand_fcnct_nflip (v, 0%num) (rev el) HiFP.qnil) => [rv|]; last rewrite //.
-    case Hevex : (Sem_HiF.eval_hfexpr (Ecast y h) s tmp) => [new_val|]; last apply nonev.
-    case Hfdvt : (VM.find v tmp) => [[r ty]|]; last apply nonev.
-    case Hty : ty; case Hfdvs : (VM.find v s) => [a|] ; try apply nonev; case Hupd : (Sem_HiF.update_hvalue_by_offset a 0 new_val) => [a'|]; (apply somev_someb || apply nonev|| rewrite /=); case Hev : (Sem_HiFP.eval_hfstmts rv rs' ns' s' tmp') => [v'|]; (apply somev_someb ||  apply noneb).
-  - case Hlex : (list_expr (Eprim_unop e' h) tmp) => [el|]; last rewrite //.
-    case Hexfnf : (expand_fcnct_nflip (v, 0%num) (rev el) HiFP.qnil) => [rv|]; last rewrite //.
-    case Hevex : (Sem_HiF.eval_hfexpr (Eprim_unop e' h) s tmp) => [new_val|]; last apply nonev.
-    case Hfdvt : (VM.find v tmp) => [[r ty]|]; last apply nonev.
-    case Hty : ty; case Hfdvs : (VM.find v s) => [a|] ; try apply nonev; case Hupd : (Sem_HiF.update_hvalue_by_offset a 0 new_val) => [a'|]; (apply somev_someb || apply nonev|| rewrite /=); case Hev : (Sem_HiFP.eval_hfstmts rv rs' ns' s' tmp') => [v'|]; (apply somev_someb ||  apply noneb).
-  - case Hlex : (list_expr (Eprim_binop e' h1 h2) tmp) => [el|]; last rewrite //.
-    case Hexfnf : (expand_fcnct_nflip (v, 0%num) (rev el) HiFP.qnil) => [rv|]; last rewrite //.
-    case Hevex : (Sem_HiF.eval_hfexpr (Eprim_binop e' h1 h2) s tmp) => [new_val|]; last apply nonev.
-    case Hfdvt : (VM.find v tmp) => [[r ty]|]; last apply nonev.
-    case Hty : ty; case Hfdvs : (VM.find v s) => [a|] ; try apply nonev; case Hupd : (Sem_HiF.update_hvalue_by_offset a 0 new_val) => [a'|]; (apply somev_someb || apply nonev|| rewrite /=); case Hev : (Sem_HiFP.eval_hfstmts rv rs' ns' s' tmp') => [v'|]; (apply somev_someb ||  apply noneb).
-  - case Hlex : (list_expr (Emux c h1 h2) tmp) => [el|]; last rewrite //.
-    case Hexfnf : (expand_fcnct_nflip (v, 0%num) (rev el) HiFP.qnil) => [rv|]; last rewrite //.
-    case Hevex : (Sem_HiF.eval_hfexpr (Emux c h1 h2) s tmp) => [new_val|]; last apply nonev.
-    case Hfdvt : (VM.find v tmp) => [[r ty]|]; last apply nonev.
-    case Hty : ty; case Hfdvs : (VM.find v s) => [a|] ; try apply nonev; case Hupd : (Sem_HiF.update_hvalue_by_offset a 0 new_val) => [a'|]; (apply somev_someb || apply nonev|| rewrite /=); case Hev : (Sem_HiFP.eval_hfstmts rv rs' ns' s' tmp') => [v'|]; (apply somev_someb ||  apply noneb).
-  - case Hrpv : (ref2pv h tmp ) => [pv|]; last rewrite //.
-    case Hfdvt : (VM.find v tmp) => [[ft comp]|]; last rewrite //.
-    case Hexpfc : (expand_fcnct (v, 0%num) pv 0 false ft HiFP.qnil) => [r|]; last rewrite //.
-    case Hofrf : (Sem_HiF.offset_ref h tmp 0) => [ofs|]; last apply nonev.
+    case Hty : ty; case Hfdvs : (VM.find v s) => [a|] ; 
+      try apply nonev; 
+      case Hupd : (Sem_HiF.update_hvalue_by_offset a 0 new_val) => [a'|]; 
+      (apply somev_someb || apply nonev|| rewrite /=); 
+                                                                   case Hev : (Sem_HiFP.eval_hfstmts rv rs' ns' s' tmp') => [v'|];
+                                                                                                                            (apply somev_someb ||  apply noneb).
+  - case Hlex : (list_expr (Emux c h1 h2) tmp) => [el|];
+                                                  last rewrite //.
+    case Hexfnf : (expand_fcnct_nflip (v, 0%num) (rev el) HiFP.qnil) => [rv|];
+       last rewrite //.
+    case Hevex : (Sem_HiF.eval_hfexpr (Emux c h1 h2) s tmp) => [new_val|];
+       last apply nonev.
+    case Hfdvt : (VM.find v tmp) => [[r ty]|];
+                                    last apply nonev.
+    case Hty : ty; 
+      case Hfdvs : (VM.find v s) => [a|] ; 
+      try apply nonev; 
+      case Hupd : (Sem_HiF.update_hvalue_by_offset a 0 new_val) => [a'|]; 
+      (apply somev_someb || apply nonev|| rewrite /=); 
+      case Hev : (Sem_HiFP.eval_hfstmts rv rs' ns' s' tmp') => [v'|]; 
+      (apply somev_someb ||  apply noneb).
+  - case Hrpv : (ref2pv h tmp ) => [pv|];
+                                   last rewrite //.
+    case Hfdvt : (VM.find v tmp) => [[ft comp]|];
+                                    last rewrite //.
+    case Hexpfc : (expand_fcnct (v, 0%num) pv 0 false ft HiFP.qnil) => [r|];
+                                                                       last rewrite //.
+    case Hofrf : (Sem_HiF.offset_ref h tmp 0) => [ofs|];
+                                                 last apply nonev.
     case Heqbrh : (v == HiF.base_ref h).
-    + case Hfdvs : (VM.find v s) => [vbr|]; last apply nonev.
-      case Hevrc : (Sem_HiF.eval_ref_connection1 ft vbr 0 ofs) => [vbr'|]; last apply nonev.
-      case Hcomp : comp ; case Hevstm : (Sem_HiFP.eval_hfstmts r rs' ns' s' tmp'); (apply somev_someb|| apply noneb).
-    + case Hfdvs : (VM.find v s) => [vbr|]; last apply nonev.
-      case Hfdbrs : (VM.find (HiF.base_ref h) s) => [vbr'|]; last apply nonev.
-      case Hevrc : (Sem_HiF.eval_ref_connection ft vbr vbr' 0 ofs) => [[valbr valbrf]|]; last apply nonev.
-      case Hcomp : comp ; case Hevstm : (Sem_HiFP.eval_hfstmts r rs' ns' s' tmp') => [a'|]; (apply somev_someb|| rewrite /=); case Hfdht : (VM.find (HiF.base_ref h) tmp) => [[f com]|]; (apply nonev|| rewrite /=); case Hc: com; (apply somev_someb|| apply noneb).
+    + case Hfdvs : (VM.find v s) => [vbr|];
+                                    last apply nonev.
+      case Hevrc : (Sem_HiF.eval_ref_connection1 ft vbr 0 ofs) => [vbr'|];
+                                                                  last apply nonev.
+      case Hcomp : comp ; 
+      case Hevstm : (Sem_HiFP.eval_hfstmts r rs' ns' s' tmp'); 
+      (apply somev_someb|| apply noneb).
+    + case Hfdvs : (VM.find v s) => [vbr|];
+                                    last apply nonev.
+      case Hfdbrs : (VM.find (HiF.base_ref h) s) => [vbr'|];
+                                                    last apply nonev.
+      case Hevrc : (Sem_HiF.eval_ref_connection ft vbr vbr' 0 ofs) => [[valbr valbrf]|];
+                                                                      last apply nonev.
+      case Hcomp : comp ; 
+      case Hevstm : (Sem_HiFP.eval_hfstmts r rs' ns' s' tmp') => [a'|]; 
+      (apply somev_someb|| rewrite /=); 
+      case Hfdht : (VM.find (HiF.base_ref h) tmp) => [[f com]|]; 
+      (apply nonev|| rewrite /=); 
+                                                     case Hc: com;
+                                                     (apply somev_someb|| apply noneb).
 Qed.
 
+Lemma eval_expand_stmt : forall st rs ns s rs' ns' s' tmp tmp',
+    hvalue2bits (Some (rs, ns)) (Some (rs', ns')) ->
+    match (lowertypes_stmt' st tmp HiFP.qnil) with
+    | Some r => 
+        hvalue2bits (Sem_HiF.eval_hfstmt st rs ns s tmp) (Sem_HiFP.eval_hfstmts r rs' ns' s' tmp')
+    | None => True
+    end
+with eval_expand_stmts : forall sts rs ns s rs' ns' s' tmp tmp',
+    hvalue2bits (Some (rs, ns)) (Some (rs', ns')) ->
+    match (lowertypes_stmts' sts tmp HiFP.qnil) with
+    | Some r => 
+        hvalue2bits (Sem_HiF.eval_hfstmts sts rs ns s tmp) (Sem_HiFP.eval_hfstmts r rs' ns' s' tmp')
+    | None => True
+    end      .
+Proof.
+  move => st rs ns s rs' ns' s' tmp tmp' Hss.
+  case Hst : st => [||||||h h1||h h1 h2].
+  - by apply eval_expand_skip.
+  - by apply eval_expand_wire.
+  - by apply eval_expand_reg.
+  - by apply eval_expand_mem.
+  - by apply eval_expand_inst.
+  - by apply eval_expand_node.
+  - case Hh : h => [eid| esf| eind|es ea].
+    + by apply eval_expand_fcncteid.
+    + by apply eval_expand_fcnctesub.
+    + by apply eval_expand_fcnctesubind.
+    + by apply eval_expand_fcnctesubacc.
+    + by apply eval_expand_inv.
+    + rewrite /=.
+      case Hexgex : (expand_ground_expr h tmp) => [c'|];
+                                                  last rewrite //.
+      case Hepdsts1 : (lowertypes_stmts' h1 tmp HiFP.qnil) => [ss1|];
+                                                                  last rewrite //.
+      case Hepdsts2 : (lowertypes_stmts' h2 tmp HiFP.qnil) => [ss2|];
+                                                                  last rewrite //.
+      case Hevalh : (Sem_HiF.eval_hfexpr h s tmp) => [a|];
+                                                     last apply nonev.
+      case Ha : a => [valc||];
+                     try apply noneb;
+                     try apply nonev;
+                     case Hisz : (is_zero valc);
+                     rewrite /=;
+                       case evalh' : (Sem_HiFP.eval_hfexpr c' s' tmp') => [a'|];
+                                                                          try apply noneb;
+                                                                          case Hisz' : (is_zero a'); rewrite /=;
+                                                                                                       case Hevsts2: (Sem_HiFP.eval_hfstmts ss2 rs' ns' s' tmp') => [[rs0 ns0]|];
+                                                                                                                                                                    try apply noneb;
+      case Hevsts2s : (Sem_HiF.eval_hfstmts h2 rs ns s tmp) => [[rs1 ns1]|];
+                                                               try (apply somev_someb|| apply nonev);
+      case Hevsts1 : (Sem_HiFP.eval_hfstmts ss1 rs' ns' s' tmp') => [[rs2 ns2]|];
+                                                               try (apply somev_someb|| apply noneb);
+      case Hevalh1 : (Sem_HiF.eval_hfstmts h1 rs ns s tmp)=> [ha|];
+                                                               try (apply somev_someb|| apply nonev).
+      move => sts rs ns s rs' ns' s' tmp tmp' Hss.
+      case H : (lowertypes_stmts' sts tmp HiFP.qnil) => [a|];
+                                                            last rewrite //.
+      case Hevals1 : (Sem_HiF.eval_hfstmts sts rs ns s tmp) => [ev1|];
+                                                               last apply nonev.
+      case Hevals2 : (Sem_HiFP.eval_hfstmts a rs' ns' s' tmp') => [ev2|];
+                                                                  last apply noneb.
+      apply somev_someb.
+Qed.
 
 Theorem Sem_preservation_lowerTypes : 
 (* Proves pass lowerTypes preserves the semantics *)
@@ -401,14 +990,14 @@ Theorem Sem_preservation_lowerTypes :
   match Sem_HiF.compute_Sem c inputs reg_init, Sem_HiF.circuit_tmap c with
   | Some (sem, regval), Some tmap =>
       forall (newc : HiFP.hfcircuit),
-      lowerTypes c = Some newc ->
+      lowertypes c = Some newc ->
       let flatten_inputs := flat_valmap inputs tmap in
       let flatten_reg_init := flat_valmap reg_init tmap in
       let flatten_sem := flat_valmap sem tmap in
       let flatten_regval := flat_valmap regval tmap in
       match Sem_HiFP.compute_Sem newc flatten_inputs flatten_reg_init with
-      | Some (sem_new, regval_new) => PVM.equal (fun val1 val2 => val1 == val2) flatten_sem sem_new /\ 
-                                      PVM.equal (fun val1 val2 => val1 == val2) flatten_regval regval_new
+      | Some (sem_new, regval_new) => flatten_sem_rel flatten_sem sem_new /\ 
+                                      flatten_sem_rel flatten_regval regval_new
                                       (* we need to proof that 1) the stable state is equivalence,
                                                                2) the new values that registers will be updated to is equivalence. *)
       | _ => true
@@ -416,8 +1005,18 @@ Theorem Sem_preservation_lowerTypes :
   | _, _ => true
   end.
 Proof.
-Admitted.
-
-Print flat_valmap.
-
-
+  move => c inp inrg.
+  case Hsem : (Sem_HiF.compute_Sem c inp inrg)=> [[sem regval]|];
+                                                 last rewrite//.
+  case Hsemc : (Sem_HiF.circuit_tmap c) => [tmp|];
+                                           last rewrite //.
+  move => newc Hexpnewc/=.
+  case Hcomsem : (Sem_HiFP.compute_Sem newc (flat_valmap inp tmp)
+                    (flat_valmap inrg tmp)) => [[sem_new regval_new]|];
+                                               last rewrite //.
+  split.
+  apply (flatten_rs (sem, regval) _ (flat_valmap regval tmp) _ regval_new);
+    apply somev_someb.
+  apply (flatten_bs (sem, regval) (flat_valmap sem tmp) _ sem_new _);
+    apply somev_someb.
+Qed.
