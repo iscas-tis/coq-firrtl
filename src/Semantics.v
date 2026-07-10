@@ -1112,12 +1112,9 @@ Fixpoint eval_hfexpr (exp : HiFP.hfexpr) (s : PVM.t bits) (tmap: PVM.t (fgtyp * 
       | _, _ => None
       end
   | Emux c e1 e2 => 
-      match eval_hfexpr c s tmap, type_of_hfexpr e1 tmap, type_of_hfexpr e2 tmap, eval_hfexpr e1 s tmap, eval_hfexpr e2 s tmap with
-      | Some valc, Some (Fuint w1), Some (Fuint w2), Some val1, Some val2 => if ~~ (is_zero valc) then Some (zext ((max w1 w2) - w1) val1)
-                                                                             else Some (zext ((max w1 w2) - w2) val2)
-      | Some valc, Some (Fsint w1), Some (Fsint w2), Some val1, Some val2 => if ~~ (is_zero valc) then Some (sext ((max w1 w2) - w1) val1)
-                                                                             else Some (sext ((max w1 w2) - w2) val2)
-      | _, _, _, _, _ => None
+      match eval_hfexpr c s tmap with
+      | Some valc => if ~~ (is_zero valc) then eval_hfexpr e1 s tmap else eval_hfexpr e2 s tmap
+      | _ => None
       end
   end.
 
