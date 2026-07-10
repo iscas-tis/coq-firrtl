@@ -43,13 +43,13 @@ let anon file =
     Printfir.pp_fcircuit_fir oc_fir fcir;
     printf "preprocess subaccess time : %f\n" (Float.sub ut1 ut0); *)
 
-  (match expandconnects fcir with
-  | Some c_expandconnects -> let ut2 = (Unix.times()).tms_utime in 
+  (match lowertypes fcir with
+  | Some c_lowertypes -> let ut2 = (Unix.times()).tms_utime in 
     printf "after lowerTypes :\n";
-    Printfir_pair.pp_fcircuit_fir stdout c_expandconnects;
+    Printfir_pair.pp_fcircuit_fir stdout c_lowertypes;
     printf "lowerTypes time : %fs\n" (Float.sub ut2 ut1); 
     printf "\nafter expandWhens :\n";
-    (match expandWhens c_expandconnects with
+    (match expandWhens c_lowertypes with
     | Some ((c_expandwhens, conn_map), pvlist) -> let ut3 = (Unix.times()).tms_utime in 
       Printfir_pair.pp_fcircuit_fir stdout c_expandwhens;
       printf "expandWhens time : %fs\n" (Float.sub ut3 ut2); 
@@ -58,7 +58,7 @@ let anon file =
       Ast.pp_fcircuit stdout string_cir;
       Ast.pp_fcircuit oc_fir string_cir; close_out oc_fir
     | None -> output_string stdout "error expandwhens\n";)
-  | None -> output_string stdout "error expandconnects\n";) 
+  | None -> output_string stdout "error lowertypes\n";) 
   | None -> output_string stdout "error subaccess preprocess\n"
   
 let _ = parse args anon usage

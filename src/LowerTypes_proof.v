@@ -90,7 +90,7 @@ Fixpoint expand_invalid' (n : nat) (pv : ProdVarOrder.t) (sts : HiFP.hfstmt_seq)
   | S n' => expand_invalid' n' (fst pv, N.add (snd pv) 1%num) (HiFP.qrcons sts (HiFP.sinvalid (Eid pv)))
   end.
 
-Fixpoint expandconnects_stmt' (s : HiF.hfstmt) (tmap : VM.t (ftype * fcomponent)) (sts : HiFP.hfstmt_seq) : option HiFP.hfstmt_seq :=
+Fixpoint lowertypes_stmt' (s : HiF.hfstmt) (tmap : VM.t (ftype * fcomponent)) (sts : HiFP.hfstmt_seq) : option HiFP.hfstmt_seq :=
   match s with
   | Sskip 
   | Smem _ _ => Some (HiFP.qrcons sts HiFP.sskip) (* TBD *)
@@ -113,17 +113,17 @@ Fixpoint expandconnects_stmt' (s : HiF.hfstmt) (tmap : VM.t (ftype * fcomponent)
       | Some pv, Some el => expand_fcnct_nflip pv (rev el) sts
       | _,_ => None
       end
-  | Swhen c ss1 ss2 => match expand_ground_expr c tmap, expandconnects_stmts' ss1 tmap HiFP.qnil, expandconnects_stmts' ss2 tmap HiFP.qnil with
+  | Swhen c ss1 ss2 => match expand_ground_expr c tmap, lowertypes_stmts' ss1 tmap HiFP.qnil, lowertypes_stmts' ss2 tmap HiFP.qnil with
       | Some c', Some ss1', Some ss2' => Some (HiFP.qrcons sts (Swhen c' ss1' ss2'))
       | _, _, _ => None
       end
   end
-with expandconnects_stmts' (ss : HiF.hfstmt_seq) (tmap : VM.t (ftype * fcomponent)) (sts : HiFP.hfstmt_seq) : option HiFP.hfstmt_seq :=
+with lowertypes_stmts' (ss : HiF.hfstmt_seq) (tmap : VM.t (ftype * fcomponent)) (sts : HiFP.hfstmt_seq) : option HiFP.hfstmt_seq :=
   match ss with
   | Qnil => Some sts
   | Qcons s ss =>
-    match expandconnects_stmt' s tmap sts with
-    | Some sts' => expandconnects_stmts' ss tmap sts'
+    match lowertypes_stmt' s tmap sts with
+    | Some sts' => lowertypes_stmts' ss tmap sts'
     | None => None
     end
   end.
@@ -143,12 +143,12 @@ Qed.
 
 (* Lemma expand_inv_comp : forall r tmap gt c sts sts', *)
 (*     VM.find (r) tmap = Some (gt, c) -> *)
-(*     expandconnects_stmt' (HiF.sinvalid (Eid r)) tmap sts = Some sts' -> *)
+(*     lowertypes_stmt' (HiF.sinvalid (Eid r)) tmap sts = Some sts' -> *)
                           
 
 Lemma eval_expand_inv : forall v rs ns s rs' ns' s' tmp tmp',
     hvalue2bits (Some (rs, ns)) (Some (rs', ns')) ->
-    match (expandconnects_stmt' (Sinvalid v) tmp HiFP.qnil) with
+    match (lowertypes_stmt' (Sinvalid v) tmp HiFP.qnil) with
     | Some r => 
         hvalue2bits (Sem_HiF.eval_hfstmt (Sinvalid v) rs ns s tmp) (Sem_HiFP.eval_hfstmts r rs' ns' s' tmp')
     | None => True
@@ -274,7 +274,7 @@ Proof.
 Qed.
 
 (* Lemma expand_wire_all_wires : forall v t tmp r, *)
-(*   (expandconnects_stmt' (Swire v t) tmp HiFP.qnil) = Some r -> *)
+(*   (lowertypes_stmt' (Swire v t) tmp HiFP.qnil) = Some r -> *)
 (*   all_wires r. *)
 (* Proof. *)
 (*   move => v t tmp r. rewrite /= => Hinj. *)
@@ -284,7 +284,7 @@ Qed.
 
 Lemma eval_expand_wire : forall v t rs ns s rs' ns' s' tmp tmp',
     hvalue2bits (Some (rs, ns)) (Some (rs', ns')) ->
-    match (expandconnects_stmt' (Swire v t) tmp HiFP.qnil) with
+    match (lowertypes_stmt' (Swire v t) tmp HiFP.qnil) with
     | Some r => 
         hvalue2bits (Sem_HiF.eval_hfstmt (Swire v t) rs ns s tmp) (Sem_HiFP.eval_hfstmts r rs' ns' s' tmp')
     | None => True
@@ -298,7 +298,7 @@ Qed.
 
 Lemma eval_expand_skip : forall rs ns s rs' ns' s' tmp tmp',
     hvalue2bits (Some (rs, ns)) (Some (rs', ns')) ->
-    match (expandconnects_stmt' (HiF.sskip) tmp HiFP.qnil) with
+    match (lowertypes_stmt' (HiF.sskip) tmp HiFP.qnil) with
     | Some r => 
         hvalue2bits (Sem_HiF.eval_hfstmt HiF.sskip rs ns s tmp) (Sem_HiFP.eval_hfstmts r rs' ns' s' tmp')
     | None => True
@@ -309,7 +309,7 @@ Qed.
 
 Lemma eval_expand_smem : forall v t rs ns s rs' ns' s' tmp tmp',
     hvalue2bits (Some (rs, ns)) (Some (rs', ns')) ->
-    match (expandconnects_stmt' (Smem v t) tmp HiFP.qnil) with
+    match (lowertypes_stmt' (Smem v t) tmp HiFP.qnil) with
     | Some r => 
         hvalue2bits (Sem_HiF.eval_hfstmt (Smem v t) rs ns s tmp) (Sem_HiFP.eval_hfstmts r rs' ns' s' tmp')
     | None => True
@@ -320,7 +320,7 @@ Qed.
 
 Lemma eval_expand_sinst : forall v t rs ns s rs' ns' s' tmp tmp',
     hvalue2bits (Some (rs, ns)) (Some (rs', ns')) ->
-    match (expandconnects_stmt' (Sinst v t) tmp HiFP.qnil) with
+    match (lowertypes_stmt' (Sinst v t) tmp HiFP.qnil) with
     | Some r => 
         hvalue2bits (Sem_HiF.eval_hfstmt (Sinst v t) rs ns s tmp) (Sem_HiFP.eval_hfstmts r rs' ns' s' tmp')
     | None => True
@@ -332,7 +332,7 @@ Qed.
 
 Lemma eval_expand_reg : forall v rg rs ns s rs' ns' s' tmp tmp',
     hvalue2bits (Some (rs, ns)) (Some (rs', ns')) ->
-    match (expandconnects_stmt' (Sreg v rg) tmp HiFP.qnil) with
+    match (lowertypes_stmt' (Sreg v rg) tmp HiFP.qnil) with
     | Some r => 
         hvalue2bits (Sem_HiF.eval_hfstmt (Sreg v rg) rs ns s tmp) (Sem_HiFP.eval_hfstmts r rs' ns' s' tmp')
     | None => True
@@ -347,7 +347,7 @@ Qed.
 
 Lemma eval_expand_fcnct : forall v e rs ns s rs' ns' s' tmp tmp',
     hvalue2bits (Some (rs, ns)) (Some (rs', ns')) ->
-    match (expandconnects_stmt' (Sfcnct (Eid v) e) tmp HiFP.qnil) with
+    match (lowertypes_stmt' (Sfcnct (Eid v) e) tmp HiFP.qnil) with
     | Some r => 
         hvalue2bits (Sem_HiF.eval_hfstmt (Sfcnct (Eid v) e) rs ns s tmp) (Sem_HiFP.eval_hfstmts r rs' ns' s' tmp')
     | None => True
@@ -395,13 +395,13 @@ Proof.
 Qed.
 
 
-Theorem Sem_preservation_expandConnects : 
-(* Proves pass expandConnects preserves the semantics *)
+Theorem Sem_preservation_lowerTypes : 
+(* Proves pass lowerTypes preserves the semantics *)
   forall (c : HiF.hfcircuit) (inputs reg_init : VM.t hvalue),
   match Sem_HiF.compute_Sem c inputs reg_init, Sem_HiF.circuit_tmap c with
   | Some (sem, regval), Some tmap =>
       forall (newc : HiFP.hfcircuit),
-      expandConnects c = Some newc ->
+      lowerTypes c = Some newc ->
       let flatten_inputs := flat_valmap inputs tmap in
       let flatten_reg_init := flat_valmap reg_init tmap in
       let flatten_sem := flat_valmap sem tmap in

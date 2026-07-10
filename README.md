@@ -44,9 +44,11 @@ cd src/ocaml_try
 ├── src/
 │   ├── HiFirrtl.v                    # Syntax definition of HiFirrtl
 │   ├── Firrtl.v                      # Syntax definition of LoFirrtl
-│   ├── Semantics.v                   # Fixed-point semantics & verification framework
+│   ├── Semantics.v                   # Fixed-point semantics framework
 │   ├── LowerTypes.v                  # Formalization of lowerTypes transformation
+│   ├── LowerTypes_proof.v            # Verification of lowerTypes transformation
 │   ├── ExpandWhens.v                 # Formalization of expandWhens transformation
+│   ├── ExpandWhens_proof.v           # Verification of expandWhens transformation
 │   ├── ocaml/                        # Extracted OCaml implementation & Benchmarks
 │   │   ├── hiparser/                 # FIRRTL Parser and LoFIRRTL emitter
 │   │   ├── demo/                     # 130 benchmark FIRRTL programs
@@ -69,20 +71,14 @@ Defines the abstract syntax of the source language (HiFirrtl).
 ---
 
 #### 📄 `Semantics.v`
-Formalizes the fixed-point semantics and contains the core verification theorems for the transformations.
+Formalizes the **fixed-point semantics** and provides shared definitions used across both transformations.
 
 | Definition / Lemma | Paper Reference | Description |
 | :--- | :--- | :--- |
 | `ports_tmap`, `stmt_tmap`, `module_tmap`, `circuit_tmap` | Section 3.1.2 | Defines `port_kind`, `stmt_kind`, `module_kind`, `circuit_kind` |
 | `eval_hfstmt` | Section 3.2.1 | Defines `value_iter` (the semantic evaluator) |
 | `iterate` | Section 3.2.3 | Implements the iteration of the semantic functor |
-| `list_expr`, `list_ref` | Section 4.1 | Defines `listGExp` and `listGTypeRef` (for type inference) |
-| `ExpandWhens_fun_tmap_eq` | Section 5.2, Lemma 5.1 | **Kind/Type Preservation** for expandWhens |
-| `find_node_qin_with_cond`, `eval_hfstmts_for_unique_node` | Section 5.3, Lemma 5.3 | **Node Evaluation** correctness |
-| `eval_hfstmts_ExpandBranches_funs_find_for_comb` | Section 5.3, Lemma 5.4 | **Soundness of `collectConnects`** |
-| `eval_hfstmts_convert_to_connect_stmts_for_comb` | Section 5.3, Lemma 5.5 | **Soundness of `connStmts`** |
-| `func_type_included_eval_hfstmts` | Section 5.3, Lemma 5.6 | **Single-step Simulation** relation |
-| `Sem_preservation_expandWhens` | Section 5.3, Lemmas 5.7 & 5.8 | **Convergence Preservation** and **Correctness of ExpandWhens** |
+| `list_expr`, `list_ref` | Section 4.1 | Defines `listGExp` and `listGTypeRef` (used in type inference) |
 
 ---
 
@@ -97,8 +93,21 @@ Formalizes the **lowerTypes** transformation (Section 4.1 of the paper).
 | `expand_wire`, `expand_reg`, `expand_node` | Section 4.1 | Lowering functions for wires, registers, and nodes |
 | `expand_invalid` | Section 4.1 | Lowering function for an invalidation |
 | `expand_fcnct` | Section 4.1 | Lowering function for a connection |
-| `expandconnects_stmts` | Section 4.1 | Lowering function for a statement sequence |
-| `expandconnects` | Section 4.1 | Lowering function for the entire FIRRTL circuit |
+| `lowertypes_stmts` | Section 4.1 | Lowering function for a statement sequence |
+| `lowertypes` | Section 4.1 | Top-level definition of the `lowerTypes` transformation |
+
+---
+
+#### 📄 `LowerTypes_proof.v`
+**Verifies** the correctness of the **lowerTypes** transformation (Sections 4.2 and 4.3).
+
+| Lemma / Theorem | Paper Reference | Description |
+| :--- | :--- | :--- |
+| `eval_expand_inv` | Lemma 4.7 | Invalidation case of **Statement Expansion** |
+| `eval_expand_wire` | Lemma 4.7 | Wire declaration case of **Statement Expansion** |
+| `eval_expand_reg` | Lemma 4.7 | Register declaration case of **Statement Expansion** |
+| `eval_expand_fcnct` | Lemma 4.7 | Connection case of **Statement Expansion** |
+| `Sem_preservation_lowerTypes` | Theorem 4.9 | **Correctness of LowerTypes** |
 
 ---
 
@@ -112,6 +121,22 @@ Formalizes the **expandWhens** transformation (Section 5.1 of the paper).
 | `combine_branches` | Section 5.1 | Defines `combineBranches` |
 | `convert_to_connect_stmts` | Section 5.1 | Defines `connStmts` |
 | `expandWhens` | Section 5.1 | Top-level definition of the `expandWhens` transformation |
+
+---
+
+#### 📄 `ExpandWhens_proof.v`
+**Verifies** the correctness of the **expandWhens** transformation (Sections 5.2 and 5.3).
+
+| Lemma / Theorem | Paper Reference | Description |
+| :--- | :--- | :--- |
+| `ExpandWhens_fun_tmap_eq` | Lemma 5.1 | **Kind/Type Preservation** |
+| `find_node_qin_with_cond`, `eval_hfstmts_for_unique_node` | Lemma 5.3 | **Node Evaluation** correctness |
+| `eval_hfstmts_ExpandBranches_funs_find_for_comb` | Lemma 5.4 | **Soundness of `collectConnects`** |
+| `eval_hfstmts_convert_to_connect_stmts_for_comb` | Lemma 5.5 | **Soundness of `connStmts`** |
+| `func_type_included_eval_hfstmts` | Lemma 5.6 | **Single-step Simulation** relation |
+| `Sem_preservation_expandWhens` | Theorem 5.8 | **Correctness of ExpandWhens** |
+
+---
 
 ## 🛠️ Troubleshooting
 

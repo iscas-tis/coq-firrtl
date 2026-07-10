@@ -1310,7 +1310,7 @@ End Sem_HiFP.
 
 Parameter flat_valmap : (VM.t hvalue) -> (VM.t (ftype * fcomponent)) -> PVM.t bits.
 
-Parameter expandConnects : HiF.hfcircuit -> option HiFP.hfcircuit.
+Parameter lowerTypes : HiF.hfcircuit -> option HiFP.hfcircuit.
 
 Fixpoint expand_inport (v : VarOrder.t) (offset : nat) (flip : bool) (ft : ftype) l : seq (hfport ProdVarOrder.T) :=
   match ft with 
@@ -1552,7 +1552,7 @@ with expand_fcnct_btyp (pv0 pv1 : ProdVarOrder.t) (offset : nat) flip (btyp : ff
       end
   end.
 
-Fixpoint expandconnects_stmt (s : HiF.hfstmt) (tmap : VM.t (ftype * fcomponent)) (sts : HiFP.hfstmt_seq) : option HiFP.hfstmt_seq :=
+Fixpoint lowertypes_stmt (s : HiF.hfstmt) (tmap : VM.t (ftype * fcomponent)) (sts : HiFP.hfstmt_seq) : option HiFP.hfstmt_seq :=
   match s with
   | Sskip 
   | Smem _ _ => Some (HiFP.qrcons sts HiFP.sskip)
@@ -1575,47 +1575,47 @@ Fixpoint expandconnects_stmt (s : HiF.hfstmt) (tmap : VM.t (ftype * fcomponent))
       | Some pv, Some el => expand_fcnct_nflip pv (rev el) sts
       | _,_ => None
       end
-  | Swhen c ss1 ss2 => match expand_ground_expr c tmap, expandconnects_stmts ss1 tmap HiFP.qnil, expandconnects_stmts ss2 tmap HiFP.qnil with
+  | Swhen c ss1 ss2 => match expand_ground_expr c tmap, lowertypes_stmts ss1 tmap HiFP.qnil, lowertypes_stmts ss2 tmap HiFP.qnil with
       | Some c', Some ss1', Some ss2' => Some (HiFP.qrcons sts (Swhen c' ss1' ss2'))
       | _, _, _ => None
       end
   end
-with expandconnects_stmts (ss : HiF.hfstmt_seq) (tmap : VM.t (ftype * fcomponent)) (sts : HiFP.hfstmt_seq) : option HiFP.hfstmt_seq :=
+with lowertypes_stmts (ss : HiF.hfstmt_seq) (tmap : VM.t (ftype * fcomponent)) (sts : HiFP.hfstmt_seq) : option HiFP.hfstmt_seq :=
   match ss with
   | Qnil => Some sts
   | Qcons s ss =>
-    match expandconnects_stmt s tmap sts with
-    | Some sts' => expandconnects_stmts ss tmap sts'
+    match lowertypes_stmt s tmap sts with
+    | Some sts' => lowertypes_stmts ss tmap sts'
     | None => None
     end
   end.
 
-Definition expandconnects_fmodule (m : HiF.hfmodule) (tmap : VM.t (ftype * fcomponent)) : option HiFP.hfmodule :=
+Definition lowertypes_fmodule (m : HiF.hfmodule) (tmap : VM.t (ftype * fcomponent)) : option HiFP.hfmodule :=
     match m with
     | FInmod v ps ss => let ps' := expand_ports ps nil in
-        match expandconnects_stmts ss tmap HiFP.qnil with
+        match lowertypes_stmts ss tmap HiFP.qnil with
         | Some sts => Some (HiFP.hfinmod (v, N0) (rev ps') sts)
         | _ => None
         end
     | m => None
     end.
 
-Definition expandconnects (c : HiF.hfcircuit) : option HiFP.hfcircuit :=
+Definition lowertypes (c : HiF.hfcircuit) : option HiFP.hfcircuit :=
   match c, Sem_HiF.circuit_tmap c with
-  | Fcircuit v [:: m], Some tmap => match expandconnects_fmodule m tmap with
+  | Fcircuit v [:: m], Some tmap => match lowertypes_fmodule m tmap with
     | Some fm => Some (HiFP.fcircuit (v,N0) [:: fm])
     | _ => None
     end
   | _, _ => None
   end.
 
-Theorem Sem_preservation_expandConnects : 
-(* Proves pass expandConnects preserves the semantics *)
+Theorem Sem_preservation_lowerTypes : 
+(* Proves pass lowerTypes preserves the semantics *)
   forall (c : HiF.hfcircuit) (inputs reg_init : VM.t hvalue),
   match Sem_HiF.compute_Sem c inputs reg_init, Sem_HiF.circuit_tmap c with
   | Some (sem, regval), Some tmap =>
       forall (newc : HiFP.hfcircuit),
-      expandConnects c = Some newc ->
+      lowerTypes c = Some newc ->
       let flatten_inputs := flat_valmap inputs tmap in
       let flatten_reg_init := flat_valmap reg_init tmap in
       let flatten_sem := flat_valmap sem tmap in
