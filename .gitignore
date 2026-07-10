@@ -19,7 +19,6 @@ src/ocaml/test
 src/ocaml/dune-project
 src/ocaml/ocaml.opam
 src/ocaml/ocaml.install
-src/ocaml/extraction
 src/ocaml/run_script.sh
 .Makefile.d 
 src/.DS_Store.DS_Store
