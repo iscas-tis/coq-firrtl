@@ -26,6 +26,7 @@ with bundle_value : Type :=
   | Bnil => false
   | _ => true
   end*).
+Parameter flat_valmap : (VM.t hvalue) -> (VM.t (ftype * fcomponent)) -> PVM.t bits.
 
 Lemma bitseq_eq_dec : forall (x y : bitseq), {x = y} + {x <> y}.
 Proof.

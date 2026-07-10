@@ -19,6 +19,12 @@ FIRRTL is an intermediate representation for the Chisel hardware description lan
 Follow the **Step-by-Step Build Instructions** in [`REQUIREMENTS.md`](REQUIREMENTS.md) to install the exact versions of Coq 8.16.0, OCaml 4.14.2, MathComp 1.15.0, and Dune 3.16.0 via OPAM.
 
 ### 2. Run the automated smoke test
+
+> **Note**: If you see a "Permission denied" error when running the script, first make it executable with:
+> ```bash
+> chmod +x build_and_run.sh
+> ```
+
 From the root directory of this repository:
 ```bash
 ./build_and_run.sh
