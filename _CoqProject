@@ -26,3 +26,5 @@ src/HiFirrtl.v
 src/Semantics.v
 src/LowerTypes.v
 src/ExpandWhens.v
+src/LowerTypes_proof.v
+src/ExpandWhens_proof.v
