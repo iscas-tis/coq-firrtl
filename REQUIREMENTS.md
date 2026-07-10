@@ -66,6 +66,11 @@ We provide a **one-command smoke test** script (`build_and_run.sh`) that fully a
 - Dune project initialization and build
 - Running the verified transformations on a small sample circuit (`FormalSimple.fir`)
 
+Make the script executable if needed:
+```bash
+chmod +x build_and_run.sh
+```
+
 From the root directory of the repository, execute:
 
 ```bash

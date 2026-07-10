@@ -2138,9 +2138,9 @@ Proof.
   inversion Hpass; subst fm. clear Hpass.
   rewrite component_stmts_of_init_dclrs_eq in Hsem_new.
   destruct (Sem_HiFP.init_dclrs ss (Sem_HiFP.update_values reg_init inputs) tmap) as [init_s|] eqn : Hinit_s; try discriminate.
-  destruct (Sem_HiFP.iterate Sem_HiFP.n (Sem_HiFP.eval_hfstmts ss) init_s tmap) as [s0|] eqn : Hiter; try discriminate.
+  destruct (Sem_HiFP.iterate n (Sem_HiFP.eval_hfstmts ss) init_s tmap) as [s0|] eqn : Hiter; try discriminate.
   destruct (Sem_HiFP.eval_hfstmts ss (PVM.empty bits) (PVM.empty bits) s0 tmap) as [[rs ns]|] eqn : Hregval; try discriminate. inversion Hsem; subst s0 rs; clear Hsem.
-  destruct (Sem_HiFP.iterate Sem_HiFP.n
+  destruct (Sem_HiFP.iterate n
                (Sem_HiFP.eval_hfstmts (Qcat (component_stmts_of ss) (convert_to_connect_stmts conn_map)))
                init_s tmap) as [s0|] eqn : Hiter_new; try discriminate.
   destruct (Sem_HiFP.eval_hfstmts (Qcat (component_stmts_of ss) (convert_to_connect_stmts conn_map))
