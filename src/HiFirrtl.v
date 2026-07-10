@@ -204,10 +204,34 @@ Section HiFirrtl.
         clk : var;
         mask : var
       }.
-
+  (* we ignore mem *)
   Axiom mem_port_eq_dec : forall {x y : mem_port}, {x = y} + {x <> y}.
-  Parameter mem_port_eqn : forall (x y : mem_port), bool.
-  Axiom mem_port_eqP : Equality.axiom mem_port_eqn.
+
+  Definition mem_port_eqn (x y : mem_port) : bool :=
+    (id x == id y) && (addr x == addr y) && (en x == en y) && (clk x == clk y) && (mask x == mask y).
+    
+  Lemma mem_port_eqP : Equality.axiom mem_port_eqn.
+  Proof.
+    unfold Equality.axiom, mem_port_eqn.
+    destruct x, y ; simpl.
+    destruct (id0 == id1) eqn: Ht ; move /eqP : Ht => Ht ;
+          last by (apply ReflectF ; contradict Ht ; injection Ht ; done).
+    rewrite Ht andTb.
+    destruct (addr0 == addr1) eqn: Hc ; move /eqP : Hc => Hc ;
+          last by (apply ReflectF ; contradict Hc ; injection Hc ; done).
+    rewrite Hc andTb.
+    destruct (en0 == en1) eqn: Hr ; move /eqP : Hr => Hr ;
+          last by (apply ReflectF ; contradict Hr ; injection Hr ; done).
+    rewrite Hr andTb.
+    destruct (clk0 == clk1) eqn: Ha ; move /eqP : Ha => Ha ;
+          last by (apply ReflectF ; contradict Ha ; injection Ha ; done).
+    rewrite Ha andTb.
+    destruct (mask0 == mask1) eqn: Hm ; move /eqP : Hm => Hm ;
+          last by (apply ReflectF ; contradict Hm ; injection Hm ; done).
+    rewrite Hm.
+    apply ReflectT. reflexivity.
+  Qed.
+  
   Canonical mem_port_eqMixin := EqMixin mem_port_eqP.
   Canonical mem_port_eqType := Eval hnf in EqType mem_port mem_port_eqMixin.
 
@@ -540,7 +564,7 @@ Instance hfstmt_seq_eqn_Equivalence : Equivalence (@hfstmt_seq_eqn) :=
           then tl
           else Qcons h (Qremove_when s tl)
       end.
-
+(* Removing statements from [ss] cannot create new [Qin_when] occurrences*)
   Axiom Qremove_when_Qin_when : forall s s0 ss, Qin_when s0 (Qremove_when s ss) -> Qin_when s0 ss.
 
   Lemma Qin_when_Qcons : forall s0 ss s, Qin_when s0 ss -> Qin_when s0 (Qcons s ss).

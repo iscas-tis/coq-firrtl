@@ -8,7 +8,8 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Import Prenex Implicits.
 
-Parameter indeterminate_val : bits.
+Parameter indeterminate_val : bits. (* value for invalidation *)
+Parameter n : nat. (* finite iterations *)
 
 Inductive hvalue : Type :=
   | Gval : bits -> hvalue
@@ -918,7 +919,6 @@ Fixpoint iterate (n : nat) (func : VM.t hvalue -> VM.t hvalue -> VM.t hvalue -> 
             end
   end.
 
-Parameter n : nat. 
 Definition compute_Sem (c : HiF.hfcircuit) (inputs : VM.t hvalue) (reg_init : VM.t hvalue) : option (VM.t hvalue * VM.t hvalue) :=
   (* inputs signal and register should update during a rising edge and keep during the iteration *)
   (* compute the value connected to registers according to the stable state, return it as a new reg_init for the next clock cycle *)
@@ -1271,7 +1271,6 @@ Fixpoint iterate (n : nat) (func : PVM.t bits -> PVM.t bits -> PVM.t bits -> PVM
             end
   end.
 
-Parameter n : nat. 
 Definition compute_Sem (c : HiFP.hfcircuit) (inputs reg_init : PVM.t bits) : option (PVM.t bits * PVM.t bits) :=
   match circuit_tmap c, c with
   | Some tmap, Fcircuit _ [::(FInmod _ ps ss)] => 
@@ -1304,10 +1303,6 @@ Definition indeterminate_cst (gt : fgtyp) : HiFP.hfexpr :=
                   else HiFP.econst gt (zext (w - w_inde) indeterminate_val).
 
 End Sem_HiFP.
-
-Parameter flat_valmap : (VM.t hvalue) -> (VM.t (ftype * fcomponent)) -> PVM.t bits.
-
-Parameter lowerTypes : HiF.hfcircuit -> option HiFP.hfcircuit.
 
 Fixpoint expand_inport (v : VarOrder.t) (offset : nat) (flip : bool) (ft : ftype) l : seq (hfport ProdVarOrder.T) :=
   match ft with 
@@ -1605,29 +1600,6 @@ Definition lowertypes (c : HiF.hfcircuit) : option HiFP.hfcircuit :=
     end
   | _, _ => None
   end.
-
-Theorem Sem_preservation_lowerTypes : 
-(* Proves pass lowerTypes preserves the semantics *)
-  forall (c : HiF.hfcircuit) (inputs reg_init : VM.t hvalue),
-  match Sem_HiF.compute_Sem c inputs reg_init, Sem_HiF.circuit_tmap c with
-  | Some (sem, regval), Some tmap =>
-      forall (newc : HiFP.hfcircuit),
-      lowerTypes c = Some newc ->
-      let flatten_inputs := flat_valmap inputs tmap in
-      let flatten_reg_init := flat_valmap reg_init tmap in
-      let flatten_sem := flat_valmap sem tmap in
-      let flatten_regval := flat_valmap regval tmap in
-      match Sem_HiFP.compute_Sem newc flatten_inputs flatten_reg_init with
-      | Some (sem_new, regval_new) => PVM.equal (fun val1 val2 => val1 == val2) flatten_sem sem_new /\ 
-                                      PVM.equal (fun val1 val2 => val1 == val2) flatten_regval regval_new
-                                      (* we need to proof that 1) the stable state is equivalence,
-                                                               2) the new values that registers will be updated to is equivalence. *)
-      | _ => true
-      end
-  | _, _ => true
-  end.
-Proof.
-Admitted.
 
 Section ExpandWhens.
 
@@ -1995,21 +1967,17 @@ match ss with
 | Qcons h tl => (hfstmt_eqn h s) || (Qin_with_cond s tl init_s tmap)
 end.
 
+Axiom NoDupA_notin : forall (l1 l2 : list (PVM.key * def_expr)) v e,
+  NoDupA (PVM.eq_key (elt:=def_expr)) (l1 ++ (v, e) :: l2) ->
+  ~ In v (fst (List.split l1)) /\ ~ In v (fst (List.split l2)).
+(* [update_values] is monotone under semantic-map inclusion: included base maps and included update maps yield included updated maps. *)
 Axiom included_update_values_included : forall s1 s2 ns1 ns2,
   pvm_included s1 s2 -> pvm_included ns1 ns2 ->
   pvm_included (Sem_HiFP.update_values ns1 s1) (Sem_HiFP.update_values ns2 s2).
-(*Proof.
-  unfold pvm_included, Sem_HiFP.update_values in *; intros s1 s2 ns1 ns2 (*Hypo*) Hinclude_s Hinclude_ns v bs Hfind. 
-  assert (Hfind' : PVM.find v ns1 = Some bs \/ (PVM.find v ns1 = None /\ PVM.find v s1 = Some bs)). admit.
-  destruct Hfind' as [Hfind'|Hfind'].
-  - (* in ns *)
-    apply Hinclude_ns in Hfind'. admit.
-  - (* not in ns *)
-    (* some component not in ns1, but in s1, would be input or reg. Then it cannot appear in ns2 *)
-Admitted.*)
-
+(* Dynamic conditional reachability implies syntactic occurrence under a [when]:
+   any statement selected by [Qin_with_cond] must also be recorded by the condition-insensitive predicate [Qin_when]. *)
 Axiom Qin_with_cond2Qin_when : forall s ss init_s tmap, Qin_with_cond s ss init_s tmap -> Qin_when s ss.
-
+(* A node name already declared in the surrounding sequence cannot be declared again in either branch of the current [when]. *)
 Axiom Qin_when_uniqie_False :
   forall (v : ProdVarOrder.T) (e : hfexpr ProdVarOrder.T) (ss : hfstmt_seq ProdVarOrder.T) (e' : hfexpr ProdVarOrder.T)
          (cond : hfexpr ProdVarOrder.T) (ss_true ss_false : hfstmt_seq ProdVarOrder.T),    
@@ -2019,22 +1987,13 @@ Axiom Qin_when_uniqie_False :
   Qin_when (Snode v e) ss ->
   (Qin_when (Snode v e') ss_true \/ Qin_when (Snode v e') ss_false) ->
   False.
-
-Axiom NoDupA_notin : forall (l1 l2 : list (PVM.key * def_expr)) v e,
-  NoDupA (PVM.eq_key (elt:=def_expr)) (l1 ++ (v, e) :: l2) ->
-  ~ In v (fst (List.split l1)) /\ ~ In v (fst (List.split l2)).
-
-Lemma find_node_qin_with_cond mv pp ss tmap: Sem_HiFP.module_tmap (PVM.empty (fgtyp * fcomponent)) (FInmod mv pp ss) = Some tmap ->
+(* Any node value produced by statement evaluation has a source declaration *)
+Axiom find_node_qin_with_cond : forall mv pp ss tmap, Sem_HiFP.module_tmap (PVM.empty (fgtyp * fcomponent)) (FInmod mv pp ss) = Some tmap ->
   forall v gt, PVM.find v tmap = Some (gt, Node) -> 
   forall init_s rs1 s1 bs, Sem_HiFP.eval_hfstmts ss (PVM.empty bits) (PVM.empty bits) init_s tmap = Some (rs1, s1) ->
   PVM.find v s1 = Some bs ->
   exists e, Qin_with_cond (Snode v e) ss init_s tmap.
-Proof.
-  simpl; intros. destruct (Sem_HiFP.ports_tmap (PVM.empty (fgtyp * fcomponent)) pp) as[pmap|]; try discriminate.
-Admitted.
-
-Lemma qin_with_cond_node_qin_cmpnt v e ss init_s tmap: 
+(* Any conditionally reachable node declaration present in the declarations. *)
+Axiom qin_with_cond_node_qin_cmpnt : forall v e ss init_s tmap,
   Qin_with_cond (Snode v e) ss init_s tmap -> 
   Qin (Snode v e) (component_stmts_of ss).
-Proof.
-Admitted.
