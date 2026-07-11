@@ -1,5 +1,11 @@
 # Artifact for *Fixed-Point Semantics and Verified Lowering Transformations for FIRRTL*
 
+> # ⚠️ IMPORTANT NOTICE FOR REVIEWERS
+> 
+> **This anonymous repository (https://anonymous.4open.science/r/coq-firrtl) contains the OFFICIAL and FULLY WORKING version of our supplementary material.**
+> 
+> Due to a packaging error, the file uploaded to the HotCRP submission system may be outdated or non-functional. **Please disregard the supplementary material in the submission system and use this repository instead.**
+
 This artifact contains the implementation and formalization accompanying the paper **Fixed-Point Semantics and Verified Lowering Transformations for FIRRTL**. It includes:
 
 - A Coq formalization of **the first fixed-point formal semantics for FIRRTL**.
@@ -20,10 +26,10 @@ Follow the **Step-by-Step Build Instructions** in [`REQUIREMENTS.md`](REQUIREMEN
 
 ### 2. Run the automated smoke test
 
-> **Note**: If you see a "Permission denied" error when running the script, first make it executable with:
-> ```bash
-> chmod +x build_and_run.sh
-> ```
+**Note**: If you see a "Permission denied" error when running the script, first make it executable with:
+```bash
+chmod +x build_and_run.sh
+```
 
 From the root directory of this repository:
 ```bash
