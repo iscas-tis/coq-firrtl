@@ -204,8 +204,21 @@ Section HiFirrtl.
         clk : var;
         mask : var
       }.
-  (* we ignore mem *)
-  Axiom mem_port_eq_dec : forall {x y : mem_port}, {x = y} + {x <> y}.
+  Lemma mem_port_eq_dec : forall (x y : mem_port), {x = y} + {x <> y}.
+  Proof.
+  destruct x, y.
+  decide equality.
+  destruct (mask2 == mask3) eqn: H; move /eqP : H => H;
+    [left; exact H | right; exact H].
+  destruct (clk2 == clk3) eqn: H; move /eqP : H => H;
+    [left; exact H | right; exact H].
+  destruct (en2 == en3) eqn: H; move /eqP : H => H;
+    [left; exact H | right; exact H].
+  destruct (addr2 == addr3) eqn: H; move /eqP : H => H;
+    [left; exact H | right; exact H].
+  destruct (id2 == id3) eqn: H; move /eqP : H => H;
+    [left; exact H | right; exact H].
+  Qed.
 
   Definition mem_port_eqn (x y : mem_port) : bool :=
     (id x == id y) && (addr x == addr y) && (en x == en y) && (clk x == clk y) && (mask x == mask y).
@@ -998,9 +1011,44 @@ Section Component_types.
   | Unknown_typ : cmpnt_init_typs.
 
   (* equality of cmpnt_init_typs is decidable *)
-   Axiom cmpnt_init_typs_eq_dec : forall {x y : cmpnt_init_typs}, {x = y} + {x <> y}.
-   Parameter cmpnt_init_typs_eqn: forall (x y : cmpnt_init_typs), bool.
-   Axiom cmpnt_init_typs_eqP : Equality.axiom cmpnt_init_typs_eqn.
+  Lemma cmpnt_init_typs_eq_dec : forall (x y : cmpnt_init_typs), {x = y} + {x <> y}.
+  Proof.
+    decide equality.
+    - apply ftype_eq_dec.
+    - destruct (h == h0) eqn: H; move /eqP : H => H;
+        [left; exact H | right; exact H].
+    - destruct (h == h0) eqn: H; move /eqP : H => H;
+        [left; exact H | right; exact H].
+  Qed.
+
+   Definition cmpnt_init_typs_eqn (x y : cmpnt_init_typs) : bool :=
+    match x, y with 
+    | Aggr_typ at0, Aggr_typ at1 => at0 == at1
+    | Reg_typ at0, Reg_typ at1 => at0 == at1
+    | Mem_typ at0, Mem_typ at1 => at0 == at1
+    | Unknown_typ, Unknown_typ => true
+    | _, _ => false end.
+
+  Lemma cmpnt_init_typs_eqP : Equality.axiom cmpnt_init_typs_eqn.
+  Proof.
+  intros [t1|r1|m1|] [t2|r2|m2|];
+    simpl cmpnt_init_typs_eqn;
+    try (apply ReflectF; discriminate).  (* 不同构造子 *)
+
+  - destruct (t1 == t2) eqn:Ht; move/eqP: Ht => Ht.
+    + rewrite Ht; apply ReflectT; reflexivity.
+    + apply ReflectF; injection; intros EQ; apply Ht; assumption.
+
+  - destruct (r1 == r2) eqn:Hr; move/eqP: Hr => Hr.
+    + rewrite Hr; apply ReflectT; reflexivity.
+    + apply ReflectF; injection; intros EQ; apply Hr; assumption.
+
+  - destruct (m1 == m2) eqn:Hm; move/eqP: Hm => Hm.
+    + rewrite Hm; apply ReflectT; reflexivity.
+    + apply ReflectF; injection; intros EQ; apply Hm; assumption.
+
+  - apply ReflectT; reflexivity.
+  Qed.
    Canonical cmpnt_init_typs_eqMixin := EqMixin cmpnt_init_typs_eqP.
    Canonical cmpnt_init_typs_eqType := Eval hnf in EqType cmpnt_init_typs cmpnt_init_typs_eqMixin.
 
