@@ -139,12 +139,24 @@ Qed.
 Lemma ftype_eqn_sym (x y : ftype) : x =? y -> y =? x
 with ffield_eqn_sym (fx fy : ffield) : ffield_eqn fx fy -> ffield_eqn fy fx.
 Proof.
-Admitted.
+  - intros H. apply ftype_eqn_eq in H. rewrite H. apply ftype_eqn_refl.
+  - intros H. apply ffield_eqn_eq in H. rewrite H. apply ffield_eqn_refl.
+Qed.
 
 Lemma ftype_eqn_trans (x y z : ftype) : x =? y -> y =? z -> x =? z
 with ffield_eqn_trans (fx fy fz : ffield) : ffield_eqn fx fy -> ffield_eqn fy fz -> ffield_eqn fx fz.
 Proof.
-Admitted.
+  - intros H1 H2.
+    apply ftype_eqn_eq in H1.
+    apply ftype_eqn_eq in H2.
+    rewrite H1 H2.
+    apply ftype_eqn_refl.
+  - intros H1 H2.
+    apply ffield_eqn_eq in H1.
+    apply ffield_eqn_eq in H2.
+    rewrite H1 H2.
+    apply ffield_eqn_refl.
+Qed.
 
 Instance ftype_eqn_Reflexive : Reflexive (@ftype_eqn) := @ftype_eqn_refl.
 Instance ftype_eqn_Symmetric : Symmetric (@ftype_eqn) := @ftype_eqn_sym.
