@@ -291,6 +291,19 @@ Proof.
   intros. apply Hinvalid. simpl. rewrite H orb_true_r //.
 Qed.
 
+(* Unfolding lemma for [Qin_with_cond] on a cons, exposing the head case. *)
+Lemma Qin_with_cond_Qcons stmt h tl init_s tmap :
+  Qin_with_cond stmt (Qcons h tl) init_s tmap =
+  match h with
+  | Swhen c s1 s2 => match Sem_HiFP.eval_hfexpr c init_s tmap with
+      | Some valc => if (~~ is_zero valc) then (Qin_with_cond stmt s1 init_s tmap) || (Qin_with_cond stmt tl init_s tmap)
+                    else (Qin_with_cond stmt s2 init_s tmap) || (Qin_with_cond stmt tl init_s tmap)
+      | _ => false
+      end
+  | _ => (hfstmt_eqn h stmt) || (Qin_with_cond stmt tl init_s tmap)
+  end.
+Proof. by []. Qed.
+
 Lemma eval_hfstmts_for_unique_node_helper ss v e init_s tmap : 
   Qin_with_cond (Snode v e) ss init_s tmap -> unique_node_dclr_when ss -> 
   forall rs0 ns0, PVM.find v ns0 = None -> forall rs s,
@@ -313,6 +326,7 @@ Proof.
   clear eval_hfstmts_for_unique_node_helper. move : ss; elim. simpl; intros; done.
   intros s ss IH Hin Hunique rs0 ns0 Hfind rs ns Hevals.
   simpl in Hevals. destruct (Sem_HiFP.eval_hfstmt s rs0 ns0 init_s tmap) as [[rs1 ns1]|] eqn : Heval; try discriminate. 
+  specialize (eval_hfstmt_for_unique_node s v e init_s tmap rs0 ns0 Hfind rs1 ns1 Heval).
   simpl in Hin.
   case Hst : s => [||var reg|||var node_e|var cnct_e|var|cond ss_true ss_false]; subst s.
   + (* skip *) simpl in Heval; inversion Heval; subst rs0 ns0. move : Hevals; apply (IH Hin); try (move : Hunique; apply unique_node_dclr_when_subseq); try done.
@@ -362,7 +376,7 @@ Proof.
       try (inversion Heval; subst rs1 ns1; try done). 1-14 : rewrite PVM.Lemmas.find_add_neq //. 
       1-14 : assert (true) by done; apply Hunique in H0.
       1-14 : unfold PVM.M.SE.eq; move : H0; apply contra_not; intro; move /eqP : H0 => H0; subst v; done.
-  + (* when *) specialize (eval_hfstmt_for_unique_node _ _ e _ _ _ _ Hfind _ _ Heval); simpl in eval_hfstmt_for_unique_node.
+  + (* when *) simpl in eval_hfstmt_for_unique_node.
     simpl in Heval; destruct (Sem_HiFP.eval_hfexpr cond init_s tmap) as [valc|] eqn : Hc; try discriminate. 
     destruct (~~ is_zero valc) eqn : Hcond. 
     - (* go to true *)
@@ -398,7 +412,7 @@ Proof.
         intros. move : (Hcnct e'); clear. apply contra_not. apply Qin_when_Qcons; done.
         intros. apply (Hinvalid v'). move : H; apply Qin_when_Qcons; done.
         apply unique_node_dclr_when_branches in Hunique. move : Hunique => [Hunique0 Hunique1]. split; try done.
-        * (* in ss *) rewrite orb_false_l in Hin. move : Hevals; apply (IH Hin).
+      * (* in ss *) rewrite orb_false_l in Hin. move : Hevals; apply (IH Hin).
         move : Hunique; apply unique_node_dclr_when_subseq.
         unfold unique_node_dclr_when in Hunique. assert (Qin_when (Snode v e) (Qcons (Swhen cond ss_true ss_false) ss)). 
         apply Qin_with_cond2Qin_when in Hin. apply Qin_when_Qcons; done. apply Hunique in H. move : H => [Hnode [Hcnct Hinvalid]].
@@ -413,9 +427,10 @@ Proof.
   move /andP : H => [Hv He]; move /eqP : Hv => Hv; move /eqP : He => He; subst v; subst e. destruct (Sem_HiFP.eval_hfexpr e0 init_s tmap); try discriminate.
     inversion Heval; subst rs ns. rewrite PVM.Lemmas.find_add_eq //. apply PVM.M.SE.eq_refl.
   destruct (Sem_HiFP.eval_hfexpr cond init_s tmap) as [valc|] eqn : Hcond; try discriminate. move : H => [Hunique_true [Hunique_false Hin]].
-  destruct (~~ is_zero valc). 
-  1,2 : move : Heval; apply (eval_hfstmts_for_unique_node_helper _ _ _ _ _ Hin); try done.
-Admitted.
+  destruct (~~ is_zero valc) eqn : Hb.
+  - move : Heval; apply (eval_hfstmts_for_unique_node_helper ss_true v e init_s tmap Hin Hunique_true rs0 ns0 Hfind); done.
+  - move : Heval; apply (eval_hfstmts_for_unique_node_helper ss_false v e init_s tmap Hin Hunique_false rs0 ns0 Hfind); done.
+Qed.
 
 Lemma eval_hfstmts_for_unique_node ss v e init_s tmap : Qin_with_cond (Snode v e) ss init_s tmap -> unique_node_dclr_when ss -> 
   forall rs s, Sem_HiFP.eval_hfstmts ss (PVM.empty bits) (PVM.empty bits) init_s tmap = Some (rs, s) ->
@@ -1640,6 +1655,7 @@ Proof. clear eval_hfstmts_ExpandBranches_funs_find_for_comb_helper. intro Hcmpnt
       move : Hnotin0; apply contra_not; intro. destruct H as [r H]; exists r; simpl. rewrite H orb_true_l //.
       move : Hnotin1; apply contra_not; intro. destruct H as [e H]; exists e; simpl. rewrite H orb_true_l //. }
     move : H; clear IH Hnotin Heval sts rs. intros Hnotin val_temp Hval_temp.
+    specialize (eval_hfstmt_ExpandBranches_funs_find_for_comb_helper st v gt init_s tmap Hcmpnt rs_temp s_temp rs0 s0 Heval_temp old_conn_map Hinit) as Hwhen.
     case Hst : st => [||var reg|||var node_e|ref e|ref|cond ss_true ss_false]; subst st.
     + (* skip, wire *)
       1,2,4,5 : simpl in Hexpand_branches_temp; inversion Hexpand_branches_temp; subst old_conn_map; clear Hexpand_branches_temp;
@@ -1701,8 +1717,7 @@ Proof. clear eval_hfstmts_ExpandBranches_funs_find_for_comb_helper. intro Hcmpnt
       simpl in Hexpand_branches_temp. destruct (ExpandBranches_funs ss_true old_conn_map tmap) as [true_conn_map|] eqn : Hexpand_true; try discriminate.
       destruct (ExpandBranches_funs ss_false old_conn_map tmap) as [false_conn_map|] eqn : Hexpand_false; try discriminate. 
       inversion Hexpand_branches_temp; subst temp_conn_map; clear Hexpand_branches_temp.
-      specialize (eval_hfstmt_ExpandBranches_funs_find_for_comb_helper _ _ _ _ _ Hcmpnt _ _ _ _ Heval_temp _ Hinit) as Hwhen; simpl in Hwhen;
-        clear eval_hfstmt_ExpandBranches_funs_find_for_comb_helper. specialize (Hwhen _ _ Hexpand_true Hexpand_false _ Hval_temp). done.
+      simpl in Hwhen. specialize (Hwhen _ _ (Logic.eq_refl _) (Logic.eq_refl _) _ Hval_temp). done.
 
   clear eval_hfstmt_ExpandBranches_funs_find_for_comb_helper.
   intros Hcmpnt rs_temp s_temp rs0 s0 Heval old_conn_map Hinit.
@@ -1750,7 +1765,7 @@ Proof. clear eval_hfstmts_ExpandBranches_funs_find_for_comb_helper. intro Hcmpnt
         apply eval_invalid_is_allowed.
       * (* false is cnct *) destruct (e_true == e_false) eqn : Heq. move /eqP : Heq => Heq; subst e_true. done.
         specialize (eval_hfexpr_Emux_eq_true_false cond init_s tmap) as Hmux. rewrite Hvalc Hcond in Hmux. rewrite Hmux //.
-Admitted.
+Qed.
 
 Lemma eval_hfstmts_ExpandBranches_funs_find_for_comb ss init_s tmap rs s v : 
   match PVM.find v tmap with
@@ -1870,6 +1885,7 @@ Proof. intro Hcmpnt.
     move : Hexpand_branches; apply IH with (rs := rs) (s := s) (rs0 := rs_temp) (s0 := s_temp); try done.
     (* find temp *)
     clear IH Heval conn_map sts s. 
+    specialize (eval_hfstmt_ExpandBranches_funs_find_for_sequ_helper st v gt init_s tmap Hcmpnt rs_temp s_temp rs0 s0 Heval_temp old_conn_map Hinit) as Hwhen.
     case Hst : st => [||var reg|||var node_e|ref e|ref|cond ss_true ss_false]; subst st.
     + (* skip, wire *) 1,2,4,5 : 
       simpl in Hexpand_branches_temp; inversion Hexpand_branches_temp; subst old_conn_map; clear Hexpand_branches_temp;
@@ -1916,8 +1932,7 @@ Proof. intro Hcmpnt.
       simpl in Hexpand_branches_temp. destruct (ExpandBranches_funs ss_true old_conn_map tmap) as [true_conn_map|] eqn : Hexpand_true; try discriminate.
       destruct (ExpandBranches_funs ss_false old_conn_map tmap) as [false_conn_map|] eqn : Hexpand_false; try discriminate. 
       inversion Hexpand_branches_temp; subst temp_conn_map; clear Hexpand_branches_temp. 
-      specialize (eval_hfstmt_ExpandBranches_funs_find_for_sequ_helper _ _ _ _ _ Hcmpnt _ _ _ _ Heval_temp _ Hinit) as Hwhen; simpl in Hwhen;
-        clear eval_hfstmt_ExpandBranches_funs_find_for_sequ_helper. specialize (Hwhen _ _ Hexpand_true Hexpand_false). done.
+      simpl in Hwhen. specialize (Hwhen _ _ (Logic.eq_refl _) (Logic.eq_refl _)). done.
 
   clear eval_hfstmt_ExpandBranches_funs_find_for_sequ_helper. intro Hcmpnt.
   intros rs_temp s_temp rs0 s0 Heval old_conn_map Hinit.
@@ -1961,7 +1976,7 @@ Proof. intro Hcmpnt.
         apply eval_invalid_is_allowed.
       * (* false is cnct *) destruct (e_true == e_false) eqn : Heq. move /eqP : Heq => Heq; subst e_true. done.
         specialize (eval_hfexpr_Emux_eq_true_false cond init_s tmap) as Hmux. rewrite Hvalc Hcond in Hmux. rewrite Hmux //.
-Admitted.
+Qed.
 
 Lemma eval_hfstmts_ExpandBranches_funs_find_for_sequ ss init_s tmap rs s v : 
   match PVM.find v tmap with
