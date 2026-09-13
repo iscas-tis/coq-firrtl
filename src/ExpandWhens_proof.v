@@ -16,12 +16,14 @@ Definition unique_node_dclr_when (ss : HiFP.hfstmt_seq) : Prop :=
   forall v e, Qin_when (Snode v e) ss -> 
   (forall v' e', Qin_when (Snode v' e') (Qremove_when (Snode v e) ss) -> v <> v') /\ (forall e', ~ Qin_when (Sfcnct (Eid v) e') ss) /\ (forall v', Qin_when (Sinvalid (Eid v')) ss -> v <> v').
 
-(* This axiom states that evaluating an invalidation is always allowed
+Section ExpandWhens_Proofs.
+
+(* This hypothesis states that evaluating an invalidation is always allowed
    and do not care about the value it takes. They are just unspecified values that can be chosen nondeterministically. *)
-Axiom eval_invalid_is_allowed : forall gt s tmap val, Sem_HiFP.eval_hfexpr (Sem_HiFP.indeterminate_cst gt) s tmap = Some val.
+Hypothesis eval_invalid_is_allowed : forall gt s tmap val, Sem_HiFP.eval_hfexpr (Sem_HiFP.indeterminate_cst gt) s tmap = Some val.
 (* Statement evaluation preserves the shape imposed by [tmap]. non-writable kinds and undeclared names remain absent, registers are
    absent from the current-state map, and non-registers are absent from the register-update map. *)
-Axiom eval_hfstmts_find_none_cases : forall ss init_s tmap rs s v, Sem_HiFP.eval_hfstmts ss (PVM.empty bits) (PVM.empty bits) init_s tmap = Some (rs, s) ->
+Hypothesis eval_hfstmts_find_none_cases : forall ss init_s tmap rs s v, Sem_HiFP.eval_hfstmts ss (PVM.empty bits) (PVM.empty bits) init_s tmap = Some (rs, s) ->
   match PVM.find v tmap with
   | Some (_, In_port) => PVM.find v s = None /\ PVM.find v rs = None
   | Some (_, Instanceof) => PVM.find v s = None /\ PVM.find v rs = None
@@ -31,7 +33,7 @@ Axiom eval_hfstmts_find_none_cases : forall ss init_s tmap rs s v, Sem_HiFP.eval
   | None => PVM.find v s = None /\ PVM.find v rs = None
   | _ => PVM.find v rs = None
   end.
-Axiom well_formedness : forall (ss : HiFP.hfstmt_seq) (tmap : PVM.t (fgtyp * fcomponent)), 
+Hypothesis well_formedness : forall (ss : HiFP.hfstmt_seq) (tmap : PVM.t (fgtyp * fcomponent)), 
   unique_node_dclr_when ss /\ unique_node_dclr ss /\
   (forall v v' e' gt, (PVM.find v tmap = Some (gt, Out_port) \/ PVM.find v tmap = Some (gt, Wire)) -> Qin (Snode v' e') ss -> v <> v') /\
   (forall v conn_map, Qin (Sfcnct (Eid v) (Eref (Eid v))) (convert_to_connect_stmts conn_map) \/
@@ -2011,7 +2013,7 @@ Proof.
   intros Htmap Hexpand_branches.
   unfold func_type_included. intros init_s1 init_s2 s1 s2 rs1 rs2 Hinit_eq Hevalss1 Hevalss2. split.
   - (* combinational part *)
-    move : Hevalss1 Hevalss2 Hexpand_branches Htmap Hinit_eq; clear. intros Hevalss1 Hevalss2 Hexpand_branches Htmap Hinit_eq v.
+    move : Hevalss1 Hevalss2 Hexpand_branches Htmap Hinit_eq. intros Hevalss1 Hevalss2 Hexpand_branches Htmap Hinit_eq v.
     destruct (PVM.find v tmap) as [[gt cmpnt]|] eqn : Hcmpnt. destruct cmpnt.
     * (* inport *) 
       specialize (eval_hfstmts_find_none_cases v Hevalss1) as Hfind1; rewrite Hcmpnt in Hfind1; move : Hfind1 => [Hfind1 _].
@@ -2095,7 +2097,7 @@ Proof.
       intros; rewrite Hfind1 in H; discriminate.
 
   - (* sequential part *)
-    move : Hevalss1 Hevalss2 Hexpand_branches Htmap Hinit_eq; clear. intros Hevalss1 Hevalss2 Hexpand_branches Htmap Hinit_eq v.
+    move : Hevalss1 Hevalss2 Hexpand_branches Htmap Hinit_eq. intros Hevalss1 Hevalss2 Hexpand_branches Htmap Hinit_eq v.
     destruct (PVM.find v tmap) as [[gt cmpnt]|] eqn : Hcmpnt. destruct cmpnt.
     * (* inport, instance of, memory, node, output, wire, module, none *) 
       1,2,3,8,9 : 
@@ -2170,3 +2172,5 @@ Proof.
   unfold func_type_included in Hexpand_branches. apply (Hexpand_branches _ _ _ _ _ _ Hfst_do_this Hregval) in Hregval_new.
   move : Hregval_new => [_ Hregval_new]. done.
 Qed.
+
+End ExpandWhens_Proofs.
