@@ -53,6 +53,9 @@ with ffield : Type :=
 | Fflips : var -> fflip -> ftype -> ffield -> ffield
 .
 
+Scheme ftype_ffield_ind := Induction for ftype Sort Prop
+with ffield_ftype_ind := Induction for ffield Sort Prop.
+
 (* is passive type *)
 Fixpoint is_passive (t : ftype) : bool :=
   match t with
@@ -154,22 +157,27 @@ Inductive fcomponent : Set :=
 | Fmodule
 .
 
-
 (** eq dec *)
-Lemma component_eq_dec : forall {x y : fcomponent}, {x = y} + {x <> y}.
-Proof. decide equality. Qed.
-Definition component_eqn (x y : fcomponent) : bool :=
-match x, y with In_port, In_port | Instanceof, Instanceof | Memory, Memory | Node, Node
-| Out_port, Out_port | Register, Register | Wire, Wire | Fmodule, Fmodule => true
-| _, _ => false end.
-Lemma component_eqP : Equality.axiom component_eqn.
-Proof. unfold Equality.axiom, component_eqn. intros.
+Lemma fcomponent_eq_dec (x y : fcomponent) : {x = y} + {x <> y}.
+Proof.  decide equality.  Qed.
+
+Definition fcomponent_eqn (x y : fcomponent) : bool :=
+  match x, y with
+  | In_port, In_port
+  | Instanceof, Instanceof
+  | Memory, Memory
+  | Node, Node
+  | Out_port, Out_port
+  | Register, Register
+  | Wire, Wire
+  | Fmodule, Fmodule => true
+  | _, _ => false
+  end.
+
+Lemma fcomponent_eqP : Equality.axiom fcomponent_eqn.
+Proof. unfold Equality.axiom, fcomponent_eqn. intros.
 destruct x, y ; try (apply ReflectF ; discriminate).
 all : (apply ReflectT ; reflexivity).
 Qed.
-Canonical component_eqMixin := EqMixin component_eqP.
-Canonical component_eqType := Eval hnf in EqType fcomponent component_eqMixin.
-
-
-
-
+Canonical fcomponent_eqMixin := EqMixin fcomponent_eqP.
+Canonical fcomponent_eqType := Eval hnf in EqType fcomponent fcomponent_eqMixin.

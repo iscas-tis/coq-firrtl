@@ -838,12 +838,18 @@ it does not make sense to put effort in external modules.
   Inductive forient : Type :=
   | Source | Sink | Duplex | Passive | Other.
 
+  Lemma forient_eq_dec : forall { x y : forient }, { x=y } + { x <> y }.
+  Proof.  intros ; decide equality.  Qed.
+
   Definition forient_eqn (x y : forient) : bool :=
   match x, y with Source, Source | Sink, Sink | Duplex, Duplex | Passive, Passive | Other, Other => true
                 | _, _ => false end.
   Lemma forient_eqP : Equality.axiom forient_eqn.
   Proof. unfold Equality.axiom, forient_eqn. induction x, y ; try (apply ReflectF ; discriminate) ; try (apply ReflectT ; reflexivity). Qed.
-  
+
+  Canonical forient_eqMixin := EqMixin forient_eqP.
+  Canonical forient_eqType := Eval hnf in EqType forient forient_eqMixin.
+
   Definition orient_of_comp c :=
     match c with
     | In_port | Instanceof | Memory | Node => Source
