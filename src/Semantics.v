@@ -1968,18 +1968,137 @@ match ss with
 | Qcons h tl => (hfstmt_eqn h s) || (Qin_with_cond s tl init_s tmap)
 end.
 
-Axiom NoDupA_notin : forall (l1 l2 : list (PVM.key * def_expr)) v e,
+Lemma list_split_cons {A B : Type} (x : A) (y : B) (tl : list (A * B)) :
+  List.split ((x, y) :: tl) =
+    let (xs, ys) := List.split tl in (x :: xs, y :: ys).
+Proof. reflexivity. Qed.
+
+Lemma in_fst_split_key l v (e : def_expr) :
+  In v (fst (List.split l)) ->
+  InA (PVM.eq_key (elt:=def_expr)) (v, e) l.
+Proof.
+  intros H. revert H.
+  induction l as [|[k value] tl IH]; intros H.
+  - simpl in H. contradiction.
+  - rewrite list_split_cons in H.
+    have IH' : forall keys values,
+        List.split tl = (keys, values) ->
+        In v keys -> InA (PVM.eq_key (elt:=def_expr)) (v, e) tl.
+    { move=> keys values E Hkeys.
+      have Htail : In v (fst (List.split tl)) by (rewrite E; simpl; exact Hkeys).
+      exact (@IH Htail). }
+    destruct (List.split tl) as [keys values] eqn:E in H |- *.
+    simpl in H.
+    change (In v (k :: keys)) in H.
+    destruct H as [H | H].
+    - subst k. apply InA_cons. left. unfold PVM.eq_key. simpl. by apply/eqP.
+    - apply InA_cons. right. exact: (IH' keys values E H).
+Qed.
+
+Lemma NoDupA_drop_prefix (l1 l2 : list (PVM.key * def_expr)) :
+  NoDupA (PVM.eq_key (elt:=def_expr)) (l1 ++ l2) ->
+  NoDupA (PVM.eq_key (elt:=def_expr)) l2.
+Proof.
+  induction l1 as [|a tl IH]; simpl; first done.
+  move=> H. inversion H; subst. exact (IH H3).
+Qed.
+
+Lemma NoDupA_middle_notin_prefix (l1 l2 : list (PVM.key * def_expr)) v (e : def_expr) :
+  NoDupA (PVM.eq_key (elt:=def_expr)) (l1 ++ (v, e) :: l2) ->
+  ~ InA (PVM.eq_key (elt:=def_expr)) (v, e) l1.
+Proof.
+  induction l1 as [|a tl IH].
+  - simpl. move=> Hdup Hin. inversion Hin.
+  - simpl. move=> Hdup Hin. inversion Hdup as [|a' rest Hfresh Hrest]; subst.
+    apply InA_cons in Hin. destruct Hin as [Hsame | Hin].
+    + apply Hfresh. apply InA_app_iff. right. apply InA_cons. left.
+      unfold PVM.eq_key in *. simpl in *.
+      move/eqP: Hsame => Hsame. apply/eqP. symmetry. exact Hsame.
+    + exact (IH Hrest Hin).
+Qed.
+
+Lemma NoDupA_notin : forall (l1 l2 : list (PVM.key * def_expr)) v e,
   NoDupA (PVM.eq_key (elt:=def_expr)) (l1 ++ (v, e) :: l2) ->
   ~ In v (fst (List.split l1)) /\ ~ In v (fst (List.split l2)).
+Proof.
+  move=> l1 l2 v e Hdup; split.
+  - move=> Hin. apply (NoDupA_middle_notin_prefix Hdup).
+    exact: in_fst_split_key Hin.
+  - move=> Hin.
+    have Htail : NoDupA (PVM.eq_key (elt:=def_expr)) ((v, e) :: l2) :=
+      NoDupA_drop_prefix Hdup.
+    inversion Htail as [|x tl Hfresh Hrest]; subst.
+    apply Hfresh. exact: in_fst_split_key Hin.
+Qed.
 (* [update_values] is monotone under semantic-map inclusion: included base maps and included update maps yield included updated maps. *)
 Axiom included_update_values_included : forall s1 s2 ns1 ns2,
   pvm_included s1 s2 -> pvm_included ns1 ns2 ->
   pvm_included (Sem_HiFP.update_values ns1 s1) (Sem_HiFP.update_values ns2 s2).
 (* Dynamic conditional reachability implies syntactic occurrence under a [when]:
    any statement selected by [Qin_with_cond] must also be recorded by the condition-insensitive predicate [Qin_when]. *)
-Axiom Qin_with_cond2Qin_when : forall s ss init_s tmap, Qin_with_cond s ss init_s tmap -> Qin_when s ss.
+Lemma Qin_with_cond2Qin_when : forall s ss init_s tmap, Qin_with_cond s ss init_s tmap -> Qin_when s ss.
+Proof.
+  move=> s ss init_s tmap H.
+  move: ss s init_s tmap H.
+  apply (HiFirrtl.hfstmt_seq_hfstmt_ind
+    (P:=fun ss => forall s init_s tmap,
+      Qin_with_cond s ss init_s tmap -> Qin_when s ss)
+    (P0:=fun st => forall s init_s tmap tl,
+      (forall s init_s tmap, Qin_with_cond s tl init_s tmap -> Qin_when s tl) ->
+      Qin_with_cond s (Qcons st tl) init_s tmap ->
+      Qin_when s (Qcons st tl))).
+  - by [].
+  - move=> st Hst tl IH s init_s tmap H.
+    exact: Hst s init_s tmap tl IH H.
+  - move=> s init_s tmap tl IH H.
+    simpl in H |- *. apply Bool.orb_true_iff in H.
+    apply Bool.orb_true_iff. destruct H as [H | H]; [left | right; exact: IH s init_s tmap H].
+    exact H.
+  - move=> v ft s init_s tmap tl IH H.
+    simpl in H |- *. apply Bool.orb_true_iff in H.
+    apply Bool.orb_true_iff. destruct H as [H | H]; [left | right; exact: IH s init_s tmap H].
+    exact H.
+  - move=> v r s init_s tmap tl IH H.
+    simpl in H |- *. apply Bool.orb_true_iff in H.
+    apply Bool.orb_true_iff. destruct H as [H | H]; [left | right; exact: IH s init_s tmap H].
+    exact H.
+  - move=> v m s init_s tmap tl IH H.
+    simpl in H |- *. apply Bool.orb_true_iff in H.
+    apply Bool.orb_true_iff. destruct H as [H | H]; [left | right; exact: IH s init_s tmap H].
+    exact H.
+  - move=> v1 v2 s init_s tmap tl IH H.
+    simpl in H |- *. apply Bool.orb_true_iff in H.
+    apply Bool.orb_true_iff. destruct H as [H | H]; [left | right; exact: IH s init_s tmap H].
+    exact H.
+  - move=> v e s init_s tmap tl IH H.
+    simpl in H |- *. apply Bool.orb_true_iff in H.
+    apply Bool.orb_true_iff. destruct H as [H | H]; [left | right; exact: IH s init_s tmap H].
+    exact H.
+  - move=> r e s init_s tmap tl IH H.
+    simpl in H |- *. apply Bool.orb_true_iff in H.
+    apply Bool.orb_true_iff. destruct H as [H | H]; [left | right; exact: IH s init_s tmap H].
+    exact H.
+  - move=> r s init_s tmap tl IH H.
+    simpl in H |- *. apply Bool.orb_true_iff in H.
+    apply Bool.orb_true_iff. destruct H as [H | H]; [left | right; exact: IH s init_s tmap H].
+    exact H.
+  - move=> c s1 IH1 s2 IH2 s init_s tmap tl IH H.
+    simpl in H |- *.
+    case E: (Sem_HiFP.eval_hfexpr c init_s tmap) => [val|].
+    + rewrite E in H |- *; simpl in H |- *.
+      case B: (~~ is_zero val); rewrite B in H; simpl in H.
+      * apply Bool.orb_true_iff in H.
+        apply Bool.orb_true_iff. destruct H as [H | H].
+        -- left. apply Bool.orb_true_iff. left. exact: IH1 s init_s tmap H.
+        -- right. exact: IH s init_s tmap H.
+      * apply Bool.orb_true_iff in H.
+        apply Bool.orb_true_iff. destruct H as [H | H].
+        -- left. apply Bool.orb_true_iff. right. exact: IH2 s init_s tmap H.
+        -- right. exact: IH s init_s tmap H.
+    + rewrite E in H; simpl in H; discriminate.
+Qed.
 (* A node name already declared in the surrounding sequence cannot be declared again in either branch of the current [when]. *)
-Axiom Qin_when_uniqie_False :
+Lemma Qin_when_uniqie_False :
   forall (v : ProdVarOrder.T) (e : hfexpr ProdVarOrder.T) (ss : hfstmt_seq ProdVarOrder.T) (e' : hfexpr ProdVarOrder.T)
          (cond : hfexpr ProdVarOrder.T) (ss_true ss_false : hfstmt_seq ProdVarOrder.T),    
   (forall (v' : ProdVarOrder.T) (e' : hfexpr ProdVarOrder.T),
@@ -1988,13 +2107,97 @@ Axiom Qin_when_uniqie_False :
   Qin_when (Snode v e) ss ->
   (Qin_when (Snode v e') ss_true \/ Qin_when (Snode v e') ss_false) ->
   False.
+Proof.
+  move=> v e ss e' cond ss_true ss_false Hfresh Htail [Htrue | Hfalse].
+  - case Hsrc_true: (Qin_when (Snode v e) ss_true).
+    + have Hkept : Qin_when (Snode v e)
+        (Qremove_when (Snode v e) (Qcons (Swhen cond ss_true ss_false) ss)).
+      { simpl. rewrite Hsrc_true. simpl. apply Bool.orb_true_iff; right; exact Htail. }
+      apply (Hfresh v e Hkept); reflexivity.
+    + case Hsrc_false: (Qin_when (Snode v e) ss_false).
+      * have Hkept : Qin_when (Snode v e)
+          (Qremove_when (Snode v e) (Qcons (Swhen cond ss_true ss_false) ss)).
+        { simpl. rewrite Hsrc_true Hsrc_false. simpl.
+          apply Bool.orb_true_iff; right; exact Htail. }
+        apply (Hfresh v e Hkept); reflexivity.
+      * have Hkept : Qin_when (Snode v e')
+          (Qremove_when (Snode v e) (Qcons (Swhen cond ss_true ss_false) ss)).
+        { simpl. rewrite Hsrc_true Hsrc_false. simpl.
+          apply Bool.orb_true_iff; left. apply Bool.orb_true_iff; left.
+          exact Htrue. }
+        apply (Hfresh v e' Hkept); reflexivity.
+  - case Hsrc_true: (Qin_when (Snode v e) ss_true).
+    + have Hkept : Qin_when (Snode v e)
+        (Qremove_when (Snode v e) (Qcons (Swhen cond ss_true ss_false) ss)).
+      { simpl. rewrite Hsrc_true. simpl. apply Bool.orb_true_iff; right; exact Htail. }
+      apply (Hfresh v e Hkept); reflexivity.
+    + case Hsrc_false: (Qin_when (Snode v e) ss_false).
+      * have Hkept : Qin_when (Snode v e)
+          (Qremove_when (Snode v e) (Qcons (Swhen cond ss_true ss_false) ss)).
+        { simpl. rewrite Hsrc_true Hsrc_false. simpl.
+          apply Bool.orb_true_iff; right; exact Htail. }
+        apply (Hfresh v e Hkept); reflexivity.
+      * have Hkept : Qin_when (Snode v e')
+          (Qremove_when (Snode v e) (Qcons (Swhen cond ss_true ss_false) ss)).
+        { simpl. rewrite Hsrc_true Hsrc_false. simpl.
+          apply Bool.orb_true_iff; left. apply Bool.orb_true_iff; right.
+          exact Hfalse. }
+        apply (Hfresh v e' Hkept); reflexivity.
+Qed.
 (* Any node value produced by statement evaluation has a source declaration *)
 Axiom find_node_qin_with_cond : forall mv pp ss tmap, Sem_HiFP.module_tmap (PVM.empty (fgtyp * fcomponent)) (FInmod mv pp ss) = Some tmap ->
   forall v gt, PVM.find v tmap = Some (gt, Node) -> 
   forall init_s rs1 s1 bs, Sem_HiFP.eval_hfstmts ss (PVM.empty bits) (PVM.empty bits) init_s tmap = Some (rs1, s1) ->
   PVM.find v s1 = Some bs ->
   exists e, Qin_with_cond (Snode v e) ss init_s tmap.
-(* Any conditionally reachable node declaration present in the declarations. *)
-Axiom qin_with_cond_node_qin_cmpnt : forall v e ss init_s tmap,
-  Qin_with_cond (Snode v e) ss init_s tmap -> 
+(* Any node found under a when is included among the component declarations. *)
+Lemma Qin_when_node_in_component : forall ss v e,
+  Qin_when (Snode v e) ss ->
   Qin (Snode v e) (component_stmts_of ss).
+Proof.
+  move=> ss v e H.
+  move: ss v e H.
+  apply (HiFirrtl.hfstmt_seq_hfstmt_ind
+    (P:=fun ss => forall v e,
+      Qin_when (Snode v e) ss -> Qin (Snode v e) (component_stmts_of ss))
+    (P0:=fun st => forall v e tl,
+      (forall v e, Qin_when (Snode v e) tl -> Qin (Snode v e) (component_stmts_of tl)) ->
+      Qin_when (Snode v e) (Qcons st tl) ->
+      Qin (Snode v e) (component_stmts_of (Qcons st tl)))).
+  - by [].
+  - move=> st Hst tl IH v e H.
+    exact: Hst v e tl IH H.
+  - move=> v e tl IH H. simpl in H |- *. exact: IH v e H.
+  - move=> v0 ft v e tl IH H. simpl in H |- *. exact: IH v e H.
+  - move=> v0 r v e tl IH H. simpl in H |- *. exact: IH v e H.
+  - move=> v0 m v e tl IH H. simpl in H |- *. exact: IH v e H.
+  - move=> v0 v1 v e tl IH H. simpl in H |- *. exact: IH v e H.
+  - move=> v0 e0 v e tl IH H.
+    simpl in H |- *. apply Bool.orb_true_iff in H.
+    destruct H as [H | H].
+    + rewrite H. simpl. reflexivity.
+    + apply Bool.orb_true_iff. right. exact: IH v e H.
+  - move=> r e0 v e tl IH H. simpl in H |- *. exact: IH v e H.
+  - move=> r v e tl IH H. simpl in H |- *. exact: IH v e H.
+  - move=> c s1 IH1 s2 IH2 v e tl IH H.
+    simpl in H |- *.
+    apply Bool.orb_true_iff in H.
+    destruct H as [H12 | Htl].
+    + apply Bool.orb_true_iff in H12.
+      destruct H12 as [H1 | H2].
+      * apply Qin_Qcat. left. apply Qin_Qcat. left.
+        exact: IH1 v e H1.
+      * apply Qin_Qcat. left. apply Qin_Qcat. right.
+        exact: IH2 v e H2.
+    + apply Qin_Qcat. right. exact: IH v e Htl.
+Qed.
+
+(* Any conditionally reachable node declaration is included among the component declarations. *)
+Lemma qin_with_cond_node_qin_cmpnt : forall v e ss init_s tmap,
+  Qin_with_cond (Snode v e) ss init_s tmap ->
+  Qin (Snode v e) (component_stmts_of ss).
+Proof.
+  move=> v e ss init_s tmap H.
+  apply Qin_when_node_in_component.
+  exact: Qin_with_cond2Qin_when H.
+Qed.

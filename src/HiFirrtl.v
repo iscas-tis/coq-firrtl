@@ -578,7 +578,118 @@ Instance hfstmt_seq_eqn_Equivalence : Equivalence (@hfstmt_seq_eqn) :=
           else Qcons h (Qremove_when s tl)
       end.
 (* Removing statements from [ss] cannot create new [Qin_when] occurrences*)
-  Axiom Qremove_when_Qin_when : forall s s0 ss, Qin_when s0 (Qremove_when s ss) -> Qin_when s0 ss.
+  Lemma Qremove_when_Qin_when : forall s s0 ss, Qin_when s0 (Qremove_when s ss) -> Qin_when s0 ss.
+  Proof.
+    move=> s s0 ss. move: s s0.
+    apply (hfstmt_seq_hfstmt_ind
+      (P:=fun ss => forall s s0,
+        Qin_when s0 (Qremove_when s ss) -> Qin_when s0 ss)
+      (P0:=fun st => forall s s0 tl,
+        (forall s s0, Qin_when s0 (Qremove_when s tl) -> Qin_when s0 tl) ->
+        Qin_when s0 (Qremove_when s (Qcons st tl)) ->
+        Qin_when s0 (Qcons st tl))).
+    - by [].
+    - move=> st Hst tl IH s s0 H.
+      exact: Hst s s0 tl IH H.
+    - move=> s s0 tl IH H; simpl in H |- *.
+      case Heq: (hfstmt_eqn Sskip s); simpl in H |- *.
+      + simpl in Heq; rewrite Heq in H; simpl in H.
+        apply Bool.orb_true_iff; right; exact H.
+      + simpl in Heq; rewrite Heq in H; simpl in H.
+        apply Bool.orb_true_iff in H. apply Bool.orb_true_iff.
+        destruct H as [H | H]; [left | right; exact: IH H].
+        exact H.
+    - move=> v ft s s0 tl IH H; simpl in H |- *.
+      case Heq: (hfstmt_eqn (Swire v ft) s); simpl in H |- *.
+      + simpl in Heq; rewrite Heq in H; simpl in H.
+        apply Bool.orb_true_iff; right; exact H.
+      + simpl in Heq; rewrite Heq in H; simpl in H.
+        apply Bool.orb_true_iff in H. apply Bool.orb_true_iff.
+        destruct H as [H | H]; [left | right; exact: IH H].
+        exact H.
+    - move=> v r s s0 tl IH H; simpl in H |- *.
+      case Heq: (hfstmt_eqn (Sreg v r) s); simpl in H |- *.
+      + simpl in Heq; rewrite Heq in H; simpl in H.
+        apply Bool.orb_true_iff; right; exact H.
+      + simpl in Heq; rewrite Heq in H; simpl in H.
+        apply Bool.orb_true_iff in H. apply Bool.orb_true_iff.
+        destruct H as [H | H]; [left | right; exact: IH H].
+        exact H.
+    - move=> v m s s0 tl IH H; simpl in H |- *.
+      case Heq: (hfstmt_eqn (Smem v m) s); simpl in H |- *.
+      + simpl in Heq; rewrite Heq in H; simpl in H.
+        apply Bool.orb_true_iff; right; exact H.
+      + simpl in Heq; rewrite Heq in H; simpl in H.
+        apply Bool.orb_true_iff in H. apply Bool.orb_true_iff.
+        destruct H as [H | H]; [left | right; exact: IH H].
+        exact H.
+    - move=> v1 v2 s s0 tl IH H; simpl in H |- *.
+      case Heq: (hfstmt_eqn (Sinst v1 v2) s); simpl in H |- *.
+      + simpl in Heq; rewrite Heq in H; simpl in H.
+        apply Bool.orb_true_iff; right; exact H.
+      + simpl in Heq; rewrite Heq in H; simpl in H.
+        apply Bool.orb_true_iff in H. apply Bool.orb_true_iff.
+        destruct H as [H | H]; [left | right; exact: IH H].
+        exact H.
+    - move=> v e s s0 tl IH H; simpl in H |- *.
+      case Heq: (hfstmt_eqn (Snode v e) s); simpl in H |- *.
+      + simpl in Heq; rewrite Heq in H; simpl in H.
+        apply Bool.orb_true_iff; right; exact H.
+      + simpl in Heq; rewrite Heq in H; simpl in H.
+        apply Bool.orb_true_iff in H. apply Bool.orb_true_iff.
+        destruct H as [H | H]; [left | right; exact: IH H].
+        exact H.
+    - move=> r e s s0 tl IH H; simpl in H |- *.
+      case Heq: (hfstmt_eqn (Sfcnct r e) s); simpl in H |- *.
+      + simpl in Heq; rewrite Heq in H; simpl in H.
+        apply Bool.orb_true_iff; right; exact H.
+      + simpl in Heq; rewrite Heq in H; simpl in H.
+        apply Bool.orb_true_iff in H. apply Bool.orb_true_iff.
+        destruct H as [H | H]; [left | right; exact: IH H].
+        exact H.
+    - move=> r s s0 tl IH H; simpl in H |- *.
+      case Heq: (hfstmt_eqn (Sinvalid r) s); simpl in H |- *.
+      + simpl in Heq; rewrite Heq in H; simpl in H.
+        apply Bool.orb_true_iff; right; exact H.
+      + simpl in Heq; rewrite Heq in H; simpl in H.
+        apply Bool.orb_true_iff in H. apply Bool.orb_true_iff.
+        destruct H as [H | H]; [left | right; exact: IH H].
+        exact H.
+    - move=> c s1 IH1 s2 IH2 s s0 tl IH H.
+      simpl in H |- *.
+      case H1: (Qin_when s s1).
+      + rewrite H1 in H |- *; simpl in H |- *.
+        apply Bool.orb_true_iff in H.
+        destruct H as [H | H].
+        * apply Bool.orb_true_iff in H.
+          destruct H as [H | H].
+          -- apply Bool.orb_true_iff; left. apply Bool.orb_true_iff; left.
+             exact: IH1 s s0 H.
+          -- apply Bool.orb_true_iff; left. apply Bool.orb_true_iff; right.
+             exact H.
+        * apply Bool.orb_true_iff; right. exact H.
+      + case H2: (Qin_when s s2).
+        * rewrite H1 H2 in H |- *; simpl in H |- *.
+          apply Bool.orb_true_iff in H.
+          destruct H as [H | H].
+          -- apply Bool.orb_true_iff in H.
+             destruct H as [H | H].
+             ++ apply Bool.orb_true_iff; left. apply Bool.orb_true_iff; left.
+                exact H.
+             ++ apply Bool.orb_true_iff; left. apply Bool.orb_true_iff; right.
+                exact: IH2 s s0 H.
+          -- apply Bool.orb_true_iff; right. exact H.
+        * rewrite H1 H2 in H |- *; simpl in H |- *.
+          apply Bool.orb_true_iff in H.
+          destruct H as [H | H].
+          -- apply Bool.orb_true_iff in H.
+             destruct H as [H | H].
+             ++ apply Bool.orb_true_iff; left. apply Bool.orb_true_iff; left.
+                exact H.
+             ++ apply Bool.orb_true_iff; left. apply Bool.orb_true_iff; right.
+                exact H.
+          -- apply Bool.orb_true_iff; right. exact: IH s s0 H.
+  Qed.
 
   Lemma Qin_when_Qcons : forall s0 ss s, Qin_when s0 ss -> Qin_when s0 (Qcons s ss).
   Proof.
