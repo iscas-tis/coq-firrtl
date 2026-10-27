@@ -1,5 +1,5 @@
 (* This file shows a possible development of the semantics.
-   It should be organized in Sections as follows.
+   It is organized in Sections as follows.
 
    0. Outside the sections mentioned below, some preliminary definitions
       are given, e.g. a ftype_mux function that is compatible with the
@@ -3218,6 +3218,46 @@ Proof.
   1,2: simpl ; rewrite ftype_mux_preserves_concrete andTb ; by apply IHff1.
 Qed.
 
+(* ftype_mux preserves whether types are explicit and concrete. *)
+Lemma ftype_mux_preserves_explicit_and_concrete :
+    forall (passive : bool) (t1 t2 : ftype),
+        ftype_is_explicit_and_concrete t1 ->
+        ftype_is_explicit_and_concrete t2 ->
+        match ftype_mux passive t1 t2 with
+        | Some t12 => ftype_is_explicit_and_concrete t12
+        | None => true
+        end
+with ffield_mux_preserves_explicit_and_concrete :
+    forall (passive : bool) (ff1 ff2 : ffield),
+        ffield_is_explicit_and_concrete ff1 ->
+        ffield_is_explicit_and_concrete ff2 ->
+        match ffield_mux passive ff1 ff2 with
+        | Some ff12 => ffield_is_explicit_and_concrete ff12
+        | None => true
+        end.
+Proof.
+* clear ftype_mux_preserves_explicit_and_concrete.
+  induction t1 as [[w1|w1|w1|w1| | | |]|elt1 IHelt1 n1|ff1] ;
+   destruct t2 as [[w2|w2|w2|w2| | | |]|elt2        n2|ff2] ; simpl ; intros ; try done.
+  + (* Atyp *)
+    destruct (n1 == n2) ; last done.
+    specialize (IHelt1 elt2 H H0).
+    by destruct (ftype_mux passive elt1 elt2) as [elt12|].
+  + (* Btyp *)
+    specialize (ffield_mux_preserves_explicit_and_concrete passive ff1 ff2 H H0).
+    by destruct (ffield_mux passive ff1 ff2) as [ff12|].
+* clear ffield_mux_preserves_explicit_and_concrete.
+  induction ff1 as [|id1 [] t1 ff1] ; destruct ff2 as [|id2 [] t2 ff2] ; simpl ; intros ; try done.
+  1,2: apply (elimT andP) in H ; apply (elimT andP) in H0.
+  1,2: specialize (ftype_mux_preserves_explicit_and_concrete passive t1 t2 (proj1 H) (proj1 H0)).
+  1,2: specialize (IHff1 ff2 (proj2 H) (proj2 H0)).
+  1: destruct passive ; first done.
+  1,2: destruct (id1 == id2) ; last done ; simpl.
+  1,2: destruct (ftype_mux _ t1 t2) as [t12|] ; last done.
+  1,2: destruct (ffield_mux _ ff1 ff2) as [ff12|] ; last done.
+  1,2: simpl ; rewrite ftype_mux_preserves_explicit_and_concrete andTb ; by apply IHff1.
+Qed.
+
 (* If types are concrete, then ftype_mux and make_ftype_explicit can be interchanged.
    (Problematic is that ftype_mux _ (Gtyp Freset) (Gtyp Fasyncreset) = Gtyp Fasyncreset,
    but (make_ftype_explicit (Gtyp Freset)) = Gtyp (Fuint 1).  Therefore
@@ -3705,9 +3745,6 @@ with bundle_value : Type :=
   | Bnil : bundle_value
   | Bflips : var -> fflip -> hvalue -> bundle_value -> bundle_value.
 
-Lemma bitseq_eq_dec : forall (x y : bitseq), {x = y} + {x <> y}.
-Proof.  apply list_eq_dec, bool_dec.  Qed.
-
 (* general data value equality is decidable *)
 Lemma hvalue_eq_dec (x y : hvalue) : {x = y} + {x <> y}
 with array_value_eq_dec (x y : array_value) : {x = y} + {x <> y}
@@ -3715,7 +3752,7 @@ with bundle_value_eq_dec (x y : bundle_value) : {x = y} + {x <> y}.
 Proof.
   - destruct x, y; try (right; discriminate).
     + destruct (fgtyp_eq_dec f f0) as [Hf|Hf] ; last by right ; injection ; done.
-      destruct (bitseq_eq_dec b b0) as [Hb|Hb] ; last by right ; injection ; done.
+      destruct (list_eq_dec bool_dec b b0) as [Hb|Hb] ; last by right ; injection ; done.
       left ; subst f0 b0 ; reflexivity.
     + destruct (ftype_eq_dec f f0) as [Hf|Hf] ; last by right ; injection ; done.
       destruct (array_value_eq_dec a a0) as [Ha|Ha] ; last by right ; injection ; done.
@@ -3892,15 +3929,18 @@ Definition convert_to_bundle_value (hv : hvalue) : option bundle_value :=
     match hv with
     | Bval bv => Some bv
     | Undefinedonpurpose (Btyp ff) => Some (create_undef_bundle_value Undefinedonpurpose ff)
-    | Needtobedefined (Btyp ff) | Uninitialized (Btyp ff) => Some (create_undef_bundle_value Needtobedefined ff)
+    | Needtobedefined    (Btyp ff) => Some (create_undef_bundle_value Needtobedefined    ff)
+    | Uninitialized      (Btyp ff) => Some (create_undef_bundle_value Uninitialized      ff)
     | _ => None
     end.
 
-Definition convert_to_array_value (hv : hvalue) : option array_value :=
+(* The function returns a pair consisting of the element type and an array value *)
+Definition convert_to_array_value (hv : hvalue) : option (ftype * array_value) :=
     match hv with
-    | Aval _ av => Some av
-    | Undefinedonpurpose (Atyp elt n) => Some (create_undef_array_value Undefinedonpurpose elt n)
-    | Needtobedefined (Atyp elt n) | Uninitialized (Atyp elt n) => Some (create_undef_array_value Needtobedefined elt n)
+    | Aval elt av => Some (elt, av)
+    | Undefinedonpurpose (Atyp elt n) => Some (elt, create_undef_array_value Undefinedonpurpose elt n)
+    | Needtobedefined    (Atyp elt n) => Some (elt, create_undef_array_value Needtobedefined    elt n)
+    | Uninitialized      (Atyp elt n) => Some (elt, create_undef_array_value Uninitialized      elt n)
     | _ => None
     end.
 
@@ -4270,43 +4310,56 @@ Definition eval_unop (op : eunop) (e1 : hvalue) : option hvalue :=
     | _, _ => None
     end.
 
-(* Extends the widths in val to be at least those of val_for_type.
-   Is used for operator Emux, so it should follow the logic of ftype_mux. *)
-Fixpoint extend_hvalue_as_type (val : hvalue) (t : ftype) : option hvalue :=
+(* Adapts the widths in val to be exactly those of val_for_type.
+   Is used to adapt the type for connect statements in case the value read
+   does not have exactly the same type as the value written.
+   A variant can also be used for operator Emux. *)
+Fixpoint adapt_hvalue_as_type (val : hvalue) (t : ftype) : option hvalue :=
     match val, t with
-    | Gval (Fuint w)   c, Gtyp (Fuint w') => Some (Gval (Fuint (maxn w w')) (zext_to (maxn w w') c))
-    | Gval (Fsint w)   c, Gtyp (Fsint w') => Some (Gval (Fsint (maxn w w')) (sext_to (maxn w w') c))
+    | Gval (Fuint w)   c, Gtyp (Fuint w') => Some (Gval (Fuint w') (zext_to w' (take w' c)))
+    | Gval (Fsint w)   c, Gtyp (Fsint w') => Some (Gval (Fsint w') (sext_to w' (take w' c)))
     | Gval Fasyncreset c, Gtyp Fasyncreset
     | Gval Fclock      c, Gtyp Fclock      => Some val
-    | Aval elt aval, (Atyp elt' n) => match ftype_mux true elt elt' with
-                                      | Some eltu => option_map (Aval eltu) (extend_array_value_as_type aval eltu n)
-                                      | None => None
-                                      end
-    | Bval bval, (Btyp ff) => option_map Bval (extend_bundle_value_as_type bval ff)
-    | Undefinedonpurpose t, t' => option_map Undefinedonpurpose (ftype_mux true t t')
-    | Needtobedefined    t, t' => option_map Needtobedefined    (ftype_mux true t t')
-    | Uninitialized      t, t' => option_map Uninitialized      (ftype_mux true t t')
+    | Aval elt aval, (Atyp elt' n) => option_map (Aval elt') (adapt_array_value_as_type aval elt' n)
+    | Bval bval, (Btyp ff) => option_map Bval (adapt_bundle_value_as_type bval ff)
+    | Undefinedonpurpose t, t' => if ftype_mux false t t' then Some (Undefinedonpurpose t') else None
+    | Needtobedefined    t, t' => if ftype_mux false t t' then Some (Needtobedefined    t') else None
+    | Uninitialized      t, t' => if ftype_mux false t t' then Some (Uninitialized      t') else None
     | _, _ => None
     end
-with extend_array_value_as_type (av : array_value) (elt : ftype) (n : nat) : option array_value :=
+with adapt_array_value_as_type (av : array_value) (elt : ftype) (n : nat) : option array_value :=
     match av, n with
     | Anil, 0 => Some Anil
-    | Acons v av', n'.+1 => match extend_hvalue_as_type v elt, extend_array_value_as_type av' elt n' with
+    | Acons v av', n'.+1 => match adapt_hvalue_as_type v elt, adapt_array_value_as_type av' elt n' with
                             | Some v_res, Some av_res => Some (Acons v_res av_res)
                             | _, _ => None
                             end
     | _, _ => None
     end
-with extend_bundle_value_as_type (bv : bundle_value) (ff : ffield) : option bundle_value :=
+with adapt_bundle_value_as_type (bv : bundle_value) (ff : ffield) : option bundle_value :=
     match bv, ff with
     | Bnil, Fnil => Some Bnil
-    | Bflips id Nflip v bv', Fflips id_for_type Nflip t ff' =>
-            if id==id_for_type then match extend_hvalue_as_type v t, extend_bundle_value_as_type bv' ff' with
-                                    | Some v_res, Some bv_res => Some (Bflips id_for_type Nflip v_res bv_res)
-                                    | _, _ => None
-                                    end
-                               else None
+    | Bflips id fl v bv', Fflips id_for_type fl_for_type t ff' =>
+            if (id==id_for_type) && (fl==fl_for_type) then match adapt_hvalue_as_type v t, adapt_bundle_value_as_type bv' ff' with
+                                                           | Some v_res, Some bv_res => Some (Bflips id_for_type fl_for_type v_res bv_res)
+                                                           | _, _ => None
+                                                           end
+                                                      else None
     | _, _ => None
+    end.
+
+(* Extends the widths in val to be at least those of val_for_type.
+   Is used for operator Emux, so it should follow the logic of ftype_mux. *)
+Definition extend_hvalue_as_type (val : hvalue) (t : ftype) : option hvalue :=
+    match ftype_mux true (type_of_val val) t with
+    | Some t' => adapt_hvalue_as_type val t'
+    | None => None
+    end.
+
+Definition extend_bundle_value_as_type (bv : bundle_value) (ff : ffield) : option bundle_value :=
+    match ffield_mux true (type_of_bundle_val bv) ff with
+    | Some ff' => adapt_bundle_value_as_type bv ff'
+    | None => None
     end.
 
 (* value of ref expressions *)
@@ -4315,23 +4368,21 @@ Fixpoint eval_href (r : HiF.href) (sem_old : VM.t hvalue) : option hvalue :=
   | Eid v => VM.find v sem_old
   | Esubfield r' v => match eval_href r' sem_old with
                       | Some bv => match convert_to_bundle_value bv with
-                                   | Some fv => let fix aux fx := (match fx with
-                                                                   | Bflips v' f t fxs => if (v == v') then Some t else aux fxs
-                                                                   | Bnil => None
-                                                                   end)
-                                                 in aux fv
+                                   | Some fv => (fix aux fx := match fx with
+                                                               | Bflips v' f t fxs => if (v == v') then Some t else aux fxs
+                                                               | Bnil => None
+                                                               end) fv
                                    | _ => None
                                    end
                       | _ => None
                       end
   | Esubindex r' n => match eval_href r' sem_old with
                       | Some av => match convert_to_array_value av with
-                                   | Some fv => let fix aux fx m := (match fx, m with
-                                                                     | Acons t fxs, m'.+1 => aux fxs m'
-                                                                     | Acons t _, 0 => Some t 
-                                                                     | _, _ => None
-                                                                     end)
-                                                in aux fv n
+                                   | Some (_, fv) => (fix aux fx m := match fx, m with
+                                                                      | Acons t fxs, m'.+1 => aux fxs m'
+                                                                      | Acons t _, 0 => Some t 
+                                                                      | _, _ => None
+                                                                      end) fv n
                                    | _ => None
                                    end
                       | _ => None
@@ -4339,13 +4390,11 @@ Fixpoint eval_href (r : HiF.href) (sem_old : VM.t hvalue) : option hvalue :=
   | Esubaccess r' e => match eval_hfexpr e sem_old with
                        | Some (Gval (Fuint _) val) => match eval_href r' sem_old with
                                                       | Some av => match convert_to_array_value av with 
-                                                                   | Some fv => let n := to_nat val
-                                                                                in let fix aux fx m := (match fx, m with
-                                                                                                        | Acons t fxs, m'.+1 => aux fxs m'
-                                                                                                        | Acons t _, 0 => Some t 
-                                                                                                        | _, _ => None
-                                                                                                        end)
-                                                                                in aux fv n
+                                                                   | Some (_, fv) => (fix aux fx m := match fx, m with
+                                                                                                      | Acons t fxs, m'.+1 => aux fxs m'
+                                                                                                      | Acons t _, 0 => Some t 
+                                                                                                      | _, _ => None
+                                                                                                      end) fv (to_nat val)
                                                                    | None => None
                                                                    end
                                                       | None => None
@@ -4552,108 +4601,143 @@ Proof.
   1-2: by rewrite type_of_val_correct IHbv'.
 Qed.
 
+(* adapt_hvalue_as corrects the type of the value *)
+Lemma adapt_hvalue_as_type_correct :
+    forall (val : hvalue) (t1 t2 : ftype),
+        hvalue_is_type_correct val t1 ->
+        ftype_is_explicit_and_concrete t2 ->
+        match adapt_hvalue_as_type val t2 with
+        | Some val' => hvalue_is_type_correct val' t2
+        | None => ~~ftype_mux false t1 t2
+        end
+with adapt_array_value_as_type_correct :
+    forall (av : array_value) (elt1 elt2 : ftype) (n1 n2 : nat),
+        array_value_is_type_correct av elt1 n1 ->
+        ftype_is_explicit_and_concrete elt2 ->
+        match adapt_array_value_as_type av elt2 n2 with
+        | Some av' => array_value_is_type_correct av' elt2 n2
+        | None => (~~ftype_mux false elt1 elt2) || (n1 != n2)
+        end
+with adapt_bundle_value_as_type_correct :
+    forall (bv : bundle_value) (ff1 ff2 : ffield),
+        bundle_value_is_type_correct bv ff1 ->
+        ffield_is_explicit_and_concrete ff2 ->
+        match adapt_bundle_value_as_type bv ff2 with
+        | Some bv' => bundle_value_is_type_correct bv' ff2
+        | None => ~~ffield_mux false ff1 ff2
+        end.
+Proof.
+* clear adapt_hvalue_as_type_correct.
+  destruct val as [[wv|wv|wv|wv| | | |] c|eltv av|bv|ft|ft|ft] ; simpl ; try done ; intros.
+  1-4: destruct t1 as [[wt1|wt1|wt1|wt1| | | |]| |],
+                t2 as [[wt2|wt2|wt2|wt2| | | |]| |] ; try done.
+  + 1-2: simpl.
+    1-2: by rewrite ?size_zext ?size_sext size_take eq_refl andbT subnKC // geq_minl.
+  + (* array value *)
+    destruct t1 as [|elt1 n1|],
+             t2 as [|elt2 n2|] ; try done.
+    move /andP : H => [_ H].
+    simpl in H0.
+    specialize (adapt_array_value_as_type_correct av elt1 elt2 n1 n2 H H0).
+    destruct (adapt_array_value_as_type av elt2 n2) ; simpl ;
+          first by rewrite eq_refl.
+    destruct (n1 == n2) ; last done.
+    destruct (ftype_mux false elt1 elt2) ; done.
+  + (* bundle value *)
+    destruct t1 as [| |ff1],
+             t2 as [| |ff2] ; try done.
+    simpl in H0.
+    specialize (adapt_bundle_value_as_type_correct bv ff1 ff2 H H0).
+    destruct (adapt_bundle_value_as_type bv ff2) ; simpl ; first done.
+    destruct (ffield_mux false ff1 ff2) ; done.
+  + (* Undefinedonpurpose etc. *)
+    1-3: move /andP : H => [H /eqP H'] ; subst ft.
+    1-3: destruct (ftype_mux false t1 t2) ; simpl ; last done.
+    1-3: by rewrite eq_refl andbT.
+* clear adapt_array_value_as_type_correct.
+  induction av as [|el av'] ; destruct n1, n2 ; simpl ; try done ; intros.
+  + 1-2: by rewrite orbT.
+  + move /andP : H => [Hel Hav'].
+    specialize (adapt_hvalue_as_type_correct el elt1 elt2 Hel H0).
+    specialize (IHav' elt1 elt2 n1 n2 Hav' H0).
+    destruct (adapt_hvalue_as_type el elt2) as [el_res|] ; last by rewrite adapt_hvalue_as_type_correct.
+    destruct (adapt_array_value_as_type av' elt2 n2) as [av_res|] ; last by rewrite eqSS //.
+    simpl.
+    by rewrite adapt_hvalue_as_type_correct.
+* clear adapt_bundle_value_as_type_correct.
+  induction bv as [|idv flv vv bv'] ; destruct ff1 as [|id1 [] t1 ff1], ff2 as [|id2 [] t2 ff2] ; simpl ; try done ; intros.    
+  + 1-4: move : H H0 => /andP [/andP [/andP [/eqP Hid /eqP Hfl] Ht1] Hff1] /andP [Ht2 Hff2].
+    1-4: subst idv flv.
+    1-4: destruct (id1 == id2) ; try done ; simpl.
+    1-2: specialize (adapt_hvalue_as_type_correct vv t1 t2 Ht1 Ht2) ;
+         destruct (adapt_hvalue_as_type vv t2) as [vv_res|] ;
+                last by destruct (ftype_mux false t1 t2).
+    1-2: specialize (IHbv' ff1 ff2 Hff1 Hff2) ;
+         destruct (adapt_bundle_value_as_type bv' ff2) as [bv_res|] ;
+                last by destruct (ftype_mux false t1 t2), (ffield_mux false ff1 ff2).
+    1-2: simpl ; by rewrite ?eq_refl adapt_hvalue_as_type_correct.
+Qed.
+
 (* extend_hvalue_as_type produces results of the same type as ftype_mux, as long as the types involved are concrete *)
 Lemma extend_hvalue_as_type_and_ftype_mux :
     forall (val : hvalue) (t1 t2 : ftype),
-        hvalue_is_type_correct val (make_ftype_explicit t1) ->
-        ftype_is_concrete t1 ->
-        ftype_is_concrete t2 ->
-        match extend_hvalue_as_type val (make_ftype_explicit t2), ftype_mux true t1 t2 with
-        | Some extval, Some extt => hvalue_is_type_correct extval (make_ftype_explicit extt)
-        | None, None => true
-        | _, _ => false
-        end
-(* This part of the lemma only works for non-empty arrays.
-   If av = Anil, there is no check whether types t1 and t2 are compatible,
-   so it might happen that ftype_mux true t1 t2 = None.
-with extend_array_value_as_type_and_ftype_mux :
-    forall (av : array_value) (t1 t2 : ftype) (n1 n2 : nat),
-        array_value_is_type_correct av (make_ftype_explicit t1) n1 ->
-        ftype_is_concrete t1 ->
-        ftype_is_concrete t2 ->
-        match extend_array_value_as_type av (make_ftype_explicit t2) n2, ftype_mux true t1 t2 with
-        | Some extav, Some extt => (n1 == n2) && array_value_is_type_correct extav (make_ftype_explicit extt) n1
-        | None, None => true
-        | _, _ => n1 != n2
-        end
-*)
-with extend_bundle_value_as_type_and_ffield_mux :
-    forall (bv : bundle_value) (ff1 ff2 : ffield),
-        bundle_value_is_type_correct bv (make_ffield_explicit ff1) ->
-        ffield_is_concrete ff1 ->
-        ffield_is_concrete ff2 ->
-        match extend_bundle_value_as_type bv (make_ffield_explicit ff2), ffield_mux true ff1 ff2 with
-        | Some extbv, Some extff => bundle_value_is_type_correct extbv (make_ffield_explicit extff)
+        hvalue_is_type_correct val t1 ->
+        ftype_is_explicit_and_concrete t1 ->
+        ftype_is_explicit_and_concrete t2 ->
+        match extend_hvalue_as_type val t2, ftype_mux true t1 t2 with
+        | Some extval, Some extt => hvalue_is_type_correct extval extt
         | None, None => true
         | _, _ => false
         end.
 Proof.
-* (*clear extend_hvalue_as_type_and_ftype_mux. -- needed for array values*)
-  induction val as [[wv|wv|wv|wv| | | |]|elt av|bv|t1e|t1e|t1e] ;
-        simpl ; intros ; try done.
-  + (* Gval *)
-    1-4: destruct t1 as [[w1|w1|w1|w1| | | |]| |] eqn: Ht1, t2 as [[w2|w2|w2|w2| | | |]| |] eqn: Ht2 ;
-              simpl ; simpl in H ; try done.
-    1-13: move /andP : H => [/eqP H /eqP H'] ;
-          by rewrite H' eq_refl andbT ?size_zext ?size_sext H H' subnKC // leq_maxl.
-  + (* array value *)
-    destruct t1 as [[]|elt1 n1|], t2 as [[]|elt2 n2|] ; simpl ; simpl in H, H0, H1 ; try done.
-    move /andP : H => [/eqP H H'] ; subst elt.
-    rewrite ftype_mux_and_make_ftype_explicit //.
-    generalize (ftype_mux_associative true elt1 elt1 elt2) ; intro.
-    generalize (ftype_mux_idempotent true elt1) ; intro.
-    generalize (@ftype_mux_passive elt1 elt2) ; intro.
-    generalize (ftype_mux_preserves_concrete true elt2 H0) ; intro.
-    destruct (ftype_mux true elt1 elt2) as [elt12|] eqn: Helt12 ; simpl ; last by destruct (n1 == n2).
-    specialize (H3 _ Logic.eq_refl).
-    destruct (ftype_mux true elt1 elt1) as [elt1'|] ;
-          last by rewrite andTb in H2 ; rewrite (negbTE H2) andFb in H3.
-    subst elt1' ; rewrite Helt12 in H.
-    (*specialize (extend_array_value_as_type_and_ftype_mux av elt1 elt12 n1 n2 H' H0 H4).*)
-    revert av n1 n2 H'.
-    induction av as [|el av] ; destruct n1, n2 ; simpl ; try done ; intros.
-    - rewrite eq_refl andTb.
-      by apply make_ftype_explicit_is_explicit_and_concrete.
-    - move /andP : H' => H'.
-      specialize (extend_hvalue_as_type_and_ftype_mux el elt1 elt12 (proj1 H') H0 H4).
-      specialize (IHav n1 n2 (proj2 H')).
-      destruct (extend_hvalue_as_type el (make_ftype_explicit elt12)) as [extel|],
-               (ftype_mux true elt1 elt12) as [elt12'|] ; try done.
-      subst elt12'.
-      rewrite eqSS.
-      destruct (extend_array_value_as_type av (make_ftype_explicit elt12) n2) as [extav|], (n1 == n2) ;
-            simpl ; simpl in IHav ; try done.
-      move /andP : IHav => [_ IHav].
-      by rewrite eq_refl extend_hvalue_as_type_and_ftype_mux ?andTb.
-  + (* bundle value *)
-    destruct t1 as [[]| |ff1], t2 as [[]| |ff2] ; simpl ; try done ; simpl in H.
-    specialize (extend_bundle_value_as_type_and_ffield_mux bv ff1 ff2 H H0 H1).
-    destruct (extend_bundle_value_as_type bv (make_ffield_explicit ff2)) as [extbv|],
-             (ffield_mux true ff1 ff2) as [ff12|] ; simpl ; done.
-  + (* Undefinedonpurpose etc. *)
-    1-3: move /andP : H => [H /eqP Ht1] ; subst t1e.
-    1-3: rewrite ftype_mux_and_make_ftype_explicit //.
-    1-3: generalize (ftype_mux_preserves_concrete true t2 H0) ; intro.
-    1-3: destruct (ftype_mux true t1 t2) as [t12|] ; last done ; simpl.
-    1-3: rewrite eq_refl andbT.
-    1-3: by apply make_ftype_explicit_is_explicit_and_concrete.
-* clear extend_bundle_value_as_type_and_ffield_mux.
-  induction bv as [|id [] v bv] ;
-        destruct ff1 as [|id1 [] t1 ff1], ff2 as [|id2 [] t2 ff2] ; simpl ; intros ; try done ;
-        move /andP : H => [/andP [/andP [/eqP Hid Hfl] H] H2] ; try done.
-  subst id1.
-  destruct (id == id2) eqn: Hid ; last done.
-  move /eqP : Hid => Hid ; subst id2.
-  move /andP : H0 => [Ht1 Hff1].
-  move /andP : H1 => [Ht2 Hff2].
-  specialize (extend_hvalue_as_type_and_ftype_mux v t1 t2 H Ht1 Ht2).
-  specialize (IHbv ff1 ff2 H2 Hff1 Hff2).
-  destruct (extend_hvalue_as_type v (make_ftype_explicit t2)) as [extv|],
-           (ftype_mux true t1 t2) as [t12|] ; try done.
-  destruct (extend_bundle_value_as_type bv (make_ffield_explicit ff2)) as [extbv|],
-           (ffield_mux true ff1 ff2) as [ff12|] ; try done ; simpl.
-  by rewrite ?eq_refl extend_hvalue_as_type_and_ftype_mux ?andTb.
+unfold extend_hvalue_as_type.
+intros.
+rewrite (elimT eqP (type_of_val_correct H)).
+generalize (ftype_mux_associative false t1 t1 t2) ; intro.
+generalize (ftype_mux_idempotent false t1) ; intro.
+destruct (ftype_mux false t1 t1) as [t1'|] ;
+          first (subst t1') ;
+          last done.
+generalize (ftype_mux_preserves_explicit_and_concrete true H0 H1) ; intro.
+generalize (@ftype_mux_passive t1 t2) ; intro.
+destruct (ftype_mux true t1 t2) as [t12|] ; last done ; simpl.
+specialize (H4 _ Logic.eq_refl).
+rewrite (elimT eqP (proj2 (elimT andP H4))) in H2.
+apply (adapt_hvalue_as_type_correct H) in H3.
+destruct (adapt_hvalue_as_type val t12) as [extval|] ; first done.
+destruct (ftype_mux false t1 t12) ; done.
 Qed.
+
+(*
+Lemma extend_bundle_value_as_type_and_ffield_mux :
+    forall (bv : bundle_value) (ff1 ff2 : ffield),
+        bundle_value_is_type_correct bv ff1 ->
+        ffield_is_explicit_and_concrete ff1 ->
+        ffield_is_explicit_and_concrete ff2 ->
+        match extend_bundle_value_as_type bv ff2, ffield_mux true ff1 ff2 with
+        | Some extbv, Some extff => bundle_value_is_type_correct extbv extff
+        | None, None => true
+        | _, _ => false
+        end.
+Proof.
+unfold extend_bundle_value_as_type.
+intros.
+rewrite (elimT eqP (type_of_bundle_val_correct H)).
+generalize (ffield_mux_associative false ff1 ff1 ff2) ; intro.
+generalize (ffield_mux_idempotent false ff1) ; intro.
+destruct (ffield_mux false ff1 ff1) as [ff1'|] ;
+          first (subst ff1') ;
+          last done.
+generalize (ffield_mux_preserves_explicit_and_concrete true H0 H1) ; intro.
+generalize (@ffield_mux_passive ff1 ff2) ; intro.
+destruct (ffield_mux true ff1 ff2) as [ff12|] ; last done ; simpl.
+specialize (H4 _ Logic.eq_refl).
+rewrite (elimT eqP (proj2 (elimT andP H4))) in H2.
+apply (adapt_bundle_value_as_type_correct H) in H3.
+destruct (adapt_bundle_value_as_type bv ff12) as [evtbv|] ; first done.
+destruct (ffield_mux false ff1 ff12) ; done.
+Qed.
+*)
 
 Lemma eval_href_type_correct :
     forall sem : VM.t hvalue,
@@ -5039,27 +5123,31 @@ Proof.
       1-27: destruct (is_zero bc) ;
               try done ;
               try (by apply ftype_mux_preserves_concrete ; try apply IHe1 ; apply IHe2).
-      * 1,4,5,8,9,12: generalize (@extend_hvalue_as_type_and_ftype_mux _ _ toe1 (proj1 IHe2) (proj2 IHe2)) ;
-                intro.
+      * 1,4,5,8,9,12: generalize (extend_hvalue_as_type_and_ftype_mux (proj1 IHe2)
+                                        (make_ftype_explicit_is_explicit_and_concrete toe2)
+                                        (make_ftype_explicit_is_explicit_and_concrete toe1)) ;
+                      intro ;
+                      rewrite (ftype_mux_and_make_ftype_explicit true (proj2 IHe2)) in H0 ;
+                                        try by apply IHe1.
         1-6: generalize (ftype_mux_preserves_concrete true toe1 (proj2 IHe2)) ; intro.
         1-6: rewrite (ftype_mux_commutative _ toe1) ;
              destruct (extend_hvalue_as_type val2 (make_ftype_explicit toe1)) as [evtval|] ;
                 last by apply H1.
-        1-6: destruct (ftype_mux true toe2 toe1) as [toe12|] ;
-                last by apply H0, IHe1.
-        1-6: apply (introT andP) ; split ;
-                first (by apply H0, IHe1) ;
-                last  (by apply H1).
-      * 1-6: generalize (@extend_hvalue_as_type_and_ftype_mux _ _ toe2 (proj1 IHe1) (proj2 IHe1)) ;
-                intro.
+        1-6: destruct (ftype_mux true toe2 toe1) as [toe12|] ; simpl in H0 ;
+                last by apply H0.
+        1-6: rewrite H0 andTb ; by apply H1.
+      * 1-6: generalize (extend_hvalue_as_type_and_ftype_mux (proj1 IHe1)
+                                        (make_ftype_explicit_is_explicit_and_concrete toe1)
+                                        (make_ftype_explicit_is_explicit_and_concrete toe2)) ;
+                      intro ;
+                      rewrite (ftype_mux_and_make_ftype_explicit true (proj2 IHe1)) in H0 ;
+                                        try by apply IHe2.
         1-6: generalize (ftype_mux_preserves_concrete true toe2 (proj2 IHe1)) ; intro.
         1-6: destruct (extend_hvalue_as_type val1 (make_ftype_explicit toe2)) as [evtval|] ;
                 last by apply H1.
-        1-6: destruct (ftype_mux true toe1 toe2) as [toe12|] ;
-                last by apply H0, IHe2.
-        1-6: apply (introT andP) ; split ;
-                first (by apply H0, IHe2) ;
-                last  (by apply H1).
+        1-6: destruct (ftype_mux true toe1 toe2) as [toe12|] ; simpl in H0 ;
+                last by apply H0.
+        1-6: rewrite H0 andTb ; by apply H1.
     - (* valc is Undefinedonpurpose etc. *)
       1-9: destruct (eval_hfexpr e1 sem) as [val1|], (type_of_expr' (eval_type_of_ref^~ sem) e1) as [toe1|] ;
            try (apply (elimT andP) in IHe1 ; destruct IHe1 as [_ IHe1]) ; try done ;
@@ -5099,29 +5187,34 @@ all: destruct (type_of_expr' (eval_type_of_ref^~ sem) h) as [[[]| |]|] ; try don
 all: destruct (type_of_expr' (eval_type_of_ref^~ sem) h0) as [[[]| |]|] ; done.
 Qed.
 
-(*
-Lemma create_undef_bundle_value_type :
+Lemma create_undef_bundle_value_is_type_correct :
     forall (undef : ftype -> hvalue) (ff : ffield),
-        (forall t : ftype, hvalue_is_type_correct (undef t) t) ->
+        (forall t : ftype,
+            ftype_is_explicit_and_concrete t ->
+            hvalue_is_type_correct (undef t) t) ->
+        ffield_is_explicit_and_concrete ff ->
         bundle_value_is_type_correct (create_undef_bundle_value undef ff) ff.
 Proof.
-induction ff ; first by done.
-intros.
-simpl.
-by rewrite eq_refl eq_refl H IHff.
+intros ; revert H0.
+induction ff as [|id fl t ff] ; first done ; simpl ; intros.
+rewrite ?eq_refl ?andTb.
+move /andP : H0 => [H0 H1].
+rewrite H // andTb.
+by apply IHff.
 Qed.
 
-Lemma create_undef_array_value_type :
+Lemma create_undef_array_value_is_type_correct :
     forall (undef : ftype -> hvalue) (elt : ftype) (n : nat),
-        (forall t : ftype, hvalue_is_type_correct (undef t) t) ->
+        (forall t : ftype,
+            ftype_is_explicit_and_concrete t ->
+            hvalue_is_type_correct (undef t) t) ->
+        ftype_is_explicit_and_concrete elt ->
         array_value_is_type_correct (create_undef_array_value undef elt n) elt n.
 Proof.
-induction n ; first by done.
 intros.
-simpl.
-by rewrite H IHn.
+induction n ; first done ; simpl.
+by rewrite H.
 Qed.
-*)
 
 End Values.
 
@@ -5146,41 +5239,160 @@ Section Single_Cycle_Dynamics.
    in array_value/bundle_value works the other way round, so it is difficult
    to just create a recursive function that accesses it.
 
-   For example, if r has type "Atyp (Btyp (Fflips fld Nflip (Fuint 2) Fnil)) 3" and value
-   "Aval (Acons (Bval (Bflips fld Nflip (Gval (Fuint 2) [:: true , false]) Bnil))
-         (Acons (Bval (Bflips fld Nflip (Gval (Fuint 2) [:: false, true ]) Bnil))
-         (Acons (Bval (Bflips fld Nflip (Gval (Fuint 2) [:: true , true ]) Bnil))
+   For example, if r has type "Atyp (Btyp (Fflips si Nflip (Fsint 2) (Fflips ui Nflip (Fuint 1) Fnil))) 3" and value
+   "Aval (Acons (Bval (Bflips si Nflip (Gval (Fsint 2) [:: true , false]) (Bflips ui Nflip (Gval (Fuint 1) [:: true ]) Bnil)))
+         (Acons (Bval (Bflips si Nflip (Gval (Fsint 2) [:: false, true ]) (Bflips ui Nflip (Gval (Fuint 1) [:: true ]) Bnil)))
+         (Acons (Bval (Bflips si Nflip (Gval (Fsint 2) [:: true , true ]) (Bflips ui Nflip (Gval (Fuint 1) [:: false]) Bnil)))
           Anil)))", then elements of r are accessed with expression
    "Esubfield (Esubindex (Eid r) 2) fld".
 
-   We do this: the function repl_val_part' that replaces a part
-   of a reference takes as parameters a reference.  It returns a
-   value-with-a-hole (i.e. a function from values to values),
-   together with the old value that had been in the hole.
+   We do this: the function repl_val_part' that replaces a part of a reference
+   takes as one of its parameter a function that inserts a new value for the
+   reference into the old value.  This function is extended by recursing down
+   until it gets a function that replaces (HiF.base_ref r).
 
    So, one could call the function repl_val_part' with parameters:
-   reference = "Esubfield (Esubindex (Eid r) 2) fld".
+   reference = "Esubfield (Esubindex (Eid r) 2) si",
+   function : (old value of "Esubfield (Esubindex (Eid r) 2) si") -> (new value of "Esubfield (Esubindex (Eid r) 2) si") -> (combined value of "Esubfield (Esubindex (Eid r) 2) si")
+   new value for "Esubfield (Esubindex (Eid r) 2) si"
           This calls repl_val_part' recursively with
           reference = "Esubindex (Eid r) 2".
+          function : (old value of "Esubindex (Eid r) 2") -> (new value of "Esubfield (Esubindex (Eid r) 2) si") -> (combined value of "Esubindex (Eid r) 2")
+          new value for "Esubfield (Esubindex (Eid r) 2) si"
                 This calls repl_val_part' recursively with
                 reference = "Eid r".
-                It returns the function "fun (v : hvalue) => v"
-                       and the complete old value (needs to be looked up from "VM.find r sem").
-                           option_map (pair (fun (v : hvalue) => v)) (VM.find r sem)
-          It returns the function "fun (v : hvalue) => Aval (Acons (Bval (Bflips fld Nflip (Gval (Fuint 2) [:: true , false]) Bnil))
-                                                            (Acons (Bval (Bflips fld Nflip (Gval (Fuint 2) [:: false, true ]) Bnil))
-                                                            (Acons v
-                                                             Anil)))"
-                 and the old value "Bval (Bflips fld Nflip (Gval (Fuint 2) [:: true , true ]) Bnil)".
-   It returns the function "fun (v : hvalue) => Aval (Acons (Bval (Bflips fld Nflip (Gval (Fuint 2) [:: true , false]) Bnil))
-                                                     (Acons (Bval (Bflips fld Nflip (Gval (Fuint 2) [:: false, true ]) Bnil))
-                                                     (Acons (Bval (Bflips fld Nflip v                                  Bnil))
-                                                      Anil)))"
-          and the old value "Gval (Fuint 2) [:: true , true ]".
-   The caller then replaces the old value with the new value by inserting
-   the latter into the returned function.  If the reference has flipped
-   parts, the old and the new value need to be combined before inserting. *)
+                function : (old value of "Eid r") -> (new value of "Esubfield (Esubindex (Eid r) 2) si") -> (combined value of "Eid r")
+                new value for "Esubfield (Esubindex (Eid r) 2) si"
 
+                It returns the function, applied to the current value of "Eid r"
+                                                and the new value for "Esubfield (Esubindex (Eid r) 2) si".
+                That is, the combined value that "Eid r" should get.
+
+   An additional advantage of this recursion is that also Esubaccess references
+   with undefined index can be handled.  This kind of reference should replace
+   every element in the array with the corresponding undefined value.  For
+   example:
+   reference = "Esubfield (Esubaccess (Eid r) (Undefinedonpurpose (Fuint 5)))"
+   function : (old value of "Esubfield (Esubaccess (Eid r) (Undefinedonpurpose (Fuint 5))) ui") -> (new value of "Esubfield (Esubaccess (Eid r) (Undefinedonpurpose (Fuint 5))) ui") -> (combined value of "Esubfield (Esubaccess (Eid r) (Undefinedonpurpose (Fuint 5))) ui")
+   new value for "Esubfield (Esubaccess (Eid r) (Undefinedonpurpose (Fuint 5))) ui"
+          This calls repl_val_part' recursively with
+          reference = "Esubaccess (Eid r) (Undefinedonpurpose (Fuint 5))".
+          function : (old value of "Esubaccess (Eid r) (Undefinedonpurpose (Fuint 5))") -> (new value of "Esubfield (Esubaccess (Eid r) (Undefinedonpurpose (Fuint 5))) ui") -> (combined value of "Esubaccess (Eid r) (Undefinedonpurpose (Fuint 5))")
+          new value for "Esubfield (Esubaccess (Eid r) (Undefinedonpurpose (Fuint 5))) ui"
+                This calls repl_val_part' recursively with
+                reference = "Eid r".
+                function : (old value of "Eid r") -> (new value of "Esubfield (Esubaccess (Eid r) (Undefinedonpurpose (Fuint 5))) ui") -> (combined value of "Eid r")
+                    * This function, however, replaces every "Esubfield (Esubindex (Eid r) ...) ui"
+                      with the new value, by calling the previous function multiple times.
+                new value for "Esubfield (Esubaccess (Eid r) (Undefinedonpurpose (Fuint 5))) ui"
+                    * The new value is changed to "Undefinedonpurpose (Fuint 1)"
+
+                It returns the function, applied to the current value of "Eid r"
+                                                and "Undefinedonpurpose (Fuint 1)".
+                That is, the combined value that "Eid r" should get.
+ *)
+
+(* takes the "most undefined" value of two values.
+   It is assumed that they have the same type, and at least one of them is undefined. *)
+Definition undef_max (undef1 undef2 : hvalue) : hvalue :=
+    match undef1 with
+    | Undefinedonpurpose _ => match undef2 with
+                              | Needtobedefined _
+                              | Uninitialized   _ => undef2
+                              | _ => undef1
+                              end
+    | Needtobedefined    _ => match undef2 with
+                              | Uninitialized   _ => undef2
+                              | _ => undef1
+                              end
+    | Uninitialized      _ => undef1
+    | _ => undef2
+    end.
+
+(* Replace the current value of reference r with a new value,
+   and return the combined value that (HiF.base_ref r) should become.
+
+   r = reference that needs to be replaced
+   fn = function that takes the old value for r and the new_val parameter
+                      and returns the combined value that r should become
+   old_base_val = old value for (HiF.base_ref r)
+   new_val = new value for the part of r that needs to be replaced
+   sem_old = semantics, used to read Esubaccess indices
+
+   Result: a suggestion for a new value of (HiF.base_ref r). *)
+Fixpoint repl_val_part (r : HiF.href) (fn : hvalue -> hvalue -> option hvalue) (old_base_val new_val : hvalue) (sem_old : VM.t hvalue) : option hvalue :=
+    match r with
+    | Eid id => fn old_base_val new_val
+    | Esubfield r' id => repl_val_part r' (fun (old_val new_val : hvalue) => match convert_to_bundle_value old_val with
+                                                                             | Some old_bval => option_map Bval ((fix repl_bundle_value_part (bv : bundle_value) :=
+                                                                                                                      match bv with
+                                                                                                                      | Bnil => None
+                                                                                                                      | Bflips id' fl vv bv' => if id==id' then option_map ((Bflips id' fl)^~ bv') (fn vv new_val)
+                                                                                                                                                           else option_map ( Bflips id' fl vv) (repl_bundle_value_part bv')
+                                                                                                                      end) old_bval)
+                                                                             | None => None
+                                                                             end) old_base_val new_val sem_old
+    | Esubindex r' i => repl_val_part r' (fun (old_val new_val : hvalue) => match convert_to_array_value old_val with
+                                                                            | Some (elt, old_aval) => option_map (Aval elt) ((fix repl_array_value_part (av : array_value) (i : nat) :=
+                                                                                                                                  match av, i with
+                                                                                                                                  | Anil, _ => None
+                                                                                                                                  | Acons el av', 0 => option_map (Acons^~ av') (fn el new_val)
+                                                                                                                                  | Acons el av', i'.+1 => option_map (Acons el) (repl_array_value_part av' i')
+                                                                                                                                  end) old_aval i)
+                                                                             | _ => None
+                                                                             end) old_base_val new_val sem_old
+    | Esubaccess r' e => match eval_hfexpr e sem_old with
+                         | Some (Gval (Fuint _) bs) => (* same as for Esubindex *)
+                                                       repl_val_part r' (fun (old_val new_val : hvalue) => match convert_to_array_value old_val with
+                                                                                                           | Some (elt, old_aval) => option_map (Aval elt) ((fix repl_array_value_part (av : array_value) (i : nat) :=
+                                                                                                                                                                 match av, i with
+                                                                                                                                                                 | Anil, _ => None (* perhaps this should be changed: instead the function might return a Needtobedefined value for the whole array *)
+                                                                                                                                                                 | Acons el av', 0 => option_map (Acons^~ av') (fn el new_val)
+                                                                                                                                                                 | Acons el av', i'.+1 => option_map (Acons el) (repl_array_value_part av' i')
+                                                                                                                                                                 end) old_aval (to_nat bs))
+                                                                                                            | _ => None
+                                                                                                            end) old_base_val new_val sem_old
+                         | Some (Undefinedonpurpose (Gtyp (Fuint _))) => (* new function: replaces every subexpression *)
+                                                       repl_val_part r' (fun (old_val new_val : hvalue) => match convert_to_array_value old_val with
+                                                                                                           | Some (elt, old_aval) => option_map (Aval elt) ((fix repl_array_value_part (av : array_value) :=
+                                                                                                                                                                 match av with
+                                                                                                                                                                 | Anil => Some Anil
+                                                                                                                                                                 | Acons el av' => match fn el new_val, repl_array_value_part av' with
+                                                                                                                                                                                   | Some el_new, Some av'_new => Some (Acons el_new av'_new)
+                                                                                                                                                                                   | _, _ => None
+                                                                                                                                                                                   end
+                                                                                                                                                                 end) old_aval)
+                                                                                                            | _ => None
+                                                                                                            end) old_base_val (undef_max (Undefinedonpurpose (type_of_val new_val)) new_val) sem_old
+                         | Some (Needtobedefined (Gtyp (Fuint _))) => (* new function: replaces every subexpression *)
+                                                       repl_val_part r' (fun (old_val new_val : hvalue) => match convert_to_array_value old_val with
+                                                                                                           | Some (elt, old_aval) => option_map (Aval elt) ((fix repl_array_value_part (av : array_value) :=
+                                                                                                                                                                 match av with
+                                                                                                                                                                 | Anil => Some Anil
+                                                                                                                                                                 | Acons el av' => match fn el new_val, repl_array_value_part av' with
+                                                                                                                                                                                   | Some el_new, Some av'_new => Some (Acons el_new av'_new)
+                                                                                                                                                                                   | _, _ => None
+                                                                                                                                                                                   end
+                                                                                                                                                                 end) old_aval)
+                                                                                                            | _ => None
+                                                                                                            end) old_base_val (undef_max (Needtobedefined (type_of_val new_val)) new_val) sem_old
+                         | Some (Uninitialized (Gtyp (Fuint _))) => (* new function: replaces every subexpression *)
+                                                       repl_val_part r' (fun (old_val new_val : hvalue) => match convert_to_array_value old_val with
+                                                                                                           | Some (elt, old_aval) => option_map (Aval elt) ((fix repl_array_value_part (av : array_value) :=
+                                                                                                                                                                 match av with
+                                                                                                                                                                 | Anil => Some Anil
+                                                                                                                                                                 | Acons el av' => match fn el new_val, repl_array_value_part av' with
+                                                                                                                                                                                   | Some el_new, Some av'_new => Some (Acons el_new av'_new)
+                                                                                                                                                                                   | _, _ => None
+                                                                                                                                                                                   end
+                                                                                                                                                                 end) old_aval)
+                                                                                                            | _ => None
+                                                                                                            end) old_base_val (undef_max (Uninitialized (type_of_val new_val)) new_val) sem_old
+                         | _ => None
+                         end
+    end.
+
+(*
 (* Helper function for repl_val_part: construct a bundle value with a hole.
 
    v = name of the field that should become the hole
@@ -5199,7 +5411,7 @@ Fixpoint repl_bundle_value_part (v : VarOrder.T) (bv : bundle_value) : option ((
                                            end
     end.
 
-(* Helper function for repl_val_part: construct an array value with a hole.
+(* Helper function for repl_val_part': construct an array value with a hole.
 
    i = array index of the element that should become the hole
    av = array value that should get a hole
@@ -5246,25 +5458,28 @@ Fixpoint repl_val_part' (r : HiF.href) (old_comp_val : hvalue) (sem_old : VM.t h
                         end
     | Esubindex r' i => match repl_val_part' r' old_comp_val sem_old with
                         | Some (fn, av') => match convert_to_array_value av' with
-                                            | Some av => match repl_array_value_part i av with
-                                                         | Some (avn, old_hv) => Some (fun (hv : hvalue) => fn (Aval (type_of_val old_hv) (avn hv)), old_hv)
-                                                         | None => None
-                                                         end
+                                            | Some (elt, av) => match repl_array_value_part i av with
+                                                                | Some (avn, old_hv) => Some (fun (hv : hvalue) => fn (Aval elt (avn hv)), old_hv)
+                                                                | None => None
+                                                                end
                                             | None => None
                                             end
                         | _ => None
                         end
     | Esubaccess r' e => match repl_val_part' r' old_comp_val sem_old, eval_hfexpr e sem_old with
                          | Some (fn, av'), Some (Gval (Fuint _) vale) => match convert_to_array_value av' with
-                                                                         | Some av => match repl_array_value_part (to_nat vale) av with
-                                                                                      | Some (avn, old_hv) => Some (fun (hv : hvalue) => fn (Aval (type_of_val old_hv) (avn hv)), old_hv)
-                                                                                      | None => None
-                                                                                      end
+                                                                         | Some (elt, av) => match repl_array_value_part (to_nat vale) av with
+                                                                                             | Some (avn, old_hv) => Some (fun (hv : hvalue) => fn (Aval elt (avn hv)), old_hv)
+                                                                                             | None => None
+                                                                                             end
                                                                          | None => None
                                                                          end
+                       (*| Some (fn, av'), Some (Undefinedonpurpose (Gtyp (Fuint _))) => match convert_to_array_value av' with
+                                                                                         | Some (_, av) => make every element of av Undefinedonpurpose *)
                          | _, _ => None
                          end
     end.
+*)
 
 (* Flips the orientation ori if fl = Flipped.
 
@@ -5381,10 +5596,11 @@ with combine_writeable_undef_ffield (ori : forient) (ff : ffield) (writeable_und
                             end
     end.
 
-(* replaces the writeable parts of old_val by the corresponding undefined value (Needtobedefined or Undefinedonpurpose).
-   The function may be inefficient if it is called directly on non-passive values.
+(* replaces the writeable parts of old_val by the corresponding undefined value (Undefinedonpurpose, Needtobedefined or Uninitialized).
+   replace_array_writeable_undef and replace_bundle_writeable_undef are inefficient
+   if they are called directly on passive values.
 
-   undeftype = type of the undefined value (either Needtobedefined or Undefinedonpurpose)
+   undeftype = type of the undefined value (Undefinedonpurpose, Needtobedefined or Uninitialized)
    ori = orientation of the values (either Source or Sink):
          the flipped parts of a Source are replaced; the unflipped parts of a Sink are replaced.
    old_val = old value (for all parts; needs to be preserved for the non-writeable parts)
@@ -5392,23 +5608,20 @@ with combine_writeable_undef_ffield (ori : forient) (ff : ffield) (writeable_und
    Result: mix between old_val and undeftype: the writeable parts are undefined,
    the other parts equal to old_val *)
 Fixpoint replace_writeable_undef (undeftype : ftype -> hvalue) (ori : forient) (old_val : hvalue) : option hvalue :=
-    match old_val with
-    | Gval ft _
-    | Undefinedonpurpose (Gtyp ft)
-    | Needtobedefined    (Gtyp ft)
-    | Uninitialized      (Gtyp ft) => (* should not happen, as ft is passive *)
-                                      match ori with
-                                      | Source => Some old_val
-                                      | Sink
-                                      | Duplex => Some (undeftype (Gtyp ft))
-                                      | _ => None
-                                      end
-    | Aval elt old_aval => option_map (Aval elt) (replace_array_writeable_undef undeftype ori old_aval)
-    | Bval old_bval => option_map Bval (replace_bundle_writeable_undef undeftype ori old_bval)
-    | Undefinedonpurpose t => if old_val==undeftype t then Some old_val else combine_writeable_undef ori t undeftype Undefinedonpurpose
-    | Needtobedefined    t => if old_val==undeftype t then Some old_val else combine_writeable_undef ori t undeftype Needtobedefined
-    | Uninitialized      t => if old_val==undeftype t then Some old_val else combine_writeable_undef ori t undeftype Uninitialized
-    end
+    if is_passive_value old_val then match ori with
+                                     | Source => Some old_val
+                                     | Sink
+                                     | Duplex => Some (undeftype (type_of_val old_val))
+                                     | _ => None
+                                     end
+                                else match old_val with
+                                     | Gval _ _ => None (* cannot happen, as Gval is passive *)
+                                     | Aval elt old_aval => option_map (Aval elt) (replace_array_writeable_undef undeftype ori old_aval)
+                                     | Bval old_bval => option_map Bval (replace_bundle_writeable_undef undeftype ori old_bval)
+                                     | Undefinedonpurpose t => if old_val==undeftype t then Some old_val else combine_writeable_undef ori t undeftype Undefinedonpurpose
+                                     | Needtobedefined    t => if old_val==undeftype t then Some old_val else combine_writeable_undef ori t undeftype Needtobedefined
+                                     | Uninitialized      t => if old_val==undeftype t then Some old_val else combine_writeable_undef ori t undeftype Uninitialized
+                                     end
 with replace_array_writeable_undef (undeftype : ftype -> hvalue) (ori : forient) (old_aval : array_value) : option array_value :=
     match old_aval with
     | Anil => Some Anil
@@ -5420,99 +5633,54 @@ with replace_array_writeable_undef (undeftype : ftype -> hvalue) (ori : forient)
 with replace_bundle_writeable_undef (undeftype : ftype -> hvalue) (ori : forient) (old_bval : bundle_value) : option bundle_value :=
     match old_bval with
     | Bnil => Some Bnil
-    | Bflips id fl v bv' => match (if is_passive_value v then match flip_orient_if fl ori with
-                                                              | Some Source => Some v
-                                                              | Some Sink
-                                                              | Some Duplex => Some (undeftype (type_of_val v))
-                                                              | _ => None
-                                                              end
-                                                         else match flip_orient_if fl ori with
-                                                              | Some ori_t => replace_writeable_undef undeftype ori_t v
-                                                              | None => None
-                                                              end),
+    | Bflips id fl v bv' => match (match flip_orient_if fl ori with
+                                   | Some ori_t => replace_writeable_undef undeftype ori_t v
+                                   | None => None
+                                   end),
                                   replace_bundle_writeable_undef undeftype ori bv' with
                             | Some new_v, Some new_bv => Some (Bflips id fl new_v new_bv)
                             | _, _ => None
                             end
     end.
 
-(* Adapts the widths in val to be exactly those of val_for_type.
-   Is used to adapt the type for connect statements in case the value read
-   does not have exactly the same type as the value written.
-   A variant can also be used for operator Emux. *)
-Fixpoint adapt_hvalue_as_type (val : hvalue) (t : ftype) : option hvalue :=
-    match val, t with
-    | Gval (Fuint w)   c, Gtyp (Fuint w') => Some (Gval (Fuint w') (zext_to w' (take w' c)))
-    | Gval (Fsint w)   c, Gtyp (Fsint w') => Some (Gval (Fsint w') (sext_to w' (take w' c)))
-    | Gval Fasyncreset c, Gtyp Fasyncreset
-    | Gval Fclock      c, Gtyp Fclock      => Some val
-    | Aval elt aval, (Atyp elt' n) => option_map (Aval elt') (adapt_array_value_as_type aval elt' n)
-    | Bval bval, (Btyp ff) => option_map Bval (adapt_bundle_value_as_type bval ff)
-    | Undefinedonpurpose t, t' => if ftype_mux true t t' then Some (Undefinedonpurpose t') else None
-    | Needtobedefined    t, t' => if ftype_mux true t t' then Some (Needtobedefined    t') else None
-    | Uninitialized      t, t' => if ftype_mux true t t' then Some (Uninitialized      t') else None
-    | _, _ => None
-    end
-with adapt_array_value_as_type (av : array_value) (elt : ftype) (n : nat) : option array_value :=
-    match av, n with
-    | Anil, 0 => Some Anil
-    | Acons v av', n'.+1 => match adapt_hvalue_as_type v elt, adapt_array_value_as_type av' elt n' with
-                            | Some v_res, Some av_res => Some (Acons v_res av_res)
-                            | _, _ => None
-                            end
-    | _, _ => None
-    end
-with adapt_bundle_value_as_type (bv : bundle_value) (ff : ffield) : option bundle_value :=
-    match bv, ff with
-    | Bnil, Fnil => Some Bnil
-    | Bflips id Nflip v bv', Fflips id_for_type Nflip t ff' =>
-            if id==id_for_type then match adapt_hvalue_as_type v t, adapt_bundle_value_as_type bv' ff' with
-                                    | Some v_res, Some bv_res => Some (Bflips id_for_type Nflip v_res bv_res)
-                                    | _, _ => None
-                                    end
-                               else None
-    | _, _ => None
-    end.
-
 (* replaces the writeable parts of old_val by the corresponding parts of new_val.
-   The function should only be called for non-passive values to ensure efficiency.
    The types and widths of the old and new values should be exactly the same.
+   replace_array_writeable and replace_bundle_writeable should only be called
+   for non-passive values to ensure efficiency.
 
-   ori = orientation of the values (either Source or Sink):
+   ori = orientation of the values (Source, Sink, or Duplex):
          the flipped parts of a Source are replaced; the unflipped parts of a Sink are replaced.
+         All parts of a Duplex are replaced.
    old_val = old value (for all parts; needs to be preserved for the non-writeable parts)
    new_val = new value (may include dummy values for parts that are not writeable)
 
    Result: mix between old_val and new_val: the writeable parts are equal
    to new_val, the other parts equal to old_val *)
-Fixpoint replace_writeable' (ori : forient) (old_val new_val : hvalue) : option hvalue :=
-    match new_val with
-    | Gval _ _
-    | Undefinedonpurpose (Gtyp _)
-    | Needtobedefined    (Gtyp _)
-    | Uninitialized      (Gtyp _) => (* should not happen, as Gtyp is passive *)
-                                     match ori with
+Fixpoint replace_writeable (ori : forient) (old_val new_val : hvalue) : option hvalue :=
+    if is_passive_value new_val then match ori with
                                      | Source => Some old_val
                                      | Sink
                                      | Duplex => Some new_val
                                      | _ => None
                                      end
-    | Aval elt new_aval => match convert_to_array_value old_val with
-                           | Some old_aval => option_map (Aval elt) (replace_array_writeable ori old_aval new_aval)
-                           | None => None
-                           end
-    | Bval new_bval => match convert_to_bundle_value old_val with
-                       | Some old_bval => option_map Bval (replace_bundle_writeable ori old_bval new_bval)
-                       | None => None
-                       end
-    | Undefinedonpurpose _ => replace_writeable_undef Undefinedonpurpose ori old_val
-    | Needtobedefined    _
-    | Uninitialized      _ => replace_writeable_undef Needtobedefined ori old_val
-    end
+                                else match new_val with
+                                     | Gval _ _ => None (* cannot happen, as Gval is passive *)
+                                     | Aval elt new_aval => match convert_to_array_value old_val with
+                                                            | Some (_, old_aval) => option_map (Aval elt) (replace_array_writeable ori old_aval new_aval)
+                                                            | None => None
+                                                            end
+                                     | Bval new_bval => match convert_to_bundle_value old_val with
+                                                        | Some old_bval => option_map Bval (replace_bundle_writeable ori old_bval new_bval)
+                                                        | None => None
+                                                        end
+                                     | Undefinedonpurpose _ => replace_writeable_undef Undefinedonpurpose ori old_val
+                                     | Needtobedefined    _ => replace_writeable_undef Needtobedefined    ori old_val
+                                     | Uninitialized      _ => replace_writeable_undef Uninitialized      ori old_val
+                                     end
 with replace_array_writeable (ori : forient) (old_av new_av : array_value) : option array_value :=
     match new_av, old_av with
     | Anil, Anil => Some Anil
-    | Acons nv nav', Acons ov oav' => match replace_writeable' ori ov nv, replace_array_writeable ori oav' nav' with
+    | Acons nv nav', Acons ov oav' => match replace_writeable ori ov nv, replace_array_writeable ori oav' nav' with
                                       | Some v, Some av' => Some (Acons v av')
                                       | _, _ => None
                                       end
@@ -5520,18 +5688,12 @@ with replace_array_writeable (ori : forient) (old_av new_av : array_value) : opt
     end
 with replace_bundle_writeable (ori : forient) (old_bv new_bv : bundle_value) : option bundle_value :=
     match new_bv, old_bv with
-    | Bnil, Bnil => Some Bnil (* should not happen, as Fnil is passive *)
+    | Bnil, Bnil => Some Bnil
     | Bflips nv nfl nhv nbv, Bflips ov ofl ohv obv => if (ov!=nv) || (ofl!=nfl) then None
-                                                                                else match (if is_passive_value ohv then match flip_orient_if ofl ori with
-                                                                                                                         | Some Source => Some ohv
-                                                                                                                         | Some Sink
-                                                                                                                         | Some Duplex => Some nhv
-                                                                                                                         | _ => None
-                                                                                                                         end
-                                                                                                                    else match flip_orient_if ofl ori with
-                                                                                                                         | Some ori_hv => replace_writeable' ori_hv ohv nhv
-                                                                                                                         | None => None
-                                                                                                                         end),
+                                                                                else match (match flip_orient_if ofl ori with
+                                                                                            | Some ori_hv => replace_writeable ori_hv ohv nhv
+                                                                                            | None => None
+                                                                                            end),
                                                                                            replace_bundle_writeable ori obv nbv with
                                                                                      | Some hv, Some bv => Some (Bflips ov ofl hv bv)
                                                                                      | _, _ => None
@@ -5539,51 +5701,23 @@ with replace_bundle_writeable (ori : forient) (old_bv new_bv : bundle_value) : o
     | _, _ => None
     end.
 
-(* replaces the writeable parts of r, which currently has old_val, by the corresponding parts of new_val.
-   If the orientation of r is Duplex, then duplex_ori is regarded as the actual orientation of r.
-   The unflipped parts of a Sink are replaced,
-   and the flipped parts of a Source are replaced.
-   The two parts should have exactly the same type and width.
-
-   duplex_ori = orientation that should be applied to a duplex component
-   r = reference to be replaced
-   tmap = type/kind map of the corresponding module (used to determine flow orientation)
-   old_val = old value of reference r (for all parts of r)
-   new_val = new value of reference r (may include wrong values for parts of r that are not writeable)
-
-   Result: mix between old_val and new_val: the writeable parts are equal
-   to new_val, the other parts equal to old_val *)
-Definition replace_writeable (duplex_ori : forient) (r : HiF.href) (old_val new_val : hvalue) : option hvalue :=
-    match duplex_ori with
-    | Source => if is_passive_value old_val then Some old_val else replace_writeable' Source old_val new_val
-    | Sink   => if is_passive_value old_val then Some new_val else replace_writeable' Sink   old_val new_val
-    | _ => None
-    end.
-
 (* Unidirectional connect statements replace r with expression e, which is not a reference.
    e must be passive; therefore, we can simplify the replacement a little bit.
 
-   r = reference on the left side of the Sfcnct statement; it is being changed.
-   e = expression on the right side of the Sfcnct statement; this is the new value being assigned.
-   tmap = type/kind map of the corresponding module (used to determine flow orientation)
+   r = reference on the left side of the Sfcnct statement; it is being changed. Must be passive.
+   e = expression on the right side of the Sfcnct statement; this is the new value being assigned. Must be passive.
    sem_old = values of all components in the instance before the iteration
              (from this semantics, the values are read in connect statements)
    sem_new = new values of all components in the instance
 
-   Result: sem_new, updated with the connection, i.e. the value of (the writeable parts of) reference r is now e *)
+   Result: sem_new, updated with the connection, i.e. the value of reference r is now e *)
 Definition unidirectional_connect (r : HiF.href) (e : HiF.hfexpr) (sem_old sem_new : VM.t hvalue) : option (VM.t hvalue) :=
-    match VM.find (HiF.base_ref r) sem_new with
-    | Some base_val => match repl_val_part' r base_val sem_old with
-                       | Some (fn, old_val) => match option_map (adapt_hvalue_as_type^~ (type_of_val old_val)) (eval_hfexpr e sem_old) with
-                                               | Some (Some new_val) => (*match replace_writeable Sink r tmap old_val new_val with
-                                                                          | Some new_val => *) Some (VM.add (HiF.base_ref r) (fn new_val) sem_new)
-                                                                        (*| None => None
-                                                                          end*)
-                                               | _ => None
-                                               end
-                       | None => None
-                       end
-    | None => None
+    match VM.find (HiF.base_ref r) sem_new, eval_type_of_ref r sem_old, eval_hfexpr e sem_old with
+    | Some old_base_val, Some tor, Some new_val => match adapt_hvalue_as_type new_val tor with
+                                                   | Some new_val => option_map ((VM.add (HiF.base_ref r))^~ sem_new) (repl_val_part r (fun (_ new_val : hvalue) => Some new_val) old_base_val new_val sem_old)
+                                                   | None => None
+                                                   end
+    | _, _, _ => None
     end.
 
 (* Bidirectional connect. The unflipped parts of r1 are replaced with the corresponding parts of r2;
@@ -5603,67 +5737,37 @@ Definition unidirectional_connect (r : HiF.href) (e : HiF.hfexpr) (sem_old sem_n
    Result: sem_new, updated with the connection, i.e. the value of the writeable parts of reference r1 is now the old value of r2,
            and the value of the writeable parts of reference r2 is now the old value of r1. *)
 Definition bidirectional_connect (r1 r2 : HiF.href) (sem_old sem_new : VM.t hvalue) : option (VM.t hvalue) :=
-    match (match VM.find (HiF.base_ref r1) sem_new with
-           | Some base_val1 => match repl_val_part' r1 base_val1 sem_old with
-                               | Some (fn1, old_val1) => match option_map (adapt_hvalue_as_type^~ (type_of_val old_val1)) (eval_href r2 sem_old) with
-                                                         | Some (Some new_val2) => match replace_writeable Sink r1 old_val1 new_val2 with
-                                                                                   | Some combined_val1 => Some (VM.add (HiF.base_ref r1) (fn1 combined_val1) sem_new)
-                                                                                   | None => None
-                                                                                   end
-                                                         | _ => None
-                                                         end
-                               | None => None
-                               end
-           | None => None
+    match (match VM.find (HiF.base_ref r1) sem_new, eval_type_of_ref r1 sem_old, eval_href r2 sem_old with
+           | Some old_base_val1, Some tor1, Some new_val1 => match adapt_hvalue_as_type new_val1 tor1 with
+                                                             | Some new_val1 => option_map ((VM.add (HiF.base_ref r1))^~ sem_new) (repl_val_part r1 (replace_writeable Sink) old_base_val1 new_val1 sem_old)
+                                                             | None => None
+                                                             end
+           | _, _, _ => None
            end) with
-    | Some sem_1 => match VM.find (HiF.base_ref r2) sem_1 with
-                    | Some base_val2 => match repl_val_part' r2 base_val2 sem_old with
-                                        | Some (fn2, old_val2) => match option_map (adapt_hvalue_as_type^~ (type_of_val old_val2)) (eval_href r1 sem_old) with
-                                                                  | Some (Some new_val1) => match replace_writeable Source r2 old_val2 new_val1 with
-                                                                                            | Some combined_val2 => Some (VM.add (HiF.base_ref r2) (fn2 combined_val2) sem_1)
-                                                                                            | None => None
-                                                                                            end
-                                                                  | _ => None
-                                                                  end
-                                        | _ => None
-                                        end
-                    | None => None
+    | Some sem_1 => match VM.find (HiF.base_ref r2) sem_1, eval_type_of_ref r2 sem_old, eval_href r1 sem_old with
+                    | Some old_base_val2, Some tor2, Some new_val2 => match adapt_hvalue_as_type new_val2 tor2 with
+                                                                      | Some new_val2 => option_map ((VM.add (HiF.base_ref r2))^~ sem_1) (repl_val_part r2 (replace_writeable Source) old_base_val2 new_val2 sem_old)
+                                                                      | None => None
+                                                                      end
+                    | _, _, _ => None
                     end
     | None => None
     end.
 
-(* Sets r to an undefined value
+(* Sets r to an undefined value (basically a simplified version of the connect functions above)
 
-   r = reference to be changed
+   r = reference to be changed (may be passive or not)
    undeftype = sort of undefined value (Undefinedonpurpose or Needtobedefined)
    sem_old = values of all components in the instance before the iteration
              (used to calculate subaccess indices)
-   tmap = type/kind map of the corresponding module (used mainly to determine flow orientation in connect statements)
    sem_new = new values of all components in the instance, calculated from earlier statements
 
    Result: sem_new, updated as required: the value of the writeable parts of r is now undeftype *)
 Definition undef_ref (r : HiF.href) (undeftype : ftype -> hvalue) (sem_old sem_new : VM.t hvalue) : option (VM.t hvalue) :=
-    match VM.find (HiF.base_ref r) sem_new with
-    | Some base_val => match repl_val_part' r base_val sem_old with
-                       | Some (fn, old_val) => match replace_writeable_undef undeftype Sink old_val with
-                                               | Some combined_val => Some (VM.add (HiF.base_ref r) (fn combined_val) sem_new)
-                                               | None => None
-                                               end
-                       | None => None
-                       end
-    | None => None
+    match VM.find (HiF.base_ref r) sem_new, eval_type_of_ref r sem_old with
+    | Some old_base_val, Some tor => option_map ((VM.add (HiF.base_ref r))^~ sem_new) (repl_val_part r (replace_writeable Sink) old_base_val (undeftype tor) sem_old)
+    | _, _ => None
     end.
-
-(* Sets r to Undefinedonpurpose.
-   r = reference to be changed
-   sem_old = values of all components in the instance before the iteration
-             (used to calculate subaccess indices)
-   tmap = type/kind map of the corresponding module (used mainly to determine flow orientation in connect statements)
-   sem_new = new values of all components in the instance, calculated from earlier statements
-
-   Result: sem_new, updated as required: the value of the writeable parts of r is now Undefinedonpurpose *)
-Definition invalidate_ref (r : HiF.href) (sem_old sem_new : VM.t hvalue) : option (VM.t hvalue) :=
-    undef_ref r Undefinedonpurpose sem_old sem_new.
 
 (* Sets everything that is touched by a command in ssl to Needtobedefined.
    (This is done if a Swhen condition is Needtobedefined or Uninitialized.)
@@ -5932,11 +6036,6 @@ with statement_initial_map (s : HiF.hfstmt) (previous_cycle_register_map : optio
     | _ => None (* Smem *)
     end.
 
-(* Perhaps a lemma that says:
-   if statements_tmap ... ssl <> None
-   and previous_cycle_register_map contains all registers,
-   then statements_initial_map ssl ... <> None. *)
-
 (* Calculate initial values for all components in one module at the beginning of a cycle.
    This function sets most values to "Needtobedefined", except registers and external inputs.
    ii = instance identifier
@@ -5973,7 +6072,7 @@ Fixpoint update_external_ports (top_map : VM.t hvalue) (external_inputs : VM.t h
                                                    | None => None
                                                    end
                                               else match VM.find id top_map, VM.find id external_inputs with
-                                                   | Some old_val, Some new_val => match replace_writeable' Sink old_val new_val with
+                                                   | Some old_val, Some new_val => match replace_writeable Sink old_val new_val with
                                                                                    | Some combined_val => update_external_ports (VM.add id combined_val top_map) external_inputs ppl'
                                                                                    | None => None
                                                                                    end
@@ -5981,7 +6080,7 @@ Fixpoint update_external_ports (top_map : VM.t hvalue) (external_inputs : VM.t h
                                                    end
     | Foutput id t :: ppl' => if is_passive t then update_external_ports top_map external_inputs ppl'
                                               else match VM.find id top_map, VM.find id external_inputs with
-                                                   | Some old_val, Some new_val => match replace_writeable' Source old_val new_val with
+                                                   | Some old_val, Some new_val => match replace_writeable Source old_val new_val with
                                                                                    | Some combined_val => update_external_ports (VM.add id combined_val top_map) external_inputs ppl'
                                                                                    | None => None
                                                                                    end
@@ -6028,6 +6127,1014 @@ Definition circuit_value (previous_cycle_register_map : option (SVM.t (VM.t (hva
     end.
 
 (* Properties of circuit_value *)
+
+Fixpoint ftype_is_empty (t : ftype) : bool :=
+    match t with
+    | Gtyp _ => false
+    | Atyp _ 0 => true
+    | Atyp elt _ => ftype_is_empty elt
+    | Btyp ff => ffield_is_empty ff
+    end
+with ffield_is_empty (ff : ffield) : bool :=
+    match ff with
+    | Fnil => true
+    | Fflips _ _ t ff => ftype_is_empty t && ffield_is_empty ff
+    end.
+
+Fixpoint hvalue_is_undef_or_empty (undeftype : ftype -> hvalue) (v : hvalue) (t : ftype) : bool :=
+    match v with
+    | Aval eltv av => match t with
+                      | Atyp eltt n => (eltv==eltt) && array_value_is_undef_or_empty undeftype av eltt n
+                      | _ => false
+                      end
+    | Bval bv => match t with
+                 | Btyp ff => bundle_value_is_undef_or_empty undeftype bv ff
+                 | _ => false
+                 end
+    | Undefinedonpurpose tv
+    | Needtobedefined    tv
+    | Uninitialized      tv => if ftype_is_empty tv then tv==t else v==undeftype t
+    | _ => false
+    end
+with array_value_is_undef_or_empty (undeftype : ftype -> hvalue) (av : array_value) (elt : ftype) (n : nat) : bool :=
+    match av, n with
+    | Anil, 0 => true
+    | Acons el av, n.+1 => hvalue_is_undef_or_empty undeftype el elt && array_value_is_undef_or_empty undeftype av elt n
+    | _, _ => false
+    end
+with bundle_value_is_undef_or_empty (undeftype : ftype -> hvalue) (bv : bundle_value) (ff : ffield) : bool :=
+    match bv, ff with
+    | Bnil, Fnil => true
+    | Bflips idv flv vv bv, Fflips idt flt ty ff => (idv==idt) && (flv==flt) && hvalue_is_undef_or_empty undeftype vv ty && bundle_value_is_undef_or_empty undeftype bv ff
+    | _, _ => false
+    end.
+
+(* Not sure if this lemma is helpful; we do not have hvalue_is_type_correct
+   in the assumptions below.
+Lemma ftype_is_empty_implies_hvalue_is_undef_or_empty :
+    forall (elt : ftype) (undeftype : ftype -> hvalue) (val : hvalue),
+        ftype_is_empty elt -> 
+        hvalue_is_type_correct val elt ->
+        hvalue_is_undef_or_empty undeftype val elt
+with ftype_is_empty_implies_array_value_is_undef_or_empty :
+    forall (elt : ftype) (n : nat) (undeftype : ftype -> hvalue) (av : array_value),
+        ftype_is_empty elt || (n == 0) ->
+        array_value_is_type_correct av elt n ->
+        array_value_is_undef_or_empty undeftype av elt n
+with ffield_is_empty_implies_bundle_value_is_undef_or_empty :
+    forall (ff : ffield) (undeftype : ftype -> hvalue) (bv : bundle_value),
+        ffield_is_empty ff ->
+        bundle_value_is_type_correct bv ff ->
+        bundle_value_is_undef_or_empty undeftype bv ff.
+Proof.
+* clear ftype_is_empty_implies_hvalue_is_undef_or_empty.
+  intros elt undeftype val ; revert elt undeftype.
+  induction val as [ft|av|bv|ut|ut|ut] ; simpl ; try done ; intros.
+*)
+
+(* If a value is undef, it can only be one kind of undef (unless it's empty) *)
+Lemma hvalue_is_undef_or_empty_unique :
+    forall (undeftype1 undeftype2 : ftype -> hvalue),
+        (undeftype1 = Undefinedonpurpose \/ undeftype1 = Needtobedefined \/ undeftype1 = Uninitialized) ->
+        (undeftype2 = Undefinedonpurpose \/ undeftype2 = Needtobedefined \/ undeftype2 = Uninitialized) ->
+        forall (v : hvalue) (t1 t2 : ftype),
+            hvalue_is_undef_or_empty undeftype1 v t1 ->
+            (hvalue_is_undef_or_empty undeftype2 v t2 <-> t1==t2 /\ (ftype_is_empty t1 \/ forall t : ftype, undeftype1 t==undeftype2 t))
+with array_value_is_undef_or_empty_unique :
+    forall (undeftype1 undeftype2 : ftype -> hvalue),
+        (undeftype1 = Undefinedonpurpose \/ undeftype1 = Needtobedefined \/ undeftype1 = Uninitialized) ->
+        (undeftype2 = Undefinedonpurpose \/ undeftype2 = Needtobedefined \/ undeftype2 = Uninitialized) ->
+        forall (av : array_value) (elt1 elt2 : ftype) (n1 n2 : nat),
+            array_value_is_undef_or_empty undeftype1 av elt1 n1 ->
+            (array_value_is_undef_or_empty undeftype2 av elt2 n2 <-> ((elt1==elt2) || (n1==0)) && (n1==n2) /\ (ftype_is_empty elt1 || (n1==0) \/ forall t : ftype, undeftype1 t==undeftype2 t))
+with bundle_value_is_undef_or_empty_unique :
+    forall (undeftype1 undeftype2 : ftype -> hvalue),
+        (undeftype1 = Undefinedonpurpose \/ undeftype1 = Needtobedefined \/ undeftype1 = Uninitialized) ->
+        (undeftype2 = Undefinedonpurpose \/ undeftype2 = Needtobedefined \/ undeftype2 = Uninitialized) ->
+        forall (bv : bundle_value) (ff1 ff2 : ffield),
+            bundle_value_is_undef_or_empty undeftype1 bv ff1 ->
+            (bundle_value_is_undef_or_empty undeftype2 bv ff2 <-> ff1==ff2 /\ (ffield_is_empty ff1 \/ forall t : ftype, undeftype1 t==undeftype2 t)).
+Proof.
+* clear hvalue_is_undef_or_empty_unique.
+  induction v as [ftv|eltv av|bv|[ftv|eltv nv|ffv]|[ftv|eltv nv|ffv]|[ftv|eltv nv|ffv]] ;
+        destruct t1 as [ft1|elt1 n1|ff1],
+                 t2 as [ft2|elt2 n2|ff2] ; simpl ; try done ; intros.
+  + 1,3-5: split ; first done ; intro ; by destruct H2 as [H2 _].
+  + (* array value *)
+    move : H1 => /andP [/eqP Helt1 H1] ; subst elt1.
+    specialize (array_value_is_undef_or_empty_unique _ _ H H0 _ _ elt2 _ n2 H1).
+    split ; intro.
+    - move : H2 => /andP [/eqP Helt2 H2] ; subst elt2.
+      apply (array_value_is_undef_or_empty_unique) in H2.
+      split ; first by rewrite (elimT eqP (proj2 (elimT andP (proj1 H2)))).
+      move : H2 => [_ [/orP [H2|/eqP H2]|H2]].
+      * 1,2: rewrite H2 ; left ; try done ; by destruct n1.
+      * right ; by apply H2.
+    - move : H2 => [/eqP Heltv H2] ; injection Heltv as Heltv ; subst elt2 n2.
+      rewrite eq_refl andTb.
+      apply array_value_is_undef_or_empty_unique.
+      split ; first by rewrite ?eq_refl.
+      destruct n1 ; first by left ; rewrite orbT.
+      destruct H2 as [H2|H2] ; last by right.
+      by left ; rewrite H2.
+  + (* bundle value *)
+    specialize (bundle_value_is_undef_or_empty_unique _ _ H H0 _ _ ff2 H1).
+    split ; intro.
+    - apply bundle_value_is_undef_or_empty_unique in H2.
+      split ; first by rewrite (elimT eqP (proj1 H2)).
+      by apply H2.
+    - apply bundle_value_is_undef_or_empty_unique.
+      split ; last by apply H2.
+      move : H2 => [/eqP H2 _] ; injection H2 as H2 ; subst.
+      by rewrite eq_refl.
+  + 1-81: split ; intro ; destruct H as [H|[H|H]] ; subst undeftype1 ; try done.
+    1-342: destruct H0 as [H0|[H0|H0]] ; subst undeftype2 ; try done.
+    1-786: first [ apply (elimT eqP) in H2 ; injection H2 as H2 ; subst
+                 | try (generalize (elimT eqP (proj1 H2)) ; try done ; intro H0 ; injection H0 as H0 ; subst ; try done)
+                 ].
+    1-519: try (apply (elimT eqP) in H1 ; injection H1 as H1 ; subst).
+    1-519: try (destruct (match nv with | 0 => _ | _.+1 => _ end) eqn: Hnv ; try done).
+    1-300: try (destruct (ffield_is_empty _) eqn: Hff ; try done).
+    1-81: try (apply (elimT eqP) in H1 ; injection H1 as H1 ; subst).
+    1-81: try (apply (elimT eqP) in H2 ; injection H2 as H2 ; subst).
+    1-81: try (split ; first done) ; try (right ; intros ; done).
+    1-54: try rewrite ?Hnv ?Hff in H2.
+    1-54: try (destruct (proj2 H2) as [H0|H0] ; done).
+    1-36: by left.
+* clear array_value_is_undef_or_empty_unique.
+  induction av as [|el av] ; destruct n1, n2 ; simpl ; try done ; intros.
+  + split ; last done ; intro.
+    split ; last left ; by rewrite eq_refl orbT.
+  + 1,2: split ; first done ; intro.
+    1,2: move : H2 => [/andP [_ H2] _] ; done.
+  + apply (elimT andP) in H1.
+    specialize (hvalue_is_undef_or_empty_unique _ _ H H0 _ _ elt2 (proj1 H1)).
+    specialize (IHav _ elt2 _ n2 (proj2 H1)).
+    split ; intro.
+    - apply (elimT andP) in H2.
+      destruct IHav as [IHav _].
+      specialize (IHav (proj2 H2)).
+      rewrite eqSS (proj2 (elimT andP (proj1 IHav))) andbT ?orbF.
+      by apply hvalue_is_undef_or_empty_unique, H2.
+    - rewrite ?orbF eqSS in H2.
+      apply (introT andP) ; split.
+      * apply hvalue_is_undef_or_empty_unique.
+        split ; last by apply H2.
+        by rewrite (proj1 (elimT andP (proj1 H2))).
+      * apply IHav.
+        split.
+        + move : H2 => [/andP H2 _].
+          by rewrite (proj1 H2) (proj2 H2).
+        + destruct H2 as [_ [H2|H2]] ; last by right.
+          by left ; rewrite H2.
+* clear bundle_value_is_undef_or_empty_unique.
+  induction bv as [|idv flv vv bv] ;
+        destruct ff1 as [|id1 fl1 t1 ff1], ff2 as [|id2 fl2 t2 ff2] ; simpl ; try done ; intros.
+  + split ; last done.
+    split ; first done.
+    left ; done.
+  + 1,2: split ; first done.
+    1,2: intro ; destruct H2 as [H2 _].
+    2: rewrite eq_sym in H2 (* no idea why this is needed *).
+    1,2: by contradict H2.
+  + move : H1 => /andP [/andP [/andP [/eqP Hid1 /eqP Hfl1] Ht1] Hff1].
+    subst id1 fl1.
+    specialize (hvalue_is_undef_or_empty_unique _ _ H H0 _ _ t2 Ht1).
+    specialize (IHbv _ ff2 Hff1).
+    split ; intro.
+    - move : H1 => /andP [/andP [/andP [/eqP Hid2 /eqP Hfl2] Ht2] Hff2].
+      subst id2 fl2.
+      destruct hvalue_is_undef_or_empty_unique as [hvalue_is_undef_or_empty_unique _].
+      specialize (hvalue_is_undef_or_empty_unique Ht2).
+      destruct IHbv as [IHbv _].
+      specialize (IHbv Hff2).
+      split ; first by rewrite -(elimT eqP (proj1 hvalue_is_undef_or_empty_unique)) -(elimT eqP (proj1 IHbv)).
+      destruct (ftype_is_empty t1) ; simpl ; first by apply IHbv.
+      right.
+      by destruct hvalue_is_undef_or_empty_unique as [_ [|]].
+    - move : H1 => [/eqP Htff H1] ; injection Htff as Htff ; subst.
+      rewrite ?eq_refl ?andTb.
+      apply (introT andP) ; split.
+      * apply hvalue_is_undef_or_empty_unique.
+        split ; first done.
+        destruct H1 as [H1|H1] ; last by right.
+        left ; by apply (elimT andP H1).
+      * apply IHbv.
+        split ; first done.
+        destruct H1 as [H1|H1] ; last by right.
+        left ; by apply (elimT andP H1).
+Qed.
+
+(* Equality up to unfolding of undefined values using create_undef ... *)
+Fixpoint unfold_undef_hvalue_eq (v1 v2 : hvalue) : bool :=
+    match v1 with
+  (*|Gval _ _ => v1==v2 *)
+    | Aval elt1 av1 => match v2 with
+                       | Aval elt2 av2 => (elt1==elt2) && unfold_undef_array_value_eq av1 av2
+                       | Undefinedonpurpose (Atyp elt2 n2) => (elt1==elt2) && array_value_is_undef_or_empty Undefinedonpurpose av1 elt2 n2
+                       | Needtobedefined    (Atyp elt2 n2) => (elt1==elt2) && array_value_is_undef_or_empty Needtobedefined    av1 elt2 n2
+                       | Uninitialized      (Atyp elt2 n2) => (elt1==elt2) && array_value_is_undef_or_empty Uninitialized      av1 elt2 n2
+                       | _ => false
+                       end
+    | Bval bv1 => match v2 with
+                  | Bval bv2 => unfold_undef_bundle_value_eq bv1 bv2
+                  | Undefinedonpurpose (Btyp ff2) => bundle_value_is_undef_or_empty Undefinedonpurpose bv1 ff2
+                  | Needtobedefined    (Btyp ff2) => bundle_value_is_undef_or_empty Needtobedefined    bv1 ff2
+                  | Uninitialized      (Btyp ff2) => bundle_value_is_undef_or_empty Uninitialized      bv1 ff2
+                  | _ => false
+                  end
+    | Undefinedonpurpose t1 => hvalue_is_undef_or_empty Undefinedonpurpose v2 t1
+    | Needtobedefined    t1 => hvalue_is_undef_or_empty Needtobedefined    v2 t1
+    | Uninitialized      t1 => hvalue_is_undef_or_empty Uninitialized      v2 t1
+    | _ => v1==v2
+    end
+with unfold_undef_array_value_eq (av1 av2 : array_value) : bool :=
+    match av1, av2 with
+    | Anil, Anil => true
+    | Acons el1 av1, Acons el2 av2 => unfold_undef_hvalue_eq el1 el2 && unfold_undef_array_value_eq av1 av2
+    | _, _ => false
+    end
+with unfold_undef_bundle_value_eq (bv1 bv2 : bundle_value) : bool :=
+    match bv1, bv2 with
+    | Bnil, Bnil => true
+    | Bflips id1 fl1 vv1 bv1, Bflips id2 fl2 vv2 bv2 => (id1==id2) && (fl1==fl2) && unfold_undef_hvalue_eq vv1 vv2 && unfold_undef_bundle_value_eq bv1 bv2
+    | _, _ => false
+    end.
+
+(* unfold_undef_hvalue_eq is truly an equivalence relation: it is reflexive, symmetric, and transitive *)
+Lemma unfold_undef_hvalue_eq_reflexive :
+    forall (v : hvalue), unfold_undef_hvalue_eq v v
+with unfold_undef_array_value_eq_reflexive :
+    forall (av : array_value), unfold_undef_array_value_eq av av
+with unfold_undef_bundle_value_eq_reflexive :
+    forall (bv : bundle_value), unfold_undef_bundle_value_eq bv bv.
+Proof.
+* clear unfold_undef_hvalue_eq_reflexive.
+  destruct v as [ft|elt av|bv|ut|ut|ut] ; simpl ; try done.
+  (* array value *)
+  rewrite eq_refl andTb ; by apply unfold_undef_array_value_eq_reflexive.
+  (* undefined values *)
+  1-3: destruct (ftype_is_empty ut) ; by rewrite eq_refl.
+* clear unfold_undef_array_value_eq_reflexive.
+  induction av as [|el av] ; simpl ; try done.
+  by rewrite unfold_undef_hvalue_eq_reflexive andTb.
+* clear unfold_undef_bundle_value_eq_reflexive.
+  induction bv as [|id fl vv bv] ; simpl ; try done.
+  by rewrite ?eq_refl unfold_undef_hvalue_eq_reflexive ?andTb.
+Qed.
+
+Lemma unfold_undef_hvalue_eq_symmetric :
+    forall (v1 v2 : hvalue), unfold_undef_hvalue_eq v1 v2 -> unfold_undef_hvalue_eq v2 v1
+with unfold_undef_array_value_eq_symmetric :
+    forall (av1 av2 : array_value), unfold_undef_array_value_eq av1 av2 -> unfold_undef_array_value_eq av2 av1
+with unfold_undef_bundle_value_eq_symmetric :
+    forall (bv1 bv2 : bundle_value), unfold_undef_bundle_value_eq bv1 bv2 -> unfold_undef_bundle_value_eq bv2 bv1.
+Proof.
+* clear unfold_undef_hvalue_eq_symmetric.
+  destruct v1 as [[]|elt1 av1|bv1|ut1|ut1|ut1], v2 as [[]|elt2 av2|bv2|ut2|ut2|ut2] ; simpl ; intros ; try by rewrite // eq_sym.
+  + (* array value *)
+    move : H => /andP [/eqP Helt H] ; rewrite Helt eq_refl andTb.
+    by apply unfold_undef_array_value_eq_symmetric, H.
+  + (* bundle value *)
+    by apply unfold_undef_bundle_value_eq_symmetric.
+  + (* undefined value *)
+    1-9: destruct (ftype_is_empty ut2) eqn: Hut2 ; move /eqP : H => H ; last (first [discriminate H | injection H as H]).
+    1-12: by subst ut2 ; rewrite Hut2.
+* clear unfold_undef_array_value_eq_symmetric.
+  induction av1 as [|el1 av1] ; destruct av2 as [|el2 av2] ; simpl ; intros ; try done.
+  apply (elimT andP) in H.
+  rewrite (unfold_undef_hvalue_eq_symmetric _ _ (proj1 H)) andTb.
+  by apply IHav1, H.
+* clear unfold_undef_bundle_value_eq_symmetric.
+  induction bv1 as [|id1 fl1 vv1 bv1] ; destruct bv2 as [|id2 fl2 vv2 bv2] ; simpl ; intros ; try done.
+  move : H => /andP [/andP [/andP [/eqP Hid /eqP Hfl] Hvv] Hbv].
+  rewrite Hid Hfl ?eq_refl (unfold_undef_hvalue_eq_symmetric _ _ Hvv) ?andTb.
+  by apply IHbv1.
+Qed.
+
+(* helper lemma for transitivity *)
+Lemma unfold_undef_hvalue_and_hvalue_is_undef_or_empty :
+    forall undeftype : ftype -> hvalue,
+        (undeftype = Undefinedonpurpose \/ undeftype = Needtobedefined \/ undeftype = Uninitialized) ->
+        forall (v1 v2 : hvalue) (t : ftype),
+            unfold_undef_hvalue_eq v1 v2 -> hvalue_is_undef_or_empty undeftype v1 t -> hvalue_is_undef_or_empty undeftype v2 t
+with unfold_undef_array_value_and_array_value_is_undef_or_empty :
+    forall undeftype : ftype -> hvalue,
+        (undeftype = Undefinedonpurpose \/ undeftype = Needtobedefined \/ undeftype = Uninitialized) ->
+        forall (av1 av2 : array_value) (elt : ftype) (n : nat),
+          unfold_undef_array_value_eq av1 av2 -> array_value_is_undef_or_empty undeftype av1 elt n -> array_value_is_undef_or_empty undeftype av2 elt n
+with unfold_undef_bundle_value_and_bundle_value_is_undef_or_empty :
+    forall undeftype : ftype -> hvalue,
+        (undeftype = Undefinedonpurpose \/ undeftype = Needtobedefined \/ undeftype = Uninitialized) ->
+        forall (bv1 bv2 : bundle_value) (ff : ffield),
+            unfold_undef_bundle_value_eq bv1 bv2 -> bundle_value_is_undef_or_empty undeftype bv1 ff -> bundle_value_is_undef_or_empty undeftype bv2 ff.
+Proof.
+* clear unfold_undef_hvalue_and_hvalue_is_undef_or_empty.
+  destruct v1 as [ft1|elt1 av1|bv1|ut1|ut1|ut1],
+           v2 as [ft2|elt2 av2|bv2|ut2|ut2|ut2],
+            t as [ft|elt n|ff] ; simpl ; try done ; intros.
+  (* The first 8 goals have a slightly different order *)
+  + (* array values -- additional goal *)
+    2-4: destruct ut2 as [|elt2 n2|] ; try done.
+    1-4: move : H0 H1 => /andP [/eqP Helt1 H0] /andP [/eqP Helt2 H1] ; subst elt1 elt2.
+    rewrite eq_refl andTb.
+    by apply (unfold_undef_array_value_and_array_value_is_undef_or_empty _ H _ _ _ _ H0).
+  + (* three more additional goals, for each undefinedtype one *)
+    1: specialize (array_value_is_undef_or_empty_unique (or_introl            Logic.eq_refl ) H elt n H0) ; intro.
+    2: specialize (array_value_is_undef_or_empty_unique (or_intror (or_introl Logic.eq_refl)) H elt n H0) ; intro.
+    3: specialize (array_value_is_undef_or_empty_unique (or_intror (or_intror Logic.eq_refl)) H elt n H0) ; intro.
+    1-3: destruct H2 as [H2 _] ; specialize (H2 H1).
+    1-3: move : H2 => [/andP [_ /eqP Hn] [/orP [H2|H2]|H2]] ; rewrite -Hn ; simpl ;
+          destruct n2, (ftype_is_empty elt) ; done.
+  + (* bundle values -- additional goal *)
+    by apply (unfold_undef_bundle_value_and_bundle_value_is_undef_or_empty _ H _ _ _ H0 H1).
+  + (* three further additional goals, for eahc undefinedtype one *)
+    1-3: destruct ut2 as [| |ff2] ; try done.
+    1: specialize (bundle_value_is_undef_or_empty_unique (or_introl            Logic.eq_refl ) H ff H0) ; intro.
+    2: specialize (bundle_value_is_undef_or_empty_unique (or_intror (or_introl Logic.eq_refl)) H ff H0) ; intro.
+    3: specialize (bundle_value_is_undef_or_empty_unique (or_intror (or_intror Logic.eq_refl)) H ff H0) ; intro.
+    1-3: destruct H2 as [H2 _] ; specialize (H2 H1).
+    1-3: destruct H2 as [Hff [H2|H2]] ; rewrite -(elimT eqP Hff) ; simpl ;
+          destruct (ffield_is_empty ff2) ; done.
+  (* Now the remaining goals are exactly distributed over the three parts:
+     1-15 Undefinedonpurpose. 16-30 Needtobedefined. 31-45 Uninitialized. *)
+  + (* Gtyp and a few similar cases *)
+    1,3-5,16,18-20,31,33-35: destruct ut1 as [ft1|elt1 n1|ff1] ; try done.
+    1-12: destruct (ftype_is_empty _) ; first done.
+    1-12: destruct H as [H|[H|H]] ; subst undeftype ; done.
+  + (* arrays *)
+    1,12,23: destruct ut1 as [|elt1 n1|] ; try done.
+    1-3: move : H0 => /andP [/eqP Helt H0] ; subst elt2.
+    1-3: destruct (ftype_is_empty (Atyp elt1 n1)) eqn: Helt1 ; last (destruct H as [H|[H|H]] ; subst undeftype ; try done).
+    1-6: apply (elimT eqP) in H1 ; injection H1 as H1 ; subst elt1 n1 ; rewrite eq_refl andTb //.
+    1:   apply (array_value_is_undef_or_empty_unique (or_introl            Logic.eq_refl ) H _ _ H0).
+    2:   apply (array_value_is_undef_or_empty_unique (or_intror (or_introl Logic.eq_refl)) H _ _ H0).
+    3:   apply (array_value_is_undef_or_empty_unique (or_intror (or_intror Logic.eq_refl)) H _ _ H0).
+    1-3: rewrite ?eq_refl ;
+         split ; first done ;
+         simpl in Helt1 ;
+         left ; destruct n ; by rewrite ?Helt1 // orbT.
+  + (* bundles *)
+    1,11,21: destruct ut1 as [| |ff1] ; try done.
+    1-3: destruct (ftype_is_empty (Btyp ff1)) eqn: Helt1 ;
+              last (destruct H as [H|[H|H]] ; subst undeftype ; try done).
+    1-6: apply (elimT eqP) in H1 ; injection H1 as H1 ; subst ff1.
+    1:   apply (bundle_value_is_undef_or_empty_unique (or_introl            Logic.eq_refl ) H                                     _ H0).
+    2:   apply (bundle_value_is_undef_or_empty_unique (or_introl            Logic.eq_refl ) (or_introl            Logic.eq_refl ) _ H0).
+    3:   apply (bundle_value_is_undef_or_empty_unique (or_intror (or_introl Logic.eq_refl)) H                                     _ H0).
+    4:   apply (bundle_value_is_undef_or_empty_unique (or_intror (or_introl Logic.eq_refl)) (or_intror (or_introl Logic.eq_refl)) _ H0).
+    5:   apply (bundle_value_is_undef_or_empty_unique (or_intror (or_intror Logic.eq_refl)) H                                     _ H0).
+    6:   apply (bundle_value_is_undef_or_empty_unique (or_intror (or_intror Logic.eq_refl)) (or_intror (or_intror Logic.eq_refl)) _ H0).
+    1-6: simpl in Helt1 ; rewrite eq_refl Helt1 ;
+         split ; first done ;
+         try (by left) ;
+         by right.
+  + (* diverse values... *)
+    1-27: destruct (ftype_is_empty ut2) eqn: Hut1 ; try done ;
+         apply (elimT eqP) in H0 ; try (injection H0 as H0) ; subst ut2 ;
+         rewrite Hut1 // in H1.
+* clear unfold_undef_array_value_and_array_value_is_undef_or_empty.
+  induction av1 as [|el1 av1] ; destruct av2 as [|el2 av2], n ; simpl ; try done ; intros.
+  apply (elimT andP) in H0, H1.
+  rewrite (unfold_undef_hvalue_and_hvalue_is_undef_or_empty _ H _ _ _ (proj1 H0) (proj1 H1)) andTb.
+  apply IHav1 ; first by apply H0.
+  by apply H1.
+* clear unfold_undef_bundle_value_and_bundle_value_is_undef_or_empty.
+  induction bv1 as [|id1 fl1 v1 bv1] ; destruct bv2 as [|id2 fl2 v2 bv2], ff as [|idt flt t ff] ; simpl ; try done ; intros.
+  move : H0 H1 => /andP [/andP [/andP [/eqP Hid /eqP Hfl] H0] H2] /andP [/andP [/andP [/eqP Hidt /eqP Hflt] H1] H3].
+  subst id1 id2 fl1 fl2.
+  rewrite ?eq_refl (unfold_undef_hvalue_and_hvalue_is_undef_or_empty _ H _ _ _ H0 H1) ?andTb.
+  apply IHbv1 ; by assumption.
+Qed.
+
+(* helper lemma for transitivity: if two values have the same type, then they are the equivalent. *)
+Lemma hvalue_is_undef_or_empty_unique_val :
+    forall (undeftype : ftype -> hvalue),
+        (undeftype = Undefinedonpurpose \/ undeftype = Needtobedefined \/ undeftype = Uninitialized) ->
+            forall (v1 v2: hvalue) (t : ftype),
+                hvalue_is_undef_or_empty undeftype v1 t ->
+                hvalue_is_undef_or_empty undeftype v2 t ->
+                unfold_undef_hvalue_eq v1 v2
+with array_value_is_undef_or_empty_unique_val :
+    forall (undeftype : ftype -> hvalue),
+        (undeftype = Undefinedonpurpose \/ undeftype = Needtobedefined \/ undeftype = Uninitialized) ->
+            forall (av1 av2: array_value) (elt : ftype) (n : nat),
+                array_value_is_undef_or_empty undeftype av1 elt n ->
+                array_value_is_undef_or_empty undeftype av2 elt n ->
+                unfold_undef_array_value_eq av1 av2
+with bundle_value_is_undef_or_empty_unique_val :
+    forall (undeftype : ftype -> hvalue),
+        (undeftype = Undefinedonpurpose \/ undeftype = Needtobedefined \/ undeftype = Uninitialized) ->
+            forall (bv1 bv2: bundle_value) (ff : ffield),
+                bundle_value_is_undef_or_empty undeftype bv1 ff ->
+                bundle_value_is_undef_or_empty undeftype bv2 ff ->
+                unfold_undef_bundle_value_eq bv1 bv2.
+Proof.
+* clear hvalue_is_undef_or_empty_unique_val.
+  destruct v1 as [ft1|elt1 av1|bv1|ut1|ut1|ut1],
+           v2 as [ft2|elt2 av2|bv2|ut2|ut2|ut2],
+           t as [ftt|eltt nt|fft] ; simpl ; try done ; intros.
+  + (* array value *)
+    move : H0 H1 => /andP [/eqP Helt1 H0] /andP [/eqP Helt2 H1] ; subst elt1 elt2 ; rewrite eq_refl andTb.
+    by apply array_value_is_undef_or_empty_unique_val with (undeftype := undeftype) (elt := eltt) (n := nt).
+  + (* array value / Undefinedonpurpose etc. *)
+    1-3: move : H0 => /andP [/eqP Helt1 H0] ; subst elt1.
+    1-3: destruct (ftype_is_empty ut2) eqn: Hut2 ; apply (elimT eqP) in H1 ;
+            last (destruct H as [H|[H|H]] ; subst undeftype ; try done ; injection H1 as H1) ;
+            subst ut2.
+    1-6: rewrite eq_refl andTb //.
+    1:   apply (array_value_is_undef_or_empty_unique H (or_introl            Logic.eq_refl ) _ _ H0).
+    2:   apply (array_value_is_undef_or_empty_unique H (or_intror (or_introl Logic.eq_refl)) _ _ H0).
+    3:   apply (array_value_is_undef_or_empty_unique H (or_intror (or_intror Logic.eq_refl)) _ _ H0).
+    1-3: rewrite ?eq_refl ;
+         split ; first done ;
+         simpl in Hut2 ;
+         left ; destruct nt ; by rewrite ?Hut2 // orbT.
+  + (* bundle value *)
+    by apply bundle_value_is_undef_or_empty_unique_val with (undeftype := undeftype) (ff := fft).
+  + (* bundle value / Undefinedonpurpose etc. *)
+    1-3: destruct (ftype_is_empty ut2) eqn: Hut2 ; apply (elimT eqP) in H1 ;
+              last (destruct H as [H|[H|H]] ; subst undeftype ; try done ; injection H1 as H1) ;
+              subst ut2.
+    1:   apply (bundle_value_is_undef_or_empty_unique H                                     (or_introl            Logic.eq_refl ) _ H0).
+    2:   apply (bundle_value_is_undef_or_empty_unique (or_introl            Logic.eq_refl ) (or_introl            Logic.eq_refl ) _ H0).
+    3:   apply (bundle_value_is_undef_or_empty_unique H                                     (or_intror (or_introl Logic.eq_refl)) _ H0).
+    4:   apply (bundle_value_is_undef_or_empty_unique (or_intror (or_introl Logic.eq_refl)) (or_intror (or_introl Logic.eq_refl)) _ H0).
+    5:   apply (bundle_value_is_undef_or_empty_unique H                                     (or_intror (or_intror Logic.eq_refl)) _ H0).
+    6:   apply (bundle_value_is_undef_or_empty_unique (or_intror (or_intror Logic.eq_refl)) (or_intror (or_intror Logic.eq_refl)) _ H0).
+    1-6: split ; first done.
+    - 1,3,5: by left.
+    - 1-3: by right.
+  + (* Undefinedonpurpose etc./ array value *)
+    1,12,23: move : H1 => /andP [/eqP Helt2 H1] ; subst elt2.
+    1-3: destruct (ftype_is_empty ut1) eqn: Hut1 ; apply (elimT eqP) in H0 ;
+            last (destruct H as [H|[H|H]] ; subst undeftype ; try done ; injection H0 as H0) ;
+            subst ut1.
+    1-6: rewrite eq_refl andTb //.
+    1:   apply (array_value_is_undef_or_empty_unique H (or_introl            Logic.eq_refl ) _ _ H1).
+    2:   apply (array_value_is_undef_or_empty_unique H (or_intror (or_introl Logic.eq_refl)) _ _ H1).
+    3:   apply (array_value_is_undef_or_empty_unique H (or_intror (or_intror Logic.eq_refl)) _ _ H1).
+    1-3: rewrite ?eq_refl ;
+         split ; first done ;
+         simpl in Hut1 ;
+         left ; destruct nt ; by rewrite ?Hut1 // orbT.
+  + (* Undefinedonpurpose etc./bundle value *)
+    1,11,21: destruct (ftype_is_empty ut1) eqn: Hut1 ; apply (elimT eqP) in H0 ;
+              last (destruct H as [H|[H|H]] ; subst undeftype ; try done ; injection H0 as H0) ;
+              subst ut1.
+    1:   apply (bundle_value_is_undef_or_empty_unique H                                     (or_introl            Logic.eq_refl ) _ H1).
+    2:   apply (bundle_value_is_undef_or_empty_unique (or_introl            Logic.eq_refl ) (or_introl            Logic.eq_refl ) _ H1).
+    3:   apply (bundle_value_is_undef_or_empty_unique H                                     (or_intror (or_introl Logic.eq_refl)) _ H1).
+    4:   apply (bundle_value_is_undef_or_empty_unique (or_intror (or_introl Logic.eq_refl)) (or_intror (or_introl Logic.eq_refl)) _ H1).
+    5:   apply (bundle_value_is_undef_or_empty_unique H                                     (or_intror (or_intror Logic.eq_refl)) _ H1).
+    6:   apply (bundle_value_is_undef_or_empty_unique (or_intror (or_intror Logic.eq_refl)) (or_intror (or_intror Logic.eq_refl)) _ H1).
+    1-6: split ; first done.
+    - 1,3,5: by left.
+    - 1-3: by right.
+  + (* both Undefinedonpurpose etc. *)
+    1-27: destruct H as [H|[H|H]] ; subst undeftype. (* it's perhaps too complicated to distinguish the cases otherwise *)
+    1-81: destruct (ftype_is_empty ut1) eqn: Hut1 ; apply (elimT eqP) in H0 ;
+              try done ; try (injection H0 as H0) ; subst ut1 ; try done.
+    1-24: destruct (ftype_is_empty ut2) eqn: Hut2 ; apply (elimT eqP) in H1 ;
+              try done ; try (injection H1 as H1) ; subst ut2 ; try done.
+    1-12: by rewrite Hut1 in Hut2.
+* clear array_value_is_undef_or_empty_unique_val.
+  induction av1 as [|el1 av1] ; destruct av2 as [|el2 av2], n ; simpl ; try done ; intros.
+  move : H0 H1 => /andP [Hel1 Hav1] /andP [Hel2 Hav2].
+  specialize (hvalue_is_undef_or_empty_unique_val _ H _ _ _ Hel1 Hel2).
+  specialize (IHav1 _ _ _ Hav1 Hav2).
+  by rewrite hvalue_is_undef_or_empty_unique_val.
+* clear bundle_value_is_undef_or_empty_unique_val.
+  induction bv1 as [|id1 fl1 vv1 bv1] ; destruct bv2 as [|id2 fl2 vv2 bv2], ff as [|idt flt t ff] ; simpl ; try done ; intros.
+  move : H0 H1 => /andP [/andP [/andP [/eqP Hid1 /eqP Hfl1] H0] H2] /andP [/andP [/andP [/eqP Hid2 /eqP Hfl2] H1] H3].
+  subst id1 id2 fl1 fl2.
+  specialize (hvalue_is_undef_or_empty_unique_val _ H _ _ _ H0 H1).
+  specialize (IHbv1 _ _ H2 H3).
+  by rewrite ?eq_refl hvalue_is_undef_or_empty_unique_val ?andTb.
+Qed.
+
+(*
+Transitivity only holds for non-empty values;
+in particular, if one of the three values is empty, it may not hold.
+(Or should we just equate all empty values? -- that might be better)
+*)
+
+Lemma unfold_undef_hvalue_eq_transitive :
+    forall (v2 v1 v3 : hvalue), unfold_undef_hvalue_eq v1 v2 -> unfold_undef_hvalue_eq v2 v3 -> unfold_undef_hvalue_eq v1 v3
+with unfold_undef_array_value_eq_transitive :
+    forall (av2 av1 av3 : array_value), unfold_undef_array_value_eq av1 av2 -> unfold_undef_array_value_eq av2 av3 -> unfold_undef_array_value_eq av1 av3
+with unfold_undef_bundle_value_eq_transitive :
+    forall (bv2 bv1 bv3 : bundle_value), unfold_undef_bundle_value_eq bv1 bv2 -> unfold_undef_bundle_value_eq bv2 bv3 -> unfold_undef_bundle_value_eq bv1 bv3.
+Proof.
+* clear unfold_undef_hvalue_eq_transitive.
+  destruct v2 as [ft2|elt2 av2|bv2|ut2|ut2|ut2] eqn: Hv2,
+           v1 as [ft1|elt1 av1|bv1|ut1|ut1|ut1] eqn: Hv1,
+           v3 as [ft3|elt3 av3|bv3|ut3|ut3|ut3] eqn: Hv3 ;
+        simpl ; intros ; try done.
+  + (* Gtyp *)
+    by rewrite (elimT eqP H).
+  + (* array values *)
+    move : H H0 => /andP [/eqP Helt1 H] /andP [/eqP Helt3 H0].
+    subst elt2 elt3 ; rewrite eq_refl andTb.
+    by apply (unfold_undef_array_value_eq_transitive _ _ _ H H0).
+  + (* v1 and v2 are normal array values, v3 is Undefinedonpurpose/... ... *)
+    1-3: destruct ut3 as [|elt3 n3|] ; try done.
+    1-3: move : H H0 => /andP [/eqP Helt1 H] /andP [/eqP Helt3 H0].
+    1-3: subst elt2 elt3 ; rewrite eq_refl andTb.
+    1-3: apply unfold_undef_array_value_eq_symmetric in H.
+    1-3: apply unfold_undef_array_value_and_array_value_is_undef_or_empty with (av1 := av2) ; try by assumption.
+    - by left.
+    - by right ; left.
+    - by right ; right.
+  + (* v1 in Undefinedonpurpose/..., v2 and v3 are normal array values *)
+    1,5,9: destruct ut1 as [|elt1 n1|] ; try done.
+    1-3: move : H H0 => /andP [/eqP Helt1 H] /andP [/eqP Helt3 H0].
+    1-3: subst elt2 elt3 ; rewrite eq_refl andTb.
+    1-3: apply unfold_undef_array_value_and_array_value_is_undef_or_empty with (av1 := av2) ; try by assumption.
+    - by left.
+    - by right ; left.
+    - by right ; right.
+  + (* v1 and v3 are Undefinedonpurpose/..., v2 is a normal array value *)
+    1-9: destruct ut1 as [|elt1 n1|] ; try done.
+    1-9: destruct ut3 as [|elt3 n3|] ; try done.
+    1-9: move : H H0 => /andP [/eqP Helt1 H] /andP [/eqP Helt3 H0].
+    1-9: subst elt2 elt3.
+    1:   apply (array_value_is_undef_or_empty_unique (or_introl            Logic.eq_refl ) (or_introl            Logic.eq_refl )) with (elt2 := elt1) (n2 := n3) in H.
+    2:   apply (array_value_is_undef_or_empty_unique (or_introl            Logic.eq_refl ) (or_intror (or_introl Logic.eq_refl))) with (elt2 := elt1) (n2 := n3) in H.
+    3:   apply (array_value_is_undef_or_empty_unique (or_introl            Logic.eq_refl ) (or_intror (or_intror Logic.eq_refl))) with (elt2 := elt1) (n2 := n3) in H.
+    4:   apply (array_value_is_undef_or_empty_unique (or_intror (or_introl Logic.eq_refl)) (or_introl            Logic.eq_refl )) with (elt2 := elt1) (n2 := n3) in H.
+    5:   apply (array_value_is_undef_or_empty_unique (or_intror (or_introl Logic.eq_refl)) (or_intror (or_introl Logic.eq_refl))) with (elt2 := elt1) (n2 := n3) in H.
+    6:   apply (array_value_is_undef_or_empty_unique (or_intror (or_introl Logic.eq_refl)) (or_intror (or_intror Logic.eq_refl))) with (elt2 := elt1) (n2 := n3) in H.
+    7:   apply (array_value_is_undef_or_empty_unique (or_intror (or_intror Logic.eq_refl)) (or_introl            Logic.eq_refl )) with (elt2 := elt1) (n2 := n3) in H.
+    8:   apply (array_value_is_undef_or_empty_unique (or_intror (or_intror Logic.eq_refl)) (or_intror (or_introl Logic.eq_refl))) with (elt2 := elt1) (n2 := n3) in H.
+    9:   apply (array_value_is_undef_or_empty_unique (or_intror (or_intror Logic.eq_refl)) (or_intror (or_intror Logic.eq_refl))) with (elt2 := elt1) (n2 := n3) in H.
+    1-9: apply H in H0.
+    1-9: move : H0 => [/andP [_ /eqP Hn] [/orP [H0|/eqP H0]|H0]] ; subst n3 ;
+              simpl ; first [rewrite H0 // | try rewrite eq_sym H0 //] ; try by destruct n1.
+    1-9: destruct (match n1 with | 0 => _ | _.+1 => _ end) ; done.
+  + (* bundle values *)
+    by apply (unfold_undef_bundle_value_eq_transitive _ _ _ H H0).
+  + (* v1 and v2 are normal bundle values, v3 is Undefinedonpurpose/... *)
+    1-3: destruct ut3 as [| |ff3] ; try done.
+    1-3: apply unfold_undef_bundle_value_eq_symmetric in H.
+    1-3: apply unfold_undef_bundle_value_and_bundle_value_is_undef_or_empty with (bv1 := bv2) ; try by assumption.
+    - by left.
+    - by right ; left.
+    - by right ; right.
+  + (* v1 in Undefinedonpurpose/..., v2 and v3 are normal bundle values *)
+    1,5,9: destruct ut1 as [| |ff1] ; try done.
+    1-3: apply unfold_undef_bundle_value_and_bundle_value_is_undef_or_empty with (bv1 := bv2) ; try by assumption.
+    - by left.
+    - by right ; left.
+    - by right ; right.
+  + (* v1 and v3 are Undefinedonpurpose/..., v2 is a normal bundle value *)
+    1-9: destruct ut1 as [| |ff1] ; try done.
+    1-9: destruct ut3 as [| |ff3] ; try done.
+    1:   apply (bundle_value_is_undef_or_empty_unique (or_introl            Logic.eq_refl ) (or_introl            Logic.eq_refl )) with (ff2 := ff3) in H.
+    2:   apply (bundle_value_is_undef_or_empty_unique (or_introl            Logic.eq_refl ) (or_intror (or_introl Logic.eq_refl))) with (ff2 := ff3) in H.
+    3:   apply (bundle_value_is_undef_or_empty_unique (or_introl            Logic.eq_refl ) (or_intror (or_intror Logic.eq_refl))) with (ff2 := ff3) in H.
+    4:   apply (bundle_value_is_undef_or_empty_unique (or_intror (or_introl Logic.eq_refl)) (or_introl            Logic.eq_refl )) with (ff2 := ff3) in H.
+    5:   apply (bundle_value_is_undef_or_empty_unique (or_intror (or_introl Logic.eq_refl)) (or_intror (or_introl Logic.eq_refl))) with (ff2 := ff3) in H.
+    6:   apply (bundle_value_is_undef_or_empty_unique (or_intror (or_introl Logic.eq_refl)) (or_intror (or_intror Logic.eq_refl))) with (ff2 := ff3) in H.
+    7:   apply (bundle_value_is_undef_or_empty_unique (or_intror (or_intror Logic.eq_refl)) (or_introl            Logic.eq_refl )) with (ff2 := ff3) in H.
+    8:   apply (bundle_value_is_undef_or_empty_unique (or_intror (or_intror Logic.eq_refl)) (or_intror (or_introl Logic.eq_refl))) with (ff2 := ff3) in H.
+    9:   apply (bundle_value_is_undef_or_empty_unique (or_intror (or_intror Logic.eq_refl)) (or_intror (or_intror Logic.eq_refl))) with (ff2 := ff3) in H.
+    1-9: apply H in H0.
+    1-9: move : H0 => [/eqP Hff [H0|H0]] ; subst ff3 ;
+              simpl ; first [ rewrite H0 // | try rewrite eq_sym H0 //].
+    1-9: by destruct (ffield_is_empty ff1).
+  + (* v2 = Undefinedonpurpose/..., v1 and v3 are normal array values.
+            Also handle a few cases where v1 and v3 are contradictory. *)
+    1-2,6,26-27,31,51-52,56: destruct ut2 as [|elt2 n2|] ; try done.
+    1-3: move : H H0 => /andP [/eqP Helt1 H] /andP [/eqP Helt3 H0].
+    1-3: subst elt2 elt3 ; rewrite eq_refl andTb.
+    1-3: apply (array_value_is_undef_or_empty_unique_val) with (2 := H) (3 := H0).
+    - by left.
+    - by right ; left.
+    - by right ; right.
+  + (* v2 and v3 are Undefinedonpurpose, v1 is a normal array value *)
+    1-3,23-25,45-47: destruct ut2 as [|elt2 n2|] ; try done.
+    1-9: move : H => /andP [/eqP Helt1 H] ; subst elt1.
+    1,4,7: apply (array_value_is_undef_or_empty_unique) with (undeftype2 := Undefinedonpurpose) (elt2 := elt2) (n2 := n2) in H ;
+              try first [by left | by right ; left | by right ; right].
+    4,6,8: apply (array_value_is_undef_or_empty_unique) with (undeftype2 := Needtobedefined) (elt2 := elt2) (n2 := n2) in H ;
+              try first [by left | by right ; left | by right ; right].
+    7,8,9: apply (array_value_is_undef_or_empty_unique) with (undeftype2 := Uninitialized) (elt2 := elt2) (n2 := n2) in H ;
+              try first [by left | by right ; left | by right ; right].
+    1-9: destruct (ftype_is_empty ut3) eqn: Hut3 ; apply (elimT eqP) in H0 ;
+            last (try done ; injection H0 as H0) ; subst ut3.
+    1-12: rewrite eq_refl andTb // ; apply H.
+    1-12: split ; first by rewrite ?eq_refl.
+    1-12: simpl in Hut3 ; destruct n2 ; first by left ; rewrite eq_refl orbT.
+    1-12: rewrite Hut3 ; try by left.
+    1-3: by right.
+  + (* v2 is Undefinedonpurpose, v1 and v3 are normal bundle values *)
+    1,20,39: destruct ut2 as [| |ff2] ; try done.
+    1-3: apply (bundle_value_is_undef_or_empty_unique_val) with (2 := H) (3 := H0).
+    - by left.
+    - by right ; left.
+    - by right ; right.
+  + (* v1 is a normal bundle value, v2 and v3 are Undefinedonpurpose *)
+    1-3,19-21,37-39: destruct ut2 as [| |ff2] ; try done.
+    1,4,7: apply (bundle_value_is_undef_or_empty_unique) with (undeftype2 := Undefinedonpurpose) (ff2 := ff2) in H ;
+              try first [by left | by right ; left | by right ; right].
+    4,6,8: apply (bundle_value_is_undef_or_empty_unique) with (undeftype2 := Needtobedefined) (ff2 := ff2) in H ;
+              try first [by left | by right ; left | by right ; right].
+    7,8,9: apply (bundle_value_is_undef_or_empty_unique) with (undeftype2 := Uninitialized) (ff2 := ff2) in H ;
+              try first [by left | by right ; left | by right ; right].
+    1-9: destruct (ftype_is_empty ut3) eqn: Hut3 ; apply (elimT eqP) in H0 ;
+            last (try done ; injection H0 as H0) ; subst ut3.
+    1-12: apply H.
+    1-12: split ; first by rewrite ?eq_refl.
+    1-12: simpl in Hut3 ; try by left.
+    1-3: by right.
+  + (* v3 is a normal array value, v2 and v1 are Undefinedonpurpose *)
+    1,6,11,16,21,26,31,36,41: destruct ut2 as [|elt2 n2|] ; try done.
+    1-9: move : H0 => /andP [/eqP Helt2 H0] ; subst elt3.
+    1-9: destruct (ftype_is_empty (Atyp _ _)) eqn: Ht2 ; apply (elimT eqP) in H ;
+              last (try done ; injection H as H) ; subst ut1.
+    1-12: rewrite eq_refl andTb //.
+    1,6: apply (array_value_is_undef_or_empty_unique) with (undeftype2 := Needtobedefined) (elt2 := elt2) (n2 := n2) in H0 ;
+              try first [by left | by right ; left | by right ; right].
+    3,5: apply (array_value_is_undef_or_empty_unique) with (undeftype2 := Uninitialized) (elt2 := elt2) (n2 := n2) in H0 ;
+              try first [by left | by right ; left | by right ; right].
+    5,6: apply (array_value_is_undef_or_empty_unique) with (undeftype2 := Undefinedonpurpose) (elt2 := elt2) (n2 := n2) in H0 ;
+              try first [by left | by right ; left | by right ; right].
+    1-6: apply H0.
+    1-6: split ; first by rewrite ?eq_refl.
+    1-6: simpl in Ht2 ; destruct n2 ; first by left ; rewrite eq_refl orbT.
+    1-6: rewrite Ht2 ; by left.
+  + (* v1 and v2 are Undefinedonpurpose/..., v3 is a normal bundle value *)
+    1,5,9,13,17,21,25,29,33: destruct ut2 as [| |ff2] ; try done.
+    1-9: destruct (ftype_is_empty (Btyp _)) eqn: Hut1 ; apply (elimT eqP) in H ;
+              last (try done ; injection H as H) ; subst ut1 ; try done.
+    1,6: apply (bundle_value_is_undef_or_empty_unique) with (undeftype2 := Needtobedefined) (ff2 := ff2) in H0 ;
+              try first [by left | by right ; left | by right ; right].
+    3,5: apply (bundle_value_is_undef_or_empty_unique) with (undeftype2 := Uninitialized) (ff2 := ff2) in H0 ;
+              try first [by left | by right ; left | by right ; right].
+    5,6: apply (bundle_value_is_undef_or_empty_unique) with (undeftype2 := Undefinedonpurpose) (ff2 := ff2) in H0 ;
+              try first [by left | by right ; left | by right ; right].
+    1-6: apply H0.
+    1-6: split ; first by rewrite eq_refl.
+    1-6: simpl in Hut1 ; by left.
+  + (* all three are Undefinedonpurpose/... *)
+    1-27: destruct (ftype_is_empty ut3) eqn: Hut3 ; apply (elimT eqP) in H0 ;
+              last (try done ; injection H0 as H0) ; rewrite H0 ; rewrite H0 in Hut3.
+    1-36: rewrite Hut3 in H ; apply (elimT eqP) in H ;
+              try done ; try injection H as H ; by rewrite H //.
+* clear unfold_undef_array_value_eq_transitive.
+  induction av2 as [|el2 av2] ; destruct av1 as [|el1 av1], av3 as [|el3 av3] ; try done.
+  simpl ; intros.
+  apply (elimT andP) in H, H0.
+  rewrite (unfold_undef_hvalue_eq_transitive _ _ _ (proj1 H) (proj1 H0)) andTb.
+  by apply (IHav2 _ _ (proj2 H) (proj2 H0)).
+* clear unfold_undef_bundle_value_eq_transitive.
+  induction bv2 as [|id2 fl2 vv2 bv2] ; destruct bv1 as [|id1 fl1 vv1 bv1], bv3 as [|id3 fl3 vv3 bv3] ; try done.
+  simpl ; intros.
+  move : H H0 => /andP [/andP [/andP [/eqP Hid1 /eqP Hfl1] Hvv1] Hbv1] /andP [/andP [/andP [/eqP Hid3 /eqP Hfl3] Hvv3] Hbv3].
+  rewrite Hid1 Hid3 Hfl1 Hfl3 ?eq_refl (unfold_undef_hvalue_eq_transitive _ _ _ Hvv1 Hvv3) ?andTb.
+  by apply (IHbv2 _ _ Hbv1 Hbv3).
+Qed.
+
+(*
+Lemma repl_bundle_value_part_correct :
+    forall (bv : bundle_value) (ff : ffield) (id : VarOrder.T),
+        bundle_value_is_type_correct bv ff ->
+        match repl_bundle_value_part id bv with
+        | Some (fn, old_val) => (forall (v1 v2 : hvalue), unfold_undef_hvalue_eq v1 v2 -> unfold_undef_bundle_value_eq (fn v1) (fn v2)) /\
+                                hvalue_is_type_correct old_val (type_of_val old_val) &&
+                                (fn old_val == bv) &&
+                                ((fix aux (bv : bundle_value) := match bv with
+                                                                 | Bflips id' fl vv bv' => if id == id' then Some vv else aux bv'
+                                                                 | Bnil => None
+                                                                 end) bv == Some old_val)
+        | None =>                (fix aux (bv : bundle_value) := match bv with
+                                                                 | Bflips id' fl vv bv' => if id == id' then Some vv else aux bv'
+                                                                 | Bnil => None
+                                                                 end) bv == None
+        end.
+Proof.
+intros bv ff id ; revert ff.
+induction bv as [|idv flv vv bv] ; destruct ff as [|idt flt t ff] ; simpl ; try done ; intros.
+move : H => /andP [/andP [/andP _ H] H0].
+specialize (IHbv ff H0).
+destruct (id == idv).
+* split ; last by rewrite (elimT eqP (type_of_val_correct H)) ?eq_refl ?andbT.
+  intros ; simpl.
+  by rewrite ?eq_refl H1 unfold_undef_bundle_value_eq_reflexive.
+* destruct (repl_bundle_value_part id bv) as [[bfn old_hv]|] ; last by done.
+  move : IHbv => [IHbva /andP [/andP [IHbvb /eqP IHbvc] /eqP IHbvd]].
+  split ; last by rewrite IHbvc IHbvd ?eq_refl ?andbT.
+  intros ; simpl.
+  rewrite ?eq_refl unfold_undef_hvalue_eq_reflexive ?andTb.
+  by apply IHbva.
+Qed.
+
+Lemma repl_array_value_part_correct :
+    forall (av : array_value) (elt : ftype) (size : nat) (i : nat),
+        array_value_is_type_correct av elt size ->
+        match repl_array_value_part i av with
+        | Some (fn, old_val) => (forall (v1 v2 : hvalue), unfold_undef_hvalue_eq v1 v2 -> unfold_undef_array_value_eq (fn v1) (fn v2)) /\
+                                hvalue_is_type_correct old_val elt &&
+                                (fn old_val == av) &&
+                                ((fix aux (av : array_value) (i : nat) := match av, i with
+                                                                          | Anil, _ => None
+                                                                          | Acons el _, 0 => Some el
+                                                                          | Acons _ av', i'.+1 => aux av' i'
+                                                                          end) av i == Some old_val)
+        | None =>                (fix aux (av : array_value) (i : nat) := match av, i with
+                                                                          | Anil, _ => None
+                                                                          | Acons el _, 0 => Some el
+                                                                          | Acons _ av', i'.+1 => aux av' i'
+                                                                          end) av i == None
+        end.
+Proof.
+intros av elt.
+induction av as [|el av] ; destruct size, i ; simpl ; try done ; intros.
+* apply (elimT andP) in H.
+  split.
+  + intros ; simpl.
+    by rewrite H0 unfold_undef_array_value_eq_reflexive.
+  + rewrite ?eq_refl ?andbT ; apply H.
+* apply (elimT andP) in H.
+  specialize (IHav size i (proj2 H)).
+  destruct (repl_array_value_part i av) as [[afn old_hv]|] ; last by done.
+  move : IHav => [IHava /andP [/andP [IHavb /eqP IHavc] /eqP IHavd]].
+  split ; last by rewrite IHavb IHavc IHavd ?eq_refl.
+  intros ; simpl.
+  rewrite unfold_undef_hvalue_eq_reflexive andTb.
+  by apply IHava, H0.
+Qed.
+*)
+
+Lemma undef_type_correct :
+    forall (undeftype : ftype -> hvalue),
+        undeftype = Undefinedonpurpose \/ undeftype = Needtobedefined \/ undeftype = Uninitialized ->
+        forall t : ftype,
+            ftype_is_explicit_and_concrete t ->
+            hvalue_is_type_correct (undeftype t) t.
+Proof.
+intros ; destruct H as [H|[H|H]] ; subst undeftype ; simpl.
+1-3: by rewrite eq_refl andbT.
+Qed.
+
+Fixpoint has_undefined_subaccess (r : HiF.href) (sem_old : VM.t hvalue) : bool :=
+    match r with
+    | Eid _ => false
+    | Esubfield r' _
+    | Esubindex r' _ => has_undefined_subaccess r' sem_old
+    | Esubaccess r' e => match eval_hfexpr e sem_old with
+                         | Some (Undefinedonpurpose (Gtyp (Fuint _)))
+                         | Some (Needtobedefined    (Gtyp (Fuint _)))
+                         | Some (Uninitialized      (Gtyp (Fuint _))) => true
+                         | _ => has_undefined_subaccess r' sem_old
+                         end
+    end.
+
+Lemma repl_val_part_correct :
+    forall (r : HiF.href) (fn : hvalue -> hvalue -> option hvalue) (new_val : hvalue) (sem_old sem_new : VM.t hvalue),
+        ((* all elements of sem_new are type-correct *)
+         forall (id : VarOrder.T),
+            match VM.find id sem_new with
+            | Some val => hvalue_is_type_correct val (type_of_val val) (* for array values this is not a trivial condition *)
+            | None => true
+            end) ->
+        match VM.find (HiF.base_ref r) sem_new, eval_href r sem_new with
+        | Some base_val, Some old_r_val =>
+                (* r contains no undefined Esubaccess expressions??? -> *)
+                forall (old_new_val : hvalue), (* = the old value that was in the part of r that should become new_val *)
+                    (forall (ov nv : hvalue),
+                        hvalue_is_type_correct ov (type_of_val old_r_val) ->
+                        hvalue_is_type_correct nv (type_of_val new_val) ->
+                            match fn ov nv with
+                            | Some fn_ov_nv => hvalue_is_type_correct fn_ov_nv (type_of_val old_r_val)
+                            | None => false
+                            end) ->
+                    match fn old_r_val old_new_val with
+                    | Some fn_old_r_val_old_new_val => unfold_undef_hvalue_eq old_r_val fn_old_r_val_old_new_val
+                    | None => false
+                    end ->
+                    hvalue_is_type_correct base_val (type_of_val base_val) ->
+                    hvalue_is_type_correct new_val (type_of_val new_val) ->
+                    (* sem_old does not need to satisfy additional conditions??? -> *)
+                    hvalue_is_type_correct old_new_val (type_of_val new_val) ->
+                        match repl_val_part r fn base_val new_val sem_old with
+                        | Some new_base_val => hvalue_is_type_correct new_base_val (type_of_val base_val)
+                        | None => false (* actually: r contains some specific errors *)
+                        end &&
+                        match repl_val_part r fn base_val old_new_val sem_old with
+                        | Some old_new_base_val => unfold_undef_hvalue_eq base_val old_new_base_val
+                        | None => false
+                        end
+      (*| None, Some _ => False*)
+        | _, _ => True
+        end.
+Proof.
+intros r fn new_val sem_old sem_new H7 ; revert fn.
+induction r as [id|r IHr id|r IHr i|r IHr e] ; simpl ; intros ;
+      destruct (VM.find _ sem_new) as [base_val|] eqn: Hbase ; try done.
+* (* Eid *) intros ; apply (introT andP) ; split.
+  + apply H ; by assumption.
+  + by apply H0.
+* (* Esubfield *)
+  specialize (IHr (fun old_val new_val0 : hvalue =>
+                   match convert_to_bundle_value old_val with
+                   | Some old_bval => option_map Bval ((fix repl_bundle_value_part (bv0 : bundle_value) : option bundle_value :=
+                                                        match bv0 with
+                                                        | Bnil => None
+                                                        | Bflips id' fl vv0 bv' => if id == id' then option_map ((Bflips id' fl)^~ bv') (fn vv0 new_val0)
+                                                                                                else option_map (Bflips id' fl vv0) (repl_bundle_value_part bv')
+                                                        end) old_bval)
+                   | None => None
+                   end)).
+  destruct (eval_href r sem_new) as [[| |bv|[| |ff]|[| |ff]|[| |ff]]|] ; simpl ; try done.
+  + induction bv as [|idv flv vv bv] ; first done.
+    destruct (id == idv) eqn: Hid.
+    - intros.
+      apply IHr ; try done.
+      * intros.
+        destruct ov as [[]| |obv|[[]| |off]|[[]| |off]|[[]| |off]] ; simpl in H4 ; simpl ; try done.
+        + destruct obv as [|ido flo vo obv] ; simpl in H4 ; simpl ; first done.
+          move : H4 => /andP [/andP [/andP [/eqP Hid' /eqP Hfl] H4] H6] ; subst ido flo.
+          rewrite Hid.
+          specialize (H vo nv H4 H5).
+          destruct (fn vo nv) as [fn_ov_nv|] ; simpl ; last done.
+          by rewrite ?eq_refl H ?andTb.
+        + 1,3,5: move : H4 => /andP [_ /eqP H4] ; done.
+        + 1-3: move : H4 => /andP [H4 /eqP H6] ; injection H6 as H6.
+          1-3: subst off ; simpl in H4 ; simpl ; rewrite Hid.
+          1: specialize (H (Undefinedonpurpose (type_of_val vv)) nv) with (2 := H5).
+          2: specialize (H (Needtobedefined    (type_of_val vv)) nv) with (2 := H5).
+          3: specialize (H (Uninitialized      (type_of_val vv)) nv) with (2 := H5).
+          1-3: move : H4 => /andP [H4 H6].
+          1-3: simpl in H ; rewrite eq_refl andbT in H ; specialize (H H4).
+          1-3: destruct (fn _ nv) as [fn_ov_nv|] ; simpl ; last done.
+          1-3: rewrite ?eq_refl H ?andTb. 
+          1-3: apply create_undef_bundle_value_is_type_correct ; last by exact H6.
+          1-3: intros ; simpl ; by rewrite eq_refl andbT.
+      * simpl ; rewrite Hid.
+        destruct (fn vv old_new_val) as [fn_old_r_val_old_new_val|] ; last done ; simpl.
+        rewrite ?eq_refl H0 ?andTb.
+        by apply unfold_undef_bundle_value_eq_reflexive.
+    - apply IHbv.
+      intros.
+      apply IHr ; try done.
+      * intros ; simpl in H4.
+        destruct ov as [[]| |obv|[[]| |off]|[[]| |off]|[[]| |off]] ; simpl in H4 ; simpl ; try done.
+        + destruct obv as [|ido flo vo obv] ; simpl in H4 ; simpl ; first done.
+          move : H4 => /andP [/andP [/andP [/eqP Hid' /eqP Hfl] H4] H6] ; subst ido flo.
+          rewrite Hid.
+          specialize (H (Bval obv) nv H6 H5) ; simpl in H.
+          destruct ((fix repl_bundle_value_part (bv0 : bundle_value) : option bundle_value := _) obv) as [fn_old_r_val_old_new_val|] ;
+                last done ; simpl ; simpl in H.
+          by rewrite ?eq_refl H4 ?andTb.
+        + 1,3,5: by move : H4 => /andP [_ /eqP H4].
+        + 1-3: move : H4 => /andP [H4 /eqP H6] ; injection H6 as H6.
+          1-3: subst off ; simpl in H4 ; simpl ; rewrite Hid.
+          1: specialize (H (Bval (create_undef_bundle_value Undefinedonpurpose (type_of_bundle_val bv))) nv) with (2 := H5).
+          2: specialize (H (Bval (create_undef_bundle_value Needtobedefined    (type_of_bundle_val bv))) nv) with (2 := H5).
+          3: specialize (H (Bval (create_undef_bundle_value Uninitialized      (type_of_bundle_val bv))) nv) with (2 := H5).
+          1-3: move : H4 => /andP [H4 H6].
+          1-3: simpl in H.
+          1-3: destruct ((fix repl_bundle_value_part (bv0 : bundle_value) : option bundle_value := _) (create_undef_bundle_value _ (type_of_bundle_val bv))) as [fn_old_r_val_old_new_val|] ;
+                    simpl ; simpl in H ;
+                    try (by apply H, create_undef_bundle_value_is_type_correct ; last done ;
+                            intros ; simpl ; rewrite eq_refl andbT).
+          1-3: rewrite ?eq_refl H4 ?andTb.
+          1-3: apply H, create_undef_bundle_value_is_type_correct ; last done.
+          1-3: intros ; simpl ; by rewrite eq_refl andbT.
+      * simpl ; rewrite Hid.
+        simpl in H0.
+        destruct ((fix repl_bundle_value_part (bv0 : bundle_value) : option bundle_value := _) bv) as [new_bv|] ; last done.
+        simpl ; simpl in H0.
+        rewrite ?eq_refl H0 andbT.
+        by apply unfold_undef_hvalue_eq_reflexive.
+  + 1-3: induction ff as [|idt flt t ff] ; first done ; simpl.
+    1-3: destruct (id == idt) eqn: Hid.
+    - 1,3,5: intros.
+      1-3: apply IHr ; try done.
+      * 1,3,5: intros.
+        1-3: destruct ov as [[]| |obv|[[]| |off]|[[]| |off]|[[]| |off]] ; simpl in H4 ; simpl ; try done.
+        + 1,8,15: destruct obv as [|ido flo vo obv] ; simpl in H4 ; simpl ; first done.
+          1-3: move : H4 => /andP [/andP [/andP [/eqP Hid' /eqP Hfl] H4] H6] ; subst ido flo.
+          1-3: rewrite Hid.
+          1-3: specialize (H vo nv H4 H5).
+          1-3: destruct (fn vo nv) as [fn_ov_nv|] ; simpl ; last done.
+          1-3: by rewrite ?eq_refl H ?andTb.
+        + 1,3,5,7,9,11,13,15,17: move : H4 => /andP [_ /eqP H4] ; done.
+        + 1-9: move : H4 => /andP [H4 /eqP H6] ; injection H6 as H6.
+          1-9: subst off ; simpl in H4 ; simpl ; rewrite Hid.
+          1,4,7: specialize (H (Undefinedonpurpose t) nv) with (2 := H5).
+          4,6,8: specialize (H (Needtobedefined    t) nv) with (2 := H5).
+          7,8,9: specialize (H (Uninitialized      t) nv) with (2 := H5).
+          1-9: move : H4 => /andP [H4 H6].
+          1-9: simpl in H ; rewrite eq_refl andbT in H ; specialize (H H4).
+          1-9: destruct (fn _ nv) as [fn_ov_nv|] ; simpl ; last done.
+          1-9: rewrite ?eq_refl H ?andTb.
+          1-9: apply create_undef_bundle_value_is_type_correct ; last by exact H6.
+          1-9: intros ; simpl ; by rewrite eq_refl andbT.
+      * 1-3: simpl ; rewrite Hid.
+        1-3: destruct (fn _ old_new_val) as [fn_old_r_val_old_new_val|] ; last done ; simpl.
+        1-3: rewrite ?eq_refl ?andTb.
+        1-3: apply (introT andP) ; split.
+        + 1,3,5: apply (unfold_undef_hvalue_and_hvalue_is_undef_or_empty) with (2 := H0).
+          - by left.
+          - 1,3,5: simpl ; by rewrite ?eq_refl if_same.
+          - by right ; left.
+          - by right ; right.
+        + 1-3: simpl.
+          1-3: clear ; induction ff as [|id fl t ff] ; first done ; simpl.
+          1-3: by rewrite ?eq_refl if_same ?andTb.
+    - 1-3: apply IHff.
+      1-3: intros.
+      1-3: apply IHr ; try done.
+      * 1,3,5: intros ; simpl in H4.
+        1-3: destruct ov as [[]| |obv|[[]| |off]|[[]| |off]|[[]| |off]] ; simpl in H4 ; simpl ; try done.
+        + 1,8,15: destruct obv as [|ido flo vo obv] ; simpl in H4 ; simpl ; first done.
+          1-3: move : H4 => /andP [/andP [/andP [/eqP Hid' /eqP Hfl] H4] H6] ; subst ido flo.
+          1-3: rewrite Hid.
+          1-3: specialize (H (Bval obv) nv H6 H5) ; simpl in H.
+          1-3: destruct ((fix repl_bundle_value_part (bv0 : bundle_value) : option bundle_value := _) obv) as [fn_old_r_val_old_new_val|] ;
+                last done ; simpl ; simpl in H.
+          1-3: by rewrite ?eq_refl H4 ?andTb.
+        + 1,3,5,7,9,11,13,15,17: by move : H4 => /andP [_ /eqP H4].
+        + 1-9: move : H4 => /andP [H4 /eqP H6] ; injection H6 as H6.
+          1-9: subst off ; simpl in H4 ; simpl ; rewrite Hid.
+          1,4,7: specialize (H (Bval (create_undef_bundle_value Undefinedonpurpose ff)) nv) with (2 := H5).
+          4,6,8: specialize (H (Bval (create_undef_bundle_value Needtobedefined    ff)) nv) with (2 := H5).
+          7,8,9: specialize (H (Bval (create_undef_bundle_value Uninitialized      ff)) nv) with (2 := H5).
+          1-9: move : H4 => /andP [H4 H6].
+          1-9: simpl in H.
+          1-9: destruct ((fix repl_bundle_value_part (bv0 : bundle_value) : option bundle_value := _) (create_undef_bundle_value _ ff)) as [fn_old_r_val_old_new_val|] ;
+                    simpl ; simpl in H ;
+                    try (by apply H, create_undef_bundle_value_is_type_correct ; last done ;
+                            intros ; simpl ; rewrite eq_refl andbT).
+          1-9: rewrite ?eq_refl H4 ?andTb.
+          1-9: apply H, create_undef_bundle_value_is_type_correct ; last done.
+          1-9: intros ; simpl ; by rewrite eq_refl andbT.
+      * 1-3: simpl ; rewrite Hid.
+        1-3: simpl in H0.
+        1-3: destruct ((fix repl_bundle_value_part (bv0 : bundle_value) : option bundle_value := _) (create_undef_bundle_value _ ff)) as [new_bv|] ; last done.
+        1-3: simpl ; simpl in H0.
+        1-3: by rewrite ?eq_refl H0 if_same.
+* (* Esubindex *)
+  (*specialize (IHr (fun old_val new_val0 : hvalue =>
+                   match convert_to_array_value old_val with
+                   | Some (elt, old_aval) => option_map (Aval elt) ((fix repl_array_value_part (av : array_value) (i : nat) :=
+                                                                     match av, i with
+                                                                     | Anil, _ => None
+                                                                     | Acons el av', 0 => option_map (Acons^~ av') (fn el new_val0)
+                                                                     | Acons el av', i'.+1 => option_map (Acons el) (repl_array_value_part av' i')
+                                                                     end) old_aval i)
+                   | None => None
+                   end)).*)
+  apply eval_href_type_correct with (r := r) in H7.
+  destruct (eval_href r sem_new) as [[|elt av| |[|elt n|]|[|elt n|]|[|elt n|]]|] ; simpl ; try done.
+  1-4: destruct (eval_type_of_ref r sem_new) as [[|elt' n'|]|] ; try done ; simpl in H7 ;
+       move : H7 => /andP [H7 H8] ; try done.
+  + apply (elimT eqP) in H7 ; subst elt'.
+    generalize (type_of_array_val_correct H8) ; intro H7 ; simpl in H7 ; apply (elimT eqP) in H7.
+    injection H7 as H7 ; subst n'.
+    revert av H8 i IHr.
+    induction av as [|el av] ; first done.
+    intros H8 i IHr.
+    simpl in H8 ; move : H8 => /andP [H7 H8].
+    apply type_of_val_correct, (elimT eqP) in H7.
+    specialize (IHav H8).
+    destruct i (* (i == 0) eqn: Hi *).
+    - (*move /eqP : Hi => Hi ; subst i.*)
+      intros ; simpl.
+      apply IHr ; try done.
+      * intros.
+        destruct ov as [[]|oelt oav| |[[]|oelt on|]|[[]|oelt on|]|[[]|oelt on|]] ; simpl in H4 ; simpl ; try done.
+        + destruct oav as [|oel oav] ; simpl in H4 ; simpl ; first by rewrite andbF in H4.
+          move : H4 => /andP [/eqP Helt /andP [H4 H6]].
+          rewrite Helt.
+          rewrite H7 in H.
+          specialize (H oel nv H4 H5).
+          destruct (fn oel nv) as [fn_oel_nv|] ; simpl ; last done.
+          by rewrite eq_refl H ?andTb.
+        + 1,3,5: move : H4 => /andP [H4 /eqP H6] ; injection H6 as H6.
+          1-3: subst oelt on ; simpl.
+          1: specialize (H (Undefinedonpurpose elt) nv) with (2 := H5).
+          2: specialize (H (Needtobedefined    elt) nv) with (2 := H5).
+          3: specialize (H (Uninitialized      elt) nv) with (2 := H5).
+          1-3: simpl in H ; rewrite H4 H7 eq_refl andTb in H.
+          1-3: destruct (fn _ nv) as [fn_oel_nv|] ; simpl ; last by apply H.
+          1-3: rewrite eq_refl H // ?andTb.
+          1-3: apply create_undef_array_value_is_type_correct ; last done.
+          1-3: intros ; simpl ; by rewrite eq_refl andbT.
+        + 1-3: by move : H4 => /andP [_ /eqP H4].
+      * simpl.
+        destruct (fn el old_new_val) as [fn_el_onv|] ; simpl ; last done.
+        rewrite eq_refl H0 ?andTb.
+        by apply unfold_undef_array_value_eq_reflexive.
+    - admit.
+  + 1-3: move /eqP : H8 => H8 ; injection H8 as H8 ; subst elt' n'.
+(* The problems with Esubindex seem insurmountable at the moment;
+   therefore I do not pursue this theorem.
+   I will have to think about a better correctness theorem later. *)
+Abort.
 
 Lemma max_iter_count_not_none :
     forall (connect_count : ftype -> nat) (tmap_super : VM.t (ftype * fcomponent)) (ssl : HiF.hfstmt_seq) (sc_old : VS.t) (tmap_old : VM.t (ftype * fcomponent)) (sc_new : VS.t) (tmap_new : VM.t (ftype * fcomponent)),
@@ -6123,6 +7230,11 @@ destruct (module_iter_count _ _ old_mml'_tmap) ; last by contradiction Hold_mml'
 destruct (module_iter_count _ _ (VM.add mi tmap_mi old_mml'_tmap)) ; last by contradiction IHmml'.
 discriminate.
 Qed.
+
+(* Perhaps a lemma that says:
+   if statements_tmap ... ssl <> None
+   and previous_cycle_register_map contains all registers,
+   then statements_initial_map ssl ... <> None. *)
 
 End Single_Cycle_Dynamics.
 
