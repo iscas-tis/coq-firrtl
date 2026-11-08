@@ -33,38 +33,80 @@ Hypothesis eval_hfstmts_find_none_cases : forall ss init_s tmap rs s v, Sem_HiFP
   | None => PVM.find v s = None /\ PVM.find v rs = None
   | _ => PVM.find v rs = None
   end.
-Hypothesis well_formedness : forall (ss : HiFP.hfstmt_seq) (tmap : PVM.t (fgtyp * fcomponent)), 
+Hypothesis well_formedness : forall (ss : HiFP.hfstmt_seq) (tmap : PVM.t (fgtyp * fcomponent)) (init_s : PVM.t bits), 
   unique_node_dclr_when ss /\ unique_node_dclr ss /\
   (forall v v' e' gt, (PVM.find v tmap = Some (gt, Out_port) \/ PVM.find v tmap = Some (gt, Wire)) -> Qin (Snode v' e') ss -> v <> v') /\
   (forall v conn_map, Qin (Sfcnct (Eid v) (Eref (Eid v))) (convert_to_connect_stmts conn_map) \/
   (exists e : hfexpr ProdVarOrder.T, Qin (Sfcnct (Eid v) e) (convert_to_connect_stmts conn_map))) /\
   (forall v, ~ exists r, Qin (Sreg v r) ss) /\
-  (forall v, ~ exists e, Qin (Snode v e) ss).
+  (forall v, ~ exists e, Qin (Snode v e) ss) /\
+  (forall k val,
+  PVM.find k init_s = Some val ->
+  (forall e, ~ Qin_when (Snode k e) ss) /\
+  (forall e, ~ Qin_when (Sfcnct (Eid k) e) ss) /\
+  ~ Qin_when (Sinvalid (Eid k)) ss).
+(* Any node value produced by statement evaluation has a source declaration *)
+Hypothesis find_node_qin_with_cond : forall mv pp ss tmap, Sem_HiFP.module_tmap (PVM.empty (fgtyp * fcomponent)) (FInmod mv pp ss) = Some tmap ->
+  forall v gt, PVM.find v tmap = Some (gt, Node) -> 
+  forall init_s rs1 s1 bs, Sem_HiFP.eval_hfstmts ss (PVM.empty bits) (PVM.empty bits) init_s tmap = Some (rs1, s1) ->
+  PVM.find v s1 = Some bs ->
+  exists e, Qin_with_cond (Snode v e) ss init_s tmap.
 
 Definition func_type : Type := PVM.t bits -> PVM.t bits -> PVM.t bits -> PVM.t (fgtyp * fcomponent) -> option (PVM.t bits * PVM.t bits).
 Definition func_type_included (fun1 fun2 : func_type) (tmap : PVM.t (fgtyp * fcomponent)) : Prop := forall (init_s1 init_s2 : PVM.t bits) (s1 s2 rs1 rs2 : PVM.t bits),
   pvm_included init_s1 init_s2 -> fun1 (PVM.empty bits) (PVM.empty bits) init_s1 tmap = Some (rs1, s1) -> fun2 (PVM.empty bits) (PVM.empty bits) init_s2 tmap = Some (rs2, s2) -> 
   (pvm_included s1 s2) /\ (pvm_included rs1 rs2).
 
-Lemma iterate_func_included n fun1 fun2 init_s1 init_s2 tmap sem sem_new : 
-  func_type_included fun1 fun2 tmap -> pvm_included init_s1 init_s2 -> Sem_HiFP.iterate n fun1 init_s1 tmap = Some sem -> Sem_HiFP.iterate n fun2 init_s2 tmap = Some sem_new -> 
-  pvm_included sem sem_new.
+Lemma included_update_values_included : forall s1 s2 ns1 ns2,
+  (forall k v, PVM.find k s2 = Some v -> PVM.find k ns2 = None) ->
+  pvm_included s1 s2 ->
+  pvm_included ns1 ns2 ->
+  pvm_included (Sem_HiFP.update_values ns1 s1)
+               (Sem_HiFP.update_values ns2 s2).
 Proof.
-  intros Hfun_included. move : init_s1 init_s2 sem sem_new. 
-  induction n as [|n IH]; intros init_s1 init_s2 sem sem_new Hinit_eq Hiter1 Hiter2.
-  - (* Case n = 0 *)
-    simpl in Hiter1, Hiter2.
-    inversion Hiter1; inversion Hiter2. subst sem sem_new; done.
-  - (* Case n = S n' *)
-    simpl in Hiter1, Hiter2.
-    destruct (fun1 (PVM.empty bits) (PVM.empty bits) init_s1 tmap) as [[rs1 ns1]|] eqn:Hcall1;
-      [|discriminate].
-    destruct (fun2 (PVM.empty bits) (PVM.empty bits) init_s2 tmap) as [[rs2 ns2]|] eqn:Hcall2;
-      [|discriminate].
-    unfold func_type_included in Hfun_included. specialize (Hfun_included init_s1 init_s2 ns1 ns2 rs1 rs2).
-    specialize (Hfun_included Hinit_eq Hcall1 Hcall2). move : Hfun_included => [Hfun_included _]. 
-    move : Hiter1 Hiter2; apply IH.
-    move : Hinit_eq Hfun_included; apply included_update_values_included.
+  intros s1 s2 ns1 ns2 Hdisjoint Hs Hns.
+  have Hns2out : pvm_included ns2 (Sem_HiFP.update_values ns2 s2).
+  { unfold Sem_HiFP.update_values, pvm_included.
+    eapply PVM.Lemmas.P.fold_rec with
+      (P := fun m acc =>
+        forall k v, PVM.find k m = Some v -> PVM.find k acc = Some v).
+    - intros m Hempty k v Hfind.
+      exfalso. apply (Hempty k v).
+      exact (PVM.Lemmas.find_some_mapsto Hfind).
+    - intros k value acc m' m'' Hmapsto Hnotin Hadd IH key v Hfind.
+      rewrite (Hadd key) in Hfind.
+      destruct (PVM.M.SE.eq_dec key k) as [Heq | Hneq].
+      + rewrite (PVM.Lemmas.find_add_eq Heq) in Hfind.
+        rewrite (PVM.Lemmas.find_add_eq Heq). exact Hfind.
+      + rewrite (PVM.Lemmas.find_add_neq Hneq) in Hfind.
+        rewrite (PVM.Lemmas.find_add_neq Hneq). exact (IH key v Hfind). }
+  have Hs2out : pvm_included s2 (Sem_HiFP.update_values ns2 s2).
+  { unfold Sem_HiFP.update_values, pvm_included.
+    eapply PVM.Lemmas.P.fold_rec_nodep with
+      (P := fun acc => forall k v, PVM.find k s2 = Some v -> PVM.find k acc = Some v).
+    - intros k v Hfind. exact Hfind.
+    - intros k value acc Hmapsto IH key v Hfind.
+      destruct (PVM.M.SE.eq_dec key k) as [Heq | Hneq].
+      + have Hnone := Hdisjoint key v Hfind.
+        rewrite (PVM.Lemmas.F.find_o ns2 Heq) in Hnone.
+        rewrite (PVM.Lemmas.mapsto_find_some Hmapsto) in Hnone.
+        discriminate.
+      + rewrite (PVM.Lemmas.find_add_neq Hneq). exact (IH key v Hfind). }
+  unfold Sem_HiFP.update_values at 1.
+  unfold pvm_included in *.
+  eapply PVM.Lemmas.P.fold_rec_nodep with
+    (P := fun acc => forall k v, PVM.find k acc = Some v ->
+      PVM.find k (Sem_HiFP.update_values ns2 s2) = Some v).
+  - intros k v Hfind. apply Hs2out, Hs, Hfind.
+  - intros k value acc Hmapsto IH key v Hfind.
+    destruct (PVM.M.SE.eq_dec key k) as [Heq | Hneq].
+    + rewrite (PVM.Lemmas.find_add_eq Heq) in Hfind.
+      inversion Hfind; subst v.
+      apply Hns2out, Hns.
+      rewrite (PVM.Lemmas.F.find_o ns1 Heq).
+      exact (PVM.Lemmas.mapsto_find_some Hmapsto).
+    + rewrite (PVM.Lemmas.find_add_neq Hneq) in Hfind.
+      exact (IH key v Hfind).
 Qed.
 
 Lemma eval_hfstmts_unique_ss_find_eq ss rs0 ns0 init_s tmap rs s v : 
@@ -253,6 +295,49 @@ Proof.
   (* when *) intros [Hnode_true [Hcnct_true [Hinvalid_true [Hnode_false [Hcnct_false Hinvalid_false]]]]] Heval. simpl in Heval.
   destruct (Sem_HiFP.eval_hfexpr cond init_s tmap) as [valc|]; try discriminate. destruct (~~ is_zero valc).
   1,2 :move : Heval; apply eval_hfstmts_unique_when_ss_find_eq; try done.
+Qed.
+
+Lemma eval_hfstmts_no_input ss init_s tmap rs ns :
+Sem_HiFP.eval_hfstmts ss (PVM.empty bits) (PVM.empty bits) init_s tmap = 
+Some (rs, ns) ->
+forall (k : PVM.key) (v : bits),
+PVM.find k init_s = Some v ->
+PVM.find k ns = None.
+Proof.
+  specialize (well_formedness ss tmap init_s) as Hwf. destruct Hwf as [_ [_ [_ [_ [_ [_ Hinit]]]]]].
+  clear well_formedness eval_invalid_is_allowed eval_hfstmts_find_none_cases.
+  intros Heval k v Hfind.
+  destruct (Hinit k v Hfind) as [Hnode [Hcnct Hinvalid]].
+  have Hnode' : forall v' e', Qin_when (Snode v' e') ss -> k <> v'.
+  { intros v' e' Hin Heq. subst v'. exact (Hnode e' Hin). }
+  have Hinvalid' : forall v', Qin_when (Sinvalid (Eid v')) ss -> k <> v'.
+  { intros v' Hin Heq. subst v'. exact (Hinvalid Hin). }
+  have Heq := eval_hfstmts_unique_when_ss_find_eq Hnode' Hcnct Hinvalid' Heval.
+  rewrite Heq. done.
+Qed.
+
+Lemma iterate_func_included n fun1 fun2 init_s1 init_s2 tmap sem sem_new : 
+  func_type_included fun1 fun2 tmap -> 
+  (exists ss, fun2 = Sem_HiFP.eval_hfstmts ss) ->
+  pvm_included init_s1 init_s2 -> Sem_HiFP.iterate n fun1 init_s1 tmap = Some sem -> Sem_HiFP.iterate n fun2 init_s2 tmap = Some sem_new -> 
+  pvm_included sem sem_new.
+Proof.
+  intros Hfun_included Hfun2. move : init_s1 init_s2 sem sem_new. 
+  induction n as [|n IH]; intros init_s1 init_s2 sem sem_new Hinit_eq Hiter1 Hiter2.
+  - (* Case n = 0 *)
+    simpl in Hiter1, Hiter2.
+    inversion Hiter1; inversion Hiter2. subst sem sem_new; done.
+  - (* Case n = S n' *)
+    simpl in Hiter1, Hiter2.
+    destruct (fun1 (PVM.empty bits) (PVM.empty bits) init_s1 tmap) as [[rs1 ns1]|] eqn:Hcall1;
+      [|discriminate].
+    destruct (fun2 (PVM.empty bits) (PVM.empty bits) init_s2 tmap) as [[rs2 ns2]|] eqn:Hcall2;
+      [|discriminate].
+    unfold func_type_included in Hfun_included. specialize (Hfun_included init_s1 init_s2 ns1 ns2 rs1 rs2).
+    specialize (Hfun_included Hinit_eq Hcall1 Hcall2). move : Hfun_included => [Hfun_included _]. 
+    move : Hiter1 Hiter2; apply IH.
+    move : Hfun_included; apply included_update_values_included; try done.
+    destruct Hfun2 as [ss Hfun2]; subst fun2. move : Hcall2; apply eval_hfstmts_no_input.
 Qed.
 
 Lemma unique_node_dclr_when_subseq s ss : unique_node_dclr_when (Qcons s ss) -> unique_node_dclr_when ss.
@@ -1728,7 +1813,7 @@ Proof. clear eval_hfstmts_ExpandBranches_funs_find_for_comb_helper. intro Hcmpnt
   - (* when go to true *)
     clear Hexpand_false. 
     assert ((~ exists r, Qin (Sreg v r) ss_true) /\ (~ exists e, Qin (Snode v e) ss_true)). 
-      specialize (well_formedness ss_true tmap) as [_ [_ [_ [_ [H]]]]]. split; try apply H; try apply H0.
+      specialize (well_formedness ss_true tmap init_s) as [_ [_ [_ [_ [H [H0 _]]]]]]. split; try apply H; try apply H0.
     specialize (eval_hfstmts_ExpandBranches_funs_find_for_comb_helper _ _ _ _ Hcmpnt _ _ _ _ _ H Heval _ Hval _ Hinit _ Hexpand_true) as Htrue; 
       clear eval_hfstmts_ExpandBranches_funs_find_for_comb_helper. unfold combine_when_connections. rewrite PVM.Lemmas.F.map2_1bis; try done.
     destruct (PVM.find v true_conn_map) as [de_true|] eqn : Hde_true; try done. destruct de_true as [gt_e_true|e_true].
@@ -1749,7 +1834,7 @@ Proof. clear eval_hfstmts_ExpandBranches_funs_find_for_comb_helper. intro Hcmpnt
   - (* when go to false *)
     clear Hexpand_true. 
     assert ((~ exists r, Qin (Sreg v r) ss_false) /\ (~ exists e, Qin (Snode v e) ss_false)). 
-      specialize (well_formedness ss_false tmap) as [_ [_ [_ [_ [H]]]]]. split; try apply H; try apply H0.
+      specialize (well_formedness ss_false tmap init_s) as [_ [_ [_ [_ [H [H0 _]]]]]]. split; try apply H; try apply H0.
     specialize (eval_hfstmts_ExpandBranches_funs_find_for_comb_helper _ _ _ _ Hcmpnt _ _ _ _ _ H Heval _ Hval _ Hinit _ Hexpand_false) as Hfalse; 
       clear eval_hfstmts_ExpandBranches_funs_find_for_comb_helper. unfold combine_when_connections. rewrite PVM.Lemmas.F.map2_1bis; try done.
     destruct (PVM.find v true_conn_map) as [de_true|] eqn : Hde_true; try done. destruct de_true as [gt_e_true|e_true].
@@ -2026,11 +2111,11 @@ Proof.
       intros; rewrite Hfind1 in H; discriminate.
     * (* node : v的值在 component_stmts_of 中 *) intros bs Hfind1.
       specialize (find_node_qin_with_cond Htmap Hcmpnt Hevalss1 Hfind1) as He. destruct He as [e He].
-      assert (Hunique : unique_node_dclr_when ss). specialize (well_formedness ss) with (tmap := tmap) as [Hwell_formed _]; done.
+      assert (Hunique : unique_node_dclr_when ss). specialize (well_formedness ss tmap init_s1) as [Hwell_formed _]; done.
       assert (He' : Qin (Snode v e) (Qcat (component_stmts_of ss) (convert_to_connect_stmts conn_map))). 
       specialize (qin_with_cond_node_qin_cmpnt He) as Hin. apply Qin_Qcat; left; done.
       assert (Hunique' : unique_node_dclr (Qcat (component_stmts_of ss) (convert_to_connect_stmts conn_map))). 
-      specialize (well_formedness (Qcat (component_stmts_of ss) (convert_to_connect_stmts conn_map))) with (tmap := tmap) as [_ [Hwell_formed _]]; done.
+      specialize (well_formedness (Qcat (component_stmts_of ss) (convert_to_connect_stmts conn_map)) tmap init_s1) as [_ [Hwell_formed _]]; done.
       rewrite (eval_hfstmts_for_unique_node He Hunique Hevalss1) in Hfind1.
       assert (Hwhen : forall c ss1 ss2, ~ Qin (Swhen c ss1 ss2) (Qcat (component_stmts_of ss) (convert_to_connect_stmts conn_map))).
         intros. intro. apply Qin_Qcat in H. destruct H. specialize (component_stmts_of_is_declaration H); simpl; done.
@@ -2042,7 +2127,7 @@ Proof.
       specialize eval_hfstmts_for_comb_only_cnct with (v := v) (tmap := tmap) as Hcnct. rewrite Hcmpnt in Hcnct.
       assert (Hin : forall s, Qin s (component_stmts_of ss) -> is_declaration s) by (apply component_stmts_of_is_declaration).
       assert (Hneq : forall v' e', Qin (Snode v' e') (component_stmts_of ss) -> v <> v'). 
-      specialize (well_formedness (component_stmts_of ss)) with (tmap := tmap) as [_ [_ Hwell_formed]]. 
+      specialize (well_formedness (component_stmts_of ss) tmap init_s1) as [_ [_ Hwell_formed]]. 
       intros v' e'; apply Hwell_formed with (gt := gt). left; done.
       assert (Hwhen : forall c ss1 ss2, ~ Qin (Swhen c ss1 ss2) (Qcat (component_stmts_of ss) (convert_to_connect_stmts conn_map))). 
         intros. intro. apply Qin_Qcat in H. destruct H. specialize (component_stmts_of_is_declaration H); simpl; done.
@@ -2053,7 +2138,7 @@ Proof.
       specialize eval_hfstmts_ExpandBranches_funs_find_for_comb with (v := v) (tmap := tmap) as Hhelper.
       rewrite Hcmpnt in Hhelper. 
       assert (Hnotin : ~ (exists r : hfreg ProdVarOrder.T, Qin (Sreg v r) ss) /\ ~ (exists e : hfexpr ProdVarOrder.T, Qin (Snode v e) ss)). 
-        specialize (well_formedness ss tmap) as [_ [_ [_ [_ [H]]]]]. split; try apply H; try apply H0.
+        specialize (well_formedness ss tmap init_s1) as [_ [_ [_ [_ [H [H0 _]]]]]]. split; try apply H; try apply H0.
       intros val Hval; specialize (Hhelper _ _ _ _ Hnotin Hevalss1 _ Hval _ Hexpand_branches). 
       destruct (PVM.find v conn_map) as [dexpr|] eqn : Hcm; try done. destruct dexpr as [gt_e|e] eqn : Hde; subst dexpr.
       (* invalid *)
@@ -2069,7 +2154,7 @@ Proof.
       specialize eval_hfstmts_for_comb_only_cnct with (v := v) (tmap := tmap) as Hcnct. rewrite Hcmpnt in Hcnct.
       assert (Hin : forall s, Qin s (component_stmts_of ss) -> is_declaration s) by (apply component_stmts_of_is_declaration).
       assert (Hneq : forall v' e', Qin (Snode v' e') (component_stmts_of ss) -> v <> v'). 
-        specialize (well_formedness (component_stmts_of ss) tmap) as [_ [_ [H _]]].
+        specialize (well_formedness (component_stmts_of ss) tmap init_s1) as [_ [_ [H _]]].
         intros v' e'; apply H with (gt := gt). right; done.
       assert (Hwhen : forall c ss1 ss2, ~ Qin (Swhen c ss1 ss2) (Qcat (component_stmts_of ss) (convert_to_connect_stmts conn_map))). 
         intros. intro. apply Qin_Qcat in H. destruct H. specialize (component_stmts_of_is_declaration H); simpl; done.
@@ -2080,7 +2165,7 @@ Proof.
       specialize eval_hfstmts_ExpandBranches_funs_find_for_comb with (v := v) (tmap := tmap) as Hhelper.
       rewrite Hcmpnt in Hhelper. 
       assert (Hnotin : ~ (exists r : hfreg ProdVarOrder.T, Qin (Sreg v r) ss) /\ ~ (exists e : hfexpr ProdVarOrder.T, Qin (Snode v e) ss)). 
-        specialize (well_formedness ss tmap) as [_ [_ [_ [_ [H]]]]].
+        specialize (well_formedness ss tmap init_s1) as [_ [_ [_ [_ [H [H0 _]]]]]].
         split; try apply H; try apply H0; try done.
       intros val Hval; specialize (Hhelper _ _ _ _ Hnotin Hevalss1 _ Hval _ Hexpand_branches). 
       destruct (PVM.find v conn_map) as [dexpr|] eqn : Hcm; try done. destruct dexpr as [gt_e|e] eqn : Hde; subst dexpr.
@@ -2111,7 +2196,7 @@ Proof.
       assert (Hdclr : forall s, Qin s (component_stmts_of ss) -> is_declaration s) by (apply component_stmts_of_is_declaration).
       assert (Hin : Qin (Sfcnct (Eid v) (Eref (Eid v))) (convert_to_connect_stmts conn_map) \/
         (exists e : hfexpr ProdVarOrder.T, Qin (Sfcnct (Eid v) e) (convert_to_connect_stmts conn_map))).
-        specialize (well_formedness ss tmap) as [_ [_ [_ [H _]]]]. apply H.
+        specialize (well_formedness ss tmap init_s1) as [_ [_ [_ [H [H0 _]]]]]. apply H.
       specialize (Hcnct _ _ _ Hdclr Hexpand_branches Hin _ _ Hevalss2 _ _ Hexists). rewrite -Hcnct; clear Hcnct Hevalss2.
       specialize eval_hfstmts_convert_to_connect_stmts_for_sequ with (v := v) (tmap := tmap) as Hconvert. rewrite Hcmpnt in Hconvert.
       specialize (Hconvert _ _ _ _ Hexists). clear Hexists.
@@ -2165,7 +2250,9 @@ Proof.
   clear Hinit_s.
   assert (Hfst_do_this : pvm_included sem sem_new). { 
     move : Hiter Hiter_new; apply iterate_func_included.
-    apply func_type_included_eval_hfstmts with (mv := mv) (pp := pp); try done. apply pvm_included_refl. }
+    apply func_type_included_eval_hfstmts with (mv := mv) (pp := pp); try done.
+    exists (Qcat (component_stmts_of ss)
+       (convert_to_connect_stmts conn_map)); done. apply pvm_included_refl. }
   (* proof the equivalence of registers' next state values *)
   split; try done.
   specialize func_type_included_eval_hfstmts as Hhelper. apply Hhelper with (tmap := tmap) (mv := mv) (pp := pp) in Hexpand_branches; try done. clear Hhelper.

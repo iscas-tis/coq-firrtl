@@ -2030,10 +2030,6 @@ Proof.
     inversion Htail as [|x tl Hfresh Hrest]; subst.
     apply Hfresh. exact: in_fst_split_key Hin.
 Qed.
-(* [update_values] is monotone under semantic-map inclusion: included base maps and included update maps yield included updated maps. *)
-Axiom included_update_values_included : forall s1 s2 ns1 ns2,
-  pvm_included s1 s2 -> pvm_included ns1 ns2 ->
-  pvm_included (Sem_HiFP.update_values ns1 s1) (Sem_HiFP.update_values ns2 s2).
 (* Dynamic conditional reachability implies syntactic occurrence under a [when]:
    any statement selected by [Qin_with_cond] must also be recorded by the condition-insensitive predicate [Qin_when]. *)
 Lemma Qin_with_cond2Qin_when : forall s ss init_s tmap, Qin_with_cond s ss init_s tmap -> Qin_when s ss.
@@ -2144,12 +2140,6 @@ Proof.
           exact Hfalse. }
         apply (Hfresh v e' Hkept); reflexivity.
 Qed.
-(* Any node value produced by statement evaluation has a source declaration *)
-Axiom find_node_qin_with_cond : forall mv pp ss tmap, Sem_HiFP.module_tmap (PVM.empty (fgtyp * fcomponent)) (FInmod mv pp ss) = Some tmap ->
-  forall v gt, PVM.find v tmap = Some (gt, Node) -> 
-  forall init_s rs1 s1 bs, Sem_HiFP.eval_hfstmts ss (PVM.empty bits) (PVM.empty bits) init_s tmap = Some (rs1, s1) ->
-  PVM.find v s1 = Some bs ->
-  exists e, Qin_with_cond (Snode v e) ss init_s tmap.
 (* Any node found under a when is included among the component declarations. *)
 Lemma Qin_when_node_in_component : forall ss v e,
   Qin_when (Snode v e) ss ->
