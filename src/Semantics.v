@@ -757,6 +757,12 @@ Fixpoint invalidate_ft (ft : ftype) : hvalue :=
       in Bval (invalidate_btyp btyp)
   end.
 
+(* evaluates statement st.
+   rs = updated values of registers
+   ns = updated values of other variables
+   s = old values of variables (values to be read)
+   tmap = data type and component type for every defined component
+   Returns a pair (rs possibly with further updates, ns possibly with further updates) *)
 Fixpoint eval_hfstmt (st : HiF.hfstmt) (rs ns : VM.t hvalue) (s : VM.t hvalue) (tmap: VM.t (ftype * fcomponent)) : option ((VM.t hvalue) * (VM.t hvalue)) :=
   match st with
   | Snode v e => match eval_hfexpr e s tmap with
@@ -1356,9 +1362,11 @@ with init_register (s : HiFP.hfstmt) (valmap rs : PVM.t bits) (tmap: PVM.t (fgty
   | _ => rs
   end.*)
 
+(* Update s with all definitions/assignments from rs *)
 Definition update_values (rs s: PVM.t bits) : PVM.t bits := 
   PVM.fold (fun key value temps => PVM.add key value temps) rs s.
 
+(* Iterate function func n times. *)
 Fixpoint iterate (n : nat) (func : PVM.t bits -> PVM.t bits -> PVM.t bits -> PVM.t (fgtyp * fcomponent) -> option (PVM.t bits * PVM.t bits))
   (s : PVM.t bits) (tmap: PVM.t (fgtyp * fcomponent)) : option (PVM.t bits) :=
   match n with
@@ -1391,6 +1399,18 @@ Definition compute_Sem (c : HiFP.hfcircuit) (inputs reg_init : PVM.t bits) : opt
   | _, _ => None
   end.
 
+(* The lemma states that iterate achieves the least fixed point.
+   It should have an additional premissa on n, basically the requirement that n is larger than the longest connect-path in the structure.
+   A safe bound could be: n is larger than the number of basic components in the statements ss. 
+   Perhaps a possible inductive statement is: after n iterations, at least n basic components have reached their fixpoint value,
+   or all basic components have reached their fixpoint value.
+   Proof idea: if not every basic component has reached its fixpoint value, and there are no combinatorial cycles,
+   then there is some additional basic component whose connections only depend on those who have already reached their fixpoint value.
+   Requires to register which components have already reached their fixpoint value---a (finite) set of basic components! 
+
+   A helper lemma could then be: given a dependency-downward-closed set of basic components,
+   there is at least one basic component that only depends on components in the set (but is not in the set).
+   Adding that component to the set will create a larger dependency-downward-closed set. *)
 Lemma iterate_n_is_LFP n ss init_s tmap s : iterate n (eval_hfstmts ss) init_s tmap = Some s -> 
   forall rs ns, eval_hfstmts ss (PVM.empty bits) (PVM.empty bits) s tmap = Some (rs, ns) -> 
   PVM.equal (fun val1 val2 => val1 == val2) (update_values ns s) s.

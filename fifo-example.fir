@@ -27,10 +27,10 @@ module T
 
 
 module FIFO ; demonstrate (almost) all data types in the module interface
-	input in_item : { flip ack : UInt<1>, data : SInt, enable : UInt<1> } ; demonstrate bundle type, flipped fields
+	input in_item : { enable : UInt<1>, data : SInt, flip ack : UInt<1> } ; demonstrate bundle type, flipped fields
 	input clk : Clock
 	input rst : Reset ; demonstrate abstract reset
-	output out_item : { is_empty : UInt<1>, data : SInt, flip ack : UInt<1> }
+	output out_item : { enable : UInt<1>, data : SInt, flip ack : UInt<1> }
 
 	; demonstrate (almost) all component types (register, wire, node) in the module internals
 	reg buffer : SInt[16], clk
@@ -52,8 +52,8 @@ module FIFO ; demonstrate (almost) all data types in the module interface
 		connect last, new_last
 		connect full, eq_new_first_new_last
 
-	connect out_item.is_empty, and(eq(first, last), not(full))
-	when not(out_item.is_empty):
+	connect out_item.enable, or(neq(first, last), full) ; == buffer is not empty
+	when out_item.enable:
 		connect out_item.data, buffer[first]
 		when out_item.ack:
 			connect new_first, add(first, UInt(1))
