@@ -283,7 +283,7 @@ Lemma ftype_mux_associative :
         match ftype_mux passive t1 t2, ftype_mux passive t2 t3 with
         | Some t12, Some t23 => match ftype_mux passive t12 t3, ftype_mux passive t1 t23 with
                                 | Some t12_3, Some t1_23 => t12_3 = t1_23
-                                | _, _ => ftype_mux passive t1 t3 = None
+                                | _, _ => ~~ftype_mux passive t1 t3
                                 end
         | _, _ => True
         end
@@ -292,7 +292,7 @@ with ffield_mux_associative :
         match ffield_mux passive ff1 ff2, ffield_mux passive ff2 ff3 with
         | Some ff12, Some ff23 => match ffield_mux passive ff12 ff3, ffield_mux passive ff1 ff23 with
                                   | Some ff12_3, Some ff1_23 => ff12_3 = ff1_23
-                                  | _, _ => ffield_mux passive ff1 ff3 = None
+                                  | _, _ => ~~ffield_mux passive ff1 ff3
                                   end
         | _, _ => True
         end.
@@ -314,7 +314,8 @@ Proof.
       simpl ; rewrite eq_refl.
       destruct (ftype_mux passive elt12 elt3) as [elt12_3|],
                (ftype_mux passive elt1 elt23) as [elt1_23|] ;
-             by rewrite IHelt1.
+            first (by rewrite IHelt1) ;
+            by destruct (ftype_mux passive elt1 elt3) as [elt13|].
   + destruct t2 as [| |ff2], t3 as [| |ff3] ; simpl ; try done.
     - 1,2: destruct (ffield_mux passive ff1 ff2) ; by trivial.
     - specialize (ffield_mux_associative passive ff1 ff2 ff3).
@@ -322,7 +323,8 @@ Proof.
       destruct (ffield_mux passive ff2 ff3) as [ff23|] ; last done ; simpl.
       destruct (ffield_mux passive ff12 ff3) as [ff12_3|],
                (ffield_mux passive ff1 ff23) as [ff1_23|] ;
-            by rewrite ffield_mux_associative.
+            first (by rewrite ffield_mux_associative) ;
+            by destruct (ffield_mux passive ff1 ff3) as [ff13|].
 * clear ffield_mux_associative.
   intro.
   induction ff1 as [|v1 [] t1 ff1] ; destruct ff2 as [|v2 [] t2 ff2], ff3 as [|v3 [] t3 ff3] ;
@@ -340,12 +342,15 @@ Proof.
     1,2: destruct (ftype_mux _ t2 t3) as [t23|] ; last done.
     1,2: destruct (ffield_mux _ ff2 ff3) as [ff23|] ; last done.
     1,2: simpl ; rewrite eq_refl.
-    1,2: destruct (ftype_mux _ t12 t3) as [t12_3|] ; last by rewrite ftype_mux_associative.
-    1,2: destruct (ffield_mux _ ff12 ff3) as [ff12_3|] ; last by destruct (ftype_mux _ t1 t3) ; try done ; rewrite IHff1.
-    1,2: destruct (ftype_mux _ t1 t23) as [t1_23|] ; last by rewrite ftype_mux_associative.
+    1,2: destruct (ftype_mux _ t12 t3) as [t12_3|] ; last by destruct (ftype_mux _ t1 t3) as [t13|].
+    1,2: destruct (ffield_mux _ ff12 ff3) as [ff12_3|] ;
+            last (by destruct (ftype_mux _ t1 t3) as [t13|] ; last done ;
+                     destruct (ffield_mux _ ff1 ff3) as [ff13|]).
+    1,2: destruct (ftype_mux _ t1 t23) as [t1_23|] ; last by destruct (ftype_mux _ t1 t3) as [t13|].
     1,2: subst t1_23.
-    1,2: destruct (ffield_mux _ ff1 ff23) as [ff1_23|] ; rewrite IHff1 //.
-    1,2: destruct (ftype_mux _ t1 t3) ; reflexivity.
+    1,2: destruct (ffield_mux _ ff1 ff23) as [ff1_23|] ; first by rewrite IHff1.
+    1,2: destruct (ftype_mux _ t1 t3) as [t13|] ; last done.
+    1,2: by destruct (ffield_mux _ ff1 ff3) as [ff13|].
 Qed.
 
 (* Module to define the key set of a map. *)
@@ -961,7 +966,7 @@ Qed.
 
 (* If the circuit tmap is constructed, there are no external modules. *)
 Lemma no_external_modules :
-    circuit_tmap_uninferred <> None ->
+    circuit_tmap_uninferred ->
     all (fun (m : HiF.hfmodule) => match m with
                                    | FInmod _ _ _ => true
                                    | FExmod _ _ _ => false
@@ -969,62 +974,60 @@ Lemma no_external_modules :
 Proof.
 intro.
 unfold circuit_tmap_uninferred in H.
-induction mml as [|mm mml'] ; try done.
+induction mml as [|[mi ppl ssl|] mml'] ; try done.
 simpl ; simpl in H.
-destruct mm as [mi ppl ssl|] ; last by contradict H.
-rewrite andTb IHmml' //.
+apply IHmml'.
 destruct (ports_tmap ppl) as [pk|] ; last by contradict H.
 destruct (statements_tmap (VKS.key_set pk) pk ssl) as [sk|] ; last by contradict H.
-destruct (module_tmap mml') as [tmap_earlier|] ; last by contradict H.
-by discriminate.
+destruct (module_tmap mml') as [tmap_earlier|] ; done.
 Qed.
 
 (* type_of_ref is not affected by additional defined components *)
 Lemma type_of_ref_super_tmap :
     forall (tmap_small tmap_large : VM.t (ftype * fcomponent)),
-        (forall i : VM.key, VM.find i tmap_small <> None -> VM.find i tmap_small = VM.find i tmap_large) ->
+        (forall i : VM.key, VM.find i tmap_small -> VM.find i tmap_small = VM.find i tmap_large) ->
         forall (sc : VS.t) (r : HiF.href),
-            type_of_ref (Some sc) tmap_small r <> None ->
+            type_of_ref (Some sc) tmap_small r ->
             type_of_ref (Some sc) tmap_small r = type_of_ref (Some sc) tmap_large r.
 Proof.
 induction r ; simpl ; intros.
 * (* Eid *)
-  destruct (VS.mem s sc) ; last by contradiction H0.
+  destruct (VS.mem s sc) ; last by contradict H0.
   specialize (H s).
-  destruct (VM.find s tmap_small) as [[ft ki]|] ; last by contradiction H0.
+  destruct (VM.find s tmap_small) as [[ft ki]|] ; last by contradict H0.
   by rewrite -H //.
 * (* Esubfield *)
-  destruct (type_of_ref (Some sc) tmap_small r) as [[| |fs]|] ; try by contradiction H0.
+  destruct (type_of_ref (Some sc) tmap_small r) as [[| |fs]|] ; try by contradict H0.
   by rewrite -IHr //.
 * (* Esubindex, Esubaccess *)
-  1,2: destruct (type_of_ref (Some sc) tmap_small r) as [[|ty m|]|] ; try by contradiction H0.
+  1,2: destruct (type_of_ref (Some sc) tmap_small r) as [[|ty m|]|] ; try by contradict H0.
   1,2: by rewrite -IHr //.
 Qed.
 
 (* type_of_ref is not affected by extending the scope. *)
 Lemma type_of_ref_unscope :
     forall (tmap : VM.t (ftype * fcomponent)) (sc : VS.t) (r : HiF.href),
-        type_of_ref (Some sc) tmap r <> None ->
+        type_of_ref (Some sc) tmap r ->
         type_of_ref (Some sc) tmap r = type_of_ref None tmap r.
 Proof.
 induction r ; simpl ; intros.
 * (* Eid *)
-  destruct (VS.mem s sc) ; last by contradiction H.
+  destruct (VS.mem s sc) ; last by contradict H.
   by reflexivity.
 * (* Esubfield *)
-  destruct (type_of_ref (Some sc) tmap r) as [[| |fs]|] ; try by contradiction H.
+  destruct (type_of_ref (Some sc) tmap r) as [[| |fs]|] ; try by contradict H.
   by rewrite -IHr //.
 * (* Esubindex, Esubaccess *)
-  1,2: destruct (type_of_ref (Some sc) tmap r) as [[|ty m|]|] ; try by contradiction H.
+  1,2: destruct (type_of_ref (Some sc) tmap r) as [[|ty m|]|] ; try by contradict H.
   1,2: by rewrite -IHr //.
 Qed.
 
 (* type_of_expr is not affected by additional defined components *)
 Lemma type_of_expr_super_tmap :
     forall (tmap_small tmap_large : VM.t (ftype * fcomponent)),
-        (forall i : VM.key, VM.find i tmap_small <> None -> VM.find i tmap_small = VM.find i tmap_large) ->
+        (forall i : VM.key, VM.find i tmap_small -> VM.find i tmap_small = VM.find i tmap_large) ->
         forall (sc : VS.t) (e : HiF.hfexpr),
-            type_of_expr (Some sc) tmap_small e <> None ->
+            type_of_expr (Some sc) tmap_small e ->
             type_of_expr (Some sc) tmap_small e = type_of_expr (Some sc) tmap_large e.
 Proof.
 unfold type_of_expr.
@@ -1032,22 +1035,22 @@ induction e ; simpl ; intros.
 * (* Econst *)
   by reflexivity.
 * (* Ecast *)
-  destruct (type_of_expr' (type_of_ref (Some sc) tmap_small) e) ; last by (destruct u ; contradiction H0).
+  destruct (type_of_expr' (type_of_ref (Some sc) tmap_small) e) ; last by (destruct u ; contradict H0).
   by rewrite -IHe //.
 * (* Eunop *)
-  destruct (type_of_expr' (type_of_ref (Some sc) tmap_small) e0) ; last by (destruct e ; contradiction H0).
+  destruct (type_of_expr' (type_of_ref (Some sc) tmap_small) e0) ; last by (destruct e ; contradict H0).
   by rewrite -IHe //.
 * (* Ebinop *)
-  destruct (type_of_expr' (type_of_ref (Some sc) tmap_small) e2) ; last by (destruct e1 ; contradiction H0).
+  destruct (type_of_expr' (type_of_ref (Some sc) tmap_small) e2) ; last by (destruct e1 ; contradict H0).
   rewrite -IHe1 //.
-  destruct (type_of_expr' (type_of_ref (Some sc) tmap_small) e3) ; last by (destruct e1, f as [[]| |] ; contradiction H0).
+  destruct (type_of_expr' (type_of_ref (Some sc) tmap_small) e3) ; last by (destruct e1, f as [[]| |] ; contradict H0).
   by rewrite -IHe2 //.
 * (* Emux *)
-  destruct (type_of_expr' (type_of_ref (Some sc) tmap_small) e1) as [[[]| |]|] ; try by contradiction H0.
+  destruct (type_of_expr' (type_of_ref (Some sc) tmap_small) e1) as [[[]| |]|] ; try by contradict H0.
   1-3: rewrite -IHe1 //.
-  1-3: destruct (type_of_expr' (type_of_ref (Some sc) tmap_small) e2) ; last by contradiction H0.
+  1-3: destruct (type_of_expr' (type_of_ref (Some sc) tmap_small) e2) ; last by contradict H0.
   1-3: rewrite -IHe2 //.
-  1-3: destruct (type_of_expr' (type_of_ref (Some sc) tmap_small) e3) ; last by contradiction H0.
+  1-3: destruct (type_of_expr' (type_of_ref (Some sc) tmap_small) e3) ; last by contradict H0.
   1-3: by rewrite -IHe3 //.
 * (* Eref *)
   apply type_of_ref_super_tmap.
@@ -1058,7 +1061,7 @@ Qed.
 (* type_of_ref is not affected by extending the scope. *)
 Lemma type_of_expr_unscope :
     forall (tmap : VM.t (ftype * fcomponent)) (sc : VS.t) (e : HiF.hfexpr),
-        type_of_expr (Some sc) tmap e <> None ->
+        type_of_expr (Some sc) tmap e ->
         type_of_expr (Some sc) tmap e = type_of_expr None tmap e.
 Proof.
 unfold type_of_expr.
@@ -1066,22 +1069,22 @@ induction e ; simpl ; intros.
 * (* Econst *)
   by reflexivity.
 * (* Ecast *)
-  destruct (type_of_expr' (type_of_ref (Some sc) tmap) e) ; last by (destruct u ; contradiction H).
+  destruct (type_of_expr' (type_of_ref (Some sc) tmap) e) ; last by (destruct u ; contradict H).
   by rewrite -IHe //.
 * (* Eunop *)
-  destruct (type_of_expr' (type_of_ref (Some sc) tmap) e0) ; last by (destruct e ; contradiction H).
+  destruct (type_of_expr' (type_of_ref (Some sc) tmap) e0) ; last by (destruct e ; contradict H).
   by rewrite -IHe //.
 * (* Ebinop *)
-  destruct (type_of_expr' (type_of_ref (Some sc) tmap) e2) ; last by (destruct e1 ; contradiction H).
+  destruct (type_of_expr' (type_of_ref (Some sc) tmap) e2) ; last by (destruct e1 ; contradict H).
   rewrite -IHe1 //.
-  destruct (type_of_expr' (type_of_ref (Some sc) tmap) e3) ; last by (destruct e1, f as [[]| |] ; contradiction H).
+  destruct (type_of_expr' (type_of_ref (Some sc) tmap) e3) ; last by (destruct e1, f as [[]| |] ; contradict H).
   by rewrite -IHe2 //.
 * (* Emux *)
-  destruct (type_of_expr' (type_of_ref (Some sc) tmap) e1) as [[[]| |]|] ; try by contradiction H.
+  destruct (type_of_expr' (type_of_ref (Some sc) tmap) e1) as [[[]| |]|] ; try by contradict H.
   1-3: rewrite -IHe1 //.
-  1-3: destruct (type_of_expr' (type_of_ref (Some sc) tmap) e2) ; last by contradiction H.
+  1-3: destruct (type_of_expr' (type_of_ref (Some sc) tmap) e2) ; last by contradict H.
   1-3: rewrite -IHe2 //.
-  1-3: destruct (type_of_expr' (type_of_ref (Some sc) tmap) e3) ; last by contradiction H.
+  1-3: destruct (type_of_expr' (type_of_ref (Some sc) tmap) e3) ; last by contradict H.
   1-3: by rewrite -IHe3 //.
 * (* Eref *)
   apply type_of_ref_unscope, H.
@@ -1092,12 +1095,12 @@ Lemma statements_tmap_never_replaces :
     forall (ssl : HiF.hfstmt_seq) (sc_old sc_new : VS.t) (tmap_old tmap_new : VM.t (ftype * fcomponent)),
         statements_tmap sc_old tmap_old ssl = Some (sc_new, tmap_new) ->
         (forall i : VarOrder.t, VS.mem i sc_old -> VS.mem i sc_new) /\
-        (forall i : VarOrder.t, VM.find i tmap_old <> None -> VM.find i tmap_old = VM.find i tmap_new)
+        (forall i : VarOrder.t, VM.find i tmap_old -> VM.find i tmap_old = VM.find i tmap_new)
 with statement_tmap_never_replaces :
     forall (s : HiF.hfstmt) (sc_old sc_new : VS.t) (tmap_old tmap_new : VM.t (ftype * fcomponent)),
         statement_tmap sc_old tmap_old s = Some (sc_new, tmap_new) ->
         (forall i : VarOrder.t, VS.mem i sc_old -> VS.mem i sc_new) /\
-        (forall i : VarOrder.t, VM.find i tmap_old <> None -> VM.find i tmap_old = VM.find i tmap_new).
+        (forall i : VarOrder.t, VM.find i tmap_old -> VM.find i tmap_old = VM.find i tmap_new).
 Proof.
 * clear statements_tmap_never_replaces.
   induction ssl as [|s ssl'] ; simpl ; intros.
@@ -1153,7 +1156,7 @@ Qed.
    true if instance statements refer to modules that actually exist in the circuit *)
 Fixpoint hfstmt_inst_in_mml (s : HiF.hfstmt) : bool :=
     match s with
-    | Sinst ii mi => find_module mi != None
+    | Sinst ii mi => find_module mi
     | Swhen _ ssl_true ssl_false => hfstmt_seq_inst_in_mml ssl_true && hfstmt_seq_inst_in_mml ssl_false
     | _ => true
     end
@@ -1166,10 +1169,10 @@ with hfstmt_seq_inst_in_mml (ssl : HiF.hfstmt_seq) : bool :=
 (* If statements_tmap is defined, all instance statements refer to existing modules. *)
 Lemma statements_tmap_inst_defined :
     forall (ssl : HiF.hfstmt_seq) (sc : VS.t) (tmap_earlier : VM.t (ftype * fcomponent)),
-        statements_tmap sc tmap_earlier ssl <> None -> hfstmt_seq_inst_in_mml ssl
+        statements_tmap sc tmap_earlier ssl -> hfstmt_seq_inst_in_mml ssl
 with statement_tmap_inst_defined :
     forall (s : HiF.hfstmt) (sc : VS.t) (tmap_earlier : VM.t (ftype * fcomponent)),
-        statement_tmap sc tmap_earlier s <> None -> hfstmt_inst_in_mml s.
+        statement_tmap sc tmap_earlier s -> hfstmt_inst_in_mml s.
 Proof.
 * clear statements_tmap_inst_defined.
   induction ssl ; intros ; first by done.
@@ -1224,14 +1227,14 @@ Qed.
 
 (* If circuit_tmap_uninferred <> None, then ports_tmap and statements_tmap are defined. *)
 Lemma module_statements_tmap :
-    circuit_tmap_uninferred <> None ->
+    circuit_tmap_uninferred ->
         {in mml, forall (mm : HiF.hfmodule),
                      match mm with
-                     | FInmod mi ppl ssl => match ports_tmap ppl with
-                                            | Some pk => statements_tmap (VKS.key_set pk) pk ssl <> None
-                                            | None => False
+                     | FInmod mi ppl ssl => match ports_tmap ppl return bool with
+                                            | Some pk => statements_tmap (VKS.key_set pk) pk ssl
+                                            | None => false
                                             end
-                     | FExmod _ _ _ => False
+                     | FExmod _ _ _ => false
                      end
         }.
 Proof.
@@ -1244,10 +1247,10 @@ rewrite in_cons in H0 ; move /orP : H0 => [/eqP H0|H0].
 * subst mm.
   destruct (ports_tmap ppl) as [pk|] ; last by contradict H.
   destruct (statements_tmap (VKS.key_set pk) pk ssl) ; last by contradict H.
-  by discriminate.
-* destruct (ports_tmap ppl) as [pk|] ; last by contradiction H.
-  destruct (statements_tmap (VKS.key_set pk) pk ssl) as [sk|] ; last by contradiction H.
-  destruct (module_tmap mml') as [tmap_earlier|] ; last by contradiction H.
+  done.
+* destruct (ports_tmap ppl) as [pk|] ; last by contradict H.
+  destruct (statements_tmap (VKS.key_set pk) pk ssl) as [sk|] ; last by contradict H.
+  destruct (module_tmap mml') as [tmap_earlier|] ; last by contradict H.
   apply IHmml' ; done.
 Qed.
 
@@ -1255,15 +1258,13 @@ Qed.
 Lemma ctu_corresponds_to_mml :
     match circuit_tmap_uninferred with
     | Some ctu => forall mi : VarOrder.T,
-                      find_module mi <> None <-> VM.find mi ctu <> None
+                      find_module mi <-> VM.find mi ctu
     | None => True
     end.
 Proof.
 unfold circuit_tmap_uninferred, find_module.
 induction mml as [|[mi' ppl ssl|] mml'] ; simpl ; intros ; last by trivial.
-* split ; intro.
-  + by contradiction H.
-  + by rewrite VM.Lemmas.F.empty_o // in H.
+* split ; intro ; by exact H.
 * destruct (ports_tmap ppl) as [pk|] ; last by trivial.
   destruct (statements_tmap (VKS.key_set pk) pk ssl) as [[sc_ssl tmap_ssl]|] ; last by trivial.
   destruct (module_tmap mml') as [ctu_l|] ; last by trivial.
@@ -1274,7 +1275,7 @@ induction mml as [|[mi' ppl ssl|] mml'] ; simpl ; intros ; last by trivial.
     - rewrite (VM.Lemmas.find_add_neq (elimF idP Hmi)).
       by apply IHmml', H.
   + destruct ((mi : VarOrder.T) == mi') eqn: Hmi.
-    - by discriminate.
+    - done.
     - rewrite (VM.Lemmas.find_add_neq (elimF idP Hmi)) in H.
       by apply IHmml', H.
 Qed.
@@ -1282,7 +1283,7 @@ Qed.
 (* If circuit_tmap_uninferred is defined, then
    different modules in mml have different module identifiers. *)
 Lemma module_identifiers_uniq :
-    circuit_tmap_uninferred <> None ->
+    circuit_tmap_uninferred ->
     uniq (map (fun (mm : HiF.hfmodule) => match mm with
                                           | FInmod mi _ _
                                           | FExmod mi _ _ => mi
@@ -1325,7 +1326,7 @@ End Kinds_and_Types.
 
 Section InferWidths_and_InferResets.
 
-Hypothesis uninferred_circuit_correct : circuit_tmap_uninferred <> None.
+Hypothesis uninferred_circuit_correct : circuit_tmap_uninferred.
 
 (* In a connect statement, the width of the read signal can influence the width of the written signal.
    Additionally, if either has an abstract reset type, it is concretized based on the other one.
@@ -3311,13 +3312,13 @@ End InferWidths_and_InferResets.
 
 Variable mi_top : VarOrder.T.
 
-Hypothesis top_module_present : find_module mi_top <> None.
+Hypothesis top_module_present : find_module mi_top.
 
 (* Because it is difficult to calculate the number of iterations needed
    to find the fixed point resulting from InferWidths and InferResets,
    we just assume that there exists a number: *)
 
-Hypothesis circuit_tmap_correct : exists iter_number : nat, circuit_tmap iter_number <> None.
+Hypothesis circuit_tmap_correct : exists iter_number : nat, circuit_tmap iter_number.
 
 Section Instances.
 
@@ -3378,20 +3379,18 @@ Definition find_circuit_instances : option (SVM.t VarOrder.T) :=
 
 Lemma find_module_instances_not_none :
     forall (n : nat) (inst : SVM.key) (mi : VarOrder.T) (inst_map : SVM.t VarOrder.T),
-        find_module mi <> None ->
-        find_module_instances n inst mi inst_map <> None.
+        find_module mi ->
+        find_module_instances n inst mi inst_map.
 Proof.
-assert (uninferred_circuit_correct: circuit_tmap_uninferred <> None)
+assert (uninferred_circuit_correct: circuit_tmap_uninferred)
             by (destruct circuit_tmap_correct as [iter_number ctc] ;
                 unfold circuit_tmap, circuit_tmap_implicits in ctc ;
                 destruct circuit_tmap_uninferred ; done).
 induction n ; intros ; first simpl find_module_instances ;
         destruct (find_module mi) as [[mi' ppl ssl|]|] eqn: Hfm ; try done ;
         specialize (find_module_in Hfm) ; intro H0.
-
-  1,3: apply no_external_modules in uninferred_circuit_correct ;
+1,3: apply no_external_modules in uninferred_circuit_correct ;
        by rewrite -(elimT all_filterP uninferred_circuit_correct) mem_filter in H0.
-
 unfold find_module_instances ; rewrite Hfm.
 fold find_module_instances.
 generalize (SVM.add inst mi inst_map) as in_ma.
@@ -3408,7 +3407,7 @@ apply hfstmt_seq_hfstmt_ind with
         forall in_ma : SVM.t N,
             (fix find_stmts_instances (ssl0 : HiF.hfstmt_seq) (in_ma0 : SVM.t N) {struct ssl0} : option (SVM.t N) := _
              with find_stmt_instances (s : HiF.hfstmt) (in_ma0 : SVM.t N) {struct s} : option (SVM.t N) := _
-             for find_stmts_instances) ssl in_ma <> None)
+             for find_stmts_instances) ssl in_ma)
 (P0 := fun (s : HiF.hfstmt) =>
     forall inst0 : SVM.key,
         hfstmt_inst_in_mml s ->
@@ -3430,7 +3429,7 @@ apply hfstmt_seq_hfstmt_ind with
                                                  end
                  | _ => Some in_ma0
                  end
-             for find_stmt_instances) s in_ma <> None) ;
+             for find_stmt_instances) s in_ma) ;
         try done.
 * (* Qcons *)
   intros s IHs ss IHss inst H1 in_ma.
@@ -3443,7 +3442,6 @@ apply hfstmt_seq_hfstmt_ind with
   by apply IHss, H1.
 * (* Sinst *)
   intros ii_s mi_s inst H1 in_ma.
-  simpl in H1 ; move /eqP : H1 => H1.
   by apply IHn, H1.
 * (* Swhen *)
   intros c sst IHsst ssf IHssf inst H1 in_ma.
@@ -3457,7 +3455,7 @@ apply hfstmt_seq_hfstmt_ind with
 Qed.
 
 Lemma find_circuit_instances_not_none :
-    find_circuit_instances <> None.
+    find_circuit_instances.
 Proof.
 apply find_module_instances_not_none, top_module_present.
 Qed.
@@ -3469,9 +3467,9 @@ Qed.
    Result: True iff inst_map maps elements to modules that are in mml *)
 Definition inst_map_has_module_types (inst_map : SVM.t VarOrder.T) : Prop :=
     forall (iil : SVM.key),
-        match SVM.find iil inst_map with
-        | Some mi => find_module mi <> None
-        | None => True
+        match SVM.find iil inst_map return bool with
+        | Some mi => find_module mi
+        | None => true
         end.
 
 (* find_module_instances creates a legal instance map *)
@@ -3480,7 +3478,7 @@ Lemma find_module_instances_finds_modules :
         inst_map_has_module_types inst_map ->
         match find_module_instances n inst mi inst_map with
         | Some new_inst_map => inst_map_has_module_types new_inst_map
-        | None => True
+        | None => true
         end.
 Proof.
 induction n ; simpl ; intros.
@@ -3506,7 +3504,7 @@ induction n ; simpl ; intros.
                          with find_stmt_instances (s : HiF.hfstmt) (in_ma : SVM.t N) {struct s} : option (SVM.t N) := _
                          for find_stmts_instances) ssl in_ma with
                   | Some new_inst_map => inst_map_has_module_types new_inst_map
-                  | None => True
+                  | None => true
                   end)
     (P0 := fun (s : HiF.hfstmt) =>
                 forall in_ma : SVM.t N,
@@ -3530,7 +3528,7 @@ induction n ; simpl ; intros.
                                end
                            for find_stmt_instances) s in_ma with
                     | Some new_inst_map => inst_map_has_module_types new_inst_map
-                    | None => True
+                    | None => true
                     end) ;
         simpl ; try done.
   + (* Qcons *)
@@ -3556,15 +3554,136 @@ Qed.
 
 (* find_circuit_instances creates a legal instance map *)
 Lemma find_circuit_instances_finds_modules :
-    match find_circuit_instances with
-    | Some fci => inst_map_has_module_types fci
-    | None => True
-    end.
+    forall (n : nat),
+        match find_module_instances n [::] mi_top (SVM.empty VarOrder.T) with
+        | Some fci => inst_map_has_module_types fci
+        | None => false
+        end.
 Proof.
-apply find_module_instances_finds_modules.
 intro.
-rewrite SVM.Lemmas.Empty_find //.
-by apply SVM.empty_1.
+generalize (@find_module_instances_finds_modules n [::] mi_top (SVM.empty VarOrder.T)) ; intro.
+generalize (find_module_instances_not_none n [::] (SVM.empty VarOrder.T) top_module_present) ; intro.
+destruct (find_module_instances n [::] mi_top (SVM.empty VarOrder.T)) ; last done.
+apply H.
+intro.
+by rewrite SVM.Lemmas.empty_o.
+Qed.
+
+Lemma find_module_instances_prefixes :
+    forall (n : nat) (inst : SVM.key) (mi : VarOrder.T) (inst_map : SVM.t VarOrder.T),
+        (forall (ii : VarOrder.T) (iil : SVM.key),
+            SVM.find (ii :: iil) inst_map -> SVM.find iil inst_map) ->
+        (match inst with
+         | [::] => True
+         | _ :: inst' => SVM.find inst' inst_map
+         end) ->
+        match find_module_instances n inst mi inst_map with
+        | Some new_inst_map => SVM.find inst new_inst_map /\
+                               forall (ii : VarOrder.T) (iil : SVM.key),
+                                   SVM.find (ii :: iil) new_inst_map -> SVM.find iil new_inst_map
+        | None => True
+        end.
+Proof.
+induction n ; simpl ; intros.
+* destruct (find_module mi) as [[_ _ _|]|] ; try done.
+  split ; first by rewrite SVM.Lemmas.find_add_eq //.
+  intros.
+  destruct (iil == inst) eqn: Hiil.
+  + by rewrite (SVM.Lemmas.find_add_eq Hiil).
+  + rewrite (SVM.Lemmas.find_add_neq (elimF idP Hiil)).
+    destruct (ii :: iil == inst) eqn: Hii_iil.
+    - move /eqP : Hii_iil => Hii_iil ; subst inst.
+      by apply H0.
+    - rewrite (SVM.Lemmas.find_add_neq (elimF idP Hii_iil)) in H1.
+      by apply H in H1.
+* destruct (find_module mi) as [[_ _ ssl|]|] ; try done.
+  assert (forall (ii : N) (iil : SVM.key),
+              SVM.find (ii :: iil) (SVM.add inst mi inst_map) -> SVM.find iil (SVM.add inst mi inst_map)).
+        intros.
+        destruct (iil == inst) eqn: Hiil.
+        + by rewrite (SVM.Lemmas.find_add_eq Hiil).
+        + rewrite (SVM.Lemmas.find_add_neq (elimF idP Hiil)).
+          destruct (ii :: iil == inst) eqn: Hii_iil.
+          - move /eqP : Hii_iil => Hii_iil ; subst inst.
+            by apply H0.
+          - rewrite (SVM.Lemmas.find_add_neq (elimF idP Hii_iil)) in H1.
+            by apply H in H1.
+  assert (SVM.find inst (SVM.add inst mi inst_map)) by rewrite SVM.Lemmas.find_add_eq //.
+  clear H H0 ; revert H1 H2.
+  generalize (SVM.add inst mi inst_map) as inst_map' ; clear inst_map.
+  apply hfstmt_seq_hfstmt_ind with
+  (P := fun ssl : HiF.hfstmt_seq =>
+          forall inst_map : SVM.t N,
+              (forall (ii : N) (iil : SVM.key), SVM.find (ii :: iil) inst_map -> SVM.find iil inst_map) ->
+              SVM.find inst inst_map ->
+              match (fix find_stmts_instances (ssl0 : HiF.hfstmt_seq) (in_ma : SVM.t N) {struct ssl0} : option (SVM.t N) := _
+                     with find_stmt_instances (s : HiF.hfstmt) (in_ma : SVM.t N) {struct s} : option (SVM.t N) := _
+                     for find_stmts_instances) ssl inst_map with
+              | Some new_inst_map => SVM.find inst new_inst_map /\
+                                     forall (ii : N) (iil : SVM.key), SVM.find (ii :: iil) new_inst_map -> SVM.find iil new_inst_map
+              | None => True
+              end)
+  (P0 := fun s : HiF.hfstmt =>
+          forall inst_map : SVM.t N,
+              (forall (ii : N) (iil : SVM.key), SVM.find (ii :: iil) inst_map -> SVM.find iil inst_map) ->
+              SVM.find inst inst_map ->
+              match (fix find_stmts_instances (ssl0 : HiF.hfstmt_seq) (in_ma : SVM.t N) {struct ssl0} : option (SVM.t N) :=
+                         match ssl0 with
+                         | @Qnil _ => Some in_ma
+                         | Qcons s ssl' => match find_stmt_instances s in_ma with
+                                           | Some in_ma' => find_stmts_instances ssl' in_ma'
+                                           | None => None
+                                           end
+                         end
+                     with find_stmt_instances (s : HiF.hfstmt) (in_ma : SVM.t N) {struct s} : option (SVM.t N) :=
+                         match s with
+                         | Sinst i m' => find_module_instances n (i :: inst) m' in_ma
+                         | Swhen _ ssl_true ssl_false => match find_stmts_instances ssl_true in_ma with
+                                                         | Some in_ma_true => find_stmts_instances ssl_false in_ma_true
+                                                         | None => None
+                                                         end
+                         | _ => Some in_ma
+                         end
+                     for find_stmt_instances) s inst_map with
+              | Some new_inst_map => SVM.find inst new_inst_map /\
+                                     forall (ii : N) (iil : SVM.key), SVM.find (ii :: iil) new_inst_map -> SVM.find iil new_inst_map
+              | None => True
+              end) ;
+      try done ; intros.
+  + (* Qcons *)
+    specialize (H inst_map H1 H2).
+    destruct ((fix find_stmts_instances (ssl0 : HiF.hfstmt_seq) (in_ma : SVM.t N) {struct ssl0} : option (SVM.t N) := _
+               with find_stmt_instances (s : HiF.hfstmt) (in_ma : SVM.t N) {struct s} : option (SVM.t N) := _
+               for find_stmt_instances) h inst_map) as [h_inst_map|] ; last done.
+    exact (H0 h_inst_map (proj2 H) (proj1 H)).
+  + (* Sinst *)
+    specialize (IHn (s :: inst) s0 inst_map H H0).
+    destruct (find_module_instances n (s :: inst) s0 inst_map) as [new_inst_map|] ; last done.
+    split ; last by apply IHn.
+    apply IHn with (ii := s), IHn.
+  + (* Swhen *)
+    specialize (H inst_map H1 H2).
+    destruct ((fix find_stmts_instances (ssl0 : HiF.hfstmt_seq) (in_ma : SVM.t N) {struct ssl0} : option (SVM.t N) := _
+               with find_stmt_instances (s : HiF.hfstmt) (in_ma : SVM.t N) {struct s} : option (SVM.t N) := _
+               for find_stmts_instances) h0 inst_map) as [true_inst_map|] ; last done.
+    exact (H0 true_inst_map (proj2 H) (proj1 H)).
+Qed.
+
+Lemma find_circuit_instances_prefixes :
+    forall n : nat,
+        match find_module_instances n [::] mi_top (SVM.empty VarOrder.T) with
+        | Some fci => forall (ii : VarOrder.T) (iil : SVM.key), SVM.find (ii :: iil) fci -> SVM.find iil fci
+        | None => False
+        end.
+Proof.
+intro.
+generalize (@find_module_instances_prefixes n [::] mi_top (SVM.empty VarOrder.T)) ; intro.
+generalize (find_module_instances_not_none n [::] (SVM.empty VarOrder.T) top_module_present) ; intro.
+destruct (find_module_instances n [::] mi_top (SVM.empty VarOrder.T)) as [fci|] ; last done.
+clear H0.
+apply H ; last trivial.
+intros.
+by rewrite SVM.Lemmas.empty_o in H0.
 Qed.
 
 (* inst does not allow cycles *)
@@ -3572,6 +3691,7 @@ Qed.
    in the domain of find_circuit_instances, there is no sequence
    that models onto a repeated module. *)
 
+(* returns the sequence of module types, given a sequence of instances *)
 Fixpoint module_path (fci : SVM.t VarOrder.T) (iil : seq VarOrder.T) : option (seq VarOrder.T) :=
     match SVM.find iil fci with
     | Some mi => option_map (cons mi) (match iil with
@@ -3581,6 +3701,72 @@ Fixpoint module_path (fci : SVM.t VarOrder.T) (iil : seq VarOrder.T) : option (s
     | None => None
     end.
 
+(* The module path is exactly one element longer than the instance identifier *)
+Lemma module_path_size :
+    forall (fci : SVM.t VarOrder.T) (iil : seq VarOrder.T),
+        match module_path fci iil with
+        | Some mp => (size iil).+1 == size mp
+        | None => true
+        end.
+Proof.
+induction iil as [|ii iil] ; simpl ; first by destruct (@SVM.find N (Nil N) fci).
+destruct (module_path fci iil) as [mp|], (@SVM.find N (Cons N ii iil) fci) ; done.
+Qed.
+
+(* A module path only contains module identifiers from mml *)
+Lemma module_path_restricted_to_fci :
+    forall (n : nat),
+        match find_module_instances n [::] mi_top (SVM.empty VarOrder.T) with
+        | Some fci => forall iil : seq VarOrder.T,
+                          match module_path fci iil with
+                          | Some mp => {subset mp <= map (fun mm : HiF.hfmodule => match mm with
+                                                                                   | FInmod mi _ _
+                                                                                   | FExmod mi _ _ => mi
+                                                                                   end) mml}
+                          | None => ~~ SVM.find iil fci
+                          end
+        | None => False
+        end.
+Proof.
+intro n.
+generalize (find_circuit_instances_finds_modules n) ; intro.
+generalize (find_circuit_instances_prefixes n) ; intro.
+destruct (find_module_instances n [::] mi_top (SVM.empty VarOrder.T)) as [fci|] ; last done.
+intro.
+induction iil as [|ii iil] ; simpl.
+* specialize (H [::]) ; simpl in H.
+  destruct (@SVM.find N (Nil N) fci) as [mi|] ; last done ; simpl.
+  unfold sub_mem ; intros.
+  rewrite mem_seq1 in H1 ; move /eqP : H1 => H1 ; subst x.
+  (*generalize (@find_module_in mi) ; intro.
+  destruct (find_module mi) as [mm|] eqn: Hmm ; last done.
+  specialize (H1 _ Logic.eq_refl).*)
+  unfold find_module in H (* Hmm *).
+  revert H ; clear.
+  induction mml as [|[mi' ppl ssl|mi' ppl ssl] mml'] ; simpl ; try done.
+  1,2: destruct (mi == mi') eqn: Hmi.
+  + 1,3: move /eqP : Hmi => Hmi ; subst mi' ; by rewrite eq_refl in_cons eq_refl.
+  + 1,2: rewrite in_cons Hmi orFb.
+    1,2: destruct (mi == mi' :> VarOrder.T) eqn: Hmi2 ; last done.
+    1,2: move /eqP : Hmi2 => Hmi2 ; subst mi' ; by rewrite eq_refl in Hmi.
+* specialize (H (ii :: iil)) ; simpl in H.
+  specialize (H0 ii iil) ; simpl in H0.
+  destruct (@SVM.find N (Cons N ii iil) fci) as [mi|] ; last done.
+  destruct (module_path fci iil) as [mp|] eqn: Hmp ; last by rewrite H0 // in IHiil.
+  unfold option_map, sub_mem ; intros.
+  rewrite in_cons in H1.
+  move /orP : H1 => [/eqP H1|H1] ; last by apply IHiil.
+  subst x.
+  unfold find_module in H.
+  revert H ; clear.
+  induction mml as [|[mi' ppl ssl|mi' ppl ssl] mml'] ; simpl ; try done.
+  1,2: destruct (mi == mi' :> VarOrder.T) eqn: Hmi.
+  + 1,3: move /eqP : Hmi => Hmi ; subst mi' ; by rewrite in_cons eq_refl.
+  + 1,2: rewrite in_cons.
+    1,2: destruct (mi == mi' :> bin_nat_eqType) ; first done ; last by rewrite orFb.
+Qed.
+
+(* Hypothesis: instantiations are acyclic, i.e. the module path of any instance identifier is unique *)
 Hypothesis inst_modules_acyclic :
     match find_circuit_instances with
     | Some fci => forall iil : seq VarOrder.T,
@@ -3591,87 +3777,384 @@ Hypothesis inst_modules_acyclic :
     | None => True
     end.
 
+(* The length of an instance identifier of the circuit is bounded:
+   it must be strictly shorter than the number of modules. *)
+Lemma find_circuit_instances_length_bounded :
+    match find_circuit_instances with
+    | Some fci => forall iil : seq VarOrder.T,
+                      match module_path fci iil with
+                      | Some mil => size iil < size mml
+                      | None => ~~ SVM.find iil fci
+                      end
+    | None => False
+    end.
+Proof.
+generalize (module_path_restricted_to_fci (size mml)) ; intro.
+fold find_circuit_instances in H.
+destruct find_circuit_instances as [fci|] ; last done.
+intro iil.
+specialize (inst_modules_acyclic iil) ; specialize (H iil).
+generalize (module_path_size fci iil) ; intro.
+destruct (module_path fci iil) as [mp|] ; last done.
+apply (elimT eqP), eq_leq, leq_trans with (2 := uniq_leq_size inst_modules_acyclic H) in H0.
+by rewrite size_map in H0.
+Qed.
+
+(* The length of an instance identifier is bounded:
+   it cannot exceed the depth of instantiation iterations *)
+Lemma find_module_instances_length_bounded :
+    forall (n : nat) (inst : SVM.key) (mi : VarOrder.T) (inst_map : SVM.t VarOrder.T),
+        ((* the old inst_map only has "short" keys *)
+         forall k : SVM.key, size k > n + size inst -> ~~SVM.find k inst_map) ->
+        match find_module_instances n inst mi inst_map with
+        | Some new_inst_map => forall k: SVM.key, size k > n + size inst -> ~~SVM.find k new_inst_map
+        | None => True
+        end.
+Proof.
+induction n ; simpl ; intros.
+* destruct (find_module mi) as [[_ _ _|]|] ; try done.
+  intros.
+  destruct (k == inst) eqn: Hk.
+  + move /eqP : Hk => Hk ; subst k.
+    by rewrite add0n ltnn in H0.
+  + rewrite (SVM.Lemmas.find_add_neq (elimF idP Hk)).
+    by apply H.
+* destruct (find_module mi) as [[_ _ ssl|]|] ; try done.
+  assert (forall k : SVM.key, n.+1 + size inst < size k -> ~~SVM.find k (@SVM.add N inst mi inst_map)).
+        intros.
+        destruct (k == inst) eqn: Hk.
+        + move /eqP : Hk => Hk ; subst k.
+          by rewrite -subn_gt0 addnC subnDA subnn sub0n ltnn in H0.
+        + rewrite (SVM.Lemmas.find_add_neq (elimF idP Hk)).
+          by apply H.
+  clear H ; revert H0.
+  generalize (@SVM.add N inst mi inst_map) as inst_map' ; clear inst_map.
+  apply hfstmt_seq_hfstmt_ind with
+  (P := fun (ssl : HiF.hfstmt_seq) =>
+      forall (inst_map : SVM.t N),
+          (forall k : SVM.key, n.+1 + size inst < size k -> ~~SVM.find k inst_map) ->
+          match (fix find_stmts_instances (ssl0 : HiF.hfstmt_seq) (in_ma : SVM.t N) {struct ssl0} : option (SVM.t N) := _
+                 with find_stmt_instances (s : HiF.hfstmt) (in_ma : SVM.t N) {struct s} : option (SVM.t N) := _
+                 for find_stmts_instances) ssl inst_map
+          with
+          | Some new_inst_map => forall k : SVM.key, n.+1 + size inst < size k -> ~~SVM.find k new_inst_map
+          | None => True
+          end)
+  (P0 := fun (s : HiF.hfstmt) =>
+      forall (inst_map : SVM.t N),
+          (forall k : SVM.key, n.+1 + size inst < size k -> ~~SVM.find k inst_map) ->
+          match (fix find_stmts_instances (ssl0 : HiF.hfstmt_seq) (in_ma : SVM.t N) {struct ssl0} : option (SVM.t N) :=
+                     match ssl0 with
+                     | @Qnil _ => Some in_ma
+                     | Qcons s ssl' => match find_stmt_instances s in_ma with
+                                       | Some in_ma' => find_stmts_instances ssl' in_ma'
+                                       | None => None
+                                       end
+                     end
+                 with find_stmt_instances (s : HiF.hfstmt) (in_ma : SVM.t N) {struct s} : option (SVM.t N) :=
+                     match s with
+                     | Sinst i m' => find_module_instances n (i :: inst) m' in_ma
+                     | Swhen _ ssl_true ssl_false => match find_stmts_instances ssl_true in_ma with
+                                                     | Some in_ma_true => find_stmts_instances ssl_false in_ma_true
+                                                     | None => None
+                                                     end
+                     | _ => Some in_ma
+                     end
+                 for find_stmt_instances) s inst_map
+          with
+          | Some new_inst_map => forall k : SVM.key, n.+1 + size inst < size k -> ~~SVM.find k new_inst_map
+          | None => True
+          end) ;
+        try done ; intros.
+  + (* Qcons *)
+    specialize (H inst_map H1).
+    destruct ((fix find_stmts_instances (ssl0 : HiF.hfstmt_seq) (in_ma : SVM.t N) {struct ssl0} : option (SVM.t N) := _
+               with find_stmt_instances (s : HiF.hfstmt) (in_ma : SVM.t N) {struct s} : option (SVM.t N) := _
+               for find_stmt_instances) h inst_map) as [h_inst_map|] ; last done.
+    exact (H0 h_inst_map H).
+  + (* Sinst *)
+    specialize (IHn (s :: inst) s0 inst_map) ; simpl size in IHn.
+    rewrite -addSnnS in IHn.
+    by apply IHn.
+  + (* Swhen *)
+    specialize (H inst_map H1).
+    destruct ((fix find_stmts_instances (ssl0 : HiF.hfstmt_seq) (in_ma : SVM.t N) {struct ssl0} : option (SVM.t N) := _
+               with find_stmt_instances (s : HiF.hfstmt) (in_ma : SVM.t N) {struct s} : option (SVM.t N) := _
+               for find_stmts_instances) h0 inst_map) as [true_inst_map|] ; last done.
+    exact (H0 true_inst_map H).
+Qed.
+
+(* Increasing the instantiation depth only adds module identifiers of the additional length,
+   while shorter ones remain as they are. *)
+Lemma find_module_instances_increasing_extends :
+    forall (n : nat) (inst : SVM.key) (mi : VarOrder.T) (n_inst_map np1_inst_map : SVM.t VarOrder.T),
+        (forall k: SVM.key, size k <= n + size inst -> SVM.find k n_inst_map = SVM.find k np1_inst_map) ->
+        match find_module_instances n inst mi n_inst_map, find_module_instances n.+1 inst mi np1_inst_map with
+        | Some new_n_inst_map, Some new_np1_inst_map => forall k: SVM.key,
+                                                            size k <= n + size inst ->
+                                                            SVM.find k new_n_inst_map = SVM.find k new_np1_inst_map
+        | _, _ => True
+        end.
+Proof.
+induction n ; simpl ; intros.
+* destruct (find_module mi) as [[_ _ ssl|]|] ; try done.
+  assert (forall k : SVM.key,
+              size k <= 0 + size inst -> SVM.find k (SVM.add inst mi n_inst_map) = SVM.find k (SVM.add inst mi np1_inst_map)).
+        intros.
+        destruct (k == inst) eqn: Hk.
+        + by rewrite ?(SVM.Lemmas.find_add_eq Hk).
+        + rewrite ?(SVM.Lemmas.find_add_neq (elimF idP Hk)).
+          by apply H.
+  clear H ; revert H0.
+  generalize (SVM.add inst mi n_inst_map) as n_inst_map', (SVM.add inst mi np1_inst_map) as np1_inst_map'.
+  clear n_inst_map np1_inst_map.
+  apply hfstmt_seq_hfstmt_ind with
+  (P := fun (ssl : HiF.hfstmt_seq) =>
+      forall n_inst_map np1_inst_map : SVM.t N,
+          (forall k : SVM.key, size k <= 0 + size inst -> SVM.find k n_inst_map = SVM.find k np1_inst_map) ->
+          match (fix find_stmts_instances (ssl0 : HiF.hfstmt_seq) (in_ma : SVM.t N) {struct ssl0} : option (SVM.t N) := _
+                 with find_stmt_instances (s : HiF.hfstmt) (in_ma : SVM.t N) {struct s} : option (SVM.t N) := _
+                 for find_stmts_instances) ssl np1_inst_map with
+          | Some new_np1_inst_map => forall k : SVM.key, size k <= 0 + size inst -> SVM.find k n_inst_map = SVM.find k new_np1_inst_map
+          | None => True
+          end)
+  (P0 := fun (s : HiF.hfstmt) =>
+      forall n_inst_map np1_inst_map : SVM.t N,
+          (forall k : SVM.key, size k <= 0 + size inst -> SVM.find k n_inst_map = SVM.find k np1_inst_map) ->
+          match (fix find_stmts_instances (ssl0 : HiF.hfstmt_seq) (in_ma : SVM.t N) {struct ssl0} : option (SVM.t N) :=
+                     match ssl0 with
+                     | @Qnil _ => Some in_ma
+                     | Qcons s ssl' => match find_stmt_instances s in_ma with
+                                       | Some in_ma' => find_stmts_instances ssl' in_ma'
+                                       | None => None
+                                       end
+                     end
+                 with find_stmt_instances (s : HiF.hfstmt) (in_ma : SVM.t N) {struct s} : option (SVM.t N) :=
+                     match s with
+                     | Sinst i m' => match find_module m' with
+                                     | Some (FInmod _ _ _) => Some (SVM.add (i :: inst) m' in_ma)
+                                     | _ => None
+                                     end
+                     | Swhen _ ssl_true ssl_false => match find_stmts_instances ssl_true in_ma with
+                                                     | Some in_ma_true => find_stmts_instances ssl_false in_ma_true
+                                                     | None => None
+                                                     end
+                     | _ => Some in_ma
+                     end
+                 for find_stmt_instances) s np1_inst_map with
+          | Some new_np1_inst_map => forall k : SVM.key, size k <= 0 + size inst -> SVM.find k n_inst_map = SVM.find k new_np1_inst_map
+          | None => True
+          end) ;
+        try done ; intros.
+  + (* Qcons *)
+    specialize (H _ _ H1).
+    destruct ((fix find_stmts_instances (ssl0 : HiF.hfstmt_seq) (in_ma : SVM.t N) {struct ssl0} : option (SVM.t N) := _
+               with find_stmt_instances (s : HiF.hfstmt) (in_ma : SVM.t N) {struct s} : option (SVM.t N) := _
+               for find_stmt_instances) h np1_inst_map) as [h_np1_inst_map|] ; last done.
+    exact (H0 _ _ H).
+  + (* Sinst *)
+    destruct (find_module s0) as [[_ _ _|]|] ; try done.
+    intros.
+    destruct (k == s :: inst) eqn: Hk.
+    - move /eqP : Hk => Hk ; subst k.
+      simpl size in H0.
+      by rewrite add0n ltnn in H0.
+    - rewrite (SVM.Lemmas.find_add_neq (elimF idP Hk)).
+      by apply H.
+  + (* Swhen *)
+    specialize (H _ _ H1).
+    destruct ((fix find_stmts_instances (ssl0 : HiF.hfstmt_seq) (in_ma : SVM.t N) {struct ssl0} : option (SVM.t N) := _
+               with find_stmt_instances (s : HiF.hfstmt) (in_ma : SVM.t N) {struct s} : option (SVM.t N) := _
+               for find_stmts_instances) h0 np1_inst_map) as [true_np1_inst_map|] ; last done.
+    exact (H0 _ _ H).
+* destruct (find_module mi) as [[_ _ ssl|]|] ; try done.
+  assert (forall k : SVM.key,
+              size k <= n.+1 + size inst -> SVM.find k (SVM.add inst mi n_inst_map) = SVM.find k (SVM.add inst mi np1_inst_map)).
+        intros.
+        destruct (k == inst) eqn: Hk.
+        + by rewrite ?(SVM.Lemmas.find_add_eq Hk).
+        + rewrite ?(SVM.Lemmas.find_add_neq (elimF idP Hk)).
+          by apply H.
+  clear H ; revert H0.
+  generalize (SVM.add inst mi n_inst_map) as n_inst_map', (SVM.add inst mi np1_inst_map) as np1_inst_map'.
+  clear n_inst_map np1_inst_map.
+  apply hfstmt_seq_hfstmt_ind with
+  (P := fun (ssl : HiF.hfstmt_seq) =>
+      forall n_inst_map np1_inst_map : SVM.t N,
+          (forall k : SVM.key, size k <= n.+1 + size inst -> SVM.find k n_inst_map = SVM.find k np1_inst_map) ->
+          match (fix find_stmts_instances (ssl0 : HiF.hfstmt_seq) (in_ma : SVM.t N) {struct ssl0} : option (SVM.t N) := _
+                 with find_stmt_instances (s : HiF.hfstmt) (in_ma : SVM.t N) {struct s} : option (SVM.t N) := _
+                 for find_stmts_instances) ssl n_inst_map with
+          | Some new_n_inst_map => match (fix find_stmts_instances (ssl0 : HiF.hfstmt_seq) (in_ma : SVM.t N) {struct ssl0} : option (SVM.t N) := _
+                                          with find_stmt_instances (s : HiF.hfstmt) (in_ma : SVM.t N) {struct s} : option (SVM.t N) := _
+                                          for find_stmts_instances) ssl np1_inst_map with
+                                   | Some new_np1_inst_map => forall k : SVM.key, size k <= n.+1 + size inst -> SVM.find k new_n_inst_map = SVM.find k new_np1_inst_map
+                                   | None => True
+                                   end
+          | None => True
+          end)
+  (P0 := fun (s : HiF.hfstmt) =>
+      forall n_inst_map np1_inst_map : SVM.t N,
+          (forall k : SVM.key, size k <= n.+1 + size inst -> SVM.find k n_inst_map = SVM.find k np1_inst_map) ->
+          match (fix find_stmts_instances (ssl0 : HiF.hfstmt_seq) (in_ma : SVM.t N) {struct ssl0} : option (SVM.t N) :=
+                     match ssl0 with
+                     | @Qnil _ => Some in_ma
+                     | Qcons s ssl' => match find_stmt_instances s in_ma with
+                                       | Some in_ma' => find_stmts_instances ssl' in_ma'
+                                       | None => None
+                                       end
+                     end
+                 with find_stmt_instances (s : HiF.hfstmt) (in_ma : SVM.t N) {struct s} : option (SVM.t N) :=
+                     match s with
+                     | Sinst i m' => find_module_instances n (i :: inst) m' in_ma
+                     | Swhen _ ssl_true ssl_false => match find_stmts_instances ssl_true in_ma with
+                                                     | Some in_ma_true => find_stmts_instances ssl_false in_ma_true
+                                                     | None => None
+                                                     end
+                     | _ => Some in_ma
+                     end
+                 for find_stmt_instances) s n_inst_map with
+          | Some new_n_inst_map => match (fix find_stmts_instances (ssl0 : HiF.hfstmt_seq) (in_ma : SVM.t N) {struct ssl0} : option (SVM.t N) :=
+                                              match ssl0 with
+                                              | @Qnil _ => Some in_ma
+                                              | Qcons s ssl' => match find_stmt_instances s in_ma with
+                                                                | Some in_ma' => find_stmts_instances ssl' in_ma'
+                                                                | None => None
+                                                                end
+                                              end
+                                          with find_stmt_instances (s : HiF.hfstmt) (in_ma : SVM.t N) {struct s} : option (SVM.t N) :=
+                                              match s with
+                                              | Sinst i m' => match find_module m' with
+                                                              | Some (FInmod _ _ ssl0) => (fix find_stmts_instances0 (ssl1 : HiF.hfstmt_seq) (in_ma0 : SVM.t N) {struct ssl1} : option (SVM.t N) :=
+                                                                                               match ssl1 with
+                                                                                               | @Qnil _ => Some in_ma0
+                                                                                               | Qcons s1 ssl' => match find_stmt_instances0 s1 in_ma0 with
+                                                                                                                  | Some in_ma' => find_stmts_instances0 ssl' in_ma'
+                                                                                                                  | None => None
+                                                                                                                  end
+                                                                                               end
+                                                                                           with find_stmt_instances0 (s1 : HiF.hfstmt) (in_ma0 : SVM.t N) {struct s1} : option (SVM.t N) :=
+                                                                                               match s1 with
+                                                                                               | Sinst i0 m'0 => find_module_instances n [:: i0, i & inst] m'0 in_ma0
+                                                                                               | Swhen _ ssl_true ssl_false => match find_stmts_instances0 ssl_true in_ma0 with
+                                                                                                                               | Some in_ma_true => find_stmts_instances0 ssl_false in_ma_true
+                                                                                                                               | None => None
+                                                                                                                               end
+                                                                                               | _ => Some in_ma0
+                                                                                               end
+                                                                                           for find_stmts_instances0) ssl0 (SVM.add (i :: inst) m' in_ma)
+                                                              | _ => None
+                                                              end
+                                              | Swhen _ ssl_true ssl_false => match find_stmts_instances ssl_true in_ma with
+                                                                              | Some in_ma_true => find_stmts_instances ssl_false in_ma_true
+                                                                              | None => None
+                                                                              end
+                                              | _ => Some in_ma
+                                              end
+                                          for find_stmt_instances) s np1_inst_map with
+                                   | Some new_np1_inst_map => forall k : SVM.key, size k <= n.+1 + size inst -> SVM.find k new_n_inst_map = SVM.find k new_np1_inst_map
+                                   | None => True
+                                   end
+          | None => True
+          end) ;
+        try done ; intros.
+  + (* Qcons *)
+    specialize (H _ _ H1).
+    destruct ((fix find_stmts_instances (ssl0 : HiF.hfstmt_seq) (in_ma : SVM.t N) {struct ssl0} : option (SVM.t N) := _
+               with find_stmt_instances (s : HiF.hfstmt) (in_ma : SVM.t N) {struct s} : option (SVM.t N) := _
+               for find_stmt_instances) h n_inst_map) as [h_n_inst_map|] ; last done.
+    destruct ((fix find_stmts_instances (ssl0 : HiF.hfstmt_seq) (in_ma : SVM.t N) {struct ssl0} : option (SVM.t N) := _
+               with find_stmt_instances (s : HiF.hfstmt) (in_ma : SVM.t N) {struct s} : option (SVM.t N) := _
+               for find_stmt_instances) h np1_inst_map) as [h_np1_inst_map|].
+    - exact (H0 _ _ H).
+    - by destruct ((fix find_stmts_instances (ssl0 : HiF.hfstmt_seq) (in_ma : SVM.t N) {struct ssl0} : option (SVM.t N) := _
+                    with find_stmt_instances (s : HiF.hfstmt) (in_ma : SVM.t N) {struct s} : option (SVM.t N) := _
+                    for find_stmts_instances) h0 h_n_inst_map).
+  + (* Sinst *)
+    specialize (IHn (s :: inst) s0 n_inst_map np1_inst_map) ; simpl size in IHn.
+    rewrite -addSnnS in IHn.
+    by apply IHn.
+  + (* Swhen *)
+    specialize (H _ _ H1).
+    destruct ((fix find_stmts_instances (ssl0 : HiF.hfstmt_seq) (in_ma : SVM.t N) {struct ssl0} : option (SVM.t N) := _
+               with find_stmt_instances (s : HiF.hfstmt) (in_ma : SVM.t N) {struct s} : option (SVM.t N) := _
+               for find_stmts_instances) h0 n_inst_map) as [true_n_inst_map|] ; last done.
+    destruct ((fix find_stmts_instances (ssl0 : HiF.hfstmt_seq) (in_ma : SVM.t N) {struct ssl0} : option (SVM.t N) := _
+               with find_stmt_instances (s : HiF.hfstmt) (in_ma : SVM.t N) {struct s} : option (SVM.t N) := _
+               for find_stmts_instances) h0 np1_inst_map) as [true_np1_inst_map|].
+    - exact (H0 _ _ H).
+    - by destruct ((fix find_stmts_instances (ssl0 : HiF.hfstmt_seq) (in_ma : SVM.t N) {struct ssl0} : option (SVM.t N) := _
+                    with find_stmt_instances (s : HiF.hfstmt) (in_ma : SVM.t N) {struct s} : option (SVM.t N) := _
+                    for find_stmts_instances) h1 true_n_inst_map).
+Qed.
+
+(* find_circuit_instances finds the fixed point of instantiations. *)
 Lemma find_circuit_instances_is_fixed_point :
     match find_circuit_instances with
     | Some fci => match find_module_instances (size mml).+1 [::] mi_top (SVM.empty VarOrder.T) with
                   | Some fci' => SVM.equal N.eqb fci fci'
                   | None => false
                   end
-    | None => true
+    | None => false
     end.
 Proof.
-(* The proof idea is:
-   module paths consist of module identifiers; but there are only (size mml) module identifiers
-   that can be chosen. Therefore, if the module path is acyclic, it cannot be longer than n. *)
-destruct find_circuit_instances as [fci|] eqn: Hfci ; last done.
-assert (inst_map_has_module_types (SVM.empty VarOrder.T)).
-      intro.
-      rewrite SVM.Lemmas.Empty_find //.
-      by apply SVM.empty_1.
-apply (find_module_instances_finds_modules (size mml).+1 [::] mi_top) in H.
-unfold find_circuit_instances in Hfci.
+(* The proof idea is: the two sets coincide on all iil with size <= size mml.
+   There are no modules with size == size mml.
+   If there would be some instance with size == size mml.+1, then there should also be the parent, with size mml. *)
+assert (forall k : SVM.key,
+            size k <= size mml + size (Nil VarOrder.T) ->
+            SVM.find k (SVM.empty VarOrder.T) = SVM.find k (SVM.empty VarOrder.T)).
+      intros.
+      by rewrite ?SVM.Lemmas.empty_o.
+apply (@find_module_instances_increasing_extends (size mml) [::] mi_top (SVM.empty VarOrder.T) (SVM.empty VarOrder.T)) in H.
+fold find_circuit_instances in H.
+simpl size in H ; rewrite addn0 in H.
+generalize find_circuit_instances_length_bounded ; intro.
+destruct find_circuit_instances as [fci|] ; last done.
+generalize (find_circuit_instances_prefixes (size mml).+1) ; intro.
+assert (forall k : SVM.key,
+            (size mml).+1 + @size VarOrder.T [::] < size k ->
+            ~~ SVM.find k (SVM.empty VarOrder.T)).
+      intros.
+      by rewrite SVM.Lemmas.empty_o.
+apply (@find_module_instances_length_bounded (size mml).+1 [::] mi_top (SVM.empty VarOrder.T)) in H2.
+simpl size in H2 ; rewrite addn0 in H2.
 generalize (@find_module_instances_not_none (size mml).+1 [::] mi_top (SVM.empty VarOrder.T) top_module_present) ; intro.
-destruct (find_module_instances (size mml).+1 [::] mi_top (SVM.empty VarOrder.T)) as [fci'|] eqn: Hfci' ; last by contradict H0.
-
-(*
-We might need a lemma that says:
-  find_module_instances n ... and find_module_instances n.+1 ...
-  are equal on all instance identifiers up to length n;
-  and also, that find_module_instances n ... only has instance identifiers up to length n.
-
-And then use inst_modules_acyclic to show that there are no longer instance identifiers.
-*)
-
-Admitted.
-
-(*
-Fixpoint module_identifiers' (mml' : seq HiF.hfmodule) : seq VarOrder.T :=
-    match mml' with
-    | [::] => [::]
-    | FInmod mi _ _ :: mml''
-    | FExmod mi _ _ :: mml'' => mi :: module_identifiers' mml''
-    end.
-
-Definition module_identifiers : seq VarOrder.T := module_identifiers' mml.
-
-Lemma inst_bounded :
-    forall (ii : seq VarOrder.T) (mi : VarOrder.T) (im : inst ii mi),
-        size ii < size mml.
-Proof.
-intros.
-assert (size (module_path im) == size ii + 1).
-      induction im ; simpl.
-      * by rewrite add0n.
-      * by rewrite addn1 eqSS -addn1 IHim.
-assert ({subset module_path im <= module_identifiers}).
-      clear H.
-      unfold sub_mem.
-      induction im ; simpl.
-      * generalize (Top_module_present) ; unfold find_module ; simpl ; intro.
-        intros.
-        rewrite mem_seq1 in H0 ; move /eqP : H0 => Ho ; subst x.
-        unfold module_identifiers.
-        induction mml ; simpl ; simpl in H.
-        + by contradict H.
-        + destruct a as [mi ppl ssl|mi ppl ssl].
-          1,2: rewrite (in_cons (T := VarOrder.T)).
-          1,2: destruct (mi_top == mi) eqn: Hmitop ; first by rewrite orTb.
-          1,2: rewrite orFb.
-          1,2: by apply IHl, H.
-      * intros.
-        rewrite in_cons in H.
-        destruct (x == mi_inner) eqn: Hxmii ; last by rewrite orFb in H ; apply IHim, H.
-        move /eqP : Hxmii => Hxmii ; subst x.
-        unfold contains_instance in i.
-        destruct (find_module mi_outer) as [[_ _ ssl|]|] ; try done.
-Check (in_cons (T := VarOrder.T)).
-
-; first by rewrite orTb.
-
-generalize (inst_modules_acyclic im) ; intro.
-(* Every suffix of ii corresponds to a module, different suffixes must correspond to different modules. *)
-
-*)
+destruct (find_module_instances (size mml).+1 [::] mi_top (SVM.empty VarOrder.T)) as [fci'|] ; last done.
+clear H3.
+assert (forall iil : SVM.key, SVM.find iil fci = SVM.find iil fci').
+      intro iil.
+      destruct (size iil <= size mml) eqn: Hsiz ; first by exact (H iil Hsiz).
+      generalize (H0 iil) ; intro.
+      destruct (module_path fci iil) ; first by rewrite (ltnW H3) in Hsiz.
+      destruct (SVM.find iil fci) ; first done ; clear H3.
+      specialize (H2 iil).
+      destruct iil as [|ii iil] ; first by simpl size in Hsiz ; rewrite leq0n in Hsiz.
+      specialize (H1 ii iil).
+      destruct (SVM.find (ii :: iil) fci') ; last done.
+      specialize (H1 is_true_true).
+      simpl size in H2 ; rewrite ltnS ltnNge in H2.
+      specialize (H iil).
+      destruct (@size N iil <= size mml) ; last by specialize (H2 is_true_true).
+      clear H2 ; specialize (H is_true_true).
+      rewrite -H in H1.
+      specialize (H0 iil) ; destruct (module_path fci iil) as [_|] ; last by rewrite H1 in H0.
+      simpl size in Hsiz ; by rewrite H0 in Hsiz.
+clear -H3.
+apply SVM.equal_1 ; unfold SVM.Equivb, SVM.Equiv.
+split ; intro iil ; specialize (H3 iil).
+* split ; intro.
+  1,2: apply SVM.Lemmas.in_find_some in H ; destruct H as [e H].
+  1,2: rewrite H in H3.
+  1: apply Logic.eq_sym in H3.
+  1,2: by apply SVM.Lemmas.find_some_in in H3.
+* intros.
+  apply SVM.find_1 in H, H0.
+  rewrite H H0 in H3.
+  injection H3 as H3 ; subst e'.
+  unfold Cmp.
+  apply N.eqb_refl.
+Qed.
 
 End Instances.
 
@@ -6161,22 +6644,6 @@ with bundle_value_is_undef_or_empty (undeftype : ftype -> hvalue) (bv : bundle_v
     | _, _ => false
     end.
 
-(* The lemma needs an additional precondition, namely hvalue_is_type_correct val elt,
-   but that makes it unusable in the subsequent proof.
-Lemma ftype_is_empty_implies_hvalue_is_undef_or_empty :
-    forall (elt : ftype) (undeftype : ftype -> hvalue) (val : hvalue),
-        ftype_is_empty elt ->
-        hvalue_is_undef_or_empty undeftype val elt
-with ffield_is_empty_implies_bundle_value_is_undef_or_empty :
-    forall (ff : ffield) (undeftype : ftype -> hvalue) (bv : bundle_value),
-        ffield_is_empty ff ->
-        bundle_value_is_undef_or_empty undeftype bv ff.
-Proof.
-* (* clear ftype_is_empty_implies_hvalue_is_undef_or_empty. *)
-  intros elt undeftype val ; revert elt undeftype.
-  induction val as [ft|av|bv|ut|ut|ut] ; simpl ; try done ; intros.
-Abort. *)
-
 (* If a value is undef, it can only be one kind of undef (unless it's empty) *)
 Lemma hvalue_is_undef_or_empty_unique :
     forall (undeftype1 undeftype2 : ftype -> hvalue),
@@ -6184,21 +6651,14 @@ Lemma hvalue_is_undef_or_empty_unique :
         (undeftype2 = Undefinedonpurpose \/ undeftype2 = Needtobedefined \/ undeftype2 = Uninitialized) ->
         forall (v : hvalue) (t1 t2 : ftype),
             hvalue_is_undef_or_empty undeftype1 v t1 ->
-            (hvalue_is_undef_or_empty undeftype2 v t2 <-> t1==t2 /\ (ftype_is_empty t1 \/ forall t : ftype, undeftype1 t==undeftype2 t))
-(*with array_value_is_undef_or_empty_unique :
-    forall (undeftype1 undeftype2 : ftype -> hvalue),
-        (undeftype1 = Undefinedonpurpose \/ undeftype1 = Needtobedefined \/ undeftype1 = Uninitialized) ->
-        (undeftype2 = Undefinedonpurpose \/ undeftype2 = Needtobedefined \/ undeftype2 = Uninitialized) ->
-        forall (av : array_value) (elt1 elt2 : ftype) (n1 n2 : nat),
-            array_value_is_undef_or_empty undeftype1 av elt1 n1 ->
-            (array_value_is_undef_or_empty undeftype2 av elt2 n2 <-> ((elt1==elt2) || (n1==0)) && (n1==n2) /\ (ftype_is_empty elt1 || (n1==0) \/ forall t : ftype, undeftype1 t==undeftype2 t))*)
+            (hvalue_is_undef_or_empty undeftype2 v t2 <-> t1==t2 /\ (ftype_is_empty t1 \/ undeftype1=undeftype2))
 with bundle_value_is_undef_or_empty_unique :
     forall (undeftype1 undeftype2 : ftype -> hvalue),
         (undeftype1 = Undefinedonpurpose \/ undeftype1 = Needtobedefined \/ undeftype1 = Uninitialized) ->
         (undeftype2 = Undefinedonpurpose \/ undeftype2 = Needtobedefined \/ undeftype2 = Uninitialized) ->
         forall (bv : bundle_value) (ff1 ff2 : ffield),
             bundle_value_is_undef_or_empty undeftype1 bv ff1 ->
-            (bundle_value_is_undef_or_empty undeftype2 bv ff2 <-> ff1==ff2 /\ (ffield_is_empty ff1 \/ forall t : ftype, undeftype1 t==undeftype2 t)).
+            (bundle_value_is_undef_or_empty undeftype2 bv ff2 <-> ff1==ff2 /\ (ffield_is_empty ff1 \/ undeftype1=undeftype2)).
 Proof.
 * (* clear hvalue_is_undef_or_empty_unique. needed for array values *)
   induction v as [ftv|eltv av|bv|[ftv|eltv nv|ffv]|[ftv|eltv nv|ffv]|[ftv|eltv nv|ffv]] ;
@@ -6207,7 +6667,6 @@ Proof.
   + 1,3-5: split ; first done ; intro ; by destruct H2 as [H2 _].
   + (* array value *)
     move : H1 => /andP [/eqP Helt1 H1] ; subst elt1.
-    (*specialize (array_value_is_undef_or_empty_unique _ _ H H0 _ _ elt2 _ n2 H1).*)
     split ; intro.
     - move : H2 => /andP [/eqP Helt2 H2] ; subst elt2.
       revert n1 n2 H1 H2 ; induction av as [|el av] ; destruct n1, n2 ; try done ; intros.
@@ -6249,10 +6708,10 @@ Proof.
     1-300: try (destruct (ffield_is_empty _) eqn: Hff ; try done).
     1-81: try (apply (elimT eqP) in H1 ; injection H1 as H1 ; subst).
     1-81: try (apply (elimT eqP) in H2 ; injection H2 as H2 ; subst).
-    1-81: try (split ; first done) ; try (right ; intros ; done).
-    1-54: try rewrite ?Hnv ?Hff in H2.
-    1-54: try (destruct (proj2 H2) as [H0|H0] ; done).
-    1-36: by left.
+    1-81: try (split ; first done) ; try (right ; by reflexivity).
+    1-54: try by left.
+    1-18: rewrite ?Hnv ?Hff in H2.
+    1-18: destruct H2 as [_ [H2|H2]] ; first done ; last by rewrite H2.
 * clear bundle_value_is_undef_or_empty_unique.
   induction bv as [|idv flv vv bv] ;
         destruct ff1 as [|id1 fl1 t1 ff1], ff2 as [|id2 fl2 t2 ff2] ; simpl ; try done ; intros.
@@ -6376,11 +6835,6 @@ Lemma unfold_undef_hvalue_and_hvalue_is_undef_or_empty :
         (undeftype = Undefinedonpurpose \/ undeftype = Needtobedefined \/ undeftype = Uninitialized) ->
         forall (v1 v2 : hvalue) (t : ftype),
             unfold_undef_hvalue_eq v1 v2 -> hvalue_is_undef_or_empty undeftype v1 t -> hvalue_is_undef_or_empty undeftype v2 t
-(*with unfold_undef_array_value_and_array_value_is_undef_or_empty :
-    forall undeftype : ftype -> hvalue,
-        (undeftype = Undefinedonpurpose \/ undeftype = Needtobedefined \/ undeftype = Uninitialized) ->
-        forall (av1 av2 : array_value) (elt : ftype) (n : nat),
-          unfold_undef_array_value_eq av1 av2 -> array_value_is_undef_or_empty undeftype av1 elt n -> array_value_is_undef_or_empty undeftype av2 elt n*)
 with unfold_undef_bundle_value_and_bundle_value_is_undef_or_empty :
     forall undeftype : ftype -> hvalue,
         (undeftype = Undefinedonpurpose \/ undeftype = Needtobedefined \/ undeftype = Uninitialized) ->
@@ -6408,7 +6862,7 @@ Proof.
     1-3: simpl hvalue_is_undef_or_empty in H2 ; rewrite eq_refl ?andTb in H2 ; specialize (H2 H0).
     1-3: destruct H2 as [H2 _] ; specialize (H2 H1) ; move : H2 => [/eqP H2 H3].
     1-3: injection H2 as H2 ; subst n2.
-    1-3: destruct H3 as [H3|H3] ; by rewrite H3 // eq_refl if_same.
+    1-3: destruct H3 as [H3|H3] ; by rewrite H3 // ?eq_refl if_same.
   + (* bundle values -- additional goal *)
     by apply (unfold_undef_bundle_value_and_bundle_value_is_undef_or_empty _ H _ _ _ H0 H1).
   + (* three further additional goals, for each undefinedtype one *)
@@ -6418,7 +6872,7 @@ Proof.
     3: specialize (bundle_value_is_undef_or_empty_unique (or_intror (or_intror Logic.eq_refl)) H ff H0) ; intro.
     1-3: destruct H2 as [H2 _] ; specialize (H2 H1).
     1-3: destruct H2 as [Hff [H2|H2]] ; rewrite -(elimT eqP Hff) ; simpl ;
-          destruct (ffield_is_empty ff2) ; done.
+          by rewrite H2 // ?eq_refl if_same.
   (* Now the remaining goals are exactly distributed over the three parts:
      1-15 Undefinedonpurpose. 16-30 Needtobedefined. 31-45 Uninitialized. *)
   + (* Gtyp and a few similar cases *)
@@ -6473,13 +6927,6 @@ Lemma hvalue_is_undef_or_empty_unique_val :
                 hvalue_is_undef_or_empty undeftype v1 t ->
                 hvalue_is_undef_or_empty undeftype v2 t ->
                 unfold_undef_hvalue_eq v1 v2
-(*with array_value_is_undef_or_empty_unique_val :
-    forall (undeftype : ftype -> hvalue),
-        (undeftype = Undefinedonpurpose \/ undeftype = Needtobedefined \/ undeftype = Uninitialized) ->
-            forall (av1 av2: array_value) (elt : ftype) (n : nat),
-                array_value_is_undef_or_empty undeftype av1 elt n ->
-                array_value_is_undef_or_empty undeftype av2 elt n ->
-                unfold_undef_array_value_eq av1 av2*)
 with bundle_value_is_undef_or_empty_unique_val :
     forall (undeftype : ftype -> hvalue),
         (undeftype = Undefinedonpurpose \/ undeftype = Needtobedefined \/ undeftype = Uninitialized) ->
@@ -7156,16 +7603,16 @@ Qed.
 Lemma max_iter_count_not_none :
     forall (connect_count : ftype -> nat) (tmap_super : VM.t (ftype * fcomponent)) (ssl : HiF.hfstmt_seq) (sc_old : VS.t) (tmap_old : VM.t (ftype * fcomponent)) (sc_new : VS.t) (tmap_new : VM.t (ftype * fcomponent)),
         statements_tmap sc_old tmap_old ssl = Some (sc_new, tmap_new) ->
-        (forall k : VM.key, VM.find k tmap_new <> None -> VM.find k tmap_new = VM.find k tmap_super) ->
-        max_iter_count connect_count tmap_super ssl <> None
+        (forall k : VM.key, VM.find k tmap_new -> VM.find k tmap_new = VM.find k tmap_super) ->
+        max_iter_count connect_count tmap_super ssl
 with max_iter_count_stmt'_not_none :
     forall (connect_count : ftype -> nat) (tmap_super : VM.t (ftype * fcomponent)) (s : HiF.hfstmt) (sc_old : VS.t) (tmap_old : VM.t (ftype * fcomponent)) (sc_new : VS.t) (tmap_new : VM.t (ftype * fcomponent)),
         statement_tmap sc_old tmap_old s = Some (sc_new, tmap_new) ->
-        (forall k : VM.key, VM.find k tmap_new <> None -> VM.find k tmap_new = VM.find k tmap_super) ->
-        max_iter_count_stmt' connect_count tmap_super s <> None.
+        (forall k : VM.key, VM.find k tmap_new -> VM.find k tmap_new = VM.find k tmap_super) ->
+        max_iter_count_stmt' connect_count tmap_super s.
 Proof.
 * clear max_iter_count_not_none.
-  induction ssl as [|s ssl'] ; first by discriminate.
+  induction ssl as [|s ssl'] ; first done.
   intros ; simpl in H.
   specialize (max_iter_count_stmt'_not_none connect_count tmap_super s sc_old tmap_old).
   destruct (statement_tmap sc_old tmap_old s) as [[sc_s tmap_s]|] ; last by discriminate H.
@@ -7173,8 +7620,8 @@ Proof.
   specialize (IHssl' sc_s tmap_s sc_new tmap_new H H0).
   simpl.
   destruct (max_iter_count_stmt' _ _ s) as [count_s|].
-  + destruct (max_iter_count _ _ ssl') as [count_ssl'|] ; last by contradiction IHssl'.
-    discriminate.
+  + destruct (max_iter_count _ _ ssl') as [count_ssl'|] ; last by contradict IHssl'.
+    done.
   + apply max_iter_count_stmt'_not_none.
     generalize (@statements_tmap_never_replaces ssl' sc_s) ; intro.
     specialize H1 with (tmap_old := tmap_s).
@@ -7206,8 +7653,8 @@ Proof.
     specialize (H2 _ _ Logic.eq_refl).
     injection H ; clear H ; intros ; subst sc_new tmap_new.
     specialize (max_iter_count_not_none _ _ Logic.eq_refl H0).
-    destruct (max_iter_count _ _ ssf) as [count_false|] ; last by contradiction max_iter_count_not_none.
-    destruct (max_iter_count _ _ sst) as [count_true|] ; first by discriminate.
+    destruct (max_iter_count _ _ ssf) as [count_false|] ; last by contradict max_iter_count_not_none.
+    destruct (max_iter_count _ _ sst) as [count_true|] ; first done.
     apply H1.
     intros.
     destruct H2 as [_ H2].
@@ -7217,7 +7664,7 @@ Qed.
 (* circuit_iter_count always produces a result.
    Basically because circuit_tmap_uninferred is a tmap that contains all references in the circuit. *)
 Lemma circuit_iter_count_not_none :
-    forall (connect_count : ftype -> nat), circuit_iter_count connect_count <> None.
+    forall (connect_count : ftype -> nat), circuit_iter_count connect_count.
 Proof.
 intro ; unfold circuit_iter_count.
 destruct circuit_tmap_correct as [iter_number circuit_tmap_correct'].
@@ -7242,11 +7689,11 @@ induction mml' as [|[mi' ppl ssl|] mml'] ; simpl ; try done.
 intros Hold_mml'_map Hfind.
 destruct (mi' == mi) eqn: Hmi' ; first (by move /eqP : Hmi' => Hmi' ; subst mi' ; rewrite Hfind in Hold_mml'_map).
 rewrite (VM.Lemmas.find_add_neq (elimF idP Hmi')).
-destruct (VM.M.find mi' old_mml'_tmap) ; last by contradiction Hold_mml'_map.
-destruct (max_iter_count _ _ ssl) ; last by contradiction Hold_mml'_map.
-destruct (module_iter_count _ _ old_mml'_tmap) ; last by contradiction Hold_mml'_map.
-destruct (module_iter_count _ _ (VM.add mi tmap_mi old_mml'_tmap)) ; last by contradiction IHmml'.
-discriminate.
+destruct (VM.M.find mi' old_mml'_tmap) ; last by contradict Hold_mml'_map.
+destruct (max_iter_count _ _ ssl) ; last by contradict Hold_mml'_map.
+destruct (module_iter_count _ _ old_mml'_tmap) ; last by contradict Hold_mml'_map.
+destruct (module_iter_count _ _ (VM.add mi tmap_mi old_mml'_tmap)) ; last by apply IHmml'.
+done.
 Qed.
 
 (* Perhaps a lemma that says:
