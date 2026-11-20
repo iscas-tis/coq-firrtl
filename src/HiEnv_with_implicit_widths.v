@@ -98,7 +98,7 @@ with ffield_eqn (f1 f2 : ffield) : bool :=
        end.
 
 Notation "x =? y" := (ftype_eqn x y).
-
+(*
 Lemma ftype_eqn_refl (x : ftype) : x =? x
 with ffield_eqn_refl (fx : ffield) : ffield_eqn fx fx.
 Proof.
@@ -133,7 +133,7 @@ Instance ffield_eqn_Equivalence : Equivalence (@ffield_eqn) :=
   { Equivalence_Reflexive := ffield_eqn_Reflexive;
     Equivalence_Symmetric := ffield_eqn_Symmetric;
     Equivalence_Transitive := ffield_eqn_Transitive }.
-
+*)
 Lemma ftype_eqP : forall (x y : ftype), reflect (x = y) (x =? y)
 with ffield_eqP : forall (fx fy : ffield), reflect (fx = fy) (ffield_eqn fx fy).
 Proof.

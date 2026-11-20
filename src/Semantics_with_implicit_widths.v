@@ -74,7 +74,7 @@
       computations.)
 
       It assumes that there exists a number iter_count such that after
-      iter_count iterations in the previous section, circuit_tmap has
+      iter_count iterations in the second section, circuit_tmap has
       been calculated properly.
 
       It also assumes that the top module is present.
@@ -542,14 +542,11 @@ Fixpoint type_of_ref (sc : option VS.t) (tmap : VM.t (ftype * fcomponent)) (r : 
                | None => option_map fst (VM.find v tmap)
                end
     | Esubfield r v => match type_of_ref sc tmap r with
-                | Some (Btyp fs) => let fix aux fx := (
-                                            match fx with
-                                            | Fflips v' f t fxs =>
-                                              if (v == v') then Some t
-                                              else aux fxs
-                                            | Fnil => None
-                                            end )
-                                    in aux fs
+                | Some (Btyp fs) => (fix aux (fx : ffield) : option ftype :=
+                                         match fx with
+                                         | Fflips v' f t fxs => if (v == v') then Some t else aux fxs
+                                         | Fnil => None
+                                         end) fs
                 | _ => None
                 end
     | Esubaccess r _
@@ -1811,11 +1808,11 @@ Lemma repl_ffield_part_correct :
     forall (v : VarOrder.T) (ff : ffield),
         match repl_ffield_part v ff with
         | Some (fn, ft) => fn ft = ff /\
-                           let fix aux fx := (match fx with
-                                              | Fflips v' f t fxs => if (v == v') then Some t else aux fxs
-                                              | Fnil => None
-                                              end)
-                           in aux ff = Some ft
+                           (fix aux (fx : ffield) : option ftype :=
+                                match fx with
+                                | Fflips v' f t fxs => if (v == v') then Some t else aux fxs
+                                | Fnil => None
+                                end) ff = Some ft
         | None => True
         end.
 Proof.
@@ -2235,11 +2232,7 @@ induction r as [id|r' IHr' id|r' IHr' n|r' IHr' e] ; simpl.
   1-2: move /andP : H => [H _] ; by apply H.
 * (* Esubfield *)
   destruct (type_of_ref sc s r') as [[| |ffs]|] ; try by done.
-  destruct (type_of_ref sc l r') as [[| |ffl]|] ; try by destruct ((fix aux (fx : ffield) : option ftype :=
-                                                                      match fx with
-                                                                      | Fnil => None
-                                                                      | Fflips v' _ t fxs => if id == v' then Some t else aux fxs
-                                                                      end) ffs) ; done.
+  destruct (type_of_ref sc l r') as [[| |ffl]|] ; try by destruct ((fix aux (fx : ffield) : option ftype := _) ffs) ; done.
   revert ffl IHr' ; induction ffs as [|ids [] ts ffs] ; destruct ffl as [|idl [] tl ffl] ; simpl ; try done ; intros.
   2,3: move /andP : IHr' => [/andP [/andP [_ IHr'] _] _] ; discriminate IHr'.
   1,2: move /andP : IHr' => [/andP [/andP [/eqP IHr'a _] IHr'b] IHr'c] ; subst idl.
@@ -3349,22 +3342,22 @@ Fixpoint find_module_instances (n : nat) (inst : SVM.key) (mi : VarOrder.T) (ins
        | Some (FInmod _ _ ssl) => match n with
                                   | 0 => Some inst_map'
                                   | n'.+1 => (fix find_stmts_instances (ssl : HiF.hfstmt_seq) (in_ma : SVM.t VarOrder.T) : option (SVM.t VarOrder.T) :=
-                                                   match ssl with
-                                                   | Qnil => Some in_ma
-                                                   | Qcons s ssl' => match find_stmt_instances s in_ma with
-                                                                     | Some in_ma' => find_stmts_instances ssl' in_ma'
-                                                                     | None => None
-                                                                     end
-                                                   end
+                                                  match ssl with
+                                                  | Qnil => Some in_ma
+                                                  | Qcons s ssl' => match find_stmt_instances s in_ma with
+                                                                    | Some in_ma' => find_stmts_instances ssl' in_ma'
+                                                                    | None => None
+                                                                    end
+                                                  end
                                               with find_stmt_instances (s : HiF.hfstmt) (in_ma : SVM.t VarOrder.T) : option (SVM.t VarOrder.T) :=
-                                                   match s with
-                                                   | Sinst i m' => find_module_instances n' (i :: inst) m' in_ma
-                                                   | Swhen _ ssl_true ssl_false => match find_stmts_instances ssl_true in_ma with
-                                                                                   | Some in_ma_true => find_stmts_instances ssl_false in_ma_true
-                                                                                   | None => None
-                                                                                   end
-                                                   | _ => Some in_ma
-                                                   end
+                                                  match s with
+                                                  | Sinst i m' => find_module_instances n' (i :: inst) m' in_ma
+                                                  | Swhen _ ssl_true ssl_false => match find_stmts_instances ssl_true in_ma with
+                                                                                  | Some in_ma_true => find_stmts_instances ssl_false in_ma_true
+                                                                                  | None => None
+                                                                                  end
+                                                  | _ => Some in_ma
+                                                  end
                                               for find_stmts_instances) ssl inst_map'
                                  end
        | _ => None
@@ -3436,7 +3429,7 @@ apply hfstmt_seq_hfstmt_ind with
   simpl in H1 ; move /andP : H1 => H1.
   specialize (IHs inst (proj1 H1) in_ma).
   destruct ((fix find_stmts_instances (ssl0 : HiF.hfstmt_seq) (in_ma0 : SVM.t N) {struct ssl0} : option (SVM.t N) := _
-            with find_stmt_instances (s : HiF.hfstmt) (in_ma0 : SVM.t N) {struct s} : option (SVM.t N) := _
+             with find_stmt_instances (s : HiF.hfstmt) (in_ma0 : SVM.t N) {struct s} : option (SVM.t N) := _
              for find_stmt_instances) s in_ma) as [in_ma_s|] ;
         last by contradict IHs.
   by apply IHss, H1.
@@ -3448,7 +3441,7 @@ apply hfstmt_seq_hfstmt_ind with
   simpl in H1 ; move /andP : H1 => H1.
   specialize (IHsst inst (proj1 H1) in_ma).
   destruct ((fix find_stmts_instances (ssl0 : HiF.hfstmt_seq) (in_ma0 : SVM.t N) {struct ssl0} : option (SVM.t N) := _
-            with find_stmt_instances (s : HiF.hfstmt) (in_ma0 : SVM.t N) {struct s} : option (SVM.t N) := _
+             with find_stmt_instances (s : HiF.hfstmt) (in_ma0 : SVM.t N) {struct s} : option (SVM.t N) := _
              for find_stmts_instances) sst in_ma) as [in_ma_true|] ;
         last by contradict IHsst.
   by apply IHssf, H1.
@@ -4211,11 +4204,11 @@ Fixpoint hvalue_eqn (x y : hvalue) : bool :=
   match x, y with
   | Gval ft1 val1, Gval ft2 val2 => (ft1 == ft2) && (val1 == val2)
   | Aval elt1 val1, Aval elt2 val2 => (elt1==elt2) && (fix array_value_eqn (x y : seq hvalue) : bool :=
-                                                       match x, y with
-                                                       | [::], [::] => true
-                                                       | el1 :: tl1, el2 :: tl2 => (hvalue_eqn el1 el2) && (array_value_eqn tl1 tl2)
-                                                       | _, _ => false
-                                                       end) val1 val2
+                                                           match x, y with
+                                                           | [::], [::] => true
+                                                           | el1 :: tl1, el2 :: tl2 => (hvalue_eqn el1 el2) && (array_value_eqn tl1 tl2)
+                                                           | _, _ => false
+                                                           end) val1 val2
   | Bval val1, Bval val2 => bundle_value_eqn val1 val2
   | Undefinedonpurpose t1, Undefinedonpurpose t2
   | Needtobedefined    t1, Needtobedefined    t2
@@ -4313,12 +4306,12 @@ Fixpoint eval_type_of_ref (r : HiF.href) (sem_old : VM.t hvalue) : option ftype 
     match r with
     | Eid v => option_map type_of_val (VM.find v sem_old)
     | Esubfield r' v => match eval_type_of_ref r' sem_old with
-                        | Some (Btyp fs) => let fix aux fx := (match fx with
-                                                               | Fflips v' f t fxs => if (v == v') then Some t
-                                                                                                   else aux fxs
-                                                               | Fnil => None
-                                                               end)
-                                            in aux fs
+                        | Some (Btyp fs) => (fix aux (fx : ffield) : option ftype :=
+                                                 match fx with
+                                                 | Fflips v' f t fxs => if (v == v') then Some t
+                                                                                     else aux fxs
+                                                 | Fnil => None
+                                                 end) fs
                         | _ => None
                         end
     | Esubaccess r' _
@@ -4801,14 +4794,14 @@ Fixpoint adapt_hvalue_as_type (val : hvalue) (t : ftype) : option hvalue :=
     | Gval Fasyncreset c, Gtyp Fasyncreset
     | Gval Fclock      c, Gtyp Fclock      => Some val
     | Aval elt aval, (Atyp elt' n) => option_map (Aval elt') ((fix adapt_array_value_as_type (av : seq hvalue) (n : nat) : option (seq hvalue) :=
-                                                               match av, n with
-                                                               | [::], 0 => Some [::]
-                                                               | v :: av', n'.+1 => match adapt_hvalue_as_type v elt', adapt_array_value_as_type av' n' with
-                                                                                    | Some v_res, Some av_res => Some (v_res :: av_res)
-                                                                                    | _, _ => None
-                                                                                    end
-                                                               | _, _ => None
-                                                               end) aval n)
+                                                                   match av, n with
+                                                                   | [::], 0 => Some [::]
+                                                                   | v :: av', n'.+1 => match adapt_hvalue_as_type v elt', adapt_array_value_as_type av' n' with
+                                                                                        | Some v_res, Some av_res => Some (v_res :: av_res)
+                                                                                        | _, _ => None
+                                                                                        end
+                                                                   | _, _ => None
+                                                                   end) aval n)
     | Bval bval, (Btyp ff) => option_map Bval (adapt_bundle_value_as_type bval ff)
     | Undefinedonpurpose t, t' => if ftype_mux false t t' then Some (Undefinedonpurpose t') else None
     | Needtobedefined    t, t' => if ftype_mux false t t' then Some (Needtobedefined    t') else None
@@ -4870,10 +4863,11 @@ Fixpoint eval_href (r : HiF.href) (sem_old sem_new: VM.t hvalue) : option hvalue
   | Eid v => VM.find v sem_new
   | Esubfield r' v => match eval_href r' sem_old sem_new with
                       | Some bv => match convert_to_bundle_value bv with
-                                   | Some fv => (fix aux fx := match fx with
-                                                               | Bflips v' f t fxs => if (v == v') then Some t else aux fxs
-                                                               | Bnil => None
-                                                               end) fv
+                                   | Some fv => (fix aux (fx : bundle_value) : option hvalue := 
+                                                     match fx with
+                                                     | Bflips v' f t fxs => if (v == v') then Some t else aux fxs
+                                                     | Bnil => None
+                                                     end) fv
                                    | _ => None
                                    end
                       | _ => None
@@ -5011,11 +5005,11 @@ Fixpoint hvalue_is_type_correct (val : hvalue) (t : ftype) : bool :=
     | Gval Fasyncreset bs, Gtyp Fasyncreset
     | Gval Fclock      bs, Gtyp Fclock      => size bs==1
     | Aval elt' aval, Atyp elt n => (elt'==elt) && (fix array_value_is_type_correct (aval : seq hvalue) (n : nat) : bool :=
-                                                    match aval, n with
-                                                    | [::], 0 => ftype_is_explicit_and_concrete elt
-                                                    | val :: aval', n'.+1 => hvalue_is_type_correct val elt && array_value_is_type_correct aval' n'
-                                                    | _, _ => false
-                                                    end) aval n
+                                                        match aval, n with
+                                                        | [::], 0 => ftype_is_explicit_and_concrete elt
+                                                        | val :: aval', n'.+1 => hvalue_is_type_correct val elt && array_value_is_type_correct aval' n'
+                                                        | _, _ => false
+                                                        end) aval n
     | Bval bval, Btyp ff => bundle_value_is_type_correct bval ff
     | Undefinedonpurpose t', t
     | Needtobedefined    t', t
@@ -5137,11 +5131,7 @@ Proof.
             last by destruct (ftype_mux false elt1 elt2) ;
                     rewrite // /option_map if_same //.
       specialize (IHav' n1 n2 H1).
-      destruct ((fix adapt_array_value_as_type (av : seq hvalue) (n : nat) {struct av} : option (seq hvalue) :=
-                 match av with
-                 | [::] => _
-                 | v :: av' => _
-                 end) av' n2) as [av_res|] ;
+      destruct ((fix adapt_array_value_as_type (av : seq hvalue) (n : nat) : option (seq hvalue) := _) av' n2) as [av_res|] ;
             last by rewrite eqSS ; simpl in IHav' ;
                     destruct (n1 == n2), (ftype_mux false elt1 elt2).
       simpl ; simpl in IHav'.
@@ -5929,16 +5919,15 @@ Fixpoint orient_of_ref (r : HiF.href) (tmap : VM.t (ftype * fcomponent)) : optio
                | None => None
                end
     | Esubfield r' v => match orient_of_ref r' tmap with
-                        | Some (ori, Btyp ff) => let fix orient_of_field (ff0 : ffield) : option (forient * ftype) :=
-                                                         match ff0 with
-                                                         | Fnil => None
-                                                         | Fflips v' fl t ff0' => if v!=v' then orient_of_field ff0'
-                                                                                           else match flip_orient_if fl ori with
-                                                                                                | Some ori => Some (ori, t)
-                                                                                                | None => None
-                                                                                                end
-                                                         end
-                                                 in orient_of_field ff
+                        | Some (ori, Btyp ff) => (fix orient_of_field (ff0 : ffield) : option (forient * ftype) :=
+                                                      match ff0 with
+                                                      | Fnil => None
+                                                      | Fflips v' fl t ff0' => if v!=v' then orient_of_field ff0'
+                                                                                        else match flip_orient_if fl ori with
+                                                                                             | Some ori => Some (ori, t)
+                                                                                             | None => None
+                                                                                             end
+                                                      end) ff
                         | _ => None
                         end
     | Esubindex r' _
@@ -5988,10 +5977,10 @@ Fixpoint combine_writeable_undef (ori : forient) (t : ftype) (writeable_undeftyp
                  end
     | Atyp elt n => match combine_writeable_undef ori elt writeable_undeftype unchanged_undeftype with
                     | Some el => Some (Aval elt ((fix combine_writeable_undef_array (n : nat) : seq hvalue :=
-                                                  match n with
-                                                  | 0 => [::]
-                                                  | n'.+1 => el :: (combine_writeable_undef_array n')
-                                                  end) n))
+                                                      match n with
+                                                      | 0 => [::]
+                                                      | n'.+1 => el :: (combine_writeable_undef_array n')
+                                                      end) n))
                     | None => None
                     end
     | Btyp ff => option_map Bval (combine_writeable_undef_ffield ori ff writeable_undeftype unchanged_undeftype)
@@ -6756,11 +6745,11 @@ Fixpoint unfold_undef_hvalue_eq (v1 v2 : hvalue) : bool :=
   (*|Gval _ _ => v1==v2 *)
     | Aval elt1 av1 => match v2 with
                        | Aval elt2 av2 => (elt1==elt2) && (fix unfold_undef_array_value_eq (av1 av2 : seq hvalue) : bool :=
-                                                           match av1, av2 with
-                                                           | [::], [::] => true
-                                                           | el1 :: av1, el2 :: av2 => unfold_undef_hvalue_eq el1 el2 && unfold_undef_array_value_eq av1 av2
-                                                           | _, _ => false
-                                                           end) av1 av2
+                                                               match av1, av2 with
+                                                               | [::], [::] => true
+                                                               | el1 :: av1, el2 :: av2 => unfold_undef_hvalue_eq el1 el2 && unfold_undef_array_value_eq av1 av2
+                                                               | _, _ => false
+                                                               end) av1 av2
                        | Undefinedonpurpose t2 => hvalue_is_undef_or_empty Undefinedonpurpose v1 t2
                        | Needtobedefined    t2 => hvalue_is_undef_or_empty Needtobedefined    v1 t2
                        | Uninitialized      t2 => hvalue_is_undef_or_empty Uninitialized      v1 t2
@@ -7264,19 +7253,15 @@ induction r as [id|r IHr id|r IHr i|r IHr e] ; simpl ; intros ;
   specialize (IHr (fun old_val new_val0 : hvalue =>
                    match convert_to_bundle_value old_val with
                    | Some old_bval => option_map Bval ((fix repl_bundle_value_part (bv0 : bundle_value) : option bundle_value :=
-                                                        match bv0 with
-                                                        | Bnil => None
-                                                        | Bflips id' fl vv0 bv' => if id == id' then option_map ((Bflips id' fl)^~ bv') (fn vv0 new_val0)
-                                                                                                else option_map (Bflips id' fl vv0) (repl_bundle_value_part bv')
-                                                        end) old_bval)
+                                                            match bv0 with
+                                                            | Bnil => None
+                                                            | Bflips id' fl vv0 bv' => if id == id' then option_map ((Bflips id' fl)^~ bv') (fn vv0 new_val0)
+                                                                                                    else option_map (Bflips id' fl vv0) (repl_bundle_value_part bv')
+                                                            end) old_bval)
                    | None => None
                    end)).
   destruct (eval_href r sem_old sem_new) as [[| |bv|[| |ff]|[| |ff]|[| |ff]]|] ; simpl ; try done.
-  + destruct ((fix aux (fx : bundle_value) : option hvalue :=
-               match fx with
-               | Bnil => None
-               | Bflips v' _ t fxs => if id == v' then Some t else aux fxs
-               end) bv) as [old_r_val|] eqn: Hold_r_val ; last done.
+  + destruct ((fix aux (fx : bundle_value) : option hvalue := _) bv) as [old_r_val|] eqn: Hold_r_val ; last done.
     intros.
     apply IHr ; try done.
     - intros ; simpl.
@@ -7291,12 +7276,7 @@ induction r as [id|r IHr id|r IHr i|r IHr e] ; simpl ; intros ;
           destruct (fn vo nv) as [fn_vo_nv|] ; last done ; simpl.
           by rewrite ?eq_refl H ?andTb.
         + specialize (IHbo bv Hold_r_val H5).
-          destruct ((fix repl_bundle_value_part (bv0 : bundle_value) : option bundle_value :=
-                     match bv0 with
-                     | Bnil => None
-                     | Bflips id' fl vv0 bv' => if id == id' then option_map ((Bflips id' fl)^~ bv') (fn vv0 nv)
-                                                             else option_map (Bflips id' fl vv0) (repl_bundle_value_part bv')
-                     end) bo) as [fn_ov_bv|] ; last done.
+          destruct ((fix repl_bundle_value_part (bv0 : bundle_value) : option bundle_value := _) bo) as [fn_ov_bv|] ; last done.
           simpl ; simpl in IHbo.
           by rewrite ?eq_refl H4 ?andTb.
       * 1,3,5: by simpl in H5 ; move /andP : H5 => [_ /eqP H4].
@@ -7316,12 +7296,7 @@ induction r as [id|r IHr id|r IHr i|r IHr e] ; simpl ; intros ;
           1-3: intros ; simpl ; by rewrite eq_refl andbT.
         + 1-3: specialize (IHoff bv Hold_r_val).
           1-3: simpl in IHoff ; rewrite H5 eq_refl andTb in IHoff ; specialize (IHoff is_true_true).
-          1-3: destruct ((fix repl_bundle_value_part (bv0 : bundle_value) : option bundle_value :=
-                          match bv0 with
-                          | Bnil => None
-                          | Bflips id' fl vv0 bv' => if id == id' then option_map ((Bflips id' fl)^~ bv') (fn vv0 nv)
-                                                                  else option_map (Bflips id' fl vv0) (repl_bundle_value_part bv')
-                          end) (create_undef_bundle_value _ (type_of_bundle_val bv))) as [fn_ov_nv|] ; last done.
+          1-3: destruct ((fix repl_bundle_value_part (bv0 : bundle_value) : option bundle_value := _) (create_undef_bundle_value _ (type_of_bundle_val bv))) as [fn_ov_nv|] ; last done.
           1-3: simpl ; simpl in IHoff.
           1-3: by rewrite ?eq_refl H4 ?andTb.
     - clear -Hold_r_val H0.
@@ -7336,21 +7311,12 @@ induction r as [id|r IHr id|r IHr i|r IHr e] ; simpl ; intros ;
         by apply unfold_undef_bundle_value_eq_reflexive.
       + specialize (IHbv old_r_val Hold_r_val H0).
         simpl in IHbv.
-        destruct ((fix repl_bundle_value_part (bv0 : bundle_value) : option bundle_value :=
-                   match bv0 with
-                   | Bnil => None
-                   | Bflips id' fl vv0 bv' => if id == id' then option_map ((Bflips id' fl)^~ bv') (fn vv0 old_new_val)
-                                                           else option_map (Bflips id' fl vv0) (repl_bundle_value_part bv')
-                   end) bv) as [bv'|] ; last done.
+        destruct ((fix repl_bundle_value_part (bv0 : bundle_value) : option bundle_value := _) bv) as [bv'|] ; last done.
         simpl ; simpl in IHbv.
         rewrite ?eq_refl ?andTb IHbv andbT.
         by apply unfold_undef_hvalue_eq_reflexive.
   + (* now a similar proof for the three cases of undefined values *)
-    1-3: destruct ((fix aux (fx : bundle_value) : option hvalue :=
-                    match fx with
-                    | Bnil => None
-                    | Bflips v' _ t fxs => if id == v' then Some t else aux fxs
-                    end) (create_undef_bundle_value _ ff)) as [old_r_val|] eqn: Hold_r_val ; last done.
+    1-3: destruct ((fix aux (fx : bundle_value) : option hvalue := _) (create_undef_bundle_value _ ff)) as [old_r_val|] eqn: Hold_r_val ; last done.
     1-3: intros.
     1-3: apply IHr ; try done.
     - 1,3,5: intros ; simpl.
@@ -7365,12 +7331,7 @@ induction r as [id|r IHr id|r IHr i|r IHr e] ; simpl ; intros ;
           1-3: destruct (fn vo nv) as [fn_vo_nv|] ; last done ; simpl.
           1-3: by rewrite ?eq_refl H ?andTb.
         + 1-3: specialize (IHbo ff Hold_r_val H5).
-          1-3: destruct ((fix repl_bundle_value_part (bv0 : bundle_value) : option bundle_value :=
-                          match bv0 with
-                          | Bnil => None
-                          | Bflips id' fl vv0 bv' => if id == id' then option_map ((Bflips id' fl)^~ bv') (fn vv0 nv)
-                                                                  else option_map (Bflips id' fl vv0) (repl_bundle_value_part bv')
-                          end) bo) as [fn_ov_bv|] ; last done.
+          1-3: destruct ((fix repl_bundle_value_part (bv0 : bundle_value) : option bundle_value := _) bo) as [fn_ov_bv|] ; last done.
           1-3: simpl ; simpl in IHbo.
           1-3: by rewrite ?eq_refl H4 ?andTb.
       * 1,3,5,7,9,11,13,15,17: by simpl in H5 ; move /andP : H5 => [_ /eqP H4].
@@ -7390,12 +7351,7 @@ induction r as [id|r IHr id|r IHr i|r IHr e] ; simpl ; intros ;
           1-9: intros ; simpl ; by rewrite eq_refl andbT.
         + 1-9: specialize (IHoff ff Hold_r_val).
           1-9: simpl in IHoff ; rewrite H5 eq_refl andTb in IHoff ; specialize (IHoff is_true_true).
-          1-9: destruct ((fix repl_bundle_value_part (bv0 : bundle_value) : option bundle_value :=
-                          match bv0 with
-                          | Bnil => None
-                          | Bflips id' fl vv0 bv' => if id == id' then option_map ((Bflips id' fl)^~ bv') (fn vv0 nv)
-                                                                  else option_map (Bflips id' fl vv0) (repl_bundle_value_part bv')
-                          end) (create_undef_bundle_value _ ff)) as [fn_ov_nv|] ; last done.
+          1-9: destruct ((fix repl_bundle_value_part (bv0 : bundle_value) : option bundle_value := _) (create_undef_bundle_value _ ff)) as [fn_ov_nv|] ; last done.
           1-9: simpl ; simpl in IHoff.
           1-9: by rewrite ?eq_refl H4 ?andTb.
     - 1-3: clear -Hold_r_val H0.
@@ -7411,12 +7367,7 @@ induction r as [id|r IHr id|r IHr i|r IHr e] ; simpl ; intros ;
         1-3: by rewrite ?eq_refl if_same ?andTb.
       + 1-3: specialize (IHff old_r_val Hold_r_val H0).
         1-3: simpl in IHff.
-        1-3: destruct ((fix repl_bundle_value_part (bv0 : bundle_value) : option bundle_value :=
-                        match bv0 with
-                        | Bnil => None
-                        | Bflips id' fl vv0 bv' => if id == id' then option_map ((Bflips id' fl)^~ bv') (fn vv0 old_new_val)
-                                                                else option_map (Bflips id' fl vv0) (repl_bundle_value_part bv')
-                        end) (create_undef_bundle_value _ ff)) as [bv'|] ; last done.
+        1-3: destruct ((fix repl_bundle_value_part (bv0 : bundle_value) : option bundle_value := _) (create_undef_bundle_value _ ff)) as [bv'|] ; last done.
         1-3: simpl ; simpl in IHff.
         1-3: by rewrite ?eq_refl if_same ?andTb.
 * (* Esubindex and first part of Esubaccess *)
@@ -7425,11 +7376,11 @@ induction r as [id|r IHr id|r IHr i|r IHr e] ; simpl ; intros ;
   1-2: specialize (IHr (fun old_val new_val0 : hvalue =>
                         match convert_to_array_value old_val with
                         | Some (elt, old_aval) => option_map (Aval elt) ((fix repl_array_value_part (av : seq hvalue) (i : nat) :=
-                                                                          match av, i with
-                                                                          | [::], _ => None
-                                                                          | el :: av', 0 => option_map (cons^~ av') (fn el new_val0)
-                                                                          | el :: av', i'.+1 => option_map (cons el) (repl_array_value_part av' i')
-                                                                          end) old_aval i)
+                                                                              match av, i with
+                                                                              | [::], _ => None
+                                                                              | el :: av', 0 => option_map (cons^~ av') (fn el new_val0)
+                                                                              | el :: av', i'.+1 => option_map (cons el) (repl_array_value_part av' i')
+                                                                              end) old_aval i)
                         | None => None
                         end)).
   1-2: apply eval_href_type_correct with (r := r) (sem_old := sem_old) in H7.
@@ -7457,14 +7408,7 @@ induction r as [id|r IHr id|r IHr i|r IHr e] ; simpl ; intros ;
           1-2: by rewrite eq_refl H ?andTb.
         + 1-2: simpl hvalue_is_type_correct in IHi ; rewrite eq_refl in IHi.
           1-2: specialize (IHi av oav Hold_r_val H5 H7).
-          1-2: destruct ((fix repl_array_value_part (av : seq hvalue) (i : nat) {struct av} : option (seq hvalue) :=
-                          match av with
-                          | [::] => None
-                          | el :: av' => match i with
-                                         | 0 => option_map (cons^~ av') (fn el nv)
-                                         | i'.+1 => option_map (cons el) (repl_array_value_part av' i')
-                                         end
-                          end) oav i) as [fn_ov_nv|] ; last done.
+          1-2: destruct ((fix repl_array_value_part (av : seq hvalue) (i : nat) {struct av} : option (seq hvalue) := _) oav i) as [fn_ov_nv|] ; last done.
             1-2: simpl ; simpl in IHi.
             1-2: by rewrite H4 andTb.
       * 1,3,5,7,9,11: revert i av no Hold_r_val H5 H8.
@@ -7485,14 +7429,7 @@ induction r as [id|r IHr id|r IHr i|r IHr e] ; simpl ; intros ;
           1-6: simpl hvalue_is_type_correct in IHi ; rewrite {1}H4 eq_refl in IHi.
           1-6: specialize (IHi is_true_true H7).
           1-6: simpl ;
-               destruct ((fix repl_array_value_part (av : seq hvalue) (i : nat) {struct av} : option (seq hvalue) :=
-                          match av with
-                          | [::] => None
-                          | el :: av' => match i with
-                                         | 0 => option_map (cons^~ av') (fn el nv)
-                                         | i'.+1 => option_map (cons el) (repl_array_value_part av' i')
-                                         end
-                          end) (create_undef_array_value _ elt (size av)) i) as [fn_ov_nv|] ; last done.
+               destruct ((fix repl_array_value_part (av : seq hvalue) (i : nat) {struct av} : option (seq hvalue) := _) (create_undef_array_value _ elt (size av)) i) as [fn_ov_nv|] ; last done.
           1-6: simpl ; simpl in IHi.
           1-6: by rewrite {1}eq_refl {1}H4 ?andTb.
       * 1-6: by simpl in H5 ; move /andP : H5 => [_ /eqP H4].
@@ -7507,14 +7444,7 @@ induction r as [id|r IHr id|r IHr i|r IHr e] ; simpl ; intros ;
       + 1-2: simpl in H8 ; move : H8 => /andP [H8 H7].
         1-2: specialize (IHi av old_r_val Hold_r_val H0 H7).
         1-2: simpl in IHi.
-        1-2: destruct ((fix repl_array_value_part (av : seq hvalue) (i : nat) {struct av} : option (seq hvalue) :=
-                        match av with
-                        | [::] => None
-                        | el :: av' => match i with
-                                       | 0 => option_map (cons^~ av') (fn el old_new_val)
-                                       | i'.+1 => option_map (cons el) (repl_array_value_part av' i')
-                                       end
-                        end) av i) as [av'|] ; last done.
+        1-2: destruct ((fix repl_array_value_part (av : seq hvalue) (i : nat) {struct av} : option (seq hvalue) := _) av i) as [av'|] ; last done.
         1-2: simpl ; simpl in IHi.
         1-2: rewrite andbCA IHi andbT.
         1-2: by apply unfold_undef_hvalue_eq_reflexive.
@@ -7536,14 +7466,7 @@ induction r as [id|r IHr id|r IHr i|r IHr e] ; simpl ; intros ;
           1-6: by rewrite eq_refl H ?andTb.
         + 1-6: simpl hvalue_is_type_correct in IHi ; rewrite eq_refl in IHi.
           1-6: specialize (IHi n oav Hold_r_val H5).
-          1-6: destruct ((fix repl_array_value_part (av : seq hvalue) (i : nat) {struct av} : option (seq hvalue) :=
-                          match av with
-                          | [::] => None
-                          | el :: av' => match i with
-                                         | 0 => option_map (cons^~ av') (fn el nv)
-                                         | i'.+1 => option_map (cons el) (repl_array_value_part av' i')
-                                         end
-                          end) oav i) as [fn_ov_nv|] ; last done.
+          1-6: destruct ((fix repl_array_value_part (av : seq hvalue) (i : nat) {struct av} : option (seq hvalue) := _) oav i) as [fn_ov_nv|] ; last done.
           1-6: simpl ; simpl in IHi.
           1-6: by rewrite H4 andTb.
       * 1,3,5,7,9,11,13,15,17,19,21,23,25,27,29,31,33,35: revert i n no Hold_r_val H5.
@@ -7563,14 +7486,7 @@ induction r as [id|r IHr id|r IHr i|r IHr e] ; simpl ; intros ;
           1-18: simpl hvalue_is_type_correct in IHi ; rewrite {1}H4 eq_refl in IHi.
           1-18: specialize (IHi is_true_true).
           1-18: simpl ;
-               destruct ((fix repl_array_value_part (av : seq hvalue) (i : nat) {struct av} : option (seq hvalue) :=
-                          match av with
-                          | [::] => None
-                          | el :: av' => match i with
-                                         | 0 => option_map (cons^~ av') (fn el nv)
-                                         | i'.+1 => option_map (cons el) (repl_array_value_part av' i')
-                                         end
-                          end) (create_undef_array_value _ elt n) i) as [fn_ov_nv|] ; last done.
+               destruct ((fix repl_array_value_part (av : seq hvalue) (i : nat) {struct av} : option (seq hvalue) := _) (create_undef_array_value _ elt n) i) as [fn_ov_nv|] ; last done.
           1-18: simpl ; simpl in IHi.
           1-18: by rewrite {1}eq_refl {1}H4 ?andTb.
       * 1-18: by simpl in H5 ; move /andP : H5 => [_ /eqP H4].
@@ -7585,14 +7501,7 @@ induction r as [id|r IHr id|r IHr i|r IHr e] ; simpl ; intros ;
         1-6: by rewrite ?eq_refl if_same andTb.
       + 1-6: specialize (IHi n old_r_val Hold_r_val H0).
         1-6: simpl in IHi.
-        1-6: destruct ((fix repl_array_value_part (av : seq hvalue) (i : nat) {struct av} : option (seq hvalue) :=
-                        match av with
-                        | [::] => None
-                        | el :: av' => match i with
-                                       | 0 => option_map (cons^~ av') (fn el old_new_val)
-                                       | i'.+1 => option_map (cons el) (repl_array_value_part av' i')
-                                       end
-                        end) (create_undef_array_value _ elt n) i) as [av'|] ; last done.
+        1-6: destruct ((fix repl_array_value_part (av : seq hvalue) (i : nat) {struct av} : option (seq hvalue) := _) (create_undef_array_value _ elt n) i) as [av'|] ; last done.
         1-6: simpl ; simpl in IHi.
         1-6: by rewrite andbCA IHi andbT ?eq_refl if_same.
 * (* second part of Esubaccess *)
